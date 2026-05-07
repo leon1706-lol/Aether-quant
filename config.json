@@ -15,7 +15,7 @@
         "status": "defined",
         "objective": "Define a compact V1 universe with shared Lean data coverage for training and backtesting.",
         "universe": {
-            "name": "v1_daily_core",
+            "name": "v2_daily_multi_asset",
             "resolution": "Daily",
             "assets": [
                 {
@@ -43,12 +43,64 @@
                     "available_to": "2021-03-31"
                 },
                 {
+                    "ticker": "IWM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/iwm.zip",
+                    "available_from": "2000-05-26",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EEM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/eem.zip",
+                    "available_from": "2003-04-14",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "BAC",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/bac.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "IBM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/ibm.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
                     "ticker": "BTCUSD",
                     "security_type": "crypto",
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/btcusd_trade.zip",
                     "available_from": "2014-12-01",
                     "available_to": "2018-08-13"
+                },
+                {
+                    "ticker": "ETHUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/ethusd_trade.zip",
+                    "derived_from": "data/crypto/coinbase/minute/ethusd",
+                    "aggregation": "daily_from_minute_trade",
+                    "available_from": "2017-09-03",
+                    "available_to": "2018-04-05"
+                },
+                {
+                    "ticker": "LTCUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/ltcusd_trade.zip",
+                    "derived_from": "data/crypto/coinbase/minute/ltcusd",
+                    "aggregation": "daily_from_minute_trade",
+                    "available_from": "2018-04-04",
+                    "available_to": "2018-04-06"
                 }
             ],
             "common_window": {
@@ -138,6 +190,22 @@
             "max_daily_drawdown_pct": 0.03,
             "max_total_drawdown_pct": 0.12,
             "liquidate_on_risk_breach": true
+        }
+    },
+    "phase9": {
+        "status": "multi_asset_v2_active",
+        "objective": "Expand the universe while keeping thin-history assets visible but safely observation-only.",
+        "asset_quality": {
+            "min_total_feature_rows": 50,
+            "min_training_rows": 100,
+            "min_backtest_rows": 20,
+            "observation_only_kept_in_universe": true
+        },
+        "portfolio": {
+            "max_active_positions": 5,
+            "max_equity_exposure": 0.65,
+            "max_crypto_exposure": 0.25,
+            "observation_only_assets_can_trade": false
         }
     },
     "local-id": 694224972
