@@ -5,7 +5,7 @@ Das Ziel ist ein adaptives Modell, das auf Lean-Daten trainiert wird, im Backtes
 
 ## Aktueller Stand
 
-Phase 9 ist sauber abgeschlossen und das erste Multi-Asset-V2-Universum ist abgesichert:
+Phase 10 ist gestartet. Phase 9 ist sauber abgeschlossen und das erste Multi-Asset-V2-Universum ist abgesichert:
 
 - Grundstruktur fuer `backtests/`, `ml/` und `visualization/`
 - Lean-Algorithmus in `main.py` mit Feature-Berechnung, JSON-Modell-Inferenz, Signal-Engine und Risk Controls
@@ -20,6 +20,7 @@ Phase 9 ist sauber abgeschlossen und das erste Multi-Asset-V2-Universum ist abge
 - Persistente Dataset-Artefakte in `ml/datasets/`, `ml/dataset_manifest.json` und `ml/scaler.pkl`
 - Modellartefakte in `ml/model.pt`, `ml/training_metrics.json` und `ml/model_weights.json`
 - Strategie-Validierung in `backtests/strategy_report.json` und `backtests/equity_curves.csv`
+- erste Unit-Tests fuer Feature Engineering, Asset-Qualitaet und Scaler-Verhalten
 
 ## Projektstruktur
 
@@ -99,6 +100,76 @@ python -m http.server 8000
 ```
 
 Danach `http://localhost:8000/dashboard.html` im Browser oeffnen.
+
+## Runbook
+
+Diese Befehle sind die kurzen Standardwege fuer den lokalen Alltag.
+
+Virtuelle Umgebung aktivieren:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Training und Artefakte neu erzeugen:
+
+```powershell
+python train.py
+```
+
+Nur Dataset/Scaler/Manifest neu bauen:
+
+```powershell
+python train.py --dataset-only
+```
+
+Tests ausfuehren:
+
+```powershell
+pytest
+```
+
+Lean-Backtest aus dem Projektordner starten:
+
+```powershell
+lean backtest .
+```
+
+Fertigen Backtest erkennen:
+
+```powershell
+Get-ChildItem .\backtests\<BACKTEST_ORDNER>\*-summary.json
+```
+
+Offiziellen Lean-HTML-Report erzeugen:
+
+```powershell
+lean report --backtest-results .\backtests\<BACKTEST_ORDNER>\<ERGEBNIS_ID>.json --report-destination .\backtests\<BACKTEST_ORDNER>\report.html --overwrite
+```
+
+Beispiel vom letzten erfolgreichen Lauf:
+
+```powershell
+lean report --backtest-results .\backtests\2026-05-07_15-05-06\1366365999.json --report-destination .\backtests\2026-05-07_15-05-06\report.html --overwrite
+```
+
+Dashboard lokal starten:
+
+```powershell
+python -m http.server 8000
+```
+
+Grafana/CSV-Dateien lokal ausliefern:
+
+```powershell
+python -m http.server 8010
+```
+
+Git-Status vor einem Commit pruefen:
+
+```powershell
+git status
+```
 
 ## Phase-1- und Phase-9-Entscheidungen
 
@@ -224,9 +295,18 @@ Die aktuelle Multi-Asset-Stufe macht jetzt zusaetzlich Folgendes:
 - begrenzt die Portfolio-Ausweitung mit maximalen aktiven Positionen sowie Equity- und Krypto-Exposure-Caps
 - fuehrt einen erfolgreichen Lean-Backtest ueber das erweiterte Daily-Universum aus
 
+## Phase-10-Ergebnis
+
+Die aktuelle Stabilisierung macht jetzt zusaetzlich Folgendes:
+
+- haelt grosse lokale Artefakte wie `data/`, `backtests/`, `ml/datasets/` und `.venv/` aus dem oeffentlichen Git-Repo heraus
+- dokumentiert die wichtigsten lokalen Befehle fuer Training, Tests, Lean-Backtests, Lean-Reports und Dashboard
+- nutzt strukturierte Laufzeitlogs in `train.py` fuer Dataset-Aufbau, Asset-Qualitaet und Trainingsfortschritt
+- fuegt erste `pytest`-Tests fuer Feature Engineering, Asset-Quality-Entscheidungen und Scaler-Fitting hinzu
+
 ## Naechste technische Phasen
 
-- Phase 10: Stabilisierung
+- Phase 10: Stabilisierung weiter ausbauen
 - Phase 7: Kontrolliertes Online-Lernen auf stabilerer Beobachtungsbasis
 
 ## Hinweise

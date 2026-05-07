@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import logging
 import math
 import random
 from collections import Counter
@@ -30,6 +31,7 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 
+LOGGER = logging.getLogger("aether_quant.train")
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 ML_DIR = ROOT / "ml"
@@ -76,6 +78,13 @@ def parse_args() -> argparse.Namespace:
         help="Build dataset artifacts and scaler, but skip model training."
     )
     return parser.parse_args()
+
+
+def setup_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 
 def ensure_directories() -> None:
@@ -1555,9 +1564,11 @@ def write_visualization_state(
 
 
 def main() -> int:
+    setup_logging()
     args = parse_args()
     ensure_directories()
     config = load_project_config()
+    LOGGER.info("Starting Aether Quant training pipeline.")
     ensure_derived_crypto_daily_series(config)
     data_summary = summarize_data_tree()
     inventory = build_phase_inventory(config, data_summary)
@@ -1568,6 +1579,7 @@ def main() -> int:
         if existing_context is None and not MODEL_WEIGHTS_PATH.exists():
             write_model_export(config, data_summary)
         write_visualization_state(config, inventory, data_summary, training_context=existing_context)
+        LOGGER.info("Inventory refreshed.")
         print("Phase 5 inventory refreshed.")
         return 0
 
@@ -1575,6 +1587,19 @@ def main() -> int:
     feature_names = config["phase1"]["features"]["input_set"]
     asset_quality = build_asset_quality(config, dataset, metadata)
     dataset = apply_asset_quality_flags(dataset, asset_quality)
+    LOGGER.info(
+        "Built dataset with %s rows across %s assets.",
+        len(dataset),
+        len(asset_quality),
+    )
+    LOGGER.info(
+        "Training-eligible assets: %s",
+        ", ".join(ticker for ticker, quality in asset_quality.items() if quality["training_eligible"]),
+    )
+    observation_only = [ticker for ticker, quality in asset_quality.items() if not quality["trading_eligible"]]
+    if observation_only:
+        LOGGER.info("Observation-only assets: %s", ", ".join(observation_only))
+
     dataset, scaler = fit_and_apply_scaler(dataset, feature_names)
     dataset, _ = add_asset_context_features(
         dataset,
@@ -1601,6 +1626,7 @@ def main() -> int:
         )
         return 0
 
+    LOGGER.info("Training model.")
     training_result = train_model(config, dataset)
     write_model_export(
         config,
@@ -1622,6 +1648,7 @@ def main() -> int:
         f"Validation accuracy: {training_result['metrics']['validation']['accuracy']:.4f}.",
         f"Backtest strategy return: {training_result['strategy_report']['backtest']['strategy']['total_return']:.4f}.",
     )
+    LOGGER.info("Training pipeline finished.")
     return 0
 
 
