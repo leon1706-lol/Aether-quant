@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aether Quant Visualization Deck</title>
+  <style>
+    :root {
+      --bg: #07111b;
+      --bg-2: #0c2031;
+      --panel: rgba(8, 23, 37, 0.88);
+      --panel-border: rgba(127, 182, 219, 0.16);
+      --text: #edf7ff;
+      --muted: #86a8bf;
+      --good: #4fd4a9;
+      --warm: #f2b96b;
+      --bad: #ff7a7a;
+      --line: rgba(125, 197, 255, 0.18);
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Trebuchet MS", "Avenir Next", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(79, 212, 169, 0.16), transparent 25%),
+        radial-gradient(circle at 85% 10%, rgba(242, 185, 107, 0.18), transparent 30%),
+        linear-gradient(180deg, #040b12 0%, var(--bg) 45%, #06101a 100%);
+    }
+
+    .shell {
+      width: min(1400px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 42px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.6rem);
+      letter-spacing: 0.04em;
+    }
+
+    .hero p {
+      margin: 8px 0 0;
+      max-width: 760px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(79, 212, 169, 0.10);
+      color: var(--good);
+      border: 1px solid rgba(79, 212, 169, 0.14);
+      font-size: 0.85rem;
+    }
+
+    .pill::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 16px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+    }
+
+    .score-card {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .score-card .label {
+      display: block;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .score-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .scene {
+      position: relative;
+      min-height: 360px;
+      overflow: hidden;
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(127, 182, 219, 0.10), transparent 35%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+      isolation: isolate;
+    }
+
+    .scene::before {
+      content: "";
+      position: absolute;
+      inset: -14%;
+      background:
+        linear-gradient(transparent 0 49%, rgba(255, 255, 255, 0.04) 50%, transparent 51%),
+        linear-gradient(90deg, transparent 0 49%, rgba(255, 255, 255, 0.04) 50%, transparent 51%);
+      background-size: 56px 56px;
+      transform: rotateX(72deg) translateY(42px);
+      transform-origin: center bottom;
+      opacity: 0.65;
+      z-index: 0;
+    }
+
+    .scene-svg,
+    .scene-nodes {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .scene-link {
+      stroke: rgba(123, 198, 255, 0.22);
+      stroke-width: 2;
+    }
+
+    .scene-node {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 0 28px rgba(79, 212, 169, 0.18);
+      backdrop-filter: blur(6px);
+    }
+
+    .scene-node.asset {
+      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(79, 212, 169, 0.42));
+    }
+
+    .scene-node.portfolio {
+      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(242, 185, 107, 0.48));
+    }
+
+    .scene-legend {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      display: grid;
+      gap: 6px;
+      z-index: 2;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .heatmap {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .asset-card {
+      border-radius: 16px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .asset-card.pos {
+      background: linear-gradient(180deg, rgba(79, 212, 169, 0.14), rgba(79, 212, 169, 0.03));
+    }
+
+    .asset-card.neg {
+      background: linear-gradient(180deg, rgba(255, 122, 122, 0.15), rgba(255, 122, 122, 0.03));
+    }
+
+    .asset-card h3 {
+      margin: 0 0 8px;
+      font-size: 1.1rem;
+      letter-spacing: 0.04em;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+      color: var(--muted);
+      font-size: 0.83rem;
+    }
+
+    .rows {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .row .left {
+      display: grid;
+      gap: 4px;
+    }
+
+    .row strong {
+      font-size: 0.98rem;
+    }
+
+    .row small {
+      color: var(--muted);
+    }
+
+    .badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .badge.buy {
+      background: rgba(79, 212, 169, 0.14);
+      color: var(--good);
+    }
+
+    .badge.sell {
+      background: rgba(255, 122, 122, 0.14);
+      color: var(--bad);
+    }
+
+    .badge.hold {
+      background: rgba(242, 185, 107, 0.14);
+      color: var(--warm);
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .mini-card {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .mini-card .label {
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    pre {
+      margin: 0;
+      max-height: 420px;
+      overflow: auto;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.26);
+      color: #d7e7f5;
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 1080px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="pill" id="status-pill">Waiting for runtime state</div>
+        <h1>Aether Quant</h1>
+        <p>Phase 8 visualization deck for runtime signals, risk, model state, backtest metrics and the first 3D-style market scene.</p>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="stack">
+        <article class="panel">
+          <h2>Scorecards</h2>
+          <div class="score-grid" id="score-grid"></div>
+        </article>
+
+        <article class="panel">
+          <h2>Market Scene</h2>
+          <div class="scene">
+            <svg class="scene-svg" id="scene-svg"></svg>
+            <div class="scene-nodes" id="scene-nodes"></div>
+            <div class="scene-legend">
+              <span>Node size = signal intensity or portfolio importance</span>
+              <span>Links = current portfolio/asset relationship</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Asset Heatmap</h2>
+          <div class="heatmap" id="asset-heatmap"></div>
+        </article>
+      </div>
+
+      <div class="stack">
+        <article class="panel">
+          <h2>Signal Board</h2>
+          <div class="rows" id="signals-list"></div>
+        </article>
+
+        <article class="panel">
+          <h2>Positions</h2>
+          <div class="rows" id="positions-list"></div>
+        </article>
+
+        <article class="panel">
+          <h2>Strategy and Risk</h2>
+          <div class="mini-grid" id="strategy-grid"></div>
+        </article>
+
+        <article class="panel">
+          <h2>Monitoring Feeds</h2>
+          <div class="rows" id="monitoring-list"></div>
+        </article>
+
+        <article class="panel">
+          <h2>Raw State</h2>
+          <pre id="raw-state">{}</pre>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const statusPill = document.getElementById("status-pill");
+    const scoreGrid = document.getElementById("score-grid");
+    const sceneSvg = document.getElementById("scene-svg");
+    const sceneNodes = document.getElementById("scene-nodes");
+    const assetHeatmap = document.getElementById("asset-heatmap");
+    const signalsList = document.getElementById("signals-list");
+    const positionsList = document.getElementById("positions-list");
+    const strategyGrid = document.getElementById("strategy-grid");
+    const monitoringList = document.getElementById("monitoring-list");
+    const rawState = document.getElementById("raw-state");
+
+    function formatNumber(value, digits = 2) {
+      return Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      });
+    }
+
+    function formatPercent(value) {
+      return `${formatNumber((value || 0) * 100, 2)}%`;
+    }
+
+    function formatValue(value, format) {
+      if (format === "currency") {
+        return `$${formatNumber(value, 2)}`;
+      }
+      if (format === "percent") {
+        return formatPercent(value);
+      }
+      return formatNumber(value, 3);
+    }
+
+    function fillContainer(container, htmlItems, emptyHtml) {
+      container.innerHTML = htmlItems.length ? htmlItems.join("") : emptyHtml;
+    }
+
+    function renderScorecards(cards) {
+      const items = (cards || []).map((card) => `
+        <div class="score-card">
+          <span class="label">${card.label}</span>
+          <span class="value">${formatValue(card.value, card.format)}</span>
+        </div>
+      `);
+      fillContainer(scoreGrid, items, `
+        <div class="score-card">
+          <span class="label">Status</span>
+          <span class="value">No data</span>
+        </div>
+      `);
+    }
+
+    function renderScene(scene) {
+      sceneSvg.innerHTML = "";
+      sceneNodes.innerHTML = "";
+      if (!scene || !scene.nodes) {
+        return;
+      }
+
+      const nodeById = Object.fromEntries(scene.nodes.map((node) => [node.id, node]));
+      (scene.links || []).forEach((link) => {
+        const source = nodeById[link.source];
+        const target = nodeById[link.target];
+        if (!source || !target) {
+          return;
+        }
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", `${source.x}%`);
+        line.setAttribute("y1", `${source.y}%`);
+        line.setAttribute("x2", `${target.x}%`);
+        line.setAttribute("y2", `${target.y}%`);
+        line.setAttribute("class", "scene-link");
+        line.style.opacity = Math.max(0.15, Math.min(0.9, Number(link.strength || 0.2) * 1.4));
+        sceneSvg.appendChild(line);
+      });
+
+      scene.nodes.forEach((node) => {
+        const div = document.createElement("div");
+        const size = Math.max(42, Math.min(92, 38 + Number(node.intensity || 0.4) * 40));
+        div.className = `scene-node ${node.kind || "asset"}`;
+        div.style.left = `${node.x}%`;
+        div.style.top = `${node.y}%`;
+        div.style.width = `${size}px`;
+        div.style.height = `${size}px`;
+        div.style.opacity = Math.max(0.45, Math.min(1, Number(node.intensity || 0.4) + 0.1));
+        div.title = `${node.label}: ${node.detail || ""}`;
+        div.textContent = node.label;
+        sceneNodes.appendChild(div);
+      });
+    }
+
+    function renderHeatmap(items) {
+      const htmlItems = (items || []).map((item) => {
+        const tone = (item.excess_return ?? item.daily_return ?? 0) >= 0 ? "pos" : "neg";
+        return `
+          <div class="asset-card ${tone}">
+            <h3>${item.ticker || item.symbol}</h3>
+            <div class="meta-grid">
+              <span>Signal</span><strong>${item.signal || item.signal_bias || "hold"}</strong>
+              <span>Confidence</span><strong>${formatPercent(item.confidence || 0)}</strong>
+              <span>Target Weight</span><strong>${formatPercent(item.target_weight || 0)}</strong>
+              <span>Return Edge</span><strong>${formatPercent(item.excess_return ?? item.daily_return ?? 0)}</strong>
+            </div>
+          </div>
+        `;
+      });
+
+      fillContainer(assetHeatmap, htmlItems, `
+        <div class="asset-card">
+          <h3>No assets yet</h3>
+          <div class="meta-grid">
+            <span>Status</span><strong>Waiting</strong>
+          </div>
+        </div>
+      `);
+    }
+
+    function renderSignals(signals) {
+      const htmlItems = Object.entries(signals || {}).map(([symbol, payload]) => `
+        <div class="row">
+          <div class="left">
+            <strong>${payload.ticker || symbol}</strong>
+            <small>${payload.execution_note || payload.reason || "signal update"} | prob ${formatNumber(payload.probability_up || 0, 3)}</small>
+          </div>
+          <span class="badge ${payload.signal || "hold"}">${payload.signal || "hold"}</span>
+        </div>
+      `);
+      fillContainer(signalsList, htmlItems, `
+        <div class="row">
+          <div class="left">
+            <strong>No signals yet</strong>
+            <small>Waiting for state.json</small>
+          </div>
+          <span class="badge hold">hold</span>
+        </div>
+      `);
+    }
+
+    function renderPositions(positions) {
+      const htmlItems = (positions || []).map((position) => `
+        <div class="row">
+          <div class="left">
+            <strong>${position.symbol}</strong>
+            <small>qty ${formatNumber(position.quantity, 2)} | weight ${formatPercent(position.weight || 0)}</small>
+          </div>
+          <small>pnl ${formatValue(position.unrealized_profit || 0, "currency")}</small>
+        </div>
+      `);
+      fillContainer(positionsList, htmlItems, `
+        <div class="row">
+          <div class="left">
+            <strong>No open positions</strong>
+            <small>Portfolio is flat</small>
+          </div>
+          <small>0</small>
+        </div>
+      `);
+    }
+
+    function renderStrategy(state) {
+      const strategy = state.dashboard?.strategy_snapshot;
+      const risk = state.dashboard?.risk_band || state.risk || {};
+      const cards = [];
+
+      if (strategy && strategy.strategy) {
+        cards.push(`
+          <div class="mini-card">
+            <div class="label">Backtest Return</div>
+            <div>${formatPercent(strategy.strategy.total_return || 0)}</div>
+          </div>
+        `);
+        cards.push(`
+          <div class="mini-card">
+            <div class="label">Backtest Sharpe</div>
+            <div>${formatNumber(strategy.strategy.sharpe || 0, 3)}</div>
+          </div>
+        `);
+      }
+
+      cards.push(`
+        <div class="mini-card">
+          <div class="label">Trade Lock</div>
+          <div>${risk.trade_lock_active ? "Active" : "Open"}</div>
+        </div>
+      `);
+      cards.push(`
+        <div class="mini-card">
+          <div class="label">Min Confidence</div>
+          <div>${formatPercent(risk.min_confidence_to_trade || 0)}</div>
+        </div>
+      `);
+
+      fillContainer(strategyGrid, cards, `
+        <div class="mini-card">
+          <div class="label">Status</div>
+          <div>No strategy snapshot</div>
+        </div>
+      `);
+    }
+
+    function renderMonitoring(monitoring) {
+      const feeds = monitoring?.feeds || {};
+      const items = Object.entries(feeds).map(([key, value]) => `
+        <div class="row">
+          <div class="left">
+            <strong>${key}</strong>
+            <small>${value}</small>
+          </div>
+          <small>${monitoring.mode || "idle"}</small>
+        </div>
+      `);
+      fillContainer(monitoringList, items, `
+        <div class="row">
+          <div class="left">
+            <strong>No feeds yet</strong>
+            <small>Monitoring export waiting</small>
+          </div>
+          <small>-</small>
+        </div>
+      `);
+    }
+
+    function renderState(state) {
+      statusPill.textContent = state.insight || "Runtime state loaded";
+      renderScorecards(state.dashboard?.scorecards || []);
+      renderScene(state.scene);
+      renderHeatmap(state.dashboard?.asset_heatmap || []);
+      renderSignals(state.signals || {});
+      renderPositions(state.positions || []);
+      renderStrategy(state);
+      renderMonitoring(state.monitoring || {});
+      rawState.textContent = JSON.stringify(state, null, 2);
+    }
+
+    async function loadState() {
+      try {
+        const response = await fetch("./visualization/state.json", { cache: "no-store" });
+        const state = await response.json();
+        renderState(state);
+      } catch (error) {
+        statusPill.textContent = "Unable to load visualization/state.json";
+        rawState.textContent = String(error);
+      }
+    }
+
+    loadState();
+    setInterval(loadState, 4000);
+  </script>
+</body>
+</html>
