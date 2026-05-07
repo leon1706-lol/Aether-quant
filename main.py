@@ -33,6 +33,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.scaler_stats_path = self.root_path / "ml" / "scaler_stats.json"
         self.dataset_manifest_path = self.root_path / "ml" / "dataset_manifest.json"
 
+        self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
         self.phase1 = self.config["phase1"]
         self.phase3 = self.config["phase3"]
@@ -208,6 +209,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _load_json(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def _validate_runtime_artifacts(self) -> None:
+        required_paths = [
+            self.root_path / "config.json",
+            self.model_path,
+            self.feature_schema_path,
+            self.scaler_stats_path,
+        ]
+        missing = [str(path.relative_to(self.root_path)) for path in required_paths if not path.exists()]
+        if missing:
+            raise FileNotFoundError(
+                "Lean runtime artifacts are missing. Run `python train.py` before `lean backtest .`. "
+                f"Missing: {', '.join(missing)}"
+            )
 
     def _resolve_resolution(self, resolution_name: str):
         resolution_map = {

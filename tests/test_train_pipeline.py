@@ -5,6 +5,7 @@ from train import (
     build_asset_quality,
     engineer_features,
     fit_and_apply_scaler,
+    validate_training_inputs,
 )
 
 
@@ -104,3 +105,56 @@ def test_scaler_fits_only_training_eligible_rows():
     assert "feature_scaled" in scaled.columns
     assert np.isclose(scaled.loc[0, "feature_scaled"], -1.0)
     assert np.isclose(scaled.loc[1, "feature_scaled"], 1.0)
+
+
+def test_validate_training_inputs_reports_missing_data_file():
+    config = {
+        "phase1": {
+            "universe": {
+                "assets": [
+                    {
+                        "ticker": "MISSING",
+                        "security_type": "equity",
+                        "market": "usa",
+                        "data_path": "data/equity/usa/daily/does_not_exist.zip",
+                    }
+                ]
+            },
+            "windows": {
+                "training": {"start": "2020-01-01", "end": "2020-01-31"},
+                "validation": {"start": "2020-02-01", "end": "2020-02-28"},
+                "backtest": {"start": "2020-03-01", "end": "2020-03-31"},
+            },
+        }
+    }
+
+    issues = validate_training_inputs(config)
+
+    assert any("does_not_exist.zip" in issue for issue in issues)
+
+
+def test_validate_training_inputs_reports_reversed_window():
+    config = {
+        "phase1": {
+            "universe": {
+                "assets": [
+                    {
+                        "ticker": "DERIVED",
+                        "security_type": "crypto",
+                        "market": "coinbase",
+                        "data_path": "data/crypto/coinbase/daily/derived.zip",
+                        "derived_from": "data/crypto/coinbase/minute/derived",
+                    }
+                ]
+            },
+            "windows": {
+                "training": {"start": "2020-02-01", "end": "2020-01-01"},
+                "validation": {"start": "2020-02-01", "end": "2020-02-28"},
+                "backtest": {"start": "2020-03-01", "end": "2020-03-31"},
+            },
+        }
+    }
+
+    issues = validate_training_inputs(config)
+
+    assert "training: start date is after end date." in issues

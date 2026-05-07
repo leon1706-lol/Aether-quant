@@ -92,6 +92,49 @@ def ensure_directories() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
+def validate_training_inputs(config: dict) -> list[str]:
+    issues: list[str] = []
+    phase1 = config.get("phase1", {})
+    universe = phase1.get("universe", {})
+    windows = phase1.get("windows", {})
+    assets = universe.get("assets", [])
+
+    if not assets:
+        issues.append("No assets configured in phase1.universe.assets.")
+
+    for asset in assets:
+        ticker = asset.get("ticker", "<missing ticker>")
+        data_path = asset.get("data_path")
+        if not data_path:
+            issues.append(f"{ticker}: missing data_path.")
+            continue
+        if not (ROOT / data_path).exists() and not asset.get("derived_from"):
+            issues.append(f"{ticker}: data file does not exist: {data_path}.")
+
+    for split_name in ("training", "validation", "backtest"):
+        split_window = windows.get(split_name)
+        if not split_window:
+            issues.append(f"Missing phase1.windows.{split_name}.")
+            continue
+        try:
+            start = pd.Timestamp(split_window["start"])
+            end = pd.Timestamp(split_window["end"])
+        except (KeyError, ValueError, TypeError) as error:
+            issues.append(f"{split_name}: invalid date window: {error}.")
+            continue
+        if start > end:
+            issues.append(f"{split_name}: start date is after end date.")
+
+    return issues
+
+
+def raise_if_validation_failed(issues: list[str]) -> None:
+    if not issues:
+        return
+    formatted = "\n".join(f"- {issue}" for issue in issues)
+    raise ValueError(f"Training input validation failed:\n{formatted}")
+
+
 def load_project_config() -> dict:
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
@@ -1569,6 +1612,7 @@ def main() -> int:
     ensure_directories()
     config = load_project_config()
     LOGGER.info("Starting Aether Quant training pipeline.")
+    raise_if_validation_failed(validate_training_inputs(config))
     ensure_derived_crypto_daily_series(config)
     data_summary = summarize_data_tree()
     inventory = build_phase_inventory(config, data_summary)
