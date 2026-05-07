@@ -5,7 +5,7 @@ Das Ziel ist ein adaptives Modell, das auf Lean-Daten trainiert wird, im Backtes
 
 ## Aktueller Stand
 
-Phase 10 ist gestartet. Phase 9 ist sauber abgeschlossen und das erste Multi-Asset-V2-Universum ist abgesichert:
+Phase 10 ist abgeschlossen. Phase 9 ist sauber abgeschlossen und das erste Multi-Asset-V2-Universum ist abgesichert:
 
 - Grundstruktur fuer `backtests/`, `ml/` und `visualization/`
 - Lean-Algorithmus in `main.py` mit Feature-Berechnung, JSON-Modell-Inferenz, Signal-Engine und Risk Controls
@@ -127,6 +127,17 @@ Tests ausfuehren:
 
 ```powershell
 pytest
+```
+
+Empfohlener kompletter Arbeitsablauf:
+
+```powershell
+python train.py
+pytest
+lean backtest .
+lean report --backtest-results .\backtests\<BACKTEST_ORDNER>\<ERGEBNIS_ID>.json --report-destination .\backtests\<BACKTEST_ORDNER>\report.html --overwrite
+python -m http.server 8000
+git status
 ```
 
 Lean-Backtest aus dem Projektordner starten:
@@ -303,13 +314,14 @@ Die aktuelle Stabilisierung macht jetzt zusaetzlich Folgendes:
 - dokumentiert die wichtigsten lokalen Befehle fuer Training, Tests, Lean-Backtests, Lean-Reports und Dashboard
 - nutzt strukturierte Laufzeitlogs in `train.py` fuer Dataset-Aufbau, Asset-Qualitaet und Trainingsfortschritt
 - fuegt erste `pytest`-Tests fuer Feature Engineering, Asset-Quality-Entscheidungen und Scaler-Fitting hinzu
+- fuegt Risk-Control-Tests fuer Drawdown-Locks, Positionslimits und Exposure-Caps hinzu
 - prueft vor dem Training Datenpfade, Asset-Konfiguration und Zeitfenster mit klaren Fehlermeldungen
 - prueft vor Lean-Inferenz, ob Modell-, Feature- und Scaler-Artefakte vorhanden sind
 
 ## Naechste technische Phasen
 
-- Phase 10: Stabilisierung weiter ausbauen
 - Phase 7: Kontrolliertes Online-Lernen auf stabilerer Beobachtungsbasis
+- Spaeter: echtes Paper Trading mit IB API-Zugangsdaten
 
 ## Hinweise
 

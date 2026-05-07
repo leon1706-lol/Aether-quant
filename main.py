@@ -16,6 +16,11 @@ from datetime import datetime
 from pathlib import Path
 
 from AlgorithmImports import *
+from risk_controls import (
+    active_position_limit_reached,
+    assess_drawdown_lock,
+    cap_target_weight,
+)
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -365,16 +370,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_signal_state[symbol_key] = signal_name
 
         if signal_name == "buy":
-            if self._active_position_count(symbol) >= self.max_active_positions and not self.Portfolio[symbol].Invested:
+            if active_position_limit_reached(
+                self._active_position_count(symbol),
+                self.max_active_positions,
+                bool(self.Portfolio[symbol].Invested),
+            ):
                 return "max_active_positions_reached"
 
             exposure_cap = self.max_crypto_exposure if asset.get("security_type") == "crypto" else self.max_equity_exposure
             current_exposure = self._asset_class_exposure(asset.get("security_type"), exclude_symbol=symbol)
-            if current_exposure + abs(target_weight) > exposure_cap:
-                adjusted_weight = max(0.0, exposure_cap - current_exposure)
-                if adjusted_weight <= 0.0:
-                    return f"{asset.get('security_type', 'asset')}_exposure_cap_reached"
-                target_weight = min(target_weight, adjusted_weight)
+            target_weight, cap_reached = cap_target_weight(target_weight, current_exposure, exposure_cap)
+            if cap_reached:
+                return f"{asset.get('security_type', 'asset')}_exposure_cap_reached"
 
             if previous_signal != "buy" or not self.Portfolio[symbol].Invested:
                 self.SetHoldings(symbol, target_weight)
@@ -452,13 +459,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.current_daily_drawdown = portfolio_value / max(self.session_start_equity, 1.0) - 1.0
         self.current_total_drawdown = portfolio_value / max(self.peak_equity, 1.0) - 1.0
 
-        breach_reason = None
-        if self.current_total_drawdown <= -self.max_total_drawdown_pct:
-            breach_reason = "total_drawdown_limit_breached"
-        elif self.current_daily_drawdown <= -self.max_daily_drawdown_pct:
-            breach_reason = "daily_drawdown_limit_breached"
+        breach_active, breach_reason = assess_drawdown_lock(
+            self.current_daily_drawdown,
+            self.current_total_drawdown,
+            self.max_daily_drawdown_pct,
+            self.max_total_drawdown_pct,
+        )
 
-        if breach_reason is not None:
+        if breach_active:
             self.trade_lock_active = True
             self.trade_lock_reason = breach_reason
             if self.liquidate_on_risk_breach:
