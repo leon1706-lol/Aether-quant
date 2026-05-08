@@ -1,0 +1,212 @@
+{
+    "name": "Aether Quant",
+    "projectId": null,
+    "organizationId": null,
+    "environment": "local",
+    "notes": [
+        "Populate projectId and organizationId after the Lean cloud project exists.",
+        "This file stores local project metadata and does not replace lean.json."
+    ],
+    "runtime": {
+        "initial_cash": 100000,
+        "warmup_bars": 30
+    },
+    "phase1": {
+        "status": "defined",
+        "objective": "Define a compact V1 universe with shared Lean data coverage for training and backtesting.",
+        "universe": {
+            "name": "v2_daily_multi_asset",
+            "resolution": "Daily",
+            "assets": [
+                {
+                    "ticker": "AAPL",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/aapl.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "SPY",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/spy.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "QQQ",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/qqq.zip",
+                    "available_from": "1999-03-10",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "IWM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/iwm.zip",
+                    "available_from": "2000-05-26",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EEM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/eem.zip",
+                    "available_from": "2003-04-14",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "BAC",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/bac.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "IBM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/ibm.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "BTCUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/btcusd_trade.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2018-08-13"
+                },
+                {
+                    "ticker": "ETHUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/ethusd_trade.zip",
+                    "derived_from": "data/crypto/coinbase/minute/ethusd",
+                    "aggregation": "daily_from_minute_trade",
+                    "available_from": "2017-09-03",
+                    "available_to": "2018-04-05"
+                },
+                {
+                    "ticker": "LTCUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/ltcusd_trade.zip",
+                    "derived_from": "data/crypto/coinbase/minute/ltcusd",
+                    "aggregation": "daily_from_minute_trade",
+                    "available_from": "2018-04-04",
+                    "available_to": "2018-04-06"
+                }
+            ],
+            "common_window": {
+                "start": "2014-12-01",
+                "end": "2018-08-13"
+            }
+        },
+        "windows": {
+            "training": {
+                "start": "2014-12-01",
+                "end": "2017-06-30"
+            },
+            "validation": {
+                "start": "2017-07-01",
+                "end": "2017-12-31"
+            },
+        "backtest": {
+                "start": "2014-12-01",
+                "end": "2018-08-13"
+            }
+        },
+        "features": {
+            "input_set": [
+                "close_to_close_return_1d",
+                "close_to_close_return_5d",
+                "close_to_close_return_20d",
+                "rolling_volatility_5d",
+                "rolling_volatility_20d",
+                "momentum_5d",
+                "momentum_20d",
+                "high_low_range_pct",
+                "open_close_range_pct",
+                "volume_change_1d"
+            ],
+            "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference."
+        },
+        "target": {
+            "type": "directional_return",
+            "horizon": "1 trading day ahead",
+            "label_rule": "1 if next close return is positive, otherwise 0"
+        }
+    },
+    "phase3": {
+        "model": {
+            "type": "robust_mlp_classifier",
+            "hidden_layers": [
+                64,
+                32
+            ],
+            "dropout": 0.15,
+            "activation": "relu",
+            "normalization": "layernorm",
+            "output_activation": "sigmoid",
+            "use_asset_context": true
+        },
+        "training": {
+            "seed": 42,
+            "epochs": 120,
+            "batch_size": 64,
+            "learning_rate": 0.0007,
+            "weight_decay": 0.0001,
+            "patience": 18,
+            "decision_threshold": 0.5,
+            "optimize_threshold_metric": "mcc",
+            "threshold_search_min": 0.35,
+            "threshold_search_max": 0.65,
+            "threshold_search_steps": 61
+        }
+    },
+    "phase5": {
+        "backtest": {
+            "trading_days_per_year": 252,
+            "strategy_mode": "long_flat",
+            "buy_threshold_offset": 0.08,
+            "sell_threshold_offset": 0.08
+        }
+    },
+    "phase6": {
+        "paper_trading": {
+            "brokerage": "interactive_brokers_paper",
+            "ready_for_live_paper": false
+        },
+        "risk": {
+            "max_position_weight": 0.2,
+            "min_confidence_to_trade": 0.12,
+            "trade_cooldown_bars": 3,
+            "max_daily_drawdown_pct": 0.03,
+            "max_total_drawdown_pct": 0.12,
+            "liquidate_on_risk_breach": true
+        }
+    },
+    "phase9": {
+        "status": "multi_asset_v2_active",
+        "objective": "Expand the universe while keeping thin-history assets visible but safely observation-only.",
+        "asset_quality": {
+            "min_total_feature_rows": 50,
+            "min_training_rows": 100,
+            "min_backtest_rows": 20,
+            "observation_only_kept_in_universe": true
+        },
+        "portfolio": {
+            "max_active_positions": 5,
+            "max_equity_exposure": 0.65,
+            "max_crypto_exposure": 0.25,
+            "observation_only_assets_can_trade": false
+        }
+    },
+    "local-id": 694224972
+}

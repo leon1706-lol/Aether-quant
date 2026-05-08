@@ -1,0 +1,19 @@
+# Lean Runtime / Broker Integrations
+ibapi>=9.81
+
+# Machine Learning & Data Processing
+torch>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+
+# Data & Feature Handling
+joblib>=1.3.0
+
+# Visualization / Local API Support
+flask>=3.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0
+requests>=2.31.0
