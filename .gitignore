@@ -12,7 +12,9 @@ env/
 .env.*
 ib_config.py
 *_config.local.py
+config.json
 config.local.json
+lean.json
 lean.local.json
 
 *.key

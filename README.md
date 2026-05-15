@@ -5,7 +5,7 @@ Das Ziel ist ein adaptives Modell, das auf Lean-Daten trainiert wird, im Backtes
 
 ## Aktueller Stand
 
-Phase 10 ist abgeschlossen. Phase 9 ist sauber abgeschlossen und das erste Multi-Asset-V2-Universum ist abgesichert:
+Phase V2-0 ist gestartet. Phase 10 ist abgeschlossen, und die neue Fork baut auf dem bisherigen Aether-Quant-Grundgeruest auf:
 
 - Grundstruktur fuer `backtests/`, `ml/` und `visualization/`
 - Lean-Algorithmus in `main.py` mit Feature-Berechnung, JSON-Modell-Inferenz, Signal-Engine und Risk Controls
@@ -21,17 +21,28 @@ Phase 10 ist abgeschlossen. Phase 9 ist sauber abgeschlossen und das erste Multi
 - Modellartefakte in `ml/model.pt`, `ml/training_metrics.json` und `ml/model_weights.json`
 - Strategie-Validierung in `backtests/strategy_report.json` und `backtests/equity_curves.csv`
 - erste Unit-Tests fuer Feature Engineering, Asset-Qualitaet und Scaler-Verhalten
+- V2-Architektur-Fundament mit MoE-, Regime-, Topology-, Experience-, Risk- und Monitoring-Modulen
 
 ## Projektstruktur
 
 ```text
 aether-quant/
+|-- docs/
+|   |-- v2_architecture.md
 |-- lean.json
 |-- config.json
 |-- backtests/
 |-- data/
 |-- main.py
 |-- train.py
+|-- data_pipeline/
+|-- moe/
+|-- experts/
+|-- regime/
+|-- topology/
+|-- experience/
+|-- risk/
+|-- monitoring/
 |-- ml/
 |   |-- model_weights.json
 |-- visualization/
@@ -59,6 +70,15 @@ aether-quant/
 - `visualization/scene.json`: Szenendaten fuer die lokale Markt-/Portfolio-Visualisierung
 - `visualization/grafana/`: JSON- und CSV-Feeds fuer spaeteres Grafana-Monitoring
 - `dashboard.html`: Browser-Dashboard fuer Portfolio-, Markt-, Risiko- und Modellstatus
+- `docs/v2_architecture.md`: V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen
+- `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher
+- `moe/`: Gating Network, Expert Routing und finale MoE-Signalzusammenfuehrung
+- `experts/`: Bullish-, Bearish-, Sideways- und Volatility-Expert-Module
+- `regime/`: Markt-Regime-Erkennung und spaetere LLM-Regime-Vektoren
+- `topology/`: 3D-Marktstruktur, Asset-Cluster und Topology-Exports
+- `experience/`: Observation-, Signal-, Trade- und Retraining-Historie
+- `risk/`: dynamisches Position Sizing, Hebel-, Liquiditaets- und Market-Impact-Controls
+- `monitoring/`: HTML-Volatility-Dashboard, Grafana-Feeds und spaetere Alerts
 
 ## Lokaler Start
 
@@ -318,8 +338,41 @@ Die aktuelle Stabilisierung macht jetzt zusaetzlich Folgendes:
 - prueft vor dem Training Datenpfade, Asset-Konfiguration und Zeitfenster mit klaren Fehlermeldungen
 - prueft vor Lean-Inferenz, ob Modell-, Feature- und Scaler-Artefakte vorhanden sind
 
+## Phase-V2-0-Ergebnis
+
+Die neue V2-Fork macht jetzt zusaetzlich Folgendes:
+
+- nutzt den bisherigen V1/Phase-10-Code als stabiles Grundgeruest
+- legt die V2-Modulstruktur fuer MoE, Experten, Regime, Topology, Experience, Risk und Monitoring an
+- dokumentiert den geplanten V2-Prozessfluss in `docs/v2_architecture.md`
+- dokumentiert den geplanten Tech-Stack fuer Docker, Lean, PyTorch, PostgreSQL, Grafana, Telegram und HTML-Dashboard
+- haelt Training und Backtesting weiterhin auf dem lokalen Lean `data/` Ordner als Hauptdatenquelle
+
+## Phase-V2-1-Ergebnis
+
+Die V2 Lean-Datenpipeline macht jetzt zusaetzlich Folgendes:
+
+- legt `data_pipeline/` als stabile V2-Schicht ueber der bestehenden `train.py` Pipeline an
+- definiert ein V2-Pipeline-Manifest fuer Datenquelle, Universum, Features, Zeitfenster und Asset-Qualitaet
+- dokumentiert explizit, dass Training und Backtesting weiter ueber den lokalen Lean `data/` Ordner laufen
+- bereitet saubere Anschlusspunkte fuer MoE-Experten, Regime Detection, Topology, Dynamic Risk und Volatility Dashboard vor
+- fuegt Tests hinzu, die diesen Lean-Datenvertrag absichern
+
+## Phase-V2-7-Ergebnis
+
+Die V2 Dynamic-Risk- und Position-Sizing-Stufe macht jetzt zusaetzlich Folgendes:
+
+- fuegt `risk/position_sizing.py` als testbare V2-Risikologik hinzu
+- klassifiziert Volatilitaet in `low_volatility`, `normal_volatility` und `high_volatility`
+- passt Ziel-Positionsgroessen an die aktuelle Rolling Volatility an
+- reduziert Positionsgroessen in hoher Volatilitaet und erlaubt kontrollierte Erhoehung in ruhigen Marktphasen
+- berechnet `base_target_weight`, dynamisches `target_weight`, annualisierte Volatilitaet und `leverage_factor`
+- schreibt diese Werte in Runtime-State, Dashboard-Heatmap und `visualization/grafana/runtime_asset_metrics.csv`
+- bereitet damit das HTML Live Volatility Dashboard vor
+
 ## Naechste technische Phasen
 
+- Phase V2-9: HTML Live Volatility Dashboard
 - Phase 7: Kontrolliertes Online-Lernen auf stabilerer Beobachtungsbasis
 - Spaeter: echtes Paper Trading mit IB API-Zugangsdaten
 
