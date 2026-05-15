@@ -48,6 +48,7 @@ aether-quant/
 |-- visualization/
 |   |-- state.json
 |-- dashboard.html
+|-- volatility_dashboard.html
 |-- requirements.txt
 |-- README.md
 |-- .gitignore
@@ -70,6 +71,7 @@ aether-quant/
 - `visualization/scene.json`: Szenendaten fuer die lokale Markt-/Portfolio-Visualisierung
 - `visualization/grafana/`: JSON- und CSV-Feeds fuer spaeteres Grafana-Monitoring
 - `dashboard.html`: Browser-Dashboard fuer Portfolio-, Markt-, Risiko- und Modellstatus
+- `volatility_dashboard.html`: V2 Live-Volatility-Dashboard fuer Positionsgroesse, Hebel und Volatilitaetsregime
 - `docs/v2_architecture.md`: V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen
 - `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher
 - `moe/`: Gating Network, Expert Routing und finale MoE-Signalzusammenfuehrung
@@ -188,6 +190,13 @@ Dashboard lokal starten:
 
 ```powershell
 python -m http.server 8000
+```
+
+Danach:
+
+```text
+http://localhost:8000/dashboard.html
+http://localhost:8000/volatility_dashboard.html
 ```
 
 Grafana/CSV-Dateien lokal ausliefern:
@@ -370,9 +379,20 @@ Die V2 Dynamic-Risk- und Position-Sizing-Stufe macht jetzt zusaetzlich Folgendes
 - schreibt diese Werte in Runtime-State, Dashboard-Heatmap und `visualization/grafana/runtime_asset_metrics.csv`
 - bereitet damit das HTML Live Volatility Dashboard vor
 
+## Phase-V2-9-Ergebnis
+
+Das HTML Live Volatility Dashboard macht jetzt zusaetzlich Folgendes:
+
+- fuegt `volatility_dashboard.html` als eigene V2-Live-Ansicht hinzu
+- liest automatisch `visualization/state.json`
+- aktualisiert sich alle 5 Sekunden
+- zeigt Portfolio, Risk Lock, Drawdown, Zielvolatilitaet und maximalen Hebelfaktor
+- zeigt pro Asset Signal, Volatilitaetsregime, annualisierte Volatilitaet, Basisgewicht, dynamisches Zielgewicht, Hebelfaktor, Confidence und Sizing-Grund
+- funktioniert im Backtest-/Observation-Modus ohne Broker-API-Key
+
 ## Naechste technische Phasen
 
-- Phase V2-9: HTML Live Volatility Dashboard
+- Phase V2-2: Regime Detection
 - Phase 7: Kontrolliertes Online-Lernen auf stabilerer Beobachtungsbasis
 - Spaeter: echtes Paper Trading mit IB API-Zugangsdaten
 

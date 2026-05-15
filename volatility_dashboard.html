@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aether Quant V2 Volatility Console</title>
+  <style>
+    :root {
+      --paper: #f4f0e7;
+      --ink: #18211f;
+      --muted: #64716d;
+      --rail: #d9d0bf;
+      --panel: #fffaf0;
+      --panel-2: #e9f1eb;
+      --line: #c8bdac;
+      --good: #16785f;
+      --warm: #b7791f;
+      --bad: #b44438;
+      --deep: #162320;
+      --deep-2: #243832;
+      --shadow: 0 18px 42px rgba(37, 47, 43, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Aptos", "Segoe UI", Tahoma, sans-serif;
+      background:
+        linear-gradient(135deg, rgba(22, 120, 95, 0.14), transparent 32%),
+        linear-gradient(220deg, rgba(183, 121, 31, 0.16), transparent 38%),
+        var(--paper);
+    }
+
+    .shell {
+      width: min(1480px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 22px 0 34px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 4.2rem);
+      line-height: 0.95;
+      max-width: 920px;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.45;
+    }
+
+    .status-strip {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgba(255, 250, 240, 0.72);
+      color: var(--muted);
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+
+    .chip.strong {
+      color: var(--ink);
+      border-color: rgba(22, 120, 95, 0.34);
+      background: rgba(22, 120, 95, 0.10);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.12fr 1.88fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .panel {
+      background: rgba(255, 250, 240, 0.84);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.26);
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      min-height: 96px;
+      padding: 14px;
+      border: 1px solid rgba(100, 113, 109, 0.18);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.72rem;
+      line-height: 1.05;
+    }
+
+    .metric small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+    }
+
+    .risk-band {
+      margin-top: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .band-row {
+      display: grid;
+      grid-template-columns: 130px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      font-size: 0.88rem;
+    }
+
+    .track {
+      position: relative;
+      height: 10px;
+      background: var(--rail);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      background: var(--good);
+      border-radius: 999px;
+    }
+
+    .fill.warn {
+      background: var(--warm);
+    }
+
+    .fill.bad {
+      background: var(--bad);
+    }
+
+    .asset-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .asset-table th,
+    .asset-table td {
+      padding: 11px 10px;
+      border-bottom: 1px solid rgba(100, 113, 109, 0.16);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 0.88rem;
+    }
+
+    .asset-table th {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-size: 0.7rem;
+      background: rgba(233, 241, 235, 0.52);
+    }
+
+    .ticker {
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(100, 113, 109, 0.12);
+      color: var(--muted);
+    }
+
+    .badge.buy,
+    .badge.low_volatility {
+      background: rgba(22, 120, 95, 0.13);
+      color: var(--good);
+    }
+
+    .badge.sell,
+    .badge.high_volatility {
+      background: rgba(180, 68, 56, 0.13);
+      color: var(--bad);
+    }
+
+    .badge.normal_volatility {
+      background: rgba(183, 121, 31, 0.13);
+      color: var(--warm);
+    }
+
+    .dual-bar {
+      min-width: 150px;
+      display: grid;
+      gap: 5px;
+    }
+
+    .dual-bar-label {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 0.76rem;
+    }
+
+    .micro {
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+
+    .empty {
+      padding: 34px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 980px) {
+      .topbar,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .status-strip {
+        justify-content: flex-start;
+      }
+
+      .asset-table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .metric-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .band-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="topbar">
+      <div>
+        <h1>Aether Quant V2 Volatility Console</h1>
+        <p class="subtitle">Live risk view for volatility, dynamic position sizing and leverage decisions from Lean runtime state.</p>
+      </div>
+      <div class="status-strip">
+        <span class="chip strong" id="modeChip">mode: loading</span>
+        <span class="chip" id="updatedChip">updated: waiting</span>
+        <span class="chip" id="refreshChip">refresh: 5s</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <aside class="panel">
+        <div class="panel-header">
+          <h2>Risk Core</h2>
+          <span class="badge" id="lockBadge">loading</span>
+        </div>
+        <div class="panel-body">
+          <div class="metric-grid">
+            <div class="metric">
+              <span>Portfolio</span>
+              <strong id="portfolioValue">$0</strong>
+              <small id="cashValue">cash $0</small>
+            </div>
+            <div class="metric">
+              <span>Avg Annual Vol</span>
+              <strong id="avgVol">0.00%</strong>
+              <small id="targetVol">target daily 0.00%</small>
+            </div>
+            <div class="metric">
+              <span>Max Leverage Factor</span>
+              <strong id="maxLev">0.00x</strong>
+              <small id="leverageCap">cap 0.00x</small>
+            </div>
+            <div class="metric">
+              <span>Active Signals</span>
+              <strong id="activeSignals">0</strong>
+              <small id="investedPositions">positions 0</small>
+            </div>
+          </div>
+
+          <div class="risk-band">
+            <div class="band-row">
+              <span>Daily drawdown</span>
+              <div class="track"><div class="fill" id="dailyDrawdownFill"></div></div>
+              <strong id="dailyDrawdown">0.00%</strong>
+            </div>
+            <div class="band-row">
+              <span>Total drawdown</span>
+              <div class="track"><div class="fill" id="totalDrawdownFill"></div></div>
+              <strong id="totalDrawdown">0.00%</strong>
+            </div>
+            <div class="band-row">
+              <span>Exposure caps</span>
+              <div class="track"><div class="fill" id="positionCapFill"></div></div>
+              <strong id="positionCap">0.00%</strong>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Asset Volatility And Sizing</h2>
+          <span class="badge" id="assetCount">0 assets</span>
+        </div>
+        <div class="panel-body" id="assetBody">
+          <div class="empty">Waiting for visualization/state.json</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const STATE_URL = "visualization/state.json";
+    const REFRESH_MS = 5000;
+
+    const fmtCurrency = (value) => new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0
+    }).format(Number(value || 0));
+
+    const fmtPercent = (value) => `${(Number(value || 0) * 100).toFixed(2)}%`;
+    const fmtNumber = (value, digits = 2) => Number(value || 0).toFixed(digits);
+
+    function fillWidth(element, value, cap) {
+      const ratio = Math.min(Math.abs(Number(value || 0)) / Math.max(Number(cap || 1), 0.000001), 1);
+      element.style.width = `${ratio * 100}%`;
+      element.classList.toggle("bad", ratio > 0.85);
+      element.classList.toggle("warn", ratio > 0.55 && ratio <= 0.85);
+    }
+
+    function sortedSignals(state) {
+      return Object.entries(state.signals || {})
+        .map(([symbol, payload]) => ({ symbol, ...payload }))
+        .sort((a, b) => String(a.ticker || a.symbol).localeCompare(String(b.ticker || b.symbol)));
+    }
+
+    function renderAssetTable(signals) {
+      if (!signals.length) {
+        return `<div class="empty">No runtime signals yet. Run a Lean backtest or observation loop to populate state.</div>`;
+      }
+
+      const rows = signals.map((asset) => {
+        const sizing = asset.dynamic_sizing || {};
+        const base = Number(asset.base_target_weight || sizing.base_target_weight || 0);
+        const target = Number(asset.target_weight || sizing.target_weight || 0);
+        const annualVol = Number(sizing.annualized_volatility || 0);
+        const leverage = Number(sizing.leverage_factor || 0);
+        const confidence = Number(asset.confidence || 0);
+        const targetWidth = Math.min(Math.abs(target) / 0.25, 1) * 100;
+        const volWidth = Math.min(annualVol / 0.8, 1) * 100;
+        const regime = sizing.volatility_regime || "unknown";
+        const signal = asset.signal || "hold";
+
+        return `
+          <tr>
+            <td>
+              <div class="ticker">${asset.ticker || asset.symbol}</div>
+              <div class="micro">${asset.security_type || "asset"} / ${asset.trading_eligible ? "tradable" : "observe"}</div>
+            </td>
+            <td><span class="badge ${signal}">${signal}</span></td>
+            <td><span class="badge ${regime}">${regime}</span></td>
+            <td>
+              <div class="dual-bar">
+                <div class="dual-bar-label"><span>annual vol</span><strong>${fmtPercent(annualVol)}</strong></div>
+                <div class="track"><div class="fill ${annualVol > 0.45 ? "bad" : annualVol > 0.25 ? "warn" : ""}" style="width:${volWidth}%"></div></div>
+              </div>
+            </td>
+            <td>
+              <div class="dual-bar">
+                <div class="dual-bar-label"><span>base ${fmtPercent(base)}</span><strong>${fmtPercent(target)}</strong></div>
+                <div class="track"><div class="fill" style="width:${targetWidth}%"></div></div>
+              </div>
+            </td>
+            <td>${fmtNumber(leverage)}x</td>
+            <td>${fmtPercent(confidence)}</td>
+            <td class="micro">${sizing.sizing_reason || asset.execution_note || asset.reason || "waiting"}</td>
+          </tr>
+        `;
+      }).join("");
+
+      return `
+        <table class="asset-table">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Signal</th>
+              <th>Regime</th>
+              <th>Volatility</th>
+              <th>Position Size</th>
+              <th>Leverage</th>
+              <th>Confidence</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function renderState(state) {
+      const signals = sortedSignals(state);
+      const risk = state.risk || {};
+      const portfolio = state.portfolio || {};
+      const monitoring = state.monitoring || {};
+
+      document.getElementById("modeChip").textContent = `mode: ${state.mode || "unknown"}`;
+      document.getElementById("updatedChip").textContent = `updated: ${state.updated_at || "unknown"}`;
+      document.getElementById("lockBadge").textContent = risk.trade_lock_active ? (risk.trade_lock_reason || "risk lock") : "risk open";
+      document.getElementById("lockBadge").className = `badge ${risk.trade_lock_active ? "sell" : "buy"}`;
+      document.getElementById("portfolioValue").textContent = fmtCurrency(portfolio.total_portfolio_value);
+      document.getElementById("cashValue").textContent = `cash ${fmtCurrency(portfolio.cash)}`;
+      document.getElementById("avgVol").textContent = fmtPercent(monitoring.average_annualized_volatility);
+      document.getElementById("targetVol").textContent = `target daily ${fmtPercent(risk.target_daily_volatility)}`;
+      document.getElementById("maxLev").textContent = `${fmtNumber(monitoring.max_leverage_factor)}x`;
+      document.getElementById("leverageCap").textContent = `cap ${fmtNumber(risk.max_leverage)}x`;
+      document.getElementById("activeSignals").textContent = String(monitoring.active_signals || 0);
+      document.getElementById("investedPositions").textContent = `positions ${portfolio.invested_positions || 0}`;
+      document.getElementById("dailyDrawdown").textContent = fmtPercent(risk.daily_drawdown);
+      document.getElementById("totalDrawdown").textContent = fmtPercent(risk.total_drawdown);
+      document.getElementById("positionCap").textContent = fmtPercent(risk.max_position_weight);
+      document.getElementById("assetCount").textContent = `${signals.length} assets`;
+      document.getElementById("assetBody").innerHTML = renderAssetTable(signals);
+
+      fillWidth(document.getElementById("dailyDrawdownFill"), risk.daily_drawdown, risk.max_daily_drawdown_pct);
+      fillWidth(document.getElementById("totalDrawdownFill"), risk.total_drawdown, risk.max_total_drawdown_pct);
+      fillWidth(document.getElementById("positionCapFill"), risk.max_position_weight, 0.5);
+    }
+
+    async function loadState() {
+      try {
+        const response = await fetch(`${STATE_URL}?t=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const state = await response.json();
+        renderState(state);
+      } catch (error) {
+        document.getElementById("assetBody").innerHTML = `<div class="empty">State feed unavailable: ${error.message}</div>`;
+        document.getElementById("modeChip").textContent = "mode: feed unavailable";
+      }
+    }
+
+    loadState();
+    setInterval(loadState, REFRESH_MS);
+  </script>
+</body>
+</html>

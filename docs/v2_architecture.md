@@ -112,3 +112,18 @@ V2 position sizing is driven by signal confidence and rolling volatility. The fi
 - sizing reason
 
 High volatility reduces position size. Low volatility can expand the target weight, but only up to the configured max position cap.
+
+## Live Volatility Dashboard
+
+`volatility_dashboard.html` is the first V2 live risk dashboard. It reads `visualization/state.json` and refreshes every 5 seconds. The dashboard is intended for backtest and observation mode before broker API keys are available.
+
+It displays:
+
+- current portfolio and risk lock state
+- daily and total drawdown
+- target daily volatility
+- per-asset volatility regime
+- base and dynamic target weights
+- leverage factor
+- model confidence
+- sizing reason
