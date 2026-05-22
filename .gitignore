@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 venv/
 env/
@@ -10,6 +12,7 @@ env/
 # Local secrets and broker/API credentials
 .env
 .env.*
+!.env.compose.example
 ib_config.py
 *_config.local.py
 config.json
@@ -25,6 +28,11 @@ lean.local.json
 Thumbs.db
 .idea/
 .vscode/
+docker-compose.override.yml
+postgres-data/
+redis-data/
+grafana-data/
+pgdata/
 
 # Lean market data: too large for a public GitHub repo
 data/**
@@ -64,6 +72,9 @@ visualization/scene.json
 visualization/grafana/
 
 # Logs and temporary files
+.coverage
+coverage.xml
+htmlcov/
 *.log
 *.tmp
 *.bak

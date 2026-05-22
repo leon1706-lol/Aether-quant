@@ -27,8 +27,11 @@ Phase V2-0 ist gestartet. Phase 10 ist abgeschlossen, und die neue Fork baut auf
 
 ```text
 aether-quant/
+|-- docker-compose.yml
 |-- docs/
 |   |-- v2_architecture.md
+|-- infrastructure/
+|   |-- README.md
 |-- lean.json
 |-- config.json
 |-- backtests/
@@ -72,6 +75,8 @@ aether-quant/
 - `visualization/grafana/`: JSON- und CSV-Feeds fuer spaeteres Grafana-Monitoring
 - `dashboard.html`: Browser-Dashboard fuer Portfolio-, Markt-, Risiko- und Modellstatus
 - `volatility_dashboard.html`: V2 Live-Volatility-Dashboard fuer Positionsgroesse, Hebel und Volatilitaetsregime
+- `docker-compose.yml`: lokale Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
+- `infrastructure/`: Startbefehle, Netzwerk- und Datenfluss-Dokumentation fuer Docker Compose
 - `docs/v2_architecture.md`: V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen
 - `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher
 - `moe/`: Gating Network, Expert Routing und finale MoE-Signalzusammenfuehrung
@@ -390,11 +395,43 @@ Das HTML Live Volatility Dashboard macht jetzt zusaetzlich Folgendes:
 - zeigt pro Asset Signal, Volatilitaetsregime, annualisierte Volatilitaet, Basisgewicht, dynamisches Zielgewicht, Hebelfaktor, Confidence und Sizing-Grund
 - funktioniert im Backtest-/Observation-Modus ohne Broker-API-Key
 
-## Naechste technische Phasen
+## V2 Infrastruktur-Entscheidung
 
-- Phase V2-2: Regime Detection
-- Phase 7: Kontrolliertes Online-Lernen auf stabilerer Beobachtungsbasis
-- Spaeter: echtes Paper Trading mit IB API-Zugangsdaten
+JSONL wird nicht als Experience-Fallback verwendet. V2 nutzt stattdessen Redis als schnellen temporaeren Puffer und PostgreSQL als permanente Experience Database.
+
+Der geplante Datenfluss:
+
+1. Signal entsteht in Backtest, Observation Mode oder Live Loop.
+2. Rohmetriken werden sofort nach Redis geschrieben, zum Beispiel per `XADD` Stream oder `LPUSH` Queue.
+3. Ein separater Worker liest Redis entkoppelt per `XREAD` oder `BLPOP`.
+4. Der Worker schreibt Events per Batch-Insert nach PostgreSQL.
+5. Controlled Retraining liest spaeter nur aus PostgreSQL als Single Source of Truth.
+
+## V2 Phasenplan Ab Jetzt
+
+1. [x] V2-1: Fork & Architektur-Fundament
+2. [x] V2-2: Lean-Datenpipeline V2
+3. [x] V2-3: Dynamic Risk & Position Sizing
+4. [x] V2-4: HTML Live Volatility Dashboard
+5. [x] V2-5: Docker Compose Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
+6. [ ] V2-6: Regime Detection
+7. [ ] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
+8. [ ] V2-8: Experten-Modelle
+9. [ ] V2-9: Gating Network
+10. [ ] V2-10: Zentraler Markt-Analysator
+11. [ ] V2-11: 3D Topology Market Modeling
+12. [ ] V2-12: Market Impact & Liquidity Engine
+13. [ ] V2-13: Redis Experience Queue/Stream
+14. [ ] V2-14: PostgreSQL Persistence Worker
+15. [ ] V2-15: Observation Mode
+16. [ ] V2-16: Performance Trigger
+17. [ ] V2-17: Controlled Retraining
+18. [ ] V2-18: Grafana Monitoring Ausbau
+19. [ ] V2-19: Telegram Alerts
+20. [ ] V2-20: Lean Backtesting Integration
+21. [ ] V2-21: Paper Trading Vorbereitung
+22. [ ] V2-22: Live Deployment Struktur
+23. [ ] V2-23: Finaler V2 Review
 
 ## Hinweise
 

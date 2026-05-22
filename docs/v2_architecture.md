@@ -31,10 +31,12 @@ flowchart LR
     K --> L["Action categorization"]
     L --> M["Observe / simulate"]
     L --> N["Trade via Lean<br/>paper/live later"]
-    M --> O["Experience database"]
+    M --> O["Redis event stream<br/>temporary low-latency buffer"]
     N --> O
-    O --> P["Performance triggers<br/>100 observations, drawdown, Sharpe, regime shift"]
-    P --> Q["Controlled retraining<br/>versioned weights and rollback"]
+    O --> P["Experience worker<br/>async batch persistence"]
+    P --> R["PostgreSQL experience database<br/>single source of truth"]
+    R --> S["Performance triggers<br/>100 observations, drawdown, Sharpe, regime shift"]
+    S --> Q["Controlled retraining<br/>versioned weights and rollback"]
     Q --> E
 ```
 
@@ -48,8 +50,8 @@ flowchart TB
     B["Development"] --> B1["VS Code + Codex"]
     B --> B2["GitHub"]
     C["Data and storage"] --> C1["Lean data folder for training/backtesting"]
-    C --> C2["PostgreSQL experience database later"]
-    C --> C3["JSONL fallback during early V2"]
+    C --> C2["Redis temporary event stream"]
+    C --> C3["PostgreSQL permanent experience database"]
     D["AI and modeling"] --> D1["PyTorch"]
     D --> D2["scikit-learn"]
     D --> D3["NumPy / Pandas"]
@@ -66,7 +68,7 @@ flowchart TB
 - `experts/`: Bullish, bearish, sideways and volatility expert model interfaces.
 - `regime/`: Quantitative market-regime detection and later LLM regime-vector adapters.
 - `topology/`: 3D market topology state, asset clustering and topology export.
-- `experience/`: Observation records, simulated trade records and later PostgreSQL persistence.
+- `experience/`: Redis-buffered observation and trade events with PostgreSQL persistence.
 - `risk/`: Dynamic position sizing, leverage limits, liquidity and market-impact controls.
 - `monitoring/`: HTML dashboard feeds, Grafana exports and later Telegram alert adapters.
 
@@ -76,14 +78,35 @@ flowchart TB
 2. Lean-data pipeline extension.
 3. Dynamic risk and position sizing.
 4. HTML live volatility dashboard.
-5. Regime detection.
-6. Expert modules.
-7. Gating network.
-8. Experience database.
-9. Performance triggers.
-10. Controlled retraining.
-11. Observation mode.
-12. Paper/live deployment.
+5. Docker Compose infrastructure for Lean, Grafana, Redis and PostgreSQL.
+6. Regime detection.
+7. Expert datasets.
+8. Expert modules.
+9. Gating network.
+10. Central market analyzer.
+11. 3D topology market modeling.
+12. Market impact and liquidity engine.
+13. Redis experience queue/stream.
+14. PostgreSQL persistence worker.
+15. Observation mode.
+16. Performance triggers.
+17. Controlled retraining.
+18. Grafana monitoring expansion.
+19. Telegram alerts.
+20. Lean backtesting integration.
+21. Paper trading preparation.
+22. Live deployment structure.
+23. Final V2 review.
+
+## Redis To PostgreSQL Experience Flow
+
+V2 uses Redis instead of a JSONL fallback. Redis is only the temporary fast buffer; PostgreSQL is the permanent source for analytics and retraining.
+
+1. The live, backtest or observation loop creates a signal and writes raw metrics into Redis immediately.
+2. Redis accepts events through a stream or queue, for example `XADD` or `LPUSH`.
+3. A separate worker reads the events asynchronously with `XREAD` or `BLPOP`.
+4. The worker persists events into PostgreSQL with batch inserts.
+5. Controlled retraining reads from PostgreSQL only, so model updates are based on stable historical records.
 
 ## API Key Status
 
