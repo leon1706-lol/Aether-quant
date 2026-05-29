@@ -26,7 +26,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import torch
-from experts import build_expert_dataset_manifest, write_expert_dataset_artifacts
+from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -38,6 +38,7 @@ DATA_DIR = ROOT / "data"
 ML_DIR = ROOT / "ml"
 DATASET_DIR = ML_DIR / "datasets"
 EXPERT_DATASET_DIR = ML_DIR / "expert_datasets"
+EXPERT_MODEL_DIR = ML_DIR / "expert_models"
 BACKTESTS_DIR = ROOT / "backtests"
 VIS_DIR = ROOT / "visualization"
 GRAFANA_DIR = VIS_DIR / "grafana"
@@ -45,6 +46,7 @@ CONFIG_PATH = ROOT / "config.json"
 MODEL_WEIGHTS_PATH = ML_DIR / "model_weights.json"
 MODEL_CHECKPOINT_PATH = ML_DIR / "model.pt"
 TRAINING_METRICS_PATH = ML_DIR / "training_metrics.json"
+EXPERT_TRAINING_METRICS_PATH = ML_DIR / "expert_training_metrics.json"
 INVENTORY_PATH = ML_DIR / "dataset_inventory.json"
 DATASET_MANIFEST_PATH = ML_DIR / "dataset_manifest.json"
 EXPERT_DATASET_MANIFEST_PATH = ML_DIR / "expert_dataset_manifest.json"
@@ -80,6 +82,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Build dataset artifacts and scaler, but skip model training."
     )
+    parser.add_argument(
+        "--experts-only",
+        action="store_true",
+        help="Build datasets and train V2 expert models, but skip the baseline model."
+    )
     return parser.parse_args()
 
 
@@ -91,7 +98,7 @@ def setup_logging() -> None:
 
 
 def ensure_directories() -> None:
-    for path in (ML_DIR, DATASET_DIR, EXPERT_DATASET_DIR, VIS_DIR, GRAFANA_DIR, BACKTESTS_DIR):
+    for path in (ML_DIR, DATASET_DIR, EXPERT_DATASET_DIR, EXPERT_MODEL_DIR, VIS_DIR, GRAFANA_DIR, BACKTESTS_DIR):
         path.mkdir(parents=True, exist_ok=True)
 
 
@@ -1269,6 +1276,337 @@ def train_model(config: dict, dataset: pd.DataFrame) -> dict:
     }
 
 
+def _feature_names_for_model(config: dict, dataset: pd.DataFrame) -> list[str]:
+    model_config = config["phase3"]["model"]
+    feature_names = [f"{name}_scaled" for name in config["phase1"]["features"]["input_set"]]
+    if bool(model_config.get("use_asset_context", False)):
+        feature_names += [column for column in dataset.columns if column.startswith("asset_")]
+    return feature_names
+
+
+def _expert_training_config(config: dict) -> tuple[dict, dict]:
+    expert_config = config.get("phase_v2", {}).get("expert_models", {})
+    model_config = copy.deepcopy(config["phase3"]["model"])
+    model_config.update(expert_config.get("model", {}))
+
+    training_config = copy.deepcopy(config["phase3"]["training"])
+    training_overrides = expert_config.get("training", {})
+    training_config.update(training_overrides)
+    training_config["epochs"] = int(training_overrides.get("epochs", min(int(training_config.get("epochs", 120)), 80)))
+    training_config["patience"] = int(training_overrides.get("patience", min(int(training_config.get("patience", 18)), 12)))
+    training_config["min_train_rows"] = int(training_overrides.get("min_train_rows", 50))
+    training_config["min_validation_rows"] = int(training_overrides.get("min_validation_rows", 10))
+    training_config["min_backtest_rows"] = int(training_overrides.get("min_backtest_rows", 10))
+    return model_config, training_config
+
+
+def _train_expert_classifier(
+    expert_name: str,
+    expert_frame: pd.DataFrame,
+    feature_names: list[str],
+    model_config: dict,
+    training_config: dict,
+    device: torch.device,
+) -> dict:
+    train_frame = split_frame(expert_frame, "train")
+    validation_frame = split_frame(expert_frame, "validation")
+    backtest_frame = split_frame(expert_frame, "backtest")
+
+    min_train_rows = int(training_config.get("min_train_rows", 50))
+    min_validation_rows = int(training_config.get("min_validation_rows", 10))
+    min_backtest_rows = int(training_config.get("min_backtest_rows", 10))
+    if len(train_frame) < min_train_rows or len(validation_frame) < min_validation_rows or len(backtest_frame) < min_backtest_rows:
+        return {
+            "expert": expert_name,
+            "status": "skipped",
+            "reason": "not_enough_rows_for_expert_training",
+            "rows": int(len(expert_frame)),
+            "split_rows": {
+                "train": int(len(train_frame)),
+                "validation": int(len(validation_frame)),
+                "backtest": int(len(backtest_frame)),
+            },
+            "minimums": {
+                "train": min_train_rows,
+                "validation": min_validation_rows,
+                "backtest": min_backtest_rows,
+            },
+        }
+
+    seed = int(training_config["seed"]) + sum(ord(character) for character in expert_name)
+    set_seed(seed)
+
+    train_features, train_targets = frame_to_tensors(train_frame, feature_names)
+    validation_features, validation_targets = frame_to_tensors(validation_frame, feature_names)
+    train_loader = DataLoader(
+        TensorDataset(train_features, train_targets),
+        batch_size=int(training_config["batch_size"]),
+        shuffle=True,
+    )
+
+    model = AetherNet(
+        input_dim=len(feature_names),
+        hidden_layers=list(model_config["hidden_layers"]),
+        dropout=float(model_config["dropout"]),
+        activation=str(model_config.get("activation", "relu")),
+        normalization=str(model_config.get("normalization", "none")),
+    ).to(device)
+
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=float(training_config["learning_rate"]),
+        weight_decay=float(training_config["weight_decay"]),
+    )
+    positive_count = max(float(train_frame["target_direction"].sum()), 1.0)
+    negative_count = max(float(len(train_frame) - train_frame["target_direction"].sum()), 1.0)
+    pos_weight = torch.tensor(negative_count / positive_count, dtype=torch.float32, device=device)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
+    threshold = float(training_config["decision_threshold"])
+    threshold_metric = str(training_config.get("optimize_threshold_metric", "f1"))
+    threshold_min = float(training_config.get("threshold_search_min", 0.35))
+    threshold_max = float(training_config.get("threshold_search_max", 0.65))
+    threshold_steps = int(training_config.get("threshold_search_steps", 61))
+    max_epochs = int(training_config["epochs"])
+    patience = int(training_config["patience"])
+
+    best_state = None
+    best_epoch = 0
+    best_validation_loss = float("inf")
+    epochs_without_improvement = 0
+    history: list[dict] = []
+
+    validation_features = validation_features.to(device)
+    validation_targets = validation_targets.to(device)
+
+    for epoch in range(1, max_epochs + 1):
+        model.train()
+        running_loss = 0.0
+        sample_count = 0
+
+        for batch_features, batch_targets in train_loader:
+            batch_features = batch_features.to(device)
+            batch_targets = batch_targets.to(device)
+
+            optimizer.zero_grad()
+            logits = model(batch_features)
+            loss = criterion(logits, batch_targets)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += float(loss.item()) * len(batch_targets)
+            sample_count += len(batch_targets)
+
+        model.eval()
+        with torch.no_grad():
+            validation_logits = model(validation_features)
+        validation_metrics = compute_binary_metrics(validation_logits, validation_targets, criterion, threshold)
+        train_epoch_loss = running_loss / max(sample_count, 1)
+        history.append(
+            {
+                "epoch": epoch,
+                "train_loss": train_epoch_loss,
+                "validation_loss": validation_metrics["loss"],
+                "validation_accuracy": validation_metrics["accuracy"],
+                "validation_balanced_accuracy": validation_metrics["balanced_accuracy"],
+                "validation_f1": validation_metrics["f1"],
+            }
+        )
+
+        if validation_metrics["loss"] < best_validation_loss:
+            best_validation_loss = validation_metrics["loss"]
+            best_epoch = epoch
+            best_state = copy.deepcopy(model.state_dict())
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
+        if epochs_without_improvement >= patience:
+            break
+
+    if best_state is None:
+        best_state = copy.deepcopy(model.state_dict())
+        best_epoch = len(history)
+
+    model.load_state_dict(best_state)
+    model.eval()
+    with torch.no_grad():
+        validation_logits = model(validation_features)
+    tuned_threshold, tuned_validation_metrics = find_optimal_threshold(
+        validation_logits,
+        validation_targets,
+        criterion,
+        threshold_metric,
+        threshold_min,
+        threshold_max,
+        threshold_steps,
+    )
+
+    metrics = {
+        "expert": expert_name,
+        "status": "trained",
+        "rows": int(len(expert_frame)),
+        "split_rows": {
+            "train": int(len(train_frame)),
+            "validation": int(len(validation_frame)),
+            "backtest": int(len(backtest_frame)),
+        },
+        "best_epoch": best_epoch,
+        "epochs_ran": len(history),
+        "threshold_optimization": {
+            "metric": threshold_metric,
+            "default_threshold": threshold,
+            "selected_threshold": tuned_threshold,
+            "selected_validation_metrics": tuned_validation_metrics,
+        },
+        "train": evaluate_split(model, train_frame, feature_names, criterion, tuned_threshold, device),
+        "validation": evaluate_split(model, validation_frame, feature_names, criterion, tuned_threshold, device),
+        "backtest": evaluate_split(model, backtest_frame, feature_names, criterion, tuned_threshold, device),
+        "tickers": sorted(expert_frame["ticker"].unique().tolist()) if "ticker" in expert_frame.columns else [],
+        "history": history,
+    }
+    return {
+        "expert": expert_name,
+        "status": "trained",
+        "model": model,
+        "state_dict": best_state,
+        "threshold": tuned_threshold,
+        "metrics": metrics,
+    }
+
+
+def _write_expert_model_export(
+    expert_name: str,
+    result: dict,
+    model_config: dict,
+    training_config: dict,
+    feature_names: list[str],
+    output_dir: Path,
+) -> dict:
+    def artifact_path(path: Path) -> str:
+        try:
+            return str(path.relative_to(ROOT))
+        except ValueError:
+            return str(path)
+
+    expert_dir = output_dir / expert_name
+    expert_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = expert_dir / "model.pt"
+    weights_path = expert_dir / "model_weights.json"
+    metrics_path = expert_dir / "metrics.json"
+
+    torch.save(result["state_dict"], checkpoint_path)
+    metrics_path.write_text(json.dumps(result["metrics"], indent=2), encoding="utf-8")
+    payload = {
+        "project": "Aether Quant",
+        "phase": "v2_expert_model",
+        "expert": expert_name,
+        "status": "trained",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "model": {
+            "type": model_config["type"],
+            "model_input_features": feature_names,
+            "hidden_layers": model_config["hidden_layers"],
+            "dropout": model_config["dropout"],
+            "activation": model_config.get("activation", "relu"),
+            "normalization": model_config.get("normalization", "none"),
+            "use_asset_context": model_config.get("use_asset_context", False),
+            "output_activation": model_config.get("output_activation", "sigmoid"),
+        },
+        "training": {
+            "decision_threshold": result["threshold"],
+            "threshold_metric": training_config.get("optimize_threshold_metric", "f1"),
+            "best_epoch": result["metrics"]["best_epoch"],
+            "epochs_ran": result["metrics"]["epochs_ran"],
+        },
+        "metrics_path": artifact_path(metrics_path),
+        "checkpoint_path": artifact_path(checkpoint_path),
+        "export": {
+            "architecture": export_architecture(result["model"]),
+            "state_dict": export_state_dict(result["model"]),
+        },
+    }
+    weights_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return {
+        "weights_path": artifact_path(weights_path),
+        "metrics_path": artifact_path(metrics_path),
+        "checkpoint_path": artifact_path(checkpoint_path),
+    }
+
+
+def train_expert_models(
+    config: dict,
+    dataset: pd.DataFrame,
+    dataset_manifest: dict,
+    output_dir: Path = EXPERT_MODEL_DIR,
+    metrics_path: Path = EXPERT_TRAINING_METRICS_PATH,
+) -> dict:
+    annotated_dataset, expert_dataset_manifest = build_expert_dataset_manifest(dataset, dataset_manifest, config)
+    eligible = annotated_dataset
+    if "training_eligible" in eligible.columns:
+        eligible = eligible[eligible["training_eligible"]].copy()
+
+    model_config, training_config = _expert_training_config(config)
+    feature_names = _feature_names_for_model(config, annotated_dataset)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    summary = {
+        "project": config["name"],
+        "phase": "v2_expert_models",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "device": str(device),
+        "feature_names": feature_names,
+        "source_dataset_rows": int(len(dataset)),
+        "eligible_dataset_rows": int(len(eligible)),
+        "expert_dataset_manifest": expert_dataset_manifest,
+        "experts": {},
+    }
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for expert_name, expert_summary in expert_dataset_manifest["experts"].items():
+        definition = EXPERT_DEFINITIONS[expert_name]
+        expert_frame = eligible.copy()
+        for column, allowed_values in definition["filter"].items():
+            expert_frame = expert_frame[expert_frame[f"regime_{column}"].isin(allowed_values)].copy()
+
+        result = _train_expert_classifier(
+            expert_name,
+            expert_frame,
+            feature_names,
+            model_config,
+            training_config,
+            device,
+        )
+        if result["status"] == "trained":
+            artifacts = _write_expert_model_export(
+                expert_name,
+                result,
+                model_config,
+                training_config,
+                feature_names,
+                output_dir,
+            )
+            summary["experts"][expert_name] = {
+                **result["metrics"],
+                "description": expert_summary["description"],
+                "artifacts": artifacts,
+            }
+        else:
+            summary["experts"][expert_name] = {
+                **result,
+                "description": expert_summary["description"],
+            }
+
+    summary["trained_experts"] = [
+        expert for expert, payload in summary["experts"].items() if payload.get("status") == "trained"
+    ]
+    summary["skipped_experts"] = [
+        expert for expert, payload in summary["experts"].items() if payload.get("status") != "trained"
+    ]
+    metrics_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
+
+
 def write_model_export(
     config: dict,
     data_summary: dict,
@@ -1686,8 +2024,27 @@ def main() -> int:
         )
         return 0
 
+    if args.experts_only:
+        LOGGER.info("Training expert models.")
+        expert_training_result = train_expert_models(config, dataset, dataset_manifest)
+        write_visualization_state(
+            config,
+            inventory,
+            data_summary,
+            dataset_manifest=dataset_manifest,
+            training_context=load_existing_training_context(),
+        )
+        print(
+            "Phase V2-8 expert models trained.",
+            f"Trained: {', '.join(expert_training_result['trained_experts']) or 'none'}.",
+            f"Skipped: {', '.join(expert_training_result['skipped_experts']) or 'none'}.",
+        )
+        return 0
+
     LOGGER.info("Training model.")
     training_result = train_model(config, dataset)
+    LOGGER.info("Training expert models.")
+    expert_training_result = train_expert_models(config, dataset, dataset_manifest)
     write_model_export(
         config,
         data_summary,
@@ -1707,6 +2064,7 @@ def main() -> int:
         f"Best epoch: {training_result['metrics']['best_epoch']}.",
         f"Validation accuracy: {training_result['metrics']['validation']['accuracy']:.4f}.",
         f"Backtest strategy return: {training_result['strategy_report']['backtest']['strategy']['total_return']:.4f}.",
+        f"Expert models trained: {', '.join(expert_training_result['trained_experts']) or 'none'}.",
     )
     LOGGER.info("Training pipeline finished.")
     return 0

@@ -161,6 +161,20 @@ The first expert slices are:
 
 Only training-eligible assets are used for expert training slices. Observation-only assets stay visible in runtime monitoring, but they are not used to train experts until their history quality improves.
 
+## Expert Model Contract
+
+V2 expert models reuse the same PyTorch architecture family as the baseline model, but train separately on regime-specific slices.
+
+The expert artifacts are:
+
+- `ml/expert_models/bullish/model_weights.json`
+- `ml/expert_models/bearish/model_weights.json`
+- `ml/expert_models/sideways/model_weights.json`
+- `ml/expert_models/volatility/model_weights.json`
+- `ml/expert_training_metrics.json`
+
+These artifacts stay local. The later gating network reads their metrics and exported JSON weights, then decides how strongly each expert should influence the final signal.
+
 ## Live Volatility Dashboard
 
 `volatility_dashboard.html` is the first V2 live risk dashboard. It reads `visualization/state.json` and refreshes every 5 seconds. The dashboard is intended for backtest and observation mode before broker API keys are available.

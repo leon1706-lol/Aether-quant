@@ -417,6 +417,18 @@ Die V2 Expert-Dataset-Stufe macht jetzt zusaetzlich Folgendes:
 - schreibt `ml/expert_dataset_manifest.json` mit Row Counts, Split Counts, Tickern, Target Balance und Routing-Filtern
 - haelt die generierten Expert-Artefakte aus Git heraus
 
+## Phase-V2-8-Ergebnis
+
+Die V2 Experten-Modell-Stufe macht jetzt zusaetzlich Folgendes:
+
+- trainiert getrennte PyTorch-Modelle fuer `bullish`, `bearish`, `sideways` und `volatility`
+- nutzt dieselbe MLP-Familie wie das Basismodell, aber mit regime-spezifischen Trainingsdaten
+- fuegt `python train.py --experts-only` fuer reines Expert-Training hinzu
+- aktualisiert bei normalem `python train.py` auch die Expert-Modelle
+- schreibt lokale Expert-Gewichte und Metriken unter `ml/expert_models/<expert>/`
+- schreibt eine Gesamtuebersicht nach `ml/expert_training_metrics.json`
+- haelt alle generierten Expert-Modellartefakte aus Git heraus
+
 ## V2 Infrastruktur-Entscheidung
 
 JSONL wird nicht als Experience-Fallback verwendet. V2 nutzt stattdessen Redis als schnellen temporaeren Puffer und PostgreSQL als permanente Experience Database.
@@ -438,7 +450,7 @@ Der geplante Datenfluss:
 5. [x] V2-5: Docker Compose Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
 6. [x] V2-6: Regime Detection
 7. [x] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
-8. [ ] V2-8: Experten-Modelle
+8. [x] V2-8: Experten-Modelle
 9. [ ] V2-9: Gating Network
 10. [ ] V2-10: Zentraler Markt-Analysator
 11. [ ] V2-11: 3D Topology Market Modeling

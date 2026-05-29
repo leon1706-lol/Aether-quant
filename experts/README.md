@@ -16,3 +16,11 @@ Current V2-7 behavior:
 - the training pipeline writes local expert CSVs under `ml/expert_datasets/`
 - `ml/expert_dataset_manifest.json` records row counts, split counts, tickers, target balance and routing filters
 - generated expert artifacts stay local and are ignored by Git
+
+Current V2-8 behavior:
+
+- `train.py --experts-only` trains bullish, bearish, sideways and volatility experts without retraining the baseline model
+- normal `train.py` runs train the baseline model and then refresh expert models
+- each expert writes local `model_weights.json`, `metrics.json` and `model.pt` files under `ml/expert_models/<expert>/`
+- `ml/expert_training_metrics.json` summarizes trained and skipped experts
+- expert weights are JSON-exported so the later gating network can load them without a PyTorch runtime inside Lean
