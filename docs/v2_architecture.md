@@ -136,6 +136,31 @@ V2 position sizing is driven by signal confidence and rolling volatility. The fi
 
 High volatility reduces position size. Low volatility can expand the target weight, but only up to the configured max position cap.
 
+## Regime Detection Contract
+
+V2 regime detection is quantitative first. It uses the Lean-derived feature set before any LLM regime-vector adapter is introduced.
+
+It emits:
+
+- `trend_regime`: `bullish`, `bearish` or `sideways`
+- `volatility_regime`: `low_volatility`, `normal_volatility` or `high_volatility`
+- `risk_regime`: `risk_on`, `risk_neutral` or `risk_off`
+- `primary_regime`: compact routing label for future expert datasets and the MoE gating network
+- confidence, trend score, drawdown and risk score for monitoring and later training filters
+
+## Expert Dataset Contract
+
+V2 expert datasets are derived from the same Lean-data feature dataset as the baseline model. They do not introduce a second data source.
+
+The first expert slices are:
+
+- `bullish`: rows where `trend_regime` is bullish
+- `bearish`: rows where `trend_regime` is bearish
+- `sideways`: rows where `trend_regime` is sideways
+- `volatility`: rows where `volatility_regime` is high volatility
+
+Only training-eligible assets are used for expert training slices. Observation-only assets stay visible in runtime monitoring, but they are not used to train experts until their history quality improves.
+
 ## Live Volatility Dashboard
 
 `volatility_dashboard.html` is the first V2 live risk dashboard. It reads `visualization/state.json` and refreshes every 5 seconds. The dashboard is intended for backtest and observation mode before broker API keys are available.

@@ -21,6 +21,7 @@ from risk_controls import (
     assess_drawdown_lock,
     cap_target_weight,
 )
+from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
 
 
@@ -63,6 +64,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase6_paper = self.phase6.get("paper_trading", {})
         phase9_portfolio = self.phase9.get("portfolio", {})
         phase_v2_risk = self.phase_v2.get("dynamic_risk", {})
+        phase_v2_regime = self.phase_v2.get("regime_detection", {})
 
         self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
         self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
@@ -96,6 +98,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.max_volatility_multiplier = float(phase_v2_risk.get("max_volatility_multiplier", 1.25))
         self.min_dynamic_position_weight = float(phase_v2_risk.get("min_position_weight", 0.0))
         self.max_leverage = float(phase_v2_risk.get("max_leverage", 1.0))
+        self.regime_bullish_threshold = float(phase_v2_regime.get("bullish_threshold", 0.02))
+        self.regime_bearish_threshold = float(phase_v2_regime.get("bearish_threshold", -0.02))
+        self.regime_risk_off_drawdown_threshold = float(phase_v2_regime.get("risk_off_drawdown_threshold", 0.08))
+        self.regime_risk_on_drawdown_threshold = float(phase_v2_regime.get("risk_on_drawdown_threshold", 0.03))
+        self.regime_high_correlation_threshold = float(phase_v2_regime.get("high_correlation_threshold", 0.75))
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -183,6 +190,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if feature_payload["ready"] and not self.is_warming_up:
                 probability_up = self._run_model(feature_payload["model_inputs"])
                 signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
+                regime_payload = self._build_regime_payload(feature_payload["base_features"])
                 sizing_payload = self._build_dynamic_sizing_payload(
                     signal_name,
                     confidence,
@@ -215,6 +223,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "base_target_weight": base_target_weight,
                         "target_weight": target_weight,
                         "dynamic_sizing": sizing_payload,
+                        "regime": regime_payload,
                         "features": feature_payload["base_features"],
                         "execution_note": execution_note,
                     }
@@ -402,6 +411,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         return decision.to_dict()
 
+    def _build_regime_payload(self, base_features: dict) -> dict:
+        vector = build_market_regime_vector(
+            base_features,
+            portfolio_drawdown=self.current_total_drawdown,
+            bullish_threshold=self.regime_bullish_threshold,
+            bearish_threshold=self.regime_bearish_threshold,
+            low_volatility_threshold=self.low_volatility_threshold,
+            high_volatility_threshold=self.high_volatility_threshold,
+            risk_off_drawdown_threshold=self.regime_risk_off_drawdown_threshold,
+            risk_on_drawdown_threshold=self.regime_risk_on_drawdown_threshold,
+            high_correlation_threshold=self.regime_high_correlation_threshold,
+        )
+        return vector.to_dict()
+
     def _apply_signal(self, symbol, signal_name: str, target_weight: float) -> str:
         symbol_key = str(symbol)
         previous_signal = self.latest_signal_state.get(symbol_key, "hold")
@@ -576,6 +599,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "signals": signals or {},
         }
 
+        state["regime"] = self._build_regime_summary(state["signals"])
         state["dashboard"] = self._build_dashboard_view(state)
         state["monitoring"] = self._build_monitoring_view(state)
         state["scene"] = self._build_scene_payload(state)
@@ -609,6 +633,56 @@ class AetherQuantAlgorithm(QCAlgorithm):
             )
         return positions
 
+    def _build_regime_summary(self, signals: dict) -> dict:
+        regime_payloads = [
+            payload.get("regime", {})
+            for payload in signals.values()
+            if payload.get("regime")
+        ]
+
+        def count_by(key: str) -> dict:
+            counts = {}
+            for regime_payload in regime_payloads:
+                value = regime_payload.get(key, "unknown")
+                counts[value] = counts.get(value, 0) + 1
+            return counts
+
+        def dominant(counts: dict) -> str:
+            if not counts:
+                return "unknown"
+            return max(sorted(counts), key=lambda value: counts[value])
+
+        primary_counts = count_by("primary_regime")
+        trend_counts = count_by("trend_regime")
+        volatility_counts = count_by("volatility_regime")
+        risk_counts = count_by("risk_regime")
+
+        average_confidence = (
+            sum(float(payload.get("confidence", 0.0) or 0.0) for payload in regime_payloads) / len(regime_payloads)
+            if regime_payloads else 0.0
+        )
+        risk_off_assets = [
+            symbol
+            for symbol, payload in signals.items()
+            if payload.get("regime", {}).get("risk_regime") == "risk_off"
+        ]
+
+        return {
+            "asset_count": len(regime_payloads),
+            "dominant_primary_regime": dominant(primary_counts),
+            "dominant_trend_regime": dominant(trend_counts),
+            "dominant_volatility_regime": dominant(volatility_counts),
+            "dominant_risk_regime": dominant(risk_counts),
+            "average_confidence": average_confidence,
+            "risk_off_assets": risk_off_assets,
+            "counts": {
+                "primary": primary_counts,
+                "trend": trend_counts,
+                "volatility": volatility_counts,
+                "risk": risk_counts,
+            },
+        }
+
     def _build_dashboard_view(self, state: dict) -> dict:
         total_portfolio_value = float(state["portfolio"]["total_portfolio_value"])
         asset_heatmap = []
@@ -617,6 +691,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             confidence = float(payload.get("confidence", 0.0) or 0.0)
             daily_return = float(payload.get("features", {}).get("close_to_close_return_1d", 0.0) or 0.0)
             dynamic_sizing = payload.get("dynamic_sizing", {})
+            regime = payload.get("regime", {})
             asset_heatmap.append(
                 {
                     "symbol": symbol,
@@ -631,6 +706,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "rolling_volatility": float(dynamic_sizing.get("rolling_volatility", 0.0) or 0.0),
                     "annualized_volatility": float(dynamic_sizing.get("annualized_volatility", 0.0) or 0.0),
                     "volatility_regime": dynamic_sizing.get("volatility_regime", "unknown"),
+                    "primary_regime": regime.get("primary_regime", "unknown"),
+                    "trend_regime": regime.get("trend_regime", "unknown"),
+                    "risk_regime": regime.get("risk_regime", "unknown"),
+                    "regime_confidence": float(regime.get("confidence", 0.0) or 0.0),
                     "base_target_weight": float(payload.get("base_target_weight", 0.0) or 0.0),
                     "target_weight": float(payload.get("target_weight", 0.0) or 0.0),
                     "leverage_factor": float(dynamic_sizing.get("leverage_factor", 0.0) or 0.0),
@@ -678,7 +757,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         return {
             "project": state["project"],
-            "phase": "v2_dynamic_risk",
+            "phase": "v2_regime_detection",
             "mode": state["mode"],
             "updated_at": state["updated_at"],
             "portfolio_value": float(state["portfolio"]["total_portfolio_value"]),
@@ -692,6 +771,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "daily_drawdown": float(state["risk"]["daily_drawdown"]),
             "total_drawdown": float(state["risk"]["total_drawdown"]),
             "trade_lock_active": bool(state["risk"]["trade_lock_active"]),
+            "dominant_primary_regime": state["regime"]["dominant_primary_regime"],
+            "dominant_risk_regime": state["regime"]["dominant_risk_regime"],
+            "risk_off_asset_count": len(state["regime"]["risk_off_assets"]),
             "trading_eligible_assets": "|".join(state["universe"].get("trading_eligible_assets", [])),
             "observation_only_assets": "|".join(state["universe"].get("observation_only_assets", [])),
             "feeds": {
@@ -758,12 +840,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _build_runtime_asset_csv(self, state: dict) -> str:
         rows = [
-            "symbol,ticker,quality_tier,role,trading_eligible,signal,confidence,probability_up,base_target_weight,target_weight,rolling_volatility,annualized_volatility,volatility_regime,leverage_factor,close,daily_return,position_weight,execution_note"
+            "symbol,ticker,quality_tier,role,trading_eligible,signal,confidence,probability_up,base_target_weight,target_weight,rolling_volatility,annualized_volatility,volatility_regime,primary_regime,trend_regime,risk_regime,regime_confidence,leverage_factor,close,daily_return,position_weight,execution_note"
         ]
         positions_by_symbol = {position["symbol"]: position for position in state["positions"]}
         for symbol, payload in sorted(state["signals"].items()):
             position_weight = positions_by_symbol.get(symbol, {}).get("weight", 0.0)
             dynamic_sizing = payload.get("dynamic_sizing", {})
+            regime = payload.get("regime", {})
             rows.append(
                 ",".join(
                     [
@@ -780,6 +863,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         f"{float(dynamic_sizing.get('rolling_volatility', 0.0) or 0.0):.6f}",
                         f"{float(dynamic_sizing.get('annualized_volatility', 0.0) or 0.0):.6f}",
                         str(dynamic_sizing.get("volatility_regime", "unknown")),
+                        str(regime.get("primary_regime", "unknown")),
+                        str(regime.get("trend_regime", "unknown")),
+                        str(regime.get("risk_regime", "unknown")),
+                        f"{float(regime.get('confidence', 0.0) or 0.0):.6f}",
                         f"{float(dynamic_sizing.get('leverage_factor', 0.0) or 0.0):.6f}",
                         f"{float(payload.get('close', 0.0) or 0.0):.6f}",
                         f"{float(payload.get('features', {}).get('close_to_close_return_1d', 0.0) or 0.0):.6f}",

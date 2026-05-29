@@ -352,7 +352,7 @@ Die aktuelle Stabilisierung macht jetzt zusaetzlich Folgendes:
 - prueft vor dem Training Datenpfade, Asset-Konfiguration und Zeitfenster mit klaren Fehlermeldungen
 - prueft vor Lean-Inferenz, ob Modell-, Feature- und Scaler-Artefakte vorhanden sind
 
-## Phase-V2-0-Ergebnis
+## Phase-V2-1-Ergebnis
 
 Die neue V2-Fork macht jetzt zusaetzlich Folgendes:
 
@@ -362,7 +362,7 @@ Die neue V2-Fork macht jetzt zusaetzlich Folgendes:
 - dokumentiert den geplanten Tech-Stack fuer Docker, Lean, PyTorch, PostgreSQL, Grafana, Telegram und HTML-Dashboard
 - haelt Training und Backtesting weiterhin auf dem lokalen Lean `data/` Ordner als Hauptdatenquelle
 
-## Phase-V2-1-Ergebnis
+## Phase-V2-2-Ergebnis
 
 Die V2 Lean-Datenpipeline macht jetzt zusaetzlich Folgendes:
 
@@ -372,7 +372,7 @@ Die V2 Lean-Datenpipeline macht jetzt zusaetzlich Folgendes:
 - bereitet saubere Anschlusspunkte fuer MoE-Experten, Regime Detection, Topology, Dynamic Risk und Volatility Dashboard vor
 - fuegt Tests hinzu, die diesen Lean-Datenvertrag absichern
 
-## Phase-V2-7-Ergebnis
+## Phase-V2-3-Ergebnis
 
 Die V2 Dynamic-Risk- und Position-Sizing-Stufe macht jetzt zusaetzlich Folgendes:
 
@@ -384,7 +384,7 @@ Die V2 Dynamic-Risk- und Position-Sizing-Stufe macht jetzt zusaetzlich Folgendes
 - schreibt diese Werte in Runtime-State, Dashboard-Heatmap und `visualization/grafana/runtime_asset_metrics.csv`
 - bereitet damit das HTML Live Volatility Dashboard vor
 
-## Phase-V2-9-Ergebnis
+## Phase-V2-4-Ergebnis
 
 Das HTML Live Volatility Dashboard macht jetzt zusaetzlich Folgendes:
 
@@ -394,6 +394,28 @@ Das HTML Live Volatility Dashboard macht jetzt zusaetzlich Folgendes:
 - zeigt Portfolio, Risk Lock, Drawdown, Zielvolatilitaet und maximalen Hebelfaktor
 - zeigt pro Asset Signal, Volatilitaetsregime, annualisierte Volatilitaet, Basisgewicht, dynamisches Zielgewicht, Hebelfaktor, Confidence und Sizing-Grund
 - funktioniert im Backtest-/Observation-Modus ohne Broker-API-Key
+
+## Phase-V2-6-Ergebnis
+
+Die V2 Regime Detection macht jetzt zusaetzlich Folgendes:
+
+- fuegt `regime/market_regime.py` als testbare quantitative Regime-Schicht hinzu
+- erkennt `bullish`, `bearish` und `sideways` aus 5d/20d Momentum
+- erkennt `low_volatility`, `normal_volatility` und `high_volatility` aus Rolling Volatility
+- kombiniert Trend, Volatilitaet, Drawdown und optionale Korrelation zu `risk_on`, `risk_neutral` oder `risk_off`
+- schreibt pro Asset einen `regime`-Block in den Lean Runtime-State
+- exportiert Regime-Felder in die Runtime-Monitoring-CSV fuer Grafana
+
+## Phase-V2-7-Ergebnis
+
+Die V2 Expert-Dataset-Stufe macht jetzt zusaetzlich Folgendes:
+
+- fuegt `experts/expert_datasets.py` als Slice-Schicht fuer spaetere Expertenmodelle hinzu
+- nutzt die quantitative Regime Detection fuer Bullish-, Bearish-, Sideways- und Volatility-Slices
+- filtert Expert-Trainingsdaten auf `training_eligible` Assets
+- erzeugt beim Dataset-Build lokale Expert-CSV-Dateien unter `ml/expert_datasets/`
+- schreibt `ml/expert_dataset_manifest.json` mit Row Counts, Split Counts, Tickern, Target Balance und Routing-Filtern
+- haelt die generierten Expert-Artefakte aus Git heraus
 
 ## V2 Infrastruktur-Entscheidung
 
@@ -414,8 +436,8 @@ Der geplante Datenfluss:
 3. [x] V2-3: Dynamic Risk & Position Sizing
 4. [x] V2-4: HTML Live Volatility Dashboard
 5. [x] V2-5: Docker Compose Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
-6. [ ] V2-6: Regime Detection
-7. [ ] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
+6. [x] V2-6: Regime Detection
+7. [x] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
 8. [ ] V2-8: Experten-Modelle
 9. [ ] V2-9: Gating Network
 10. [ ] V2-10: Zentraler Markt-Analysator

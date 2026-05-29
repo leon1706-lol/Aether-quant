@@ -51,6 +51,7 @@ backtests/**
 
 # Generated ML datasets and binary artifacts
 ml/datasets/
+ml/expert_datasets/
 ml/model.pt
 ml/scaler.pkl
 ml/*.pkl
@@ -61,6 +62,7 @@ ml/*.onnx
 # Generated ML/runtime JSON artifacts
 ml/dataset_inventory.json
 ml/dataset_manifest.json
+ml/expert_dataset_manifest.json
 ml/feature_schema.json
 ml/model_weights.json
 ml/scaler_stats.json

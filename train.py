@@ -26,6 +26,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import torch
+from experts import build_expert_dataset_manifest, write_expert_dataset_artifacts
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -36,6 +37,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 ML_DIR = ROOT / "ml"
 DATASET_DIR = ML_DIR / "datasets"
+EXPERT_DATASET_DIR = ML_DIR / "expert_datasets"
 BACKTESTS_DIR = ROOT / "backtests"
 VIS_DIR = ROOT / "visualization"
 GRAFANA_DIR = VIS_DIR / "grafana"
@@ -45,6 +47,7 @@ MODEL_CHECKPOINT_PATH = ML_DIR / "model.pt"
 TRAINING_METRICS_PATH = ML_DIR / "training_metrics.json"
 INVENTORY_PATH = ML_DIR / "dataset_inventory.json"
 DATASET_MANIFEST_PATH = ML_DIR / "dataset_manifest.json"
+EXPERT_DATASET_MANIFEST_PATH = ML_DIR / "expert_dataset_manifest.json"
 FEATURE_SCHEMA_PATH = ML_DIR / "feature_schema.json"
 SCALER_PATH = ML_DIR / "scaler.pkl"
 SCALER_STATS_PATH = ML_DIR / "scaler_stats.json"
@@ -88,7 +91,7 @@ def setup_logging() -> None:
 
 
 def ensure_directories() -> None:
-    for path in (ML_DIR, DATASET_DIR, VIS_DIR, GRAFANA_DIR, BACKTESTS_DIR):
+    for path in (ML_DIR, DATASET_DIR, EXPERT_DATASET_DIR, VIS_DIR, GRAFANA_DIR, BACKTESTS_DIR):
         path.mkdir(parents=True, exist_ok=True)
 
 
@@ -639,7 +642,12 @@ def write_inventory_file(inventory: dict) -> None:
     INVENTORY_PATH.write_text(json.dumps(inventory, indent=2), encoding="utf-8")
 
 
-def write_dataset_artifacts(dataset: pd.DataFrame, manifest: dict, scaler: StandardScaler) -> None:
+def write_dataset_artifacts(
+    dataset: pd.DataFrame,
+    manifest: dict,
+    scaler: StandardScaler,
+    config: dict | None = None,
+) -> None:
     dataset.to_csv(FULL_DATASET_PATH, index=False)
     dataset[dataset["split"] == "train"].to_csv(TRAIN_DATASET_PATH, index=False)
     dataset[dataset["split"] == "validation"].to_csv(VALIDATION_DATASET_PATH, index=False)
@@ -677,6 +685,14 @@ def write_dataset_artifacts(dataset: pd.DataFrame, manifest: dict, scaler: Stand
             indent=2,
         ),
         encoding="utf-8",
+    )
+
+    expert_dataset, expert_manifest = build_expert_dataset_manifest(dataset, manifest, config)
+    write_expert_dataset_artifacts(
+        expert_dataset,
+        expert_manifest,
+        EXPERT_DATASET_DIR,
+        EXPERT_DATASET_MANIFEST_PATH,
     )
 
 
@@ -1650,7 +1666,7 @@ def main() -> int:
         [asset["ticker"] for asset in config["phase1"]["universe"]["assets"]],
     )
     dataset_manifest = build_dataset_manifest(config, dataset, inventory, metadata, asset_quality)
-    write_dataset_artifacts(dataset, dataset_manifest, scaler)
+    write_dataset_artifacts(dataset, dataset_manifest, scaler, config=config)
 
     if args.dataset_only:
         existing_context = load_existing_training_context()
