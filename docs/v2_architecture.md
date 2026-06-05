@@ -189,6 +189,20 @@ The stabilization layer:
 
 The gating network should only use `stable` and `watchlist` experts at first. `disabled_for_gating` experts stay stored for diagnosis, but should not drive live or simulated decisions.
 
+## Gating Network Contract
+
+The first V2 gating network is deterministic and explainable. It does not yet train another neural model; it acts as a conservative manager over the expert exports.
+
+It combines:
+
+- expert quality status from `ml/expert_training_metrics.json`
+- regime alignment from the current runtime regime vector
+- validation and backtest performance
+- per-expert probability outputs from local JSON expert exports
+- the baseline model probability as a stabilizing anchor
+
+The output is a final `moe_probability_up`, stored as runtime `probability_up`, plus a `moe_gating` payload showing active experts, disabled experts, weights and decision source.
+
 ## Live Volatility Dashboard
 
 `volatility_dashboard.html` is the first V2 live risk dashboard. It reads `visualization/state.json` and refreshes every 5 seconds. The dashboard is intended for backtest and observation mode before broker API keys are available.

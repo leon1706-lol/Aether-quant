@@ -21,6 +21,7 @@ from risk_controls import (
     assess_drawdown_lock,
     cap_target_weight,
 )
+from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
 
@@ -36,6 +37,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.runtime_metrics_path = self.grafana_dir / "runtime_metrics_snapshot.json"
         self.runtime_asset_metrics_path = self.grafana_dir / "runtime_asset_metrics.csv"
         self.model_path = self.root_path / "ml" / "model_weights.json"
+        self.expert_model_dir = self.root_path / "ml" / "expert_models"
+        self.expert_metrics_path = self.root_path / "ml" / "expert_training_metrics.json"
         self.feature_schema_path = self.root_path / "ml" / "feature_schema.json"
         self.scaler_stats_path = self.root_path / "ml" / "scaler_stats.json"
         self.dataset_manifest_path = self.root_path / "ml" / "dataset_manifest.json"
@@ -50,6 +53,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.phase_v2 = self.config.get("phase_v2", {})
         self.runtime = self.config["runtime"]
         self.model_export = self._load_json(self.model_path)
+        self.expert_training_metrics = self._load_json(self.expert_metrics_path) if self.expert_metrics_path.exists() else {}
+        self.expert_model_exports = self._load_expert_model_exports()
         self.feature_schema = self._load_json(self.feature_schema_path)
         self.scaler_stats = self._load_json(self.scaler_stats_path)
         self.dataset_manifest = self._load_json(self.dataset_manifest_path) if self.dataset_manifest_path.exists() else {}
@@ -65,6 +70,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase9_portfolio = self.phase9.get("portfolio", {})
         phase_v2_risk = self.phase_v2.get("dynamic_risk", {})
         phase_v2_regime = self.phase_v2.get("regime_detection", {})
+        phase_v2_gating = self.phase_v2.get("gating_network", {})
 
         self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
         self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
@@ -103,6 +109,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.regime_risk_off_drawdown_threshold = float(phase_v2_regime.get("risk_off_drawdown_threshold", 0.08))
         self.regime_risk_on_drawdown_threshold = float(phase_v2_regime.get("risk_on_drawdown_threshold", 0.03))
         self.regime_high_correlation_threshold = float(phase_v2_regime.get("high_correlation_threshold", 0.75))
+        self.gating_baseline_weight = float(phase_v2_gating.get("baseline_weight", 0.25))
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -188,9 +195,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             }
 
             if feature_payload["ready"] and not self.is_warming_up:
-                probability_up = self._run_model(feature_payload["model_inputs"])
-                signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
+                baseline_probability_up = self._run_model(feature_payload["model_inputs"])
                 regime_payload = self._build_regime_payload(feature_payload["base_features"])
+                expert_probabilities = self._run_expert_models(feature_payload["model_inputs"])
+                gating_payload = build_gating_decision(
+                    regime=regime_payload,
+                    expert_training_metrics=self.expert_training_metrics,
+                    expert_probabilities=expert_probabilities,
+                    baseline_probability_up=baseline_probability_up,
+                    baseline_weight=self.gating_baseline_weight,
+                ).to_dict()
+                probability_up = float(gating_payload["final_probability_up"])
+                signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
                 sizing_payload = self._build_dynamic_sizing_payload(
                     signal_name,
                     confidence,
@@ -220,6 +236,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "signal": signal_name,
                         "confidence": confidence,
                         "probability_up": probability_up,
+                        "baseline_probability_up": baseline_probability_up,
+                        "expert_probabilities": expert_probabilities,
+                        "moe_gating": gating_payload,
                         "base_target_weight": base_target_weight,
                         "target_weight": target_weight,
                         "dynamic_sizing": sizing_payload,
@@ -242,6 +261,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _load_json(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def _load_expert_model_exports(self) -> dict:
+        exports = {}
+        if not self.expert_model_dir.exists():
+            return exports
+
+        for expert_name in EXPERT_NAMES:
+            weights_path = self.expert_model_dir / expert_name / "model_weights.json"
+            if weights_path.exists():
+                try:
+                    exports[expert_name] = self._load_json(weights_path)
+                except Exception as error:
+                    self.Debug(f"Expert export load failed for {expert_name}: {error}")
+        return exports
 
     def _validate_runtime_artifacts(self) -> None:
         required_paths = [
@@ -349,17 +382,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "model_inputs": model_inputs,
         }
 
-    def _run_model(self, inputs: list[float]) -> float:
+    def _run_exported_model(self, model_export: dict, inputs: list[float]) -> float:
         current = list(inputs)
-        for layer in self.model_export["export"]["architecture"]:
+        for layer in model_export["export"]["architecture"]:
             layer_type = layer["type"]
             if layer_type == "linear":
-                weights = self.model_export["export"]["state_dict"][layer["weight_key"]]
-                bias = self.model_export["export"]["state_dict"][layer["bias_key"]]
+                weights = model_export["export"]["state_dict"][layer["weight_key"]]
+                bias = model_export["export"]["state_dict"][layer["bias_key"]]
                 current = self._linear(current, weights, bias)
             elif layer_type == "layernorm":
-                weights = self.model_export["export"]["state_dict"][layer["weight_key"]]
-                bias = self.model_export["export"]["state_dict"][layer["bias_key"]]
+                weights = model_export["export"]["state_dict"][layer["weight_key"]]
+                bias = model_export["export"]["state_dict"][layer["bias_key"]]
                 current = self._layernorm(current, weights, bias, float(layer.get("eps", 1e-5)))
             elif layer_type == "relu":
                 current = [max(0.0, value) for value in current]
@@ -371,6 +404,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 raise ValueError(f"Unsupported layer type in export: {layer_type}")
 
         return float(current[0])
+
+    def _run_model(self, inputs: list[float]) -> float:
+        return self._run_exported_model(self.model_export, inputs)
+
+    def _run_expert_models(self, inputs: list[float]) -> dict:
+        probabilities = {}
+        for expert_name in EXPERT_NAMES:
+            model_export = self.expert_model_exports.get(expert_name)
+            if not model_export:
+                probabilities[expert_name] = None
+                continue
+            try:
+                probabilities[expert_name] = self._run_exported_model(model_export, inputs)
+            except Exception as error:
+                probabilities[expert_name] = None
+                self.Debug(f"Expert inference failed for {expert_name}: {error}")
+        return probabilities
 
     def _derive_signal(self, probability_up: float) -> tuple[str, float, float]:
         confidence = abs(probability_up - self.decision_threshold) / max(1.0 - self.decision_threshold, self.decision_threshold)
@@ -572,6 +622,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "buy_threshold": self.buy_threshold,
                 "sell_threshold": self.sell_threshold,
                 "input_count": len(self.model_input_names),
+                "moe": {
+                    "expert_exports_loaded": sorted(self.expert_model_exports.keys()),
+                    "gating_metrics_loaded": bool(self.expert_training_metrics),
+                    "baseline_weight": self.gating_baseline_weight,
+                },
             },
             "paper_trading": {
                 "brokerage": self.paper_brokerage,
@@ -692,6 +747,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             daily_return = float(payload.get("features", {}).get("close_to_close_return_1d", 0.0) or 0.0)
             dynamic_sizing = payload.get("dynamic_sizing", {})
             regime = payload.get("regime", {})
+            gating = payload.get("moe_gating", {})
             asset_heatmap.append(
                 {
                     "symbol": symbol,
@@ -702,6 +758,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "signal": payload.get("signal", "hold"),
                     "confidence": confidence,
                     "probability_up": probability_up,
+                    "baseline_probability_up": payload.get("baseline_probability_up"),
+                    "expert_probability_up": gating.get("expert_probability_up"),
+                    "gating_source": gating.get("decision_source", "baseline"),
+                    "active_experts": "|".join(gating.get("active_experts", [])),
                     "daily_return": daily_return,
                     "rolling_volatility": float(dynamic_sizing.get("rolling_volatility", 0.0) or 0.0),
                     "annualized_volatility": float(dynamic_sizing.get("annualized_volatility", 0.0) or 0.0),
@@ -743,8 +803,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
     def _build_monitoring_view(self, state: dict) -> dict:
         signals = list(state["signals"].values())
         active_signals = [payload for payload in signals if payload.get("signal") in {"buy", "sell"}]
+        moe_payloads = [payload.get("moe_gating", {}) for payload in signals if payload.get("moe_gating")]
         average_confidence = (
             sum(float(payload.get("confidence", 0.0) or 0.0) for payload in signals) / len(signals)
+            if signals else 0.0
+        )
+        average_moe_probability = (
+            sum(float(payload.get("probability_up", 0.0) or 0.0) for payload in signals) / len(signals)
             if signals else 0.0
         )
         average_annualized_volatility = (
@@ -757,7 +822,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         return {
             "project": state["project"],
-            "phase": "v2_regime_detection",
+            "phase": "v2_gating_network",
             "mode": state["mode"],
             "updated_at": state["updated_at"],
             "portfolio_value": float(state["portfolio"]["total_portfolio_value"]),
@@ -766,6 +831,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "invested_positions": int(state["portfolio"]["invested_positions"]),
             "active_signals": len(active_signals),
             "average_confidence": average_confidence,
+            "average_moe_probability": average_moe_probability,
             "average_annualized_volatility": average_annualized_volatility,
             "max_leverage_factor": max_leverage_factor,
             "daily_drawdown": float(state["risk"]["daily_drawdown"]),
@@ -774,6 +840,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "dominant_primary_regime": state["regime"]["dominant_primary_regime"],
             "dominant_risk_regime": state["regime"]["dominant_risk_regime"],
             "risk_off_asset_count": len(state["regime"]["risk_off_assets"]),
+            "moe_decision_sources": "|".join(sorted({payload.get("decision_source", "unknown") for payload in moe_payloads})),
+            "moe_active_experts": "|".join(sorted({expert for payload in moe_payloads for expert in payload.get("active_experts", [])})),
             "trading_eligible_assets": "|".join(state["universe"].get("trading_eligible_assets", [])),
             "observation_only_assets": "|".join(state["universe"].get("observation_only_assets", [])),
             "feeds": {
@@ -840,13 +908,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _build_runtime_asset_csv(self, state: dict) -> str:
         rows = [
-            "symbol,ticker,quality_tier,role,trading_eligible,signal,confidence,probability_up,base_target_weight,target_weight,rolling_volatility,annualized_volatility,volatility_regime,primary_regime,trend_regime,risk_regime,regime_confidence,leverage_factor,close,daily_return,position_weight,execution_note"
+            "symbol,ticker,quality_tier,role,trading_eligible,signal,confidence,probability_up,baseline_probability_up,expert_probability_up,gating_source,active_experts,base_target_weight,target_weight,rolling_volatility,annualized_volatility,volatility_regime,primary_regime,trend_regime,risk_regime,regime_confidence,leverage_factor,close,daily_return,position_weight,execution_note"
         ]
         positions_by_symbol = {position["symbol"]: position for position in state["positions"]}
         for symbol, payload in sorted(state["signals"].items()):
             position_weight = positions_by_symbol.get(symbol, {}).get("weight", 0.0)
             dynamic_sizing = payload.get("dynamic_sizing", {})
             regime = payload.get("regime", {})
+            gating = payload.get("moe_gating", {})
             rows.append(
                 ",".join(
                     [
@@ -858,6 +927,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         str(payload.get("signal", "hold")),
                         f"{float(payload.get('confidence', 0.0) or 0.0):.6f}",
                         f"{float(payload.get('probability_up', 0.0) or 0.0):.6f}",
+                        f"{float(payload.get('baseline_probability_up', 0.0) or 0.0):.6f}",
+                        f"{float(gating.get('expert_probability_up', 0.0) or 0.0):.6f}",
+                        str(gating.get("decision_source", "baseline")),
+                        "|".join(gating.get("active_experts", [])),
                         f"{float(payload.get('base_target_weight', 0.0) or 0.0):.6f}",
                         f"{float(payload.get('target_weight', 0.0) or 0.0):.6f}",
                         f"{float(dynamic_sizing.get('rolling_volatility', 0.0) or 0.0):.6f}",

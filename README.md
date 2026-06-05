@@ -440,6 +440,18 @@ Die V2 Expert-Stabilisierung macht jetzt zusaetzlich Folgendes:
 - schreibt `gating_eligible_experts` und `disabled_for_gating_experts` in `ml/expert_training_metrics.json`
 - verhindert damit, dass das spaetere Gating Network schwache oder overfittete Experten blind verwendet
 
+## Phase-V2-9-Ergebnis
+
+Das V2 Gating Network macht jetzt zusaetzlich Folgendes:
+
+- fuegt `moe/gating.py` als erklaerbaren Manager fuer die Expert-Modelle hinzu
+- gewichtet Experten nach Quality Gate, Regime-Passung und Backtest-/Validation-Stabilitaet
+- nutzt `stable` und `watchlist` Experten, ignoriert aber `disabled_for_gating`
+- laedt in `main.py` lokale Expert-JSON-Exports aus `ml/expert_models/<expert>/model_weights.json`
+- kombiniert Basismodell-Wahrscheinlichkeit und Experten-Wahrscheinlichkeit zu einer finalen MoE-Wahrscheinlichkeit
+- schreibt `moe_gating`, Expert-Wahrscheinlichkeiten, aktive Experten und Entscheidungstyp in Runtime-State und Grafana-CSV
+- faellt automatisch auf das Basismodell zurueck, falls Expert-Artefakte fehlen
+
 ## V2 Infrastruktur-Entscheidung
 
 JSONL wird nicht als Experience-Fallback verwendet. V2 nutzt stattdessen Redis als schnellen temporaeren Puffer und PostgreSQL als permanente Experience Database.
@@ -463,7 +475,7 @@ Der geplante Datenfluss:
 7. [x] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
 8. [x] V2-8: Experten-Modelle
 9. [x] V2-8.5: Expert Model Stabilization & Quality Gates
-10. [ ] V2-9: Gating Network
+10. [x] V2-9: Gating Network
 11. [ ] V2-10: Zentraler Markt-Analysator
 12. [ ] V2-11: 3D Topology Market Modeling
 13. [ ] V2-12: Market Impact & Liquidity Engine
