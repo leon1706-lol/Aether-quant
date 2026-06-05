@@ -1,6 +1,6 @@
 import pandas as pd
 
-from train import train_expert_models
+from train import assess_expert_quality, train_expert_models
 
 
 def _expert_training_config() -> dict:
@@ -41,6 +41,11 @@ def _expert_training_config() -> dict:
         },
         "phase_v2": {
             "expert_models": {
+                "model": {
+                    "hidden_layers": [4],
+                    "dropout": 0.0,
+                    "normalization": "layernorm",
+                },
                 "training": {
                     "epochs": 2,
                     "patience": 2,
@@ -96,6 +101,53 @@ def test_train_expert_models_writes_metrics_and_weight_exports(tmp_path):
 
     assert set(summary["trained_experts"]) == {"bullish", "bearish", "sideways", "volatility"}
     assert summary["skipped_experts"] == []
+    assert "quality_status_counts" in summary
+    assert "gating_eligible_experts" in summary
     assert (tmp_path / "expert_models" / "bullish" / "model_weights.json").exists()
     assert (tmp_path / "expert_models" / "volatility" / "metrics.json").exists()
     assert (tmp_path / "expert_training_metrics.json").exists()
+
+
+def test_assess_expert_quality_disables_overfit_or_weak_experts():
+    metrics = {
+        "train": {"balanced_accuracy": 0.82},
+        "validation": {"balanced_accuracy": 0.47},
+        "backtest": {"balanced_accuracy": 0.43, "mcc": -0.15},
+    }
+    training_config = {
+        "quality_gate": {
+            "min_validation_balanced_accuracy": 0.48,
+            "min_backtest_balanced_accuracy": 0.48,
+            "min_backtest_mcc": -0.05,
+            "max_train_backtest_balanced_accuracy_gap": 0.20,
+            "watchlist_margin": 0.03,
+        }
+    }
+
+    quality = assess_expert_quality(metrics, training_config)
+
+    assert quality["quality_status"] == "disabled_for_gating"
+    assert quality["gating_eligible"] is False
+    assert "train_backtest_gap_too_large" in quality["failures"]
+
+
+def test_assess_expert_quality_marks_near_gate_experts_as_watchlist():
+    metrics = {
+        "train": {"balanced_accuracy": 0.59},
+        "validation": {"balanced_accuracy": 0.50},
+        "backtest": {"balanced_accuracy": 0.49, "mcc": -0.03},
+    }
+    training_config = {
+        "quality_gate": {
+            "min_validation_balanced_accuracy": 0.48,
+            "min_backtest_balanced_accuracy": 0.48,
+            "min_backtest_mcc": -0.05,
+            "max_train_backtest_balanced_accuracy_gap": 0.20,
+            "watchlist_margin": 0.03,
+        }
+    }
+
+    quality = assess_expert_quality(metrics, training_config)
+
+    assert quality["quality_status"] == "watchlist"
+    assert quality["gating_eligible"] is True

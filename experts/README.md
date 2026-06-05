@@ -24,3 +24,11 @@ Current V2-8 behavior:
 - each expert writes local `model_weights.json`, `metrics.json` and `model.pt` files under `ml/expert_models/<expert>/`
 - `ml/expert_training_metrics.json` summarizes trained and skipped experts
 - expert weights are JSON-exported so the later gating network can load them without a PyTorch runtime inside Lean
+
+Current V2-8.5 behavior:
+
+- expert defaults are intentionally smaller and more regularized than the baseline model
+- each expert receives a quality gate after training
+- quality status is one of `stable`, `watchlist` or `disabled_for_gating`
+- `gating_eligible_experts` lists experts the next gating network may use first
+- weak or overfit experts remain available for diagnosis but are not trusted by default

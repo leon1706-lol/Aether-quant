@@ -429,6 +429,17 @@ Die V2 Experten-Modell-Stufe macht jetzt zusaetzlich Folgendes:
 - schreibt eine Gesamtuebersicht nach `ml/expert_training_metrics.json`
 - haelt alle generierten Expert-Modellartefakte aus Git heraus
 
+## Phase-V2-8.5-Ergebnis
+
+Die V2 Expert-Stabilisierung macht jetzt zusaetzlich Folgendes:
+
+- nutzt fuer Experten kleinere Default-Netze mit staerkerem Dropout und hoeherem Weight Decay
+- reduziert Expert-Training standardmaessig auf weniger Epochen und strengere Early-Stopping-Patience
+- bewertet jeden Experten mit einem Quality-Gate gegen Validation, Backtest, MCC und Train/Backtest-Gap
+- markiert Experten als `stable`, `watchlist` oder `disabled_for_gating`
+- schreibt `gating_eligible_experts` und `disabled_for_gating_experts` in `ml/expert_training_metrics.json`
+- verhindert damit, dass das spaetere Gating Network schwache oder overfittete Experten blind verwendet
+
 ## V2 Infrastruktur-Entscheidung
 
 JSONL wird nicht als Experience-Fallback verwendet. V2 nutzt stattdessen Redis als schnellen temporaeren Puffer und PostgreSQL als permanente Experience Database.
@@ -451,21 +462,22 @@ Der geplante Datenfluss:
 6. [x] V2-6: Regime Detection
 7. [x] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
 8. [x] V2-8: Experten-Modelle
-9. [ ] V2-9: Gating Network
-10. [ ] V2-10: Zentraler Markt-Analysator
-11. [ ] V2-11: 3D Topology Market Modeling
-12. [ ] V2-12: Market Impact & Liquidity Engine
-13. [ ] V2-13: Redis Experience Queue/Stream
-14. [ ] V2-14: PostgreSQL Persistence Worker
-15. [ ] V2-15: Observation Mode
-16. [ ] V2-16: Performance Trigger
-17. [ ] V2-17: Controlled Retraining
-18. [ ] V2-18: Grafana Monitoring Ausbau
-19. [ ] V2-19: Telegram Alerts
-20. [ ] V2-20: Lean Backtesting Integration
-21. [ ] V2-21: Paper Trading Vorbereitung
-22. [ ] V2-22: Live Deployment Struktur
-23. [ ] V2-23: Finaler V2 Review
+9. [x] V2-8.5: Expert Model Stabilization & Quality Gates
+10. [ ] V2-9: Gating Network
+11. [ ] V2-10: Zentraler Markt-Analysator
+12. [ ] V2-11: 3D Topology Market Modeling
+13. [ ] V2-12: Market Impact & Liquidity Engine
+14. [ ] V2-13: Redis Experience Queue/Stream
+15. [ ] V2-14: PostgreSQL Persistence Worker
+16. [ ] V2-15: Observation Mode
+17. [ ] V2-16: Performance Trigger
+18. [ ] V2-17: Controlled Retraining
+19. [ ] V2-18: Grafana Monitoring Ausbau
+20. [ ] V2-19: Telegram Alerts
+21. [ ] V2-20: Lean Backtesting Integration
+22. [ ] V2-21: Paper Trading Vorbereitung
+23. [ ] V2-22: Live Deployment Struktur
+24. [ ] V2-23: Finaler V2 Review
 
 ## Hinweise
 

@@ -175,6 +175,20 @@ The expert artifacts are:
 
 These artifacts stay local. The later gating network reads their metrics and exported JSON weights, then decides how strongly each expert should influence the final signal.
 
+## Expert Stabilization Contract
+
+Before the gating network is allowed to combine experts, each expert receives a quality status.
+
+The stabilization layer:
+
+- defaults expert models to a smaller network than the baseline model
+- increases regularization with stronger dropout and weight decay
+- uses stricter early stopping for expert training
+- checks validation balanced accuracy, backtest balanced accuracy, backtest MCC and train/backtest generalization gap
+- emits `stable`, `watchlist` or `disabled_for_gating`
+
+The gating network should only use `stable` and `watchlist` experts at first. `disabled_for_gating` experts stay stored for diagnosis, but should not drive live or simulated decisions.
+
 ## Live Volatility Dashboard
 
 `volatility_dashboard.html` is the first V2 live risk dashboard. It reads `visualization/state.json` and refreshes every 5 seconds. The dashboard is intended for backtest and observation mode before broker API keys are available.

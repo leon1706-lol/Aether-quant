@@ -1287,17 +1287,98 @@ def _feature_names_for_model(config: dict, dataset: pd.DataFrame) -> list[str]:
 def _expert_training_config(config: dict) -> tuple[dict, dict]:
     expert_config = config.get("phase_v2", {}).get("expert_models", {})
     model_config = copy.deepcopy(config["phase3"]["model"])
+    model_config["hidden_layers"] = [24]
+    model_config["dropout"] = 0.30
+    model_config["normalization"] = "layernorm"
     model_config.update(expert_config.get("model", {}))
 
     training_config = copy.deepcopy(config["phase3"]["training"])
+    training_config["epochs"] = min(int(training_config.get("epochs", 120)), 60)
+    training_config["patience"] = min(int(training_config.get("patience", 18)), 8)
+    training_config["weight_decay"] = max(float(training_config.get("weight_decay", 0.0)), 0.001)
+    training_config["learning_rate"] = min(float(training_config.get("learning_rate", 0.0007)), 0.0005)
     training_overrides = expert_config.get("training", {})
     training_config.update(training_overrides)
-    training_config["epochs"] = int(training_overrides.get("epochs", min(int(training_config.get("epochs", 120)), 80)))
-    training_config["patience"] = int(training_overrides.get("patience", min(int(training_config.get("patience", 18)), 12)))
+    training_config["epochs"] = int(training_config.get("epochs", 60))
+    training_config["patience"] = int(training_config.get("patience", 8))
     training_config["min_train_rows"] = int(training_overrides.get("min_train_rows", 50))
     training_config["min_validation_rows"] = int(training_overrides.get("min_validation_rows", 10))
     training_config["min_backtest_rows"] = int(training_overrides.get("min_backtest_rows", 10))
+    training_config["quality_gate"] = {
+        "min_validation_balanced_accuracy": float(training_overrides.get("min_validation_balanced_accuracy", 0.48)),
+        "min_backtest_balanced_accuracy": float(training_overrides.get("min_backtest_balanced_accuracy", 0.48)),
+        "min_backtest_mcc": float(training_overrides.get("min_backtest_mcc", -0.05)),
+        "max_train_backtest_balanced_accuracy_gap": float(
+            training_overrides.get("max_train_backtest_balanced_accuracy_gap", 0.20)
+        ),
+        "watchlist_margin": float(training_overrides.get("watchlist_margin", 0.03)),
+    }
     return model_config, training_config
+
+
+def assess_expert_quality(metrics: dict, training_config: dict) -> dict:
+    gate = training_config.get("quality_gate", {})
+    min_validation_balanced_accuracy = float(gate.get("min_validation_balanced_accuracy", 0.48))
+    min_backtest_balanced_accuracy = float(gate.get("min_backtest_balanced_accuracy", 0.48))
+    min_backtest_mcc = float(gate.get("min_backtest_mcc", -0.05))
+    max_gap = float(gate.get("max_train_backtest_balanced_accuracy_gap", 0.20))
+    watchlist_margin = float(gate.get("watchlist_margin", 0.03))
+
+    train_balanced_accuracy = float(metrics.get("train", {}).get("balanced_accuracy", 0.0) or 0.0)
+    validation_balanced_accuracy = float(metrics.get("validation", {}).get("balanced_accuracy", 0.0) or 0.0)
+    backtest_balanced_accuracy = float(metrics.get("backtest", {}).get("balanced_accuracy", 0.0) or 0.0)
+    backtest_mcc = float(metrics.get("backtest", {}).get("mcc", 0.0) or 0.0)
+    train_backtest_gap = train_balanced_accuracy - backtest_balanced_accuracy
+
+    failures = []
+    near_misses = []
+    if validation_balanced_accuracy < min_validation_balanced_accuracy:
+        failures.append("validation_balanced_accuracy_below_gate")
+    elif validation_balanced_accuracy < min_validation_balanced_accuracy + watchlist_margin:
+        near_misses.append("validation_balanced_accuracy_near_gate")
+
+    if backtest_balanced_accuracy < min_backtest_balanced_accuracy:
+        failures.append("backtest_balanced_accuracy_below_gate")
+    elif backtest_balanced_accuracy < min_backtest_balanced_accuracy + watchlist_margin:
+        near_misses.append("backtest_balanced_accuracy_near_gate")
+
+    if backtest_mcc < min_backtest_mcc:
+        failures.append("backtest_mcc_below_gate")
+    elif backtest_mcc < min_backtest_mcc + watchlist_margin:
+        near_misses.append("backtest_mcc_near_gate")
+
+    if train_backtest_gap > max_gap:
+        failures.append("train_backtest_gap_too_large")
+    elif train_backtest_gap > max_gap - watchlist_margin:
+        near_misses.append("train_backtest_gap_near_limit")
+
+    if failures:
+        quality_status = "disabled_for_gating"
+    elif near_misses:
+        quality_status = "watchlist"
+    else:
+        quality_status = "stable"
+
+    return {
+        "quality_status": quality_status,
+        "gating_eligible": quality_status in {"stable", "watchlist"},
+        "failures": failures,
+        "near_misses": near_misses,
+        "thresholds": {
+            "min_validation_balanced_accuracy": min_validation_balanced_accuracy,
+            "min_backtest_balanced_accuracy": min_backtest_balanced_accuracy,
+            "min_backtest_mcc": min_backtest_mcc,
+            "max_train_backtest_balanced_accuracy_gap": max_gap,
+            "watchlist_margin": watchlist_margin,
+        },
+        "observed": {
+            "train_balanced_accuracy": train_balanced_accuracy,
+            "validation_balanced_accuracy": validation_balanced_accuracy,
+            "backtest_balanced_accuracy": backtest_balanced_accuracy,
+            "backtest_mcc": backtest_mcc,
+            "train_backtest_balanced_accuracy_gap": train_backtest_gap,
+        },
+    }
 
 
 def _train_expert_classifier(
@@ -1465,9 +1546,12 @@ def _train_expert_classifier(
         "tickers": sorted(expert_frame["ticker"].unique().tolist()) if "ticker" in expert_frame.columns else [],
         "history": history,
     }
+    metrics["quality_gate"] = assess_expert_quality(metrics, training_config)
     return {
         "expert": expert_name,
         "status": "trained",
+        "quality_status": metrics["quality_gate"]["quality_status"],
+        "gating_eligible": metrics["quality_gate"]["gating_eligible"],
         "model": model,
         "state_dict": best_state,
         "threshold": tuned_threshold,
@@ -1518,7 +1602,10 @@ def _write_expert_model_export(
             "threshold_metric": training_config.get("optimize_threshold_metric", "f1"),
             "best_epoch": result["metrics"]["best_epoch"],
             "epochs_ran": result["metrics"]["epochs_ran"],
+            "quality_status": result["metrics"]["quality_gate"]["quality_status"],
+            "gating_eligible": result["metrics"]["quality_gate"]["gating_eligible"],
         },
+        "quality_gate": result["metrics"]["quality_gate"],
         "metrics_path": artifact_path(metrics_path),
         "checkpoint_path": artifact_path(checkpoint_path),
         "export": {
@@ -1552,10 +1639,14 @@ def train_expert_models(
 
     summary = {
         "project": config["name"],
-        "phase": "v2_expert_models",
+        "phase": "v2_expert_models_stabilized",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "device": str(device),
         "feature_names": feature_names,
+        "model_config": model_config,
+        "training_config": {
+            key: value for key, value in training_config.items() if key != "seed"
+        },
         "source_dataset_rows": int(len(dataset)),
         "eligible_dataset_rows": int(len(eligible)),
         "expert_dataset_manifest": expert_dataset_manifest,
@@ -1603,6 +1694,20 @@ def train_expert_models(
     summary["skipped_experts"] = [
         expert for expert, payload in summary["experts"].items() if payload.get("status") != "trained"
     ]
+    summary["gating_eligible_experts"] = [
+        expert for expert, payload in summary["experts"].items() if payload.get("quality_gate", {}).get("gating_eligible")
+    ]
+    summary["disabled_for_gating_experts"] = [
+        expert
+        for expert, payload in summary["experts"].items()
+        if payload.get("status") == "trained" and not payload.get("quality_gate", {}).get("gating_eligible", False)
+    ]
+    summary["quality_status_counts"] = dict(
+        Counter(
+            payload.get("quality_gate", {}).get("quality_status", payload.get("status", "unknown"))
+            for payload in summary["experts"].values()
+        )
+    )
     metrics_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
@@ -2035,9 +2140,11 @@ def main() -> int:
             training_context=load_existing_training_context(),
         )
         print(
-            "Phase V2-8 expert models trained.",
+            "Phase V2-8.5 stabilized expert models trained.",
             f"Trained: {', '.join(expert_training_result['trained_experts']) or 'none'}.",
             f"Skipped: {', '.join(expert_training_result['skipped_experts']) or 'none'}.",
+            f"Gating eligible: {', '.join(expert_training_result['gating_eligible_experts']) or 'none'}.",
+            f"Disabled for gating: {', '.join(expert_training_result['disabled_for_gating_experts']) or 'none'}.",
         )
         return 0
 
@@ -2065,6 +2172,7 @@ def main() -> int:
         f"Validation accuracy: {training_result['metrics']['validation']['accuracy']:.4f}.",
         f"Backtest strategy return: {training_result['strategy_report']['backtest']['strategy']['total_return']:.4f}.",
         f"Expert models trained: {', '.join(expert_training_result['trained_experts']) or 'none'}.",
+        f"Gating eligible experts: {', '.join(expert_training_result['gating_eligible_experts']) or 'none'}.",
     )
     LOGGER.info("Training pipeline finished.")
     return 0
