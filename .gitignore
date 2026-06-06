@@ -82,3 +82,5 @@ htmlcov/
 *.log
 *.tmp
 *.bak
+# Obsidian vault for project graphs and AI handoffs
+Aether-quant-Obsidian-Vault/
