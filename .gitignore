@@ -84,3 +84,7 @@ htmlcov/
 *.bak
 # Obsidian vault for project graphs and AI handoffs
 Aether-quant-Obsidian-Vault/
+
+# Webui (React/Vite) build artifacts and dependencies
+webui/node_modules/
+webui/dist/

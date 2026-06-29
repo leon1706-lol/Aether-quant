@@ -50,8 +50,8 @@ aether-quant/
 |   |-- model_weights.json
 |-- visualization/
 |   |-- state.json
-|-- dashboard.html
-|-- volatility_dashboard.html
+|-- webui/
+|   |-- src/
 |-- requirements.txt
 |-- README.md
 |-- .gitignore
@@ -73,8 +73,8 @@ aether-quant/
 - `visualization/state.json`: gemeinsamer Runtime-Zustand fuer Dashboard, Monitoring und Trading
 - `visualization/scene.json`: Szenendaten fuer die lokale Markt-/Portfolio-Visualisierung
 - `visualization/grafana/`: JSON- und CSV-Feeds fuer spaeteres Grafana-Monitoring
-- `dashboard.html`: Browser-Dashboard fuer Portfolio-, Markt-, Risiko- und Modellstatus
-- `volatility_dashboard.html`: V2 Live-Volatility-Dashboard fuer Positionsgroesse, Hebel und Volatilitaetsregime
+- `monitoring/api_server.py`: FastAPI-Server, der `visualization/state.json`, `visualization/scene.json` und die Grafana-Exporte als JSON-API unter `localhost:8000` bereitstellt
+- `webui/`: React/Vite-Webui unter `localhost:3000` mit Overview-Seite (Scorecards, 3D-Marktszene, Asset-Heatmap, Signal-/Positionsboard) und Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle) als einheitliche Ablösung der frueheren `dashboard.html` und `volatility_dashboard.html`
 - `docker-compose.yml`: lokale Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
 - `infrastructure/`: Startbefehle, Netzwerk- und Datenfluss-Dokumentation fuer Docker Compose
 - `docs/v2_architecture.md`: V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen
@@ -120,13 +120,19 @@ Optional nur Dataset-Artefakte ohne Training erzeugen:
 python train.py --dataset-only
 ```
 
-5. Dashboard lokal ausliefern:
+5. Webui lokal starten (zwei Prozesse):
 
 ```powershell
-python -m http.server 8000
+uvicorn monitoring.api_server:app --port 8000 --reload
 ```
 
-Danach `http://localhost:8000/dashboard.html` im Browser oeffnen.
+```powershell
+cd webui
+npm install
+npm run dev
+```
+
+Danach `http://localhost:3000` im Browser oeffnen.
 
 ## Runbook
 
@@ -191,23 +197,22 @@ Beispiel vom letzten erfolgreichen Lauf:
 lean report --backtest-results .\backtests\2026-05-07_15-05-06\1366365999.json --report-destination .\backtests\2026-05-07_15-05-06\report.html --overwrite
 ```
 
-Dashboard lokal starten:
+Webui lokal starten (API-Server und Frontend in zwei Terminals):
 
 ```powershell
-python -m http.server 8000
+uvicorn monitoring.api_server:app --port 8000 --reload
+```
+
+```powershell
+cd webui
+npm run dev
 ```
 
 Danach:
 
 ```text
-http://localhost:8000/dashboard.html
-http://localhost:8000/volatility_dashboard.html
-```
-
-Grafana/CSV-Dateien lokal ausliefern:
-
-```powershell
-python -m http.server 8010
+http://localhost:3000          (Overview)
+http://localhost:3000/risk     (Risk)
 ```
 
 Git-Status vor einem Commit pruefen:
@@ -451,6 +456,16 @@ Das V2 Gating Network macht jetzt zusaetzlich Folgendes:
 - kombiniert Basismodell-Wahrscheinlichkeit und Experten-Wahrscheinlichkeit zu einer finalen MoE-Wahrscheinlichkeit
 - schreibt `moe_gating`, Expert-Wahrscheinlichkeiten, aktive Experten und Entscheidungstyp in Runtime-State und Grafana-CSV
 - faellt automatisch auf das Basismodell zurueck, falls Expert-Artefakte fehlen
+
+## Visualization-Unification-Ergebnis
+
+Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
+
+- ersetzt `dashboard.html` und `volatility_dashboard.html` durch eine einzige React/Vite-Webui unter `webui/` auf `http://localhost:3000`
+- fuegt `monitoring/api_server.py` als FastAPI-JSON-API hinzu, die `visualization/state.json`, `visualization/scene.json` und die Grafana-Exporte unter `localhost:8000` bereitstellt, statt dass das Frontend Dateien direkt vom Dateisystem liest
+- bildet die Overview-Seite (Scorecards, Asset-Heatmap, Signal-Board, Positionen, Strategy/Risk-Karten, Monitoring-Feeds) und die Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle) 1:1 auf die bisherigen HTML-Dashboards ab
+- rendert die Marktszene erstmals echt dreidimensional und drehbar mit `@react-three/fiber`/`@react-three/drei` statt der bisherigen 2D-Div-Annaeherung, als Grundlage fuer das spaetere V2-11 3D Topology Market Modeling
+- behaelt das bestehende Polling-Muster bei (React Query, 5s Intervall) und aendert nichts an den Python-Schreibern von `state.json`/`scene.json`
 
 ## V2 Infrastruktur-Entscheidung
 
