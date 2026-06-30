@@ -28,6 +28,7 @@ lean.local.json
 Thumbs.db
 .idea/
 .vscode/
+.claude/
 docker-compose.override.yml
 postgres-data/
 redis-data/
@@ -73,6 +74,7 @@ ml/expert_training_metrics.json
 # Generated visualization/runtime feeds
 visualization/state.json
 visualization/scene.json
+visualization/topology_state.json
 visualization/grafana/
 
 # Logs and temporary files

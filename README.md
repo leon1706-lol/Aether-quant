@@ -469,6 +469,19 @@ Der Zentrale Markt-Analysator macht jetzt zusaetzlich Folgendes:
 - schreibt die volle Entscheidung inklusive `reasons`-Liste als `market_analysis`-Block in jedes Asset-Signal in `visualization/state.json`, automatisch sichtbar im Webui ueber die bestehende FastAPI-Pipeline
 - fuegt `tests/test_market_analyzer.py` mit 13 Tests hinzu (alle fuenf Kategorien, Topology-Absenz, zwei Prioritaets-Tiebreaks)
 
+## Phase-V2-11-Ergebnis
+
+Das 3D Topology Market Modeling macht jetzt zusaetzlich Folgendes:
+
+- fuegt `topology/market_topology.py` als reine, deterministische Cross-Asset-Schicht hinzu: paarweise Pearson-Korrelation aus Returns, Union-Find-Clustering ueber einen Korrelations-Schwellenwert, 3D-Koordinaten (aehnliche Assets nahe beieinander, hohe Volatilitaet trennt sich auf der z-Achse)
+- berechnet Topology einmal pro Bar in `main.py` aus `self.symbol_windows` (Stand der vorherigen Bar, kein Lookahead) vor der Pro-Asset-Schleife, ohne diese umzustrukturieren
+- schreibt `visualization/topology_state.json` und einen `state["topology"]`-Block, sowie pro Asset einen `topology`-Kontext (`cluster_id`, `correlation_strength`, `market_distance`, `topology_risk`) in `visualization/state.json`
+- ersetzt die bisherige Orbit-Platzierung in `_build_scene_payload` durch echte Topology-Koordinaten und ergaenzt Korrelations-Links zwischen Assets in der bestehenden Overview-Szene
+- **aendert echte Handelsentscheidungen**: `analyzer/market_analyzer.py` bekommt zwei neue, deterministische Prioritaetsstufen — ein Asset mit `topology_risk == "elevated"` wird zu `reduce_risk` gezwungen, ein isoliertes Asset (`topology_risk == "isolated"`, keine hinreichend korrelierten Peers) kann nicht mehr `trade` erreichen und faellt auf `simulate` zurueck
+- fuegt einen neuen Webui-Tab `/topology` hinzu (eigene 3D-Szene mit Einfaerbung nach Action/Regime/Risk, plus lesbare Cluster-Liste) und einen `/api/topology`-Endpunkt in `monitoring/api_server.py`
+- fuegt `tests/test_market_topology.py` (stabile Koordinaten, staerkere Links fuer korrelierte Assets, robust bei fehlenden/duennen Daten, Regime-Label-Aggregation) sowie vier neue Faelle in `tests/test_market_analyzer.py` hinzu
+- dokumentiert in `V2-17.5` (siehe Phasenplan unten), dass diese deterministischen Regeln spaeter durch datengetriebene/gelernte Versionen ersetzt werden sollen, sobald die Experience-Pipeline (V2-13/14) und kontrolliertes Retraining (V2-16/17) stehen
+
 ## Visualization-Unification-Ergebnis
 
 Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
@@ -504,19 +517,20 @@ Der geplante Datenfluss:
 9. [x] V2-8.5: Expert Model Stabilization & Quality Gates
 10. [x] V2-9: Gating Network
 11. [x] V2-10: Zentraler Markt-Analysator
-12. [ ] V2-11: 3D Topology Market Modeling
+12. [x] V2-11: 3D Topology Market Modeling
 13. [ ] V2-12: Market Impact & Liquidity Engine
 14. [ ] V2-13: Redis Experience Queue/Stream
 15. [ ] V2-14: PostgreSQL Persistence Worker
 16. [ ] V2-15: Observation Mode
 17. [ ] V2-16: Performance Trigger
 18. [ ] V2-17: Controlled Retraining
-19. [ ] V2-18: Grafana Monitoring Ausbau
-20. [ ] V2-19: Telegram Alerts
-21. [ ] V2-20: Lean Backtesting Integration
-22. [ ] V2-21: Paper Trading Vorbereitung
-23. [ ] V2-22: Live Deployment Struktur
-24. [ ] V2-23: Finaler V2 Review
+19. [ ] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)
+20. [ ] V2-18: Grafana Monitoring Ausbau
+21. [ ] V2-19: Telegram Alerts
+22. [ ] V2-20: Lean Backtesting Integration
+23. [ ] V2-21: Paper Trading Vorbereitung
+24. [ ] V2-22: Live Deployment Struktur
+25. [ ] V2-23: Finaler V2 Review
 
 ## Hinweise
 

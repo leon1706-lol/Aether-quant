@@ -57,6 +57,16 @@ export function AppShell({
               >
                 Risk
               </NavLink>
+              <NavLink
+                to="/topology"
+                className={({ isActive }) =>
+                  `rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                    isActive ? 'bg-emerald-400/15 text-emerald-300' : 'text-slate-400 hover:text-slate-200'
+                  }`
+                }
+              >
+                Topology
+              </NavLink>
             </nav>
           </div>
           <div className="flex flex-wrap justify-end gap-2">

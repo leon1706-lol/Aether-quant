@@ -3,6 +3,7 @@ import { useRuntimeState } from './api/hooks'
 import { AppShell } from './components/layout/AppShell'
 import { Overview } from './pages/Overview'
 import { RiskPage } from './pages/RiskPage'
+import { TopologyPage } from './pages/TopologyPage'
 
 function App() {
   const { data: state, isError } = useRuntimeState()
@@ -12,6 +13,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Overview state={state} />} />
         <Route path="/risk" element={<RiskPage state={state} />} />
+        <Route path="/topology" element={<TopologyPage state={state} />} />
       </Routes>
     </AppShell>
   )

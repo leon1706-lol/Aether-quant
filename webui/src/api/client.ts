@@ -1,4 +1,4 @@
-import type { RuntimeState, Scene } from '../types/state'
+import type { RuntimeState, Scene, Topology } from '../types/state'
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' })
@@ -10,3 +10,4 @@ async function getJson<T>(path: string): Promise<T> {
 
 export const fetchState = () => getJson<RuntimeState>('/api/state')
 export const fetchScene = () => getJson<Scene>('/api/scene')
+export const fetchTopology = () => getJson<Topology>('/api/topology')

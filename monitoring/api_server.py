@@ -57,6 +57,11 @@ def get_scene() -> dict:
     return _read_json(VISUALIZATION_DIR / "scene.json")
 
 
+@app.get("/api/topology")
+def get_topology() -> dict:
+    return _read_json(VISUALIZATION_DIR / "topology_state.json")
+
+
 @app.get("/api/grafana/metrics-snapshot")
 def get_metrics_snapshot() -> dict:
     return _read_json(GRAFANA_DIR / "runtime_metrics_snapshot.json")

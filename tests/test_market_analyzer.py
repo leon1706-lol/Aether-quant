@@ -131,3 +131,47 @@ def test_priority_tiebreak_risk_off_beats_retrain_candidate_conditions():
         trading_eligible=True, trade_lock_active=False,
     )
     assert decision.action == "reduce_risk"
+
+
+def test_topology_elevated_forces_reduce_risk():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.8, probability_up=0.7, target_weight=0.15,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        topology={"state": "ready", "topology_risk": "elevated"},
+    )
+    assert decision.action == "reduce_risk"
+    assert "topology_elevated_volatility_pressure_overrides_directional_signal" in decision.reasons
+
+
+def test_topology_isolated_downgrades_trade_to_simulate():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(confidence=0.6), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        topology={"state": "ready", "topology_risk": "isolated"},
+    )
+    assert decision.action == "simulate"
+    assert decision.target_weight == 0.0
+    assert "topology_isolated_asset_lacks_peer_confirmation_simulate_instead" in decision.reasons
+
+
+def test_topology_normal_does_not_change_trade_outcome():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        topology={"state": "ready", "topology_risk": "normal"},
+    )
+    assert decision.action == "trade"
+    assert decision.target_weight == 0.12
+
+
+def test_priority_tiebreak_topology_elevated_beats_retrain_candidate_conditions():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.6, target_weight=0.1,
+        regime=_regime(confidence=0.05), gating=_gating(decision_source="baseline_fallback"),
+        trading_eligible=True, trade_lock_active=False,
+        topology={"state": "ready", "topology_risk": "elevated"},
+    )
+    assert decision.action == "reduce_risk"

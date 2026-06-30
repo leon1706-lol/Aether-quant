@@ -25,6 +25,7 @@ from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
+from topology import build_market_topology
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -34,6 +35,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.root_path = Path(__file__).resolve().parent
         self.state_path = self.root_path / "visualization" / "state.json"
         self.scene_path = self.root_path / "visualization" / "scene.json"
+        self.topology_state_path = self.root_path / "visualization" / "topology_state.json"
         self.grafana_dir = self.root_path / "visualization" / "grafana"
         self.runtime_metrics_path = self.grafana_dir / "runtime_metrics_snapshot.json"
         self.runtime_asset_metrics_path = self.grafana_dir / "runtime_asset_metrics.csv"
@@ -73,6 +75,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase_v2_regime = self.phase_v2.get("regime_detection", {})
         phase_v2_gating = self.phase_v2.get("gating_network", {})
         phase_v2_analyzer = self.phase_v2.get("market_analyzer", {})
+        phase_v2_topology = self.phase_v2.get("topology", {})
 
         self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
         self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
@@ -114,6 +117,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.gating_baseline_weight = float(phase_v2_gating.get("baseline_weight", 0.25))
         self.analyzer_retrain_min_regime_confidence = float(phase_v2_analyzer.get("retrain_min_regime_confidence", 0.20))
         self.analyzer_low_regime_confidence_threshold = float(phase_v2_analyzer.get("low_regime_confidence_threshold", 0.35))
+        self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
+        self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
+        self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -139,6 +145,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.current_total_drawdown = 0.0
         self.trade_lock_active = False
         self.trade_lock_reason = None
+        self.latest_regime_by_symbol = {}
+        self.latest_topology_payload = {}
 
         for asset in self.phase1["universe"]["assets"]:
             symbol = self._add_asset(asset)
@@ -162,6 +170,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         self.bar_index += 1
         self._refresh_risk_state()
+        self.latest_topology_payload = self._build_topology_payload()
+        topology_by_symbol = {node["symbol"]: node for node in self.latest_topology_payload.get("nodes", [])}
         signals = {}
 
         for symbol in self.symbols:
@@ -218,6 +228,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     feature_payload["base_features"],
                 )
                 target_weight = float(sizing_payload["target_weight"])
+                topology_payload = topology_by_symbol.get(str(symbol))
 
                 decision = build_market_analysis_decision(
                     signal_name=signal_name,
@@ -229,7 +240,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     trading_eligible=self._is_trading_eligible(symbol),
                     trade_lock_active=self.trade_lock_active,
                     trade_lock_reason=self.trade_lock_reason,
-                    topology=None,  # V2-11 will supply a real payload here
+                    topology=topology_payload,
                     min_confidence_to_trade=self.min_confidence_to_trade,
                     retrain_min_regime_confidence=self.analyzer_retrain_min_regime_confidence,
                     low_regime_confidence_threshold=self.analyzer_low_regime_confidence_threshold,
@@ -242,6 +253,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     execution_note = self._apply_signal(symbol, signal_name, target_weight)
                 else:
                     execution_note = decision["action"]
+
+                self.latest_regime_by_symbol[str(symbol)] = regime_payload.get("trend_regime", "unknown")
 
                 signal_payload.update(
                     {
@@ -258,6 +271,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "features": feature_payload["base_features"],
                         "execution_note": execution_note,
                         "market_analysis": decision,
+                        "topology": topology_payload or {},
                     }
                 )
             else:
@@ -474,6 +488,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         return decision.to_dict()
 
+    def _build_topology_payload(self) -> dict:
+        returns_by_symbol = {}
+        for symbol in self.symbols:
+            closes = [bar["close"] for bar in self.symbol_windows.get(symbol, [])]
+            returns = []
+            for index in range(1, len(closes)):
+                previous = closes[index - 1]
+                if previous == 0:
+                    continue
+                returns.append(closes[index] / previous - 1.0)
+            if returns:
+                returns_by_symbol[str(symbol)] = returns
+
+        topology = build_market_topology(
+            returns_by_symbol=returns_by_symbol,
+            regime_labels_by_symbol=dict(self.latest_regime_by_symbol),
+            correlation_threshold=self.topology_correlation_threshold,
+            link_threshold=self.topology_link_threshold,
+            min_observations=self.topology_min_observations,
+        )
+        return topology.to_dict()
+
     def _build_regime_payload(self, base_features: dict) -> dict:
         vector = build_market_regime_vector(
             base_features,
@@ -668,6 +704,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         }
 
         state["regime"] = self._build_regime_summary(state["signals"])
+        state["topology"] = self.latest_topology_payload
         state["dashboard"] = self._build_dashboard_view(state)
         state["monitoring"] = self._build_monitoring_view(state)
         state["scene"] = self._build_scene_payload(state)
@@ -677,6 +714,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.grafana_dir.mkdir(parents=True, exist_ok=True)
             self.state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
             self.scene_path.write_text(json.dumps(state["scene"], indent=2), encoding="utf-8")
+            self.topology_state_path.write_text(json.dumps(state["topology"], indent=2), encoding="utf-8")
             self.runtime_metrics_path.write_text(json.dumps(state["monitoring"], indent=2), encoding="utf-8")
             self.runtime_asset_metrics_path.write_text(self._build_runtime_asset_csv(state), encoding="utf-8")
             self.last_state_write = now
@@ -867,6 +905,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _build_scene_payload(self, state: dict) -> dict:
         positions_by_symbol = {position["symbol"]: position for position in state["positions"]}
+        topology = state.get("topology") or {}
+        topology_ready = topology.get("state") == "ready"
+        topology_nodes_by_symbol = {node["symbol"]: node for node in topology.get("nodes", [])}
+
         nodes = [
             {
                 "id": "portfolio_core",
@@ -885,10 +927,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         asset_count = max(len(signal_items), 1)
         for index, (symbol, payload) in enumerate(signal_items):
             ticker = payload.get("ticker", symbol)
-            angle = (2 * math.pi * index) / asset_count
-            x = 50 + math.cos(angle) * 32
-            y = 50 + math.sin(angle) * 22
-            z = 0.45 + ((index % 4) * 0.12)
+            topology_node = topology_nodes_by_symbol.get(symbol)
+            if topology_ready and topology_node is not None:
+                x = topology_node["x"]
+                y = topology_node["y"]
+                z = topology_node["z"]
+            else:
+                angle = (2 * math.pi * index) / asset_count
+                x = 50 + math.cos(angle) * 32
+                y = 50 + math.sin(angle) * 22
+                z = 0.45 + ((index % 4) * 0.12)
             confidence = float(payload.get("confidence", 0.0) or 0.0)
             target_weight = abs(float(payload.get("target_weight", 0.0) or 0.0))
             nodes.append(
@@ -912,8 +960,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 }
             )
 
+        if topology_ready:
+            for link in topology.get("links", []):
+                links.append(
+                    {
+                        "source": link["source"],
+                        "target": link["target"],
+                        "strength": link["correlation"],
+                    }
+                )
+
         return {
-            "layout": "runtime_asset_orbit",
+            "layout": "market_topology" if topology_ready else "runtime_asset_orbit",
             "nodes": nodes,
             "links": links,
             "dimensions": {"width": 100, "height": 100, "depth": 1},

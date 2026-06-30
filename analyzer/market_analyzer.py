@@ -43,7 +43,9 @@ def build_market_analysis_decision(
     decision_source = str(gating.get("decision_source", "unknown"))
     regime_confidence = float(regime.get("confidence", 0.0) or 0.0)
     risk_regime = str(regime.get("risk_regime", "risk_neutral"))
-    topology_considered = topology is not None
+    topology = topology or {}
+    topology_considered = bool(topology)
+    topology_risk = str(topology.get("topology_risk", "unknown")) if topology_considered else "unknown"
     if topology_considered:
         reasons.append(f"topology_state={topology.get('state', 'unknown')}")
     else:
@@ -78,7 +80,26 @@ def build_market_analysis_decision(
             reasons=reasons,
         )
 
-    # Priority 3: retrain_candidate - zero experts contributing AND the
+    # Priority 3: reduce_risk - elevated cross-sectional volatility pressure
+    # from the topology layer overrides a directional signal, the same way
+    # the asset-level regime risk_off check does above. See V2-17.5 in the
+    # root README: this deterministic rule should become data-driven once
+    # the experience pipeline (V2-13/14) and controlled retraining
+    # (V2-16/17) exist.
+    if topology_risk == "elevated" and signal_name in {"buy", "sell"}:
+        reasons.append("topology_elevated_volatility_pressure_overrides_directional_signal")
+        return MarketAnalysisDecision(
+            action="reduce_risk",
+            signal="hold",
+            target_weight=0.0,
+            confidence=confidence,
+            probability_up=probability_up,
+            trading_eligible=trading_eligible,
+            topology_considered=topology_considered,
+            reasons=reasons,
+        )
+
+    # Priority 4: retrain_candidate - zero experts contributing AND the
     # regime read is itself low-confidence. Stateless heuristic (no
     # trailing window yet; V2-16 will replace this with a real trigger).
     if decision_source == "baseline_fallback" and regime_confidence < retrain_min_regime_confidence:
@@ -94,9 +115,16 @@ def build_market_analysis_decision(
             reasons=reasons,
         )
 
-    # Priority 4: trade - only for trading-eligible assets, with an
-    # actionable directional signal, sufficient confidence, no lock.
-    if trading_eligible and signal_name in {"buy", "sell"} and confidence >= min_confidence_to_trade:
+    # Priority 5: trade - only for trading-eligible assets, with an
+    # actionable directional signal, sufficient confidence, no lock, and
+    # not topology-isolated (an asset with no meaningfully correlated
+    # peers lacks structural confirmation from the rest of the market).
+    if (
+        trading_eligible
+        and signal_name in {"buy", "sell"}
+        and confidence >= min_confidence_to_trade
+        and topology_risk != "isolated"
+    ):
         reasons.append("trading_eligible_directional_signal_above_confidence_threshold")
         return MarketAnalysisDecision(
             action="trade",
@@ -109,9 +137,11 @@ def build_market_analysis_decision(
             reasons=reasons,
         )
 
-    # Priority 5: simulate vs observe.
+    # Priority 6: simulate vs observe.
     if signal_name in {"buy", "sell"} and regime_confidence >= low_regime_confidence_threshold:
-        if trading_eligible:
+        if topology_risk == "isolated":
+            reasons.append("topology_isolated_asset_lacks_peer_confirmation_simulate_instead")
+        elif trading_eligible:
             reasons.append("confidence_below_trade_threshold_simulate_instead")
         else:
             reasons.append("observation_only_asset_directional_signal_simulate_instead")

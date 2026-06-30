@@ -31,6 +31,16 @@ export interface MarketAnalysis {
   reasons?: string[]
 }
 
+export interface TopologyContext {
+  state?: string
+  cluster_id?: string
+  market_distance?: number
+  correlation_strength?: number
+  volatility_pressure?: number
+  topology_risk?: 'isolated' | 'normal' | 'elevated' | string
+  regime_label?: string
+}
+
 export interface Signal {
   ticker?: string
   symbol?: string
@@ -44,6 +54,7 @@ export interface Signal {
   reason?: string
   dynamic_sizing?: DynamicSizing
   market_analysis?: MarketAnalysis
+  topology?: TopologyContext
 }
 
 export interface Risk {
@@ -139,6 +150,42 @@ export interface Scene {
   dimensions?: { width: number; height: number; depth: number }
 }
 
+export interface TopologyNode {
+  symbol: string
+  cluster_id: string
+  x: number
+  y: number
+  z: number
+  market_distance: number
+  correlation_strength: number
+  volatility_pressure: number
+  topology_risk: 'isolated' | 'normal' | 'elevated' | string
+  regime_label: string
+}
+
+export interface TopologyLink {
+  source: string
+  target: string
+  correlation: number
+  distance: number
+}
+
+export interface TopologyCluster {
+  cluster_id: string
+  members: string[]
+  average_correlation: number
+  dominant_regime_label: string
+}
+
+export interface Topology {
+  state?: string
+  nodes: TopologyNode[]
+  links: TopologyLink[]
+  clusters: TopologyCluster[]
+  dimensions?: { width: number; height: number; depth: number }
+  reasons?: string[]
+}
+
 export interface RuntimeState {
   project?: string
   mode?: string
@@ -151,4 +198,5 @@ export interface RuntimeState {
   dashboard?: DashboardBlock
   monitoring?: Monitoring
   scene?: Scene
+  topology?: Topology
 }
