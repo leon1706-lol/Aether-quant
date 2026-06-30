@@ -21,6 +21,7 @@ from risk_controls import (
     assess_drawdown_lock,
     cap_target_weight,
 )
+from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
@@ -71,6 +72,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase_v2_risk = self.phase_v2.get("dynamic_risk", {})
         phase_v2_regime = self.phase_v2.get("regime_detection", {})
         phase_v2_gating = self.phase_v2.get("gating_network", {})
+        phase_v2_analyzer = self.phase_v2.get("market_analyzer", {})
 
         self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
         self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
@@ -110,6 +112,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.regime_risk_on_drawdown_threshold = float(phase_v2_regime.get("risk_on_drawdown_threshold", 0.03))
         self.regime_high_correlation_threshold = float(phase_v2_regime.get("high_correlation_threshold", 0.75))
         self.gating_baseline_weight = float(phase_v2_gating.get("baseline_weight", 0.25))
+        self.analyzer_retrain_min_regime_confidence = float(phase_v2_analyzer.get("retrain_min_regime_confidence", 0.20))
+        self.analyzer_low_regime_confidence_threshold = float(phase_v2_analyzer.get("low_regime_confidence_threshold", 0.35))
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -214,22 +218,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     feature_payload["base_features"],
                 )
                 target_weight = float(sizing_payload["target_weight"])
-                execution_note = "signal_ready"
 
-                if self.trade_lock_active:
-                    signal_name = "hold"
-                    target_weight = 0.0
-                    execution_note = self.trade_lock_reason or "risk_lock_active"
-                elif not self._is_trading_eligible(symbol):
-                    signal_name = "hold"
-                    target_weight = 0.0
-                    execution_note = "observation_only_asset"
-                elif confidence < self.min_confidence_to_trade:
-                    signal_name = "hold"
-                    target_weight = 0.0
-                    execution_note = "confidence_below_threshold"
-                else:
+                decision = build_market_analysis_decision(
+                    signal_name=signal_name,
+                    confidence=confidence,
+                    probability_up=probability_up,
+                    target_weight=target_weight,
+                    regime=regime_payload,
+                    gating=gating_payload,
+                    trading_eligible=self._is_trading_eligible(symbol),
+                    trade_lock_active=self.trade_lock_active,
+                    trade_lock_reason=self.trade_lock_reason,
+                    topology=None,  # V2-11 will supply a real payload here
+                    min_confidence_to_trade=self.min_confidence_to_trade,
+                    retrain_min_regime_confidence=self.analyzer_retrain_min_regime_confidence,
+                    low_regime_confidence_threshold=self.analyzer_low_regime_confidence_threshold,
+                ).to_dict()
+
+                signal_name = decision["signal"]
+                target_weight = decision["target_weight"]
+
+                if decision["action"] == "trade":
                     execution_note = self._apply_signal(symbol, signal_name, target_weight)
+                else:
+                    execution_note = decision["action"]
 
                 signal_payload.update(
                     {
@@ -245,6 +257,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "regime": regime_payload,
                         "features": feature_payload["base_features"],
                         "execution_note": execution_note,
+                        "market_analysis": decision,
                     }
                 )
             else:

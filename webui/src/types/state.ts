@@ -20,6 +20,17 @@ export interface DynamicSizing {
   sizing_reason?: string
 }
 
+export interface MarketAnalysis {
+  action?: 'observe' | 'simulate' | 'trade' | 'reduce_risk' | 'retrain_candidate' | string
+  signal?: string
+  target_weight?: number
+  confidence?: number
+  probability_up?: number
+  trading_eligible?: boolean
+  topology_considered?: boolean
+  reasons?: string[]
+}
+
 export interface Signal {
   ticker?: string
   symbol?: string
@@ -32,6 +43,7 @@ export interface Signal {
   execution_note?: string
   reason?: string
   dynamic_sizing?: DynamicSizing
+  market_analysis?: MarketAnalysis
 }
 
 export interface Risk {

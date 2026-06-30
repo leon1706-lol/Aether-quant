@@ -457,6 +457,18 @@ Das V2 Gating Network macht jetzt zusaetzlich Folgendes:
 - schreibt `moe_gating`, Expert-Wahrscheinlichkeiten, aktive Experten und Entscheidungstyp in Runtime-State und Grafana-CSV
 - faellt automatisch auf das Basismodell zurueck, falls Expert-Artefakte fehlen
 
+## Phase-V2-10-Ergebnis
+
+Der Zentrale Markt-Analysator macht jetzt zusaetzlich Folgendes:
+
+- fuegt `analyzer/market_analyzer.py` als reine, deterministische Entscheidungsschicht hinzu, die Experten- (`moe_gating`), Regime-, Topology- (optional, bis V2-11) und Risiko-Ausgaben (Risk Lock, Position Sizing) zu einer finalen Kategorie zusammenfuehrt
+- ersetzt die bisherige ad-hoc if/elif-Kette in `main.py.on_data()` durch einen Aufruf von `build_market_analysis_decision(...)`, ohne das tatsaechliche Order-Placement-Verhalten zu aendern: `_apply_signal` wird weiterhin nur bei der Kategorie `trade` ausgefuehrt
+- klassifiziert jedes Asset pro Bar in genau eine von fuenf Kategorien: `observe`, `simulate`, `trade`, `reduce_risk`, `retrain_candidate`
+- priorisiert Risikoeindaemmung vor Modell-Gesundheit vor Profit-Aktion vor Paper-Tracking vor reiner Beobachtung (portfolioweiter Trade Lock und Asset-Risk-Off-Regime schlagen immer `retrain_candidate` und `trade`)
+- erkennt `retrain_candidate` ueber eine zustandslose Heuristik (keine aktiven Experten plus niedrige Regime-Confidence), da die zeitfensterbasierten Performance-Trigger erst in V2-16 folgen
+- schreibt die volle Entscheidung inklusive `reasons`-Liste als `market_analysis`-Block in jedes Asset-Signal in `visualization/state.json`, automatisch sichtbar im Webui ueber die bestehende FastAPI-Pipeline
+- fuegt `tests/test_market_analyzer.py` mit 13 Tests hinzu (alle fuenf Kategorien, Topology-Absenz, zwei Prioritaets-Tiebreaks)
+
 ## Visualization-Unification-Ergebnis
 
 Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
@@ -491,7 +503,7 @@ Der geplante Datenfluss:
 8. [x] V2-8: Experten-Modelle
 9. [x] V2-8.5: Expert Model Stabilization & Quality Gates
 10. [x] V2-9: Gating Network
-11. [ ] V2-10: Zentraler Markt-Analysator
+11. [x] V2-10: Zentraler Markt-Analysator
 12. [ ] V2-11: 3D Topology Market Modeling
 13. [ ] V2-12: Market Impact & Liquidity Engine
 14. [ ] V2-13: Redis Experience Queue/Stream

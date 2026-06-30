@@ -22,7 +22,12 @@ export function SignalBoard({ signals }: { signals: Record<string, Signal> | und
                   {formatNumber(payload.probability_up, 3)}
                 </small>
               </div>
-              <Badge tone={payload.signal}>{payload.signal || 'hold'}</Badge>
+              <div className="flex items-center gap-2">
+                {payload.market_analysis?.action && (
+                  <Badge tone={payload.market_analysis.action}>{payload.market_analysis.action}</Badge>
+                )}
+                <Badge tone={payload.signal}>{payload.signal || 'hold'}</Badge>
+              </div>
             </div>
           ))
         ) : (
