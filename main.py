@@ -27,6 +27,7 @@ from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
 from liquidity import build_liquidity_decision
 from topology import build_market_topology
+from experience import ExperienceQueue, build_experience_event
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -130,6 +131,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "high_impact_size_factor": float(phase_v2_liquidity.get("high_impact_size_factor", 0.5)),
             "slippage_factor": float(phase_v2_liquidity.get("slippage_factor", 0.1)),
         }
+        phase_v2_experience = self.phase_v2.get("experience", {})
+        self._experience_mode = "backtest"
+        self._experience_queue = ExperienceQueue(
+            enabled=bool(phase_v2_experience.get("enabled", False)),
+            redis_url="redis://localhost:6379/0",
+            stream_name=str(phase_v2_experience.get("redis_stream", "aether:experience")),
+            maxlen=int(phase_v2_experience.get("maxlen", 100_000)),
+        )
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -298,6 +307,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "topology": topology_payload or {},
                         "liquidity": liquidity_payload,
                     }
+                )
+                self._experience_queue.push(
+                    build_experience_event(
+                        mode=self._experience_mode,
+                        symbol=str(symbol),
+                        ticker=self.asset_lookup[str(symbol)]["ticker"],
+                        signal=signal_name,
+                        action=decision["action"],
+                        execution_note=execution_note,
+                        probability_up=probability_up,
+                        confidence=confidence,
+                        target_weight=target_weight,
+                        regime=regime_payload,
+                        moe_gating=gating_payload,
+                        topology=topology_payload or {},
+                        liquidity=liquidity_payload,
+                        market_analysis=decision,
+                        portfolio={
+                            "total_value": float(self.Portfolio.TotalPortfolioValue),
+                            "cash": float(self.Portfolio.Cash),
+                            "current_drawdown": self.current_total_drawdown,
+                        },
+                    )
                 )
             else:
                 signal_payload["reason"] = feature_payload["reason"]

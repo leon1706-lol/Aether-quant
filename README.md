@@ -498,6 +498,21 @@ Die Market Impact & Liquidity Engine macht jetzt zusaetzlich Folgendes:
 - fuegt 9 neue Unit-Tests in `tests/test_market_liquidity.py` und 4 neue Faelle in `tests/test_market_analyzer.py` hinzu
 - LTCUSD (nur 2 Tage Daten im Universum → DDV unter $100k Floor) trifft korrekt auf `blocked` und wird zu `simulate` gezwungen, ohne den uebrigen Entscheidungsbaum zu stoeren
 
+## Phase-V2-13-Ergebnis
+
+Die Redis Experience Queue macht jetzt zusaetzlich Folgendes:
+
+- fuegt `experience/redis_queue.py` als neues Modul hinzu mit `build_experience_event()` (pure Funktion) und `ExperienceQueue` (fire-and-forget Redis Stream Publisher)
+- schreibt nach jeder vollstaendigen Asset-Entscheidung (nach `signal_payload.update`) sofort ein JSON-Event per `XADD` in den Redis Stream `aether:experience`, begrenzt auf `maxlen=100000` Eintraege (approximativ)
+- jedes Event enthaelt: `event_id` (UUID), `event_type`, `created_at` (ISO UTC), `mode` (`backtest`/`observation`/`paper`/`live`), `symbol`, `ticker`, `signal`, `action`, `execution_note`, `probability_up`, `confidence`, `target_weight`, `regime`, `moe_gating`, `topology`, `liquidity`, `market_analysis`, `portfolio` (mit `total_value`, `cash`, `current_drawdown`)
+- schlaegt Redis Fehler still nieder: `ExperienceQueue.push()` gibt `False` zurueck und loggt eine WARNING, der Lean-Loop wird niemals blockiert oder unterbrochen
+- laedt `redis_url` aus der Umgebungsvariablen `AETHER_REDIS_URL` (gesetzt in `docker-compose.yml` auf `redis://redis:6379/0`), faellt zurueck auf `redis://localhost:6379/0` fuer lokale Entwicklung
+- konfigurierbar ueber `config.json phase_v2.experience` mit `enabled`, `redis_stream` und `maxlen`
+- Redis-Import ist deferred (innerhalb von `ExperienceQueue.__init__`), damit der Code auch in Lean-Umgebungen ohne `redis`-Paket importierbar bleibt
+- fuegt `redis>=5.0.0` zu `requirements.txt` und `fakeredis>=2.20.0` zu `requirements-dev.txt` hinzu
+- fuegt `tests/test_experience_queue.py` mit 8 Tests hinzu (Pflichtfelder im Schema, disabled = sicheres No-Op, Redis nicht erreichbar = kein Crash, JSON-Serialisierung, konfigurierbarer Stream-Name, alle 4 Modes, Push schreibt in Stream, Event-ID eindeutig)
+- Stop bei Redis: kein PostgreSQL in V2-13; V2-14 baut den Persistence Worker (`XREAD → INSERT INTO experience_events`)
+
 ## Visualization-Unification-Ergebnis
 
 Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
@@ -535,7 +550,7 @@ Der geplante Datenfluss:
 11. [x] V2-10: Zentraler Markt-Analysator
 12. [x] V2-11: 3D Topology Market Modeling
 13. [x] V2-12: Market Impact & Liquidity Engine
-14. [ ] V2-13: Redis Experience Queue/Stream
+14. [x] V2-13: Redis Experience Queue/Stream
 15. [ ] V2-14: PostgreSQL Persistence Worker
 16. [ ] V2-15: Observation Mode
 17. [ ] V2-16: Performance Trigger

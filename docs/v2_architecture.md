@@ -2,7 +2,7 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-12
+Completed phases: V2-1 through V2-13
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
@@ -106,7 +106,7 @@ flowchart TB
 11. [x] V2-10: Central market analyzer
 12. [x] V2-11: 3D topology market modeling
 13. [x] V2-12: Market impact and liquidity engine + Docker app service
-14. [ ] V2-13: Redis experience queue/stream
+14. [x] V2-13: Redis experience queue/stream
 15. [ ] V2-14: PostgreSQL persistence worker
 16. [ ] V2-15: Observation mode
 17. [ ] V2-16: Performance triggers
@@ -120,15 +120,47 @@ flowchart TB
 25. [ ] V2-23.1: Data-driven liquidity threshold calibration
 26. [ ] V2-24: Final V2 review
 
+## Redis Experience Queue (V2-13)
+
+After each asset decision, `experience/redis_queue.py::ExperienceQueue.push()` writes a JSON event
+to the `aether:experience` Redis Stream via `XADD` with `MAXLEN ~ 100000`.
+
+Event schema (key fields):
+
+```json
+{
+  "event_id": "<uuid4>",
+  "event_type": "market_decision",
+  "created_at": "2026-07-01T12:00:00Z",
+  "mode": "backtest|observation|paper|live",
+  "symbol": "AAPL R735QTJ8XC9X",
+  "ticker": "AAPL",
+  "signal": "buy|sell|hold",
+  "action": "trade|simulate|observe|reduce_risk|retrain_candidate",
+  "execution_note": "entered_long",
+  "probability_up": 0.61,
+  "confidence": 0.22,
+  "target_weight": 0.12,
+  "regime": {},
+  "moe_gating": {},
+  "topology": {},
+  "liquidity": {},
+  "market_analysis": {},
+  "portfolio": {"total_value": 105000.0, "cash": 50000.0, "current_drawdown": -0.01}
+}
+```
+
+**Failure policy:** Redis unavailable = WARNING log, push returns `False`, trading continues.
+The queue is configured via `config.json phase_v2.experience` and overridden by the
+`AETHER_REDIS_URL` environment variable (set to `redis://redis:6379/0` in Docker).
+
 ## Redis To PostgreSQL Experience Flow
 
-V2 uses Redis instead of a JSONL fallback. Redis is only the temporary fast buffer; PostgreSQL is the permanent source for analytics and retraining.
+V2 uses Redis as the fast temporary buffer; PostgreSQL is the permanent source for analytics and retraining. V2-14 will build the persistence worker.
 
-1. The live, backtest or observation loop creates a signal and writes raw metrics into Redis immediately.
-2. Redis accepts events through a stream or queue, for example `XADD` or `LPUSH`.
-3. A separate worker reads the events asynchronously with `XREAD` or `BLPOP`.
-4. The worker persists events into PostgreSQL with batch inserts.
-5. Controlled retraining reads from PostgreSQL only, so model updates are based on stable historical records.
+1. The live, backtest or observation loop creates a signal and writes it to the `aether:experience` stream via `XADD` immediately (`ExperienceQueue.push()`).
+2. A separate worker (V2-14) reads events with `XREAD` and persists them to PostgreSQL with batch inserts.
+3. Controlled retraining reads from PostgreSQL only, so model updates are based on stable historical records.
 
 ## API Key Status
 
