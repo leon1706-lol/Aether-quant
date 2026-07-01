@@ -482,6 +482,22 @@ Das 3D Topology Market Modeling macht jetzt zusaetzlich Folgendes:
 - fuegt `tests/test_market_topology.py` (stabile Koordinaten, staerkere Links fuer korrelierte Assets, robust bei fehlenden/duennen Daten, Regime-Label-Aggregation) sowie vier neue Faelle in `tests/test_market_analyzer.py` hinzu
 - dokumentiert in `V2-17.5` (siehe Phasenplan unten), dass diese deterministischen Regeln spaeter durch datengetriebene/gelernte Versionen ersetzt werden sollen, sobald die Experience-Pipeline (V2-13/14) und kontrolliertes Retraining (V2-16/17) stehen
 
+## Phase-V2-12-Ergebnis
+
+Die Market Impact & Liquidity Engine macht jetzt zusaetzlich Folgendes:
+
+- fuegt `liquidity/market_liquidity.py` als reine, deterministische Per-Asset-Liquiditaetsschicht hinzu: schaetzt taeglich gehandeltes Dollar-Volumen (`DDV = close × volume`), Orderwert, Participations-Rate, Slippage und Round-Trip-Kosten ohne externe Daten
+- klassifiziert jeden Asset-Order-Versuch in `normal`, `thin`, `high_impact` oder `blocked` und empfiehlt `allow`, `reduce_size`, `simulate_instead` oder `block`
+- wendet bei `high_impact` automatisch eine konfigurierbare Groessenreduktion (`high_impact_size_factor=0.5`) an, bevor der Markt-Analysator entscheidet
+- ergaenzt `analyzer/market_analyzer.py` um zwei neue deterministische Prioritaetsstufen: `liquidity_blocked` zwingt zu `simulate`, `liquidity_thin` zwingt ebenfalls zu `simulate` (unter den bestehenden Risk-Off- und Topology-Prioritaeten, aber ueber dem `trade`-Pfad)
+- schreibt alle Liquidity-Felder (`daily_dollar_volume`, `participation_rate`, `estimated_slippage`, `spread_proxy`, `estimated_round_trip_cost`, `liquidity_risk`, `recommended_action`, `adjusted_target_weight`) als `liquidity`-Block in jedes Asset-Signal in `visualization/state.json`
+- fuegt statische Bid-Ask-Spread-Proxies per Security-Type ein (Equity: 5 bps, Crypto: 20 bps), da echte Bid-Ask-Daten aus Daily-OHLCV nicht ableitbar sind
+- belegt in Lean tatsaechliche Transaktionskosten per Asset: `ConstantPercentageFeeModel(0.0025)` fuer Crypto (25 bps Taker-Proxy) und `ConstantFeeModel(1.0)` fuer Equities ($1/Trade IB-Proxy)
+- fuegt `webui/src/components/risk/LiquidityTable.tsx` als neue Liquiditaets-Panel auf der Risk-Seite hinzu: zeigt per Asset DDV, Orderwert, Participations-Rate, Slippage, Spread, Round-Trip-Kosten, Risk-Level und empfohlene Aktion mit farbigen Badges
+- fuegt `Dockerfile` (Multi-Stage: Node.js Webui-Build → Python Laufzeit) und erweitertes `docker-compose.yml` (neuer `aether-quant`-Service auf Port 8000, Grafana auf Port 3001 statt 3000) hinzu, damit die Gesamtinfrastruktur konsistent startbar ist
+- fuegt 9 neue Unit-Tests in `tests/test_market_liquidity.py` und 4 neue Faelle in `tests/test_market_analyzer.py` hinzu
+- LTCUSD (nur 2 Tage Daten im Universum → DDV unter $100k Floor) trifft korrekt auf `blocked` und wird zu `simulate` gezwungen, ohne den uebrigen Entscheidungsbaum zu stoeren
+
 ## Visualization-Unification-Ergebnis
 
 Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
@@ -518,7 +534,7 @@ Der geplante Datenfluss:
 10. [x] V2-9: Gating Network
 11. [x] V2-10: Zentraler Markt-Analysator
 12. [x] V2-11: 3D Topology Market Modeling
-13. [ ] V2-12: Market Impact & Liquidity Engine
+13. [x] V2-12: Market Impact & Liquidity Engine
 14. [ ] V2-13: Redis Experience Queue/Stream
 15. [ ] V2-14: PostgreSQL Persistence Worker
 16. [ ] V2-15: Observation Mode
@@ -530,7 +546,8 @@ Der geplante Datenfluss:
 22. [ ] V2-20: Lean Backtesting Integration
 23. [ ] V2-21: Paper Trading Vorbereitung
 24. [ ] V2-22: Live Deployment Struktur
-25. [ ] V2-23: Finaler V2 Review
+25. [ ] V2-23.1: Datengetriebene Liquidity-Threshold-Kalibrierung — ersetzt statische Participations-Schwellenwerte durch kalibrierte Werte aus echten Fill-Daten, sobald V2-13/14 Experience-Pipeline und V2-16/17 Controlled Retraining stehen
+26. [ ] V2-24: Finaler V2 Review
 
 ## Hinweise
 

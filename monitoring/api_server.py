@@ -13,16 +13,18 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 VISUALIZATION_DIR = ROOT_DIR / "visualization"
 GRAFANA_DIR = VISUALIZATION_DIR / "grafana"
+WEBUI_DIST = ROOT_DIR / "webui" / "dist"
 
 app = FastAPI(title="Aether Quant Monitoring API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:8000"],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -75,3 +77,7 @@ def get_equity_curves() -> list[dict]:
 @app.get("/api/grafana/asset-performance")
 def get_asset_performance() -> list[dict]:
     return _read_csv_as_rows(GRAFANA_DIR / "asset_performance.csv")
+
+
+if WEBUI_DIST.exists():
+    app.mount("/", StaticFiles(directory=WEBUI_DIST, html=True), name="static")

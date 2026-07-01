@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+node_modules/
+webui/node_modules/
+webui/dist/
+backtests/
+.lean/
+.git/
+.claude/
+Aether-quant-Obsidian-Vault/
+# Large data directories not needed by the FastAPI server
+data/
+ml/
+storage/

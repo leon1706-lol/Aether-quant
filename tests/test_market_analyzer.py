@@ -175,3 +175,53 @@ def test_priority_tiebreak_topology_elevated_beats_retrain_candidate_conditions(
         topology={"state": "ready", "topology_risk": "elevated"},
     )
     assert decision.action == "reduce_risk"
+
+
+# --- V2-12 liquidity tiers ---
+
+def test_liquidity_blocked_downgrades_to_simulate():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        topology={"topology_risk": "normal"},
+        liquidity={"recommended_action": "block"},
+    )
+    assert decision.action == "simulate"
+    assert decision.liquidity_considered is True
+    assert "liquidity_blocked_insufficient_volume_simulate_instead" in decision.reasons
+
+
+def test_liquidity_thin_downgrades_to_simulate():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        topology={"topology_risk": "normal"},
+        liquidity={"recommended_action": "simulate_instead"},
+    )
+    assert decision.action == "simulate"
+    assert "liquidity_thin_market_simulate_instead" in decision.reasons
+
+
+def test_liquidity_allow_does_not_change_trade_outcome():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        topology={"topology_risk": "normal"},
+        liquidity={"recommended_action": "allow"},
+    )
+    assert decision.action == "trade"
+    assert decision.target_weight == 0.12
+
+
+def test_liquidity_absent_degrades_gracefully():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        liquidity=None,
+    )
+    assert decision.liquidity_considered is False
+    assert decision.action == "trade"

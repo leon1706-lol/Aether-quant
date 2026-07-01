@@ -25,6 +25,7 @@ from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
+from liquidity import build_liquidity_decision
 from topology import build_market_topology
 
 
@@ -120,6 +121,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
+        phase_v2_liquidity = self.phase_v2.get("liquidity", {})
+        self._liquidity_thresholds = {
+            "thin_participation_threshold": float(phase_v2_liquidity.get("thin_participation_threshold", 0.002)),
+            "high_impact_participation_threshold": float(phase_v2_liquidity.get("high_impact_participation_threshold", 0.01)),
+            "blocked_participation_threshold": float(phase_v2_liquidity.get("blocked_participation_threshold", 0.05)),
+            "min_daily_dollar_volume": float(phase_v2_liquidity.get("min_daily_dollar_volume", 100_000.0)),
+            "high_impact_size_factor": float(phase_v2_liquidity.get("high_impact_size_factor", 0.5)),
+            "slippage_factor": float(phase_v2_liquidity.get("slippage_factor", 0.1)),
+        }
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -160,6 +170,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.symbol_windows[symbol] = deque(maxlen=self.bar_history_size)
             self.latest_signal_state[str(symbol)] = "hold"
             self.last_trade_bar_by_symbol[symbol] = -1000000
+            if asset.get("security_type") == "crypto":
+                self.set_fee_model(symbol, ConstantPercentageFeeModel(0.0025))
+            else:
+                self.set_fee_model(symbol, ConstantFeeModel(1.0))
 
         self.set_warm_up(max(int(self.runtime["warmup_bars"]), 21), self.resolution)
         self._write_state(mode="initialize", insight="Phase 4 inference engine initialized")
@@ -229,6 +243,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
                 target_weight = float(sizing_payload["target_weight"])
                 topology_payload = topology_by_symbol.get(str(symbol))
+                asset = self.asset_lookup[str(symbol)]
+                liquidity_payload = build_liquidity_decision(
+                    close=float(bar.close),
+                    volume=float(bar.volume),
+                    target_weight=target_weight,
+                    portfolio_value=float(self.Portfolio.TotalPortfolioValue),
+                    annualized_volatility=float(sizing_payload.get("annualized_volatility", 0.0)),
+                    security_type=str(asset.get("security_type", "equity")),
+                    **self._liquidity_thresholds,
+                ).to_dict()
+                if liquidity_payload["recommended_action"] == "reduce_size":
+                    target_weight = float(liquidity_payload["adjusted_target_weight"])
 
                 decision = build_market_analysis_decision(
                     signal_name=signal_name,
@@ -241,6 +267,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     trade_lock_active=self.trade_lock_active,
                     trade_lock_reason=self.trade_lock_reason,
                     topology=topology_payload,
+                    liquidity=liquidity_payload,
                     min_confidence_to_trade=self.min_confidence_to_trade,
                     retrain_min_regime_confidence=self.analyzer_retrain_min_regime_confidence,
                     low_regime_confidence_threshold=self.analyzer_low_regime_confidence_threshold,
@@ -272,6 +299,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "execution_note": execution_note,
                         "market_analysis": decision,
                         "topology": topology_payload or {},
+                        "liquidity": liquidity_payload,
                     }
                 )
             else:

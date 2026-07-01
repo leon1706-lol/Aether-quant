@@ -41,6 +41,19 @@ export interface TopologyContext {
   regime_label?: string
 }
 
+export interface LiquidityInfo {
+  daily_dollar_volume?: number
+  order_value?: number
+  participation_rate?: number
+  estimated_slippage?: number
+  spread_proxy?: number
+  estimated_round_trip_cost?: number
+  liquidity_risk?: 'normal' | 'thin' | 'high_impact' | 'blocked' | string
+  recommended_action?: 'allow' | 'reduce_size' | 'simulate_instead' | 'block' | string
+  adjusted_target_weight?: number
+  reasons?: string[]
+}
+
 export interface Signal {
   ticker?: string
   symbol?: string
@@ -55,6 +68,7 @@ export interface Signal {
   dynamic_sizing?: DynamicSizing
   market_analysis?: MarketAnalysis
   topology?: TopologyContext
+  liquidity?: LiquidityInfo
 }
 
 export interface Risk {

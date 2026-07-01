@@ -44,13 +44,34 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${GRAFANA_PORT:-3001}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    networks:
+      - aether-net
+
+  aether-quant:
+    build:
+      context: .
+    container_name: aether-quant
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./visualization:/app/visualization
+      - ./ml:/app/ml
+    environment:
+      AETHER_ENV: docker
+      AETHER_REDIS_URL: redis://redis:6379/0
+      AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - aether-net
