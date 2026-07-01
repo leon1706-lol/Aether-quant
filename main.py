@@ -170,10 +170,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.symbol_windows[symbol] = deque(maxlen=self.bar_history_size)
             self.latest_signal_state[str(symbol)] = "hold"
             self.last_trade_bar_by_symbol[symbol] = -1000000
-            if asset.get("security_type") == "crypto":
-                self.set_fee_model(symbol, ConstantPercentageFeeModel(0.0025))
-            else:
-                self.set_fee_model(symbol, ConstantFeeModel(1.0))
+            self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
 
         self.set_warm_up(max(int(self.runtime["warmup_bars"]), 21), self.resolution)
         self._write_state(mode="initialize", insight="Phase 4 inference engine initialized")

@@ -2,6 +2,7 @@
 
 Status: In development
 Version: V2
+Completed phases: V2-1 through V2-12
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
@@ -12,7 +13,7 @@ Aether Quant V2 builds on the existing Lean, PyTorch, dashboard, Grafana and ris
 
 ```mermaid
 flowchart LR
-    A["Lean data folder<br/>stocks, ETFs, crypto, later futures/options"] --> B["Feature pipeline<br/>train.py"]
+    A["Lean data folder<br/>stocks, ETFs, crypto"] --> B["Feature pipeline<br/>train.py"]
     B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
     B --> D["3D topology modeling<br/>market structure and clusters"]
     C --> E["Gating network<br/>the manager"]
@@ -28,26 +29,40 @@ flowchart LR
     J --> K
     C --> K
     D --> K
-    K --> L["Action categorization"]
-    L --> M["Observe / simulate"]
-    L --> N["Trade via Lean<br/>paper/live later"]
-    M --> O["Redis event stream<br/>temporary low-latency buffer"]
-    N --> O
-    O --> P["Experience worker<br/>async batch persistence"]
-    P --> R["PostgreSQL experience database<br/>single source of truth"]
+    L["Liquidity engine<br/>DDV, participation rate,<br/>slippage estimate"] --> K
+    K --> M["Action categorization<br/>trade / simulate / observe<br/>reduce_risk / retrain_candidate"]
+    M --> N["Lean order execution<br/>InteractiveBrokersFeeModel"]
+    M --> O["Observation / simulation record"]
+    N --> P["Redis event stream<br/>temporary low-latency buffer"]
+    O --> P
+    P --> Q["Experience worker<br/>async batch persistence"]
+    Q --> R["PostgreSQL experience database<br/>single source of truth"]
     R --> S["Performance triggers<br/>100 observations, drawdown, Sharpe, regime shift"]
-    S --> Q["Controlled retraining<br/>versioned weights and rollback"]
-    Q --> E
+    S --> T["Controlled retraining<br/>versioned weights and rollback"]
+    T --> E
 ```
+
+## Runtime Decision Priority
+
+The market analyzer enforces a strict priority ordering per asset per bar:
+
+1. `reduce_risk` — portfolio-wide trade lock active
+2. `reduce_risk` — risk-off regime + directional signal
+3. `reduce_risk` — topology risk elevated + directional signal
+4. `retrain_candidate` — baseline fallback + low regime confidence
+5. `simulate` — liquidity blocked (zero volume or below DDV floor)
+6. `simulate` — liquidity thin (participation rate above thin threshold)
+7. `trade` — all guards passed, confidence above threshold, asset not isolated
+8. `simulate` / `observe` — fallthrough
 
 ## Tech Stack
 
 ```mermaid
 flowchart TB
-    A["Infrastructure"] --> A1["Docker"]
-    A --> A2["Lean"]
-    A --> A3["30 day observation phase before live mode"]
-    B["Development"] --> B1["VS Code + Codex"]
+    A["Infrastructure"] --> A1["Docker Compose<br/>(Redis, Postgres, Grafana, aether-quant app)"]
+    A --> A2["Lean CLI<br/>(backtest + paper trading)"]
+    A --> A3["30-day observation phase before live mode"]
+    B["Development"] --> B1["VS Code + Claude Code"]
     B --> B2["GitHub"]
     C["Data and storage"] --> C1["Lean data folder for training/backtesting"]
     C --> C2["Redis temporary event stream"]
@@ -56,9 +71,10 @@ flowchart TB
     D --> D2["scikit-learn"]
     D --> D3["NumPy / Pandas"]
     D --> D4["MoE experts and gating network"]
-    E["Monitoring"] --> E1["Grafana"]
-    E --> E2["HTML volatility dashboard"]
-    E --> E3["Telegram alerts later"]
+    E["Monitoring and UI"] --> E1["Grafana (port 3001)"]
+    E --> E2["React/Vite webui (port 3000 dev / 8000 Docker)"]
+    E --> E3["FastAPI JSON API (port 8000)"]
+    E --> E4["Telegram alerts — future"]
 ```
 
 ## Module Map
@@ -67,36 +83,42 @@ flowchart TB
 - `moe/`: Gating network, expert routing and final MoE signal composition.
 - `experts/`: Bullish, bearish, sideways and volatility expert model interfaces.
 - `regime/`: Quantitative market-regime detection and later LLM regime-vector adapters.
-- `topology/`: 3D market topology state, asset clustering and topology export.
+- `topology/`: 3D market topology state, pairwise correlation, asset clustering and topology export.
+- `analyzer/`: Central deterministic decision layer combining all module outputs into a single action per bar.
+- `liquidity/`: Per-asset liquidity and market-impact engine — DDV proxy, participation rate, slippage estimate, spread proxy.
 - `experience/`: Redis-buffered observation and trade events with PostgreSQL persistence.
-- `risk/`: Dynamic position sizing, leverage limits, liquidity and market-impact controls.
-- `monitoring/`: HTML dashboard feeds, Grafana exports and later Telegram alert adapters.
+- `risk/`: Dynamic position sizing, leverage limits, drawdown controls and exposure caps.
+- `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology and Grafana feeds.
+- `webui/`: React/Vite single-page app — Overview (3D scene, heatmap, signals), Risk (sizing, liquidity panel), Topology (3D cluster view).
 
 ## V2 Build Order
 
-1. V2 architecture foundation.
-2. Lean-data pipeline extension.
-3. Dynamic risk and position sizing.
-4. HTML live volatility dashboard.
-5. Docker Compose infrastructure for Lean, Grafana, Redis and PostgreSQL.
-6. Regime detection.
-7. Expert datasets.
-8. Expert modules.
-9. Gating network.
-10. Central market analyzer.
-11. 3D topology market modeling.
-12. Market impact and liquidity engine.
-13. Redis experience queue/stream.
-14. PostgreSQL persistence worker.
-15. Observation mode.
-16. Performance triggers.
-17. Controlled retraining.
-18. Grafana monitoring expansion.
-19. Telegram alerts.
-20. Lean backtesting integration.
-21. Paper trading preparation.
-22. Live deployment structure.
-23. Final V2 review.
+1. [x] V2-1: Fork and architecture foundation
+2. [x] V2-2: Lean-data pipeline extension
+3. [x] V2-3: Dynamic risk and position sizing
+4. [x] V2-4: HTML live volatility dashboard (superseded by React webui)
+5. [x] V2-5: Docker Compose infrastructure for Lean, Grafana, Redis and PostgreSQL
+6. [x] V2-6: Regime detection
+7. [x] V2-7: Expert datasets
+8. [x] V2-8: Expert modules
+9. [x] V2-8.5: Expert model stabilization and quality gates
+10. [x] V2-9: Gating network
+11. [x] V2-10: Central market analyzer
+12. [x] V2-11: 3D topology market modeling
+13. [x] V2-12: Market impact and liquidity engine + Docker app service
+14. [ ] V2-13: Redis experience queue/stream
+15. [ ] V2-14: PostgreSQL persistence worker
+16. [ ] V2-15: Observation mode
+17. [ ] V2-16: Performance triggers
+18. [ ] V2-17: Controlled retraining
+19. [ ] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
+20. [ ] V2-18: Grafana monitoring expansion
+21. [ ] V2-19: Telegram alerts
+22. [ ] V2-20: Lean backtesting integration
+23. [ ] V2-21: Paper trading preparation
+24. [ ] V2-22: Live deployment structure
+25. [ ] V2-23.1: Data-driven liquidity threshold calibration
+26. [ ] V2-24: Final V2 review
 
 ## Redis To PostgreSQL Experience Flow
 
@@ -203,17 +225,93 @@ It combines:
 
 The output is a final `moe_probability_up`, stored as runtime `probability_up`, plus a `moe_gating` payload showing active experts, disabled experts, weights and decision source.
 
-## Live Volatility Dashboard
+## Market Analyzer Contract
 
-`volatility_dashboard.html` is the first V2 live risk dashboard. It reads `visualization/state.json` and refreshes every 5 seconds. The dashboard is intended for backtest and observation mode before broker API keys are available.
+`analyzer/market_analyzer.py` is the single deterministic decision layer. It receives the outputs of all upstream modules (MoE gating, regime, topology, liquidity, risk) and emits exactly one action category per asset per bar.
 
-It displays:
+Categories: `trade`, `simulate`, `observe`, `reduce_risk`, `retrain_candidate`.
 
-- current portfolio and risk lock state
-- daily and total drawdown
-- target daily volatility
-- per-asset volatility regime
-- base and dynamic target weights
-- leverage factor
-- model confidence
-- sizing reason
+Priority ordering is strict and documented in the Runtime Decision Priority section above. The analyzer also emits a `reasons` list explaining which rule fired, making every decision fully auditable in `visualization/state.json`.
+
+## 3D Topology Contract
+
+`topology/market_topology.py` computes cross-asset structural relationships each bar from the previous bar's returns window (no lookahead).
+
+It emits:
+
+- pairwise Pearson correlation matrix from return series
+- Union-Find clusters above a correlation threshold
+- 3D coordinates: correlated assets cluster together, high-volatility assets separate on the z-axis
+- per-asset `topology_risk`: `normal`, `elevated` or `isolated`
+- cluster membership and correlation strength for each asset
+
+Topology risk feeds directly into the market analyzer: `elevated` forces `reduce_risk`, `isolated` blocks the `trade` path. The 3D coordinates replace the previous orbit-based scene placement in the React webui.
+
+A dedicated `/api/topology` endpoint and `/topology` React page expose the live cluster view.
+
+## Liquidity Engine Contract
+
+`liquidity/market_liquidity.py` estimates per-asset execution feasibility each bar using only daily OHLCV data. No order book, VWAP or real bid-ask data is required.
+
+It computes:
+
+- `daily_dollar_volume`: `close × volume` as a DDV proxy
+- `order_value`: `portfolio_value × abs(target_weight)`
+- `participation_rate`: `order_value / daily_dollar_volume`
+- `estimated_slippage`: `participation_rate × daily_vol × slippage_factor`
+- `spread_proxy`: static lookup by security type (equity: 5 bps, crypto: 20 bps)
+- `estimated_round_trip_cost`: `slippage + spread_proxy`
+
+Risk labels and recommended actions:
+
+| `liquidity_risk` | `recommended_action` | Trigger |
+|---|---|---|
+| `normal` | `allow` | participation rate below thin threshold |
+| `thin` | `simulate_instead` | participation rate above thin threshold |
+| `high_impact` | `reduce_size` | participation rate above high-impact threshold |
+| `blocked` | `block` | zero volume or DDV below floor |
+
+When `reduce_size` is recommended, `adjusted_target_weight` is applied before the market analyzer call so the analyzer sees the already-reduced weight.
+
+All thresholds are configurable in `config.json` under `phase_v2.liquidity`. Future V2-23.1 will replace static thresholds with data-driven values calibrated from real fill data accumulated by the experience pipeline.
+
+## Webui and API Contract
+
+The React/Vite webui (`webui/`) replaces the old `dashboard.html` and `volatility_dashboard.html`. It is served either via `npm run dev` on port 3000 (local development) or from the Docker app container on port 8000 via FastAPI `StaticFiles`.
+
+Pages:
+
+- `/` Overview: scorecards, 3D market scene (real topology coordinates), asset heatmap, signal/position board
+- `/risk` Risk: risk core panel, asset sizing table, liquidity and execution impact panel
+- `/topology` Topology: 3D cluster view with regime/risk colouring, readable cluster list
+
+The FastAPI server (`monitoring/api_server.py`) exposes:
+
+- `GET /api/state` — full runtime state including signals, topology, positions, risk and liquidity per asset
+- `GET /api/scene` — 3D scene payload
+- `GET /api/topology` — topology state with nodes, links and cluster summary
+- `GET /api/grafana/*` — Grafana-friendly JSON and CSV feeds
+- `GET /` — serves the built React app (only when `webui/dist/` exists)
+
+Liquidity data flows through `state.signals[symbol].liquidity` — no dedicated endpoint needed.
+
+## Docker App Container
+
+The `Dockerfile` is a two-stage build:
+
+1. Node 20 Alpine builds the React webui (`npm ci && npm run build`).
+2. Python 3.11 slim installs only the runtime requirements (`fastapi`, `uvicorn`, `aiofiles`) and serves the API plus the built webui on port 8000.
+
+`docker-compose.yml` port layout:
+
+| Service | Host port | Container port |
+|---|---|---|
+| aether-quant (FastAPI + webui) | 8000 | 8000 |
+| Grafana | 3001 | 3000 |
+| Redis | 6379 | 6379 |
+| PostgreSQL | 5432 | 5432 |
+| Lean (profile) | — | — |
+
+Port 3000 is kept free for `npm run dev` during local development.
+
+The `data/`, `ml/` and `storage/` directories are excluded from the Docker build context via `.dockerignore` because the FastAPI server does not use them; they are only needed by `train.py` and the Lean algorithm.
