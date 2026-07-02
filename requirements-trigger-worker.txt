@@ -1,0 +1,3 @@
+# Aether Quant Performance Trigger Worker — minimal runtime deps (V2-16)
+psycopg[binary]>=3.1
+numpy>=1.24.0

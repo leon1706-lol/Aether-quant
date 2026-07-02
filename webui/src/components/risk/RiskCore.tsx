@@ -7,9 +7,9 @@ import { RiskBar } from './RiskBar'
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div className="min-h-[96px] rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
-      <span className="mb-2.5 block text-[0.74rem] uppercase tracking-widest text-slate-400">{label}</span>
+      <span className="mb-2.5 block text-[0.74rem] uppercase tracking-widest text-white/60">{label}</span>
       <strong className="block text-[1.72rem] leading-tight">{value}</strong>
-      <small className="mt-2 block text-slate-400">{sub}</small>
+      <small className="mt-2 block text-white/60">{sub}</small>
     </div>
   )
 }

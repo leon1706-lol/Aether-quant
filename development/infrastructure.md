@@ -165,6 +165,48 @@ vorhandener Broker-Konfiguration):
 - Manuelle Durchsicht der Trade-Historie (`SimulatedPortfolioState.trade_log`
   bzw. die Experience Events) zeigt plausible Entry-/Exit-Preise.
 
+## Performance Triggers Pruefen (V2-16)
+
+Der Trigger-Worker beobachtet `experience_events` (nicht nur den aktuellen
+Lauf) und schreibt erkannte Warnungen/Retrain-Kandidaten dauerhaft in die
+eigene Tabelle `performance_triggers`. Phase 16 retrained nichts selbst —
+`retrain_candidate` ist nur ein Flag fuer Phase 17.
+
+**1. Worker starten** — braucht nur PostgreSQL, kein Redis (der Worker liest
+`experience_events`, schreibt aber nie in den Redis-Stream):
+
+```powershell
+docker compose up -d redis postgres performance-trigger-worker
+docker compose logs -f performance-trigger-worker
+```
+
+**2. Einmaligen Batch verarbeiten** (nuetzlich nach einem Backtest):
+
+```powershell
+docker compose run --rm performance-trigger-worker python -m performance.trigger_worker --once
+```
+
+**3. PostgreSQL — Trigger pruefen:**
+
+```sql
+SELECT COUNT(*) FROM performance_triggers;
+
+SELECT trigger_type, severity, scope, message, retrain_candidate, created_at
+FROM performance_triggers ORDER BY created_at DESC LIMIT 10;
+
+-- Nur Retrain-Kandidaten
+SELECT * FROM performance_triggers WHERE retrain_candidate = true ORDER BY created_at DESC;
+```
+
+**4. Dashboard:** gleicher `uvicorn`/`npm run dev`-Start wie bei Observation
+Mode. Das neue "Performance Triggers"-Panel
+(`webui/src/components/monitoring/PerformanceTriggersPanel.tsx`) steht ganz
+oben in der rechten Spalte — Retrain-Kandidat-Banner, Schweregrad-Verteilung,
+letzter Trigger und Trigger-Typ-Aufschluesselung. Dieselben Daten (nur der
+aktuelle, in-memory Lauf — nicht die dauerhafte Tabelle) liegen als Datei
+unter `visualization/grafana/performance_triggers.json` bzw. per API unter
+`/api/grafana/performance-triggers`.
+
 ## Verbindung Zwischen Containern
 
 Innerhalb des Compose-Netzwerks nutzen die Services ihre Servicenamen:

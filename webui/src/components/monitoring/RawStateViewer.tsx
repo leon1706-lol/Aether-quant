@@ -12,7 +12,7 @@ export function RawStateViewer({ state }: { state: RuntimeState | undefined }) {
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          className="rounded-full border border-white/15 px-3 py-1 text-xs text-slate-300 hover:text-slate-100"
+          className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/80 hover:text-white"
         >
           {open ? 'Hide' : 'Show'}
         </button>

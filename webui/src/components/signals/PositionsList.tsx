@@ -14,20 +14,20 @@ export function PositionsList({ positions }: { positions: Position[] | undefined
             >
               <div className="grid gap-1">
                 <strong>{position.symbol}</strong>
-                <small className="text-slate-400">
+                <small className="text-white/60">
                   qty {formatNumber(position.quantity, 2)} | weight {formatPercent(position.weight)}
                 </small>
               </div>
-              <small className="text-slate-400">pnl {formatCurrency(position.unrealized_profit)}</small>
+              <small className="text-white/60">pnl {formatCurrency(position.unrealized_profit)}</small>
             </div>
           ))
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
             <div className="grid gap-1">
               <strong>No open positions</strong>
-              <small className="text-slate-400">Portfolio is flat</small>
+              <small className="text-white/60">Portfolio is flat</small>
             </div>
-            <small className="text-slate-400">0</small>
+            <small className="text-white/60">0</small>
           </div>
         )}
       </div>

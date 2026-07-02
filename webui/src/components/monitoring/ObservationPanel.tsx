@@ -1,31 +1,10 @@
 import type { ObservationSummary } from '../../types/state'
 import { Panel } from '../layout/Panel'
+import { CountTable } from './CountTable'
 
 function formatNumber(value: number | undefined, digits = 2): string {
   if (value === undefined || Number.isNaN(value)) return '-'
   return value.toFixed(digits)
-}
-
-function CountTable({ title, counts }: { title: string; counts: Record<string, number> | undefined }) {
-  const entries = Object.entries(counts ?? {})
-
-  return (
-    <div className="grid min-w-0 gap-2">
-      <strong className="text-xs uppercase tracking-widest text-slate-400">{title}</strong>
-      {entries.length > 0 ? (
-        <div className="grid gap-1">
-          {entries.map(([label, count]) => (
-            <div key={label} className="flex items-start justify-between gap-3 border-t border-white/5 py-1 text-sm">
-              <span className="min-w-0 break-words text-slate-300">{label}</span>
-              <span className="shrink-0 text-slate-400">{count}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <small className="text-slate-500">No data yet</small>
-      )}
-    </div>
-  )
 }
 
 export function ObservationPanel({ observation }: { observation: ObservationSummary | undefined }) {
@@ -48,7 +27,7 @@ export function ObservationPanel({ observation }: { observation: ObservationSumm
           <div className="text-xs text-amber-200/80">runtime mode: {observation.mode}</div>
         </div>
       ) : (
-        <div className="mb-3 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-slate-400">
+        <div className="mb-3 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-white/60">
           <small>Not currently running in observation mode (runtime mode: {observation?.mode ?? 'unknown'})</small>
         </div>
       )}
@@ -56,8 +35,8 @@ export function ObservationPanel({ observation }: { observation: ObservationSumm
       <div className="grid grid-cols-2 gap-2.5">
         {metrics.map(([label, value]) => (
           <div key={label} className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
-            <small className="text-slate-400">{label}</small>
-            <div className="text-sm text-slate-200">{value}</div>
+            <small className="text-white/60">{label}</small>
+            <div className="text-sm text-white">{value}</div>
           </div>
         ))}
       </div>

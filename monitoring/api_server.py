@@ -89,5 +89,10 @@ def get_observation_equity_curve() -> list[dict]:
     return _read_csv_as_rows(GRAFANA_DIR / "observation_equity_curve.csv")
 
 
+@app.get("/api/grafana/performance-triggers")
+def get_performance_triggers() -> dict:
+    return _read_json(GRAFANA_DIR / "performance_triggers.json")
+
+
 if WEBUI_DIST.exists():
     app.mount("/", StaticFiles(directory=WEBUI_DIST, html=True), name="static")

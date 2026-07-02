@@ -15,18 +15,18 @@ export function MonitoringFeeds({ monitoring }: { monitoring: Monitoring | undef
             >
               <div className="grid gap-1">
                 <strong>{key}</strong>
-                <small className="text-slate-400">{value}</small>
+                <small className="text-white/60">{value}</small>
               </div>
-              <small className="text-slate-400">{monitoring?.mode ?? 'idle'}</small>
+              <small className="text-white/60">{monitoring?.mode ?? 'idle'}</small>
             </div>
           ))
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
             <div className="grid gap-1">
               <strong>No feeds yet</strong>
-              <small className="text-slate-400">Monitoring export waiting</small>
+              <small className="text-white/60">Monitoring export waiting</small>
             </div>
-            <small className="text-slate-400">-</small>
+            <small className="text-white/60">-</small>
           </div>
         )}
       </div>

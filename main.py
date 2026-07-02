@@ -29,6 +29,7 @@ from liquidity import build_liquidity_decision
 from topology import build_market_topology
 from experience import ExperienceQueue, SimulatedPortfolioState, build_experience_event, compute_observation_summary
 from execution import resolve_order_permission, resolve_runtime_mode
+from performance import evaluate_all_triggers
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -44,6 +45,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.runtime_asset_metrics_path = self.grafana_dir / "runtime_asset_metrics.csv"
         self.observation_summary_path = self.grafana_dir / "observation_summary.json"
         self.observation_equity_curve_path = self.grafana_dir / "observation_equity_curve.csv"
+        self.performance_triggers_path = self.grafana_dir / "performance_triggers.json"
         self.model_path = self.root_path / "ml" / "model_weights.json"
         self.expert_model_dir = self.root_path / "ml" / "expert_models"
         self.expert_metrics_path = self.root_path / "ml" / "expert_training_metrics.json"
@@ -150,6 +152,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         self._simulated_portfolio = SimulatedPortfolioState(initial_cash=float(self.runtime["initial_cash"]))
         self._observation_event_log = deque(maxlen=5000)
+        self._performance_triggers_config = self.phase_v2.get("performance_triggers", {})
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -332,6 +335,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     if orders_allowed
                     else self._simulated_portfolio.snapshot()
                 )
+                portfolio_snapshot["trade_lock_active"] = self.trade_lock_active
+                portfolio_snapshot["trade_lock_reason"] = self.trade_lock_reason
                 experience_event = build_experience_event(
                     mode=self._experience_mode,
                     symbol=str(symbol),
@@ -827,6 +832,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         state["regime"] = self._build_regime_summary(state["signals"])
         state["topology"] = self.latest_topology_payload
         state["observation"] = self._build_observation_view()
+        state["performance_triggers"] = self._build_performance_triggers_view()
         state["dashboard"] = self._build_dashboard_view(state)
         state["monitoring"] = self._build_monitoring_view(state)
         state["scene"] = self._build_scene_payload(state)
@@ -841,6 +847,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.runtime_asset_metrics_path.write_text(self._build_runtime_asset_csv(state), encoding="utf-8")
             self.observation_summary_path.write_text(json.dumps(state["observation"], indent=2), encoding="utf-8")
             self.observation_equity_curve_path.write_text(self._build_observation_equity_csv(), encoding="utf-8")
+            self.performance_triggers_path.write_text(
+                json.dumps(state["performance_triggers"], indent=2), encoding="utf-8"
+            )
             self.last_state_write = now
         except Exception as error:
             self.Debug(f"State write failed: {error}")
@@ -966,6 +975,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
             }
         )
         return summary
+
+    def _build_performance_triggers_view(self) -> dict:
+        # In-run, in-memory view only - NOT the durable trigger history. The
+        # performance_triggers Postgres table (system of record for
+        # Grafana/Phase 17) is populated exclusively by
+        # performance/trigger_worker.py, running as its own process/service,
+        # never from inside this Lean algorithm.
+        report = evaluate_all_triggers(list(self._observation_event_log), self._performance_triggers_config)
+        report["source"] = "in_memory_current_run"
+        return report
 
     def _build_observation_equity_csv(self) -> str:
         rows = ["bar_index,equity,cash,exposure,drawdown"]
@@ -1101,6 +1120,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "runtime_assets": "visualization/grafana/runtime_asset_metrics.csv",
                 "observation_summary": "visualization/grafana/observation_summary.json",
                 "observation_equity_curve": "visualization/grafana/observation_equity_curve.csv",
+                "performance_triggers": "visualization/grafana/performance_triggers.json",
             },
         }
 

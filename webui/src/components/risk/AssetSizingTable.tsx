@@ -14,9 +14,9 @@ function VolatilityBar({ annualVol }: { annualVol: number }) {
   const tone = annualVol > 0.45 ? 'bg-rose-400' : annualVol > 0.25 ? 'bg-amber-400' : 'bg-emerald-400'
   return (
     <div className="grid min-w-[150px] gap-1.5">
-      <div className="flex justify-between text-[0.76rem] text-slate-400">
+      <div className="flex justify-between text-[0.76rem] text-white/60">
         <span>annual vol</span>
-        <strong className="text-slate-100">{formatPercent(annualVol)}</strong>
+        <strong className="text-white">{formatPercent(annualVol)}</strong>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${width}%` }} />
@@ -29,9 +29,9 @@ function PositionSizeBar({ base, target }: { base: number; target: number }) {
   const width = Math.min(Math.abs(target) / 0.25, 1) * 100
   return (
     <div className="grid min-w-[150px] gap-1.5">
-      <div className="flex justify-between text-[0.76rem] text-slate-400">
+      <div className="flex justify-between text-[0.76rem] text-white/60">
         <span>base {formatPercent(base)}</span>
-        <strong className="text-slate-100">{formatPercent(target)}</strong>
+        <strong className="text-white">{formatPercent(target)}</strong>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
         <div className="h-full rounded-full bg-sky-400" style={{ width: `${width}%` }} />
@@ -46,14 +46,14 @@ export function AssetSizingTable({ signals }: { signals: Record<string, Signal> 
   return (
     <Panel title="Asset Volatility And Sizing" action={<Badge>{rows.length} assets</Badge>}>
       {rows.length === 0 ? (
-        <div className="p-8 text-center text-slate-400">
+        <div className="p-8 text-center text-white/60">
           No runtime signals yet. Run a Lean backtest or observation loop to populate state.
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="text-left text-[0.7rem] uppercase tracking-wide text-slate-400">
+              <tr className="text-left text-[0.7rem] uppercase tracking-wide text-white/60">
                 <th className="border-b border-white/10 px-2.5 py-2.5">Asset</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Signal</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Regime</th>
@@ -79,7 +79,7 @@ export function AssetSizingTable({ signals }: { signals: Record<string, Signal> 
                   <tr key={asset.symbol}>
                     <td className="border-b border-white/5 px-2.5 py-2.5 text-[0.88rem]">
                       <div className="font-extrabold tracking-wide">{asset.ticker || asset.symbol}</div>
-                      <div className="text-[0.78rem] text-slate-400">
+                      <div className="text-[0.78rem] text-white/60">
                         {asset.security_type || 'asset'} / {asset.trading_eligible ? 'tradable' : 'observe'}
                       </div>
                     </td>
@@ -101,7 +101,7 @@ export function AssetSizingTable({ signals }: { signals: Record<string, Signal> 
                     <td className="border-b border-white/5 px-2.5 py-2.5 text-[0.88rem]">
                       {formatPercent(confidence)}
                     </td>
-                    <td className="border-b border-white/5 px-2.5 py-2.5 text-[0.78rem] text-slate-400">
+                    <td className="border-b border-white/5 px-2.5 py-2.5 text-[0.78rem] text-white/60">
                       {sizing.sizing_reason || asset.execution_note || asset.reason || 'waiting'}
                     </td>
                   </tr>

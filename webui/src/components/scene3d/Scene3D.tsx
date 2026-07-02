@@ -80,11 +80,11 @@ export function Scene3D({ scene }: { scene: Scene | undefined }) {
             <OrbitControls enableDamping makeDefault />
           </Canvas>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-500">
+          <div className="flex h-full items-center justify-center text-sm text-white/40">
             Waiting for scene data
           </div>
         )}
-        <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-slate-400">
+        <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-white/60">
           <span>Node size = signal intensity or portfolio importance</span>
           <span>Links = current portfolio/asset relationship</span>
         </div>

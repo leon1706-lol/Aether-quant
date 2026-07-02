@@ -23,19 +23,19 @@ export function ClusterList({ topology }: { topology: Topology | undefined }) {
                 {cluster.members.map((member) => (
                   <span
                     key={member}
-                    className="rounded-full bg-white/10 px-2 py-0.5 text-[0.72rem] text-slate-300"
+                    className="rounded-full bg-white/10 px-2 py-0.5 text-[0.72rem] text-white/80"
                   >
                     {member}
                   </span>
                 ))}
               </div>
-              <small className="text-slate-400">
+              <small className="text-white/60">
                 avg correlation {formatNumber(cluster.average_correlation, 2)}
               </small>
             </div>
           ))
         ) : (
-          <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-center text-slate-400">
+          <div className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3 text-center text-white/60">
             No clusters yet — waiting for topology data.
           </div>
         )}

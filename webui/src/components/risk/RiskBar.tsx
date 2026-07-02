@@ -4,7 +4,7 @@ export function RiskBar({ label, value, cap }: { label: string; value: number | 
 
   return (
     <div className="grid grid-cols-[130px_1fr_auto] items-center gap-2.5 text-[0.88rem]">
-      <span className="text-slate-400">{label}</span>
+      <span className="text-white/60">{label}</span>
       <div className="relative h-2.5 overflow-hidden rounded-full bg-white/10">
         <div className={`absolute inset-y-0 left-0 rounded-full ${tone}`} style={{ width: `${ratio * 100}%` }} />
       </div>

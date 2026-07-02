@@ -9,11 +9,11 @@ const TONES: Record<string, string> = {
   normal_volatility: 'bg-amber-400/15 text-amber-300',
   retrain_candidate: 'bg-amber-400/15 text-amber-300',
   simulate: 'bg-sky-400/15 text-sky-300',
-  observe: 'bg-white/10 text-slate-300',
+  observe: 'bg-white/10 text-white/80',
 }
 
 export function Badge({ tone, children }: { tone?: string; children: React.ReactNode }) {
-  const className = (tone && TONES[tone]) || 'bg-white/10 text-slate-300'
+  const className = (tone && TONES[tone]) || 'bg-white/10 text-white/80'
   return (
     <span className={`rounded-full px-2.5 py-1 text-[0.72rem] font-medium uppercase tracking-wide ${className}`}>
       {children}

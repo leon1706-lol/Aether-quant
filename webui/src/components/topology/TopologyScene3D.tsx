@@ -101,13 +101,13 @@ export function TopologyScene3D({
             <OrbitControls enableDamping makeDefault />
           </Canvas>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-500">
+          <div className="flex h-full items-center justify-center text-sm text-white/40">
             {topology?.state === 'insufficient_data'
               ? 'Insufficient correlated history yet — waiting for more bars.'
               : 'Waiting for topology data'}
           </div>
         )}
-        <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-slate-400">
+        <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-white/60">
           <span>Node color = trade / reduce_risk / retrain_candidate / simulate / observe</span>
           <span>Links = pairwise return correlation above the display threshold</span>
         </div>

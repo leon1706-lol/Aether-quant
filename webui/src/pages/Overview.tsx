@@ -7,6 +7,7 @@ import { PositionsList } from '../components/signals/PositionsList'
 import { StrategyRiskCards } from '../components/risk/StrategyRiskCards'
 import { MonitoringFeeds } from '../components/monitoring/MonitoringFeeds'
 import { ObservationPanel } from '../components/monitoring/ObservationPanel'
+import { PerformanceTriggersPanel } from '../components/monitoring/PerformanceTriggersPanel'
 import { RawStateViewer } from '../components/monitoring/RawStateViewer'
 
 export function Overview({ state }: { state: RuntimeState | undefined }) {
@@ -18,11 +19,12 @@ export function Overview({ state }: { state: RuntimeState | undefined }) {
         <AssetHeatmap items={state?.dashboard?.asset_heatmap} />
       </div>
       <div className="flex flex-col gap-4">
+        <PerformanceTriggersPanel report={state?.performance_triggers} />
+        <ObservationPanel observation={state?.observation} />
         <SignalBoard signals={state?.signals} />
         <PositionsList positions={state?.positions} />
         <StrategyRiskCards strategy={state?.dashboard?.strategy_snapshot} risk={state?.risk} />
         <MonitoringFeeds monitoring={state?.monitoring} />
-        <ObservationPanel observation={state?.observation} />
         <RawStateViewer state={state} />
       </div>
     </div>

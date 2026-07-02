@@ -45,14 +45,14 @@ export function LiquidityTable({ signals }: { signals: Record<string, Signal> | 
   return (
     <Panel title="Liquidity &amp; Execution Impact" action={<Badge>{rows.length} assets</Badge>}>
       {rows.length === 0 ? (
-        <div className="p-8 text-center text-slate-400">
+        <div className="p-8 text-center text-white/60">
           No liquidity data yet. Run a Lean backtest or observation loop to populate state.
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="text-left text-[0.7rem] uppercase tracking-wide text-slate-400">
+              <tr className="text-left text-[0.7rem] uppercase tracking-wide text-white/60">
                 <th className="border-b border-white/10 px-2.5 py-2.5">Asset</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Daily $ Vol</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Order Value</th>
@@ -73,7 +73,7 @@ export function LiquidityTable({ signals }: { signals: Record<string, Signal> | 
                   <tr key={row.symbol}>
                     <td className="border-b border-white/5 px-2.5 py-2.5">
                       <div className="font-extrabold tracking-wide text-[0.88rem]">{row.ticker}</div>
-                      <div className="text-[0.72rem] text-slate-400">{row.security_type ?? 'asset'}</div>
+                      <div className="text-[0.72rem] text-white/60">{row.security_type ?? 'asset'}</div>
                     </td>
                     <td className="border-b border-white/5 px-2.5 py-2.5 text-[0.85rem]">
                       {formatDdv(liq.daily_dollar_volume)}
@@ -114,7 +114,7 @@ export function LiquidityTable({ signals }: { signals: Record<string, Signal> | 
           </table>
         </div>
       )}
-      <p className="mt-2 text-[0.7rem] text-slate-500">
+      <p className="mt-2 text-[0.7rem] text-white/40">
         DDV = close × volume proxy · Spread = static 5 bps equity / 20 bps crypto · Slippage = participation × daily vol × 0.1
       </p>
     </Panel>

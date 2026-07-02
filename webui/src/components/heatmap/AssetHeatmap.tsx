@@ -19,15 +19,15 @@ export function AssetHeatmap({ items }: { items: AssetHeatmapEntry[] | undefined
                 }`}
               >
                 <h3 className="mb-2 text-lg tracking-wide">{item.ticker}</h3>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[0.83rem] text-slate-400">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[0.83rem] text-white/60">
                   <span>Signal</span>
-                  <strong className="text-right text-slate-100">{item.signal_bias ?? 'hold'}</strong>
+                  <strong className="text-right text-white">{item.signal_bias ?? 'hold'}</strong>
                   <span>Sharpe</span>
-                  <strong className="text-right text-slate-100">{(item.sharpe ?? 0).toFixed(2)}</strong>
+                  <strong className="text-right text-white">{(item.sharpe ?? 0).toFixed(2)}</strong>
                   <span>Exposure</span>
-                  <strong className="text-right text-slate-100">{formatPercent(item.exposure_rate)}</strong>
+                  <strong className="text-right text-white">{formatPercent(item.exposure_rate)}</strong>
                   <span>Excess Return</span>
-                  <strong className="text-right text-slate-100">{formatPercent(item.excess_return)}</strong>
+                  <strong className="text-right text-white">{formatPercent(item.excess_return)}</strong>
                 </div>
               </div>
             )

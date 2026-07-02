@@ -118,6 +118,23 @@ services:
       - aether-net
     restart: unless-stopped
 
+  performance-trigger-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.trigger_worker
+    container_name: aether-performance-trigger-worker
+    command: python -m performance.trigger_worker
+    environment:
+      AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
+    volumes:
+      - ./config.json:/app/config.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aether-net
+    restart: unless-stopped
+
 networks:
   aether-net:
     driver: bridge

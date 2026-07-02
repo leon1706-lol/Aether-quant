@@ -224,6 +224,35 @@ export interface ObservationSummary {
   simulated_turnover?: number
 }
 
+export interface PerformanceTrigger {
+  trigger_id: string
+  created_at: string
+  trigger_type: string
+  severity: 'info' | 'warning' | 'critical' | string
+  mode?: string
+  scope: string
+  metric_value?: number
+  threshold?: number
+  message: string
+  recommended_action: string
+  retrain_candidate: boolean
+}
+
+export interface PerformanceTriggerReport {
+  generated_at?: string
+  source_event_count?: number
+  enabled?: boolean
+  source?: string
+  triggers: PerformanceTrigger[]
+  summary?: {
+    active_trigger_count: number
+    severity_distribution?: Record<string, number>
+    retrain_candidate: boolean
+    latest_trigger: PerformanceTrigger | null
+    trigger_type_counts?: Record<string, number>
+  }
+}
+
 export interface RuntimeState {
   project?: string
   mode?: string
@@ -238,4 +267,5 @@ export interface RuntimeState {
   scene?: Scene
   topology?: Topology
   observation?: ObservationSummary
+  performance_triggers?: PerformanceTriggerReport
 }

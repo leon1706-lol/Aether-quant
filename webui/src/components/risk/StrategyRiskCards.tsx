@@ -5,7 +5,7 @@ import { Panel } from '../layout/Panel'
 function MiniCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-3.5">
-      <div className="mb-2 text-[0.72rem] uppercase tracking-widest text-slate-400">{label}</div>
+      <div className="mb-2 text-[0.72rem] uppercase tracking-widest text-white/60">{label}</div>
       <div>{value}</div>
     </div>
   )

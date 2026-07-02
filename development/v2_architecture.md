@@ -2,7 +2,7 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-15
+Completed phases: V2-1 through V2-16
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
@@ -109,7 +109,7 @@ flowchart TB
 14. [x] V2-13: Redis experience queue/stream
 15. [x] V2-14: PostgreSQL persistence worker
 16. [x] V2-15: Observation mode
-17. [ ] V2-16: Performance triggers
+17. [x] V2-16: Performance triggers
 18. [ ] V2-17: Controlled retraining
 19. [ ] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
 20. [ ] V2-18: Grafana monitoring expansion
@@ -197,7 +197,10 @@ DDL is embedded in `postgres_worker.py` — no Alembic, no migration files.
 `Dockerfile.worker` builds a minimal `python:3.11-slim` image with only
 `redis>=5.0.0` and `psycopg[binary]>=3.1`. The `experience-worker` service in
 `docker-compose.yml` depends on `redis:healthy` and `postgres:healthy` and runs
-`restart: unless-stopped`.
+`restart: unless-stopped`. Since V2-15, the image also copies `execution/`
+(not just `experience/`) — `experience/__init__.py` imports
+`simulated_portfolio.py`, which imports `execution.order_gate`, so the worker
+image would fail to start without it.
 
 ## Redis To PostgreSQL Experience Flow
 
@@ -262,6 +265,81 @@ reported `"Total Orders": "0"` and `"End Equity"` unchanged from the starting
 cash for the entire run, while the simulated portfolio recorded genuine
 activity (drawdown breach, turnover) — proving the real broker/portfolio is
 never touched while the simulation behaves independently.
+
+## Performance Trigger Contract (V2-16)
+
+Phase 16 only detects, scores and logs — it never retrains anything.
+`retrain_candidate` is a flag consumed by Phase 17; no automatic model
+weight changes happen here.
+
+`performance/triggers.py` (Lean-free, pure) evaluates 8 trigger types over a
+`list[dict]` of experience-event dicts — the same source-agnostic shape
+`experience/observation_metrics.py` established in V2-15 (reused directly
+for Sharpe/drawdown math, not reimplemented):
+
+| Trigger | Fires when |
+|---|---|
+| `observation_count_trigger` | event count is an exact multiple of `observation_interval` (default 100) |
+| `drawdown_trigger` | simulated max drawdown or the latest event's real `portfolio.current_drawdown` breaches `max_drawdown_threshold` |
+| `sharpe_degradation_trigger` | rolling Sharpe over `rolling_window` events drops below `min_sharpe` |
+| `win_rate_trigger` | rolling win rate (min. 5 realized trades) drops below `min_win_rate` |
+| `confidence_decay_trigger` | mean model confidence roughly halves vs. the prior window, or its stdev spikes (instability) |
+| `regime_shift_trigger` | the dominant regime label changes between adjacent windows by more than `regime_shift_sensitivity` |
+| `liquidity_warning_trigger` | the `block`/`reduce_size` rejection rate over a window exceeds `max_liquidity_rejection_rate` (`simulate_instead` is explicitly excluded — that's observation-mode routing, not a liquidity problem) |
+| `risk_lock_trigger` | the portfolio risk lock just activated, or has stayed active for `max_consecutive_locked_events` in a row |
+
+Each fired trigger is a structured dict: `trigger_id`, `created_at`,
+`trigger_type`, `severity` (`info`/`warning`/`critical`), `mode`, `scope`
+(`"portfolio"` or a ticker), `metric_value`, `threshold`, `message`,
+`recommended_action`, `retrain_candidate`. Severity is a breach-ratio rule
+(≥1.5x past threshold → `critical`); `retrain_candidate` is `True` whenever
+severity is `critical`, whenever one of the five model-quality triggers
+fires at `warning`, or whenever `risk_lock_trigger` fires at all (a
+capital-preservation event always warrants a Phase 17 look).
+
+Configured under `phase_v2.performance_triggers` (`enabled`,
+`observation_interval`, `max_drawdown_threshold`, `min_sharpe`,
+`min_win_rate`, `max_liquidity_rejection_rate`, `regime_shift_sensitivity`,
+`confidence_decay_ratio_threshold`, `confidence_instability_std_threshold`,
+`max_consecutive_locked_events`, `rolling_window`, `suppression_minutes`).
+
+**Trigger Evaluation Flow** — deliberately split into two paths, mirroring
+the existing Redis→async-worker→Postgres decoupling rather than querying
+Postgres synchronously from inside the Lean process (by the time `main.py`
+could query it mid-backtest, the async `experience-worker` may not have
+caught up yet — querying anyway would mean reading stale data or blocking
+the trading loop on worker liveness, a regression against V2-13/14's
+fire-and-forget design):
+
+1. **In-memory (main.py, every bar):** `_build_performance_triggers_view()`
+   calls the same pure `evaluate_all_triggers()` over the in-memory
+   `_observation_event_log` deque, writes `state["performance_triggers"]`
+   and `visualization/grafana/performance_triggers.json`. This is a fast,
+   approximate, **current-run-only** view — never written to Postgres, and
+   explicitly documented as not the system of record.
+2. **Postgres-backed (standalone worker, system of record):**
+   `performance/trigger_worker.py` (`python -m performance.trigger_worker`,
+   `--once` flag identical to `postgres_worker.py`'s convention) polls
+   `experience_events` for rows newer than a durable watermark
+   (`performance_trigger_watermark` table), evaluates them, and inserts
+   fired triggers into the dedicated `performance_triggers` table —
+   deliberately a separate table rather than reusing `experience_events`
+   with a new `event_type`, so Grafana and Phase 17 can query it cleanly.
+   `ON CONFLICT (trigger_id) DO NOTHING` plus an explicit suppression-window
+   check (skip inserting if the same `trigger_type`+`scope` fired within
+   `suppression_minutes`) keeps a sustained breach from spamming one row per
+   poll cycle. Runs as its own `docker-compose.yml` service
+   (`performance-trigger-worker`), depending only on `postgres` (not
+   `redis` — it never touches the Redis stream) and mounting `config.json`
+   read-only, since the 11 threshold keys are strategy config it reads
+   directly rather than via CLI flags.
+
+Dashboard/API: `visualization/grafana/performance_triggers.json`, one
+FastAPI route (`/api/grafana/performance-triggers`), and one webui panel
+(`PerformanceTriggersPanel.tsx`) showing the retrain-candidate banner,
+severity distribution, latest trigger and trigger-type breakdown — placed
+at the top of the dashboard's right column (above the signal/position
+panels) so it stays visible regardless of universe size.
 
 ## API Key Status
 
