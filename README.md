@@ -513,6 +513,25 @@ Die Redis Experience Queue macht jetzt zusaetzlich Folgendes:
 - fuegt `tests/test_experience_queue.py` mit 8 Tests hinzu (Pflichtfelder im Schema, disabled = sicheres No-Op, Redis nicht erreichbar = kein Crash, JSON-Serialisierung, konfigurierbarer Stream-Name, alle 4 Modes, Push schreibt in Stream, Event-ID eindeutig)
 - Stop bei Redis: kein PostgreSQL in V2-13; V2-14 baut den Persistence Worker (`XREAD → INSERT INTO experience_events`)
 
+## Phase-V2-14-Ergebnis
+
+Der PostgreSQL Persistence Worker macht jetzt zusaetzlich Folgendes:
+
+- fuegt `experience/postgres_worker.py` als eigenstaendigen, synchronen Worker hinzu, der `aether:experience` per `XREADGROUP` liest und Events dauerhaft in PostgreSQL speichert
+- legt die Tabelle `experience_events` mit eingebettetem DDL an: `event_id` (UUID, UNIQUE), `created_at`, `ingested_at`, `mode`, `ticker`, `symbol`, `signal`, `action`, `confidence`, `target_weight`, `payload` (JSONB) plus 5 Indizes — kein Alembic, keine Migrationsdateien
+- nutzt `ON CONFLICT (event_id) DO NOTHING` fuer sichere idempotente Wiederholung bei Redis-Wiederlieferung nach Worker-Absturz
+- routet fehlerhafte JSON-Nachrichten in den Dead-Letter-Stream `aether:experience:deadletter` und quittiert sie sofort per `XACK`, ohne den Betrieb zu unterbrechen
+- laesst Nachrichten bei PG-Fehler ungequittiert — sie bleiben pending und werden nach dem Redis Visibility-Timeout erneut geliefert
+- implementiert exponentiellen Backoff (1→2→4→...→60 s) und automatischen PG-Reconnect in der `run()`-Schleife
+- exportiert `event_to_row` (pure Funktion, kein I/O) und `PostgresWorker` aus `experience/__init__.py`
+- fuegt `psycopg[binary]>=3.1` zu `requirements.txt` und `requirements-dev.txt` hinzu
+- legt `requirements-worker.txt` als minimale Abhaengigkeitsliste fuer den Worker-Container an
+- baut `Dockerfile.worker` als minimales `python:3.11-slim`-Image mit nur `redis` und `psycopg[binary]`
+- fuegt den `experience-worker`-Service in `docker-compose.yml` hinzu (`depends_on: redis:healthy, postgres:healthy`, `restart: unless-stopped`)
+- ergaenzt `config.json phase_v2.experience` um den `worker`-Sub-Block fuer Group, Consumer, Batch-Size, Dead-Letter-Stream und Backoff-Max
+- fuegt 7 Tests in `tests/test_postgres_worker.py` hinzu: skalare Felder korrekt extrahiert, Payload vollstaendig, Batch-Persistierung, Duplikat-Idempotenz, Dead-Letter-Routing, PG-Fehler laesst Messages pending, leerer Stream gibt 0
+- Stop bei PostgreSQL: V2-15 baut Observation Mode auf dem jetzt vorhandenen Experience-Trail auf
+
 ## Visualization-Unification-Ergebnis
 
 Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
@@ -551,7 +570,7 @@ Der geplante Datenfluss:
 12. [x] V2-11: 3D Topology Market Modeling
 13. [x] V2-12: Market Impact & Liquidity Engine
 14. [x] V2-13: Redis Experience Queue/Stream
-15. [ ] V2-14: PostgreSQL Persistence Worker
+15. [x] V2-14: PostgreSQL Persistence Worker
 16. [ ] V2-15: Observation Mode
 17. [ ] V2-16: Performance Trigger
 18. [ ] V2-17: Controlled Retraining

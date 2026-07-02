@@ -107,7 +107,7 @@ flowchart TB
 12. [x] V2-11: 3D topology market modeling
 13. [x] V2-12: Market impact and liquidity engine + Docker app service
 14. [x] V2-13: Redis experience queue/stream
-15. [ ] V2-14: PostgreSQL persistence worker
+15. [x] V2-14: PostgreSQL persistence worker
 16. [ ] V2-15: Observation mode
 17. [ ] V2-16: Performance triggers
 18. [ ] V2-17: Controlled retraining
@@ -154,9 +154,54 @@ Event schema (key fields):
 The queue is configured via `config.json phase_v2.experience` and overridden by the
 `AETHER_REDIS_URL` environment variable (set to `redis://redis:6379/0` in Docker).
 
+## PostgreSQL Persistence Worker (V2-14)
+
+`experience/postgres_worker.py` is a standalone synchronous Python worker that reads
+batches from the `aether:experience` Redis Stream via `XREADGROUP` and batch-inserts
+events into the `experience_events` PostgreSQL table.
+
+### Table schema
+
+```sql
+CREATE TABLE IF NOT EXISTS experience_events (
+    id            BIGSERIAL PRIMARY KEY,
+    event_id      UUID        UNIQUE NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL,
+    ingested_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    mode          VARCHAR(20) NOT NULL,
+    ticker        VARCHAR(20) NOT NULL,
+    symbol        VARCHAR(100) NOT NULL,
+    signal        VARCHAR(10) NOT NULL,
+    action        VARCHAR(30) NOT NULL,
+    confidence    DOUBLE PRECISION,
+    target_weight DOUBLE PRECISION,
+    payload       JSONB NOT NULL
+);
+```
+
+Indexes: `created_at`, `ticker`, `mode`, `action` (B-tree) and GIN on `payload`.
+DDL is embedded in `postgres_worker.py` — no Alembic, no migration files.
+
+### Failure policy
+
+| Failure | Behaviour |
+|---|---|
+| Malformed JSON | XADD to `aether:experience:deadletter`, XACK original, log WARNING |
+| PG INSERT fails | rollback, do NOT ack, raise — messages stay pending |
+| Duplicate `event_id` | `ON CONFLICT (event_id) DO NOTHING` — idempotent |
+| PG down at startup | raise immediately |
+| PG down mid-run | `run()` catches, exponential backoff (1→2→4→…→60 s), reconnect |
+
+### Container
+
+`Dockerfile.worker` builds a minimal `python:3.11-slim` image with only
+`redis>=5.0.0` and `psycopg[binary]>=3.1`. The `experience-worker` service in
+`docker-compose.yml` depends on `redis:healthy` and `postgres:healthy` and runs
+`restart: unless-stopped`.
+
 ## Redis To PostgreSQL Experience Flow
 
-V2 uses Redis as the fast temporary buffer; PostgreSQL is the permanent source for analytics and retraining. V2-14 will build the persistence worker.
+V2 uses Redis as the fast temporary buffer; PostgreSQL is the permanent source for analytics and retraining. V2-14 built the persistence worker.
 
 1. The live, backtest or observation loop creates a signal and writes it to the `aether:experience` stream via `XADD` immediately (`ExperienceQueue.push()`).
 2. A separate worker (V2-14) reads events with `XREAD` and persists them to PostgreSQL with batch inserts.

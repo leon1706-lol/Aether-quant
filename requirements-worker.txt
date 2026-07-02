@@ -1,0 +1,3 @@
+# Aether Quant PostgreSQL Persistence Worker — minimal runtime deps (V2-14)
+redis>=5.0.0
+psycopg[binary]>=3.1

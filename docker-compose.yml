@@ -97,6 +97,27 @@ services:
     networks:
       - aether-net
 
+  experience-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: aether-experience-worker
+    command: python -m experience.postgres_worker
+    environment:
+      AETHER_REDIS_URL: redis://redis:6379/0
+      AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
+      AETHER_EXPERIENCE_STREAM: aether:experience
+      AETHER_EXPERIENCE_GROUP: aether-workers
+      AETHER_EXPERIENCE_BATCH_SIZE: "100"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - aether-net
+    restart: unless-stopped
+
 networks:
   aether-net:
     driver: bridge

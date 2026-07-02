@@ -11,3 +11,6 @@ black>=23.0.0
 
 # In-process Redis mock for tests (V2-13)
 fakeredis>=2.20.0
+
+# PostgreSQL driver for test imports — connection is mocked in tests (V2-14)
+psycopg[binary]>=3.1

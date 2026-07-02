@@ -22,3 +22,6 @@ requests>=2.31.0
 
 # Experience Queue / Redis Stream (V2-13)
 redis>=5.0.0
+
+# PostgreSQL driver — experience worker and future analytics (V2-14)
+psycopg[binary]>=3.1

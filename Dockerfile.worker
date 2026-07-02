@@ -1,0 +1,6 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements-worker.txt .
+RUN pip install --no-cache-dir -r requirements-worker.txt
+COPY experience/ ./experience/
+CMD ["python", "-m", "experience.postgres_worker"]

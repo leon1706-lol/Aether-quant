@@ -27,6 +27,48 @@ Lean wird bewusst ueber ein Compose-Profil gestartet, damit der Container nicht 
 docker compose --profile lean up -d
 ```
 
+## Experience Worker starten
+
+Worker mit Redis und PostgreSQL starten:
+
+```powershell
+docker compose up -d redis postgres experience-worker
+docker compose logs -f experience-worker
+```
+
+Einmaligen Batch verarbeiten (nuetzlich nach einem Backtest):
+
+```powershell
+docker compose run --rm experience-worker python -m experience.postgres_worker --once
+```
+
+## PostgreSQL — Experience Events pruefen
+
+```powershell
+docker exec -it aether-postgres psql -U aether -d aether_quant
+```
+
+```sql
+-- Zeilenzahl
+SELECT COUNT(*) FROM experience_events;
+
+-- Letzte 10 Events
+SELECT event_id, created_at, ticker, signal, action, confidence
+FROM experience_events
+ORDER BY created_at DESC LIMIT 10;
+
+-- JSONB-Abfrage: portfolio_value
+SELECT event_id, payload -> 'portfolio' ->> 'total_value' AS portfolio_value
+FROM experience_events ORDER BY created_at DESC LIMIT 5;
+```
+
+Dead-Letter-Stream in Redis:
+
+```powershell
+docker exec -it aether-redis redis-cli XLEN aether:experience:deadletter
+docker exec -it aether-redis redis-cli XRANGE aether:experience:deadletter - + COUNT 5
+```
+
 ## Eigene Images Verwenden
 
 Wenn du eigene Redis-, PostgreSQL-, Grafana- oder Lean-Images hast, setzt du vor dem Start die Image-Namen:
