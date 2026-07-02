@@ -2,7 +2,7 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-13
+Completed phases: V2-1 through V2-15
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
@@ -108,7 +108,7 @@ flowchart TB
 13. [x] V2-12: Market impact and liquidity engine + Docker app service
 14. [x] V2-13: Redis experience queue/stream
 15. [x] V2-14: PostgreSQL persistence worker
-16. [ ] V2-15: Observation mode
+16. [x] V2-15: Observation mode
 17. [ ] V2-16: Performance triggers
 18. [ ] V2-17: Controlled retraining
 19. [ ] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
@@ -206,6 +206,62 @@ V2 uses Redis as the fast temporary buffer; PostgreSQL is the permanent source f
 1. The live, backtest or observation loop creates a signal and writes it to the `aether:experience` stream via `XADD` immediately (`ExperienceQueue.push()`).
 2. A separate worker (V2-14) reads events with `XREAD` and persists them to PostgreSQL with batch inserts.
 3. Controlled retraining reads from PostgreSQL only, so model updates are based on stable historical records.
+
+## Observation Mode Contract (V2-15)
+
+`phase_v2.runtime.mode` (`backtest` | `observation` | `paper` | `live`, committed
+default `backtest`) plus `phase_v2.runtime.allow_live_orders` (default `false`)
+gate every real broker order without touching any signal/risk/regime/topology/
+liquidity/MoE logic — those all stay fully active in every mode.
+
+`execution/order_gate.py` (Lean-free, pure functions) owns the decision table:
+
+| `mode` | Real order allowed? |
+|---|---|
+| `backtest` | always (today's Lean-backtest behaviour, unchanged) |
+| `observation` | **never**, regardless of `allow_live_orders` |
+| `paper` | only if `allow_live_orders` AND a broker config is present |
+| `live` | only if `allow_live_orders` AND broker config present AND risk locks are healthy |
+| unknown/missing | falls back to `observation` (fail-safe) |
+
+`main.py`'s `_order_permission()` calls this table once and is the single
+gate used by `_apply_signal` (buy/sell/hold order placement) and
+`_refresh_risk_state` (portfolio-wide drawdown-breach liquidation) — replacing
+what used to be direct `SetHoldings`/`Liquidate` calls. When a real order is
+blocked, the decision is instead applied to `experience/simulated_portfolio.py`'s
+`SimulatedPortfolioState`: an in-memory cash/holdings/equity book that never
+references `self.Portfolio` or any broker call. Its `snapshot()` is a
+superset of the `portfolio={...}` dict already accepted by
+`build_experience_event`, so no event schema, `event_to_row`, or Postgres DDL
+changes were needed — `mode VARCHAR(20)` already covered all four values.
+
+Because the real Lean portfolio never invests in `observation` mode,
+position-limit counts, exposure-cap checks, the drawdown/risk-lock
+calculation, and the dashboard's positions/portfolio-value snapshots are all
+mode-aware: they read from `SimulatedPortfolioState` instead of `self.Portfolio`
+whenever real orders are blocked, so risk controls stay meaningful and the
+dashboard reflects what's actually happening.
+
+`experience/observation_metrics.py` computes count/signal-distribution/
+action-distribution/rejected-by-reason/win-loss/Sharpe/max-drawdown from a
+plain `list[dict]` of experience events — the same shape whether the list
+comes from an in-memory run log or a Postgres `payload` column query.
+`rejected_by_reason` reads the `reasons` list `analyzer/market_analyzer.py`
+already produces, so no new schema field was needed there either.
+
+Dashboard exports: `visualization/grafana/observation_summary.json` and
+`observation_equity_curve.csv`, plus `state["observation"]` embedded directly
+in `visualization/state.json`. Two FastAPI routes
+(`/api/grafana/observation-summary`, `/api/grafana/observation-equity-curve`)
+and one webui panel (`ObservationPanel.tsx`, with an explicit
+"SIMULATED - NOT REAL TRADES" banner) expose it.
+
+**Verified end-to-end** via a real local `lean backtest .` run in
+`observation` mode (2014-2018, BTCUSD/ETHUSD/LTCUSD): Lean's own statistics
+reported `"Total Orders": "0"` and `"End Equity"` unchanged from the starting
+cash for the entire run, while the simulated portfolio recorded genuine
+activity (drawdown breach, turnover) — proving the real broker/portfolio is
+never touched while the simulation behaves independently.
 
 ## API Key Status
 

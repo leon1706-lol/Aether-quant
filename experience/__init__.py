@@ -2,5 +2,14 @@
 
 from .redis_queue import ExperienceQueue, build_experience_event
 from .postgres_worker import PostgresWorker, event_to_row
+from .simulated_portfolio import SimulatedPortfolioState
+from .observation_metrics import compute_observation_summary
 
-__all__ = ["ExperienceQueue", "build_experience_event", "PostgresWorker", "event_to_row"]
+__all__ = [
+    "ExperienceQueue",
+    "build_experience_event",
+    "PostgresWorker",
+    "event_to_row",
+    "SimulatedPortfolioState",
+    "compute_observation_summary",
+]

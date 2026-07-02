@@ -27,7 +27,8 @@ from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
 from liquidity import build_liquidity_decision
 from topology import build_market_topology
-from experience import ExperienceQueue, build_experience_event
+from experience import ExperienceQueue, SimulatedPortfolioState, build_experience_event, compute_observation_summary
+from execution import resolve_order_permission, resolve_runtime_mode
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -41,6 +42,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.grafana_dir = self.root_path / "visualization" / "grafana"
         self.runtime_metrics_path = self.grafana_dir / "runtime_metrics_snapshot.json"
         self.runtime_asset_metrics_path = self.grafana_dir / "runtime_asset_metrics.csv"
+        self.observation_summary_path = self.grafana_dir / "observation_summary.json"
+        self.observation_equity_curve_path = self.grafana_dir / "observation_equity_curve.csv"
         self.model_path = self.root_path / "ml" / "model_weights.json"
         self.expert_model_dir = self.root_path / "ml" / "expert_models"
         self.expert_metrics_path = self.root_path / "ml" / "expert_training_metrics.json"
@@ -132,13 +135,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "slippage_factor": float(phase_v2_liquidity.get("slippage_factor", 0.1)),
         }
         phase_v2_experience = self.phase_v2.get("experience", {})
-        self._experience_mode = "backtest"
+        phase_v2_runtime = self.phase_v2.get("runtime", {})
+        raw_runtime_mode = phase_v2_runtime.get("mode")
+        self.runtime_mode = resolve_runtime_mode(raw_runtime_mode)
+        if self.runtime_mode != raw_runtime_mode:
+            self.Debug(f"Unknown phase_v2.runtime.mode={raw_runtime_mode!r}; falling back to '{self.runtime_mode}'")
+        self.allow_live_orders = bool(phase_v2_runtime.get("allow_live_orders", False))
+        self._experience_mode = self.runtime_mode
         self._experience_queue = ExperienceQueue(
             enabled=bool(phase_v2_experience.get("enabled", False)),
             redis_url="redis://localhost:6379/0",
             stream_name=str(phase_v2_experience.get("redis_stream", "aether:experience")),
             maxlen=int(phase_v2_experience.get("maxlen", 100_000)),
         )
+        self._simulated_portfolio = SimulatedPortfolioState(initial_cash=float(self.runtime["initial_cash"]))
+        self._observation_event_log = deque(maxlen=5000)
         self.bar_history_size = 25
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
@@ -281,11 +292,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
                 signal_name = decision["signal"]
                 target_weight = decision["target_weight"]
+                close_price = float(bar.close)
 
                 if decision["action"] == "trade":
-                    execution_note = self._apply_signal(symbol, signal_name, target_weight)
+                    execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price)
                 else:
                     execution_note = decision["action"]
+
+                self._simulated_portfolio.mark_to_market({str(symbol): close_price}, bar_index=self.bar_index)
 
                 self.latest_regime_by_symbol[str(symbol)] = regime_payload.get("trend_regime", "unknown")
 
@@ -308,29 +322,35 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "liquidity": liquidity_payload,
                     }
                 )
-                self._experience_queue.push(
-                    build_experience_event(
-                        mode=self._experience_mode,
-                        symbol=str(symbol),
-                        ticker=self.asset_lookup[str(symbol)]["ticker"],
-                        signal=signal_name,
-                        action=decision["action"],
-                        execution_note=execution_note,
-                        probability_up=probability_up,
-                        confidence=confidence,
-                        target_weight=target_weight,
-                        regime=regime_payload,
-                        moe_gating=gating_payload,
-                        topology=topology_payload or {},
-                        liquidity=liquidity_payload,
-                        market_analysis=decision,
-                        portfolio={
-                            "total_value": float(self.Portfolio.TotalPortfolioValue),
-                            "cash": float(self.Portfolio.Cash),
-                            "current_drawdown": self.current_total_drawdown,
-                        },
-                    )
+                orders_allowed, _ = self._order_permission()
+                portfolio_snapshot = (
+                    {
+                        "total_value": float(self.Portfolio.TotalPortfolioValue),
+                        "cash": float(self.Portfolio.Cash),
+                        "current_drawdown": self.current_total_drawdown,
+                    }
+                    if orders_allowed
+                    else self._simulated_portfolio.snapshot()
                 )
+                experience_event = build_experience_event(
+                    mode=self._experience_mode,
+                    symbol=str(symbol),
+                    ticker=self.asset_lookup[str(symbol)]["ticker"],
+                    signal=signal_name,
+                    action=decision["action"],
+                    execution_note=execution_note,
+                    probability_up=probability_up,
+                    confidence=confidence,
+                    target_weight=target_weight,
+                    regime=regime_payload,
+                    moe_gating=gating_payload,
+                    topology=topology_payload or {},
+                    liquidity=liquidity_payload,
+                    market_analysis=decision,
+                    portfolio=portfolio_snapshot,
+                )
+                self._experience_queue.push(experience_event)
+                self._observation_event_log.append(experience_event)
             else:
                 signal_payload["reason"] = feature_payload["reason"]
 
@@ -581,11 +601,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         return vector.to_dict()
 
-    def _apply_signal(self, symbol, signal_name: str, target_weight: float) -> str:
+    def _order_permission(self) -> tuple[bool, str]:
+        return resolve_order_permission(
+            mode=self.runtime_mode,
+            allow_live_orders=self.allow_live_orders,
+            broker_config_present=bool(self.paper_brokerage),
+            risk_locks_healthy=not self.trade_lock_active,
+        )
+
+    def _is_invested(self, symbol, orders_allowed: bool) -> bool:
+        if orders_allowed:
+            return bool(self.Portfolio[symbol].Invested)
+        return str(symbol) in self._simulated_portfolio.holdings
+
+    def _apply_signal(self, symbol, signal_name: str, target_weight: float, close_price: float) -> str:
         symbol_key = str(symbol)
         previous_signal = self.latest_signal_state.get(symbol_key, "hold")
         last_trade_bar = self.last_trade_bar_by_symbol.get(symbol, -1000000)
         asset = self.asset_lookup.get(symbol_key, {})
+        orders_allowed, permission_reason = self._order_permission()
 
         if self.bar_index - last_trade_bar < self.trade_cooldown_bars and signal_name != previous_signal:
             return "cooldown_active"
@@ -594,35 +628,45 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         if signal_name == "buy":
             if active_position_limit_reached(
-                self._active_position_count(symbol),
+                self._active_position_count(symbol, orders_allowed),
                 self.max_active_positions,
-                bool(self.Portfolio[symbol].Invested),
+                self._is_invested(symbol, orders_allowed),
             ):
                 return "max_active_positions_reached"
 
             exposure_cap = self.max_crypto_exposure if asset.get("security_type") == "crypto" else self.max_equity_exposure
-            current_exposure = self._asset_class_exposure(asset.get("security_type"), exclude_symbol=symbol)
+            current_exposure = self._asset_class_exposure(asset.get("security_type"), orders_allowed, exclude_symbol=symbol)
             target_weight, cap_reached = cap_target_weight(target_weight, current_exposure, exposure_cap)
             if cap_reached:
                 return f"{asset.get('security_type', 'asset')}_exposure_cap_reached"
 
-            if previous_signal != "buy" or not self.Portfolio[symbol].Invested:
-                self.SetHoldings(symbol, target_weight)
+            if previous_signal != "buy" or not self._is_invested(symbol, orders_allowed):
+                if orders_allowed:
+                    self.SetHoldings(symbol, target_weight)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return "entered_long"
+                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
-                return "entered_long"
-            return "kept_long"
+                return f"simulated_entered_long:{permission_reason}"
+            return "kept_long" if orders_allowed else "simulated_kept_long"
 
         if signal_name == "sell":
-            if self.Portfolio[symbol].Invested:
-                self.Liquidate(symbol)
+            if self._is_invested(symbol, orders_allowed):
+                if orders_allowed:
+                    self.Liquidate(symbol)
+                else:
+                    self._simulated_portfolio.exit(symbol_key, close_price, self.bar_index)
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
-                return "liquidated_on_sell"
+                return "liquidated_on_sell" if orders_allowed else f"simulated_liquidated_on_sell:{permission_reason}"
             return "already_flat"
 
-        if signal_name == "hold" and previous_signal != "hold" and self.Portfolio[symbol].Invested:
-            self.Liquidate(symbol)
+        if signal_name == "hold" and previous_signal != "hold" and self._is_invested(symbol, orders_allowed):
+            if orders_allowed:
+                self.Liquidate(symbol)
+            else:
+                self._simulated_portfolio.exit(symbol_key, close_price, self.bar_index)
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
-            return "liquidated_on_hold"
+            return "liquidated_on_hold" if orders_allowed else f"simulated_liquidated_on_hold:{permission_reason}"
 
         return "no_action"
 
@@ -646,29 +690,51 @@ class AetherQuantAlgorithm(QCAlgorithm):
         ticker = self.asset_lookup.get(str(symbol), {}).get("ticker", str(symbol))
         return ticker in self.trading_eligible_tickers
 
-    def _active_position_count(self, exclude_symbol=None) -> int:
-        count = 0
-        for holding in self.Portfolio.Values:
-            if exclude_symbol is not None and holding.Symbol == exclude_symbol:
-                continue
-            if holding.Invested:
-                count += 1
-        return count
+    def _active_position_count(self, exclude_symbol=None, orders_allowed: bool = True) -> int:
+        if orders_allowed:
+            count = 0
+            for holding in self.Portfolio.Values:
+                if exclude_symbol is not None and holding.Symbol == exclude_symbol:
+                    continue
+                if holding.Invested:
+                    count += 1
+            return count
 
-    def _asset_class_exposure(self, security_type: str | None, exclude_symbol=None) -> float:
-        total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
+        exclude_key = str(exclude_symbol) if exclude_symbol is not None else None
+        return sum(1 for symbol_key in self._simulated_portfolio.holdings if symbol_key != exclude_key)
+
+    def _asset_class_exposure(self, security_type: str | None, orders_allowed: bool = True, exclude_symbol=None) -> float:
+        if orders_allowed:
+            total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
+            exposure = 0.0
+            for holding in self.Portfolio.Values:
+                if exclude_symbol is not None and holding.Symbol == exclude_symbol:
+                    continue
+                asset = self.asset_lookup.get(str(holding.Symbol), {})
+                if asset.get("security_type") != security_type:
+                    continue
+                exposure += abs(float(holding.HoldingsValue)) / total_value
+            return exposure
+
+        exclude_key = str(exclude_symbol) if exclude_symbol is not None else None
+        total_value = max(float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"]), 1.0)
         exposure = 0.0
-        for holding in self.Portfolio.Values:
-            if exclude_symbol is not None and holding.Symbol == exclude_symbol:
+        for symbol_key in self._simulated_portfolio.holdings:
+            if symbol_key == exclude_key:
                 continue
-            asset = self.asset_lookup.get(str(holding.Symbol), {})
+            asset = self.asset_lookup.get(symbol_key, {})
             if asset.get("security_type") != security_type:
                 continue
-            exposure += abs(float(holding.HoldingsValue)) / total_value
+            exposure += abs(self._simulated_portfolio.position_value(symbol_key)) / total_value
         return exposure
 
     def _refresh_risk_state(self) -> None:
-        portfolio_value = float(self.Portfolio.TotalPortfolioValue)
+        orders_allowed, _ = self._order_permission()
+        portfolio_value = (
+            float(self.Portfolio.TotalPortfolioValue)
+            if orders_allowed
+            else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
+        )
         current_date = self.Time.date()
 
         if self.current_session_date != current_date:
@@ -693,7 +759,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.trade_lock_active = True
             self.trade_lock_reason = breach_reason
             if self.liquidate_on_risk_breach:
-                self.Liquidate()
+                if orders_allowed:
+                    self.Liquidate()
+                else:
+                    self._simulated_portfolio.liquidate_all(self.bar_index)
 
     def _write_state(self, mode: str, insight: str, signals: dict | None = None) -> None:
         now = self.Time if hasattr(self, "Time") else datetime.utcnow()
@@ -705,12 +774,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "mode": mode,
             "updated_at": now.isoformat(),
             "insight": insight,
-            "portfolio": {
-                "cash": float(self.Portfolio.Cash),
-                "total_portfolio_value": float(self.Portfolio.TotalPortfolioValue),
-                "holdings_value": float(self.Portfolio.TotalPortfolioValue - self.Portfolio.Cash),
-                "invested_positions": len([position for position in self.Portfolio.Values if position.Invested]),
-            },
+            "portfolio": self._snapshot_portfolio_summary(),
             "universe": {
                 "name": self.phase1["universe"]["name"],
                 "resolution": self.phase1["universe"]["resolution"],
@@ -762,6 +826,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         state["regime"] = self._build_regime_summary(state["signals"])
         state["topology"] = self.latest_topology_payload
+        state["observation"] = self._build_observation_view()
         state["dashboard"] = self._build_dashboard_view(state)
         state["monitoring"] = self._build_monitoring_view(state)
         state["scene"] = self._build_scene_payload(state)
@@ -774,24 +839,62 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.topology_state_path.write_text(json.dumps(state["topology"], indent=2), encoding="utf-8")
             self.runtime_metrics_path.write_text(json.dumps(state["monitoring"], indent=2), encoding="utf-8")
             self.runtime_asset_metrics_path.write_text(self._build_runtime_asset_csv(state), encoding="utf-8")
+            self.observation_summary_path.write_text(json.dumps(state["observation"], indent=2), encoding="utf-8")
+            self.observation_equity_curve_path.write_text(self._build_observation_equity_csv(), encoding="utf-8")
             self.last_state_write = now
         except Exception as error:
             self.Debug(f"State write failed: {error}")
 
-    def _snapshot_positions(self) -> list[dict]:
-        positions = []
-        for security_holding in self.Portfolio.Values:
-            if not security_holding.Invested:
-                continue
+    def _snapshot_portfolio_summary(self) -> dict:
+        orders_allowed, _ = self._order_permission()
+        if orders_allowed:
+            return {
+                "cash": float(self.Portfolio.Cash),
+                "total_portfolio_value": float(self.Portfolio.TotalPortfolioValue),
+                "holdings_value": float(self.Portfolio.TotalPortfolioValue - self.Portfolio.Cash),
+                "invested_positions": len([position for position in self.Portfolio.Values if position.Invested]),
+            }
 
+        snapshot = self._simulated_portfolio.snapshot(consume_realized_pnl=False)
+        return {
+            "cash": float(snapshot["cash"]),
+            "total_portfolio_value": float(snapshot["total_value"]),
+            "holdings_value": float(snapshot["holdings_value"]),
+            "invested_positions": len(self._simulated_portfolio.holdings),
+        }
+
+    def _snapshot_positions(self) -> list[dict]:
+        orders_allowed, _ = self._order_permission()
+        if orders_allowed:
+            positions = []
+            for security_holding in self.Portfolio.Values:
+                if not security_holding.Invested:
+                    continue
+
+                positions.append(
+                    {
+                        "symbol": str(security_holding.Symbol),
+                        "quantity": float(security_holding.Quantity),
+                        "average_price": float(security_holding.AveragePrice),
+                        "unrealized_profit": float(security_holding.UnrealizedProfit),
+                        "market_value": float(security_holding.HoldingsValue),
+                        "weight": float(security_holding.HoldingsValue / max(self.Portfolio.TotalPortfolioValue, 1.0)),
+                    }
+                )
+            return positions
+
+        equity = max(float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"]), 1.0)
+        positions = []
+        for symbol_key, holding in self._simulated_portfolio.holdings.items():
+            market_value = self._simulated_portfolio.position_value(symbol_key)
             positions.append(
                 {
-                    "symbol": str(security_holding.Symbol),
-                    "quantity": float(security_holding.Quantity),
-                    "average_price": float(security_holding.AveragePrice),
-                    "unrealized_profit": float(security_holding.UnrealizedProfit),
-                    "market_value": float(security_holding.HoldingsValue),
-                    "weight": float(security_holding.HoldingsValue / max(self.Portfolio.TotalPortfolioValue, 1.0)),
+                    "symbol": symbol_key,
+                    "quantity": float(holding["quantity"]),
+                    "average_price": float(holding["avg_price"]),
+                    "unrealized_profit": float(market_value - holding["quantity"] * holding["avg_price"]),
+                    "market_value": float(market_value),
+                    "weight": float(market_value / equity),
                 }
             )
         return positions
@@ -845,6 +948,40 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "risk": risk_counts,
             },
         }
+
+    def _build_observation_view(self) -> dict:
+        summary = compute_observation_summary(list(self._observation_event_log))
+        snapshot = self._simulated_portfolio.snapshot(consume_realized_pnl=False)
+        summary.update(
+            {
+                "mode": self.runtime_mode,
+                "allow_live_orders": self.allow_live_orders,
+                "is_observation_mode": self.runtime_mode == "observation",
+                "visually_distinct_banner": "SIMULATED - NOT REAL TRADES",
+                "simulated_equity": snapshot["total_value"],
+                "simulated_cash": snapshot["cash"],
+                "simulated_drawdown": snapshot["current_drawdown"],
+                "simulated_exposure": snapshot["exposure"],
+                "simulated_turnover": snapshot["turnover_to_date"],
+            }
+        )
+        return summary
+
+    def _build_observation_equity_csv(self) -> str:
+        rows = ["bar_index,equity,cash,exposure,drawdown"]
+        for point in self._simulated_portfolio.equity_curve:
+            rows.append(
+                ",".join(
+                    [
+                        str(point.get("bar_index", "")),
+                        f"{float(point['equity']):.6f}",
+                        f"{float(point['cash']):.6f}",
+                        f"{float(point['exposure']):.6f}",
+                        f"{float(point['drawdown']):.6f}",
+                    ]
+                )
+            )
+        return "\n".join(rows) + "\n"
 
     def _build_dashboard_view(self, state: dict) -> dict:
         total_portfolio_value = float(state["portfolio"]["total_portfolio_value"])
@@ -906,6 +1043,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "max_leverage": state["risk"]["max_leverage"],
             },
             "visualization_stage": "v2_dynamic_risk_runtime",
+            "runtime_mode": self.runtime_mode,
+            "simulated_mode": self.runtime_mode == "observation",
         }
 
     def _build_monitoring_view(self, state: dict) -> dict:
@@ -952,11 +1091,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "moe_active_experts": "|".join(sorted({expert for payload in moe_payloads for expert in payload.get("active_experts", [])})),
             "trading_eligible_assets": "|".join(state["universe"].get("trading_eligible_assets", [])),
             "observation_only_assets": "|".join(state["universe"].get("observation_only_assets", [])),
+            "runtime_mode": self.runtime_mode,
+            "allow_live_orders": self.allow_live_orders,
+            "observation_active": self.runtime_mode == "observation",
             "feeds": {
                 "state": "visualization/state.json",
                 "scene": "visualization/scene.json",
                 "runtime_metrics": "visualization/grafana/runtime_metrics_snapshot.json",
                 "runtime_assets": "visualization/grafana/runtime_asset_metrics.csv",
+                "observation_summary": "visualization/grafana/observation_summary.json",
+                "observation_equity_curve": "visualization/grafana/observation_equity_curve.csv",
             },
         }
 

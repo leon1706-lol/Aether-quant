@@ -90,6 +90,9 @@ export interface Monitoring {
   average_annualized_volatility?: number
   max_leverage_factor?: number
   active_signals?: number
+  runtime_mode?: string
+  allow_live_orders?: boolean
+  observation_active?: boolean
 }
 
 export interface ScoreCard {
@@ -137,6 +140,8 @@ export interface DashboardBlock {
   asset_heatmap?: AssetHeatmapEntry[]
   strategy_snapshot?: StrategySnapshot
   visualization_stage?: string
+  runtime_mode?: string
+  simulated_mode?: boolean
 }
 
 export interface SceneNode {
@@ -200,6 +205,25 @@ export interface Topology {
   reasons?: string[]
 }
 
+export interface ObservationSummary {
+  mode?: string
+  allow_live_orders?: boolean
+  is_observation_mode?: boolean
+  visually_distinct_banner?: string
+  count_observations?: number
+  signal_distribution?: Record<string, number>
+  action_distribution?: Record<string, number>
+  rejected_by_reason?: Record<string, number>
+  simulated_win_loss?: { wins: number; losses: number; win_rate: number }
+  simulated_sharpe?: number
+  simulated_max_drawdown?: number
+  simulated_equity?: number
+  simulated_cash?: number
+  simulated_drawdown?: number
+  simulated_exposure?: number
+  simulated_turnover?: number
+}
+
 export interface RuntimeState {
   project?: string
   mode?: string
@@ -213,4 +237,5 @@ export interface RuntimeState {
   monitoring?: Monitoring
   scene?: Scene
   topology?: Topology
+  observation?: ObservationSummary
 }

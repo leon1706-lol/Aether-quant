@@ -532,6 +532,24 @@ Der PostgreSQL Persistence Worker macht jetzt zusaetzlich Folgendes:
 - fuegt 7 Tests in `tests/test_postgres_worker.py` hinzu: skalare Felder korrekt extrahiert, Payload vollstaendig, Batch-Persistierung, Duplikat-Idempotenz, Dead-Letter-Routing, PG-Fehler laesst Messages pending, leerer Stream gibt 0
 - Stop bei PostgreSQL: V2-15 baut Observation Mode auf dem jetzt vorhandenen Experience-Trail auf
 
+## Phase-V2-15-Ergebnis
+
+Observation Mode macht jetzt zusaetzlich Folgendes:
+
+- fuegt `phase_v2.runtime` mit `mode` (`backtest`/`observation`/`paper`/`live`, committed Default `"backtest"` — unveraendertes Verhalten von `lean backtest .`) und `allow_live_orders` (Default `false`) zu `config.json` hinzu
+- legt das neue, Lean-freie Paket `execution/order_gate.py` an: `resolve_runtime_mode` (Fallback auf `"observation"` bei fehlendem/unbekanntem Wert), `resolve_order_permission` (Wahrheitstabelle: `backtest` immer erlaubt, `observation` **niemals** erlaubt — unabhaengig von allen anderen Flags, `paper`/`live` nur mit `allow_live_orders` + Broker-Konfiguration + bei `live` zusaetzlich gesundem Risk-Lock) und `simulate_fill` (reine Fill-Preis-/Mengen-Mathematik)
+- fuegt eine einzige Gate-Methode `_apply_signal`/`_refresh_risk_state` in `main.py` hinzu (`_order_permission()`), die an allen drei realen Order-Stellen (`SetHoldings`, `Liquidate` pro Symbol, portfolioweites `Liquidate` bei Drawdown-Bruch) entscheidet: echte Order oder Simulation
+- legt `experience/simulated_portfolio.py` (`SimulatedPortfolioState`) an: verwaltet Fake-Cash/Holdings/Equity-Kurve/Drawdown/Exposure/Turnover komplett im Speicher, ruehrt niemals `self.Portfolio` oder Broker-Aufrufe an; `snapshot()` ist eine Obermenge des bisherigen `portfolio={...}`-Dicts, daher **keine Signaturaenderung** an `build_experience_event`, `event_to_row` oder dem Postgres-DDL noetig (`mode VARCHAR(20)` hat `observation`/`paper`/`live` schon unterstuetzt)
+- macht `self._experience_mode` (vorher hart auf `"backtest"` codiert) abhaengig vom neuen `runtime_mode`
+- macht Cooldown-, Max-Position- und Exposure-Cap-Pruefungen sowie die Drawdown-/Risk-Lock-Berechnung modusbewusst: wenn echte Orders blockiert sind, zaehlen diese Checks gegen das simulierte statt das reale (in blockierten Modi dauerhaft leere) Portfolio — sonst waeren Risikoregeln in Observation Mode wirkungslos
+- legt `experience/observation_metrics.py` an: reine Funktionen (`count_observations`, `signal_distribution`, `action_distribution`, `rejected_by_reason`, `simulated_win_loss`, `simulated_sharpe`, `simulated_max_drawdown`, `compute_observation_summary`) auf einer einzigen `list[dict]`-Form, identisch nutzbar fuer In-Memory-Logs und Postgres-JSONB-Rows; `rejected_by_reason` liest die bereits vorhandene `reasons`-Liste aus `analyzer/market_analyzer.py` — kein neues Schema-Feld noetig
+- schreibt neue Dashboard-Exporte `visualization/grafana/observation_summary.json` und `visualization/grafana/observation_equity_curve.csv`, eingebettet zusaetzlich als `state["observation"]` in `visualization/state.json`; deutlich als "SIMULATED - NOT REAL TRADES" markiert
+- ergaenzt `monitoring/api_server.py` um `/api/grafana/observation-summary` und `/api/grafana/observation-equity-curve`
+- fuegt das Webui-Panel `webui/src/components/monitoring/ObservationPanel.tsx` hinzu (Datentabellen-Stil, kein neues Chart-Package), eingebunden in `webui/src/pages/Overview.tsx`
+- fuegt 33 neue Tests hinzu (80 → 113 gesamt): `tests/test_order_gate.py` (10, inkl. der sicherheitskritischen `test_observation_mode_never_allows_orders_even_if_flags_true`), `tests/test_simulated_portfolio.py` (9), `tests/test_observation_metrics.py` (14) — `main.py` bleibt bewusst ohne eigene Unit-Tests (Import erfordert `AlgorithmImports`/Lean, was keine der 13 bisherigen Testdateien tut); die Sicherheitsgarantie ist vollstaendig auf Ebene von `order_gate`/`simulated_portfolio` bewiesen
+- manuell verifiziert per echtem `lean backtest .`-Lauf mit `mode="observation"` (2014-2018, BTCUSD/ETHUSD/LTCUSD): Lean-eigene Statistik zeigt `"Total Orders": "0"` und `"End Equity": "100000"` (unveraendert) ueber den gesamten Lauf — das reale Portfolio wurde nie angefasst — waehrend das Observation-Panel im Webui echte simulierte Aktivitaet zeigte (Drawdown, Turnover, einen simulierten Risk-Lock-Breach bei -12%)
+- Stop: `phase_v2.runtime.mode` wird nur beim Start gelesen, kein Hot-Reload waehrend eines laufenden Runs
+
 ## Visualization-Unification-Ergebnis
 
 Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
@@ -571,7 +589,7 @@ Der geplante Datenfluss:
 13. [x] V2-12: Market Impact & Liquidity Engine
 14. [x] V2-13: Redis Experience Queue/Stream
 15. [x] V2-14: PostgreSQL Persistence Worker
-16. [ ] V2-15: Observation Mode
+16. [x] V2-15: Observation Mode
 17. [ ] V2-16: Performance Trigger
 18. [ ] V2-17: Controlled Retraining
 19. [ ] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)

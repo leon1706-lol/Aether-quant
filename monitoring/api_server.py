@@ -79,5 +79,15 @@ def get_asset_performance() -> list[dict]:
     return _read_csv_as_rows(GRAFANA_DIR / "asset_performance.csv")
 
 
+@app.get("/api/grafana/observation-summary")
+def get_observation_summary() -> dict:
+    return _read_json(GRAFANA_DIR / "observation_summary.json")
+
+
+@app.get("/api/grafana/observation-equity-curve")
+def get_observation_equity_curve() -> list[dict]:
+    return _read_csv_as_rows(GRAFANA_DIR / "observation_equity_curve.csv")
+
+
 if WEBUI_DIST.exists():
     app.mount("/", StaticFiles(directory=WEBUI_DIST, html=True), name="static")
