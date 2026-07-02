@@ -87,6 +87,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Build datasets and train V2 expert models, but skip the baseline model."
     )
+    parser.add_argument(
+        "--candidate",
+        action="store_true",
+        help="Train a candidate model into ml/versions/<version-id>/ without touching the active model (V2-17)."
+    )
+    parser.add_argument(
+        "--version-id",
+        type=str,
+        default=None,
+        help="Candidate model_version_id (UUID). Required with --candidate."
+    )
     return parser.parse_args()
 
 
@@ -98,8 +109,35 @@ def setup_logging() -> None:
 
 
 def ensure_directories() -> None:
-    for path in (ML_DIR, DATASET_DIR, EXPERT_DATASET_DIR, EXPERT_MODEL_DIR, VIS_DIR, GRAFANA_DIR, BACKTESTS_DIR):
+    for path in (
+        ML_DIR,
+        DATASET_DIR,
+        EXPERT_DATASET_DIR,
+        EXPERT_MODEL_DIR,
+        ML_DIR / "versions",
+        VIS_DIR,
+        GRAFANA_DIR,
+        BACKTESTS_DIR,
+    ):
         path.mkdir(parents=True, exist_ok=True)
+
+
+def candidate_output_paths(version_id: str) -> dict[str, Path]:
+    """Every artifact path a `--candidate --version-id <id>` run writes to,
+    all under ml/versions/<id>/ - never the active ml/ paths (Phase V2-17)."""
+    version_dir = ML_DIR / "versions" / version_id
+    return {
+        "version_dir": version_dir,
+        "model_checkpoint": version_dir / "model.pt",
+        "model_weights": version_dir / "model_weights.json",
+        "training_metrics": version_dir / "training_metrics.json",
+        "strategy_report": version_dir / "strategy_report.json",
+        "equity_curves": version_dir / "equity_curves.csv",
+        "scaler": version_dir / "scaler.pkl",
+        "scaler_stats": version_dir / "scaler_stats.json",
+        "feature_schema": version_dir / "feature_schema.json",
+        "dataset_manifest": version_dir / "dataset_manifest.json",
+    }
 
 
 def validate_training_inputs(config: dict) -> list[str]:
@@ -649,6 +687,34 @@ def write_inventory_file(inventory: dict) -> None:
     INVENTORY_PATH.write_text(json.dumps(inventory, indent=2), encoding="utf-8")
 
 
+def write_scaler_artifacts(
+    scaler: StandardScaler,
+    manifest: dict,
+    *,
+    scaler_path: Path = SCALER_PATH,
+    scaler_stats_path: Path = SCALER_STATS_PATH,
+) -> None:
+    """Persists the fitted scaler as both the joblib pickle (training-only)
+    and the JSON mean/scale arrays main.py actually loads for inference.
+
+    Extracted out of write_dataset_artifacts() so candidate training (V2-17)
+    can write into ml/versions/<id>/ without touching the active scaler.
+    """
+    scaler_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(scaler, scaler_path)
+    scaler_stats_path.write_text(
+        json.dumps(
+            {
+                "feature_names": manifest["feature_names"],
+                "mean": [float(value) for value in scaler.mean_.tolist()],
+                "scale": [float(value) for value in scaler.scale_.tolist()],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def write_dataset_artifacts(
     dataset: pd.DataFrame,
     manifest: dict,
@@ -681,18 +747,7 @@ def write_dataset_artifacts(
         ),
         encoding="utf-8",
     )
-    joblib.dump(scaler, SCALER_PATH)
-    SCALER_STATS_PATH.write_text(
-        json.dumps(
-            {
-                "feature_names": manifest["feature_names"],
-                "mean": [float(value) for value in scaler.mean_.tolist()],
-                "scale": [float(value) for value in scaler.scale_.tolist()],
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    write_scaler_artifacts(scaler, manifest)
 
     expert_dataset, expert_manifest = build_expert_dataset_manifest(dataset, manifest, config)
     write_expert_dataset_artifacts(
@@ -1093,7 +1148,21 @@ def export_architecture(model: AetherNet) -> list[dict]:
     return architecture
 
 
-def train_model(config: dict, dataset: pd.DataFrame) -> dict:
+def train_model(
+    config: dict,
+    dataset: pd.DataFrame,
+    *,
+    checkpoint_path: Path = MODEL_CHECKPOINT_PATH,
+    metrics_path: Path = TRAINING_METRICS_PATH,
+    strategy_report_path: Path = STRATEGY_REPORT_PATH,
+    equity_curves_path: Path = EQUITY_CURVES_PATH,
+) -> dict:
+    """Trains the baseline model and writes its artifacts.
+
+    Output paths default to the active ml//backtests locations so every
+    existing call site is unaffected; candidate training (V2-17) passes
+    ml/versions/<id>/... paths instead, keeping the active model untouched.
+    """
     phase3 = config["phase3"]
     training_config = phase3["training"]
     model_config = phase3["model"]
@@ -1211,7 +1280,8 @@ def train_model(config: dict, dataset: pd.DataFrame) -> dict:
         best_epoch = len(history)
 
     model.load_state_dict(best_state)
-    torch.save(best_state, MODEL_CHECKPOINT_PATH)
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(best_state, checkpoint_path)
 
     model.eval()
     with torch.no_grad():
@@ -1252,7 +1322,8 @@ def train_model(config: dict, dataset: pd.DataFrame) -> dict:
         },
         "history": history,
     }
-    TRAINING_METRICS_PATH.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     strategy_report, equity_curves = build_strategy_report(
         config=config,
@@ -1262,8 +1333,9 @@ def train_model(config: dict, dataset: pd.DataFrame) -> dict:
         threshold=tuned_threshold,
         device=device,
     )
-    STRATEGY_REPORT_PATH.write_text(json.dumps(strategy_report, indent=2), encoding="utf-8")
-    equity_curves.to_csv(EQUITY_CURVES_PATH, index=False)
+    strategy_report_path.parent.mkdir(parents=True, exist_ok=True)
+    strategy_report_path.write_text(json.dumps(strategy_report, indent=2), encoding="utf-8")
+    equity_curves.to_csv(equity_curves_path, index=False)
 
     return {
         "model": model,
@@ -1717,7 +1789,22 @@ def write_model_export(
     data_summary: dict,
     dataset_manifest: dict | None = None,
     training_result: dict | None = None,
+    *,
+    weights_path: Path = MODEL_WEIGHTS_PATH,
+    dataset_manifest_path: Path = DATASET_MANIFEST_PATH,
+    scaler_path: Path = SCALER_PATH,
+    scaler_stats_path: Path = SCALER_STATS_PATH,
+    checkpoint_path: Path = MODEL_CHECKPOINT_PATH,
+    metrics_path: Path = TRAINING_METRICS_PATH,
+    strategy_report_path: Path = STRATEGY_REPORT_PATH,
 ) -> None:
+    """Writes the Lean-readable model export.
+
+    All *_path kwargs default to the active ml/ locations so every existing
+    call site is unaffected; candidate training (V2-17) passes
+    ml/versions/<id>/... paths so the export's own path fields describe the
+    candidate, not the active model.
+    """
     phase1 = config["phase1"]
     payload = {
         "project": config["name"],
@@ -1735,12 +1822,12 @@ def write_model_export(
         "data_summary": data_summary,
         "v1_universe": phase1["universe"],
         "training_windows": phase1["windows"],
-        "dataset_manifest_path": str(DATASET_MANIFEST_PATH.relative_to(ROOT)) if dataset_manifest else None,
-        "scaler_path": str(SCALER_PATH.relative_to(ROOT)) if dataset_manifest else None,
-        "scaler_stats_path": str(SCALER_STATS_PATH.relative_to(ROOT)) if dataset_manifest else None,
-        "checkpoint_path": str(MODEL_CHECKPOINT_PATH.relative_to(ROOT)) if training_result else None,
-        "metrics_path": str(TRAINING_METRICS_PATH.relative_to(ROOT)) if training_result else None,
-        "strategy_report_path": str(STRATEGY_REPORT_PATH.relative_to(ROOT)) if training_result else None,
+        "dataset_manifest_path": str(dataset_manifest_path.relative_to(ROOT)) if dataset_manifest else None,
+        "scaler_path": str(scaler_path.relative_to(ROOT)) if dataset_manifest else None,
+        "scaler_stats_path": str(scaler_stats_path.relative_to(ROOT)) if dataset_manifest else None,
+        "checkpoint_path": str(checkpoint_path.relative_to(ROOT)) if training_result else None,
+        "metrics_path": str(metrics_path.relative_to(ROOT)) if training_result else None,
+        "strategy_report_path": str(strategy_report_path.relative_to(ROOT)) if training_result else None,
         "notes": [
             "Phase 3 trains a first MLP classifier on the synchronized daily dataset.",
             "The exported state_dict is JSON-based so Lean-side inference can be added in Phase 4.",
@@ -1779,7 +1866,8 @@ def write_model_export(
             "state_dict": export_state_dict(training_result["model"]),
         }
 
-    MODEL_WEIGHTS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    weights_path.parent.mkdir(parents=True, exist_ok=True)
+    weights_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def load_existing_training_context() -> dict | None:
@@ -2068,6 +2156,8 @@ def write_visualization_state(
 def main() -> int:
     setup_logging()
     args = parse_args()
+    if args.candidate and not args.version_id:
+        raise SystemExit("--candidate requires --version-id")
     ensure_directories()
     config = load_project_config()
     LOGGER.info("Starting Aether Quant training pipeline.")
@@ -2109,6 +2199,64 @@ def main() -> int:
         [asset["ticker"] for asset in config["phase1"]["universe"]["assets"]],
     )
     dataset_manifest = build_dataset_manifest(config, dataset, inventory, metadata, asset_quality)
+
+    if args.candidate:
+        paths = candidate_output_paths(args.version_id)
+        paths["version_dir"].mkdir(parents=True, exist_ok=True)
+
+        write_scaler_artifacts(scaler, dataset_manifest, scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"])
+        paths["feature_schema"].write_text(
+            json.dumps(
+                {
+                    "project": dataset_manifest["project"],
+                    "phase": 2,
+                    "feature_names": dataset_manifest["feature_names"],
+                    "scaled_feature_names": dataset_manifest["scaled_feature_names"],
+                    "context_feature_names": dataset_manifest["context_feature_names"],
+                    "model_input_names": dataset_manifest["model_input_names"],
+                    "target_column": dataset_manifest["target_column"],
+                    "split_column": "split",
+                    "asset_quality": dataset_manifest["asset_quality"],
+                    "training_eligible_assets": dataset_manifest["training_eligible_assets"],
+                    "trading_eligible_assets": dataset_manifest["trading_eligible_assets"],
+                    "observation_only_assets": dataset_manifest["observation_only_assets"],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        paths["dataset_manifest"].write_text(json.dumps(dataset_manifest, indent=2), encoding="utf-8")
+
+        LOGGER.info("Training candidate model %s.", args.version_id)
+        training_result = train_model(
+            config,
+            dataset,
+            checkpoint_path=paths["model_checkpoint"],
+            metrics_path=paths["training_metrics"],
+            strategy_report_path=paths["strategy_report"],
+            equity_curves_path=paths["equity_curves"],
+        )
+        write_model_export(
+            config,
+            data_summary,
+            dataset_manifest=dataset_manifest,
+            training_result=training_result,
+            weights_path=paths["model_weights"],
+            dataset_manifest_path=paths["dataset_manifest"],
+            scaler_path=paths["scaler"],
+            scaler_stats_path=paths["scaler_stats"],
+            checkpoint_path=paths["model_checkpoint"],
+            metrics_path=paths["training_metrics"],
+            strategy_report_path=paths["strategy_report"],
+        )
+        print(
+            f"Candidate {args.version_id} trained into {paths['version_dir']}.",
+            f"Backtest sharpe: {training_result['strategy_report']['backtest']['strategy']['sharpe']:.4f}.",
+            f"Backtest max drawdown: {training_result['strategy_report']['backtest']['strategy']['max_drawdown']:.4f}.",
+        )
+        LOGGER.info("Candidate training finished — active ml/ artifacts untouched.")
+        return 0
+
     write_dataset_artifacts(dataset, dataset_manifest, scaler, config=config)
 
     if args.dataset_only:

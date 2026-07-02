@@ -1,0 +1,15 @@
+# Aether Quant Retraining Worker (V2-17)
+#
+# Unlike experience-worker/performance-trigger-worker's minimal images, this
+# worker needs the full training stack: retraining/orchestrator.py's train()
+# stage subprocess-invokes train.py directly (--candidate --version-id),
+# and train.py unconditionally imports experts/ (which imports regime/) at
+# module level regardless of which CLI branch runs.
+torch>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# PostgreSQL driver — retraining registry (model_versions, retraining_events)
+psycopg[binary]>=3.1

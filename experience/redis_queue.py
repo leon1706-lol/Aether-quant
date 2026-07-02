@@ -81,7 +81,7 @@ class ExperienceQueue:
     def __init__(
         self,
         enabled: bool = True,
-        redis_url: str = "redis://localhost:6379/0",
+        redis_url: str = "redis://localhost:6380/0",
         stream_name: str = "aether:experience",
         maxlen: int = 100_000,
         _client=None,
@@ -98,7 +98,7 @@ class ExperienceQueue:
             self._client = _client
             return
 
-        url = os.environ.get("AETHER_REDIS_URL", redis_url) or "redis://localhost:6379/0"
+        url = os.environ.get("AETHER_REDIS_URL", redis_url) or "redis://localhost:6380/0"
         try:
             import redis as redis_lib  # deferred — not always installed in Lean environments
 

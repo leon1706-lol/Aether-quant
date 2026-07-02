@@ -9,7 +9,7 @@ RUN npm run build
 # Stage 2: Python runtime (FastAPI server only — no ML deps)
 FROM python:3.11-slim
 WORKDIR /app
-COPY requirements-runtime.txt .
+COPY requirements/requirements-runtime.txt .
 RUN pip install --no-cache-dir -r requirements-runtime.txt
 COPY monitoring/ ./monitoring/
 COPY visualization/ ./visualization/

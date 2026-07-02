@@ -1,11 +1,23 @@
+import inspect
+
 import numpy as np
 import pandas as pd
 
 from train import (
+    ML_DIR,
+    MODEL_CHECKPOINT_PATH,
+    MODEL_WEIGHTS_PATH,
+    SCALER_PATH,
+    SCALER_STATS_PATH,
+    TRAINING_METRICS_PATH,
     build_asset_quality,
+    candidate_output_paths,
     engineer_features,
     fit_and_apply_scaler,
+    train_model,
     validate_training_inputs,
+    write_model_export,
+    write_scaler_artifacts,
 )
 
 
@@ -158,3 +170,50 @@ def test_validate_training_inputs_reports_reversed_window():
     issues = validate_training_inputs(config)
 
     assert "training: start date is after end date." in issues
+
+
+def test_candidate_output_paths_are_all_under_versions_directory():
+    paths = candidate_output_paths("abc-123")
+
+    version_dir = ML_DIR / "versions" / "abc-123"
+    assert paths["version_dir"] == version_dir
+    for key, path in paths.items():
+        assert version_dir in path.parents or path == version_dir
+
+
+def test_train_model_default_paths_match_active_constants():
+    # Regression guard for the V2-17 parameterization refactor: every
+    # existing non-candidate call site (e.g. main()'s baseline training)
+    # calls train_model(config, dataset) with no path kwargs, so the
+    # defaults must still point at the active ml//backtests locations.
+    defaults = inspect.signature(train_model).parameters
+    assert defaults["checkpoint_path"].default == MODEL_CHECKPOINT_PATH
+    assert defaults["metrics_path"].default == TRAINING_METRICS_PATH
+
+
+def test_write_model_export_default_paths_match_active_constants():
+    defaults = inspect.signature(write_model_export).parameters
+    assert defaults["weights_path"].default == MODEL_WEIGHTS_PATH
+    assert defaults["scaler_path"].default == SCALER_PATH
+    assert defaults["scaler_stats_path"].default == SCALER_STATS_PATH
+
+
+def test_write_scaler_artifacts_writes_only_to_given_paths(tmp_path):
+    dataset = pd.DataFrame({"ticker": ["CORE", "CORE"], "split": ["train", "train"], "feature": [10.0, 20.0]})
+    _, scaler = fit_and_apply_scaler(dataset, ["feature"])
+    manifest = {"feature_names": ["feature"]}
+
+    active_mtime_before = SCALER_PATH.stat().st_mtime if SCALER_PATH.exists() else None
+
+    candidate_scaler_path = tmp_path / "versions" / "v1" / "scaler.pkl"
+    candidate_scaler_stats_path = tmp_path / "versions" / "v1" / "scaler_stats.json"
+
+    write_scaler_artifacts(
+        scaler, manifest, scaler_path=candidate_scaler_path, scaler_stats_path=candidate_scaler_stats_path
+    )
+
+    assert candidate_scaler_path.exists()
+    assert candidate_scaler_stats_path.exists()
+    # never touches the active ml/ scaler path
+    active_mtime_after = SCALER_PATH.stat().st_mtime if SCALER_PATH.exists() else None
+    assert active_mtime_after == active_mtime_before

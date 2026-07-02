@@ -2,7 +2,7 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-16
+Completed phases: V2-1 through V2-17
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
@@ -72,7 +72,7 @@ flowchart TB
     D --> D3["NumPy / Pandas"]
     D --> D4["MoE experts and gating network"]
     E["Monitoring and UI"] --> E1["Grafana (port 3001)"]
-    E --> E2["React/Vite webui (port 3000 dev / 8000 Docker)"]
+    E --> E2["React/Vite webui (port 3002 dev / 8001 Docker)"]
     E --> E3["FastAPI JSON API (port 8000)"]
     E --> E4["Telegram alerts — future"]
 ```
@@ -87,6 +87,7 @@ flowchart TB
 - `analyzer/`: Central deterministic decision layer combining all module outputs into a single action per bar.
 - `liquidity/`: Per-asset liquidity and market-impact engine — DDV proxy, participation rate, slippage estimate, spread proxy.
 - `experience/`: Redis-buffered observation and trade events with PostgreSQL persistence.
+- `retraining/`: Controlled retraining — planner, candidate training gate, validation/backtest gates, Aether-Vault commit, promotion and rollback.
 - `risk/`: Dynamic position sizing, leverage limits, drawdown controls and exposure caps.
 - `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology and Grafana feeds.
 - `webui/`: React/Vite single-page app — Overview (3D scene, heatmap, signals), Risk (sizing, liquidity panel), Topology (3D cluster view).
@@ -110,7 +111,7 @@ flowchart TB
 15. [x] V2-14: PostgreSQL persistence worker
 16. [x] V2-15: Observation mode
 17. [x] V2-16: Performance triggers
-18. [ ] V2-17: Controlled retraining
+18. [x] V2-17: Controlled retraining
 19. [ ] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
 20. [ ] V2-18: Grafana monitoring expansion
 21. [ ] V2-19: Telegram alerts
@@ -341,6 +342,105 @@ severity distribution, latest trigger and trigger-type breakdown — placed
 at the top of the dashboard's right column (above the signal/position
 panels) so it stays visible regardless of universe size.
 
+## Controlled Retraining Contract (V2-17)
+
+Phase 17 closes the loop Phase 16 deliberately left open:
+`retraining/` reads `retrain_candidate = true` rows out of the durable
+`performance_triggers` Postgres table, trains a candidate model in
+isolation, validates and backtests it against the currently active model,
+commits it to Aether-Vault, and only then may promote it — or roll back to
+a previous version. "No uncontrolled live learning" is the hard constraint:
+every stage is a Postgres-audited row, and full autonomy (auto-promotion)
+is an opt-in config flag, off by default.
+
+Package split (mirrors the pure/IO/worker convention already established by
+`performance/` in V2-16):
+
+- `retraining/planning.py` (pure) — `evaluate_retraining_plan()` selects the
+  newest eligible trigger, then checks minimum observations, cooldown and a
+  daily retraining cap, in that order, short-circuiting with an explanatory
+  reason on the first failing check.
+- `retraining/postgres_registry.py` (IO) — embedded DDL for two tables:
+  `model_versions` (`status`: `active`/`candidate`/`rejected`/`promoted`/
+  `rolled_back`/`archived`, artifact paths/hashes, training/validation/
+  backtest windows, metrics — a partial unique index enforces exactly one
+  `active` row at the DB level) and `retraining_events` (`status`:
+  `planned`/`running`/`validated`/`rejected`/`promoted`/`failed`, source
+  trigger, candidate version, reason, metrics, notes — the full audit trail
+  per retraining attempt).
+- `train.py` gained a fourth, mutually-exclusive CLI mode:
+  `python train.py --candidate --version-id <uuid>`. `train_model()`,
+  `write_model_export()` and the newly-extracted `write_scaler_artifacts()`
+  now accept optional output-path keyword arguments (default = the existing
+  active `ml/`/`backtests/` constants, so every pre-V2-17 call site is
+  unaffected) — the candidate branch passes `ml/versions/<version_id>/...`
+  paths instead and never references an active-path constant.
+- `retraining/validation_gate.py` (pure) — mirrors `train.py`'s
+  `assess_expert_quality()` failures/near_misses/status shape, but compares
+  candidate vs. **active** metrics (relative), not fixed thresholds: max
+  drawdown not worse than active, Sharpe above a minimum, validation loss
+  not much worse than active's, a self-computed overfitting gap
+  (`train.balanced_accuracy - backtest.balanced_accuracy`, not pre-computed
+  anywhere for the baseline model), and minimum trade count/exposure rate.
+- `retraining/backtest_gate.py` + `retraining/lean_backtest.py` (pure +
+  best-effort IO) — a 3-way active/candidate/buy-and-hold comparison reused
+  directly from `compute_strategy_metrics()`'s existing output shape, plus
+  an optional Lean CLI backtest that only runs `subprocess.run` if
+  `shutil.which("lean")` actually finds a binary — "if Lean is available" is
+  a real gate, not a try/except.
+- `retraining/vault_commands.py` (pure) + `retraining/vault_client.py` (IO)
+  — a pure `av add`/`av commit`/`av push` argv builder, and a subprocess
+  wrapper that never raises: a missing `av` binary, a timeout, or a non-zero
+  exit all resolve to `retraining_events.status = "failed"` without ever
+  crashing the orchestrator/worker. Aether-Vault
+  (`C:\Users\Blackhead\Desktop\aether-vault`, a separate sibling project) is
+  invoked purely as this external CLI subprocess — its internals are out of
+  scope and never read/imported.
+- Promotion (`retraining/orchestrator.py`'s `promote()`) hard-requires
+  `model_versions.status == "candidate"` and a non-null
+  `aether_vault_commit` (`phase_v2.retraining.promotion.require_vault_commit`)
+  before copying anything — "promotion requires a Vault commit" is enforced
+  in code, not just documented. The copied file set is intentionally wider
+  than the user-facing spec's 3 files (`model_weights.json`, `scaler.pkl`,
+  `training_metrics.json`): `feature_schema.json` and `scaler_stats.json`
+  are added because `main.py`'s `_validate_runtime_artifacts()` actually
+  requires those two as well — omitting them would let a promotion silently
+  break the Lean runtime.
+- Rollback (`orchestrator.py`'s `rollback()`) verifies SHA-256 hashes from
+  `model_versions.artifact_hashes` **before** activating anything; if the
+  local `ml/versions/<old_id>/` directory is missing, it falls back to
+  `av checkout <commit>` before retrying the restore.
+- `retraining/worker.py`'s `RetrainingWorker` runs the full
+  plan→train→validate→backtest→commit pipeline continuously (same shape as
+  `experience-worker`/`performance-trigger-worker`), gated by
+  `phase_v2.retraining.enabled` (checked every cycle — flip it in
+  `config.json` without touching the container) and
+  `phase_v2.retraining.worker.auto_promote` (default `false`: the worker
+  stops at `status="validated"` after a successful Vault commit and leaves
+  the actual model swap to a manual
+  `python -m retraining.orchestrator promote --version-id <id>` call).
+  `retraining/orchestrator.py` exposes every stage (`plan`, `train`,
+  `validate`, `backtest`, `commit`, `promote`, `rollback`, `status`) as an
+  independent CLI subcommand for manual/staged use regardless of whether the
+  worker is running.
+- Unlike `experience-worker`/`performance-trigger-worker`'s minimal images,
+  `Dockerfile.retraining_worker` needs the full training stack (`torch`,
+  `pandas`, `scikit-learn`, `joblib`) plus `experts/`, `regime/` and
+  `train.py` itself, because `orchestrator.py`'s `train()` stage
+  subprocess-invokes `train.py --candidate` directly rather than importing
+  it — training is CPU/GPU-heavy and must not share the worker's own
+  Postgres connection lifetime or block its event loop.
+
+Dashboard/API: `visualization/grafana/retraining_status.json` (written by
+`retraining/status_export.py`, the sole writer — `main.py` never connects to
+Postgres, so unlike `performance_triggers` it cannot approximate this
+in-memory), one FastAPI route (`/api/grafana/retraining-status`), a
+server-side merge into `/api/state` (`monitoring/api_server.py`'s
+`get_state()`), and one webui panel (`RetrainingStatusPanel.tsx`) showing
+active/candidate version, validation status, Vault commit short-hash, last
+trigger and rollback availability — placed directly under
+`PerformanceTriggersPanel`.
+
 ## API Key Status
 
 No broker API key is required for V2 foundation, training, backtesting, observation mode, dashboard work, Grafana exports, MoE experiments or controlled retraining. API keys are only required for real paper/live trading.
@@ -511,18 +611,23 @@ Liquidity data flows through `state.signals[symbol].liquidity` — no dedicated 
 The `Dockerfile` is a two-stage build:
 
 1. Node 20 Alpine builds the React webui (`npm ci && npm run build`).
-2. Python 3.11 slim installs only the runtime requirements (`fastapi`, `uvicorn`, `aiofiles`) and serves the API plus the built webui on port 8000.
+2. Python 3.11 slim installs only the runtime requirements (`fastapi`, `uvicorn`, `aiofiles`) and serves the API plus the built webui on container port 8000 (host port 8001, see below).
 
 `docker-compose.yml` port layout:
 
 | Service | Host port | Container port |
 |---|---|---|
-| aether-quant (FastAPI + webui) | 8000 | 8000 |
+| aether-quant (FastAPI + webui) | 8001 | 8000 |
 | Grafana | 3001 | 3000 |
-| Redis | 6379 | 6379 |
-| PostgreSQL | 5432 | 5432 |
+| Redis | 6380 | 6379 |
+| PostgreSQL | 5433 | 5432 |
 | Lean (profile) | — | — |
 
-Port 3000 is kept free for `npm run dev` during local development.
+Ports were remapped in V2-17 so a local Aether-Quant stack never collides with the separate
+Aether-Vault sibling tool's own `docker-compose.yml` (which independently binds host 8000,
+3000, 5432 and 6379). Port 3002 is kept free for `npm run dev` during local development
+(moved from 3000, since Aether-Vault's webui container claims 3000); local, non-Docker
+`uvicorn monitoring.api_server:app --port 8001` also moved off 8000 for the same reason.
+Grafana intentionally stays at 3001 (unchanged, no collision there).
 
 The `data/`, `ml/` and `storage/` directories are excluded from the Docker build context via `.dockerignore` because the FastAPI server does not use them; they are only needed by `train.py` and the Lean algorithm.

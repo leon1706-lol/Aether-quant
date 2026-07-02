@@ -131,7 +131,7 @@ class PostgresWorker:
     def __init__(
         self,
         *,
-        redis_url: str = "redis://localhost:6379/0",
+        redis_url: str = "redis://localhost:6380/0",
         postgres_dsn: str,
         stream_name: str = "aether:experience",
         group_name: str = "aether-workers",
@@ -302,7 +302,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    redis_url = os.environ.get("AETHER_REDIS_URL", "redis://localhost:6379/0")
+    redis_url = os.environ.get("AETHER_REDIS_URL", "redis://localhost:6380/0")
     postgres_dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
 
     worker = PostgresWorker(

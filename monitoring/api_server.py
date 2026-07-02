@@ -2,7 +2,7 @@
 
 Reads the same files the legacy HTML dashboards read (visualization/state.json,
 visualization/scene.json, visualization/grafana/*) and serves them over HTTP so
-the React webui (localhost:3000) can consume them instead of fetching files
+the React webui (localhost:3000/3002) can consume them instead of fetching files
 directly off disk. No new computation happens here - this is a read-only
 reshape/serve layer over the existing runtime exports.
 """
@@ -24,7 +24,12 @@ app = FastAPI(title="Aether Quant Monitoring API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3002",
+        "http://localhost:8000",
+        "http://localhost:8001",
+    ],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -51,7 +56,12 @@ def health() -> dict:
 
 @app.get("/api/state")
 def get_state() -> dict:
-    return _read_json(VISUALIZATION_DIR / "state.json")
+    state = _read_json(VISUALIZATION_DIR / "state.json")
+    retraining_status_path = GRAFANA_DIR / "retraining_status.json"
+    if retraining_status_path.exists():
+        with retraining_status_path.open("r", encoding="utf-8") as f:
+            state["retraining_status"] = json.load(f)
+    return state
 
 
 @app.get("/api/scene")
@@ -92,6 +102,11 @@ def get_observation_equity_curve() -> list[dict]:
 @app.get("/api/grafana/performance-triggers")
 def get_performance_triggers() -> dict:
     return _read_json(GRAFANA_DIR / "performance_triggers.json")
+
+
+@app.get("/api/grafana/retraining-status")
+def get_retraining_status() -> dict:
+    return _read_json(GRAFANA_DIR / "retraining_status.json")
 
 
 if WEBUI_DIST.exists():

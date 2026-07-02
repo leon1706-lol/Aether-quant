@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 WORKDIR /app
-COPY requirements-trigger-worker.txt .
+COPY requirements/requirements-trigger-worker.txt .
 RUN pip install --no-cache-dir -r requirements-trigger-worker.txt
 COPY execution/ ./execution/
 COPY experience/ ./experience/

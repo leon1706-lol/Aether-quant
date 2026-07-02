@@ -199,6 +199,46 @@ def insert_triggers(conn, triggers: list[dict], suppression_minutes: int = 60) -
     return inserted
 
 
+def fetch_candidate_triggers(conn, limit: int = 50) -> list[dict]:
+    """Fetch the newest retrain_candidate=true triggers, newest first.
+
+    Added for V2-17 (retraining/planning.py) — Phase 16 only ever wrote this
+    flag, it never read it back. Reuses the same connection/table this module
+    already owns rather than duplicating a query in retraining/.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT trigger_id, created_at, trigger_type, severity, mode, scope, "
+            "metric_value, threshold, message, recommended_action, retrain_candidate, details "
+            "FROM performance_triggers WHERE retrain_candidate = TRUE "
+            "ORDER BY created_at DESC LIMIT %(limit)s;",
+            {"limit": limit},
+        )
+        rows = cur.fetchall()
+
+    columns = (
+        "trigger_id",
+        "created_at",
+        "trigger_type",
+        "severity",
+        "mode",
+        "scope",
+        "metric_value",
+        "threshold",
+        "message",
+        "recommended_action",
+        "retrain_candidate",
+        "details",
+    )
+    results = []
+    for row in rows:
+        record = dict(zip(columns, row))
+        details = record.pop("details")
+        record["details"] = json.loads(details) if isinstance(details, str) else (details or {})
+        results.append(record)
+    return results
+
+
 def fetch_latest_trigger(conn) -> dict | None:
     with conn.cursor() as cur:
         cur.execute(

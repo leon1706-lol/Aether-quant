@@ -116,7 +116,7 @@ lean backtest .
 
 Hinweis: Ein einzelner `lean backtest .`-Lauf (LEAN CLI, kein
 Compose-Service) startet einen eigenen Docker-Container ohne Zugriff auf
-`localhost:6379` des Hosts. Fuer eine echte Redis-Verbindung waehrend des
+`localhost:6380` des Hosts. Fuer eine echte Redis-Verbindung waehrend des
 Laufs entweder `docker compose --profile lean up -d` verwenden (Container
 im selben Compose-Netzwerk, `AETHER_REDIS_URL=redis://redis:6379/0`) oder
 akzeptieren, dass `ExperienceQueue` bei nicht erreichbarem Redis nur eine
@@ -139,11 +139,11 @@ ORDER BY created_at DESC LIMIT 10;
 **4. Dashboard oeffnen:**
 
 ```powershell
-python -m uvicorn monitoring.api_server:app --reload
+python -m uvicorn monitoring.api_server:app --port 8001 --reload
 cd webui && npm run dev
 ```
 
-Im Webui (`http://localhost:3000`) zeigt das neue "Observation Mode" Panel
+Im Webui (`http://localhost:3002`) zeigt das neue "Observation Mode" Panel
 (`webui/src/components/monitoring/ObservationPanel.tsx`) das gelbe
 "SIMULATED - NOT REAL TRADES"-Banner, simulierte Equity/Exposure/Drawdown/
 Turnover, Sharpe, Signal-Verteilung und "Rejected By Reason". Dieselben
@@ -207,6 +207,79 @@ aktuelle, in-memory Lauf — nicht die dauerhafte Tabelle) liegen als Datei
 unter `visualization/grafana/performance_triggers.json` bzw. per API unter
 `/api/grafana/performance-triggers`.
 
+## Controlled Retraining Betreiben (V2-17)
+
+`retraining/` liest `retrain_candidate = true`-Zeilen aus der dauerhaften
+`performance_triggers`-Tabelle, trainiert bei Bedarf ein Kandidatenmodell
+isoliert unter `ml/versions/<version_id>/`, validiert/backtestet es gegen
+das aktive Modell, committet es nach Aether-Vault und uebernimmt es erst
+danach (oder rollt zurueck). Standardmaessig promotet der Worker **nicht**
+automatisch — `phase_v2.retraining.worker.auto_promote` ist `false`, die
+eigentliche Modell-Uebernahme bleibt ein manueller Schritt.
+
+**1. Worker starten** (braucht nur PostgreSQL, kein Redis — anders als
+`experience-worker`/`performance-trigger-worker` braucht das Image aber den
+vollen Trainings-Stack, da `train()` `train.py --candidate` per Subprocess
+aufruft):
+
+```powershell
+docker compose up -d postgres retraining-worker
+docker compose logs -f retraining-worker
+```
+
+**2. Einmaligen Zyklus verarbeiten** (nuetzlich nach einem Backtest oder zum
+manuellen Testen):
+
+```powershell
+docker compose run --rm retraining-worker python -m retraining.worker --once
+```
+
+**3. Einzelne Stufen manuell/gestaffelt ausfuehren** — unabhaengig davon, ob
+der Worker laeuft (`retraining_id`/`version_id` aus dem vorherigen Schritt
+uebernehmen):
+
+```powershell
+python -m retraining.orchestrator plan
+python -m retraining.orchestrator train --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator validate --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator backtest --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator commit --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator promote --version-id <uuid>
+python -m retraining.orchestrator rollback --to-version-id <uuid>
+python -m retraining.orchestrator status
+```
+
+**4. Retraining komplett abschalten** (ohne den Container anzufassen) — in
+`config.json`:
+
+```json
+"phase_v2": {
+  "retraining": {
+    "enabled": false
+  }
+}
+```
+
+**5. PostgreSQL — Modellversionen und Retraining-Events pruefen:**
+
+```sql
+SELECT model_version_id, status, aether_vault_commit, created_at FROM model_versions ORDER BY created_at DESC;
+
+SELECT retraining_id, status, reason, candidate_version_id, created_at FROM retraining_events ORDER BY created_at DESC LIMIT 10;
+```
+
+**6. Dashboard:** gleicher `uvicorn`/`npm run dev`-Start wie bei Observation
+Mode. Das neue "Retraining Status"-Panel
+(`webui/src/components/monitoring/RetrainingStatusPanel.tsx`) steht direkt
+unter dem Performance-Triggers-Panel — aktive/Kandidat-Version,
+Validierungsstatus, Vault-Commit-Kurzhash, letzter Trigger und
+Rollback-Verfuegbarkeit. Anders als bei `performance_triggers` gibt es hier
+keine In-Memory-Naeherung aus `main.py` (das haelt nie eine eigene
+Postgres-Verbindung) — `visualization/grafana/retraining_status.json` ist
+die einzige Quelle, geschrieben von `retraining/status_export.py` und per
+`/api/grafana/retraining-status` bzw. serverseitig in `/api/state`
+gemergt.
+
 ## Verbindung Zwischen Containern
 
 Innerhalb des Compose-Netzwerks nutzen die Services ihre Servicenamen:
@@ -215,8 +288,10 @@ Innerhalb des Compose-Netzwerks nutzen die Services ihre Servicenamen:
 - PostgreSQL: `postgresql://aether:aether_dev_password@postgres:5432/aether_quant`
 - Grafana: `http://grafana:3000`
 
-Von Windows aus erreichst du die Ports standardmaessig so:
+Von Windows aus erreichst du die Ports standardmaessig so (seit V2-17 remapped, damit sie
+nicht mit dem separaten Aether-Vault-Compose-Stack kollidieren):
 
-- Grafana: `http://localhost:3000`
-- Redis: `localhost:6379`
-- PostgreSQL: `localhost:5432`
+- Grafana: `http://localhost:3001`
+- Redis: `localhost:6380`
+- PostgreSQL: `localhost:5433`
+- aether-quant (FastAPI + Webui-Bundle): `http://localhost:8001`

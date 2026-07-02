@@ -53,7 +53,8 @@ aether-quant/
 |   |-- state.json
 |-- webui/
 |   |-- src/
-|-- requirements.txt
+|-- requirements/
+|   |-- requirements.txt
 |-- README.md
 |-- .gitignore
 ```
@@ -74,9 +75,10 @@ aether-quant/
 - `visualization/state.json`: gemeinsamer Runtime-Zustand fuer Dashboard, Monitoring und Trading
 - `visualization/scene.json`: Szenendaten fuer die lokale Markt-/Portfolio-Visualisierung
 - `visualization/grafana/`: JSON- und CSV-Feeds fuer spaeteres Grafana-Monitoring
-- `monitoring/api_server.py`: FastAPI-Server, der `visualization/state.json`, `visualization/scene.json` und die Grafana-Exporte als JSON-API unter `localhost:8000` bereitstellt
-- `webui/`: React/Vite-Webui unter `localhost:3000` mit Overview-Seite (Scorecards, 3D-Marktszene, Asset-Heatmap, Signal-/Positionsboard) und Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle) als einheitliche Ablösung der frueheren `dashboard.html` und `volatility_dashboard.html`
+- `monitoring/api_server.py`: FastAPI-Server, der `visualization/state.json`, `visualization/scene.json` und die Grafana-Exporte als JSON-API unter `localhost:8001` (lokal, `uvicorn`) bzw. `localhost:8001` (Docker, `aether-quant`-Container) bereitstellt
+- `webui/`: React/Vite-Webui unter `localhost:3002` (lokaler `npm run dev`) mit Overview-Seite (Scorecards, 3D-Marktszene, Asset-Heatmap, Signal-/Positionsboard) und Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle) als einheitliche Ablösung der frueheren `dashboard.html` und `volatility_dashboard.html`. Im Docker-Container wird dasselbe Webui-Build stattdessen vom `aether-quant`-Container unter `localhost:8001` mitausgeliefert (kein eigener Port) — Vite-Dev-Server (3002) und Docker-Bundle (8001) sind zwei getrennte Ausliefer-Pfade.
 - `docker-compose.yml`: lokale Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
+- `requirements/`: alle `requirements*.txt`-Varianten an einem Ort — `requirements.txt` (Laufzeit/Training), `requirements-dev.txt` (lokale Entwicklung/Tests), `requirements-runtime.txt` (schlankes FastAPI-Image), `requirements-worker.txt`/`requirements-trigger-worker.txt`/`requirements-retraining-worker.txt` (die drei Docker-Worker-Images)
 - `development/`: Entwicklungs-Dokumentation — `v2_architecture.md` (V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen), `infrastructure.md` (Docker-Compose-Startbefehle, Netzwerk- und Datenfluss-Runbook), `Changelog.md` (detaillierte Phase-Ergebnisse, siehe unten), `Problems.md` (gefundene Bugs mit Schweregrad und Status)
 - `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher
 - `moe/`: Gating Network, Expert Routing und finale MoE-Signalzusammenfuehrung
@@ -84,6 +86,7 @@ aether-quant/
 - `regime/`: Markt-Regime-Erkennung und spaetere LLM-Regime-Vektoren
 - `topology/`: 3D-Marktstruktur, Asset-Cluster und Topology-Exports
 - `experience/`: Observation-, Signal-, Trade- und Retraining-Historie
+- `retraining/`: Controlled Retraining (V2-17) — Planner, Candidate-Training-Gate, Validation-/Backtest-Gate, Aether-Vault-Commit, Promotion/Rollback, siehe `development/v2_architecture.md`
 - `risk/`: dynamisches Position Sizing, Hebel-, Liquiditaets- und Market-Impact-Controls
 - `monitoring/`: HTML-Volatility-Dashboard, Grafana-Feeds und spaetere Alerts
 
@@ -93,13 +96,13 @@ aether-quant/
 2. Abhaengigkeiten installieren:
 
 ```powershell
-pip install -r requirements.txt
+pip install -r requirements/requirements.txt
 ```
 
 Fuer lokale Entwicklung zusaetzlich:
 
 ```powershell
-pip install -r requirements-dev.txt
+pip install -r requirements/requirements-dev.txt
 ```
 
 3. Initiale Inventur nur aktualisieren:
@@ -123,7 +126,7 @@ python train.py --dataset-only
 5. Webui lokal starten (zwei Prozesse):
 
 ```powershell
-uvicorn monitoring.api_server:app --port 8000 --reload
+uvicorn monitoring.api_server:app --port 8001 --reload
 ```
 
 ```powershell
@@ -132,7 +135,7 @@ npm install
 npm run dev
 ```
 
-Danach `http://localhost:3000` im Browser oeffnen.
+Danach `http://localhost:3002` im Browser oeffnen.
 
 ## Runbook
 
@@ -200,7 +203,7 @@ lean report --backtest-results .\backtests\2026-05-07_15-05-06\1366365999.json -
 Webui lokal starten (API-Server und Frontend in zwei Terminals):
 
 ```powershell
-uvicorn monitoring.api_server:app --port 8000 --reload
+uvicorn monitoring.api_server:app --port 8001 --reload
 ```
 
 ```powershell
@@ -211,8 +214,8 @@ npm run dev
 Danach:
 
 ```text
-http://localhost:3000          (Overview)
-http://localhost:3000/risk     (Risk)
+http://localhost:3002          (Overview)
+http://localhost:3002/risk     (Risk)
 ```
 
 Git-Status vor einem Commit pruefen:
@@ -301,7 +304,7 @@ Der geplante Datenfluss:
 15. [x] V2-14: PostgreSQL Persistence Worker
 16. [x] V2-15: Observation Mode
 17. [x] V2-16: Performance Trigger
-18. [ ] V2-17: Controlled Retraining
+18. [x] V2-17: Controlled Retraining
 19. [ ] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)
 20. [ ] V2-18: Grafana Monitoring Ausbau
 21. [ ] V2-19: Telegram Alerts

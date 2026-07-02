@@ -253,6 +253,34 @@ export interface PerformanceTriggerReport {
   }
 }
 
+export interface ActiveModelSummary {
+  model_version_id: string
+  status?: string
+  created_at: string
+  metrics?: Record<string, unknown>
+  aether_vault_commit?: string | null
+}
+
+export interface RetrainingEventSummary {
+  retraining_id: string
+  source_trigger_id?: string | null
+  candidate_version_id?: string | null
+  created_at: string
+  status: string
+  reason: string
+}
+
+export interface RetrainingStatus {
+  generated_at?: string
+  active_model: ActiveModelSummary | null
+  latest_candidate: ActiveModelSummary | null
+  last_trigger: PerformanceTrigger | null
+  latest_retraining_event: RetrainingEventSummary | null
+  validation_status?: string
+  rollback_available: boolean
+  rollback_candidates: { model_version_id: string; created_at: string }[]
+}
+
 export interface RuntimeState {
   project?: string
   mode?: string
@@ -268,4 +296,5 @@ export interface RuntimeState {
   topology?: Topology
   observation?: ObservationSummary
   performance_triggers?: PerformanceTriggerReport
+  retraining_status?: RetrainingStatus
 }

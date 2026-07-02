@@ -7,8 +7,11 @@ Owns observation and decision history:
 - expert outputs
 - simulated trades
 - later live trades
-- model versions
-- retraining events
+
+(Model versions and retraining events live in `retraining/` since V2-17 —
+that package owns the `model_versions`/`retraining_events` Postgres tables
+and reads this package's `experience_events` table as an input, but does not
+write into it.)
 
 V2 no longer uses a JSONL fallback. Redis is the temporary low-latency buffer, and PostgreSQL is the permanent experience store.
 

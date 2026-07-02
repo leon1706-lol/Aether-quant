@@ -1,6 +1,7 @@
 from .triggers import evaluate_all_triggers
 from .postgres_triggers import (
     ensure_schema,
+    fetch_candidate_triggers,
     fetch_events_since,
     fetch_latest_trigger,
     get_watermark,
@@ -13,6 +14,7 @@ from .trigger_worker import TriggerWorker
 __all__ = [
     "evaluate_all_triggers",
     "ensure_schema",
+    "fetch_candidate_triggers",
     "fetch_events_since",
     "fetch_latest_trigger",
     "get_watermark",

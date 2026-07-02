@@ -146,7 +146,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._experience_mode = self.runtime_mode
         self._experience_queue = ExperienceQueue(
             enabled=bool(phase_v2_experience.get("enabled", False)),
-            redis_url="redis://localhost:6379/0",
+            redis_url="redis://localhost:6380/0",
             stream_name=str(phase_v2_experience.get("redis_stream", "aether:experience")),
             maxlen=int(phase_v2_experience.get("maxlen", 100_000)),
         )
