@@ -10,8 +10,9 @@ root `README.md` so that file stays short and scannable.
   module owns and how it's wired together, the Docker port layout, and the
   full V2 build-order checklist.
 - `infrastructure.md` — Docker Compose runbook: exact start commands for
-  every service (`redis`, `postgres`, `grafana`, `experience-worker`,
-  `performance-trigger-worker`, `retraining-worker`, the `lean` profile),
+  every service (`redis`, `postgres`, `experience-worker`,
+  `performance-trigger-worker`, `retraining-worker`, the `lean` profile;
+  `grafana` was removed in V2-18),
   one-off batch-processing commands, SQL snippets for inspecting each
   service's Postgres tables, and the container-to-container vs.
   host-machine port reference.

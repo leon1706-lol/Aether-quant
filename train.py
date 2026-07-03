@@ -922,13 +922,22 @@ def compute_strategy_metrics(
     report_frame["position"] = np.where(report_frame["probability_up"] >= buy_threshold, 1.0, 0.0)
     report_frame["strategy_return"] = report_frame["position"] * report_frame["target_return_1d"]
     report_frame["baseline_return"] = report_frame["target_return_1d"]
-    report_frame["cumulative_strategy"] = (1.0 + report_frame["strategy_return"]).cumprod()
-    report_frame["cumulative_baseline"] = (1.0 + report_frame["baseline_return"]).cumprod()
-    report_frame["strategy_drawdown"] = (
-        report_frame["cumulative_strategy"] / report_frame["cumulative_strategy"].cummax() - 1.0
+
+    # Compound per ticker, not across the whole frame: `frame` may hold every
+    # traded asset interleaved by (date, ticker) (see build_strategy_report's
+    # per-split call), and a plain .cumprod() over that would compound one
+    # ticker's return into the next ticker's running total.
+    report_frame["cumulative_strategy"] = report_frame.groupby("ticker")["strategy_return"].transform(
+        lambda returns: (1.0 + returns).cumprod()
     )
-    report_frame["baseline_drawdown"] = (
-        report_frame["cumulative_baseline"] / report_frame["cumulative_baseline"].cummax() - 1.0
+    report_frame["cumulative_baseline"] = report_frame.groupby("ticker")["baseline_return"].transform(
+        lambda returns: (1.0 + returns).cumprod()
+    )
+    report_frame["strategy_drawdown"] = report_frame.groupby("ticker")["cumulative_strategy"].transform(
+        lambda cumulative: cumulative / cumulative.cummax() - 1.0
+    )
+    report_frame["baseline_drawdown"] = report_frame.groupby("ticker")["cumulative_baseline"].transform(
+        lambda cumulative: cumulative / cumulative.cummax() - 1.0
     )
 
     strategy_returns = report_frame["strategy_return"].to_numpy(dtype=float)
@@ -936,8 +945,20 @@ def compute_strategy_metrics(
     positions = report_frame["position"].to_numpy(dtype=float)
     position_changes = np.abs(np.diff(np.concatenate(([0.0], positions))))
 
-    strategy_total_return = float(report_frame["cumulative_strategy"].iloc[-1] - 1.0) if len(report_frame) else 0.0
-    baseline_total_return = float(report_frame["cumulative_baseline"].iloc[-1] - 1.0) if len(report_frame) else 0.0
+    # Aggregate total-return/drawdown as an equal-weighted portfolio across
+    # tickers per date (not per-ticker's own cumprod, which has no single
+    # "last row" once multiple assets are present) - reduces to the same
+    # single-ticker curve above when `frame` only holds one ticker.
+    portfolio_by_date = report_frame.groupby("date")[["strategy_return", "baseline_return"]].mean().sort_index()
+    portfolio_cumulative_strategy = (1.0 + portfolio_by_date["strategy_return"]).cumprod()
+    portfolio_cumulative_baseline = (1.0 + portfolio_by_date["baseline_return"]).cumprod()
+
+    strategy_total_return = (
+        float(portfolio_cumulative_strategy.iloc[-1] - 1.0) if len(portfolio_cumulative_strategy) else 0.0
+    )
+    baseline_total_return = (
+        float(portfolio_cumulative_baseline.iloc[-1] - 1.0) if len(portfolio_cumulative_baseline) else 0.0
+    )
 
     strategy_mean = float(strategy_returns.mean()) if len(strategy_returns) else 0.0
     baseline_mean = float(baseline_returns.mean()) if len(baseline_returns) else 0.0
@@ -948,8 +969,16 @@ def compute_strategy_metrics(
     strategy_sharpe = (strategy_mean / strategy_vol) * annual_factor if strategy_vol > 0 else 0.0
     baseline_sharpe = (baseline_mean / baseline_vol) * annual_factor if baseline_vol > 0 else 0.0
 
-    strategy_max_drawdown = float(report_frame["strategy_drawdown"].min()) if len(report_frame) else 0.0
-    baseline_max_drawdown = float(report_frame["baseline_drawdown"].min()) if len(report_frame) else 0.0
+    strategy_max_drawdown = (
+        float((portfolio_cumulative_strategy / portfolio_cumulative_strategy.cummax() - 1.0).min())
+        if len(portfolio_cumulative_strategy)
+        else 0.0
+    )
+    baseline_max_drawdown = (
+        float((portfolio_cumulative_baseline / portfolio_cumulative_baseline.cummax() - 1.0).min())
+        if len(portfolio_cumulative_baseline)
+        else 0.0
+    )
     strategy_hit_rate = float((strategy_returns > 0).mean()) if len(strategy_returns) else 0.0
     baseline_hit_rate = float((baseline_returns > 0).mean()) if len(baseline_returns) else 0.0
 

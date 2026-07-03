@@ -14,15 +14,29 @@ Pages (`src/pages/`):
 - `RiskPage.tsx` — risk core panel, asset volatility/sizing table, liquidity
   and execution-impact panel.
 - `TopologyPage.tsx` — 3D cluster view with regime/risk colouring.
+- `TracingPage.tsx` (V2-18) — runtime metrics snapshot, asset performance
+  (diverging Sharpe bars), backtest equity curve (per-ticker selector,
+  strategy vs buy-and-hold) and observation-mode equity/drawdown curves.
+  Replaces the Grafana instance that used to be the only consumer of these
+  feeds — Grafana has been removed from `docker-compose.yml` entirely.
 
 Monitoring panels live under `src/components/monitoring/`
 (`PerformanceTriggersPanel.tsx`, `RetrainingStatusPanel.tsx`,
 `ObservationPanel.tsx`, `MonitoringFeeds.tsx`, `CountTable.tsx`,
 `RawStateViewer.tsx`) and all read nested fields off the single
-`/api/state` blob — none of them fetch the `/api/grafana/*` routes
-directly, those exist only for external Grafana dashboards.
+`/api/state` blob.
 
-Runtime types for the `/api/state` payload live in `src/types/state.ts`.
+Tracing panels live under `src/components/tracing/`
+(`MetricsSnapshotPanel.tsx`, `AssetPerformancePanel.tsx`,
+`BacktestEquityPanel.tsx`, `ObservationEquityPanel.tsx`) and fetch the
+`/api/grafana/*` routes directly (`src/api/hooks.ts`'s `useMetricsSnapshot()`,
+`useEquityCurves()`, `useAssetPerformance()`, `useObservationEquityCurve()`,
+each on a 15s refresh). `LineChart.tsx` and `DivergingBarChart.tsx` in the
+same folder are small dependency-free SVG chart primitives shared by those
+panels — no charting library was added.
+
+Runtime types for the `/api/state` payload live in `src/types/state.ts`;
+tracing feed types live in `src/types/tracing.ts`.
 
 ## Local dev
 

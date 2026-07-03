@@ -74,10 +74,10 @@ aether-quant/
 - `backtests/equity_curves.csv`: Equity-Curves fuer Validation und Backtest
 - `visualization/state.json`: gemeinsamer Runtime-Zustand fuer Dashboard, Monitoring und Trading
 - `visualization/scene.json`: Szenendaten fuer die lokale Markt-/Portfolio-Visualisierung
-- `visualization/grafana/`: JSON- und CSV-Feeds fuer spaeteres Grafana-Monitoring
-- `monitoring/api_server.py`: FastAPI-Server, der `visualization/state.json`, `visualization/scene.json` und die Grafana-Exporte als JSON-API unter `localhost:8001` (lokal, `uvicorn`) bzw. `localhost:8001` (Docker, `aether-quant`-Container) bereitstellt
-- `webui/`: React/Vite-Webui unter `localhost:3002` (lokaler `npm run dev`) mit Overview-Seite (Scorecards, 3D-Marktszene, Asset-Heatmap, Signal-/Positionsboard) und Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle) als einheitliche Ablösung der frueheren `dashboard.html` und `volatility_dashboard.html`. Im Docker-Container wird dasselbe Webui-Build stattdessen vom `aether-quant`-Container unter `localhost:8001` mitausgeliefert (kein eigener Port) — Vite-Dev-Server (3002) und Docker-Bundle (8001) sind zwei getrennte Ausliefer-Pfade.
-- `docker-compose.yml`: lokale Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
+- `visualization/grafana/`: JSON- und CSV-Feeds, urspruenglich fuer Grafana gedacht; seit V2-18 (Grafana entfernt) direkte Datenquelle der Webui-Tracing-Seite
+- `monitoring/api_server.py`: FastAPI-Server, der `visualization/state.json`, `visualization/scene.json` und die genannten Exporte als JSON-API unter `localhost:8001` (lokal, `uvicorn`) bzw. `localhost:8001` (Docker, `aether-quant`-Container) bereitstellt
+- `webui/`: React/Vite-Webui unter `localhost:3002` (lokaler `npm run dev`) mit Overview-Seite (Scorecards, 3D-Marktszene, Asset-Heatmap, Signal-/Positionsboard), Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle), Topology-Seite (3D-Cluster-Ansicht) und Tracing-Seite (V2-18: Runtime-Metrics-Snapshot, Asset-Performance, Backtest- und Observation-Equity-Curves — nativer Ersatz fuer das entfernte Grafana) als einheitliche Ablösung der frueheren `dashboard.html` und `volatility_dashboard.html`. Im Docker-Container wird dasselbe Webui-Build stattdessen vom `aether-quant`-Container unter `localhost:8001` mitausgeliefert (kein eigener Port) — Vite-Dev-Server (3002) und Docker-Bundle (8001) sind zwei getrennte Ausliefer-Pfade.
+- `docker-compose.yml`: lokale Infrastruktur fuer Lean, Redis und PostgreSQL (Grafana seit V2-18 entfernt — die Webui-Tracing-Seite ersetzt es)
 - `requirements/`: alle `requirements*.txt`-Varianten an einem Ort — `requirements.txt` (Laufzeit/Training), `requirements-dev.txt` (lokale Entwicklung/Tests), `requirements-runtime.txt` (schlankes FastAPI-Image), `requirements-worker.txt`/`requirements-trigger-worker.txt`/`requirements-retraining-worker.txt` (die drei Docker-Worker-Images)
 - `development/`: Entwicklungs-Dokumentation — `v2_architecture.md` (V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen), `infrastructure.md` (Docker-Compose-Startbefehle, Netzwerk- und Datenfluss-Runbook), `Changelog.md` (detaillierte Phase-Ergebnisse, siehe unten), `Problems.md` (gefundene Bugs mit Schweregrad und Status)
 - `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher
@@ -88,7 +88,7 @@ aether-quant/
 - `experience/`: Observation-, Signal-, Trade- und Retraining-Historie
 - `retraining/`: Controlled Retraining (V2-17) — Planner, Candidate-Training-Gate, Validation-/Backtest-Gate, Aether-Vault-Commit, Promotion/Rollback, siehe `development/v2_architecture.md`
 - `risk/`: dynamisches Position Sizing, Hebel-, Liquiditaets- und Market-Impact-Controls
-- `monitoring/`: HTML-Volatility-Dashboard, Grafana-Feeds und spaetere Alerts
+- `monitoring/`: FastAPI-JSON-API fuer Runtime-State, Scene, Topology und die Tracing-Feeds (siehe V2-18) sowie spaetere Alerts
 
 ## Lokaler Start
 
@@ -291,7 +291,7 @@ Der geplante Datenfluss:
 2. [x] V2-2: Lean-Datenpipeline V2
 3. [x] V2-3: Dynamic Risk & Position Sizing
 4. [x] V2-4: HTML Live Volatility Dashboard
-5. [x] V2-5: Docker Compose Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL
+5. [x] V2-5: Docker Compose Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL (Grafana spaeter entfernt, siehe V2-18)
 6. [x] V2-6: Regime Detection
 7. [x] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
 8. [x] V2-8: Experten-Modelle
@@ -306,7 +306,7 @@ Der geplante Datenfluss:
 17. [x] V2-16: Performance Trigger
 18. [x] V2-17: Controlled Retraining
 19. [x] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)
-20. [ ] V2-18: Grafana Monitoring Ausbau
+20. [x] V2-18: Grafana entfernt, React-Tracing-Dashboard
 21. [ ] V2-19: Telegram Alerts
 22. [ ] V2-20: Lean Backtesting Integration
 23. [ ] V2-21: Paper Trading Vorbereitung

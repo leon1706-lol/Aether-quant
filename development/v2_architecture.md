@@ -2,12 +2,12 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-17.5
+Completed phases: V2-1 through V2-18
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
 
-Aether Quant V2 builds on the existing Lean, PyTorch, dashboard, Grafana and risk-control foundation. Training and backtesting continue to use the local Lean `data/` folder. Live and paper trading remain optional later stages; V2 first becomes stronger in offline training, backtesting, observation mode and controlled retraining.
+Aether Quant V2 builds on the existing Lean, PyTorch, dashboard and risk-control foundation. Training and backtesting continue to use the local Lean `data/` folder. Live and paper trading remain optional later stages; V2 first becomes stronger in offline training, backtesting, observation mode and controlled retraining.
 
 ## System Flow
 
@@ -59,7 +59,7 @@ The market analyzer enforces a strict priority ordering per asset per bar:
 
 ```mermaid
 flowchart TB
-    A["Infrastructure"] --> A1["Docker Compose<br/>(Redis, Postgres, Grafana, aether-quant app)"]
+    A["Infrastructure"] --> A1["Docker Compose<br/>(Redis, Postgres, aether-quant app)"]
     A --> A2["Lean CLI<br/>(backtest + paper trading)"]
     A --> A3["30-day observation phase before live mode"]
     B["Development"] --> B1["VS Code + Claude Code"]
@@ -71,10 +71,9 @@ flowchart TB
     D --> D2["scikit-learn"]
     D --> D3["NumPy / Pandas"]
     D --> D4["MoE experts and gating network"]
-    E["Monitoring and UI"] --> E1["Grafana (port 3001)"]
-    E --> E2["React/Vite webui (port 3002 dev / 8001 Docker)"]
-    E --> E3["FastAPI JSON API (port 8000)"]
-    E --> E4["Telegram alerts — future"]
+    E["Monitoring and UI"] --> E1["React/Vite webui — Tracing dashboard (port 3002 dev / 8001 Docker)"]
+    E --> E2["FastAPI JSON API (port 8000)"]
+    E --> E3["Telegram alerts — future"]
 ```
 
 ## Module Map
@@ -89,8 +88,8 @@ flowchart TB
 - `experience/`: Redis-buffered observation and trade events with PostgreSQL persistence.
 - `retraining/`: Controlled retraining — planner, candidate training gate, validation/backtest gates, Aether-Vault commit, promotion and rollback.
 - `risk/`: Dynamic position sizing, leverage limits, drawdown controls and exposure caps.
-- `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology and Grafana feeds.
-- `webui/`: React/Vite single-page app — Overview (3D scene, heatmap, signals), Risk (sizing, liquidity panel), Topology (3D cluster view).
+- `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology and the historical `visualization/grafana/*` exports (equity curves, asset performance, observation/metrics snapshots).
+- `webui/`: React/Vite single-page app — Overview (3D scene, heatmap, signals), Risk (sizing, liquidity panel), Topology (3D cluster view), Tracing (V2-18 — equity curves, asset performance, observation equity curve, runtime metrics snapshot).
 
 ## V2 Build Order
 
@@ -98,7 +97,7 @@ flowchart TB
 2. [x] V2-2: Lean-data pipeline extension
 3. [x] V2-3: Dynamic risk and position sizing
 4. [x] V2-4: HTML live volatility dashboard (superseded by React webui)
-5. [x] V2-5: Docker Compose infrastructure for Lean, Grafana, Redis and PostgreSQL
+5. [x] V2-5: Docker Compose infrastructure for Lean, Grafana, Redis and PostgreSQL (Grafana later removed, see V2-18)
 6. [x] V2-6: Regime detection
 7. [x] V2-7: Expert datasets
 8. [x] V2-8: Expert modules
@@ -113,7 +112,7 @@ flowchart TB
 17. [x] V2-16: Performance triggers
 18. [x] V2-17: Controlled retraining
 19. [x] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
-20. [ ] V2-18: Grafana monitoring expansion
+20. [x] V2-18: Remove Grafana, React Tracing dashboard
 21. [ ] V2-19: Telegram alerts
 22. [ ] V2-20: Lean backtesting integration
 23. [ ] V2-21: Paper trading preparation
@@ -730,13 +729,14 @@ Pages:
 - `/` Overview: scorecards, 3D market scene (real topology coordinates), asset heatmap, signal/position board
 - `/risk` Risk: risk core panel, asset sizing table, liquidity and execution impact panel
 - `/topology` Topology: 3D cluster view with regime/risk colouring, readable cluster list
+- `/tracing` Tracing (V2-18): runtime metrics snapshot, asset performance (diverging Sharpe bars), backtest equity curve (per-ticker strategy vs buy-and-hold), observation-mode equity curve and drawdown — the native replacement for the removed Grafana instance
 
 The FastAPI server (`monitoring/api_server.py`) exposes:
 
 - `GET /api/state` — full runtime state including signals, topology, positions, risk and liquidity per asset
 - `GET /api/scene` — 3D scene payload
 - `GET /api/topology` — topology state with nodes, links and cluster summary
-- `GET /api/grafana/*` — Grafana-friendly JSON and CSV feeds
+- `GET /api/grafana/*` — JSON and CSV feeds read from `visualization/grafana/*`; the path is unchanged from when Grafana consumed it, now consumed by the webui's Tracing page instead (see V2-18)
 - `GET /` — serves the built React app (only when `webui/dist/` exists)
 
 Liquidity data flows through `state.signals[symbol].liquidity` — no dedicated endpoint needed.
@@ -753,7 +753,6 @@ The `Dockerfile` is a two-stage build:
 | Service | Host port | Container port |
 |---|---|---|
 | aether-quant (FastAPI + webui) | 8001 | 8000 |
-| Grafana | 3001 | 3000 |
 | Redis | 6380 | 6379 |
 | PostgreSQL | 5433 | 5432 |
 | Lean (profile) | — | — |
@@ -763,6 +762,35 @@ Aether-Vault sibling tool's own `docker-compose.yml` (which independently binds 
 3000, 5432 and 6379). Port 3002 is kept free for `npm run dev` during local development
 (moved from 3000, since Aether-Vault's webui container claims 3000); local, non-Docker
 `uvicorn monitoring.api_server:app --port 8001` also moved off 8000 for the same reason.
-Grafana intentionally stays at 3001 (unchanged, no collision there).
 
 The `data/`, `ml/` and `storage/` directories are excluded from the Docker build context via `.dockerignore` because the FastAPI server does not use them; they are only needed by `train.py` and the Lean algorithm.
+
+## Remove Grafana, React Tracing Dashboard (V2-18)
+
+Grafana was a separate service (`docker-compose.yml`'s `grafana`, port 3001) whose only
+job was to chart the `visualization/grafana/*` exports (equity curves, asset performance,
+observation equity curve, runtime metrics snapshot) that `monitoring/api_server.py` already
+served as JSON. V2-18 removes that service and renders the same feeds natively in the
+webui instead, so the whole stack is Docker Compose + Redis + PostgreSQL + the
+`aether-quant` app/workers — one less container to run and no separate dashboard login.
+
+- `docker-compose.yml`: deleted the `grafana` service, its `grafana-data` volume and the
+  `AETHER_GRAFANA_URL` env var on the `lean` service.
+- `webui/src/pages/TracingPage.tsx` (new `/tracing` route): four panels reading the exact
+  same `/api/grafana/*` endpoints Grafana used to poll — `MetricsSnapshotPanel` (stat
+  tiles), `AssetPerformancePanel` (diverging Sharpe bars, blue/red by sign),
+  `BacktestEquityPanel` (per-ticker selector, strategy vs buy-and-hold cumulative return
+  line chart) and `ObservationEquityPanel` (simulated equity/cash line chart plus a
+  drawdown chart, client-side downsampled to ~400 points for the thousands-of-bars
+  observation-mode export).
+- `webui/src/components/tracing/`: `LineChart.tsx` (dependency-free SVG line chart —
+  crosshair + tooltip, legend for multi-series, hairline gridlines, one axis) and
+  `DivergingBarChart.tsx`, both new and reused across the panels rather than pulling in a
+  charting library.
+- The `visualization/grafana/` export path, `retraining/status_export.py`,
+  `performance/postgres_triggers.py` and the `/api/grafana/*` route names are unchanged —
+  only the consumer changed from an external Grafana instance to the webui itself, so
+  none of the export-writing code needed to move or rename.
+- No backend changes: `monitoring/api_server.py`'s existing `/api/grafana/*` routes were
+  already read-only JSON/CSV reshapes of the same files; the webui just started fetching
+  them.

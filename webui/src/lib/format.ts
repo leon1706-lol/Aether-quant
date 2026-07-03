@@ -19,3 +19,7 @@ export function formatValue(value: number | undefined, format: string): string {
   if (format === 'percent') return formatPercent(value)
   return formatNumber(value, 3)
 }
+
+export function toNumber(value: string | undefined): number {
+  return value === undefined || value === '' ? NaN : Number(value)
+}

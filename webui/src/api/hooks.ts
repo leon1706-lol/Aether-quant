@@ -1,7 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchScene, fetchState, fetchTopology } from './client'
+import {
+  fetchAssetPerformance,
+  fetchEquityCurves,
+  fetchMetricsSnapshot,
+  fetchObservationEquityCurve,
+  fetchScene,
+  fetchState,
+  fetchTopology,
+} from './client'
 
 const REFRESH_MS = 5000
+const TRACING_REFRESH_MS = 15000
 
 export function useRuntimeState() {
   return useQuery({
@@ -24,5 +33,37 @@ export function useTopology() {
     queryKey: ['topology'],
     queryFn: fetchTopology,
     refetchInterval: REFRESH_MS,
+  })
+}
+
+export function useMetricsSnapshot() {
+  return useQuery({
+    queryKey: ['tracing', 'metrics-snapshot'],
+    queryFn: fetchMetricsSnapshot,
+    refetchInterval: TRACING_REFRESH_MS,
+  })
+}
+
+export function useEquityCurves() {
+  return useQuery({
+    queryKey: ['tracing', 'equity-curves'],
+    queryFn: fetchEquityCurves,
+    refetchInterval: TRACING_REFRESH_MS,
+  })
+}
+
+export function useAssetPerformance() {
+  return useQuery({
+    queryKey: ['tracing', 'asset-performance'],
+    queryFn: fetchAssetPerformance,
+    refetchInterval: TRACING_REFRESH_MS,
+  })
+}
+
+export function useObservationEquityCurve() {
+  return useQuery({
+    queryKey: ['tracing', 'observation-equity-curve'],
+    queryFn: fetchObservationEquityCurve,
+    refetchInterval: TRACING_REFRESH_MS,
   })
 }
