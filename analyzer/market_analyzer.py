@@ -89,7 +89,11 @@ def build_market_analysis_decision(
         )
 
     # Priority 3: reduce_risk - elevated cross-sectional volatility pressure
-    # from the topology layer overrides a directional signal. See V2-17.5.
+    # from the deterministic topology layer overrides a directional signal.
+    # V2-17.5 added a probabilistic topology overlay (topology.learned_topology)
+    # feeding the retrain-trigger/retraining pipeline, but deliberately left
+    # this rule reading only the deterministic topology_risk - see
+    # analyzer/README.md and development/v2_architecture.md's V2-17.5 section.
     if topology_risk == "elevated" and signal_name in {"buy", "sell"}:
         reasons.append("topology_elevated_volatility_pressure_overrides_directional_signal")
         return MarketAnalysisDecision(
@@ -105,8 +109,10 @@ def build_market_analysis_decision(
         )
 
     # Priority 4: retrain_candidate - zero experts contributing AND the
-    # regime read is itself low-confidence. Stateless heuristic; V2-16 will
-    # replace this with a real trigger.
+    # regime read is itself low-confidence. Stateless per-bar heuristic,
+    # separate from the real trailing-window retrain-trigger system V2-16/17
+    # built in performance/triggers.py + retraining/ - this rule was never
+    # wired to it and still isn't; see analyzer/README.md.
     if decision_source == "baseline_fallback" and regime_confidence < retrain_min_regime_confidence:
         reasons.append("baseline_fallback_with_low_regime_confidence")
         return MarketAnalysisDecision(

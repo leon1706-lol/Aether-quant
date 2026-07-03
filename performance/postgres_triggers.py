@@ -141,6 +141,84 @@ def fetch_events_since(conn, since: datetime | None, limit: int = 10_000) -> lis
     return [json.loads(row[0]) if isinstance(row[0], str) else row[0] for row in rows]
 
 
+def fetch_recent_events(conn, limit: int = 500, since: datetime | None = None) -> list[dict]:
+    """Fetch the most recent experience_events payloads, oldest first.
+
+    Added for V2-17.5 — distinct from fetch_events_since(), which returns
+    everything newer than a *watermark* (an incremental "what's new since I
+    last looked" cursor unbounded in count). This is a true rolling-window
+    read: newest `limit` rows (optionally also bounded by `since`), so
+    trigger evaluation can run over "last N observations" / "last 30 days"
+    instead of only whatever arrived since the last poll.
+    """
+    with conn.cursor() as cur:
+        if since is None:
+            cur.execute(
+                "SELECT payload FROM experience_events ORDER BY created_at DESC LIMIT %(limit)s;",
+                {"limit": limit},
+            )
+        else:
+            cur.execute(
+                "SELECT payload FROM experience_events WHERE created_at > %(since)s "
+                "ORDER BY created_at DESC LIMIT %(limit)s;",
+                {"since": since, "limit": limit},
+            )
+        rows = cur.fetchall()
+
+    payloads = [json.loads(row[0]) if isinstance(row[0], str) else row[0] for row in rows]
+    payloads.reverse()
+    return payloads
+
+
+def fetch_triggers_since(conn, since: datetime, limit: int = 10_000) -> list[dict]:
+    """Fetch trigger rows newer than `since`, oldest first — feeds
+    trigger_frequency_spike()'s baseline-rate calculation."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT trigger_id, created_at, trigger_type, severity, mode, scope, "
+            "metric_value, threshold, message, recommended_action, retrain_candidate "
+            "FROM performance_triggers WHERE created_at > %(since)s ORDER BY created_at ASC LIMIT %(limit)s;",
+            {"since": since, "limit": limit},
+        )
+        rows = cur.fetchall()
+
+    columns = (
+        "trigger_id",
+        "created_at",
+        "trigger_type",
+        "severity",
+        "mode",
+        "scope",
+        "metric_value",
+        "threshold",
+        "message",
+        "recommended_action",
+        "retrain_candidate",
+    )
+    return [dict(zip(columns, row)) for row in rows]
+
+
+def fetch_last_retraining_at(conn) -> datetime | None:
+    """Best-effort lookup of the most recent promoted/validated retraining
+    event, used to widen the trigger-evaluation window back to "since last
+    retrain" when that's more recent than the default lookback. Never
+    raises — retraining_events may not exist yet in a trigger-worker-only
+    deployment (retraining/postgres_registry.py owns that table's schema,
+    not this module), so any failure here just means "no known retrain"."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MAX(created_at) FROM retraining_events WHERE status IN ('promoted', 'validated');")
+            row = cur.fetchone()
+        return row[0] if row else None
+    except Exception:
+        logger.debug("fetch_last_retraining_at: retraining_events unavailable, treating as no prior retrain.")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Watermark bookkeeping
 # ---------------------------------------------------------------------------

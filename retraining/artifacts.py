@@ -28,18 +28,38 @@ REQUIRED_CANDIDATE_FILES = (
     "feature_schema.json",
 )
 
+# V2-17.5 - learned-topology artifacts (train_topology.py). Deliberately
+# NOT part of REQUIRED_CANDIDATE_FILES: topology training is best-effort
+# and independently failable (see retraining/orchestrator.py::train_topology()),
+# so validate()'s gate must never reject a candidate purely for missing
+# topology artifacts.
+OPTIONAL_TOPOLOGY_FILES = (
+    "topology_model.json",
+    "topology_training_metrics.json",
+    "topology_feature_schema.json",
+)
+
+# Every filename this package will hash/copy when present - used by
+# commit()'s artifact-hashing so topology files (when the topology trainer
+# succeeded) get sha256'd and swept into the Aether-Vault commit alongside
+# the required candidate files.
+ALL_TRACKED_FILES = REQUIRED_CANDIDATE_FILES + OPTIONAL_TOPOLOGY_FILES
+
 # Files copied into the active ml/ directory on promotion/rollback. Extended
 # beyond model_weights.json/scaler.pkl/training_metrics.json (the user's
 # literal 3-file list) because main.py's _validate_runtime_artifacts()
 # actually requires feature_schema.json and scaler_stats.json too - omitting
-# them would let promotion silently break the Lean runtime.
+# them would let promotion silently break the Lean runtime. Also includes
+# the optional topology files (V2-17.5) - copy_candidate_to_active() already
+# skips any filename that doesn't exist in the candidate dir, so this is
+# safe even for a candidate whose topology training was skipped/failed.
 ACTIVE_ARTIFACT_FILES = (
     "model_weights.json",
     "scaler.pkl",
     "scaler_stats.json",
     "training_metrics.json",
     "feature_schema.json",
-)
+) + OPTIONAL_TOPOLOGY_FILES
 
 
 def candidate_dir(version_id: str, ml_dir: Path = ML_DIR) -> Path:
@@ -52,6 +72,13 @@ def check_required_artifacts(
     """Returns (all_present, missing_filenames)."""
     missing = [name for name in filenames if not (version_dir / name).exists()]
     return (len(missing) == 0, missing)
+
+
+def check_topology_artifacts(version_dir: Path) -> tuple[bool, list[str]]:
+    """Status/logging only - never a validation gate. Reports whether the
+    optional learned-topology artifacts exist for a candidate, same
+    (all_present, missing_filenames) shape as check_required_artifacts()."""
+    return check_required_artifacts(version_dir, OPTIONAL_TOPOLOGY_FILES)
 
 
 def _sha256_file(path: Path) -> str:

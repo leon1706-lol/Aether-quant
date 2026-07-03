@@ -305,7 +305,7 @@ Der geplante Datenfluss:
 16. [x] V2-15: Observation Mode
 17. [x] V2-16: Performance Trigger
 18. [x] V2-17: Controlled Retraining
-19. [ ] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)
+19. [x] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)
 20. [ ] V2-18: Grafana Monitoring Ausbau
 21. [ ] V2-19: Telegram Alerts
 22. [ ] V2-20: Lean Backtesting Integration

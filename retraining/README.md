@@ -17,9 +17,12 @@ default.
 
 Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
 
-- `planning.py` (pure) — `evaluate_retraining_plan()`: picks the newest
-  eligible trigger, then checks minimum observations, cooldown, and a daily
-  retraining cap, in that order.
+- `planning.py` (pure) — `evaluate_retraining_plan()`: picks the
+  highest-priority eligible trigger (V2-17.5: severity + trigger-type
+  weight + a regime-shift/topology co-occurrence bonus + a repeated-
+  trigger bonus, ties broken by newest — see
+  `development/v2_architecture.md`'s V2-17.5 section), then checks minimum
+  observations, cooldown, and a daily retraining cap, in that order.
 - `postgres_registry.py` (IO) — embedded DDL for `model_versions` and
   `retraining_events`; a partial unique index enforces exactly one `active`
   model version at the DB level.
@@ -36,14 +39,24 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
   its source is never read or imported.
 - `artifacts.py` (IO) — candidate artifact completeness checks, SHA-256
   hashing, and the copy/restore primitives promotion and rollback share.
+  V2-17.5 adds `OPTIONAL_TOPOLOGY_FILES` (`topology_model.json`,
+  `topology_training_metrics.json`, `topology_feature_schema.json`) —
+  included in `ACTIVE_ARTIFACT_FILES`/`ALL_TRACKED_FILES` but deliberately
+  **not** `REQUIRED_CANDIDATE_FILES`, so a candidate is never rejected for
+  missing topology artifacts.
 - `status_export.py` (IO) — the sole writer of
   `visualization/grafana/retraining_status.json`.
 - `orchestrator.py` — `plan`/`train`/`validate`/`backtest`/`commit`/
   `promote`/`rollback`/`status`, each usable as a library function or a CLI
   subcommand (`python -m retraining.orchestrator <stage> ...`) for
-  manual/staged runs independent of the worker.
+  manual/staged runs independent of the worker. V2-17.5 adds
+  `train_topology`, a second, independently-failable subprocess
+  (`../train_topology.py --version-id <id>`) run between `train` and
+  `validate` — its failure is logged as a note and never rejects the
+  candidate.
 - `worker.py` — `RetrainingWorker`, a continuous loop through the same
-  stages, toggled by `phase_v2.retraining.enabled`.
+  stages (now including `train_topology`), toggled by
+  `phase_v2.retraining.enabled`.
 
 ## Running it
 

@@ -18,11 +18,15 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from performance.postgres_triggers import (
     ensure_schema,
     fetch_events_since,
+    fetch_last_retraining_at,
+    fetch_recent_events,
+    fetch_triggers_since,
     get_watermark,
     insert_triggers,
     set_watermark,
@@ -77,25 +81,47 @@ class TriggerWorker:
         ensure_schema(self._conn)
 
     def run_once(self) -> int:
-        """Fetch new events since the watermark, evaluate, persist.
+        """Advance the watermark off the incremental new-events batch (cheap
+        idle polls), but evaluate triggers over a true rolling window of
+        durable Postgres history instead - the last `rolling_window_events`
+        observations, bounded to the last `rolling_window_days` days or
+        since the last retrain (whichever is more recent). This is what
+        makes Sharpe/win-rate/confidence-decay/topology-drift meaningful
+        instead of only reacting to whatever arrived since the last poll
+        (the V2-16 limitation this phase fixes).
 
         Returns count of NEW trigger rows inserted (post-suppression).
         """
         since = get_watermark(self._conn)
-        events = fetch_events_since(self._conn, since, limit=self.batch_limit)
-        if not events:
+        new_events = fetch_events_since(self._conn, since, limit=self.batch_limit)
+        if not new_events:
             return 0
 
-        report = evaluate_all_triggers(events, self.config)
+        now = datetime.now(timezone.utc)
+        rolling_days = int(self.config.get("rolling_window_days", 30))
+        history_since = now - timedelta(days=rolling_days)
+        last_retrain_at = fetch_last_retraining_at(self._conn)
+        if last_retrain_at is not None and last_retrain_at > history_since:
+            history_since = last_retrain_at
+
+        history_events = fetch_recent_events(
+            self._conn,
+            limit=int(self.config.get("rolling_window_events", 500)),
+            since=history_since,
+        )
+        baseline_minutes = int(self.config.get("trigger_frequency_spike_baseline_minutes", 1440))
+        recent_triggers = fetch_triggers_since(self._conn, since=now - timedelta(minutes=baseline_minutes))
+
+        report = evaluate_all_triggers(history_events, self.config, recent_triggers=recent_triggers)
         inserted = insert_triggers(
             self._conn,
             report["triggers"],
             suppression_minutes=int(self.config.get("suppression_minutes", 60)),
         )
-        set_watermark(self._conn, events[-1]["created_at"])
+        set_watermark(self._conn, new_events[-1]["created_at"])
         logger.info(
-            "TriggerWorker: evaluated %d events, inserted %d new trigger rows.",
-            len(events),
+            "TriggerWorker: evaluated %d events (rolling window), inserted %d new trigger rows.",
+            len(history_events),
             inserted,
         )
         return inserted

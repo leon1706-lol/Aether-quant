@@ -39,6 +39,17 @@ export interface TopologyContext {
   volatility_pressure?: number
   topology_risk?: 'isolated' | 'normal' | 'elevated' | string
   regime_label?: string
+  // V2-17.5 - learned topology overlay, present once topology.learned_topology
+  // has scored this asset (see topology_source for whether it actually did).
+  topology_source?: 'deterministic' | 'learned' | 'hybrid' | 'fallback' | string
+  cluster_probs?: Record<string, number>
+  topology_confidence?: number
+  topology_uncertainty?: number
+  stress_score?: number
+  neighbor_shift_score?: number
+  topology_disagreement?: number
+  learned_neighbors?: string[]
+  cluster_dominant_regime_label?: string
 }
 
 export interface LiquidityInfo {
@@ -180,6 +191,17 @@ export interface TopologyNode {
   volatility_pressure: number
   topology_risk: 'isolated' | 'normal' | 'elevated' | string
   regime_label: string
+  // V2-17.5 - see TopologyContext for field meanings; same shape, this is
+  // the node as it appears in topology.nodes rather than a per-signal copy.
+  topology_source?: 'deterministic' | 'learned' | 'hybrid' | 'fallback' | string
+  cluster_probs?: Record<string, number>
+  topology_confidence?: number
+  topology_uncertainty?: number
+  stress_score?: number
+  neighbor_shift_score?: number
+  topology_disagreement?: number
+  learned_neighbors?: string[]
+  cluster_dominant_regime_label?: string
 }
 
 export interface TopologyLink {
@@ -203,6 +225,14 @@ export interface Topology {
   clusters: TopologyCluster[]
   dimensions?: { width: number; height: number; depth: number }
   reasons?: string[]
+  // V2-17.5 - bar-level learned-topology summary. topology_source reflects
+  // the mix across all nodes: "learned" only if every node was learned,
+  // "fallback" if the model is missing or every node fell back, "hybrid"
+  // otherwise.
+  topology_source?: 'deterministic' | 'learned' | 'hybrid' | 'fallback' | string
+  model_loaded?: boolean
+  model_version_id?: string | null
+  learned_neighbors_by_symbol?: Record<string, string[]>
 }
 
 export interface ObservationSummary {

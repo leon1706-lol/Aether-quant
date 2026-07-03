@@ -7,6 +7,7 @@ with plain dicts (no Postgres/mocking needed).
 from datetime import datetime, timezone
 
 from retraining.planning import (
+    _trigger_priority_score,
     cooldown_remaining_seconds,
     count_events_in_last_day,
     evaluate_retraining_plan,
@@ -151,3 +152,89 @@ def test_evaluate_retraining_plan_should_plan_when_all_checks_pass():
 
     assert result["should_plan"] is True
     assert result["selected_trigger"]["trigger_id"] == "trg-1"
+
+
+# -- V2-17.5 priority weighting ----------------------------------------------
+
+
+def test_select_candidate_trigger_prefers_critical_drawdown_over_topology_warning():
+    drawdown = _trigger(
+        trigger_id="dd",
+        trigger_type="drawdown_trigger",
+        severity="critical",
+        created_at="2026-07-01T00:00:00+00:00",
+    )
+    # newer, but only a warning-severity topology trigger — must still lose.
+    topology = _trigger(
+        trigger_id="tu",
+        trigger_type="topology_uncertainty_trigger",
+        severity="warning",
+        created_at="2026-07-02T11:00:00+00:00",
+    )
+
+    selected = select_candidate_trigger([drawdown, topology], _CONFIG)
+
+    assert selected["trigger_id"] == "dd"
+
+
+def test_regime_topology_combo_scores_higher_than_standalone_topology_trigger():
+    standalone = _trigger(trigger_id="topo", trigger_type="cluster_drift_trigger", severity="warning")
+    regime = _trigger(trigger_id="regime", trigger_type="regime_shift_trigger", severity="warning")
+
+    standalone_score = _trigger_priority_score(standalone, [standalone])
+    combo_score = _trigger_priority_score(standalone, [standalone, regime])
+
+    assert combo_score > standalone_score
+
+
+def test_regime_topology_combo_bonus_does_not_apply_to_unrelated_trigger_types():
+    sharpe = _trigger(trigger_id="sharpe", trigger_type="sharpe_degradation_trigger", severity="warning")
+    topology = _trigger(trigger_id="topo", trigger_type="cluster_drift_trigger", severity="warning")
+    regime = _trigger(trigger_id="regime", trigger_type="regime_shift_trigger", severity="warning")
+
+    sharpe_score_alone = _trigger_priority_score(sharpe, [sharpe])
+    sharpe_score_with_combo_present = _trigger_priority_score(sharpe, [sharpe, topology, regime])
+
+    assert sharpe_score_alone == sharpe_score_with_combo_present
+
+
+def test_repeated_topology_mismatch_beats_single_occurrence():
+    single = [_trigger(trigger_id="single", trigger_type="cluster_drift_trigger", severity="warning", scope="portfolio")]
+    repeated = [
+        _trigger(trigger_id="repeat-1", trigger_type="cluster_drift_trigger", severity="warning", scope="portfolio"),
+        _trigger(trigger_id="repeat-2", trigger_type="cluster_drift_trigger", severity="warning", scope="portfolio"),
+        _trigger(trigger_id="repeat-3", trigger_type="cluster_drift_trigger", severity="warning", scope="portfolio"),
+    ]
+
+    single_score = _trigger_priority_score(single[0], single)
+    repeated_score = _trigger_priority_score(repeated[0], repeated)
+
+    assert repeated_score > single_score
+
+
+def test_evaluate_retraining_plan_ignores_weak_one_off_topology_trigger():
+    """A topology trigger that never earned retrain_candidate=True (because
+    performance/triggers.py's persistence guard rejected it as a one-off)
+    must not be selectable, regardless of how this module weighs it."""
+    weak_topology = _trigger(
+        trigger_id="topo-weak", trigger_type="topology_uncertainty_trigger", severity="warning", retrain_candidate=False
+    )
+
+    result = evaluate_retraining_plan([weak_topology], [], 1000, _CONFIG, _NOW)
+
+    assert result["should_plan"] is False
+    assert result["reason"] == "no_eligible_candidate_trigger"
+
+
+def test_evaluate_retraining_plan_accepts_severe_topology_trigger():
+    severe_topology = _trigger(
+        trigger_id="topo-severe",
+        trigger_type="cluster_drift_trigger",
+        severity="critical",
+        retrain_candidate=True,
+    )
+
+    result = evaluate_retraining_plan([severe_topology], [], 1000, _CONFIG, _NOW)
+
+    assert result["should_plan"] is True
+    assert result["selected_trigger"]["trigger_id"] == "topo-severe"

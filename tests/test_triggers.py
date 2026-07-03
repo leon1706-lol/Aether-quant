@@ -7,14 +7,19 @@ Conventions: no test classes, module-level helpers, plain list[dict] fixtures
 from performance.triggers import (
     SEVERITIES,
     TRIGGER_TYPES,
+    cluster_drift_trigger,
     confidence_decay_trigger,
     drawdown_trigger,
     evaluate_all_triggers,
     liquidity_warning_trigger,
+    model_topology_disagreement_trigger,
     observation_count_trigger,
     regime_shift_trigger,
     risk_lock_trigger,
     sharpe_degradation_trigger,
+    topology_regime_mismatch_trigger,
+    topology_uncertainty_trigger,
+    trigger_frequency_spike,
     win_rate_trigger,
 )
 
@@ -300,3 +305,149 @@ def test_evaluate_all_triggers_respects_enabled_false():
     assert report["triggers"] == []
     assert report["enabled"] is False
     assert report["summary"]["active_trigger_count"] == 0
+
+
+def _topology_event(**topology_overrides) -> dict:
+    topology = {
+        "topology_uncertainty": 0.1,
+        "neighbor_shift_score": 0.1,
+        "topology_disagreement": 0.1,
+        "regime_label": "bullish",
+        "cluster_dominant_regime_label": "bullish",
+    }
+    topology.update(topology_overrides)
+    return _sample_event(topology=topology)
+
+
+def test_topology_uncertainty_trigger_fires_above_threshold_when_persistent():
+    events = [_topology_event(topology_uncertainty=0.8) for _ in range(20)]
+
+    triggers = topology_uncertainty_trigger(events, window=20, max_avg_uncertainty=0.6, min_persistent_fraction=0.6)
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "topology_uncertainty_trigger"
+    assert triggers[0]["retrain_candidate"] is True  # warning + model-quality trigger type
+
+
+def test_topology_uncertainty_trigger_ignores_single_bar_spike():
+    events = [_topology_event(topology_uncertainty=0.1) for _ in range(19)] + [_topology_event(topology_uncertainty=0.95)]
+
+    assert topology_uncertainty_trigger(events, window=20, max_avg_uncertainty=0.6, min_persistent_fraction=0.6) == []
+
+
+def test_topology_uncertainty_trigger_no_false_fire_below_threshold():
+    events = [_topology_event(topology_uncertainty=0.2) for _ in range(20)]
+
+    assert topology_uncertainty_trigger(events, window=20, max_avg_uncertainty=0.6) == []
+
+
+def test_topology_regime_mismatch_trigger_fires_on_sustained_mismatch():
+    events = [_topology_event(regime_label="bullish", cluster_dominant_regime_label="bearish") for _ in range(20)]
+
+    triggers = topology_regime_mismatch_trigger(events, window=20, mismatch_threshold=0.5)
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "topology_regime_mismatch_trigger"
+
+
+def test_topology_regime_mismatch_trigger_no_false_fire_on_agreement():
+    events = [_topology_event(regime_label="bullish", cluster_dominant_regime_label="bullish") for _ in range(20)]
+
+    assert topology_regime_mismatch_trigger(events, window=20, mismatch_threshold=0.5) == []
+
+
+def test_cluster_drift_trigger_fires_on_sustained_drift():
+    events = [_topology_event(neighbor_shift_score=0.8) for _ in range(20)]
+
+    triggers = cluster_drift_trigger(events, window=20, drift_threshold=0.5, min_persistent_fraction=0.6)
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "cluster_drift_trigger"
+
+
+def test_cluster_drift_trigger_does_not_fire_on_small_noise():
+    events = [_topology_event(neighbor_shift_score=0.1) for _ in range(19)] + [_topology_event(neighbor_shift_score=0.9)]
+
+    assert cluster_drift_trigger(events, window=20, drift_threshold=0.5, min_persistent_fraction=0.6) == []
+
+
+def test_model_topology_disagreement_trigger_fires_on_sustained_disagreement():
+    events = [_topology_event(topology_disagreement=0.9) for _ in range(20)]
+
+    triggers = model_topology_disagreement_trigger(
+        events, window=20, disagreement_threshold=0.5, min_persistent_fraction=0.6
+    )
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "model_topology_disagreement_trigger"
+
+
+def test_model_topology_disagreement_trigger_ignores_noise():
+    events = [_topology_event(topology_disagreement=0.1) for _ in range(19)] + [_topology_event(topology_disagreement=0.9)]
+
+    assert (
+        model_topology_disagreement_trigger(events, window=20, disagreement_threshold=0.5, min_persistent_fraction=0.6)
+        == []
+    )
+
+
+def _trigger_row(**overrides) -> dict:
+    defaults = {
+        "trigger_id": "id",
+        "created_at": "2026-07-02T12:00:00+00:00",
+        "trigger_type": "drawdown_trigger",
+        "severity": "warning",
+        "mode": "observation",
+        "scope": "portfolio",
+    }
+    defaults.update(overrides)
+    return defaults
+
+
+def test_trigger_frequency_spike_fires_on_rate_increase():
+    baseline = [_trigger_row(created_at=f"2026-07-01T{hour:02d}:00:00+00:00") for hour in range(24)]
+    spike = [_trigger_row(created_at=f"2026-07-02T11:{minute:02d}:00+00:00") for minute in range(0, 60, 5)]
+    recent_triggers = baseline + spike
+
+    triggers = trigger_frequency_spike(
+        recent_triggers, window_minutes=60, baseline_window_minutes=1440, spike_multiplier=3.0, min_recent_count=3
+    )
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "trigger_frequency_spike"
+
+
+def test_trigger_frequency_spike_ignores_low_absolute_count():
+    recent_triggers = [
+        _trigger_row(created_at="2026-07-02T11:59:00+00:00"),
+        _trigger_row(created_at="2026-07-02T11:58:00+00:00"),
+    ]
+
+    assert trigger_frequency_spike(recent_triggers, window_minutes=60, min_recent_count=3) == []
+
+
+def test_trigger_frequency_spike_empty_input_returns_empty():
+    assert trigger_frequency_spike([]) == []
+
+
+def test_evaluate_all_triggers_backward_compatible_without_recent_triggers():
+    events = _healthy_events(50)
+
+    report = evaluate_all_triggers(events, _DEFAULT_CONFIG)
+
+    assert report["triggers"] == []
+
+
+def test_evaluate_all_triggers_includes_topology_triggers_when_persistent():
+    events = [_topology_event(topology_uncertainty=0.9) for _ in range(60)]
+    config = dict(
+        _DEFAULT_CONFIG,
+        rolling_window=60,
+        topology_uncertainty_threshold=0.6,
+        topology_uncertainty_persistent_fraction=0.6,
+    )
+
+    report = evaluate_all_triggers(events, config)
+
+    assert any(trigger["trigger_type"] == "topology_uncertainty_trigger" for trigger in report["triggers"])
+    assert "topology_uncertainty_trigger" in report["summary"]["trigger_type_counts"]

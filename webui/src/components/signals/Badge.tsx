@@ -10,6 +10,10 @@ const TONES: Record<string, string> = {
   retrain_candidate: 'bg-amber-400/15 text-amber-300',
   simulate: 'bg-sky-400/15 text-sky-300',
   observe: 'bg-white/10 text-white/80',
+  learned: 'bg-emerald-400/15 text-emerald-300',
+  hybrid: 'bg-amber-400/15 text-amber-300',
+  fallback: 'bg-white/10 text-white/80',
+  deterministic: 'bg-sky-400/15 text-sky-300',
 }
 
 export function Badge({ tone, children }: { tone?: string; children: React.ReactNode }) {

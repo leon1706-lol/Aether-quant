@@ -26,7 +26,7 @@ from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
 from liquidity import build_liquidity_decision
-from topology import build_market_topology
+from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 from experience import ExperienceQueue, SimulatedPortfolioState, build_experience_event, compute_observation_summary
 from execution import resolve_order_permission, resolve_runtime_mode
 from performance import evaluate_all_triggers
@@ -52,6 +52,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.feature_schema_path = self.root_path / "ml" / "feature_schema.json"
         self.scaler_stats_path = self.root_path / "ml" / "scaler_stats.json"
         self.dataset_manifest_path = self.root_path / "ml" / "dataset_manifest.json"
+        self.topology_model_path = self.root_path / "ml" / "topology_model.json"
+        self.topology_feature_schema_path = self.root_path / "ml" / "topology_feature_schema.json"
 
         self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
@@ -127,6 +129,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
+        phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
+        self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
+        self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
+        self.topology_learning_top_n_neighbors = int(phase_v2_topology_learning.get("top_n_neighbors", 3))
+        self.topology_learning_min_confidence = float(phase_v2_topology_learning.get("min_confidence_for_learned", 0.2))
+        self.topology_learning_max_offset_xy = float(phase_v2_topology_learning.get("max_offset_xy", 6.0))
+        self.topology_learning_max_offset_z = float(phase_v2_topology_learning.get("max_offset_z", 0.1))
+        self.learned_topology_model, self.learned_topology_feature_schema = self._load_learned_topology_model()
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
         self._liquidity_thresholds = {
             "thin_participation_threshold": float(phase_v2_liquidity.get("thin_participation_threshold", 0.002)),
@@ -179,6 +189,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.trade_lock_active = False
         self.trade_lock_reason = None
         self.latest_regime_by_symbol = {}
+        self.latest_regime_risk_score_by_symbol = {}
+        self.latest_liquidity_by_symbol = {}
+        self.latest_learned_neighbors_by_symbol = {}
         self.latest_topology_payload = {}
 
         for asset in self.phase1["universe"]["assets"]:
@@ -305,6 +318,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self._simulated_portfolio.mark_to_market({str(symbol): close_price}, bar_index=self.bar_index)
 
                 self.latest_regime_by_symbol[str(symbol)] = regime_payload.get("trend_regime", "unknown")
+                self.latest_regime_risk_score_by_symbol[str(symbol)] = float(regime_payload.get("risk_score", 0.0) or 0.0)
+                self.latest_liquidity_by_symbol[str(symbol)] = liquidity_payload
 
                 signal_payload.update(
                     {
@@ -384,6 +399,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 except Exception as error:
                     self.Debug(f"Expert export load failed for {expert_name}: {error}")
         return exports
+
+    def _load_learned_topology_model(self) -> tuple[dict | None, dict | None]:
+        """Optional artifact pair (V2-17.5) - graceful/best-effort like
+        _load_expert_model_exports(), never like _validate_runtime_artifacts()'s
+        hard fail. Missing/malformed files just mean topology.learned_topology
+        falls back to the deterministic layer; they must never block startup."""
+        if not self.topology_learning_enabled:
+            return None, None
+        if not self.topology_model_path.exists() or not self.topology_feature_schema_path.exists():
+            return None, None
+        try:
+            model = self._load_json(self.topology_model_path)
+            feature_schema = self._load_json(self.topology_feature_schema_path)
+            return model, feature_schema
+        except Exception as error:
+            self.Debug(f"Learned topology model load failed: {error}")
+            return None, None
 
     def _validate_runtime_artifacts(self) -> None:
         required_paths = [
@@ -583,14 +615,48 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if returns:
                 returns_by_symbol[str(symbol)] = returns
 
-        topology = build_market_topology(
+        deterministic_topology = build_market_topology(
             returns_by_symbol=returns_by_symbol,
             regime_labels_by_symbol=dict(self.latest_regime_by_symbol),
             correlation_threshold=self.topology_correlation_threshold,
             link_threshold=self.topology_link_threshold,
             min_observations=self.topology_min_observations,
+        ).to_dict()
+
+        # V2-17.5 - probabilistic overlay on top of the deterministic layer
+        # above (never a replacement). Liquidity/regime-risk-score inputs
+        # are necessarily one-bar lagged, same limitation
+        # latest_regime_by_symbol already has: topology is built once per
+        # bar before the per-symbol loop that produces this bar's values.
+        deterministic_nodes_by_symbol = {node["symbol"]: node for node in deterministic_topology["nodes"]}
+        symbol_features = {}
+        for symbol, returns in returns_by_symbol.items():
+            node = deterministic_nodes_by_symbol.get(symbol)
+            if node is None:
+                continue
+            momentum_window = returns[-5:]
+            symbol_features[symbol] = {
+                "volatility": node["volatility_pressure"],
+                "momentum": sum(momentum_window) / len(momentum_window) if momentum_window else 0.0,
+                "correlation_strength": node["correlation_strength"],
+                "liquidity_score": liquidity_score_from_decision(self.latest_liquidity_by_symbol.get(symbol)),
+                "regime_risk_score": self.latest_regime_risk_score_by_symbol.get(symbol, 0.0),
+            }
+
+        learned_topology = apply_learned_topology(
+            deterministic_topology,
+            symbol_features,
+            dict(self.latest_learned_neighbors_by_symbol),
+            self.learned_topology_model,
+            self.learned_topology_feature_schema,
+            temperature=self.topology_learning_temperature,
+            top_n_neighbors=self.topology_learning_top_n_neighbors,
+            min_confidence_for_learned=self.topology_learning_min_confidence,
+            max_offset_xy=self.topology_learning_max_offset_xy,
+            max_offset_z=self.topology_learning_max_offset_z,
         )
-        return topology.to_dict()
+        self.latest_learned_neighbors_by_symbol = learned_topology.get("learned_neighbors_by_symbol", {})
+        return learned_topology
 
     def _build_regime_payload(self, base_features: dict) -> dict:
         vector = build_market_regime_vector(

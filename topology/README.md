@@ -32,3 +32,26 @@ The goal is to make market structure useful for analysis, not only visual.
   pipeline (V2-13/14) and controlled retraining (V2-16/17) exist.
 - Gracefully degrades to `state: "insufficient_data"` when fewer than two
   assets have enough return history — never raises.
+
+## V2-17.5 behavior
+
+- `topology/learned_topology.py::apply_learned_topology(...)` is the
+  promised replacement layer: a pure-Python (no numpy/sklearn at runtime)
+  probabilistic overlay on top of `build_market_topology(...)`'s output,
+  never in place of it. Per node it adds `cluster_probs`,
+  `topology_confidence`, `topology_uncertainty`, `stress_score`,
+  `neighbor_shift_score`, `topology_disagreement`, `learned_neighbors`,
+  `cluster_dominant_regime_label`, and bounded x/y/z offsets on top of the
+  deterministic coordinates. `topology_source` (`deterministic`/`learned`/
+  `hybrid`/`fallback`) reports whether a trained model was actually used.
+- The model itself (`ml/topology_model.json` + `ml/topology_feature_schema.json`)
+  is trained offline by the root-level `train_topology.py` script from
+  historical `experience_events`, and versioned through the same
+  `ml/versions/<id>/` candidate pipeline V2-17 built — see
+  `development/v2_architecture.md`'s "Non-Deterministic Topology &
+  Retrain-Trigger Contract (V2-17.5)" section for the full design.
+- `main.py` loads the model gracefully (missing file ⇒ `None`, never a
+  hard failure) and never lets these new fields influence
+  `analyzer/market_analyzer.py`'s decisions — only `topology_risk`/`state`
+  do, exactly as before. The safety rule: probabilistic scoring, not
+  randomized trading.

@@ -17,16 +17,27 @@ risk engine, and before action categorization / Lean order placement.
   `trade` and is downgraded to `simulate`. When `topology` is absent or
   empty (e.g. during warmup) neither rule fires and behavior is
   unchanged, recorded via `topology_considered=False`.
-- `retrain_candidate` is currently a stateless, instantaneous heuristic
-  (zero active experts plus low regime confidence). V2-16 (Performance
-  Triggers) will replace or augment this with a trailing-window trigger
-  fed by the V2-13/14 Redis/PostgreSQL experience pipeline.
-- **Both the `retrain_candidate` heuristic (V2-10) and the topology-elevated
-  / topology-isolated rules (V2-11) are deliberately simple, deterministic
-  placeholders** — see roadmap item **V2-17.5** in the root `README.md`:
-  once the V2-13/14 experience pipeline has persisted enough history and
-  V2-16/17's controlled retraining loop exists, these rules should be
-  replaced with data-driven/learned versions instead of fixed thresholds.
+- `retrain_candidate` here is still the original stateless, instantaneous
+  heuristic (zero active experts plus low regime confidence) — the *real*
+  trailing-window retrain signal now lives entirely outside this module,
+  in `performance/triggers.py` (V2-16) and `retraining/` (V2-17), fed by
+  the V2-13/14 Redis/PostgreSQL experience pipeline. This in-analyzer
+  heuristic was never wired to that system and still isn't; it remains a
+  separate, lightweight per-bar fallback signal.
+- **Topology-elevated / topology-isolated rules (V2-11) are still the
+  original deterministic thresholds, and this is a deliberate decision,
+  not an oversight.** V2-17.5 added `topology/learned_topology.py`, a
+  probabilistic overlay with confidence/uncertainty scoring trained from
+  experience history (see `development/v2_architecture.md`'s
+  "Non-Deterministic Topology & Retrain-Trigger Contract (V2-17.5)"
+  section) — but its output is consumed by the retrain-trigger/retraining
+  layer only, never by this module. `analyzer/market_analyzer.py` still
+  reads only `topology_risk`/`state`, produced unchanged by the
+  deterministic layer, so this file's decision logic is unaffected by
+  V2-17.5. Wiring learned confidence into per-bar trading decisions was
+  explicitly ruled out of scope for that phase as a materially riskier
+  change than what its safety rule ("confidence/uncertainty only, never a
+  randomized decision") allows.
 - `main.py` only calls `_apply_signal` when `action == "trade"`. All five
   actions are written into the per-asset `signal_payload` for
   dashboard/Grafana visibility regardless of whether a real order is

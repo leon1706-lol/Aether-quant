@@ -149,3 +149,89 @@ def test_rollback_rejects_ineligible_target_status():
 
     assert result["ok"] is False
     assert result["error"] == "rollback_target_not_eligible"
+
+
+# -- V2-17.5 learned-topology training stage ---------------------------------
+
+
+def test_train_topology_invokes_script_with_version_id_flag():
+    conn_mock, _ = _make_conn_mock()
+    completed = MagicMock(returncode=0, stdout="ok", stderr="")
+
+    with patch("retraining.orchestrator.subprocess.run", return_value=completed) as run_mock:
+        result = orchestrator.train_topology(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    argv = run_mock.call_args.args[0]
+    assert "train_topology.py" in argv[1]
+    assert "--version-id" in argv
+    assert "v1" in argv
+    assert result["ok"] is True
+
+
+def test_train_topology_subprocess_failure_does_not_reject_model_version():
+    """Unlike train()'s hard failure path, a topology-training subprocess
+    failure must never reject the candidate model_version - topology
+    artifacts are optional (see retraining/artifacts.py's
+    OPTIONAL_TOPOLOGY_FILES)."""
+    conn_mock, _ = _make_conn_mock()
+    completed = MagicMock(returncode=1, stdout="", stderr="topology boom")
+
+    with patch("retraining.orchestrator.subprocess.run", return_value=completed), patch(
+        "retraining.orchestrator.update_retraining_event_status"
+    ) as update_event_mock, patch("retraining.orchestrator.update_model_version_status") as update_version_mock:
+        result = orchestrator.train_topology(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    assert result["ok"] is False
+    update_version_mock.assert_not_called()
+    update_event_mock.assert_called_once()
+    assert update_event_mock.call_args.kwargs["status"] == "running"
+
+
+def test_train_topology_disabled_returns_early_without_subprocess():
+    conn_mock, _ = _make_conn_mock()
+
+    with patch("retraining.orchestrator.subprocess.run") as run_mock:
+        result = orchestrator.train_topology(
+            conn_mock, retraining_id="r1", version_id="v1", config={"topology_training": {"enabled": False}}
+        )
+
+    assert result["ok"] is False
+    assert result["reason"] == "topology_training_disabled"
+    run_mock.assert_not_called()
+
+
+def test_commit_hashes_and_vault_add_include_topology_files_when_present(tmp_path):
+    """Direct test for the spec requirement 'Aether-Vault commit includes
+    topology artifacts when present': the candidate's whole version_dir is
+    swept into `av add`, and compute_artifact_hashes() is called with
+    ALL_TRACKED_FILES (required + optional topology filenames) so topology
+    artifacts get hashed onto the model_versions row too."""
+    from retraining.artifacts import ALL_TRACKED_FILES, OPTIONAL_TOPOLOGY_FILES
+
+    conn_mock, _ = _make_conn_mock()
+    root_dir = tmp_path
+    version_dir = root_dir / "ml" / "versions" / "v1"
+    version_dir.mkdir(parents=True)
+    for filename in ALL_TRACKED_FILES:
+        content = "{}" if filename.endswith(".json") else "data"
+        (version_dir / filename).write_text(content, encoding="utf-8")
+
+    vault_result = {"ok": True, "vault_commit": "abc123", "stage": "done", "steps": {}}
+
+    with patch("retraining.orchestrator.ROOT_DIR", root_dir), patch(
+        "retraining.orchestrator.candidate_dir", return_value=version_dir
+    ), patch(
+        "retraining.orchestrator.commit_candidate_to_vault", return_value=vault_result
+    ) as vault_mock, patch(
+        "retraining.orchestrator.update_model_version_status"
+    ) as update_version_mock, patch("retraining.orchestrator.update_retraining_event_status"):
+        result = orchestrator.commit(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    assert result["ok"] is True
+
+    add_paths = vault_mock.call_args.args[1]
+    assert str(version_dir.relative_to(root_dir)) in add_paths
+
+    hashes = update_version_mock.call_args.kwargs["artifact_hashes"]
+    for filename in OPTIONAL_TOPOLOGY_FILES:
+        assert filename in hashes

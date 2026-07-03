@@ -68,13 +68,14 @@ def test_run_once_auto_promote_false_stops_after_commit():
 
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
-    ), patch("retraining.worker.validate", return_value={"ok": True}), patch(
-        "retraining.worker.backtest", return_value={"ok": True}
-    ), patch("retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}), patch(
-        "retraining.worker.promote"
-    ) as promote_mock, patch("retraining.worker.status", return_value={}):
+    ), patch("retraining.worker.train_topology") as train_topology_mock, patch(
+        "retraining.worker.validate", return_value={"ok": True}
+    ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
+        "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
+    ), patch("retraining.worker.promote") as promote_mock, patch("retraining.worker.status", return_value={}):
         result = worker.run_once()
 
+    train_topology_mock.assert_called_once()
     promote_mock.assert_not_called()
     assert result["reason"] == "validated_awaiting_manual_promotion"
 
@@ -84,11 +85,13 @@ def test_run_once_auto_promote_true_calls_promote():
 
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
-    ), patch("retraining.worker.validate", return_value={"ok": True}), patch(
-        "retraining.worker.backtest", return_value={"ok": True}
-    ), patch("retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}), patch(
-        "retraining.worker.promote", return_value={"ok": True, "version_id": "v1"}
-    ) as promote_mock, patch("retraining.worker.status", return_value={}):
+    ), patch("retraining.worker.train_topology"), patch(
+        "retraining.worker.validate", return_value={"ok": True}
+    ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
+        "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
+    ), patch("retraining.worker.promote", return_value={"ok": True, "version_id": "v1"}) as promote_mock, patch(
+        "retraining.worker.status", return_value={}
+    ):
         result = worker.run_once()
 
     promote_mock.assert_called_once()
@@ -100,10 +103,38 @@ def test_run_once_stops_when_validation_fails():
 
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
-    ), patch("retraining.worker.validate", return_value={"ok": False}), patch(
-        "retraining.worker.backtest"
-    ) as backtest_mock:
+    ), patch("retraining.worker.train_topology"), patch(
+        "retraining.worker.validate", return_value={"ok": False}
+    ), patch("retraining.worker.backtest") as backtest_mock:
         result = worker.run_once()
 
     backtest_mock.assert_not_called()
     assert result["reason"] == "validation_failed"
+
+
+def test_run_once_calls_train_topology_between_train_and_validate():
+    """V2-17.5: topology training must run after the primary train() stage
+    succeeds and before validate() - and its own failure must not stop the
+    primary candidate from proceeding to validate()."""
+    worker = _worker()
+    call_order = []
+
+    with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
+        "retraining.worker.train",
+        side_effect=lambda *a, **k: call_order.append("train") or {"ok": True, "version_id": "v1"},
+    ), patch(
+        "retraining.worker.train_topology",
+        side_effect=lambda *a, **k: call_order.append("train_topology") or {"ok": False, "error": "no data yet"},
+    ) as train_topology_mock, patch(
+        "retraining.worker.validate",
+        side_effect=lambda *a, **k: call_order.append("validate") or {"ok": True},
+    ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
+        "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
+    ), patch("retraining.worker.promote"), patch("retraining.worker.status", return_value={}):
+        result = worker.run_once()
+
+    assert call_order == ["train", "train_topology", "validate"]
+    train_topology_mock.assert_called_once_with(worker._conn, "r1", "v1", worker.config)
+    # a failed/skipped topology training result must not block the primary
+    # candidate's own pipeline.
+    assert result["reason"] == "validated_awaiting_manual_promotion"

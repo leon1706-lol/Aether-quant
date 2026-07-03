@@ -1,8 +1,11 @@
 from .artifacts import (
     ACTIVE_ARTIFACT_FILES,
+    ALL_TRACKED_FILES,
+    OPTIONAL_TOPOLOGY_FILES,
     REQUIRED_CANDIDATE_FILES,
     candidate_dir,
     check_required_artifacts,
+    check_topology_artifacts,
     compute_artifact_hashes,
     copy_backtest_report_to_active,
     copy_candidate_to_active,
@@ -40,9 +43,12 @@ from .worker import RetrainingWorker
 
 __all__ = [
     "ACTIVE_ARTIFACT_FILES",
+    "ALL_TRACKED_FILES",
+    "OPTIONAL_TOPOLOGY_FILES",
     "REQUIRED_CANDIDATE_FILES",
     "candidate_dir",
     "check_required_artifacts",
+    "check_topology_artifacts",
     "compute_artifact_hashes",
     "copy_backtest_report_to_active",
     "copy_candidate_to_active",

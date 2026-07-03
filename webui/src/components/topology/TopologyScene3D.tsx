@@ -29,16 +29,24 @@ function TopologyNodeMesh({
 }) {
   const radius = 0.3 + Math.max(0, Math.min(1, node.volatility_pressure ?? 0.3)) * 0.5
   const color = (action && ACTION_COLORS[action]) || '#7bc6ff'
+  // V2-17.5 - dim/fade nodes still running on the deterministic fallback so
+  // learned-vs-fallback coverage is visible at a glance without breaking
+  // the existing action-based coloring.
+  const isFallback = node.topology_source === 'fallback'
+  const opacity = isFallback ? 0.55 : 0.92
+  const confidence = node.topology_confidence
 
   return (
     <group position={position}>
       <mesh>
         <sphereGeometry args={[radius, 24, 24]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} opacity={0.92} transparent />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} opacity={opacity} transparent />
       </mesh>
       <Html distanceFactor={14} className="pointer-events-none select-none">
         <span className="whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
           {node.symbol} · {node.cluster_id}
+          {node.topology_source ? ` · ${node.topology_source}` : ''}
+          {confidence !== undefined ? ` (${Math.round(confidence * 100)}%)` : ''}
         </span>
       </Html>
     </group>

@@ -23,7 +23,17 @@ import logging
 import os
 import time
 
-from retraining.orchestrator import _load_retraining_config, backtest, commit, plan, promote, status, train, validate
+from retraining.orchestrator import (
+    _load_retraining_config,
+    backtest,
+    commit,
+    plan,
+    promote,
+    status,
+    train,
+    train_topology,
+    validate,
+)
 from retraining.postgres_registry import ensure_schema
 from performance.postgres_triggers import ensure_schema as ensure_performance_schema
 
@@ -83,6 +93,11 @@ class RetrainingWorker:
             return {"ran": True, "reason": "train_failed", "retraining_id": retraining_id}
 
         version_id = train_result["version_id"]
+
+        # Best-effort learned-topology training (V2-17.5) - failure here is
+        # logged inside train_topology() itself and never blocks the
+        # primary candidate's own validate/backtest/commit/promote path.
+        train_topology(self._conn, retraining_id, version_id, self.config)
 
         validate_result = validate(self._conn, retraining_id, version_id, self.config)
         if not validate_result["ok"]:

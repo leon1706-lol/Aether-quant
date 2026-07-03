@@ -8,7 +8,11 @@ from pathlib import Path
 
 from retraining.artifacts import (
     ACTIVE_ARTIFACT_FILES,
+    ALL_TRACKED_FILES,
+    OPTIONAL_TOPOLOGY_FILES,
+    REQUIRED_CANDIDATE_FILES,
     check_required_artifacts,
+    check_topology_artifacts,
     compute_artifact_hashes,
     copy_backtest_report_to_active,
     copy_candidate_to_active,
@@ -138,3 +142,70 @@ def test_copy_backtest_report_to_active(tmp_path):
 
     assert (backtests_dir / "strategy_report.json").read_text(encoding="utf-8") == "report-data"
     assert (backtests_dir / "equity_curves.csv").read_text(encoding="utf-8") == "report-data"
+
+
+# -- V2-17.5 learned-topology artifacts --------------------------------------
+
+
+def test_active_artifact_files_includes_topology_filenames():
+    for filename in OPTIONAL_TOPOLOGY_FILES:
+        assert filename in ACTIVE_ARTIFACT_FILES
+
+
+def test_required_candidate_files_does_not_include_topology_filenames():
+    # Topology training is best-effort - validate()'s gate must never
+    # reject a candidate purely for missing topology artifacts.
+    for filename in OPTIONAL_TOPOLOGY_FILES:
+        assert filename not in REQUIRED_CANDIDATE_FILES
+
+
+def test_all_tracked_files_is_union_of_required_and_topology():
+    assert set(ALL_TRACKED_FILES) == set(REQUIRED_CANDIDATE_FILES) | set(OPTIONAL_TOPOLOGY_FILES)
+
+
+def test_copy_candidate_to_active_skips_missing_topology_files_gracefully(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    ml_dir = tmp_path / "ml"
+    # Candidate has the required files but no topology artifacts at all.
+    _write_files(version_dir, ("model_weights.json", "scaler.pkl", "scaler_stats.json", "training_metrics.json", "feature_schema.json"))
+
+    hashes = copy_candidate_to_active(version_dir, ml_dir=ml_dir, filenames=ACTIVE_ARTIFACT_FILES)
+
+    for filename in OPTIONAL_TOPOLOGY_FILES:
+        assert filename not in hashes
+        assert not (ml_dir / filename).exists()
+    assert (ml_dir / "model_weights.json").exists()
+
+
+def test_copy_candidate_to_active_includes_topology_files_when_present(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    ml_dir = tmp_path / "ml"
+    _write_files(version_dir, ACTIVE_ARTIFACT_FILES, content="candidate-content")
+
+    hashes = copy_candidate_to_active(version_dir, ml_dir=ml_dir, filenames=ACTIVE_ARTIFACT_FILES)
+
+    for filename in OPTIONAL_TOPOLOGY_FILES:
+        assert filename in hashes
+        assert (ml_dir / filename).exists()
+
+
+def test_check_topology_artifacts_reports_missing_without_failing(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    _write_files(version_dir, ["topology_model.json"])  # only one of three present
+
+    present, missing = check_topology_artifacts(version_dir)
+
+    assert present is False
+    assert "topology_training_metrics.json" in missing
+    assert "topology_feature_schema.json" in missing
+    assert "topology_model.json" not in missing
+
+
+def test_check_topology_artifacts_all_present(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    _write_files(version_dir, OPTIONAL_TOPOLOGY_FILES)
+
+    present, missing = check_topology_artifacts(version_dir)
+
+    assert present is True
+    assert missing == []

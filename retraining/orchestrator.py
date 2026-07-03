@@ -29,6 +29,7 @@ from performance.postgres_triggers import fetch_candidate_triggers
 from retraining import planning
 from retraining.artifacts import (
     ACTIVE_ARTIFACT_FILES,
+    ALL_TRACKED_FILES,
     candidate_dir,
     check_required_artifacts,
     compute_artifact_hashes,
@@ -167,6 +168,55 @@ def train(conn, retraining_id: str, version_id: str | None = None, timeout_secon
     return {"ok": True, "version_id": version_id, "stdout": result.stdout}
 
 
+def train_topology(conn, retraining_id: str, version_id: str, config: dict, timeout_seconds: int | None = None) -> dict:
+    """Runs `python train_topology.py --version-id <id>` as a second,
+    independently-failable subprocess (V2-17.5), between `train` and
+    `validate`. Learned-topology training is best-effort: unlike `train`,
+    a failure here is logged and swallowed - it never rejects the
+    candidate model_version or overwrites a later stage's retraining_events
+    status transition, it only appends a note. topology_model.json etc. are
+    optional artifacts (see retraining/artifacts.py's OPTIONAL_TOPOLOGY_FILES)
+    precisely so this stage can fail without blocking the primary model.
+    """
+    topology_config = config.get("topology_training", {})
+    if not topology_config.get("enabled", True):
+        return {"ok": False, "version_id": version_id, "reason": "topology_training_disabled"}
+
+    timeout_seconds = timeout_seconds or int(topology_config.get("timeout_seconds", 900))
+    train_topology_script = ROOT_DIR / "train_topology.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(train_topology_script), "--version-id", version_id],
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
+        logger.warning("train_topology: subprocess failed to launch for %s - %s", version_id, exc)
+        update_retraining_event_status(
+            conn, retraining_id, status="running", notes=[{"stage": "train_topology", "error": str(exc)}]
+        )
+        return {"ok": False, "version_id": version_id, "error": str(exc)}
+
+    if result.returncode != 0:
+        logger.warning(
+            "train_topology: candidate %s topology training failed (rc=%d) - continuing without it.",
+            version_id,
+            result.returncode,
+        )
+        update_retraining_event_status(
+            conn,
+            retraining_id,
+            status="running",
+            notes=[{"stage": "train_topology", "returncode": result.returncode, "stderr": result.stderr[-2000:]}],
+        )
+        return {"ok": False, "version_id": version_id, "error": result.stderr}
+
+    logger.info("train_topology: candidate %s topology model trained (or skipped for insufficient data).", version_id)
+    return {"ok": True, "version_id": version_id, "stdout": result.stdout}
+
+
 def validate(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     version_dir = candidate_dir(version_id)
     present, missing = check_required_artifacts(version_dir)
@@ -251,7 +301,7 @@ def commit(conn, retraining_id: str, version_id: str, config: dict) -> dict:
         logger.warning("commit: candidate %s vault commit failed at stage %s.", version_id, result["stage"])
         return result
 
-    hashes = compute_artifact_hashes(version_dir)
+    hashes = compute_artifact_hashes(version_dir, filenames=ALL_TRACKED_FILES)
     update_model_version_status(
         conn,
         version_id,
@@ -378,6 +428,10 @@ def main() -> None:
     train_parser.add_argument("--retraining-id", required=True)
     train_parser.add_argument("--version-id", default=None)
 
+    train_topology_parser = subparsers.add_parser("train_topology")
+    train_topology_parser.add_argument("--retraining-id", required=True)
+    train_topology_parser.add_argument("--version-id", required=True)
+
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--retraining-id", required=True)
     validate_parser.add_argument("--version-id", required=True)
@@ -407,6 +461,8 @@ def main() -> None:
             print(json.dumps(plan(conn, config), indent=2, default=str))
         elif args.stage == "train":
             print(json.dumps(train(conn, args.retraining_id, args.version_id), indent=2, default=str))
+        elif args.stage == "train_topology":
+            print(json.dumps(train_topology(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "validate":
             print(json.dumps(validate(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "backtest":

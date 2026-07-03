@@ -2,7 +2,7 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-17
+Completed phases: V2-1 through V2-17.5
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
@@ -112,7 +112,7 @@ flowchart TB
 16. [x] V2-15: Observation mode
 17. [x] V2-16: Performance triggers
 18. [x] V2-17: Controlled retraining
-19. [ ] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
+19. [x] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
 20. [ ] V2-18: Grafana monitoring expansion
 21. [ ] V2-19: Telegram alerts
 22. [ ] V2-20: Lean backtesting integration
@@ -559,6 +559,141 @@ It emits:
 Topology risk feeds directly into the market analyzer: `elevated` forces `reduce_risk`, `isolated` blocks the `trade` path. The 3D coordinates replace the previous orbit-based scene placement in the React webui.
 
 A dedicated `/api/topology` endpoint and `/topology` React page expose the live cluster view.
+
+## Non-Deterministic Topology & Retrain-Trigger Contract (V2-17.5)
+
+**Safety rule (non-negotiable):** non-deterministic does not mean random
+trading. The new model exposes probabilistic scoring — confidence and
+uncertainty — never a random or sampled decision. Every trading action
+still passes through Risk Engine, Liquidity Engine, Order Gate, Observation
+Mode and the V2-17 validation/promotion gates exactly as before.
+`analyzer/market_analyzer.py` is **unchanged** by this phase — it still
+reads only `topology_risk`/`state` from the deterministic layer; the new
+fields this phase adds are never read by the priority-tier decision logic.
+
+**Learned topology overlay** (`topology/learned_topology.py`, pure Python,
+no numpy/sklearn at runtime — matches `market_topology.py`'s own
+convention): sits on top of, never in place of, the deterministic layer.
+`apply_learned_topology(deterministic_topology, symbol_features,
+previous_neighbors_by_symbol, model, feature_schema, ...)` scores each
+node against a set of trained "prototypes" (feature-space centroids) via
+softmax-over-distance, producing per node: `cluster_probs`,
+`topology_confidence` (max probability), `topology_uncertainty`
+(normalized entropy), `stress_score` (novelty vs. the nearest prototype),
+`neighbor_shift_score` (Jaccard drift of the learned nearest-neighbor set
+vs. the previous bar), `topology_disagreement` (learned regime read vs.
+the deterministic cluster's own dominant regime), and a small, **bounded**
+x/y/z offset on top of the deterministic coordinates (never a full
+replacement embedding — `max_offset_xy`/`max_offset_z` cap the shift).
+Every node also gets `topology_source` ∈ `deterministic | learned | hybrid
+| fallback`: `fallback` when the model is missing or that node's
+confidence is below `min_confidence_for_learned` (position left untouched
+in that case), `learned` only when every node in the bar was scored with
+sufficient confidence, `hybrid` otherwise. Never raises — a missing or
+malformed model degrades to `fallback` node-by-node, mirroring
+`market_topology.py`'s own `insufficient_data` philosophy.
+
+**Training source and offline trainer:** `train_topology.py` (repo root,
+sibling of `train.py`, free to use numpy/scikit-learn unlike the runtime
+module) reads recent `experience_events` via
+`performance.postgres_triggers.fetch_recent_events()` (reused, not
+duplicated), derives a `win`/`loss`/`neutral` outcome label per event by
+back-filling each ticker's open→realize trade span with its eventual
+`portfolio.last_realized_pnl` sign, builds a
+`topology.learned_topology.FEATURE_KEYS`-shaped feature vector per event
+(`volatility`, `momentum` — proxied from `probability_up - 0.5` since no
+literal momentum field is persisted, `correlation_strength`,
+`liquidity_score` — via the shared `liquidity_score_from_decision()`
+helper both this script and `main.py` call, and `regime_risk_score`), and
+fits `sklearn.cluster.KMeans` prototypes over z-scored features. Writes
+`topology_model.json`, `topology_training_metrics.json` and
+`topology_feature_schema.json` into `ml/versions/<version_id>/` — never
+active `ml/` paths directly, following V2-17's candidate-isolation
+pattern. Exits 0 (not an error) when there isn't enough training data yet;
+"skipped" must never look like "failed" to the caller.
+
+**Retraining pipeline integration:** `retraining/orchestrator.py::train_topology()`
+runs the script above as a second, **independently-failable** subprocess
+between the existing `train` and `validate` stages — a topology-training
+failure is logged as a note on the `retraining_events` row and never
+rejects the primary candidate. `retraining/artifacts.py` adds
+`OPTIONAL_TOPOLOGY_FILES` (the three filenames above), deliberately **not**
+part of `REQUIRED_CANDIDATE_FILES` (so `validate()`'s gate can never reject
+a candidate purely for missing topology artifacts), but included in
+`ACTIVE_ARTIFACT_FILES` (copied on promotion when present) and
+`ALL_TRACKED_FILES` (hashed by `commit()` and swept into the Aether-Vault
+`av add <version_dir>` call automatically, since the whole candidate
+directory is already added). `retraining/worker.py`'s `RetrainingWorker`
+calls `train_topology()` in this same spot — no new automatic surface area
+beyond what V2-17 already established; `auto_promote` still defaults
+`False`.
+
+**Retrain triggers** — `performance/triggers.py` adds 5 new types:
+
+| Trigger | Fires when |
+|---|---|
+| `topology_uncertainty_trigger` | rolling average `topology_uncertainty` stays above threshold **and** a minimum fraction of individual bars breach it (persistence-guarded — one noisy bar never fires) |
+| `topology_regime_mismatch_trigger` | the rate of `regime_label != cluster_dominant_regime_label` over the window exceeds threshold |
+| `cluster_drift_trigger` | rolling average `neighbor_shift_score` stays elevated, persistence-guarded like uncertainty |
+| `model_topology_disagreement_trigger` | rolling average `topology_disagreement` stays elevated, persistence-guarded |
+| `trigger_frequency_spike` | a meta-trigger over trigger *rows* (not events): recent trigger rate spikes vs. its own baseline rate, gated by both a rate multiplier and a minimum absolute count |
+
+The first four are added to `_MODEL_QUALITY_TRIGGERS` (so `warning` +
+model-quality-type ⇒ `retrain_candidate=True`, same rule V2-16 already
+uses); `trigger_frequency_spike` is deliberately excluded from that set.
+`evaluate_all_triggers()` gained an optional `recent_triggers=None` kwarg
+— backward compatible with `main.py`'s existing in-memory call site.
+
+**Rolling-window trigger evaluation (the V2-16 limitation this phase
+fixes):** `performance/trigger_worker.py`'s `run_once()` still advances its
+watermark off the incremental new-events batch (cheap idle polls), but now
+evaluates over `performance.postgres_triggers.fetch_recent_events()` —
+the last `rolling_window_events` observations, bounded to the last
+`rolling_window_days` days **or** since the last promoted/validated
+retrain (`fetch_last_retraining_at()`), whichever is more recent — plus
+`fetch_triggers_since()` for the frequency-spike baseline. This makes
+Sharpe/win-rate/confidence-decay/topology-drift meaningful over real
+history instead of reacting only to whatever arrived since the last poll.
+
+**Planner weighting** (`retraining/planning.py`): `select_candidate_trigger()`
+now picks by `(_trigger_priority_score, created_at)` instead of timestamp
+alone. The score combines severity + a per-trigger-type base weight (a
+critical drawdown outranks a topology warning), a "regime shift and a
+topology trigger co-occurring" bonus (applied only to those specific
+trigger types, not to unrelated candidates merely eligible at the same
+time), and a capped "this trigger type/scope repeated" bonus. A lone weak
+topology event never reaches this scoring in the first place — the
+persistence guards above already keep `retrain_candidate=False` for
+one-off noise, so `evaluate_retraining_plan()`'s own behavior/signature is
+unchanged.
+
+**Config:** new `phase_v2.topology_learning` block (`enabled`,
+`temperature`, `top_n_neighbors`, `min_confidence_for_learned`,
+`max_offset_xy`, `max_offset_z`, `training.*`); new topology-trigger
+threshold/persistence keys and `rolling_window_events`/`rolling_window_days`
+under `phase_v2.performance_triggers`; new `phase_v2.retraining.topology_training`
+(`enabled`, `timeout_seconds`); `phase_v2.retraining.promotion.active_artifact_files`
+extended with the three topology filenames (load-bearing — `promote()`
+reads this config value in preference to the Python default).
+
+**Dashboard/API:** `state.json`'s `topology` block gains `topology_source`,
+`model_loaded`, `model_version_id`, `learned_neighbors_by_symbol` at the
+top level, and `topology_source`, `cluster_probs`, `topology_confidence`,
+`topology_uncertainty`, `stress_score`, `neighbor_shift_score`,
+`topology_disagreement`, `learned_neighbors`, `cluster_dominant_regime_label`
+per node — no new API route needed, `/api/state` and `/api/topology` are
+generic passthroughs of the same file. `webui/src/pages/TopologyPage.tsx`
+gained a `TopologyLearningPanel.tsx` (deterministic/learned/hybrid/fallback
+badge, aggregate confidence/uncertainty/stress/mismatch stats) and
+`TopologyScene3D.tsx`'s node tooltip now shows `topology_source` and
+`topology_confidence`, with fallback nodes rendered slightly dimmer —
+positions still move smoothly, but which layer produced them stays
+visible.
+
+**Docker:** `Dockerfile.retraining_worker` now also copies `topology/` and
+`train_topology.py` (its `requirements-retraining-worker.txt` already had
+numpy/scikit-learn/psycopg from V2-17, so no dependency changes were
+needed).
 
 ## Liquidity Engine Contract
 

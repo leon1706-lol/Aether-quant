@@ -15,7 +15,7 @@ from __future__ import annotations
 import statistics
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from experience.observation_metrics import (
     simulated_max_drawdown,
@@ -33,6 +33,15 @@ TRIGGER_TYPES = (
     "regime_shift_trigger",
     "liquidity_warning_trigger",
     "risk_lock_trigger",
+    # V2-17.5 - topology-aware triggers, all read event["topology"] fields
+    # produced by topology.learned_topology.apply_learned_topology().
+    "topology_uncertainty_trigger",
+    "topology_regime_mismatch_trigger",
+    "cluster_drift_trigger",
+    "model_topology_disagreement_trigger",
+    # Different shape (operates on trigger rows, not events) - see
+    # trigger_frequency_spike()'s own docstring.
+    "trigger_frequency_spike",
 )
 
 _MODEL_QUALITY_TRIGGERS = {
@@ -41,6 +50,10 @@ _MODEL_QUALITY_TRIGGERS = {
     "win_rate_trigger",
     "confidence_decay_trigger",
     "regime_shift_trigger",
+    "topology_uncertainty_trigger",
+    "topology_regime_mismatch_trigger",
+    "cluster_drift_trigger",
+    "model_topology_disagreement_trigger",
 }
 
 _RECOMMENDED_ACTIONS = {
@@ -52,6 +65,11 @@ _RECOMMENDED_ACTIONS = {
     "regime_shift_trigger": "investigate_regime_shift",
     "liquidity_warning_trigger": "investigate_liquidity",
     "risk_lock_trigger": "escalate_risk_review",
+    "topology_uncertainty_trigger": "investigate_topology_uncertainty",
+    "topology_regime_mismatch_trigger": "investigate_regime_mismatch",
+    "cluster_drift_trigger": "investigate_cluster_drift",
+    "model_topology_disagreement_trigger": "review_topology_model",
+    "trigger_frequency_spike": "investigate_trigger_volume",
 }
 
 _LIQUIDITY_REJECTION_ACTIONS = {"block", "reduce_size"}
@@ -59,6 +77,10 @@ _LIQUIDITY_REJECTION_ACTIONS = {"block", "reduce_size"}
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_created_at(value) -> datetime:
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
 def _breach_ratio_below(value: float, threshold: float) -> float:
@@ -414,7 +436,198 @@ def risk_lock_trigger(
     return triggers
 
 
-def evaluate_all_triggers(events: list[dict], config: dict) -> dict:
+def _topology_field_values(events: list[dict], window: int, field: str) -> list[float]:
+    windowed = events[-window:] if window > 0 else events
+    return [
+        float(event["topology"][field])
+        for event in windowed
+        if isinstance(event.get("topology"), dict) and event["topology"].get(field) is not None
+    ]
+
+
+def topology_uncertainty_trigger(
+    events: list[dict],
+    window: int = 50,
+    max_avg_uncertainty: float = 0.6,
+    min_persistent_fraction: float = 0.6,
+) -> list[dict]:
+    """Fires when learned-topology uncertainty (topology.learned_topology's
+    topology_uncertainty) stays elevated across the window - both the
+    rolling average AND a minimum fraction of individually-breaching bars
+    must clear the threshold, so one noisy bar never fires this alone."""
+    uncertainties = _topology_field_values(events, window, "topology_uncertainty")
+    if len(uncertainties) < 5:
+        return []
+
+    avg_uncertainty = statistics.mean(uncertainties)
+    breach_fraction = sum(1 for value in uncertainties if value >= max_avg_uncertainty) / len(uncertainties)
+    if avg_uncertainty < max_avg_uncertainty or breach_fraction < min_persistent_fraction:
+        return []
+
+    severity = _severity_for_breach(_breach_ratio_above(avg_uncertainty, max_avg_uncertainty))
+    return [
+        _make_trigger(
+            "topology_uncertainty_trigger",
+            severity,
+            _latest_mode(events),
+            "portfolio",
+            avg_uncertainty,
+            max_avg_uncertainty,
+            f"Topology uncertainty averaged {avg_uncertainty:.2f} over {len(uncertainties)} observations "
+            f"({breach_fraction:.0%} of bars above threshold {max_avg_uncertainty:.2f}).",
+        )
+    ]
+
+
+def topology_regime_mismatch_trigger(
+    events: list[dict],
+    window: int = 50,
+    mismatch_threshold: float = 0.5,
+) -> list[dict]:
+    """Fires when the deterministic per-asset regime_label disagrees with
+    its cluster's dominant_regime_label for a persistent share of the
+    window. The rate itself (over `window` observations) is the persistence
+    guard - a single mismatched bar cannot push the rate above threshold."""
+    windowed = events[-window:] if window > 0 else events
+    mismatches = [
+        event["topology"].get("regime_label") != event["topology"].get("cluster_dominant_regime_label")
+        for event in windowed
+        if isinstance(event.get("topology"), dict) and event["topology"].get("cluster_dominant_regime_label") is not None
+    ]
+    if len(mismatches) < 5:
+        return []
+
+    mismatch_rate = sum(1 for value in mismatches if value) / len(mismatches)
+    if mismatch_rate < mismatch_threshold:
+        return []
+
+    severity = _severity_for_breach(_breach_ratio_above(mismatch_rate, mismatch_threshold))
+    return [
+        _make_trigger(
+            "topology_regime_mismatch_trigger",
+            severity,
+            _latest_mode(windowed),
+            "portfolio",
+            mismatch_rate,
+            mismatch_threshold,
+            f"Topology/regime label mismatch in {mismatch_rate:.0%} of {len(mismatches)} observations "
+            f"(threshold {mismatch_threshold:.0%}).",
+        )
+    ]
+
+
+def cluster_drift_trigger(
+    events: list[dict],
+    window: int = 50,
+    drift_threshold: float = 0.5,
+    min_persistent_fraction: float = 0.6,
+) -> list[dict]:
+    """Fires when learned-neighbor-set drift (neighbor_shift_score) stays
+    elevated across the window - persistence-guarded the same way as
+    topology_uncertainty_trigger, so small bar-to-bar noise never fires."""
+    shifts = _topology_field_values(events, window, "neighbor_shift_score")
+    if len(shifts) < 5:
+        return []
+
+    avg_shift = statistics.mean(shifts)
+    breach_fraction = sum(1 for value in shifts if value >= drift_threshold) / len(shifts)
+    if avg_shift < drift_threshold or breach_fraction < min_persistent_fraction:
+        return []
+
+    severity = _severity_for_breach(_breach_ratio_above(avg_shift, drift_threshold))
+    return [
+        _make_trigger(
+            "cluster_drift_trigger",
+            severity,
+            _latest_mode(events),
+            "portfolio",
+            avg_shift,
+            drift_threshold,
+            f"Cluster neighbor drift averaged {avg_shift:.2f} over {len(shifts)} observations "
+            f"({breach_fraction:.0%} of bars above threshold {drift_threshold:.2f}).",
+        )
+    ]
+
+
+def model_topology_disagreement_trigger(
+    events: list[dict],
+    window: int = 50,
+    disagreement_threshold: float = 0.5,
+    min_persistent_fraction: float = 0.6,
+) -> list[dict]:
+    """Fires when the learned topology model's cluster/regime read stays
+    persistently at odds with the deterministic topology (topology_disagreement)."""
+    disagreements = _topology_field_values(events, window, "topology_disagreement")
+    if len(disagreements) < 5:
+        return []
+
+    avg_disagreement = statistics.mean(disagreements)
+    breach_fraction = sum(1 for value in disagreements if value >= disagreement_threshold) / len(disagreements)
+    if avg_disagreement < disagreement_threshold or breach_fraction < min_persistent_fraction:
+        return []
+
+    severity = _severity_for_breach(_breach_ratio_above(avg_disagreement, disagreement_threshold))
+    return [
+        _make_trigger(
+            "model_topology_disagreement_trigger",
+            severity,
+            _latest_mode(events),
+            "portfolio",
+            avg_disagreement,
+            disagreement_threshold,
+            f"Learned/deterministic topology disagreement averaged {avg_disagreement:.2f} over "
+            f"{len(disagreements)} observations ({breach_fraction:.0%} of bars above threshold "
+            f"{disagreement_threshold:.2f}).",
+        )
+    ]
+
+
+def trigger_frequency_spike(
+    recent_triggers: list[dict],
+    window_minutes: int = 60,
+    baseline_window_minutes: int = 1440,
+    spike_multiplier: float = 3.0,
+    min_recent_count: int = 3,
+) -> list[dict]:
+    """Fires when the rate of *other* triggers firing spikes relative to
+    their own recent baseline - a meta-trigger over trigger rows, not
+    experience events. `recent_triggers` should already be scoped to
+    roughly `baseline_window_minutes` of history (the caller/worker fetches
+    that window from Postgres); this function only needs `min_recent_count`
+    triggers inside the newest `window_minutes` slice AND a rate at least
+    `spike_multiplier` times the whole-window baseline rate to fire, so a
+    handful of unrelated triggers can't spike this on their own."""
+    if not recent_triggers:
+        return []
+
+    now = max(_parse_created_at(trigger["created_at"]) for trigger in recent_triggers)
+    recent_cutoff = now - timedelta(minutes=window_minutes)
+    recent = [trigger for trigger in recent_triggers if _parse_created_at(trigger["created_at"]) >= recent_cutoff]
+    if len(recent) < min_recent_count:
+        return []
+
+    recent_rate = len(recent) / max(window_minutes, 1)
+    baseline_rate = max(len(recent_triggers) / max(baseline_window_minutes, 1), 1e-6)
+    spike_threshold = baseline_rate * spike_multiplier
+    if recent_rate < spike_threshold:
+        return []
+
+    severity = _severity_for_breach(_breach_ratio_above(recent_rate, spike_threshold))
+    return [
+        _make_trigger(
+            "trigger_frequency_spike",
+            severity,
+            _latest_mode(recent_triggers),
+            "portfolio",
+            recent_rate,
+            spike_threshold,
+            f"Trigger frequency spiked to {recent_rate:.3f}/min over the last {window_minutes}m "
+            f"(baseline {baseline_rate:.3f}/min, {len(recent)} recent triggers).",
+        )
+    ]
+
+
+def evaluate_all_triggers(events: list[dict], config: dict, recent_triggers: list[dict] | None = None) -> dict:
     generated_at = _now_iso()
     enabled = bool(config.get("enabled", True))
 
@@ -455,6 +668,37 @@ def evaluate_all_triggers(events: list[dict], config: dict) -> dict:
     triggers += risk_lock_trigger(
         events, max_consecutive_locked_events=int(config.get("max_consecutive_locked_events", 20))
     )
+    triggers += topology_uncertainty_trigger(
+        events,
+        window=rolling_window,
+        max_avg_uncertainty=float(config.get("topology_uncertainty_threshold", 0.6)),
+        min_persistent_fraction=float(config.get("topology_uncertainty_persistent_fraction", 0.6)),
+    )
+    triggers += topology_regime_mismatch_trigger(
+        events,
+        window=rolling_window,
+        mismatch_threshold=float(config.get("topology_regime_mismatch_threshold", 0.5)),
+    )
+    triggers += cluster_drift_trigger(
+        events,
+        window=rolling_window,
+        drift_threshold=float(config.get("cluster_drift_threshold", 0.5)),
+        min_persistent_fraction=float(config.get("cluster_drift_persistent_fraction", 0.6)),
+    )
+    triggers += model_topology_disagreement_trigger(
+        events,
+        window=rolling_window,
+        disagreement_threshold=float(config.get("model_topology_disagreement_threshold", 0.5)),
+        min_persistent_fraction=float(config.get("model_topology_disagreement_persistent_fraction", 0.6)),
+    )
+    if recent_triggers is not None:
+        triggers += trigger_frequency_spike(
+            recent_triggers,
+            window_minutes=int(config.get("trigger_frequency_spike_window_minutes", 60)),
+            baseline_window_minutes=int(config.get("trigger_frequency_spike_baseline_minutes", 1440)),
+            spike_multiplier=float(config.get("trigger_frequency_spike_multiplier", 3.0)),
+            min_recent_count=int(config.get("trigger_frequency_spike_min_recent_count", 3)),
+        )
 
     severity_distribution = {severity: 0 for severity in SEVERITIES}
     trigger_type_counts = {trigger_type: 0 for trigger_type in TRIGGER_TYPES}

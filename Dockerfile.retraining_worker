@@ -7,6 +7,8 @@ COPY experience/ ./experience/
 COPY performance/ ./performance/
 COPY regime/ ./regime/
 COPY experts/ ./experts/
+COPY topology/ ./topology/
 COPY retraining/ ./retraining/
 COPY train.py .
+COPY train_topology.py .
 CMD ["python", "-m", "retraining.worker"]

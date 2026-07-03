@@ -20,6 +20,38 @@ from datetime import datetime
 
 _ACTIVE_EVENT_STATUSES = ("planned", "running", "promoted")
 
+# V2-17.5 - priority weighting so select_candidate_trigger() picks the most
+# consequential eligible trigger, not just the newest one. A lone weak
+# topology event never reaches this list in the first place (performance/
+# triggers.py's persistence guards keep retrain_candidate=False for
+# one-off noise) - this scoring only breaks ties *among* triggers that
+# already cleared that bar.
+_SEVERITY_SCORE = {"critical": 30, "warning": 20, "info": 10}
+_TYPE_BASE_SCORE = {
+    "risk_lock_trigger": 5,
+    "drawdown_trigger": 4,
+    "sharpe_degradation_trigger": 3,
+    "win_rate_trigger": 3,
+    "confidence_decay_trigger": 3,
+    "regime_shift_trigger": 2,
+    "liquidity_warning_trigger": 2,
+    "observation_count_trigger": 1,
+    "topology_uncertainty_trigger": 2,
+    "topology_regime_mismatch_trigger": 2,
+    "cluster_drift_trigger": 2,
+    "model_topology_disagreement_trigger": 2,
+    "trigger_frequency_spike": 2,
+}
+_TOPOLOGY_TRIGGER_TYPES = {
+    "topology_uncertainty_trigger",
+    "topology_regime_mismatch_trigger",
+    "cluster_drift_trigger",
+    "model_topology_disagreement_trigger",
+}
+_REGIME_TOPOLOGY_COMBO_BONUS = 5
+_REPEAT_BONUS_PER_EXTRA = 2
+_REPEAT_BONUS_CAP = 6
+
 
 def _parse_timestamp(value) -> datetime:
     if isinstance(value, datetime):
@@ -27,12 +59,47 @@ def _parse_timestamp(value) -> datetime:
     return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
+def _trigger_priority_score(trigger: dict, eligible: list[dict]) -> float:
+    """Combines severity + trigger-type importance + two persistence-aware
+    bonuses: a "regime shift plus a topology trigger co-occurring" combo
+    bonus (a regime shift alongside topology uncertainty/drift is a
+    stronger signal than either alone - applied only to the regime_shift
+    and topology-type triggers themselves, not to unrelated candidates that
+    merely happen to be eligible at the same time), and a capped "this
+    trigger type/scope has repeated" bonus (a topology mismatch seen 3
+    times among the eligible set outranks one seen once)."""
+    severity_score = _SEVERITY_SCORE.get(trigger.get("severity"), 10)
+    trigger_type = trigger.get("trigger_type")
+    type_score = _TYPE_BASE_SCORE.get(trigger_type, 1)
+
+    types_present = {candidate.get("trigger_type") for candidate in eligible}
+    is_combo_participant = trigger_type == "regime_shift_trigger" or trigger_type in _TOPOLOGY_TRIGGER_TYPES
+    combo_bonus = (
+        _REGIME_TOPOLOGY_COMBO_BONUS
+        if is_combo_participant and "regime_shift_trigger" in types_present and (types_present & _TOPOLOGY_TRIGGER_TYPES)
+        else 0
+    )
+
+    repeat_count = sum(
+        1
+        for candidate in eligible
+        if candidate.get("trigger_type") == trigger.get("trigger_type") and candidate.get("scope") == trigger.get("scope")
+    )
+    repeat_bonus = min((repeat_count - 1) * _REPEAT_BONUS_PER_EXTRA, _REPEAT_BONUS_CAP)
+
+    return severity_score + type_score + combo_bonus + repeat_bonus
+
+
 def select_candidate_trigger(triggers: list[dict], config: dict) -> dict | None:
-    """Newest trigger with retrain_candidate=True and an eligible severity.
+    """Highest-priority trigger among those with retrain_candidate=True and
+    an eligible severity, ties broken by newest first.
 
     `eligible_severities` defaults to ("warning", "critical") - "info"
     triggers (e.g. observation_count_trigger) never justify a retrain on
-    their own.
+    their own. Priority is `_trigger_priority_score()` - see its docstring
+    for the weighting (critical drawdown beats a topology warning; a
+    regime-shift+topology combo beats either alone; a repeated trigger
+    type/scope beats a single occurrence).
     """
     eligible_severities = set(config.get("eligible_severities", ("warning", "critical")))
     eligible = [
@@ -42,7 +109,10 @@ def select_candidate_trigger(triggers: list[dict], config: dict) -> dict | None:
     ]
     if not eligible:
         return None
-    return max(eligible, key=lambda trigger: _parse_timestamp(trigger["created_at"]))
+    return max(
+        eligible,
+        key=lambda trigger: (_trigger_priority_score(trigger, eligible), _parse_timestamp(trigger["created_at"])),
+    )
 
 
 def min_observations_satisfied(observation_count: int, min_observations: int) -> bool:

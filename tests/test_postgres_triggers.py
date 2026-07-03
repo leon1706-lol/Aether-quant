@@ -10,7 +10,10 @@ from unittest.mock import MagicMock
 from performance.postgres_triggers import (
     ensure_schema,
     fetch_events_since,
+    fetch_last_retraining_at,
     fetch_latest_trigger,
+    fetch_recent_events,
+    fetch_triggers_since,
     get_watermark,
     insert_triggers,
     set_watermark,
@@ -167,3 +170,75 @@ def test_fetch_latest_trigger_returns_dict_shape():
 
     assert result["trigger_type"] == "drawdown_trigger"
     assert result["retrain_candidate"] is True
+
+
+def test_fetch_recent_events_returns_oldest_first():
+    conn_mock, cur_mock = _make_conn_mock()
+    # Postgres returns DESC (newest first) — fetch_recent_events must reverse.
+    cur_mock.fetchall.return_value = [({"symbol": "newest"},), ({"symbol": "oldest"},)]
+
+    events = fetch_recent_events(conn_mock, limit=500)
+
+    assert events == [{"symbol": "oldest"}, {"symbol": "newest"}]
+
+
+def test_fetch_recent_events_passes_limit_and_since():
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.fetchall.return_value = []
+
+    fetch_recent_events(conn_mock, limit=100, since=None)
+    params = cur_mock.execute.call_args.args[1]
+    assert params["limit"] == 100
+
+    fetch_recent_events(conn_mock, limit=100, since="2026-07-01T00:00:00+00:00")
+    sql, params = cur_mock.execute.call_args.args
+    assert "since" in params
+    assert "WHERE created_at >" in sql
+
+
+def test_fetch_triggers_since_filters_by_timestamp_and_returns_dict_shape():
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.fetchall.return_value = [
+        (
+            "00000000-0000-0000-0000-0000000000aa",
+            "2026-07-02T12:00:00+00:00",
+            "cluster_drift_trigger",
+            "warning",
+            "observation",
+            "portfolio",
+            0.6,
+            0.5,
+            "message",
+            "investigate_cluster_drift",
+            True,
+        )
+    ]
+
+    triggers = fetch_triggers_since(conn_mock, since="2026-07-01T00:00:00+00:00")
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "cluster_drift_trigger"
+    params = cur_mock.execute.call_args.args[1]
+    assert params["since"] == "2026-07-01T00:00:00+00:00"
+
+
+def test_fetch_last_retraining_at_returns_timestamp():
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.fetchone.return_value = ("2026-06-30T00:00:00+00:00",)
+
+    assert fetch_last_retraining_at(conn_mock) == "2026-06-30T00:00:00+00:00"
+
+
+def test_fetch_last_retraining_at_returns_none_when_no_rows():
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.fetchone.return_value = (None,)
+
+    assert fetch_last_retraining_at(conn_mock) is None
+
+
+def test_fetch_last_retraining_at_returns_none_on_missing_table():
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.execute.side_effect = Exception("relation \"retraining_events\" does not exist")
+
+    assert fetch_last_retraining_at(conn_mock) is None
+    conn_mock.rollback.assert_called_once()
