@@ -1,6 +1,11 @@
 # Lean CLI / local development
-lean-cli>=35.0
-qcalgorithm>=1.0
+# NOTE: the correct PyPI name is "lean", not "lean-cli" - "lean-cli" and the
+# formerly-listed "qcalgorithm" do not exist on PyPI at all (confirmed via
+# PyPI's JSON API: both 404). Neither is needed to run `pytest` (main.py has
+# no direct unit tests - it requires AlgorithmImports/Lean, which no test
+# file imports), so this was never caught until a truly clean install was
+# attempted (CI, or a fresh machine) rather than an existing dev venv.
+lean>=1.0.225
 
 # Dashboard / optional local exploration
 plotly>=5.17.0
