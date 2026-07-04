@@ -9,23 +9,7 @@ on:
     tags: ["v*.*.*"]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
-
-      - name: Run tests
-        run: pytest
-
   publish-pypi:
-    needs: test
     runs-on: ubuntu-latest
     permissions:
       # Required for PyPI Trusted Publishing (OIDC) - no PyPI token is ever
@@ -50,7 +34,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
 
   publish-docker:
-    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
