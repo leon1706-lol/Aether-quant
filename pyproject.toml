@@ -30,3 +30,9 @@ packages = ["risk"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Bare `pytest` (not `python -m pytest`) never gets the repo root on
+# sys.path on its own - it was only ever working locally because everyone
+# invoked it as `python -m pytest`, which Python itself prepends the CWD for.
+# pytest's own `pythonpath` option makes this work identically regardless of
+# how pytest is invoked (bare console script, python -m, any OS, CI).
+pythonpath = ["."]
