@@ -8,6 +8,9 @@ const NETWORK_GAP = 9
 const LAYER_GAP = 3.2
 const NODE_GAP = 0.55
 const MAX_NODES_PER_LAYER = 12
+const HIDDEN_NODE_RADIUS = 0.18
+const OUTPUT_NODE_RADIUS = 0.32
+const OUTPUT_NODE_COLOR = '#fef3c7'
 
 // Baseline centered, experts arranged around it, so the biggest/most
 // important network reads as the visual anchor of the whole constellation.
@@ -92,14 +95,19 @@ function NetworkDiagram({ network, columnX }: { network: NeuralNetworkModel; col
           />
         )),
       )}
-      {layers.map((layer, layerIndex) =>
-        layer.map((position, nodeIndex) => (
+      {layers.map((layer, layerIndex) => {
+        const isOutputLayer = layerIndex === layers.length - 1
+        return layer.map((position, nodeIndex) => (
           <mesh key={`${network.name}-node-${layerIndex}-${nodeIndex}`} position={position}>
-            <sphereGeometry args={[0.18, 12, 12]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} />
+            <sphereGeometry args={[isOutputLayer ? OUTPUT_NODE_RADIUS : HIDDEN_NODE_RADIUS, 16, 16]} />
+            <meshStandardMaterial
+              color={isOutputLayer ? OUTPUT_NODE_COLOR : color}
+              emissive={isOutputLayer ? OUTPUT_NODE_COLOR : color}
+              emissiveIntensity={isOutputLayer ? 0.9 : 0.4}
+            />
           </mesh>
-        )),
-      )}
+        ))
+      })}
       <Html position={[columnX, topLayerY, layers.length ? layers[0][0][2] - LAYER_GAP * 0.6 : 0]} distanceFactor={16} className="pointer-events-none select-none">
         <div className="flex flex-col items-center gap-1 whitespace-nowrap">
           <span className="rounded bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white">{network.label}</span>
@@ -113,6 +121,15 @@ function NetworkDiagram({ network, columnX }: { network: NeuralNetworkModel; col
             </span>
           )}
         </div>
+      </Html>
+      <Html
+        position={layers[layers.length - 1][0]}
+        distanceFactor={16}
+        className="pointer-events-none select-none"
+      >
+        <span className="translate-y-4 whitespace-nowrap rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-200">
+          output
+        </span>
       </Html>
     </group>
   )
@@ -148,6 +165,7 @@ export function NeuralNetworkScene3D({ neuralNetwork }: { neuralNetwork: NeuralN
         )}
         <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-white/60">
           <span>Baseline (sky) centered · experts colored by quality status</span>
+          <span>Every network funnels down to one glowing amber output node — the final decision</span>
           <span>Wide layers are sampled to a legible node count — exact totals are in the stats panel</span>
         </div>
       </div>

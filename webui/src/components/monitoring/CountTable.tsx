@@ -8,7 +8,7 @@ export function CountTable({ title, counts }: { title: string; counts: Record<st
         <div className="grid gap-1">
           {entries.map(([label, count]) => (
             <div key={label} className="flex items-start justify-between gap-3 border-t border-white/5 py-1 text-sm">
-              <span className="min-w-0 break-words text-white/80">{label}</span>
+              <span className="min-w-0 break-all text-white/80">{label}</span>
               <span className="shrink-0 text-white/60">{count}</span>
             </div>
           ))}

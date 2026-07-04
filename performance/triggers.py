@@ -15,7 +15,7 @@ from __future__ import annotations
 import statistics
 import uuid
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from experience.observation_metrics import (
     simulated_max_drawdown,
@@ -42,6 +42,13 @@ TRIGGER_TYPES = (
     # Different shape (operates on trigger rows, not events) - see
     # trigger_frequency_spike()'s own docstring.
     "trigger_frequency_spike",
+    # Retraining-cadence triggers - unlike observation_count_trigger (which
+    # counts every per-asset-per-bar event and fires at "info" severity, so
+    # it can never itself select a retraining run), these are designed to
+    # actually be retrain-eligible. See executed_trade_count_trigger's and
+    # sustained_drawdown_trigger's own docstrings.
+    "executed_trade_count_trigger",
+    "sustained_drawdown_trigger",
 )
 
 _MODEL_QUALITY_TRIGGERS = {
@@ -54,6 +61,15 @@ _MODEL_QUALITY_TRIGGERS = {
     "topology_regime_mismatch_trigger",
     "cluster_drift_trigger",
     "model_topology_disagreement_trigger",
+    "sustained_drawdown_trigger",
+}
+
+# Cadence triggers are always retrain-eligible when they fire at all (they
+# only fire at meaningful checkpoints - an exact trade-count multiple - not
+# on every bar), same special-casing as risk_lock_trigger.
+_CADENCE_TRIGGERS = {
+    "risk_lock_trigger",
+    "executed_trade_count_trigger",
 }
 
 _RECOMMENDED_ACTIONS = {
@@ -70,6 +86,8 @@ _RECOMMENDED_ACTIONS = {
     "cluster_drift_trigger": "investigate_cluster_drift",
     "model_topology_disagreement_trigger": "review_topology_model",
     "trigger_frequency_spike": "investigate_trigger_volume",
+    "executed_trade_count_trigger": "consider_scheduled_retraining",
+    "sustained_drawdown_trigger": "reduce_exposure",
 }
 
 _LIQUIDITY_REJECTION_ACTIONS = {"block", "reduce_size"}
@@ -100,7 +118,7 @@ def _severity_for_breach(breach_ratio: float) -> str:
 
 
 def _is_retrain_candidate(trigger_type: str, severity: str) -> bool:
-    if trigger_type == "risk_lock_trigger":
+    if trigger_type in _CADENCE_TRIGGERS:
         return True
     if severity == "critical":
         return True
@@ -164,6 +182,33 @@ def observation_count_trigger(events: list[dict], interval: int = 100) -> list[d
     ]
 
 
+def executed_trade_count_trigger(events: list[dict], interval: int = 100) -> list[dict]:
+    """Retraining-cadence trigger based on actually executed trades, not raw
+    observation volume. observation_count_trigger counts every per-asset-per-
+    bar event regardless of action (most are hold/observe/simulate) and fires
+    at "info" severity, which phase_v2.retraining.eligible_severities
+    excludes - so it can never itself select a retraining run. This trigger
+    counts only event["action"] == "trade" entries and fires at "warning"
+    (a fixed severity, not breach-ratio-derived - there is no "how bad" axis
+    for a count-reached signal), so a periodic cadence tied to real trading
+    activity can actually drive retraining."""
+    trade_count = sum(1 for event in events if event.get("action") == "trade")
+    if interval <= 0 or trade_count == 0 or trade_count % interval != 0:
+        return []
+
+    return [
+        _make_trigger(
+            "executed_trade_count_trigger",
+            "warning",
+            _latest_mode(events),
+            "portfolio",
+            float(trade_count),
+            float(interval),
+            f"Reached {trade_count} executed trades (interval {interval}).",
+        )
+    ]
+
+
 def drawdown_trigger(events: list[dict], max_drawdown_threshold: float = -0.10) -> list[dict]:
     if not events:
         return []
@@ -187,6 +232,59 @@ def drawdown_trigger(events: list[dict], max_drawdown_threshold: float = -0.10) 
             worst,
             max_drawdown_threshold,
             f"{source} drawdown reached {worst:.2%} (threshold {max_drawdown_threshold:.2%}).",
+        )
+    ]
+
+
+def _worst_real_drawdown_by_day(events: list[dict]) -> dict[date, float]:
+    worst_by_day: dict[date, float] = {}
+    for event in events:
+        created_at = event.get("created_at")
+        current_drawdown = (event.get("portfolio") or {}).get("current_drawdown")
+        if created_at is None or current_drawdown is None:
+            continue
+        day = _parse_created_at(created_at).date()
+        worst_by_day[day] = min(worst_by_day.get(day, 0.0), float(current_drawdown))
+    return worst_by_day
+
+
+def sustained_drawdown_trigger(
+    events: list[dict],
+    max_drawdown_threshold: float = -0.10,
+    consecutive_days: int = 2,
+) -> list[dict]:
+    """A slower, day-granularity companion to drawdown_trigger's single-bar
+    point-in-time check - not a replacement. drawdown_trigger still fires
+    immediately on one severe bar; this fires only when the real portfolio's
+    worst drawdown breaches max_drawdown_threshold on `consecutive_days`
+    distinct *trailing* trading days in a row, catching a moderate-but-
+    persistent decline a point check might miss (or a single noisy bad bar
+    that recovers the next day, which this correctly does not fire on)."""
+    if not events or consecutive_days <= 0:
+        return []
+
+    worst_by_day = _worst_real_drawdown_by_day(events)
+    trading_days = sorted(worst_by_day)
+    if len(trading_days) < consecutive_days:
+        return []
+
+    trailing_days = trading_days[-consecutive_days:]
+    trailing_drawdowns = [worst_by_day[day] for day in trailing_days]
+    if any(value > max_drawdown_threshold for value in trailing_drawdowns):
+        return []
+
+    worst = min(trailing_drawdowns)
+    severity = _severity_for_breach(_breach_ratio_below(worst, max_drawdown_threshold))
+    return [
+        _make_trigger(
+            "sustained_drawdown_trigger",
+            severity,
+            _latest_mode(events),
+            "portfolio",
+            worst,
+            max_drawdown_threshold,
+            f"Drawdown breached {max_drawdown_threshold:.2%} on {consecutive_days} consecutive "
+            f"trading days (worst {worst:.2%}).",
         )
     ]
 
@@ -649,7 +747,13 @@ def evaluate_all_triggers(events: list[dict], config: dict, recent_triggers: lis
     rolling_window = int(config.get("rolling_window", 100))
     triggers: list[dict] = []
     triggers += observation_count_trigger(events, interval=int(config.get("observation_interval", 100)))
+    triggers += executed_trade_count_trigger(events, interval=int(config.get("trade_count_interval", 100)))
     triggers += drawdown_trigger(events, max_drawdown_threshold=float(config.get("max_drawdown_threshold", -0.10)))
+    triggers += sustained_drawdown_trigger(
+        events,
+        max_drawdown_threshold=float(config.get("max_drawdown_threshold", -0.10)),
+        consecutive_days=int(config.get("sustained_drawdown_days", 2)),
+    )
     triggers += sharpe_degradation_trigger(
         events, min_sharpe=float(config.get("min_sharpe", 0.3)), window=rolling_window
     )

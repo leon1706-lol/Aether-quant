@@ -14,12 +14,12 @@ import { RawStateViewer } from '../components/monitoring/RawStateViewer'
 export function Overview({ state }: { state: RuntimeState | undefined }) {
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.4fr_1fr]">
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <Scorecards cards={state?.dashboard?.scorecards} />
         <Scene3D scene={state?.scene} />
         <AssetHeatmap items={state?.dashboard?.asset_heatmap} />
       </div>
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <PerformanceTriggersPanel report={state?.performance_triggers} />
         <RetrainingStatusPanel status={state?.retraining_status} />
         <ObservationPanel observation={state?.observation} />

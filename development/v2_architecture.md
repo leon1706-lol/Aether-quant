@@ -276,7 +276,7 @@ Phase 16 only detects, scores and logs — it never retrains anything.
 `retrain_candidate` is a flag consumed by Phase 17; no automatic model
 weight changes happen here.
 
-`performance/triggers.py` (Lean-free, pure) evaluates 8 trigger types over a
+`performance/triggers.py` (Lean-free, pure) evaluates 10 trigger types over a
 `list[dict]` of experience-event dicts — the same source-agnostic shape
 `experience/observation_metrics.py` established in V2-15 (reused directly
 for Sharpe/drawdown math, not reimplemented):
@@ -284,7 +284,9 @@ for Sharpe/drawdown math, not reimplemented):
 | Trigger | Fires when |
 |---|---|
 | `observation_count_trigger` | event count is an exact multiple of `observation_interval` (default 100) |
+| `executed_trade_count_trigger` | count of events where `action == "trade"` (not raw event count) is an exact multiple of `trade_count_interval` (default 100) — unlike `observation_count_trigger`, fires at `warning` so it can actually select a retraining run |
 | `drawdown_trigger` | simulated max drawdown or the latest event's real `portfolio.current_drawdown` breaches `max_drawdown_threshold` |
+| `sustained_drawdown_trigger` | real `portfolio.current_drawdown` breaches `max_drawdown_threshold` on `sustained_drawdown_days` (default 2) distinct *trailing* trading days in a row — a day-granularity companion to `drawdown_trigger`'s single-bar check, not a replacement |
 | `sharpe_degradation_trigger` | rolling Sharpe over `rolling_window` events drops below `min_sharpe` |
 | `win_rate_trigger` | rolling win rate (min. 5 realized trades) drops below `min_win_rate` |
 | `confidence_decay_trigger` | mean model confidence roughly halves vs. the prior window, or its stdev spikes (instability) |
@@ -296,14 +298,23 @@ Each fired trigger is a structured dict: `trigger_id`, `created_at`,
 `trigger_type`, `severity` (`info`/`warning`/`critical`), `mode`, `scope`
 (`"portfolio"` or a ticker), `metric_value`, `threshold`, `message`,
 `recommended_action`, `retrain_candidate`. Severity is a breach-ratio rule
-(≥1.5x past threshold → `critical`); `retrain_candidate` is `True` whenever
-severity is `critical`, whenever one of the five model-quality triggers
-fires at `warning`, or whenever `risk_lock_trigger` fires at all (a
-capital-preservation event always warrants a Phase 17 look).
+(≥1.5x past threshold → `critical`) for continuous-metric triggers;
+`executed_trade_count_trigger` fires at a fixed `warning` (a count-reached
+signal has no "how bad" axis to derive a ratio from). `retrain_candidate` is
+`True` whenever severity is `critical`, whenever one of the six
+model-quality triggers (now including `sustained_drawdown_trigger`) fires at
+`warning`, or whenever a cadence trigger (`risk_lock_trigger`,
+`executed_trade_count_trigger`) fires at all — a capital-preservation event
+or a reached activity checkpoint always warrants a Phase 17 look. This is
+the change that makes a periodic cadence retrain-capable at all:
+`observation_count_trigger` fires at `info` only, which
+`phase_v2.retraining.eligible_severities` excludes, so on its own it can
+never select a retraining run.
 
 Configured under `phase_v2.performance_triggers` (`enabled`,
-`observation_interval`, `max_drawdown_threshold`, `min_sharpe`,
-`min_win_rate`, `max_liquidity_rejection_rate`, `regime_shift_sensitivity`,
+`observation_interval`, `trade_count_interval`, `max_drawdown_threshold`,
+`sustained_drawdown_days`, `min_sharpe`, `min_win_rate`,
+`max_liquidity_rejection_rate`, `regime_shift_sensitivity`,
 `confidence_decay_ratio_threshold`, `confidence_instability_std_threshold`,
 `max_consecutive_locked_events`, `rolling_window`, `suppression_minutes`).
 
@@ -471,6 +482,35 @@ V2 position sizing is driven by signal confidence and rolling volatility. The fi
 - sizing reason
 
 High volatility reduces position size. Low volatility can expand the target weight, but only up to the configured max position cap.
+
+## Manual Trade-Lock Override Contract
+
+`main.py::_refresh_risk_state()`'s sticky total-drawdown lock (a
+`total_drawdown_limit_breached` trade lock never auto-clears on its own
+within a run — see `development/Problems.md` #9 for how this was found) is a
+deliberate capital-preservation circuit breaker, not a bug. `risk/manual_override.py`
+adds the one deliberate, narrow way to override it:
+
+- `phase_v2.risk.manual_trade_lock_override`: `true` (force-lock), `false`
+  (force-clear, including an otherwise-sticky total-drawdown lock), or
+  absent/`null` (today's automatic behavior, unchanged).
+- Read once per session rollover by `_refresh_risk_state()` — not
+  hot-reloaded every bar, keeping the spirit of "config is stable within a
+  run," but re-read from disk at that one checkpoint (not from the
+  `self.config` loaded once at `Initialize()`) so a long-running paper/live
+  process picks up a change without a restart.
+- It is a **standing switch, not one-shot**: it stays in effect until
+  explicitly changed again. `main.py` itself never writes back to
+  `config.json` — it only reads this one key.
+- Two writers: the `aq trade-lock --on|--off|--auto` CLI command (a human
+  decision), and `retraining/orchestrator.py::promote()` (auto-clears it to
+  `false` on every successful promotion, gated by
+  `phase_v2.retraining.promotion.auto_clear_trade_lock`, default `true`) —
+  ties "trading resumes" to "a genuinely new model shipped."
+- `risk/manual_override.py::write_manual_trade_lock_override()` is the
+  **first place in this codebase where a Python process writes to
+  `config.json`** (every other reader treats it as human-edited, read-only
+  input) — a deliberate, narrow exception, not a new general pattern.
 
 ## Regime Detection Contract
 

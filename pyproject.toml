@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aether-quant"
+version = "0.1.0"
+description = "Aether Quant convenience CLI"
+requires-python = ">=3.10"
+
+[project.scripts]
+aq = "aq_cli:main"
+
+[tool.setuptools]
+py-modules = ["aq_cli"]
+# Explicit, not auto-discovered: backtests/*/code/ contains full copies of
+# this repo's packages (each backtest run snapshots the algorithm code), so
+# unrestricted package discovery from repo root would pick up duplicates.
+# List only what aq_cli.py actually imports directly - extend this list if a
+# future aq subcommand needs another first-party package imported in-process
+# rather than invoked via subprocess.
+packages = ["risk"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

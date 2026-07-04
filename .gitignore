@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 venv/
 env/
+*.egg-info/
 
 # Local secrets and broker/API credentials
 .env

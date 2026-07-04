@@ -171,3 +171,44 @@ bare `pytest`. Not yet fixed at the root: `README.md` still documents the
 bare form. A real fix would be a `pytest.ini`/`pyproject.toml` with
 `testpaths = tests` and/or `--ignore=backtests`, or excluding `tests/` from
 what gets copied into each backtest's `code/` snapshot in the first place.
+
+**Fixed** (incidentally, while adding `pyproject.toml` for the `aq` CLI's
+console-script entry point — see #9): `pyproject.toml`'s
+`[tool.pytest.ini_options]` now sets `testpaths = ["tests"]`, so a bare
+`pytest` from the repo root only collects `tests/` and no longer crawls
+`backtests/*/code/tests/`. `README.md`'s runbook still shows the explicit
+`pytest tests/` form since it's clearer to a new reader, but bare `pytest`
+now works too.
+
+---
+
+### 9. Total-drawdown trade lock never auto-clears within a run
+**Severity:** 4/10 · **Status:** `addressed` (manual override + auto-clear on promotion, not a behavior change to the default)
+
+`main.py::_refresh_risk_state()`'s session-rollover branch only resets
+`trade_lock_active` when `trade_lock_reason != "total_drawdown_limit_breached"`
+— a daily-drawdown lock clears every new trading day, but a total-drawdown
+breach is never cleared anywhere else in `main.py` for the rest of that run.
+Found while investigating a user-reported retraining-cadence question: a
+real run's `rejected_by_reason` data showed `total_drawdown_limit_breached`
+blocking ~3948 of ~5000 events — the run almost certainly breached this once,
+early, and never traded again for the remainder.
+
+This reads as an intentional capital-preservation circuit breaker (consistent
+with this codebase's existing bias toward manual gates elsewhere — e.g.
+`retraining`'s manual `promote`/`rollback`), not a bug to silently patch away,
+so the underlying sticky-by-default behavior is unchanged.
+
+**Addressed via:** a new manual override,
+`phase_v2.risk.manual_trade_lock_override` (`true`/`false`/absent), read once
+per session rollover by `_refresh_risk_state()` via
+`risk/manual_override.py::read_manual_trade_lock_override()` — a deliberate,
+narrow exception to "config is stable within a run," scoped to this one key
+so a long-running paper/live process can pick up a change without a restart.
+Two things can flip it: the new `aq trade-lock --on/--off/--auto` CLI command
+(a human decision), and `retraining/orchestrator.py::promote()` (auto-clears
+it on every successful promotion, gated by
+`phase_v2.retraining.promotion.auto_clear_trade_lock`, default `true`) —
+ties "trading resumes" to "a genuinely new model shipped," not to a bare
+restart. See the Manual Trade-Lock Override Contract in
+`development/v2_architecture.md`.

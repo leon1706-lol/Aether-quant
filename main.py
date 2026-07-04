@@ -24,6 +24,7 @@ from risk_controls import (
 from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
+from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
 from liquidity import build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
@@ -848,6 +849,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.current_session_date = current_date
             self.session_start_equity = portfolio_value
             if self.trade_lock_reason != "total_drawdown_limit_breached":
+                self.trade_lock_active = False
+                self.trade_lock_reason = None
+
+            # Manual trade-lock override (`aq trade-lock --on/--off`, or an
+            # auto-clear from retraining/orchestrator.py::promote()) - read
+            # fresh from config.json once per session rollover, not cached
+            # in self.config, so a long-running paper/live process picks up
+            # a CLI-issued change without a restart. None leaves the sticky
+            # total-drawdown behavior above completely unchanged.
+            override = read_manual_trade_lock_override(self.root_path / "config.json")
+            if override is True:
+                self.trade_lock_active = True
+                self.trade_lock_reason = "manual_override_locked"
+            elif override is False:
                 self.trade_lock_active = False
                 self.trade_lock_reason = None
 

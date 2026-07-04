@@ -4,7 +4,7 @@ Conventions: no test classes, module-level helpers, _pg_conn constructor
 injection mirroring PostgresWorker's test style.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from performance.trigger_worker import TriggerWorker
@@ -95,7 +95,8 @@ def _make_conn_mock(*, new_events=None, window_events=None, trigger_rows=None, w
 
 
 def test_run_once_persists_triggers_and_advances_watermark():
-    events = [_sample_event(created_at=f"2026-07-02T12:{i:02d}:00+00:00") for i in range(100)]
+    base = datetime(2026, 7, 2, 12, 0, 0, tzinfo=timezone.utc)
+    events = [_sample_event(created_at=(base + timedelta(minutes=i)).isoformat()) for i in range(100)]
     conn_mock, cur_mock = _make_conn_mock(new_events=events, window_events=events)
 
     worker = TriggerWorker(config=_CONFIG, _pg_conn=conn_mock)

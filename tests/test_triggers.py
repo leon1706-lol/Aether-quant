@@ -11,12 +11,14 @@ from performance.triggers import (
     confidence_decay_trigger,
     drawdown_trigger,
     evaluate_all_triggers,
+    executed_trade_count_trigger,
     liquidity_warning_trigger,
     model_topology_disagreement_trigger,
     observation_count_trigger,
     regime_shift_trigger,
     risk_lock_trigger,
     sharpe_degradation_trigger,
+    sustained_drawdown_trigger,
     topology_regime_mismatch_trigger,
     topology_uncertainty_trigger,
     trigger_frequency_spike,
@@ -26,7 +28,9 @@ from performance.triggers import (
 _DEFAULT_CONFIG = {
     "enabled": True,
     "observation_interval": 100,
+    "trade_count_interval": 100,
     "max_drawdown_threshold": -0.10,
+    "sustained_drawdown_days": 2,
     "min_sharpe": 0.3,
     "min_win_rate": 0.45,
     "max_liquidity_rejection_rate": 0.25,
@@ -111,6 +115,31 @@ def test_observation_count_trigger_schema_and_severity():
     assert triggers[0]["retrain_candidate"] is False
 
 
+def test_executed_trade_count_trigger_only_counts_trade_actions():
+    trades = [_sample_event(action="trade") for _ in range(100)]
+    holds = [_sample_event(action="hold") for _ in range(500)]  # should never count
+
+    assert len(executed_trade_count_trigger(trades, interval=100)) == 1
+    assert len(executed_trade_count_trigger(holds, interval=100)) == 0
+    assert len(executed_trade_count_trigger(trades + holds, interval=100)) == 1
+
+
+def test_executed_trade_count_trigger_fires_at_exact_multiple():
+    events = [_sample_event(action="trade") for _ in range(100)]
+
+    assert len(executed_trade_count_trigger(events, interval=100)) == 1
+    assert len(executed_trade_count_trigger(events[:99], interval=100)) == 0
+    assert len(executed_trade_count_trigger([_sample_event(action="trade") for _ in range(150)], interval=100)) == 0
+
+
+def test_executed_trade_count_trigger_schema_and_severity():
+    triggers = executed_trade_count_trigger([_sample_event(action="trade") for _ in range(100)], interval=100)
+
+    assert triggers[0]["trigger_type"] == "executed_trade_count_trigger"
+    assert triggers[0]["severity"] == "warning"
+    assert triggers[0]["retrain_candidate"] is True
+
+
 def test_drawdown_trigger_fires_when_simulated_drawdown_breaches_threshold():
     equities = [100_000.0, 110_000.0, 85_000.0]  # ~-22.7% drawdown
     events = [_sample_event(portfolio={"total_value": v, "simulated": True, "current_drawdown": 0.0}) for v in equities]
@@ -135,6 +164,51 @@ def test_drawdown_trigger_does_not_fire_when_within_threshold():
     events = [_sample_event(portfolio={"total_value": v, "simulated": True, "current_drawdown": -0.01}) for v in (100_000.0, 99_500.0)]
 
     assert drawdown_trigger(events, max_drawdown_threshold=-0.10) == []
+
+
+def test_sustained_drawdown_trigger_fires_on_consecutive_bad_days():
+    events = [
+        _sample_event(created_at="2026-01-01T16:00:00Z", portfolio={"current_drawdown": -0.12}),
+        _sample_event(created_at="2026-01-02T16:00:00Z", portfolio={"current_drawdown": -0.15}),
+    ]
+
+    triggers = sustained_drawdown_trigger(events, max_drawdown_threshold=-0.10, consecutive_days=2)
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "sustained_drawdown_trigger"
+    assert triggers[0]["metric_value"] == -0.15
+
+
+def test_sustained_drawdown_trigger_does_not_fire_when_only_one_of_two_days_breaches():
+    events = [
+        _sample_event(created_at="2026-01-01T16:00:00Z", portfolio={"current_drawdown": -0.02}),  # healthy day
+        _sample_event(created_at="2026-01-02T16:00:00Z", portfolio={"current_drawdown": -0.15}),  # bad day
+    ]
+
+    assert sustained_drawdown_trigger(events, max_drawdown_threshold=-0.10, consecutive_days=2) == []
+
+
+def test_sustained_drawdown_trigger_does_not_fire_with_fewer_days_than_required():
+    events = [_sample_event(created_at="2026-01-01T16:00:00Z", portfolio={"current_drawdown": -0.15})]
+
+    assert sustained_drawdown_trigger(events, max_drawdown_threshold=-0.10, consecutive_days=2) == []
+
+
+def test_sustained_drawdown_trigger_severity_scales_with_breach_ratio():
+    mild = [
+        _sample_event(created_at="2026-01-01T16:00:00Z", portfolio={"current_drawdown": -0.11}),
+        _sample_event(created_at="2026-01-02T16:00:00Z", portfolio={"current_drawdown": -0.11}),
+    ]
+    severe = [
+        _sample_event(created_at="2026-01-01T16:00:00Z", portfolio={"current_drawdown": -0.30}),
+        _sample_event(created_at="2026-01-02T16:00:00Z", portfolio={"current_drawdown": -0.30}),
+    ]
+
+    mild_triggers = sustained_drawdown_trigger(mild, max_drawdown_threshold=-0.10, consecutive_days=2)
+    severe_triggers = sustained_drawdown_trigger(severe, max_drawdown_threshold=-0.10, consecutive_days=2)
+
+    assert mild_triggers[0]["severity"] == "warning"
+    assert severe_triggers[0]["severity"] == "critical"
 
 
 def test_sharpe_degradation_trigger_fires_below_min_sharpe():

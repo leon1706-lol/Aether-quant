@@ -92,11 +92,49 @@ def test_promote_succeeds_when_candidate_has_vault_commit():
         "retraining.orchestrator.update_model_version_status"
     ), patch("retraining.orchestrator.write_status_file"), patch(
         "retraining.orchestrator.build_status_view", return_value={}
-    ):
+    ), patch("retraining.orchestrator.write_manual_trade_lock_override") as override_mock:
         result = orchestrator.promote(conn_mock, "v1")
 
     assert result["ok"] is True
     promote_mock.assert_called_once_with(conn_mock, old_active_id=None, new_active_id="v1")
+    # auto_clear_trade_lock defaults to True when config is omitted entirely.
+    override_mock.assert_called_once_with(False, orchestrator._CONFIG_PATH)
+
+
+def _patched_promote(conn_mock, candidate, config=None):
+    with patch("retraining.orchestrator.fetch_model_version", return_value=candidate), patch(
+        "retraining.orchestrator.fetch_active_model_version", return_value=None
+    ), patch("retraining.orchestrator.copy_candidate_to_active", return_value={"model_weights.json": "hash"}), patch(
+        "retraining.orchestrator.copy_backtest_report_to_active"
+    ), patch("retraining.orchestrator.promote_model_version"), patch(
+        "retraining.orchestrator.update_model_version_status"
+    ), patch("retraining.orchestrator.write_status_file"), patch(
+        "retraining.orchestrator.build_status_view", return_value={}
+    ), patch("retraining.orchestrator.write_manual_trade_lock_override") as override_mock:
+        result = orchestrator.promote(conn_mock, "v1", config=config)
+    return result, override_mock
+
+
+def test_promote_clears_trade_lock_override_by_default():
+    conn_mock, _ = _make_conn_mock()
+    candidate = {"model_version_id": "v1", "status": "candidate", "aether_vault_commit": "abc123"}
+
+    result, override_mock = _patched_promote(conn_mock, candidate, config={})
+
+    assert result["ok"] is True
+    override_mock.assert_called_once_with(False, orchestrator._CONFIG_PATH)
+
+
+def test_promote_skips_clearing_trade_lock_when_disabled_in_config():
+    conn_mock, _ = _make_conn_mock()
+    candidate = {"model_version_id": "v1", "status": "candidate", "aether_vault_commit": "abc123"}
+
+    result, override_mock = _patched_promote(
+        conn_mock, candidate, config={"promotion": {"auto_clear_trade_lock": False}}
+    )
+
+    assert result["ok"] is True
+    override_mock.assert_not_called()
 
 
 def test_rollback_restores_previous_active_version_metadata():

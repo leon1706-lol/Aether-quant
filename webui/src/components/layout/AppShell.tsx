@@ -29,7 +29,7 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen text-white">
-      <div className="mx-auto w-[min(1480px,calc(100%-28px))] py-6">
+      <div className="mx-auto w-[min(1480px,calc(100%-28px))] overflow-x-hidden py-6">
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
           <div>
             <h1 className="text-3xl font-semibold tracking-wide sm:text-4xl">Aether Quant</h1>

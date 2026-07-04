@@ -138,6 +138,39 @@ npm run dev
 
 Danach `http://localhost:3002` im Browser oeffnen.
 
+## Optional: `aq` CLI
+
+Ein duennes Convenience-CLI fuer die haeufigsten Befehle aus diesem README.
+Einmalig installieren (registriert den `aq`-Befehl innerhalb der aktivierten
+virtuellen Umgebung):
+
+```powershell
+pip install -e .
+```
+
+Danach `aq --help` fuer die vollstaendige Befehlsuebersicht. Alle Befehle
+ausser `aq trade-lock` sind reine `subprocess`-Wrapper um bereits an anderer
+Stelle in diesem README dokumentierte Befehle:
+
+```powershell
+aq train [--dataset-only|--init-only|--experts-only]
+aq test
+aq backtest
+aq report <backtest-ordner> <ergebnis-id>
+aq api
+aq webui
+aq docker up [--lean|--all]
+aq docker build
+aq retrain <plan|train|validate|backtest|commit|promote|rollback|status> [...]
+aq trade-lock --on|--off|--auto|--status
+aq status
+```
+
+`aq trade-lock` steuert einen manuellen Override fuer main.py's Total-Drawdown-
+Trade-Lock (siehe `development/v2_architecture.md`, Manual Trade-Lock Override
+Contract) — `--off` setzt eine sonst dauerhafte Sperre gezielt zurueck,
+`--auto` kehrt zum automatischen Standardverhalten zurueck.
+
 ## Runbook
 
 Diese Befehle sind die kurzen Standardwege fuer den lokalen Alltag.

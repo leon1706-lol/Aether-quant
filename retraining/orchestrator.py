@@ -54,6 +54,7 @@ from retraining.postgres_registry import (
 from retraining.status_export import build_status_view, write_status_file
 from retraining.validation_gate import evaluate_validation_gate
 from retraining.vault_client import commit_candidate_to_vault, run_av_command
+from risk.manual_override import write_manual_trade_lock_override
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +346,11 @@ def promote(conn, version_id: str, retraining_id: str | None = None, config: dic
 
     write_status_file(build_status_view(conn))
     logger.info("promote: %s is now the active model.", version_id)
+
+    if config.get("promotion", {}).get("auto_clear_trade_lock", True):
+        write_manual_trade_lock_override(False, _CONFIG_PATH)
+        logger.info("promote: cleared trade-lock override so trading resumes on the new model.")
+
     return {"ok": True, "version_id": version_id}
 
 
