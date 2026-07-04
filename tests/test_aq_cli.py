@@ -217,3 +217,97 @@ def test_trade_lock_requires_exactly_one_flag():
         assert False, "expected SystemExit when no trade-lock flag is given"
     except SystemExit:
         pass
+
+
+# --- update-check ---------------------------------------------------------
+
+
+def test_parse_simple_version_accepts_clean_dotted_integers():
+    assert aq_cli._parse_simple_version("1.2.3") == (1, 2, 3)
+    assert aq_cli._parse_simple_version("0.1.0") == (0, 1, 0)
+
+
+def test_parse_simple_version_rejects_dev_and_local_builds():
+    # setuptools-scm's fallback for untagged installs - must never be
+    # compared as if it were a real release, or every dev build would look
+    # "outdated" forever.
+    assert aq_cli._parse_simple_version("0.1.dev35+gc744f9ca4.d20260704") is None
+    assert aq_cli._parse_simple_version("") is None
+
+
+def test_update_cache_round_trips(tmp_path):
+    cache_path = tmp_path / "update_check.json"
+    with patch("aq_cli.UPDATE_CACHE_PATH", cache_path):
+        aq_cli._write_update_cache("9.9.9")
+        cache = aq_cli._read_update_cache()
+
+    assert cache["latest_version"] == "9.9.9"
+    assert "last_checked" in cache
+
+
+def test_read_update_cache_returns_empty_dict_when_missing(tmp_path):
+    with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "does_not_exist.json"):
+        assert aq_cli._read_update_cache() == {}
+
+
+def test_check_for_update_prints_notice_when_outdated(tmp_path, capsys):
+    with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "update_check.json"), patch(
+        "aq_cli.installed_version", return_value="1.0.0"
+    ), patch("aq_cli._fetch_latest_version_from_pypi", return_value="2.0.0"):
+        aq_cli.check_for_update()
+
+    err = capsys.readouterr().err
+    assert "2.0.0" in err
+    assert "1.0.0" in err
+    assert "pip install --upgrade aether-quant" in err
+
+
+def test_check_for_update_silent_when_up_to_date(tmp_path, capsys):
+    with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "update_check.json"), patch(
+        "aq_cli.installed_version", return_value="2.0.0"
+    ), patch("aq_cli._fetch_latest_version_from_pypi", return_value="2.0.0"):
+        aq_cli.check_for_update()
+
+    assert capsys.readouterr().err == ""
+
+
+def test_check_for_update_silent_on_dev_build(tmp_path, capsys):
+    with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "update_check.json"), patch(
+        "aq_cli.installed_version", return_value="0.1.dev35+gc744f9ca4.d20260704"
+    ), patch("aq_cli._fetch_latest_version_from_pypi", return_value="2.0.0"):
+        aq_cli.check_for_update()
+
+    assert capsys.readouterr().err == ""
+
+
+def test_check_for_update_never_raises_when_pypi_unreachable(tmp_path, capsys):
+    with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "update_check.json"), patch(
+        "aq_cli.installed_version", return_value="1.0.0"
+    ), patch("aq_cli._fetch_latest_version_from_pypi", side_effect=Exception("network down")):
+        aq_cli.check_for_update()  # must not raise
+
+    assert capsys.readouterr().err == ""
+
+
+def test_check_for_update_respects_skip_env_var(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("AQ_SKIP_UPDATE_CHECK", "1")
+    fetch_mock = MagicMock(return_value="2.0.0")
+    with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "update_check.json"), patch(
+        "aq_cli.installed_version", return_value="1.0.0"
+    ), patch("aq_cli._fetch_latest_version_from_pypi", fetch_mock):
+        aq_cli.check_for_update()
+
+    fetch_mock.assert_not_called()
+    assert capsys.readouterr().err == ""
+
+
+def test_check_for_update_uses_cache_within_interval(tmp_path):
+    cache_path = tmp_path / "update_check.json"
+    with patch("aq_cli.UPDATE_CACHE_PATH", cache_path):
+        aq_cli._write_update_cache("1.5.0")
+        fetch_mock = MagicMock(return_value="9.9.9")
+        with patch("aq_cli._fetch_latest_version_from_pypi", fetch_mock):
+            latest = aq_cli._latest_known_version()
+
+    fetch_mock.assert_not_called()
+    assert latest == "1.5.0"

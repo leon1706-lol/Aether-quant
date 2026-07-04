@@ -37,6 +37,7 @@ services:
       - aether-net
 
   aether-quant:
+    image: ${AETHER_QUANT_IMAGE:-ghcr.io/leon1706-lol/aether-quant:latest}
     build:
       context: .
     container_name: aether-quant

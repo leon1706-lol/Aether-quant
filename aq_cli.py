@@ -23,9 +23,14 @@ Then:
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import shutil
 import subprocess
 import sys
+import time
+import urllib.request
+from importlib.metadata import version as installed_version
 from pathlib import Path
 
 from risk.manual_override import read_manual_trade_lock_override, write_manual_trade_lock_override
@@ -33,6 +38,11 @@ from risk.manual_override import read_manual_trade_lock_override, write_manual_t
 ROOT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT_DIR / "config.json"
 WEBUI_DIR = ROOT_DIR / "webui"
+
+PACKAGE_NAME = "aether-quant"
+UPDATE_CACHE_PATH = Path.home() / ".aq" / "update_check.json"
+UPDATE_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
+UPDATE_CHECK_TIMEOUT_SECONDS = 2
 
 
 def _run(cmd: list[str], cwd: Path = ROOT_DIR) -> int:
@@ -64,6 +74,84 @@ def _find_quantconnect_lean_binary() -> str | None:
         if "Lean (version" not in (result.stdout or "") + (result.stderr or ""):
             return candidate
     return None
+
+
+def _parse_simple_version(value: str) -> tuple[int, ...] | None:
+    """Best-effort "X.Y.Z" -> (X, Y, Z) parse. Returns None for anything that
+    isn't a clean dotted-integer release version - dev/local builds (e.g.
+    setuptools-scm's "0.1.dev35+gc744f9ca4.d20260704" fallback for untagged
+    installs) simply never get flagged as outdated, which is the correct
+    behavior here."""
+    try:
+        return tuple(int(part) for part in value.split("."))
+    except ValueError:
+        return None
+
+
+def _read_update_cache() -> dict:
+    if not UPDATE_CACHE_PATH.exists():
+        return {}
+    try:
+        return json.loads(UPDATE_CACHE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_update_cache(latest_version: str) -> None:
+    UPDATE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"last_checked": time.time(), "latest_version": latest_version}
+    UPDATE_CACHE_PATH.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _fetch_latest_version_from_pypi() -> str | None:
+    try:
+        url = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
+        with urllib.request.urlopen(url, timeout=UPDATE_CHECK_TIMEOUT_SECONDS) as response:  # noqa: S310
+            payload = json.loads(response.read().decode("utf-8"))
+        return payload["info"]["version"]
+    except Exception:
+        return None
+
+
+def _latest_known_version() -> str | None:
+    cache = _read_update_cache()
+    last_checked = cache.get("last_checked", 0)
+    if time.time() - last_checked < UPDATE_CHECK_INTERVAL_SECONDS:
+        return cache.get("latest_version")
+
+    # Update the cache timestamp even on a failed fetch, so an offline user
+    # doesn't pay the network timeout again on every single command - only
+    # once per interval.
+    latest = _fetch_latest_version_from_pypi()
+    _write_update_cache(latest or cache.get("latest_version", ""))
+    return latest or cache.get("latest_version")
+
+
+def check_for_update() -> None:
+    """Prints a one-line notice to stderr if a newer aether-quant release is
+    available on PyPI. Never raises, never blocks a real command by more
+    than the short network timeout, and only actually checks PyPI once per
+    24h (cached in ~/.aq/update_check.json). Opt out with
+    AQ_SKIP_UPDATE_CHECK=1 (e.g. for CI/scripted usage)."""
+    if os.environ.get("AQ_SKIP_UPDATE_CHECK"):
+        return
+    try:
+        installed = installed_version(PACKAGE_NAME)
+        latest = _latest_known_version()
+        if not latest:
+            return
+        installed_tuple = _parse_simple_version(installed)
+        latest_tuple = _parse_simple_version(latest)
+        if installed_tuple is None or latest_tuple is None:
+            return
+        if installed_tuple < latest_tuple:
+            print(
+                f"aq: a newer version is available ({latest}, you have {installed}) - "
+                f"upgrade with: pip install --upgrade {PACKAGE_NAME}",
+                file=sys.stderr,
+            )
+    except Exception:
+        pass
 
 
 def cmd_train(args: argparse.Namespace) -> int:
@@ -232,7 +320,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    sys.exit(args.func(args))
+    exit_code = args.func(args)
+    check_for_update()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

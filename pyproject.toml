@@ -1,12 +1,19 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "aether-quant"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Aether Quant convenience CLI"
 requires-python = ">=3.10"
+
+# Version comes from the git tag that triggered the release (e.g. v2.2.0 ->
+# 2.2.0) - no manual version bump anywhere in this repo. Falls back to a
+# 0.0.dev<N>+g<hash>-style version for untagged/local dev installs (e.g.
+# `pip install -e .` without ever having tagged), so the existing local `aq`
+# CLI workflow is unaffected.
+[tool.setuptools_scm]
 
 [project.scripts]
 aq = "aq_cli:main"

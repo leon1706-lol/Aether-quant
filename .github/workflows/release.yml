@@ -1,0 +1,88 @@
+name: Release
+
+# Releasing is a manual, deliberate act: tag a commit on main and push the
+# tag. Nothing else triggers this workflow - matches this project's existing
+# bias toward no uncontrolled automatic actions (see e.g. retraining's
+# manual promote/rollback).
+on:
+  push:
+    tags: ["v*.*.*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+
+      - name: Run tests
+        run: pytest
+
+  publish-pypi:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for PyPI Trusted Publishing (OIDC) - no PyPI token is ever
+      # stored as a secret. Requires a one-time Trusted Publisher setup on
+      # the PyPI project page (repo + this workflow filename).
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history/tags - required for setuptools-scm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-docker:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Hardcoded lowercase, not derived from ${{ github.repository }}:
+      # the repo is leon1706-lol/Aether-quant (capital A), but Docker image
+      # references must be all-lowercase - using github.repository directly
+      # would fail with "invalid reference format".
+      IMAGE_NAME: ghcr.io/leon1706-lol/aether-quant
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

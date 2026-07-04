@@ -138,11 +138,32 @@ npm run dev
 
 Danach `http://localhost:3002` im Browser oeffnen.
 
-## Optional: `aq` CLI
+## Installation als Endnutzer (PyPI + GHCR)
 
-Ein duennes Convenience-CLI fuer die haeufigsten Befehle aus diesem README.
-Einmalig installieren (registriert den `aq`-Befehl innerhalb der aktivierten
-virtuellen Umgebung):
+Wer nicht am Code mitentwickelt, sondern Aether Quant nur nutzen moechte,
+braucht kein lokales `pip install -e .` — CLI und Backend werden als
+fertige Releases veroeffentlicht:
+
+```powershell
+pip install aether-quant
+docker pull ghcr.io/leon1706-lol/aether-quant:latest
+```
+
+Danach steht `aq --help` sofort zur Verfuegung (siehe Befehlsuebersicht
+unten). `aq` prueft automatisch (hoechstens einmal pro 24h, mit kurzem
+Timeout, niemals blockierend) gegen PyPI, ob eine neuere Version verfuegbar
+ist, und zeigt bei jedem Befehl eine kurze Hinweiszeile an, falls ja. Abschalten
+mit `AQ_SKIP_UPDATE_CHECK=1`.
+
+Das Docker-Image ist dasselbe, das `docker-compose.yml`'s `aether-quant`-Service
+per Default zieht (`AETHER_QUANT_IMAGE` env var zum Ueberschreiben, z. B. fuer
+lokal gebaute Images).
+
+## Lokale Entwicklung: `aq` CLI aus dem Quellcode
+
+Fuer die lokale Entwicklung (dieses Repo geklont, `.venv` aktiv) registriert
+`pip install -e .` denselben `aq`-Befehl direkt aus dem Quellcode, ohne einen
+PyPI-Release abzuwarten:
 
 ```powershell
 pip install -e .
@@ -170,6 +191,37 @@ aq status
 Trade-Lock (siehe `development/v2_architecture.md`, Manual Trade-Lock Override
 Contract) — `--off` setzt eine sonst dauerhafte Sperre gezielt zurueck,
 `--auto` kehrt zum automatischen Standardverhalten zurueck.
+
+## Release-Prozess (fuer Maintainer)
+
+Ein Release besteht aus genau einem manuellen Schritt — bewusst kein
+automatischer Release bei jedem Push nach `main`, sondern nur bei einem
+explizit gesetzten Versions-Tag (`.github/workflows/release.yml`, Trigger
+`push: tags: ["v*.*.*"]`):
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Danach laufen automatisch (kein manueller Versions-Bump irgendwo im Repo
+noetig — `pyproject.toml` liest die Version per `setuptools-scm` direkt aus
+dem Tag):
+
+1. Testsuite (`pytest`) — schlaegt sie fehl, wird nichts veroeffentlicht.
+2. PyPI-Veroeffentlichung via Trusted Publishing (OIDC) — kein PyPI-Token
+   liegt als GitHub-Secret vor.
+3. Docker-Image-Build und -Push nach `ghcr.io/leon1706-lol/aether-quant`,
+   getaggt mit der Versionsnummer und `:latest`.
+
+**Einmalige manuelle Vorbereitung, bevor der erste Tag gepusht wird**
+(kann nicht von hier aus erledigt werden):
+
+- Auf pypi.org einen "Trusted Publisher" fuer dieses Projekt anlegen
+  (verweist auf `leon1706-lol/Aether-quant` + Workflow-Datei `release.yml`).
+- Nach dem allerersten Tag-Push: im Reiter **Packages** dieses Repos
+  pruefen, ob das neue `aether-quant`-Package auf privat steht, und ggf. auf
+  oeffentlich umstellen, damit `docker pull` fuer alle funktioniert.
 
 ## Runbook
 
