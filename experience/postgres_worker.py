@@ -73,15 +73,23 @@ def event_to_row(event: dict) -> dict[str, Any]:
 
     Pure function — no side effects. The returned dict matches _INSERT_SQL
     parameter names and is ready for cur.executemany().
+
+    "ticker"/"symbol"/"signal"/"action" use .get(..., "") rather than direct
+    indexing (V2-19): portfolio-level event types such as session_summary
+    (see experience/redis_queue.py::build_session_summary_event()) carry no
+    per-asset ticker/symbol/signal, and the experience_events columns are
+    VARCHAR NOT NULL (not unique-constrained), so an empty-string default
+    satisfies the schema without a migration. "action" falls back to
+    event_type so a session_summary row is still filterable/readable.
     """
     return {
         "event_id": event["event_id"],
         "created_at": event["created_at"],
         "mode": event["mode"],
-        "ticker": event["ticker"],
-        "symbol": event["symbol"],
-        "signal": event["signal"],
-        "action": event["action"],
+        "ticker": event.get("ticker", ""),
+        "symbol": event.get("symbol", ""),
+        "signal": event.get("signal", ""),
+        "action": event.get("action", event.get("event_type", "")),
         "confidence": event.get("confidence"),
         "target_weight": event.get("target_weight"),
         "payload": json.dumps(event),

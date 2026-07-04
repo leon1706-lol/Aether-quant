@@ -78,9 +78,9 @@ aether-quant/
 - `monitoring/api_server.py`: FastAPI-Server, der `visualization/state.json`, `visualization/scene.json` und die genannten Exporte als JSON-API unter `localhost:8001` (lokal, `uvicorn`) bzw. `localhost:8001` (Docker, `aether-quant`-Container) bereitstellt
 - `webui/`: React/Vite-Webui unter `localhost:3002` (lokaler `npm run dev`) mit Overview-Seite (Scorecards, 3D-Marktszene, Asset-Heatmap, Signal-/Positionsboard), Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle), Topology-Seite (3D-Cluster-Ansicht) und Tracing-Seite (V2-18: Runtime-Metrics-Snapshot, Asset-Performance, Backtest- und Observation-Equity-Curves — nativer Ersatz fuer das entfernte Grafana) als einheitliche Ablösung der frueheren `dashboard.html` und `volatility_dashboard.html`. Im Docker-Container wird dasselbe Webui-Build stattdessen vom `aether-quant`-Container unter `localhost:8001` mitausgeliefert (kein eigener Port) — Vite-Dev-Server (3002) und Docker-Bundle (8001) sind zwei getrennte Ausliefer-Pfade.
 - `docker-compose.yml`: lokale Infrastruktur fuer Lean, Redis und PostgreSQL (Grafana seit V2-18 entfernt — die Webui-Tracing-Seite ersetzt es)
-- `requirements/`: alle `requirements*.txt`-Varianten an einem Ort — `requirements.txt` (Laufzeit/Training), `requirements-dev.txt` (lokale Entwicklung/Tests), `requirements-runtime.txt` (schlankes FastAPI-Image), `requirements-worker.txt`/`requirements-trigger-worker.txt`/`requirements-retraining-worker.txt` (die drei Docker-Worker-Images)
+- `requirements/`: alle `requirements*.txt`-Varianten an einem Ort — `requirements.txt` (Laufzeit/Training), `requirements-dev.txt` (lokale Entwicklung/Tests, inkl. `yfinance` seit V2-19.5), `requirements-runtime.txt` (schlankes FastAPI-Image), `requirements-worker.txt`/`requirements-trigger-worker.txt`/`requirements-retraining-worker.txt`/`requirements-telegram-worker.txt` (die vier Docker-Worker-Images)
 - `development/`: Entwicklungs-Dokumentation — `v2_architecture.md` (V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen), `infrastructure.md` (Docker-Compose-Startbefehle, Netzwerk- und Datenfluss-Runbook), `Changelog.md` (detaillierte Phase-Ergebnisse, siehe unten), `Problems.md` (gefundene Bugs mit Schweregrad und Status)
-- `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher
+- `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher; seit V2-19.5 zusaetzlich `yfinance_backfill.py` (manuelles Offline-Skript, fuellt Luecken in duennen Serien wie ETHUSD/LTCUSD aus Yahoo Finance, nie automatisch, nie im Lean-Container)
 - `moe/`: Gating Network, Expert Routing und finale MoE-Signalzusammenfuehrung
 - `experts/`: Bullish-, Bearish-, Sideways- und Volatility-Expert-Module
 - `regime/`: Markt-Regime-Erkennung und spaetere LLM-Regime-Vektoren
@@ -88,7 +88,8 @@ aether-quant/
 - `experience/`: Observation-, Signal-, Trade- und Retraining-Historie
 - `retraining/`: Controlled Retraining (V2-17) — Planner, Candidate-Training-Gate, Validation-/Backtest-Gate, Aether-Vault-Commit, Promotion/Rollback, siehe `development/v2_architecture.md`
 - `risk/`: dynamisches Position Sizing, Hebel-, Liquiditaets- und Market-Impact-Controls
-- `monitoring/`: FastAPI-JSON-API fuer Runtime-State, Scene, Topology und die Tracing-Feeds (siehe V2-18) sowie spaetere Alerts
+- `monitoring/`: FastAPI-JSON-API fuer Runtime-State, Scene, Topology und die Tracing-Feeds (siehe V2-18)
+- `notifications/`: Telegram-Alerting (V2-19) — pollt `performance_triggers` (jede Trigger-Art, nicht nur Drawdown) und `experience_events` (`event_type="session_summary"`, von `main.py` bei jedem Session-Rollover gepusht) per eigenem `telegram-worker`-Docker-Service; Secrets ausschliesslich ueber `AETHER_TELEGRAM_BOT_TOKEN`/`AETHER_TELEGRAM_CHAT_ID`, nie in `config.json`
 
 ## Lokaler Start
 
@@ -307,12 +308,13 @@ Der geplante Datenfluss:
 18. [x] V2-17: Controlled Retraining
 19. [x] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)
 20. [x] V2-18: Grafana entfernt, React-Tracing-Dashboard
-21. [ ] V2-19: Telegram Alerts
-22. [ ] V2-20: Lean Backtesting Integration
-23. [ ] V2-21: Paper Trading Vorbereitung
-24. [ ] V2-22: Live Deployment Struktur
-25. [ ] V2-23.1: Datengetriebene Liquidity-Threshold-Kalibrierung — ersetzt statische Participations-Schwellenwerte durch kalibrierte Werte aus echten Fill-Daten, sobald V2-13/14 Experience-Pipeline und V2-16/17 Controlled Retraining stehen
-26. [ ] V2-24: Finaler V2 Review
+21. [x] V2-19: Telegram Alerts
+22. [x] V2-19.5: Yahoo Finance Historical Data Backfill — ergaenzendes, manuelles Offline-Skript, kein eigener Roadmap-Punkt im urspruenglichen Plan
+23. [ ] V2-20: Lean Backtesting Integration
+24. [ ] V2-21: Paper Trading Vorbereitung
+25. [ ] V2-22: Live Deployment Struktur
+26. [ ] V2-23.1: Datengetriebene Liquidity-Threshold-Kalibrierung — ersetzt statische Participations-Schwellenwerte durch kalibrierte Werte aus echten Fill-Daten, sobald V2-13/14 Experience-Pipeline und V2-16/17 Controlled Retraining stehen
+27. [ ] V2-24: Finaler V2 Review
 
 ## Hinweise
 

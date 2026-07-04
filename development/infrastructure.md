@@ -280,6 +280,77 @@ die einzige Quelle, geschrieben von `retraining/status_export.py` und per
 `/api/grafana/retraining-status` bzw. serverseitig in `/api/state`
 gemergt.
 
+## Telegram Alerts Betreiben (V2-19)
+
+`notifications/telegram_worker.py` sendet Telegram-Nachrichten fuer zwei
+Kanaele: jede `performance_triggers`-Zeile ab
+`phase_v2.telegram.min_severity_for_trigger_alert` (nicht nur Drawdown —
+Risk-Lock, Regime-Shift, Liquiditaet, Sharpe/Win-Rate/Confidence,
+Topologie-Trigger kommen automatisch mit), sowie ein Session-Summary pro
+Handelstag (`event_type="session_summary"` in `experience_events`, von
+`main.py` beim Session-Rollover gepusht).
+
+**1. Bot-Token/Chat-ID setzen** — `.env` (siehe `.env.compose.example`):
+
+```
+AETHER_TELEGRAM_BOT_TOKEN=<dein-bot-token>
+AETHER_TELEGRAM_CHAT_ID=<deine-chat-id>
+```
+
+Ohne diese beiden Werte laeuft der Worker als sicheres No-Op weiter (jede
+`send_message()` gibt `False` zurueck, loggt eine WARNING, blockiert
+nichts).
+
+**2. Worker starten** (braucht nur PostgreSQL, kein Redis):
+
+```powershell
+docker compose up -d postgres telegram-worker
+docker compose logs -f telegram-worker
+```
+
+**3. Einmaligen Batch verarbeiten:**
+
+```powershell
+docker compose run --rm telegram-worker python -m notifications.telegram_worker --once
+```
+
+**4. PostgreSQL — Watermarks pruefen:**
+
+```sql
+SELECT * FROM telegram_alert_watermark;
+```
+
+**5. Alerts komplett abschalten** (ohne den Container anzufassen) — in
+`config.json`:
+
+```json
+"phase_v2": {
+  "telegram": {
+    "enabled": false
+  }
+}
+```
+
+## Yahoo Finance Backfill Ausfuehren (V2-19.5)
+
+`data_pipeline/yfinance_backfill.py` ist ein manuelles Offline-Skript —
+kein Docker-Service, laeuft nie automatisch. `yfinance` muss lokal
+installiert sein (`pip install -r requirements/requirements-dev.txt`).
+
+```powershell
+# Dry Run — schreibt nichts, zeigt nur den Plan
+python -m data_pipeline.yfinance_backfill --tickers ETHUSD LTCUSD
+
+# Tatsaechlich schreiben
+python -m data_pipeline.yfinance_backfill --tickers ETHUSD LTCUSD --apply
+```
+
+`config.json`s `available_from`/`available_to` werden dabei **nie**
+automatisch geaendert — das Skript gibt am Ende nur die vorgeschlagenen
+neuen Werte aus; diese muessen von Hand eingetragen werden, damit
+`train.py::build_asset_quality()` die zusaetzliche Historie ueberhaupt
+mitzaehlt.
+
 ## Verbindung Zwischen Containern
 
 Innerhalb des Compose-Netzwerks nutzen die Services ihre Servicenamen:

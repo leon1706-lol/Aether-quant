@@ -27,7 +27,13 @@ from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
 from liquidity import build_liquidity_decision
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
-from experience import ExperienceQueue, SimulatedPortfolioState, build_experience_event, compute_observation_summary
+from experience import (
+    ExperienceQueue,
+    SimulatedPortfolioState,
+    build_experience_event,
+    build_session_summary_event,
+    compute_observation_summary,
+)
 from execution import resolve_order_permission, resolve_runtime_mode
 from performance import evaluate_all_triggers
 
@@ -162,6 +168,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         self._simulated_portfolio = SimulatedPortfolioState(initial_cash=float(self.runtime["initial_cash"]))
         self._observation_event_log = deque(maxlen=5000)
+        self._session_events: list[dict] = []
         self._performance_triggers_config = self.phase_v2.get("performance_triggers", {})
         self.bar_history_size = 25
 
@@ -371,6 +378,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
                 self._experience_queue.push(experience_event)
                 self._observation_event_log.append(experience_event)
+                self._session_events.append(experience_event)
             else:
                 signal_payload["reason"] = feature_payload["reason"]
 
@@ -809,6 +817,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         current_date = self.Time.date()
 
         if self.current_session_date != current_date:
+            if self.current_session_date is not None:
+                session_summary_event = build_session_summary_event(
+                    mode=self._experience_mode,
+                    session_date=self.current_session_date,
+                    session_start_equity=self.session_start_equity,
+                    session_end_equity=portfolio_value,
+                    events=self._session_events,
+                )
+                self._experience_queue.push(session_summary_event)
+            self._session_events = []
             self.current_session_date = current_date
             self.session_start_equity = portfolio_value
             if self.trade_lock_reason != "total_drawdown_limit_breached":

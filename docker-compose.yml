@@ -115,6 +115,25 @@ services:
       - aether-net
     restart: unless-stopped
 
+  telegram-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.telegram_worker
+    container_name: aether-telegram-worker
+    command: python -m notifications.telegram_worker
+    environment:
+      AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
+      AETHER_TELEGRAM_BOT_TOKEN: ${AETHER_TELEGRAM_BOT_TOKEN:-}
+      AETHER_TELEGRAM_CHAT_ID: ${AETHER_TELEGRAM_CHAT_ID:-}
+    volumes:
+      - ./config.json:/app/config.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aether-net
+    restart: unless-stopped
+
   retraining-worker:
     build:
       context: .

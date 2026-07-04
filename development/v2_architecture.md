@@ -2,7 +2,7 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-18
+Completed phases: V2-1 through V2-19.5
 Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
 
 ## Objective
@@ -73,12 +73,12 @@ flowchart TB
     D --> D4["MoE experts and gating network"]
     E["Monitoring and UI"] --> E1["React/Vite webui — Tracing dashboard (port 3002 dev / 8001 Docker)"]
     E --> E2["FastAPI JSON API (port 8000)"]
-    E --> E3["Telegram alerts — future"]
+    E --> E3["Telegram alerts (V2-19)<br/>notifications/telegram_worker.py"]
 ```
 
 ## Module Map
 
-- `data_pipeline/`: V2 Lean-data manifest and stable dataset contract for downstream modules.
+- `data_pipeline/`: V2 Lean-data manifest and stable dataset contract for downstream modules; since V2-19.5 also `yfinance_backfill.py`, a manual offline script that backfills thin series (never invoked from train.py/main.py/any worker).
 - `moe/`: Gating network, expert routing and final MoE signal composition.
 - `experts/`: Bullish, bearish, sideways and volatility expert model interfaces.
 - `regime/`: Quantitative market-regime detection and later LLM regime-vector adapters.
@@ -89,6 +89,7 @@ flowchart TB
 - `retraining/`: Controlled retraining — planner, candidate training gate, validation/backtest gates, Aether-Vault commit, promotion and rollback.
 - `risk/`: Dynamic position sizing, leverage limits, drawdown controls and exposure caps.
 - `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology and the historical `visualization/grafana/*` exports (equity curves, asset performance, observation/metrics snapshots).
+- `notifications/`: Telegram alerting (V2-19) — polls `performance_triggers` (every trigger type, not just drawdown) and `experience_events` (`event_type="session_summary"`) directly from Postgres via its own `telegram-worker` Docker service; never imported by `main.py`/Lean.
 - `webui/`: React/Vite single-page app — Overview (3D scene, heatmap, signals), Risk (sizing, liquidity panel), Topology (3D cluster view), Tracing (V2-18 — equity curves, asset performance, observation equity curve, runtime metrics snapshot).
 
 ## V2 Build Order
@@ -113,12 +114,13 @@ flowchart TB
 18. [x] V2-17: Controlled retraining
 19. [x] V2-17.5: Non-deterministic topology and retrain-trigger upgrade
 20. [x] V2-18: Remove Grafana, React Tracing dashboard
-21. [ ] V2-19: Telegram alerts
-22. [ ] V2-20: Lean backtesting integration
-23. [ ] V2-21: Paper trading preparation
-24. [ ] V2-22: Live deployment structure
-25. [ ] V2-23.1: Data-driven liquidity threshold calibration
-26. [ ] V2-24: Final V2 review
+21. [x] V2-19: Telegram alerts
+22. [x] V2-19.5: Yahoo Finance historical data backfill — supplemental, not in the original numbered plan
+23. [ ] V2-20: Lean backtesting integration
+24. [ ] V2-21: Paper trading preparation
+25. [ ] V2-22: Live deployment structure
+26. [ ] V2-23.1: Data-driven liquidity threshold calibration
+27. [ ] V2-24: Final V2 review
 
 ## Redis Experience Queue (V2-13)
 
@@ -794,3 +796,145 @@ webui instead, so the whole stack is Docker Compose + Redis + PostgreSQL + the
 - No backend changes: `monitoring/api_server.py`'s existing `/api/grafana/*` routes were
   already read-only JSON/CSV reshapes of the same files; the webui just started fetching
   them.
+
+## Telegram Alerts Contract (V2-19)
+
+New package `notifications/`, following the same pure/IO/worker split
+`performance/` (V2-16) and `retraining/` (V2-17) established:
+
+- `notifications/telegram_alerts.py` (pure) — `should_alert_trigger()`
+  (severity gate: `info < warning < critical`), `format_trigger_alert()`,
+  `format_session_summary_alert()`. Renders fields already computed by
+  `performance/triggers.py` and `experience/observation_metrics.py`;
+  recomputes nothing.
+- `notifications/postgres_telegram.py` (IO) — embedded DDL for
+  `telegram_alert_watermark` (one row per channel: `"triggers"`,
+  `"session_summary"`). Does **not** reimplement trigger fetching —
+  `telegram_worker.py` imports `fetch_triggers_since()` directly from
+  `performance.postgres_triggers`, since that table is already the durable
+  system of record. `fetch_session_summaries_since()` is a defensive,
+  never-raising read of `experience_events` (owned by
+  `experience/postgres_worker.py`), mirroring
+  `performance/postgres_triggers.py::fetch_last_retraining_at()`'s
+  cross-package-read pattern in the opposite direction.
+- `notifications/telegram_client.py` (IO, injectable) — thin Telegram Bot
+  API wrapper. `send_message()` never raises; deferred `import requests`
+  inside the call (mirrors `experience/redis_queue.py`'s deferred `import
+  redis`). Bot token/chat id come only from `AETHER_TELEGRAM_BOT_TOKEN`/
+  `AETHER_TELEGRAM_CHAT_ID` env vars, never `config.json`.
+- `notifications/telegram_worker.py` — standalone worker (`python -m
+  notifications.telegram_worker [--once]`), polling two independent,
+  watermark-gated channels every
+  `phase_v2.telegram.worker.poll_interval_seconds`:
+  - **Triggers**: every `performance_triggers` row at or above
+    `phase_v2.telegram.min_severity_for_trigger_alert` becomes a message.
+    Because this polls *all* trigger types (not just `drawdown_trigger`),
+    risk-lock activation, regime shifts, liquidity rejections,
+    Sharpe/win-rate/confidence degradation and all five topology triggers
+    are alerted with zero additional instrumentation.
+  - **Session summaries**: `main.py` pushes one `event_type="session_summary"`
+    experience event per session rollover (see below); the worker turns
+    each new one into a post-market-close performance digest.
+  - An unreachable Telegram API never stalls a channel: sends are
+    best-effort per row, and the watermark always advances to the newest
+    row's `created_at` regardless of individual send failures.
+
+**`main.py` additive changes** (session_summary event push): `_session_events:
+list[dict]` accumulates the current session's experience events (appended
+alongside the existing `_observation_event_log`). In
+`_refresh_risk_state()`'s existing session-rollover branch (the date-change
+check that already resets `session_start_equity`), *before* the reset and
+guarded so it never fires on the first bar, a new
+`experience.redis_queue.build_session_summary_event()` call builds one
+`event_type="session_summary"` event (mode, session date, start/end equity,
+session return, and a full `experience.observation_metrics.compute_observation_summary()`
+block) and pushes it through the existing `ExperienceQueue` — the same
+Redis→`experience-worker`→Postgres pipeline every other event already uses,
+so no new transport was needed.
+
+**Required non-additive fix:** `experience/postgres_worker.py::event_to_row()`
+previously indexed `event["ticker"]`/`["symbol"]`/`["signal"]`/`["action"]`
+directly. A `session_summary` event has none of these (it's portfolio-level,
+not per-asset), so without this fix it would raise `KeyError`, get silently
+dead-lettered, and `fetch_session_summaries_since()` would forever return
+`[]` — the whole feature would look "working" (no crash) while never firing.
+Fixed to `.get(key, "")` (backward compatible — `experience_events`' columns
+are `VARCHAR NOT NULL`, not unique-constrained, so an empty default is safe),
+with `action` falling back to `event_type` so a session_summary row stays
+filterable.
+
+**Docker:** `telegram-worker` service (`Dockerfile.telegram_worker`,
+`requirements/requirements-telegram-worker.txt`), depends only on `postgres`
+(no Redis — this worker never touches the experience stream directly). Its
+image must copy `execution/` in addition to `experience/`/`performance/` —
+importing `performance.postgres_triggers` initializes `performance/__init__.py`
+→ `.triggers` → `experience.observation_metrics` → (via `experience/__init__.py`)
+`.simulated_portfolio` → `execution.order_gate` — the same transitive-import
+lesson already learned in `development/Problems.md` #1/#2 for the
+experience/trigger workers, applied proactively here rather than discovered
+after a broken build. `requirements-telegram-worker.txt` includes `numpy`
+for the same reason.
+
+**Config:** new `phase_v2.telegram` block (`enabled`,
+`min_severity_for_trigger_alert`, `session_summary_enabled`,
+`worker.{poll_interval_seconds,batch_size,backoff_max}`). New
+`.env.compose.example` (the `.gitignore` exception for it already existed
+but the file itself didn't) documents `AETHER_TELEGRAM_BOT_TOKEN`/
+`AETHER_TELEGRAM_CHAT_ID`.
+
+**Stop:** V2-19 does not add retry/backoff beyond the minimum for the
+Telegram API call itself, and does not add a webui alert-history panel —
+both deliberately out of scope.
+
+## Yahoo Finance Historical Data Backfill (V2-19.5)
+
+A supplemental, user-requested feature alongside V2-19 (not in the original
+numbered roadmap) — `data_pipeline/yfinance_backfill.py`, a **manual, offline
+script** (never invoked from `train.py`/`main.py`/any Docker worker, no
+network calls during training or a backtest — mirrors `train_topology.py`'s
+"never runs in the Lean container" status).
+
+Fills gaps in thin local Lean zips — initially `ETHUSD`/`LTCUSD`, which only
+have a few scattered days of real Coinbase minute data (see
+`train.py::ensure_derived_crypto_daily_series()` and the Phase-9 Changelog
+entry) and are therefore stuck `observation_only` per
+`train.py::build_asset_quality()`'s row-count thresholds.
+
+- Per-asset opt-in via a new, optional `"backfill"` sub-block in
+  `config.json`'s `phase1.universe.assets[]` entries (`source`, `symbol`,
+  `backfill_from`, `backfill_to`) — deliberately a new key, not a reuse of
+  the existing `aggregation: "daily_from_minute_trade"` value, since that
+  value already triggers `train.py`'s own Coinbase aggregation on every run
+  and this path must stay entirely manual.
+- Pure functions (`yahoo_symbol_for`, `detect_gap`, `scale_for_lean`,
+  `rows_to_lean_csv`, `write_lean_zip`) mirror
+  `train.py::ensure_derived_crypto_daily_series()`'s exact Lean zip
+  write pattern (`ZipFile(path, "w")`, member name `f"{ticker.lower()}.csv"`,
+  row format `f"{date:%Y%m%d} 00:00,{o},{h},{l},{c},{v}"`), with one addition:
+  `scale_for_lean()` applies the ×10000 integer convention for equities
+  (confirmed from a real `aapl.zip`) since Yahoo returns real dollar floats;
+  crypto passes through unscaled.
+- `fetch_yahoo_ohlcv()` is the only function that imports `yfinance`,
+  deferred inside the function body (mirrors `experience/redis_queue.py`'s
+  deferred `import redis`) — importing `data_pipeline` never hard-requires
+  `yfinance`.
+- **Two independent safety boundaries**, both requiring an explicit human
+  step, consistent with this codebase's existing bias toward confirmation
+  over automatic action (e.g. `retraining`'s manual `promote`):
+  1. Writing/merging zip files is gated by `--apply` (default: dry run,
+     report only).
+  2. `config.json`'s `available_from`/`available_to` are **never** edited by
+     this script, `--apply` or not — `train.py::build_asset_quality()` only
+     counts rows inside those configured windows, so widening the zip alone
+     changes nothing until a human widens the window too. The script only
+     prints the suggested new values.
+- `write_lean_zip()`'s merge always lets **existing real Lean rows win** on
+  any overlapping date; Yahoo data only fills genuinely missing dates.
+- `yfinance` is a dev-only dependency (`requirements/requirements-dev.txt`),
+  never in `requirements.txt`/`requirements-runtime.txt`.
+
+Usage: `python -m data_pipeline.yfinance_backfill [--tickers ETHUSD LTCUSD] [--apply]`.
+
+**Stop:** no automatic widening of `available_from`/`available_to`, no
+Docker worker — deliberately a manual offline script, same status as
+`train_topology.py`.

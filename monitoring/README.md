@@ -5,7 +5,10 @@ Owns V2 monitoring outputs:
 - `api_server.py`: FastAPI JSON API serving runtime state to the `webui/` React app
 - `/api/grafana/*` exports, now rendered by the webui's own Tracing page (V2-18 removed the Grafana service that used to be their only consumer)
 - risk and leverage telemetry
-- later Telegram alert adapter
+
+Telegram alerting (V2-19) lives in its own `notifications/` package, not
+here — it polls Postgres directly (same pattern as `retraining/`, which also
+never goes through this API), not `monitoring/api_server.py`.
 
 Current behavior:
 

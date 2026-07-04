@@ -23,6 +23,16 @@ Runtime flow:
 4. The worker writes batched events into PostgreSQL.
 5. Controlled retraining reads from PostgreSQL as the single source of truth.
 
+V2-19 adds `build_session_summary_event()` to `redis_queue.py`: main.py pushes
+one of these per session rollover (see `main.py::_refresh_risk_state()`),
+reusing `observation_metrics.compute_observation_summary()` for every stat —
+it computes nothing itself besides `session_return`. Its `event_type` is
+`"session_summary"` rather than `"market_decision"`, so it carries no
+per-asset `ticker`/`symbol`/`signal`; `postgres_worker.py::event_to_row()`
+uses `.get(..., "")` defaults for those columns rather than direct indexing
+to accommodate this. `notifications/telegram_worker.py` is the consumer —
+see that package's README for the alerting side.
+
 V2-15 (Observation Mode) adds two members:
 
 - `simulated_portfolio.py` (`SimulatedPortfolioState`) — an in-memory fake

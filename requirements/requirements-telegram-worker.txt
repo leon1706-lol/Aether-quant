@@ -1,0 +1,8 @@
+# Aether Quant Telegram Alert Worker — minimal runtime deps (V2-19)
+psycopg[binary]>=3.1
+requests>=2.31.0
+# Transitively required: importing performance.postgres_triggers initializes
+# performance/__init__.py -> .triggers -> experience.observation_metrics,
+# which imports numpy. See development/Problems.md #1 for the same lesson
+# learned the hard way on the experience-worker/trigger-worker images.
+numpy>=1.24.0

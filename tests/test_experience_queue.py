@@ -5,10 +5,11 @@ no mocking beyond fakeredis injection via _client parameter.
 """
 
 import json
+from datetime import date
 
 import fakeredis
 
-from experience import ExperienceQueue, build_experience_event
+from experience import ExperienceQueue, build_experience_event, build_session_summary_event
 
 
 # ---------------------------------------------------------------------------
@@ -118,3 +119,82 @@ def test_event_id_is_unique_per_call():
     event_a = _minimal_event()
     event_b = _minimal_event()
     assert event_a["event_id"] != event_b["event_id"]
+
+
+# ---------------------------------------------------------------------------
+# build_session_summary_event — V2-19
+# ---------------------------------------------------------------------------
+
+
+def _sample_session_events() -> list[dict]:
+    return [
+        _minimal_event(
+            action="trade",
+            portfolio={"total_value": 100_500.0, "simulated": True, "last_realized_pnl": 500.0},
+        ),
+        _minimal_event(
+            action="observe",
+            portfolio={"total_value": 101_000.0, "simulated": True, "last_realized_pnl": None},
+        ),
+    ]
+
+
+def test_session_summary_event_has_correct_event_type_and_mode():
+    event = build_session_summary_event(
+        mode="observation",
+        session_date=date(2026, 7, 1),
+        session_start_equity=100_000.0,
+        session_end_equity=101_000.0,
+        events=_sample_session_events(),
+    )
+    assert event["event_type"] == "session_summary"
+    assert event["mode"] == "observation"
+    assert event["session_date"] == "2026-07-01"
+
+
+def test_session_summary_event_computes_session_return():
+    event = build_session_summary_event(
+        mode="observation",
+        session_date=date(2026, 7, 1),
+        session_start_equity=100_000.0,
+        session_end_equity=101_000.0,
+        events=[],
+    )
+    assert event["session_return"] == 0.01
+
+
+def test_session_summary_event_handles_zero_start_equity_without_dividing_by_zero():
+    event = build_session_summary_event(
+        mode="observation",
+        session_date=date(2026, 7, 1),
+        session_start_equity=0.0,
+        session_end_equity=0.0,
+        events=[],
+    )
+    assert event["session_return"] == 0.0
+
+
+def test_session_summary_event_embeds_observation_summary():
+    event = build_session_summary_event(
+        mode="observation",
+        session_date=date(2026, 7, 1),
+        session_start_equity=100_000.0,
+        session_end_equity=101_000.0,
+        events=_sample_session_events(),
+    )
+    summary = event["observation_summary"]
+    assert summary["count_observations"] == 2
+    assert summary["action_distribution"]["trade"] == 1
+    assert summary["action_distribution"]["observe"] == 1
+
+
+def test_session_summary_event_is_json_serializable():
+    event = build_session_summary_event(
+        mode="observation",
+        session_date=date(2026, 7, 1),
+        session_start_equity=100_000.0,
+        session_end_equity=101_000.0,
+        events=_sample_session_events(),
+    )
+    serialised = json.dumps(event)
+    assert isinstance(serialised, str)

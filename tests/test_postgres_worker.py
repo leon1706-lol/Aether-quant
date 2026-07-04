@@ -100,6 +100,44 @@ def test_event_to_row_payload_contains_full_json():
     assert payload["portfolio"]["total_value"] == 105000.0
 
 
+def _sample_session_summary_event(**overrides) -> dict:
+    """A session_summary event (V2-19) carries no ticker/symbol/signal/action —
+    event_to_row() must not raise KeyError on this shape."""
+    defaults = {
+        "event_id": "00000000-0000-0000-0000-000000000099",
+        "event_type": "session_summary",
+        "created_at": "2026-07-02T00:00:00Z",
+        "mode": "observation",
+        "session_date": "2026-07-01",
+        "session_start_equity": 100000.0,
+        "session_end_equity": 101000.0,
+        "session_return": 0.01,
+        "observation_summary": {"count_observations": 10},
+    }
+    defaults.update(overrides)
+    return defaults
+
+
+def test_event_to_row_handles_session_summary_event_without_ticker_fields():
+    event = _sample_session_summary_event()
+    row = event_to_row(event)
+    assert row["ticker"] == ""
+    assert row["symbol"] == ""
+    assert row["signal"] == ""
+    assert row["action"] == "session_summary"
+    assert row["mode"] == "observation"
+    payload = json.loads(row["payload"])
+    assert payload["event_type"] == "session_summary"
+
+
+def test_event_to_row_still_uses_explicit_action_when_present():
+    """market_decision events (which always have "action") keep taking
+    precedence over the event_type fallback."""
+    event = _sample_event(action="trade")
+    row = event_to_row(event)
+    assert row["action"] == "trade"
+
+
 def test_run_once_persists_batch():
     events = [
         _sample_event(event_id=f"00000000-0000-0000-0000-00000000000{i}", ticker=f"T{i}")

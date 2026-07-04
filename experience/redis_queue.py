@@ -14,6 +14,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from .observation_metrics import compute_observation_summary
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,6 +61,39 @@ def build_experience_event(
         "liquidity": liquidity,
         "market_analysis": market_analysis,
         "portfolio": portfolio,
+    }
+
+
+def build_session_summary_event(
+    *,
+    mode: str,
+    session_date: Any,
+    session_start_equity: float,
+    session_end_equity: float,
+    events: list[dict],
+) -> dict[str, Any]:
+    """Construct a session_summary experience event (Phase V2-19).
+
+    Pure function — no side effects, no I/O. Pushed by main.py at each
+    session rollover (see main.py::_refresh_risk_state()), reusing
+    experience.observation_metrics.compute_observation_summary() for every
+    per-session statistic; computes nothing itself besides session_return.
+    `session_date` accepts anything with an isoformat() (datetime.date) or
+    falls back to str().
+    """
+    session_return = (
+        (session_end_equity - session_start_equity) / session_start_equity if session_start_equity else 0.0
+    )
+    return {
+        "event_id": str(uuid.uuid4()),
+        "event_type": "session_summary",
+        "created_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "mode": mode,
+        "session_date": session_date.isoformat() if hasattr(session_date, "isoformat") else str(session_date),
+        "session_start_equity": session_start_equity,
+        "session_end_equity": session_end_equity,
+        "session_return": session_return,
+        "observation_summary": compute_observation_summary(events),
     }
 
 

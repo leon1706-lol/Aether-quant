@@ -14,3 +14,8 @@ fakeredis>=2.20.0
 
 # PostgreSQL driver for test imports — connection is mocked in tests (V2-14)
 psycopg[binary]>=3.1
+
+# Yahoo Finance historical data backfill (V2-19.5) — dev/offline-script only,
+# never in requirements.txt/requirements-runtime.txt since it never runs
+# inside Lean or any always-on worker container
+yfinance>=0.2.40

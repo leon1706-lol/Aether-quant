@@ -1,6 +1,8 @@
 # tests
 
-Pytest suite for every non-`webui` module. 244 tests as of V2-17.
+Pytest suite for every non-`webui` module. 364 tests as of V2-19.5 (was
+stale at "244 tests as of V2-17" — the true count had already reached 313 by
+V2-17.5/V2-18; fixed here alongside this phase's own additions).
 
 Conventions (established since the first V2 test files and followed
 throughout): one test file per source module (`tests/test_<module>.py`),
