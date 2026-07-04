@@ -119,8 +119,10 @@ flowchart TB
 23. [ ] V2-20: Lean backtesting integration
 24. [ ] V2-21: Paper trading preparation
 25. [ ] V2-22: Live deployment structure
-26. [ ] V2-23.1: Data-driven liquidity threshold calibration
-27. [ ] V2-24: Final V2 review
+26. [x] V2-23.1: Data-driven liquidity threshold calibration — closed via a real high-low spread estimator, not fill-data calibration (see Liquidity Engine Contract)
+27. [x] V2-23.2: Static-config wiring + dead average_correlation input fixed — supplemental, found during a static-vs-dynamic architecture audit
+28. [x] V2-23.3: Real topology embedding (SMACOF, replacing cosmetic index-based layout) — supplemental, same audit
+29. [ ] V2-24: Final V2 review
 
 ## Redis Experience Queue (V2-13)
 
@@ -557,7 +559,9 @@ It emits:
 - per-asset `topology_risk`: `normal`, `elevated` or `isolated`
 - cluster membership and correlation strength for each asset
 
-Topology risk feeds directly into the market analyzer: `elevated` forces `reduce_risk`, `isolated` blocks the `trade` path. The 3D coordinates replace the previous orbit-based scene placement in the React webui.
+Topology risk feeds directly into the market analyzer: `elevated` forces `reduce_risk`, `isolated` blocks the `trade` path.
+
+**x/y placement is a real distance-preserving embedding (post-V2-18 architecture audit), not the original cosmetic layout.** The original 3D-coordinate implementation placed cluster centroids and within-cluster members by `index -> angle` on a fixed ellipse — cluster membership was real, but position within/between clusters was arbitrary (two highly-correlated clusters could land on opposite sides of the circle). This was replaced with `_stress_majorize_2d(...)`: SMACOF (Scaling by MAjorizing a COmplicated Function), an iterative stress-majorization algorithm run over the full pairwise correlation-distance matrix across all eligible symbols (not just within-cluster pairs), seeded from the old cosmetic layout for determinism and fast convergence — no randomness anywhere, so `build_market_topology(...)` stays fully deterministic given the same inputs (the existing `test_stable_coordinates_are_deterministic` test still passes unchanged). Pure Python, no numpy/scipy, matching this module's existing zero-heavy-runtime-deps convention. The result is rescaled to fit the existing `NEUTRAL_DIMENSIONS` `[0,100]x[0,100]` bounds via a single isometric scale factor (not independent per-axis stretching, which would distort the very distances the embedding exists to preserve) — the webui's `TopologyScene3D.tsx` needed no changes, since it already normalizes off `topology.dimensions`. The z-axis (volatility encoding) is untouched. `phase_v2.topology.embedding_iterations` (default 100) controls the iteration count.
 
 A dedicated `/api/topology` endpoint and `/topology` React page expose the live cluster view.
 
@@ -706,7 +710,7 @@ It computes:
 - `order_value`: `portfolio_value × abs(target_weight)`
 - `participation_rate`: `order_value / daily_dollar_volume`
 - `estimated_slippage`: `participation_rate × daily_vol × slippage_factor`
-- `spread_proxy`: static lookup by security type (equity: 5 bps, crypto: 20 bps)
+- `spread_proxy`: dynamic per-asset per-bar estimate via `estimate_high_low_spread()` — the Corwin & Schultz (2012) high-low bid-ask spread estimator, computed from each asset's own recent daily high/low ranges (already collected every bar in `main.py::self.symbol_windows`). Falls back to the static lookup (equity: 5 bps, crypto: 20 bps) only for the first bar or two of a run (`phase_v2.liquidity.spread_estimation.min_bars`, default 2) or a degenerate estimate.
 - `estimated_round_trip_cost`: `slippage + spread_proxy`
 
 Risk labels and recommended actions:
@@ -720,7 +724,9 @@ Risk labels and recommended actions:
 
 When `reduce_size` is recommended, `adjusted_target_weight` is applied before the market analyzer call so the analyzer sees the already-reduced weight.
 
-All thresholds are configurable in `config.json` under `phase_v2.liquidity`. Future V2-23.1 will replace static thresholds with data-driven values calibrated from real fill data accumulated by the experience pipeline.
+All thresholds are configurable in `config.json` under `phase_v2.liquidity`.
+
+**V2-23.1, closed** (post-V2-18 architecture audit) — see `liquidity/README.md` for the full story: the original "calibrate from real fill data" premise turned out to have no underlying telemetry to calibrate from (no `SlippageModel` was ever set for Lean backtests, and observation-mode's simulated fills always used `slippage_bps=0.0`), so this shipped instead as a real, published high-low spread estimator requiring no new instrumentation.
 
 ## Webui and API Contract
 

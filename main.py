@@ -25,7 +25,7 @@ from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.position_sizing import build_dynamic_position_sizing
-from liquidity import build_liquidity_decision
+from liquidity import build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 from experience import (
     ExperienceQueue,
@@ -135,6 +135,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
+        self.topology_embedding_iterations = int(phase_v2_topology.get("embedding_iterations", 100))
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -152,6 +153,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "high_impact_size_factor": float(phase_v2_liquidity.get("high_impact_size_factor", 0.5)),
             "slippage_factor": float(phase_v2_liquidity.get("slippage_factor", 0.1)),
         }
+        phase_v2_spread_estimation = phase_v2_liquidity.get("spread_estimation", {})
+        self._spread_estimation_enabled = bool(phase_v2_spread_estimation.get("enabled", True))
+        self._spread_estimation_min_bars = int(phase_v2_spread_estimation.get("min_bars", 2))
         phase_v2_experience = self.phase_v2.get("experience", {})
         phase_v2_runtime = self.phase_v2.get("runtime", {})
         raw_runtime_mode = phase_v2_runtime.get("mode")
@@ -264,7 +268,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             if feature_payload["ready"] and not self.is_warming_up:
                 baseline_probability_up = self._run_model(feature_payload["model_inputs"])
-                regime_payload = self._build_regime_payload(feature_payload["base_features"])
+                topology_payload = topology_by_symbol.get(str(symbol))
+                regime_payload = self._build_regime_payload(
+                    feature_payload["base_features"],
+                    average_correlation=float((topology_payload or {}).get("correlation_strength", 0.0)),
+                )
                 expert_probabilities = self._run_expert_models(feature_payload["model_inputs"])
                 gating_payload = build_gating_decision(
                     regime=regime_payload,
@@ -282,8 +290,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     feature_payload["base_features"],
                 )
                 target_weight = float(sizing_payload["target_weight"])
-                topology_payload = topology_by_symbol.get(str(symbol))
                 asset = self.asset_lookup[str(symbol)]
+                dynamic_spread = None
+                if self._spread_estimation_enabled:
+                    symbol_bars = list(self.symbol_windows[symbol])
+                    if len(symbol_bars) >= self._spread_estimation_min_bars:
+                        dynamic_spread = estimate_high_low_spread(
+                            [bar_data["high"] for bar_data in symbol_bars],
+                            [bar_data["low"] for bar_data in symbol_bars],
+                        )
                 liquidity_payload = build_liquidity_decision(
                     close=float(bar.close),
                     volume=float(bar.volume),
@@ -291,6 +306,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     portfolio_value=float(self.Portfolio.TotalPortfolioValue),
                     annualized_volatility=float(sizing_payload.get("annualized_volatility", 0.0)),
                     security_type=str(asset.get("security_type", "equity")),
+                    dynamic_spread=dynamic_spread,
                     **self._liquidity_thresholds,
                 ).to_dict()
                 if liquidity_payload["recommended_action"] == "reduce_size":
@@ -629,6 +645,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             correlation_threshold=self.topology_correlation_threshold,
             link_threshold=self.topology_link_threshold,
             min_observations=self.topology_min_observations,
+            embedding_iterations=self.topology_embedding_iterations,
         ).to_dict()
 
         # V2-17.5 - probabilistic overlay on top of the deterministic layer
@@ -666,10 +683,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_learned_neighbors_by_symbol = learned_topology.get("learned_neighbors_by_symbol", {})
         return learned_topology
 
-    def _build_regime_payload(self, base_features: dict) -> dict:
+    def _build_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
         vector = build_market_regime_vector(
             base_features,
             portfolio_drawdown=self.current_total_drawdown,
+            average_correlation=average_correlation,
             bullish_threshold=self.regime_bullish_threshold,
             bearish_threshold=self.regime_bearish_threshold,
             low_volatility_threshold=self.low_volatility_threshold,

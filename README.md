@@ -313,8 +313,10 @@ Der geplante Datenfluss:
 23. [ ] V2-20: Lean Backtesting Integration
 24. [ ] V2-21: Paper Trading Vorbereitung
 25. [ ] V2-22: Live Deployment Struktur
-26. [ ] V2-23.1: Datengetriebene Liquidity-Threshold-Kalibrierung — ersetzt statische Participations-Schwellenwerte durch kalibrierte Werte aus echten Fill-Daten, sobald V2-13/14 Experience-Pipeline und V2-16/17 Controlled Retraining stehen
-27. [ ] V2-24: Finaler V2 Review
+26. [x] V2-23.1: Datengetriebene Liquidity-Threshold-Kalibrierung — geschlossen ueber einen echten High-Low-Spread-Schaetzer (Corwin-Schultz), nicht ueber Fill-Daten-Kalibrierung, siehe `liquidity/README.md`
+27. [x] V2-23.2: Statische Config-Luecken geschlossen + totes `average_correlation`-Feature verdrahtet — ergaenzend, gefunden bei einem Static-vs-Dynamic-Architektur-Audit
+28. [x] V2-23.3: Echtes Topology-Embedding (SMACOF statt kosmetischer Index-Platzierung) — ergaenzend, gleicher Audit
+29. [ ] V2-24: Finaler V2 Review
 
 ## Hinweise
 

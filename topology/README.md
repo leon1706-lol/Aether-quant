@@ -17,6 +17,18 @@ The goal is to make market structure useful for analysis, not only visual.
   on a correlation threshold, and assigns 3D coordinates so correlated
   assets sit near each other and high-volatility assets separate on the
   z-axis.
+- **x/y placement is a real distance-preserving embedding**, not a cosmetic
+  layout: `_stress_majorize_2d(...)` runs SMACOF (Scaling by MAjorizing a
+  COmplicated Function) — an iterative stress-majorization algorithm,
+  seeded from a deterministic circular layout (for reproducibility and fast
+  convergence, never randomness) — over the full pairwise correlation
+  distance matrix across all eligible symbols, so two assets end up
+  spatially closer only when they're actually more correlated, not merely
+  because of index ordering or shared cluster membership. Pure Python, no
+  numpy/scipy, matching this module's zero-heavy-runtime-deps convention.
+  Iteration count is `phase_v2.topology.embedding_iterations` (default 100).
+  The z-axis (volatility encoding) is unchanged by this — it's a separate,
+  deliberate encoding, not part of the spatial embedding.
 - `main.py` calls it once per bar (before the per-symbol loop) from
   `self.symbol_windows`, writes the result to `visualization/topology_state.json`
   and `state["topology"]`, and replaces `_build_scene_payload`'s orbit

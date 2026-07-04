@@ -1,6 +1,6 @@
 import pytest
 
-from liquidity import build_liquidity_decision
+from liquidity import build_liquidity_decision, estimate_high_low_spread
 
 
 def _decision(
@@ -95,5 +95,74 @@ def test_determinism():
     kwargs = dict(close=50.0, volume=500_000, target_weight=0.12, portfolio_value=100_000.0,
                   annualized_volatility=0.30, security_type="equity")
     assert build_liquidity_decision(**kwargs).to_dict() == build_liquidity_decision(**kwargs).to_dict()
+
+
+# ---------------------------------------------------------------------------
+# estimate_high_low_spread — Corwin & Schultz (2012), V2-23.1
+# ---------------------------------------------------------------------------
+
+
+def test_estimate_high_low_spread_matches_reference_calculation():
+    # Independently computed reference value for this exact 2-bar window.
+    spread = estimate_high_low_spread([102.0, 103.0], [98.0, 97.0])
+    assert spread == pytest.approx(0.029236361356314623, abs=1e-12)
+
+
+def test_estimate_high_low_spread_zero_when_prices_are_flat():
+    assert estimate_high_low_spread([100.0, 100.0], [100.0, 100.0]) == 0.0
+
+
+def test_estimate_high_low_spread_narrower_range_gives_smaller_spread():
+    wide = estimate_high_low_spread([102.0, 103.0], [98.0, 97.0])
+    narrow = estimate_high_low_spread([101.0, 101.5], [99.0, 98.5])
+    assert narrow < wide
+
+
+def test_estimate_high_low_spread_averages_multiple_windows():
+    highs = [102.0, 103.0, 101.5]
+    lows = [98.0, 97.0, 98.5]
+    window_a = estimate_high_low_spread(highs[:2], lows[:2])
+    window_b = estimate_high_low_spread(highs[1:], lows[1:])
+    combined = estimate_high_low_spread(highs, lows)
+    assert combined == pytest.approx((window_a + window_b) / 2, abs=1e-12)
+
+
+def test_estimate_high_low_spread_returns_none_for_insufficient_bars():
+    assert estimate_high_low_spread([100.0], [99.0]) is None
+    assert estimate_high_low_spread([], []) is None
+
+
+def test_estimate_high_low_spread_returns_none_for_mismatched_lengths():
+    assert estimate_high_low_spread([100.0, 101.0], [99.0]) is None
+
+
+def test_estimate_high_low_spread_skips_invalid_bars():
+    # First window (bars 0-1) has high < low (bad data) and is skipped
+    # entirely; second window (bars 1-2) is valid, so the result reflects
+    # only the valid window rather than returning None outright.
+    highs = [98.0, 103.0, 104.0]
+    lows = [102.0, 97.0, 96.0]
+    spread = estimate_high_low_spread(highs, lows)
+    assert spread is not None
+    assert spread == pytest.approx(estimate_high_low_spread(highs[1:], lows[1:]), abs=1e-12)
+
+
+def test_estimate_high_low_spread_returns_none_when_all_windows_invalid():
+    assert estimate_high_low_spread([0.0, -5.0], [1.0, 2.0]) is None
+
+
+# ---------------------------------------------------------------------------
+# build_liquidity_decision — dynamic_spread wiring
+# ---------------------------------------------------------------------------
+
+
+def test_build_liquidity_decision_uses_dynamic_spread_when_provided():
+    decision = _decision(security_type="equity", dynamic_spread=0.0123)
+    assert decision.spread_proxy == 0.0123
+
+
+def test_build_liquidity_decision_falls_back_to_static_table_when_dynamic_spread_none():
+    decision = _decision(security_type="crypto", dynamic_spread=None)
+    assert decision.spread_proxy == 0.0020
 
 

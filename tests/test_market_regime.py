@@ -61,6 +61,39 @@ def test_market_regime_vector_builds_sideways_state_from_flat_momentum():
     assert vector.primary_regime == "sideways_low_volatility"
 
 
+def test_market_regime_vector_forwards_average_correlation_argument():
+    """Regression lock for the previously-dead average_correlation input:
+    main.py now passes a real per-asset value (topology's correlation_strength)
+    here rather than always the default 0.0. Confirm build_market_regime_vector
+    both records it on the output vector and threads it into risk_score, using
+    a features dict with no "average_correlation" key (matching main.py's
+    real call shape, which passes it as a keyword argument, not a feature)."""
+    high_correlation_vector = build_market_regime_vector(
+        {
+            "momentum_5d": -0.03,
+            "momentum_20d": -0.03,
+            "rolling_volatility_20d": 0.05,
+        },
+        average_correlation=0.90,
+        high_correlation_threshold=0.75,
+    )
+    low_correlation_vector = build_market_regime_vector(
+        {
+            "momentum_5d": -0.03,
+            "momentum_20d": -0.03,
+            "rolling_volatility_20d": 0.05,
+        },
+        average_correlation=0.10,
+        high_correlation_threshold=0.75,
+    )
+
+    assert high_correlation_vector.average_correlation == 0.90
+    assert low_correlation_vector.average_correlation == 0.10
+    assert high_correlation_vector.risk_score < low_correlation_vector.risk_score
+    assert "correlated_high_volatility" in high_correlation_vector.reasons
+    assert "correlated_high_volatility" not in low_correlation_vector.reasons
+
+
 def test_market_regime_vector_handles_bad_numeric_inputs_safely():
     vector = build_market_regime_vector(
         {

@@ -1,10 +1,15 @@
 """Per-asset market liquidity and execution impact assessment for Aether Quant V2.
 
 Estimates whether a target order is reasonable given the asset's observed
-daily dollar volume. Uses static spread proxies for bid-ask cost since
-bid/ask quote data is unavailable at daily resolution. All thresholds are
-configurable via config.json phase_v2.liquidity. See V2-18 roadmap entry
-for future calibration against real fill data.
+daily dollar volume. All thresholds are configurable via config.json
+phase_v2.liquidity.
+
+Bid-ask spread cost (V2-23.1): estimated dynamically per asset per bar via
+estimate_high_low_spread() -- the Corwin & Schultz (2012) high-low spread
+estimator, computed from each asset's own recent daily high/low ranges (data
+already collected every bar, no bid/ask quote feed needed). TYPICAL_SPREAD_BY_TYPE
+remains as a static fallback for the first bar or two of a run, before enough
+high/low history has accumulated to estimate from.
 """
 
 from __future__ import annotations
@@ -18,6 +23,52 @@ TYPICAL_SPREAD_BY_TYPE: dict[str, float] = {
     "equity": 0.0005,
     "crypto": 0.0020,
 }
+
+# Corwin & Schultz (2012) constant: 3 - 2*sqrt(2), from the paper's alpha formula.
+_CORWIN_SCHULTZ_CONSTANT = 3 - 2 * math.sqrt(2)
+
+
+def estimate_high_low_spread(highs: list[float], lows: list[float]) -> float | None:
+    """Corwin & Schultz (2012) high-low bid-ask spread estimator.
+
+    Estimates the fractional bid-ask spread (e.g. 0.001 = 10 bps) from nothing
+    but consecutive days' high/low ranges -- no bid/ask/fill data required.
+    Computes one estimate per consecutive 2-bar window and averages them.
+    Per-window estimates are clipped to 0.0 when negative, a known artifact
+    of the estimator in low-volatility/noisy conditions (standard practice,
+    not a bug).
+
+    Returns None if fewer than 2 valid (positive, high >= low) bars are
+    available -- callers should fall back to a static proxy in that case.
+    """
+    if len(highs) != len(lows) or len(highs) < 2:
+        return None
+
+    window_spreads: list[float] = []
+    for index in range(len(highs) - 1):
+        high_1, low_1 = float(highs[index]), float(lows[index])
+        high_2, low_2 = float(highs[index + 1]), float(lows[index + 1])
+        if high_1 <= 0 or low_1 <= 0 or high_2 <= 0 or low_2 <= 0:
+            continue
+        if high_1 < low_1 or high_2 < low_2:
+            continue
+
+        beta = math.log(high_1 / low_1) ** 2 + math.log(high_2 / low_2) ** 2
+        low_min = min(low_1, low_2)
+        high_max = max(high_1, high_2)
+        gamma = math.log(high_max / low_min) ** 2
+
+        alpha = (
+            (math.sqrt(2 * beta) - math.sqrt(beta)) / _CORWIN_SCHULTZ_CONSTANT
+            - math.sqrt(gamma / _CORWIN_SCHULTZ_CONSTANT)
+        )
+        spread = 2 * (math.exp(alpha) - 1) / (1 + math.exp(alpha))
+        window_spreads.append(max(0.0, spread))
+
+    if not window_spreads:
+        return None
+
+    return sum(window_spreads) / len(window_spreads)
 
 
 @dataclass(frozen=True)
@@ -50,6 +101,7 @@ def build_liquidity_decision(
     min_daily_dollar_volume: float = 100_000.0,
     high_impact_size_factor: float = 0.5,
     slippage_factor: float = 0.1,
+    dynamic_spread: float | None = None,
 ) -> LiquidityDecision:
     close = float(close)
     volume = float(volume)
@@ -59,7 +111,11 @@ def build_liquidity_decision(
     reasons: list[str] = []
 
     daily_dollar_volume = close * volume
-    spread_proxy = TYPICAL_SPREAD_BY_TYPE.get(str(security_type), 0.001)
+    spread_proxy = (
+        float(dynamic_spread)
+        if dynamic_spread is not None
+        else TYPICAL_SPREAD_BY_TYPE.get(str(security_type), 0.001)
+    )
 
     # No order to place — no liquidity concern.
     if target_weight == 0.0:

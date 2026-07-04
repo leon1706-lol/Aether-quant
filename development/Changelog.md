@@ -395,3 +395,43 @@ Yahoo Finance Historical Data Backfill (ergaenzende Anfrage neben V2-19, kein Pu
 - `yfinance` ist eine reine Dev-Abhaengigkeit (`requirements/requirements-dev.txt`), nie in `requirements.txt`/`requirements-runtime.txt`
 - fuegt `tests/test_yfinance_backfill.py` mit 20 Tests hinzu (alle mit injiziertem `fetch_fn`-Stub — `yfinance` wird in der gesamten Testdatei kein einziges Mal importiert)
 - Stop: kein automatisches Nachziehen von `available_from`/`available_to`, kein Docker-Worker — bewusst ein manuelles Offline-Skript, gleicher Status wie `train_topology.py`
+
+## Phase-V2-23.1-Ergebnis
+
+Data-Driven Liquidity Threshold Calibration — geschlossen, aber anders als urspruenglich geplant:
+
+- der urspruengliche Plan war, `spread_proxy` aus echten historischen Fill-/Slippage-Daten zu kalibrieren, sobald die Experience-Pipeline (V2-13/14) genug Historie angesammelt hat. Eine tiefere Pruefung in dieser Session zeigte: diese Grundannahme hatte keine Datenbasis — Lean-Backtests setzen nie ein `SlippageModel` (nur ein `InteractiveBrokersFeeModel`, das eine Transaktionsgebuehr, keine Preis-Impact-Slippage ist), und `experience/simulated_portfolio.py`s `enter_long()` ruft `execution.order_gate.simulate_fill(...)` immer mit dem Default `slippage_bps=0.0` auf — es wurde also noch nie irgendwo eine realisierte Spread-/Slippage-Beobachtung geloggt, aus der man haette kalibrieren koennen
+- statt neue Fill-Telemetrie-Infrastruktur als Voraussetzung zu bauen, wurde stattdessen der **Corwin & Schultz (2012) High-Low-Spread-Schaetzer** implementiert: eine publizierte, geschlossene Formel, die den Bid-Ask-Spread allein aus aufeinanderfolgenden Tages-High/Low-Ranges schaetzt — Daten, die ohnehin jede Bar in `main.py::self.symbol_windows` gesammelt werden
+- `liquidity/market_liquidity.py::estimate_high_low_spread(highs, lows)` (rein, kein I/O): berechnet pro aufeinanderfolgendem 2-Bar-Fenster einen Schaetzwert nach der Corwin-Schultz-Formel (`beta`, `gamma`, `alpha`, dann `spread = 2*(e^alpha-1)/(1+e^alpha)`), klippt negative Einzelfenster-Schaetzungen auf `0.0` (ein bekanntes, dokumentiertes Artefakt der Methode bei geringer Volatilitaet, kein Bug) und mittelt ueber alle Fenster; gibt `None` zurueck bei weniger als 2 gueltigen Bars
+- `build_liquidity_decision(...)` bekommt einen neuen optionalen `dynamic_spread`-Parameter — ersetzt `TYPICAL_SPREAD_BY_TYPE.get(security_type, ...)` als primaeren Pfad; die statische Lookup-Tabelle bleibt nur als Fallback fuer die ersten Bars eines Laufs (`phase_v2.liquidity.spread_estimation.min_bars`, Default 2) oder wenn der Schaetzer keinen gueltigen Wert liefert
+- `main.py` liest an der Liquiditaets-Aufrufstelle `highs`/`lows` aus `self.symbol_windows[symbol]` (bereits jede Bar befuellt, keine neue State-Verwaltung noetig) und uebergibt das Ergebnis als `dynamic_spread`
+- ergaenzt `config.json phase_v2.liquidity.spread_estimation` (`enabled`, `min_bars`)
+- fuegt 10 neue Tests zu `tests/test_market_liquidity.py` hinzu: eine unabhaengig nachgerechnete Referenz-Berechnung, Nullspread bei flachen Preisen, Monotonie (schmalerer Range -> kleinerer Spread), Mittelwertbildung ueber mehrere Fenster, `None` bei zu wenig/inkonsistenten Bars, Ueberspringen ungueltiger Fenster, sowie `dynamic_spread`-Override/Fallback-Verhalten in `build_liquidity_decision`
+- Stop: kein Ruecklauf auf echte Fill-Daten-Kalibrierung — dafuer muesste zuerst ein `SlippageModel`/echte Fill-Telemetrie eingefuehrt werden, was bewusst nicht Teil dieser Phase ist
+
+## Phase-V2-23.2-Ergebnis
+
+Static-Config-Wiring + totes `average_correlation`-Feature (ergaenzend, gefunden bei einem Static-vs-Dynamic-Architektur-Audit dieser Session):
+
+- `config.json` bekommt drei zuvor fehlende `phase_v2`-Bloecke (`dynamic_risk`, `regime_detection`, `gating_network`), die `main.py` bereits seit V2-3/V2-6/V2-9 liest (`self.phase_v2.get("dynamic_risk", {})` etc.) — ohne diese Bloecke fiel jeder einzelne Wert (Ziel-Volatilitaet, Regime-Schwellenwerte, Gating-Baseline-Gewicht) still und für immer auf den Python-Hardcoded-Default zurueck, ohne dass es je konfigurierbar war. Rein additiv: die neuen Werte entsprechen exakt den bisherigen Defaults, keine Verhaltensaenderung
+- `regime/market_regime.py::build_market_regime_vector()`s `average_correlation`-Parameter existierte bereits seit V2-6, wurde aber nie mit einem echten Wert gefuettert — `main.py` rief `_build_regime_payload()` immer ohne diesen Parameter auf, sodass der korrelationsgesteuerte risk_off-Zweig in `classify_risk_regime()` in der Praxis unerreichbar war. Fix: `main.py::_build_regime_payload()` bekommt einen neuen `average_correlation`-Parameter, der an der Aufrufstelle mit `topology_payload["correlation_strength"]` befuellt wird — dem bereits von `topology/market_topology.py` pro Asset berechneten mittleren Peer-Korrelationswert innerhalb des eigenen Clusters, verfuegbar, weil `_build_topology_payload()` bereits einmal pro Bar vor der Pro-Asset-Schleife laeuft. Keine Aenderung in `regime/market_regime.py` oder `topology/market_topology.py` selbst noetig — reine `main.py`-Verdrahtung eines bereits echten Wertes in einen bereits echten Parameter
+- fuegt 1 neuen Test zu `tests/test_market_regime.py` hinzu: bestaetigt, dass `average_correlation` durchgereicht wird und `risk_score`/`reasons` tatsaechlich beeinflusst
+- Stop: `main.py` bleibt bewusst ohne eigene Unit-Tests (Import erfordert `AlgorithmImports`/Lean) — die Verdrahtung ist bis zur main.py-Grenze getestet, nicht end-to-end in Lean
+
+## Phase-V2-23.3-Ergebnis
+
+Echtes Topology-Embedding (ergaenzend, gleicher Audit):
+
+- `topology/market_topology.py`s bisherige 3D-Koordinaten-Platzierung war rein kosmetisch: Cluster-Zentroiden wurden per `index -> angle` auf einer festen Ellipse platziert, Mitglieder innerhalb eines Clusters ebenfalls per `member_index -> angle` — nur der Radius war datengetrieben (Marktdistanz), die Richtung nie. Zwei stark korrelierte Cluster konnten so auf gegenueberliegenden Seiten der Szene landen
+- ersetzt durch `_stress_majorize_2d(...)`: SMACOF (Scaling by MAjorizing a COmplicated Function), ein iterativer Stress-Majorisierungs-Algorithmus (klassischer Guttman-Transform), der ueber die vollstaendige paarweise Korrelations-Distanz-Matrix aller berechtigten Symbole laeuft (nicht nur innerhalb eines Clusters) — Position im Raum spiegelt jetzt tatsaechlich Korrelationsdistanz wider, nicht nur Cluster-Zugehoerigkeit
+- bewusst SMACOF statt klassischem MDS gewaehlt: keine Eigenwertzerlegung noetig (nur gewichtete Positions-Mittelwertbildung pro Iteration), bleibt dadurch reines Python ohne numpy/scipy — dieselbe Begruendung, aus der `topology/learned_topology.py` schon numpy-frei bleibt
+- deterministisch geseedet aus dem bisherigen kosmetischen Layout (nicht zufaellig) — `test_stable_coordinates_are_deterministic` besteht unveraendert weiter
+- `_rescale_positions_to_bounds(...)` skaliert das Ergebnis isometrisch (ein einzelner Skalierungsfaktor, kein unabhaengiges Achsen-Stretching, das die zu erhaltenden Distanzen verzerren wuerde) zurueck in die bestehenden `NEUTRAL_DIMENSIONS` `[0,100]x[0,100]`-Grenzen — `webui/src/components/topology/TopologyScene3D.tsx` brauchte keine Aenderung, da es bereits ueber `topology.dimensions` normalisiert
+- die z-Achse (Volatilitaets-Encoding) bleibt unveraendert — bewusst eine separate, bedeutungsvolle Kodierung, kein Teil des raeumlichen Embeddings
+- `build_market_topology(...)` bekommt einen neuen `embedding_iterations`-Parameter (Default 100), `config.json phase_v2.topology.embedding_iterations` ergaenzt, `main.py` reicht ihn durch
+- fuegt 3 neue Tests zu `tests/test_market_topology.py` hinzu: korrelierte Assets sind jetzt raeumlich naeher beieinander als unkorrelierte (staerkere Aussage als der bisherige reine Cluster-ID-Vergleich), Koordinaten bleiben innerhalb der Grenzen, `embedding_iterations` beeinflusst das Layout tatsaechlich (kein ignorierter Config-Wert)
+- Stop: kein 3D-Embedding (z bleibt Volatilitaets-Encoding, nicht Teil der Distanzerhaltung) — bewusst, da z bereits eine etablierte, separate Bedeutung traegt
+
+## Test Suite
+
+313 → 378 Tests gesamt nach diesem Audit-getriebenen Durchlauf (14 neu: 10 Liquidity, 1 Regime, 3 Topology). `tests/README.md` aktualisiert.
