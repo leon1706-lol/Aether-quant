@@ -3,6 +3,7 @@ import {
   fetchAssetPerformance,
   fetchEquityCurves,
   fetchMetricsSnapshot,
+  fetchNeuralNetwork,
   fetchObservationEquityCurve,
   fetchScene,
   fetchState,
@@ -32,6 +33,14 @@ export function useTopology() {
   return useQuery({
     queryKey: ['topology'],
     queryFn: fetchTopology,
+    refetchInterval: REFRESH_MS,
+  })
+}
+
+export function useNeuralNetwork() {
+  return useQuery({
+    queryKey: ['neural-network'],
+    queryFn: fetchNeuralNetwork,
     refetchInterval: REFRESH_MS,
   })
 }

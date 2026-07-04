@@ -68,6 +68,16 @@ export function AppShell({
                 Topology
               </NavLink>
               <NavLink
+                to="/neural-network"
+                className={({ isActive }) =>
+                  `rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                    isActive ? 'bg-orange-400/15 text-orange-300' : 'text-white/60 hover:text-white'
+                  }`
+                }
+              >
+                Neural Network
+              </NavLink>
+              <NavLink
                 to="/tracing"
                 className={({ isActive }) =>
                   `rounded-full px-4 py-1.5 text-sm font-medium transition ${

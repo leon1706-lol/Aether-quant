@@ -1,0 +1,219 @@
+"""Neural-network layer/node/edge state for Aether Quant V2's webui (V2-20).
+
+Reads the JSON-exported weights train.py already produces for the baseline
+model and the 4 MoE experts (ml/model_weights.json,
+ml/expert_models/<name>/model_weights.json) and reshapes them into a
+network-agnostic layer/node/edge summary the webui renders as an interactive
+3D diagram. Pure, read-only - never trains anything, never touches the
+binary ml/model.pt checkpoints, only the JSON exports meant for non-PyTorch
+consumers (same exports main.py's own _run_exported_model interpreter reads).
+
+The MoE gating network (moe/gating.py) and the learned-topology KMeans
+prototypes (topology/learned_topology.py) are deliberately excluded - neither
+has a learned weight matrix, so there is nothing to lay out as layers/nodes/
+edges. Their absence is reported explicitly via `excluded` rather than left
+silent.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+EXPERT_NAMES = ("bullish", "bearish", "sideways", "volatility")
+
+DEFAULT_ML_DIR = Path(__file__).resolve().parent.parent / "ml"
+
+EXCLUDED_NON_NETWORKS = [
+    {
+        "name": "gating_network",
+        "reason": (
+            "deterministic rule-based combiner (moe/gating.py) - quality/"
+            "performance/regime-alignment scoring, no learned weight matrix"
+        ),
+    },
+    {
+        "name": "learned_topology",
+        "reason": (
+            "KMeans cluster prototype centroids (topology/learned_topology.py), "
+            "not a layered network"
+        ),
+    },
+]
+
+
+@dataclass(frozen=True)
+class NetworkLayer:
+    index: int
+    type: str
+    in_features: int | None
+    out_features: int | None
+    weight_abs_mean: float | None
+    weight_abs_max: float | None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class NetworkSummary:
+    name: str
+    label: str
+    role: str
+    status: str
+    quality_status: str | None
+    node_layers: list[int]
+    layers: list[NetworkLayer]
+    total_layers: int
+    total_nodes: int
+    total_edges: int
+    last_modified: str | None
+
+    def to_dict(self) -> dict:
+        payload = asdict(self)
+        payload["layers"] = [layer.to_dict() for layer in self.layers]
+        return payload
+
+
+def _weight_stats(state_dict: dict, weight_key: str) -> tuple[float, float]:
+    matrix = state_dict.get(weight_key)
+    if not matrix:
+        return 0.0, 0.0
+    flat = [abs(float(value)) for row in matrix for value in (row if isinstance(row, list) else [row])]
+    if not flat:
+        return 0.0, 0.0
+    return sum(flat) / len(flat), max(flat)
+
+
+def _parse_network_export(export: dict) -> tuple[list[NetworkLayer], list[int]]:
+    architecture = export.get("architecture", [])
+    state_dict = export.get("state_dict", {})
+    layers: list[NetworkLayer] = []
+    node_layers: list[int] = []
+
+    for index, layer_spec in enumerate(architecture):
+        layer_type = layer_spec.get("type", "unknown")
+        in_features = layer_spec.get("in_features")
+        out_features = layer_spec.get("out_features")
+        weight_abs_mean = weight_abs_max = None
+        if layer_type == "linear":
+            weight_abs_mean, weight_abs_max = _weight_stats(state_dict, layer_spec["weight_key"])
+            if not node_layers:
+                node_layers.append(int(in_features))
+            node_layers.append(int(out_features))
+        layers.append(
+            NetworkLayer(
+                index=index,
+                type=layer_type,
+                in_features=in_features,
+                out_features=out_features,
+                weight_abs_mean=weight_abs_mean,
+                weight_abs_max=weight_abs_max,
+            )
+        )
+    return layers, node_layers
+
+
+def _load_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _last_modified(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+
+
+def _build_network_summary(
+    name: str,
+    label: str,
+    role: str,
+    weights_path: Path,
+    quality_status: str | None,
+) -> NetworkSummary:
+    payload = _load_json(weights_path)
+    if payload is None or "export" not in payload:
+        return NetworkSummary(
+            name=name,
+            label=label,
+            role=role,
+            status="not_trained",
+            quality_status=quality_status,
+            node_layers=[],
+            layers=[],
+            total_layers=0,
+            total_nodes=0,
+            total_edges=0,
+            last_modified=None,
+        )
+
+    layers, node_layers = _parse_network_export(payload["export"])
+    total_edges = sum(a * b for a, b in zip(node_layers, node_layers[1:]))
+
+    return NetworkSummary(
+        name=name,
+        label=label,
+        role=role,
+        status="trained",
+        quality_status=quality_status,
+        node_layers=node_layers,
+        layers=layers,
+        total_layers=len(node_layers),
+        total_nodes=sum(node_layers),
+        total_edges=total_edges,
+        last_modified=_last_modified(weights_path),
+    )
+
+
+def build_neural_network_state(ml_dir: Path | None = None) -> dict:
+    """Reads ml/model_weights.json + ml/expert_models/*/model_weights.json and
+    reshapes them into a network-agnostic layer/node/edge summary. A missing
+    export file degrades that one network to status="not_trained" - never
+    raises, mirroring main.py's own optional-expert-export loading."""
+    ml_dir = ml_dir or DEFAULT_ML_DIR
+
+    expert_metrics = _load_json(ml_dir / "expert_training_metrics.json") or {}
+    experts_metrics_block = expert_metrics.get("experts", {})
+
+    networks = [
+        _build_network_summary(
+            name="baseline",
+            label="Baseline Model",
+            role="baseline",
+            weights_path=ml_dir / "model_weights.json",
+            quality_status=None,
+        )
+    ]
+
+    for expert_name in EXPERT_NAMES:
+        quality_gate = experts_metrics_block.get(expert_name, {}).get("quality_gate", {})
+        quality_status = quality_gate.get("quality_status")
+        networks.append(
+            _build_network_summary(
+                name=expert_name,
+                label=f"{expert_name.capitalize()} Expert",
+                role="expert",
+                weights_path=ml_dir / "expert_models" / expert_name / "model_weights.json",
+                quality_status=quality_status,
+            )
+        )
+
+    totals = {
+        "total_networks": len(networks),
+        "total_layers": sum(network.total_layers for network in networks),
+        "total_nodes": sum(network.total_nodes for network in networks),
+        "total_edges": sum(network.total_edges for network in networks),
+        "trained_count": sum(1 for network in networks if network.status == "trained"),
+    }
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "networks": [network.to_dict() for network in networks],
+        "totals": totals,
+        "excluded": EXCLUDED_NON_NETWORKS,
+    }

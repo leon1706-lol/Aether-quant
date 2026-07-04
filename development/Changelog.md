@@ -435,3 +435,48 @@ Echtes Topology-Embedding (ergaenzend, gleicher Audit):
 ## Test Suite
 
 313 → 378 Tests gesamt nach diesem Audit-getriebenen Durchlauf (14 neu: 10 Liquidity, 1 Regime, 3 Topology). `tests/README.md` aktualisiert.
+
+## Phase-V2-20-Ergebnis
+
+Lean Backtesting Integration macht jetzt zusaetzlich Folgendes:
+
+- beantwortet die offene Frage, ob ein normaler `lean backtest .`-Lauf bereits
+  das gesamte ML-System durchlaeuft (Basismodell, alle 4 Experten, MoE-Gating,
+  Regime, Topologie), mit **Ja** — durch Nachverfolgung von `main.py::on_data`:
+  `_run_model` (Basismodell), `_run_expert_models` (alle 4 Experten ueber
+  denselben `_run_exported_model`-Interpreter), `build_gating_decision`
+  (MoE-Gating), `_build_topology_payload` (deterministische + gelernte
+  Topologie, einmal pro Bar vor der Symbol-Schleife) und
+  `build_market_regime_vector` (Regime) laufen alle unveraendert seit
+  V2-9/V2-11/V2-12 pro Bar und pro Symbol — V2-20 hat daher keine
+  Laufzeit-Logik umgebaut, sondern die bestehende Abdeckung nachgewiesen
+- fuegt `tests/test_lean_backtest_ml_coverage.py` hinzu: ein echter
+  Integrationstest, der `lean backtest .` per Subprocess ausfuehrt und danach
+  `visualization/state.json` darauf prueft, dass mindestens ein voll
+  ausgewertetes Signal alle 4 Expertennamen in `expert_probabilities`, 4
+  gewichtete Eintraege in `moe_gating.weights`, ein gesetztes
+  `regime.trend_regime` und ein gesetztes `liquidity.liquidity_risk` zeigt,
+  sowie dass `state["topology"]["nodes"]` nicht leer ist — schliesst damit die
+  in `development/Problems.md` #8 dokumentierte Luecke, dass `main.py` bisher
+  keine eigenen Tests hatte
+- der neue Test uebernimmt `retraining/lean_backtest.py`s Konvention
+  (optionale Abhaengigkeit, Skip statt Fail, wenn Lean-CLI fehlt), ergaenzt
+  aber eine Absicherung: auf Maschinen mit installiertem `elan` (Lean 4, der
+  Theorembeweiser) zeigt ein blosses `lean` auf `PATH` auf das **falsche**
+  Programm (Namenskollision); `_find_quantconnect_lean_binary()` prueft die
+  `--version`-Ausgabe und bevorzugt das Projekt-eigene `.venv/Scripts/lean.exe`,
+  damit der Test sauber uebersprungen statt mit einer verwirrenden Fehlermeldung
+  abgebrochen wird
+- fuegt die neue Webui-Seite `/neural-network` hinzu (Nav-Eintrag zwischen
+  Topology und Tracing): eine interaktive 3D-Ansicht aller 5 real trainierten
+  neuronalen Netze (Basismodell + 4 Experten) nebeneinander in einer
+  gemeinsamen Kamera/Orbit-Szene, plus eine live aktualisierte Statistik-Box
+  (Layer/Node/Edge-Anzahl je Netz, Quality-Status, letzte Aenderung) — siehe
+  Neural Network Visualization Contract (V2-20) in `v2_architecture.md` fuer
+  das vollstaendige Datenschema und die bewusst ausgeschlossenen Nicht-Netze
+  (MoE-Gating, gelernte Topologie-Prototypen)
+- neues Backend-Modul `monitoring/neural_network_state.py`
+  (`build_neural_network_state()`, reine Funktion) und neue Route
+  `GET /api/neural-network`, beide nach demselben Read-only-Reshape-Muster
+  wie `/api/topology`
+

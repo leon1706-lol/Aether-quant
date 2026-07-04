@@ -116,7 +116,7 @@ flowchart TB
 20. [x] V2-18: Remove Grafana, React Tracing dashboard
 21. [x] V2-19: Telegram alerts
 22. [x] V2-19.5: Yahoo Finance historical data backfill — supplemental, not in the original numbered plan
-23. [ ] V2-20: Lean backtesting integration
+23. [x] V2-20: Lean backtesting integration — confirmed a standard backtest already exercises the full ML system (baseline model, all 4 experts, MoE gating, regime, topology); closed the proof gap with a new integration test rather than any runtime rewiring (see Lean Backtesting Integration Contract)
 24. [ ] V2-21: Paper trading preparation
 25. [ ] V2-22: Live deployment structure
 26. [x] V2-23.1: Data-driven liquidity threshold calibration — closed via a real high-low spread estimator, not fill-data calibration (see Liquidity Engine Contract)
@@ -737,6 +737,7 @@ Pages:
 - `/` Overview: scorecards, 3D market scene (real topology coordinates), asset heatmap, signal/position board
 - `/risk` Risk: risk core panel, asset sizing table, liquidity and execution impact panel
 - `/topology` Topology: 3D cluster view with regime/risk colouring, readable cluster list
+- `/neural-network` Neural Network (V2-20): interactive 3D view of every real neural network in the project (baseline model + all 4 experts, side by side, one camera/orbit) plus a live layer/node/edge stats box — see Neural Network Visualization Contract below
 - `/tracing` Tracing (V2-18): runtime metrics snapshot, asset performance (diverging Sharpe bars), backtest equity curve (per-ticker strategy vs buy-and-hold), observation-mode equity curve and drawdown — the native replacement for the removed Grafana instance
 
 The FastAPI server (`monitoring/api_server.py`) exposes:
@@ -744,8 +745,51 @@ The FastAPI server (`monitoring/api_server.py`) exposes:
 - `GET /api/state` — full runtime state including signals, topology, positions, risk and liquidity per asset
 - `GET /api/scene` — 3D scene payload
 - `GET /api/topology` — topology state with nodes, links and cluster summary
+- `GET /api/neural-network` — layer/node/edge breakdown of every trained network (V2-20, see below)
 - `GET /api/grafana/*` — JSON and CSV feeds read from `visualization/grafana/*`; the path is unchanged from when Grafana consumed it, now consumed by the webui's Tracing page instead (see V2-18)
 - `GET /` — serves the built React app (only when `webui/dist/` exists)
+
+## Neural Network Visualization Contract (V2-20)
+
+A new webui page renders every real neural network in the project — the
+baseline model plus all 4 experts — as an interactive, orbitable 3D
+layer/node/edge diagram, alongside a live stats box.
+
+**Data source, no training changes needed:** all 5 networks share one export
+schema (`train.py`'s `AetherNet`, `export_architecture()`/`export_state_dict()`):
+baseline is `Linear(20→64)→LayerNorm→ReLU→Dropout→Linear(64→32)→LayerNorm→ReLU→Dropout→Linear(32→1)→Sigmoid`;
+each expert is the same template at a smaller, more regularized width —
+`Linear(20→24)→LayerNorm→ReLU→Dropout→Linear(24→1)→Sigmoid` (see Expert
+Stabilization Contract). `monitoring/neural_network_state.py::build_neural_network_state()`
+(pure function, mirrors `topology/market_topology.py`'s convention) reads
+`ml/model_weights.json` and `ml/expert_models/{bullish,bearish,sideways,volatility}/model_weights.json`
+directly — independent of any running backtest, so the page works immediately
+off whatever is already on disk — plus `ml/expert_training_metrics.json` for
+each expert's `quality_status`. A missing export file degrades that one
+network to `status: "not_trained"`, never a crash. `weight_abs_mean`/
+`weight_abs_max` per linear layer (plain Python over the small matrices, no
+numpy needed) drive edge color/opacity by weight magnitude.
+
+**Explicitly excluded, with a stated reason in the API payload's `excluded`
+list:** the MoE gating network (`moe/gating.py`) is a deterministic
+quality/performance/regime-alignment rule engine with no learned weight
+matrix of its own (`development/v2_architecture.md`'s Gating Network Contract
+already documents this); the learned-topology overlay
+(`topology/learned_topology.py`) scores nodes against KMeans cluster
+prototype centroids, not a layered network — neither has layers/nodes/edges
+to draw.
+
+**Webui:** `webui/src/pages/NeuralNetworkPage.tsx` (same two-column
+`grid lg:grid-cols-[1.6fr_1fr]` layout as `TopologyPage.tsx`) —
+`NeuralNetworkScene3D.tsx` renders all 5 networks simultaneously as
+side-by-side layer-column diagrams sharing one `Canvas`/`OrbitControls`,
+built on the exact same skeleton as `TopologyScene3D.tsx` for visual
+coherence (ambient + point light, `Html` billboard labels, dark
+Panel-wrapped canvas); `NeuralNetworkStatsPanel.tsx` is the live stats box —
+one row per network (layers/nodes/edges/quality status/last modified) plus a
+totals row, polled every 5s via `useNeuralNetwork()` (same `REFRESH_MS`
+cadence as `useTopology()`), so a retraining promotion's new weights are
+picked up automatically without a page reload.
 
 Liquidity data flows through `state.signals[symbol].liquidity` — no dedicated endpoint needed.
 
@@ -944,3 +988,46 @@ Usage: `python -m data_pipeline.yfinance_backfill [--tickers ETHUSD LTCUSD] [--a
 **Stop:** no automatic widening of `available_from`/`available_to`, no
 Docker worker — deliberately a manual offline script, same status as
 `train_topology.py`.
+
+## Lean Backtesting Integration Contract (V2-20)
+
+**Finding: a standard `lean backtest .` run already exercises the entire ML
+system on every bar, for every symbol — baseline model, all 4 experts, MoE
+gating, regime detection, topology, liquidity/risk sizing.** This was true
+before V2-20 started (built up incrementally across V2-9/V2-11/V2-12); V2-20's
+actual scope is proving it with an automated regression test rather than only
+manual code reading, since `main.py` has zero direct unit tests
+(`development/Problems.md` #8 — it requires `AlgorithmImports`/Lean).
+
+Traced call chain inside `main.py::on_data` (`main.py:225`), per bar:
+
+| Subsystem | Call site | Reads |
+|---|---|---|
+| Topology (deterministic + learned) | `main.py:231 self._build_topology_payload()` — once per bar, before the symbol loop | `topology/market_topology.py`, `topology/learned_topology.py` |
+| Baseline NN | `main.py:270 self._run_model(...)` → `_run_exported_model` (`main.py:550`) | `ml/model_weights.json` |
+| Regime detection | `main.py:272 self._build_regime_payload(...)` → `regime.build_market_regime_vector` | `regime/market_regime.py` |
+| All 4 experts | `main.py:276 self._run_expert_models(...)` (`main.py:576`) — loops `moe.EXPERT_NAMES`, reuses the same `_run_exported_model` interpreter | `ml/expert_models/{bullish,bearish,sideways,volatility}/model_weights.json` |
+| MoE gating | `main.py:277 build_gating_decision(...)` | `moe/gating.py:114` |
+| Liquidity / dynamic sizing | `main.py:286-311` | `risk/position_sizing.py`, `liquidity/market_liquidity.py` |
+| Final decision | `main.py:315 build_market_analysis_decision(...)` | `analyzer/` |
+
+Not exercised by a backtest, correctly: the offline artifact builders
+(`train.py`, `train_topology.py`, `experts/expert_datasets.py`) that *produce*
+the JSON weights consumed above — training-time concerns, not backtest-time
+ones.
+
+**New regression proof:** `tests/test_lean_backtest_ml_coverage.py` — an
+integration test (not a unit test) that shells out to the real Lean CLI
+(`lean backtest .`) against this repo's own data/config, then asserts, from
+the resulting `visualization/state.json`, that at least one fully-evaluated
+signal has: all 4 `EXPERT_NAMES` in `expert_probabilities`, 4 weighted entries
+in `moe_gating.weights`, a non-empty `regime.trend_regime`, a non-empty
+`liquidity.liquidity_risk`, and that `state["topology"]["nodes"]` is
+non-empty. Mirrors `retraining/lean_backtest.py`'s optional-dependency
+convention (skip, never fail, if the Lean CLI isn't available) — but note the
+disambiguation this test adds: on machines with `elan` (Lean 4, the theorem
+prover) installed, plain `lean` on `PATH` resolves to the *wrong* binary (same
+name, unrelated tool). The test's `_find_quantconnect_lean_binary()` checks
+`--version` output (Lean 4 prints `"Lean (version 4...."`; QuantConnect's CLI
+does not) and prefers this repo's own `.venv/Scripts/lean.exe` before falling
+back to `PATH`, so it skips cleanly instead of erroring on such machines.

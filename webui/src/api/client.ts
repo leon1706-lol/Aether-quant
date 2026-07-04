@@ -1,4 +1,4 @@
-import type { RuntimeState, Scene, Topology } from '../types/state'
+import type { NeuralNetworkState, RuntimeState, Scene, Topology } from '../types/state'
 import type { CsvRow, RuntimeMetricsSnapshot } from '../types/tracing'
 
 async function getJson<T>(path: string): Promise<T> {
@@ -12,6 +12,7 @@ async function getJson<T>(path: string): Promise<T> {
 export const fetchState = () => getJson<RuntimeState>('/api/state')
 export const fetchScene = () => getJson<Scene>('/api/scene')
 export const fetchTopology = () => getJson<Topology>('/api/topology')
+export const fetchNeuralNetwork = () => getJson<NeuralNetworkState>('/api/neural-network')
 
 // Tracing dashboard (V2-18) - reads the same visualization/grafana/* exports
 // that used to be Grafana's only consumer, now rendered natively in the webui.

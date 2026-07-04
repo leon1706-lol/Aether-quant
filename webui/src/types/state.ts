@@ -235,6 +235,47 @@ export interface Topology {
   learned_neighbors_by_symbol?: Record<string, string[]>
 }
 
+export interface NeuralNetworkLayer {
+  index: number
+  type: string
+  in_features?: number | null
+  out_features?: number | null
+  weight_abs_mean?: number | null
+  weight_abs_max?: number | null
+}
+
+export interface NeuralNetworkModel {
+  name: string
+  label: string
+  role: 'baseline' | 'expert' | string
+  status: 'trained' | 'not_trained' | string
+  quality_status?: 'stable' | 'watchlist' | 'disabled_for_gating' | string | null
+  node_layers: number[]
+  layers: NeuralNetworkLayer[]
+  total_layers: number
+  total_nodes: number
+  total_edges: number
+  last_modified?: string | null
+}
+
+export interface NeuralNetworkExcluded {
+  name: string
+  reason: string
+}
+
+export interface NeuralNetworkState {
+  generated_at?: string
+  networks: NeuralNetworkModel[]
+  totals: {
+    total_networks: number
+    total_layers: number
+    total_nodes: number
+    total_edges: number
+    trained_count: number
+  }
+  excluded: NeuralNetworkExcluded[]
+}
+
 export interface ObservationSummary {
   mode?: string
   allow_live_orders?: boolean

@@ -14,6 +14,10 @@ const TONES: Record<string, string> = {
   hybrid: 'bg-amber-400/15 text-amber-300',
   fallback: 'bg-white/10 text-white/80',
   deterministic: 'bg-sky-400/15 text-sky-300',
+  stable: 'bg-emerald-400/15 text-emerald-300',
+  watchlist: 'bg-amber-400/15 text-amber-300',
+  disabled_for_gating: 'bg-rose-400/15 text-rose-300',
+  baseline: 'bg-sky-400/15 text-sky-300',
 }
 
 export function Badge({ tone, children }: { tone?: string; children: React.ReactNode }) {
