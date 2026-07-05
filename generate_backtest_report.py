@@ -46,6 +46,8 @@ CHART_PATH = ROOT_DIR / "development" / "backtest_equity_chart.png"
 _RESULT_JSON_PATTERN = re.compile(r"^\d+\.json$")
 BACKTEST_MARKER_START = "<!-- AQ:BACKTEST_START -->"
 BACKTEST_MARKER_END = "<!-- AQ:BACKTEST_END -->"
+FULL_STATS_MARKER_START = "<!-- AQ:BACKTEST_FULL_STATS_START -->"
+FULL_STATS_MARKER_END = "<!-- AQ:BACKTEST_FULL_STATS_END -->"
 
 _STAT_KEYS_FOR_TABLE = [
     "Sharpe Ratio",
@@ -81,16 +83,20 @@ def _iter_backtest_result_jsons(backtests_dir: Path) -> Iterator[Path]:
 
 def find_latest_backtest_result_json(backtests_dir: Path = BACKTESTS_DIR) -> Path | None:
     """Returns the newest backtest run's result JSON that actually contains
-    a populated Strategy Equity curve - skips runs that errored out before
-    producing real results (Lean still writes a near-empty result JSON for
-    those), so a crashed run never clobbers the README with empty data."""
+    both a populated Strategy Equity curve AND a populated statistics
+    block - skips runs that errored out or were interrupted before
+    finishing (Lean can write a result JSON with a partially-populated
+    equity curve but an empty `statistics` dict if the process didn't reach
+    the end of the run), so an incomplete run never clobbers the README
+    with a chart but no Sharpe/drawdown/etc. numbers."""
     for candidate in _iter_backtest_result_jsons(backtests_dir):
         try:
             data = json.loads(candidate.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         values = data.get("charts", {}).get("Strategy Equity", {}).get("series", {}).get("Equity", {}).get("values", [])
-        if values:
+        statistics = data.get("statistics", {})
+        if values and statistics:
             return candidate
     return None
 
@@ -200,35 +206,70 @@ def _build_stats_markdown(summary: dict, chart_relative_path: str) -> str:
     return "\n".join(lines)
 
 
+def _build_full_stats_markdown(summary: dict) -> str:
+    """Every statistic Lean's own backtest result reports, not just the
+    curated highlights in the compact table above it - Sharpe/Sortino/
+    Probabilistic Sharpe, Alpha/Beta, Information/Treynor Ratio, fees,
+    estimated strategy capacity, and everything else Lean computes."""
+    statistics = summary["statistics"]
+    if not statistics:
+        return "_No statistics available in this backtest result._"
+
+    lines = ["| Metric | Value |", "|---|---|"]
+    for key, value in statistics.items():
+        lines.append(f"| {key} | {value} |")
+    return "\n".join(lines)
+
+
+def _replace_between_markers(text: str, start_marker: str, end_marker: str, body: str) -> str | None:
+    """Shared atomic marker-replace helper. Returns the updated text, or
+    None if the markers aren't present or nothing changed."""
+    if start_marker not in text or end_marker not in text:
+        return None
+    pattern = re.compile(re.escape(start_marker) + r".*?" + re.escape(end_marker), re.DOTALL)
+    replacement = f"{start_marker}\n{body}\n{end_marker}"
+    updated_text = pattern.sub(replacement, text, count=1)
+    return updated_text if updated_text != text else None
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)
+
+
 def update_readme_backtest_section(
     summary: dict, readme_path: Path = README_PATH, chart_path: Path = CHART_PATH
 ) -> bool:
     """Atomically replaces the content between the AQ:BACKTEST markers in
-    README.md with a fresh stats table + chart image reference. Returns
-    False (never raises) if the README or its markers are missing - a
-    report-generation bug must never break `aq backtest` itself."""
+    README.md with a fresh stats table + chart image reference, and the
+    content between the AQ:BACKTEST_FULL_STATS markers with every statistic
+    Lean's result reports. Returns False (never raises) if the README or
+    its markers are missing - a report-generation bug must never break
+    `aq backtest` itself."""
     if not readme_path.exists():
         return False
     text = readme_path.read_text(encoding="utf-8")
-    if BACKTEST_MARKER_START not in text or BACKTEST_MARKER_END not in text:
-        return False
 
     try:
         chart_relative_path = chart_path.relative_to(readme_path.resolve().parent).as_posix()
     except ValueError:
         chart_relative_path = chart_path.as_posix()
 
-    stats_markdown = _build_stats_markdown(summary, chart_relative_path)
-    pattern = re.compile(re.escape(BACKTEST_MARKER_START) + r".*?" + re.escape(BACKTEST_MARKER_END), re.DOTALL)
-    replacement = f"{BACKTEST_MARKER_START}\n{stats_markdown}\n{BACKTEST_MARKER_END}"
-    updated_text = pattern.sub(replacement, text, count=1)
-
-    if updated_text == text:
+    updated_text = _replace_between_markers(
+        text, BACKTEST_MARKER_START, BACKTEST_MARKER_END, _build_stats_markdown(summary, chart_relative_path)
+    )
+    if updated_text is None:
         return False
+    text = updated_text
 
-    tmp_path = readme_path.with_suffix(readme_path.suffix + ".tmp")
-    tmp_path.write_text(updated_text, encoding="utf-8")
-    tmp_path.replace(readme_path)
+    full_stats_text = _replace_between_markers(
+        text, FULL_STATS_MARKER_START, FULL_STATS_MARKER_END, _build_full_stats_markdown(summary)
+    )
+    if full_stats_text is not None:
+        text = full_stats_text
+
+    _atomic_write(readme_path, text)
     return True
 
 
