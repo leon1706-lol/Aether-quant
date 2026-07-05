@@ -1,183 +1,343 @@
-# Aether Quant
+<p align="center">
+  <img src="development/logo.png" width="220" alt="Aether Quant logo">
+</p>
 
-Aether Quant ist ein Trading-Projekt auf Basis von QuantConnect Lean, PyTorch und einer lokalen Visualisierungsschicht.
-Das Ziel ist ein adaptives Modell, das auf Lean-Daten trainiert wird, im Backtest validiert werden kann, spaeter ueber Interactive Brokers im Paper Trading laeuft und seinen Zustand fuer ein Live-Dashboard bereitstellt.
+<h1 align="center">Aether Quant</h1>
 
-## Aktueller Stand
+<p align="center">
+  <strong>My state-of-the-art flagship trading model — a dynamic, self-adapting algorithmic trading system built on QuantConnect Lean and PyTorch, engineered to prove that dynamic models belong in dynamic markets.</strong>
+</p>
 
-Phase V2-0 ist gestartet. Phase 10 ist abgeschlossen, und die neue Fork baut auf dem bisherigen Aether-Quant-Grundgeruest auf:
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-528%2F528%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="528 of 528 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00" alt="PyPI version">
+  <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
+</p>
 
-- Grundstruktur fuer `backtests/`, `ml/` und `visualization/`
-- Lean-Algorithmus in `main.py` mit Feature-Berechnung, JSON-Modell-Inferenz, Signal-Engine und Risk Controls
-- Trainingspipeline in `train.py` mit Dateninventur, Feature-Berechnung, Splits und erstem PyTorch-Modell
-- Ausbau des Dashboards in `dashboard.html` mit Scorecards, Asset-Heatmap und 3D-artiger Market-Scene
-- Startkonfiguration in `config.json`
-- Erste Runtime-Dateien fuer Modell- und Visualisierungszustand
-- Grafana-freundliche Exportdateien unter `visualization/grafana/`
-- erweitertes Daily-Multi-Asset-Universum mit Aktien, ETFs und drei Spot-Krypto-Coins
-- Asset-Qualitaetslogik fuer trainierbare/tradbare Assets und Observation-only Assets
-- Persistente Dateninventur in `ml/dataset_inventory.json`
-- Persistente Dataset-Artefakte in `ml/datasets/`, `ml/dataset_manifest.json` und `ml/scaler.pkl`
-- Modellartefakte in `ml/model.pt`, `ml/training_metrics.json` und `ml/model_weights.json`
-- Strategie-Validierung in `backtests/strategy_report.json` und `backtests/equity_curves.csv`
-- erste Unit-Tests fuer Feature Engineering, Asset-Qualitaet und Scaler-Verhalten
-- V2-Architektur-Fundament mit MoE-, Regime-, Topology-, Experience-, Risk- und Monitoring-Modulen
+Aether Quant is not a single static strategy — it's a **dynamic system**: a
+Mixture-of-Experts ensemble (bullish/bearish/sideways/volatility specialists)
+routed by a learned gating network, a market-regime detector, a 3D market
+topology layer that combines a deterministic correlation embedding with a
+learned probabilistic overlay, a liquidity/market-impact engine that adjusts
+position sizing to real trading conditions, and a controlled retraining loop
+that lets the model itself evolve as markets do — all wired together and
+validated end-to-end inside QuantConnect's Lean engine. The thesis this
+project exists to test is simple to state and hard to prove: **markets are
+non-stationary, so a trading model should be too.** Every subsystem here
+exists to make the model adapt — to regime shifts, to changing correlation
+structure, to liquidity conditions — rather than to fit one historical
+window and hope it generalizes.
 
-## Projektstruktur
+## Table of Contents
 
-```text
-aether-quant/
-|-- docker-compose.yml
-|-- development/
-|   |-- v2_architecture.md
-|   |-- infrastructure.md
-|   |-- Changelog.md
-|   |-- Problems.md
-|-- lean.json
-|-- config.json
-|-- backtests/
-|-- data/
-|-- main.py
-|-- train.py
-|-- data_pipeline/
-|-- moe/
-|-- experts/
-|-- regime/
-|-- topology/
-|-- experience/
-|-- risk/
-|-- monitoring/
-|-- ml/
-|   |-- model_weights.json
-|-- visualization/
-|   |-- state.json
-|-- webui/
-|   |-- src/
-|-- requirements/
-|   |-- requirements.txt
-|-- README.md
-|-- .gitignore
-```
+- [Download](#download)
+- [Getting Started](#getting-started)
+- [Requirements](#requirements)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Module Documentation](#module-documentation)
+- [Development Documentation](#development-documentation)
+- [Backtest Results](#backtest-results)
+- [Test Suite](#test-suite)
+- [CLI Reference](#cli-reference)
+- [Release Process](#release-process)
+- [Runbook](#runbook)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
 
-## Komponenten
+---
 
-- `lean.json`: Lean-Engine- und Brokerage-Konfiguration
-- `config.json`: lokale Projektmetadaten fuer die spaetere Lean-Cloud-/CLI-Zuordnung
-- `main.py`: Lean-Algorithmus fuer Backtest, Modell-Inferenz und spaeteres IB Paper Trading
-- `train.py`: Trainings- und Artefaktpipeline fuer Dateninventur, Features, Splits, Scaler und Modelltraining
-- `ml/model_weights.json`: Lean-lesbarer Export des trainierten Modells
-- `ml/dataset_inventory.json`: Phase-1-Inventur fuer V1-Universum, Datenabdeckung und Fenster
-- `ml/dataset_manifest.json`: Phase-2-/Phase-9-Zusammenfassung der gebauten Datensaetze inklusive Asset-Qualitaet
-- `ml/scaler.pkl`: gespeicherter Feature-Scaler fuer spaetere Inferenz
-- `ml/training_metrics.json`: Metriken, Verlauf und Qualitaet des ersten Modells
-- `backtests/strategy_report.json`: Strategie-Report mit Return, Sharpe, Drawdown und Baseline-Vergleich
-- `backtests/equity_curves.csv`: Equity-Curves fuer Validation und Backtest
-- `visualization/state.json`: gemeinsamer Runtime-Zustand fuer Dashboard, Monitoring und Trading
-- `visualization/scene.json`: Szenendaten fuer die lokale Markt-/Portfolio-Visualisierung
-- `visualization/grafana/`: JSON- und CSV-Feeds, urspruenglich fuer Grafana gedacht; seit V2-18 (Grafana entfernt) direkte Datenquelle der Webui-Tracing-Seite
-- `monitoring/api_server.py`: FastAPI-Server, der `visualization/state.json`, `visualization/scene.json` und die genannten Exporte als JSON-API unter `localhost:8001` (lokal, `uvicorn`) bzw. `localhost:8001` (Docker, `aether-quant`-Container) bereitstellt
-- `webui/`: React/Vite-Webui unter `localhost:3002` (lokaler `npm run dev`) mit Overview-Seite (Scorecards, 3D-Marktszene, Asset-Heatmap, Signal-/Positionsboard), Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle), Topology-Seite (3D-Cluster-Ansicht), Neural-Network-Seite (V2-20: interaktive 3D-Ansicht von Basismodell und allen 4 Experten samt Layer-/Node-/Edge-Live-Statistik) und Tracing-Seite (V2-18: Runtime-Metrics-Snapshot, Asset-Performance, Backtest- und Observation-Equity-Curves — nativer Ersatz fuer das entfernte Grafana) als einheitliche Ablösung der frueheren `dashboard.html` und `volatility_dashboard.html`. Im Docker-Container wird dasselbe Webui-Build stattdessen vom `aether-quant`-Container unter `localhost:8001` mitausgeliefert (kein eigener Port) — Vite-Dev-Server (3002) und Docker-Bundle (8001) sind zwei getrennte Ausliefer-Pfade.
-- `docker-compose.yml`: lokale Infrastruktur fuer Lean, Redis und PostgreSQL (Grafana seit V2-18 entfernt — die Webui-Tracing-Seite ersetzt es)
-- `requirements/`: alle `requirements*.txt`-Varianten an einem Ort — `requirements.txt` (Laufzeit/Training), `requirements-dev.txt` (lokale Entwicklung/Tests, inkl. `yfinance` seit V2-19.5), `requirements-runtime.txt` (schlankes FastAPI-Image), `requirements-workers.txt`/`requirements-retraining-worker.txt` (die zwei Docker-Worker-Images — `requirements-workers.txt` bedient seit der Docker-Image-Konsolidierung alle drei leichtgewichtigen internen Worker `experience-worker`/`performance-trigger-worker`/`telegram-worker` gemeinsam ueber `Dockerfile.workers`, statt je ein eigenes Dockerfile/Requirements-Paar; 5 Custom-Images wurden so auf 3 reduziert: `aether-quant`, `retraining-worker`, `workers`)
-- `development/`: Entwicklungs-Dokumentation — `v2_architecture.md` (V2-Systemarchitektur mit Prozessfluss und Tech-Stack-Diagrammen), `infrastructure.md` (Docker-Compose-Startbefehle, Netzwerk- und Datenfluss-Runbook), `Changelog.md` (detaillierte Phase-Ergebnisse, siehe unten), `Problems.md` (gefundene Bugs mit Schweregrad und Status)
-- `data_pipeline/`: V2-Vertrag fuer Lean-Datenquelle, Dataset-Manifest und spaetere MoE-Verbraucher; seit V2-19.5 zusaetzlich `yfinance_backfill.py` (manuelles Offline-Skript, fuellt Luecken in duennen Serien wie ETHUSD/LTCUSD aus Yahoo Finance, nie automatisch, nie im Lean-Container)
-- `moe/`: Gating Network, Expert Routing und finale MoE-Signalzusammenfuehrung
-- `experts/`: Bullish-, Bearish-, Sideways- und Volatility-Expert-Module
-- `regime/`: Markt-Regime-Erkennung und spaetere LLM-Regime-Vektoren
-- `topology/`: 3D-Marktstruktur, Asset-Cluster und Topology-Exports
-- `experience/`: Observation-, Signal-, Trade- und Retraining-Historie
-- `retraining/`: Controlled Retraining (V2-17) — Planner, Candidate-Training-Gate, Validation-/Backtest-Gate, Aether-Vault-Commit, Promotion/Rollback, siehe `development/v2_architecture.md`
-- `risk/`: dynamisches Position Sizing, Hebel-, Liquiditaets- und Market-Impact-Controls
-- `monitoring/`: FastAPI-JSON-API fuer Runtime-State, Scene, Topology und die Tracing-Feeds (siehe V2-18)
-- `notifications/`: Telegram-Alerting (V2-19) — pollt `performance_triggers` (jede Trigger-Art, nicht nur Drawdown) und `experience_events` (`event_type="session_summary"`, von `main.py` bei jedem Session-Rollover gepusht) per eigenem `telegram-worker`-Docker-Service; Secrets ausschliesslich ueber `AETHER_TELEGRAM_BOT_TOKEN`/`AETHER_TELEGRAM_CHAT_ID`, nie in `config.json`
+## Download
 
-## Lokaler Start
-
-1. Virtuelle Umgebung aktivieren.
-2. Abhaengigkeiten installieren:
-
-```powershell
-pip install -r requirements/requirements.txt
-```
-
-Fuer lokale Entwicklung zusaetzlich:
-
-```powershell
-pip install -r requirements/requirements-dev.txt
-```
-
-3. Initiale Inventur nur aktualisieren:
-
-```powershell
-python train.py --init-only
-```
-
-4. Datensatz bauen und Modell trainieren:
-
-```powershell
-python train.py
-```
-
-Optional nur Dataset-Artefakte ohne Training erzeugen:
-
-```powershell
-python train.py --dataset-only
-```
-
-5. Webui lokal starten (zwei Prozesse):
-
-```powershell
-uvicorn monitoring.api_server:app --port 8001 --reload
-```
-
-```powershell
-cd webui
-npm install
-npm run dev
-```
-
-Danach `http://localhost:3002` im Browser oeffnen.
-
-## Installation als Endnutzer (PyPI + GHCR)
-
-Wer nicht am Code mitentwickelt, sondern Aether Quant nur nutzen moechte,
-braucht kein lokales `pip install -e .` — CLI und Backend werden als
-fertige Releases veroeffentlicht:
+If you just want to use Aether Quant rather than develop on it, no local
+`pip install -e .` or source checkout is needed — the CLI and backend are
+published as ready-to-use releases:
 
 ```powershell
 pip install aether-quant
 docker pull ghcr.io/leon1706-lol/aether-quant:latest
 ```
 
-Danach steht `aq --help` sofort zur Verfuegung (siehe Befehlsuebersicht
-unten). `aq` prueft automatisch (hoechstens einmal pro 24h, mit kurzem
-Timeout, niemals blockierend) gegen PyPI, ob eine neuere Version verfuegbar
-ist, und zeigt bei jedem Befehl eine kurze Hinweiszeile an, falls ja. Abschalten
-mit `AQ_SKIP_UPDATE_CHECK=1`.
+`aq --help` is then available immediately (see [CLI Reference](#cli-reference)
+below). `aq` checks PyPI at most once every 24h (short timeout, never
+blocking) for a newer version and prints a one-line notice if one's
+available — disable with `AQ_SKIP_UPDATE_CHECK=1`.
 
-Das Docker-Image ist dasselbe, das `docker-compose.yml`'s `aether-quant`-Service
-per Default zieht (`AETHER_QUANT_IMAGE` env var zum Ueberschreiben, z. B. fuer
-lokal gebaute Images).
+The Docker image is the same one `docker-compose.yml`'s `aether-quant`
+service pulls by default (override with the `AETHER_QUANT_IMAGE` env var,
+e.g. to use a locally built image instead).
 
-## Lokale Entwicklung: `aq` CLI aus dem Quellcode
+## Getting Started
 
-Fuer die lokale Entwicklung (dieses Repo geklont, `.venv` aktiv) registriert
-`pip install -e .` denselben `aq`-Befehl direkt aus dem Quellcode, ohne einen
-PyPI-Release abzuwarten:
+For local development (this repo cloned, a virtual environment active):
+
+1. Install dependencies:
+
+   ```powershell
+   pip install -r requirements/requirements.txt
+   pip install -r requirements/requirements-dev.txt   # local dev extras
+   ```
+
+2. Refresh the data inventory only:
+
+   ```powershell
+   python train.py --init-only
+   ```
+
+3. Build the dataset and train the model:
+
+   ```powershell
+   python train.py
+   ```
+
+   Or build dataset artifacts only, without training:
+
+   ```powershell
+   python train.py --dataset-only
+   ```
+
+4. Start the webui locally (two processes):
+
+   ```powershell
+   uvicorn monitoring.api_server:app --port 8001 --reload
+   ```
+
+   ```powershell
+   cd webui
+   npm install
+   npm run dev
+   ```
+
+   Then open `http://localhost:3002`.
+
+5. Run a real backtest and refresh this README's [Backtest Results](#backtest-results):
+
+   ```powershell
+   pip install -e .   # registers the `aq` command from source
+   aq backtest
+   ```
+
+## Requirements
+
+- **Python ≥ 3.10** for the training pipeline, `main.py`'s Lean algorithm, the FastAPI monitoring server, and the `aq` CLI.
+- **QuantConnect Lean CLI** (`pip install lean`) for running backtests and paper/live trading.
+- **Docker & Docker Compose** for the local infrastructure (Redis, PostgreSQL, and the background workers — experience persistence, performance triggers, controlled retraining, Telegram alerts).
+- **Node.js** (for the `webui/` React/Vite dashboard).
+
+This repo splits its Python dependencies across several `requirements*.txt`
+files (full training stack vs. minimal per-Docker-image installs vs. local
+dev extras) rather than one monolithic file. See
+**[`requirements/README.md`](requirements/README.md)** for the exact
+`pip install` command for every variant and which Dockerfile consumes each one.
+
+## Architecture
+
+Aether Quant runs a daily-bar decision pipeline entirely inside Lean's
+`on_data()` callback: features flow through regime detection and 3D topology
+modeling, both feed a gating network that routes across four specialized
+experts, the central market analyzer combines all of that with the liquidity
+engine's sizing input into one categorical action per asset per bar, and
+every decision is persisted through a Redis → PostgreSQL experience pipeline
+that a controlled retraining loop reads from to evolve the model over time.
+
+#### System Flow
+
+```mermaid
+flowchart LR
+    A["Lean data folder<br/>stocks, ETFs, crypto"] --> B["Feature pipeline<br/>train.py"]
+    B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
+    B --> D["3D topology modeling<br/>market structure and clusters"]
+    C --> E["Gating network<br/>the manager"]
+    D --> E
+    E --> F["Expert modules"]
+    F --> G["Bullish expert"]
+    F --> H["Bearish expert"]
+    F --> I["Sideways expert"]
+    F --> J["Volatility expert"]
+    G --> K["Market analyzer<br/>central decision layer"]
+    H --> K
+    I --> K
+    J --> K
+    C --> K
+    D --> K
+    L["Liquidity engine<br/>DDV, participation rate,<br/>slippage estimate"] --> K
+    K --> M["Action categorization<br/>trade / simulate / observe<br/>reduce_risk / retrain_candidate"]
+    M --> N["Lean order execution<br/>InteractiveBrokersFeeModel"]
+    M --> O["Observation / simulation record"]
+    N --> P["Redis event stream<br/>temporary low-latency buffer"]
+    O --> P
+    P --> Q["Experience worker<br/>async batch persistence"]
+    Q --> R["PostgreSQL experience database<br/>single source of truth"]
+    R --> S["Performance triggers<br/>100 observations, drawdown, Sharpe, regime shift"]
+    S --> T["Controlled retraining<br/>versioned weights and rollback"]
+    T --> E
+```
+
+#### Tech Stack
+
+```mermaid
+flowchart TB
+    A["Infrastructure"] --> A1["Docker Compose<br/>(Redis, Postgres, aether-quant app)"]
+    A --> A2["Lean CLI<br/>(backtest + paper trading)"]
+    A --> A3["30-day observation phase before live mode"]
+    B["Development"] --> B1["VS Code + Claude Code"]
+    B --> B2["GitHub"]
+    C["Data and storage"] --> C1["Lean data folder for training/backtesting"]
+    C --> C2["Redis temporary event stream"]
+    C --> C3["PostgreSQL permanent experience database"]
+    D["AI and modeling"] --> D1["PyTorch"]
+    D --> D2["scikit-learn"]
+    D --> D3["NumPy / Pandas"]
+    D --> D4["MoE experts and gating network"]
+    E["Monitoring and UI"] --> E1["React/Vite webui — Tracing dashboard (port 3002 dev / 8001 Docker)"]
+    E --> E2["FastAPI JSON API (port 8000)"]
+    E --> E3["Telegram alerts (V2-19)<br/>notifications/telegram_worker.py"]
+```
+
+These two diagrams are the high-level summary. For the full system —
+every per-phase "contract" (Observation Mode, Performance Triggers,
+Controlled Retraining, 3D Topology, Liquidity Engine, Paper/Live Deployment,
+and more), the module map, and an honest analysis of what would need to
+change for this to become a genuinely low-latency/HFT system — see
+**[`development/v2_architecture.md`](development/v2_architecture.md)**.
+
+## Project Structure
+
+```text
+aether-quant/
+├── .github/                     # CI workflows (tests, webui build, release)
+├── development/                 # Architecture docs, changelog, problems log, backtest chart
+├── data/                        # Local Lean data folder (equities, crypto)
+├── data_pipeline/                # Lean-data contract + Yahoo Finance historical backfill
+├── analyzer/                    # Central market analyzer (final per-asset decision layer)
+├── moe/                         # Mixture-of-Experts gating network
+├── experts/                     # Bullish / bearish / sideways / volatility expert models
+├── regime/                      # Market regime detection
+├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
+├── liquidity/                   # Liquidity / market-impact engine
+├── risk/                        # Dynamic position sizing, leverage, drawdown controls
+├── execution/                   # Order gating, paper/live broker readiness, config caching
+├── inference/                   # Vectorized neural-network forward-pass interpreter
+├── experience/                  # Redis -> PostgreSQL observation/decision history pipeline
+├── performance/                 # Performance trigger system (drawdown, Sharpe, regime-shift, ...)
+├── retraining/                  # Controlled retraining: plan/train/validate/backtest/promote
+├── monitoring/                  # FastAPI JSON API serving runtime state to the webui
+├── notifications/               # Telegram alerting worker
+├── visualization/               # Shared runtime-state JSON/CSV exports
+├── webui/                       # React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing)
+├── ml/                          # Model weights, datasets, versioned retraining candidates
+├── storage/                     # Reserved for future persistent artifact storage
+├── requirements/                # All requirements*.txt variants
+├── tests/                       # Full pytest suite (507 tests)
+├── backtests/                   # Lean backtest run outputs (gitignored)
+├── Aether-quant-Obsidian-Vault/ # Auto-generated code-graph / architecture vault
+├── main.py                      # Lean algorithm: inference, signal engine, risk controls
+├── train.py                     # Training pipeline: dataset build, model training, validation
+├── train_topology.py            # Offline trainer for the learned topology overlay
+├── generate_backtest_report.py  # Regenerates this README's Backtest Results section
+├── aq_cli.py                    # `aq` convenience CLI
+├── config.json                  # Runtime configuration (phase1 / phase_v2 blocks)
+├── lean.json                    # Lean engine + brokerage configuration
+├── docker-compose.yml           # Local infrastructure (Lean, Redis, PostgreSQL, workers)
+└── pyproject.toml               # Package metadata, `aq` entry point, pytest config
+```
+
+## Module Documentation
+
+Every package below has its own README with the full detail on what it owns
+and how it's wired in — this table is the index.
+
+| Module | What it owns | Docs |
+|---|---|---|
+| `analyzer/` | Central market analyzer — the final per-asset action categorization layer | [README](analyzer/README.md) |
+| `data/` | Local Lean data-folder format documentation | [README](data/README.md) |
+| `data_pipeline/` | Lean-data contract + Yahoo Finance historical backfill | [README](data_pipeline/README.md) |
+| `execution/` | Order gating, paper/live broker readiness, config-read caching | [README](execution/README.md) |
+| `experience/` | Observation/decision history — Redis buffer + PostgreSQL persistence | [README](experience/README.md) |
+| `experts/` | Bullish, bearish, sideways, and volatility expert models | [README](experts/README.md) |
+| `inference/` | Vectorized forward-pass interpreter for the exported neural networks | [README](inference/README.md) |
+| `liquidity/` | Liquidity and market-impact engine | [README](liquidity/README.md) |
+| `ml/` | Model & dataset artifacts, including versioned retraining candidates | [README](ml/README.md) |
+| `moe/` | Mixture-of-Experts gating network | [README](moe/README.md) |
+| `monitoring/` | FastAPI JSON API serving runtime state to the webui | [README](monitoring/README.md) |
+| `notifications/` | Telegram alerting worker | [README](notifications/README.md) |
+| `performance/` | Performance trigger system (14 trigger functions) | [README](performance/README.md) |
+| `regime/` | Market regime detection | [README](regime/README.md) |
+| `requirements/` | All `requirements*.txt` variants and what consumes each | [README](requirements/README.md) |
+| `retraining/` | Controlled retraining — plan/train/validate/backtest/commit/promote/rollback | [README](retraining/README.md) |
+| `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
+| `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
+| `tests/` | Pytest suite conventions (507 tests) | [README](tests/README.md) |
+| `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
+| `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
+| `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
+| `Aether-quant-Obsidian-Vault/` | Auto-generated Obsidian vault mirroring the repo's architecture/code graph | [README](Aether-quant-Obsidian-Vault/README.md) |
+
+## Development Documentation
+
+| Document | Contents |
+|---|---|
+| [`development/README.md`](development/README.md) | Index of this folder |
+| [`development/v2_architecture.md`](development/v2_architecture.md) | The full V2 system architecture: process-flow and tech-stack diagrams, the module map, per-phase "contract" sections, and the HFT-readiness analysis |
+| [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook — start commands for every service, SQL inspection snippets, port reference |
+| [`development/Changelog.md`](development/Changelog.md) | Detailed, append-only, per-phase build history — what was built, when, and why |
+| [`development/Problems.md`](development/Problems.md) | Append-only audit log of bugs and infrastructure issues, each with a severity rating and fixed/open status |
+
+## Backtest Results
+
+<!-- AQ:BACKTEST_START -->
+![Backtest equity curve](development/backtest_equity_chart.png)
+
+| Metric | Value |
+|---|---|
+| Backtest window | 2014-12-01 to 2016-07-06 |
+| Last updated | 2026-07-05 15:37 UTC (auto-generated by `aq backtest`) |
+<!-- AQ:BACKTEST_END -->
+
+This section is regenerated automatically every time you run `aq backtest`
+(see [`generate_backtest_report.py`](generate_backtest_report.py)) — it
+always reflects your most recent successful Lean backtest, reading directly
+from Lean's own result JSON (strategy equity curve, its native SPY benchmark
+series, and the full statistics block), so it never goes stale as long as
+you keep backtesting.
+
+## Test Suite
+
+507 tests, one file per source module, run via:
+
+```powershell
+aq test
+```
+
+which — like the backtest chart above — automatically keeps the badge at
+the top of this README in sync with the real pass count every time you run
+it. See [`tests/README.md`](tests/README.md) for the suite's conventions.
+
+## CLI Reference
+
+The easiest way to get the `aq` command is straight from PyPI (see
+[Download](#download) above) — no source checkout needed:
+
+```powershell
+pip install aether-quant
+```
+
+For local development (this repo cloned, a virtual environment active),
+`pip install -e .` registers the same `aq` command directly from source
+instead, without waiting on a PyPI release:
 
 ```powershell
 pip install -e .
 ```
 
-Danach `aq --help` fuer die vollstaendige Befehlsuebersicht. Alle Befehle
-ausser `aq trade-lock` sind reine `subprocess`-Wrapper um bereits an anderer
-Stelle in diesem README dokumentierte Befehle:
+Either way, `aq --help` gives the full command list:
 
-```powershell
+```text
 aq train [--dataset-only|--init-only|--experts-only]
 aq test
 aq backtest
-aq report <backtest-ordner> <ergebnis-id>
+aq report <backtest-folder> <result-id>
 aq api
 aq webui
 aq docker up [--lean|--all]
@@ -187,106 +347,103 @@ aq trade-lock --on|--off|--auto|--status
 aq status
 ```
 
-`aq trade-lock` steuert einen manuellen Override fuer main.py's Total-Drawdown-
-Trade-Lock (siehe `development/v2_architecture.md`, Manual Trade-Lock Override
-Contract) — `--off` setzt eine sonst dauerhafte Sperre gezielt zurueck,
-`--auto` kehrt zum automatischen Standardverhalten zurueck.
+Every command except `aq trade-lock` is a thin `subprocess` wrapper around a
+command already documented elsewhere in this README:
 
-## Release-Prozess (fuer Maintainer)
+- **`aq train`** — runs `train.py`: builds the dataset and trains the baseline + expert models.
+- **`aq test`** — runs the pytest suite and refreshes this README's test badge.
+- **`aq backtest`** — runs `lean backtest .` and refreshes this README's [Backtest Results](#backtest-results) section.
+- **`aq report <backtest-folder> <result-id>`** — generates Lean's own HTML backtest report (trade blotter, standard Lean charts) at `backtests/<backtest-folder>/report.html`.
+- **`aq api`** — starts the FastAPI monitoring server on `:8001`.
+- **`aq webui`** — starts the webui dev server (`npm run dev`).
+- **`aq docker up [--lean|--all]`** — starts local infrastructure (default: Redis + PostgreSQL only).
+- **`aq docker build`** — rebuilds the `aether-quant` app image.
+- **`aq retrain <stage>`** — dispatches to `python -m retraining.orchestrator <stage> ...` for a single manual pipeline stage.
+- **`aq trade-lock --on|--off|--auto|--status`** — manually overrides `main.py`'s sticky total-drawdown trade lock (see `development/v2_architecture.md`'s Manual Trade-Lock Override Contract). `--off` deliberately clears an otherwise-permanent lock; `--auto` returns to fully automatic behavior.
+- **`aq status`** — shows `git status`.
 
-Ein Release besteht aus genau einem manuellen Schritt — bewusst kein
-automatischer Release bei jedem Push nach `main`, sondern nur bei einem
-explizit gesetzten Versions-Tag (`.github/workflows/release.yml`, Trigger
-`push: tags: ["v*.*.*"]`):
+## Release Process
+
+A release is exactly one manual step — deliberately no automatic release on
+every push to `main`, only on an explicitly pushed version tag
+(`.github/workflows/release.yml`, triggered on `push: tags: ["v*.*.*"]`):
 
 ```powershell
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Danach laufen automatisch (kein manueller Versions-Bump irgendwo im Repo
-noetig — `pyproject.toml` liest die Version per `setuptools-scm` direkt aus
-dem Tag):
+This then automatically runs (no manual version bump anywhere in the repo —
+`pyproject.toml` reads the version straight from the tag via
+`setuptools-scm`):
 
-1. Testsuite (`pytest`) — schlaegt sie fehl, wird nichts veroeffentlicht.
-2. PyPI-Veroeffentlichung via Trusted Publishing (OIDC) — kein PyPI-Token
-   liegt als GitHub-Secret vor.
-3. Docker-Image-Build und -Push nach `ghcr.io/leon1706-lol/aether-quant`,
-   getaggt mit der Versionsnummer und `:latest`.
+1. The test suite (`pytest`) — a failure blocks the release entirely.
+2. PyPI publishing via Trusted Publishing (OIDC) — no PyPI token is stored as a GitHub secret.
+3. Docker image build and push to `ghcr.io/leon1706-lol/aether-quant`, tagged with the version number and `:latest`.
 
-**Einmalige manuelle Vorbereitung, bevor der erste Tag gepusht wird**
-(kann nicht von hier aus erledigt werden):
+**One-time manual setup, before the first tag is ever pushed** (can't be
+done from here):
 
-- Auf pypi.org einen "Trusted Publisher" fuer dieses Projekt anlegen
-  (verweist auf `leon1706-lol/Aether-quant` + Workflow-Datei `release.yml`).
-- Nach dem allerersten Tag-Push: im Reiter **Packages** dieses Repos
-  pruefen, ob das neue `aether-quant`-Package auf privat steht, und ggf. auf
-  oeffentlich umstellen, damit `docker pull` fuer alle funktioniert.
+- Create a "Trusted Publisher" on pypi.org for this project (pointing at `leon1706-lol/Aether-quant` + the `release.yml` workflow file).
+- After the very first tag push: check the **Packages** tab of this repo to see whether the new `aether-quant` package is private, and switch it to public if needed so `docker pull` works for everyone.
 
 ## Runbook
 
-Diese Befehle sind die kurzen Standardwege fuer den lokalen Alltag.
+Everyday local commands.
 
-Virtuelle Umgebung aktivieren:
+Activate the virtual environment:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-Training und Artefakte neu erzeugen:
+Rebuild training artifacts:
 
 ```powershell
 python train.py
 ```
 
-Nur Dataset/Scaler/Manifest neu bauen:
+Rebuild only the dataset/scaler/manifest:
 
 ```powershell
 python train.py --dataset-only
 ```
 
-Tests ausfuehren:
+Run the tests:
 
 ```powershell
-pytest
+pytest tests/
 ```
 
-Empfohlener kompletter Arbeitsablauf:
+Recommended full workflow:
 
 ```powershell
 python train.py
-pytest
-lean backtest .
-lean report --backtest-results .\backtests\<BACKTEST_ORDNER>\<ERGEBNIS_ID>.json --report-destination .\backtests\<BACKTEST_ORDNER>\report.html --overwrite
-python -m http.server 8000
+pytest tests/
+aq backtest
+aq report <backtest-folder> <result-id>
 git status
 ```
 
-Lean-Backtest aus dem Projektordner starten:
+Start a Lean backtest from the project folder:
 
 ```powershell
 lean backtest .
 ```
 
-Fertigen Backtest erkennen:
+Find a finished backtest:
 
 ```powershell
-Get-ChildItem .\backtests\<BACKTEST_ORDNER>\*-summary.json
+Get-ChildItem .\backtests\<backtest-folder>\*-summary.json
 ```
 
-Offiziellen Lean-HTML-Report erzeugen:
+Generate the official Lean HTML report:
 
 ```powershell
-lean report --backtest-results .\backtests\<BACKTEST_ORDNER>\<ERGEBNIS_ID>.json --report-destination .\backtests\<BACKTEST_ORDNER>\report.html --overwrite
+lean report --backtest-results .\backtests\<backtest-folder>\<result-id>.json --report-destination .\backtests\<backtest-folder>\report.html --overwrite
 ```
 
-Beispiel vom letzten erfolgreichen Lauf:
-
-```powershell
-lean report --backtest-results .\backtests\2026-05-07_15-05-06\1366365999.json --report-destination .\backtests\2026-05-07_15-05-06\report.html --overwrite
-```
-
-Webui lokal starten (API-Server und Frontend in zwei Terminals):
+Start the webui locally (API server and frontend, two terminals):
 
 ```powershell
 uvicorn monitoring.api_server:app --port 8001 --reload
@@ -297,113 +454,83 @@ cd webui
 npm run dev
 ```
 
-Danach:
+Then:
 
 ```text
 http://localhost:3002          (Overview)
 http://localhost:3002/risk     (Risk)
 ```
 
-Git-Status vor einem Commit pruefen:
+Check git status before a commit:
 
 ```powershell
 git status
 ```
 
-## Phase-1- und Phase-9-Entscheidungen
+## Roadmap
 
-Das erste V1-Universum war absichtlich klein und gemischt:
+### V1 — ✅ Finished
+
+The first universe was deliberately small and mixed:
 
 - `AAPL`
 - `SPY`
 - `QQQ`
 - `BTCUSD`
 
-Das aktuelle V2-Universum erweitert dies auf:
-
-- `AAPL`
-- `SPY`
-- `QQQ`
-- `IWM`
-- `EEM`
-- `BAC`
-- `IBM`
-- `BTCUSD`
-- `ETHUSD`
-- `LTCUSD`
-
-Gemeinsame V1-Datenabdeckung:
+Shared V1 data coverage:
 
 - Start: `2014-12-01`
-- Ende: `2018-08-13`
-- Aufloesung: `Daily`
+- End: `2018-08-13`
+- Resolution: `Daily`
 
-Erste Fenster:
+First windows:
 
-- Training: `2014-12-01` bis `2017-06-30`
-- Validierung: `2017-07-01` bis `2017-12-31`
-- Backtest: `2018-01-01` bis `2018-08-13`
+- Training: `2014-12-01` to `2017-06-30`
+- Validation: `2017-07-01` to `2017-12-31`
+- Backtest: `2018-01-01` to `2018-08-13`
 
-Erste Zieldefinition:
+First target definition:
 
-- Zieltyp: naechste Tagesrichtung
-- Label: `1`, wenn die naechste Close-to-Close-Rendite positiv ist, sonst `0`
+- Target type: next day's direction
+- Label: `1` if the next close-to-close return is positive, else `0`
 
-Erste Feature-Ideen:
+First feature ideas:
 
-- 1d-, 5d- und 20d-Renditen
-- 5d- und 20d-Volatilitaet
-- 5d- und 20d-Momentum
-- Tagesrange und Open-Close-Range
-- Volumenaenderung
+- 1d, 5d, and 20d returns
+- 5d and 20d volatility
+- 5d and 20d momentum
+- Daily range and open-close range
+- Volume change
 
-Detaillierte Phase-Ergebnisse (Phase-2 bis Phase-10, Phase-V2-1 bis Phase-V2-15, Visualization-Unification) wurden nach development/Changelog.md verschoben, um dieses README kurz zu halten.
+Detailed phase results (Phase 2 through Phase 10, Phase V2-1 through Phase
+V2-15, Visualization Unification) live in
+[`development/Changelog.md`](development/Changelog.md) to keep this README short.
 
-## V2 Infrastruktur-Entscheidung
+### V3 — 🔜 Incoming Soon
 
-JSONL wird nicht als Experience-Fallback verwendet. V2 nutzt stattdessen Redis als schnellen temporaeren Puffer und PostgreSQL als permanente Experience Database.
+`development/v2_architecture.md`'s own "Why This Is Not HFT, And What It
+Would Take" analysis is the honest starting point for what V3 needs to
+close — not marketing aspiration, but a concrete gap list the system's own
+architecture docs already identify:
 
-Der geplante Datenfluss:
+- **Tick/L1-L2 market data pipeline** — replacing the daily Lean zip files with a genuinely higher-frequency data source and storage layer.
+- **A shorter-horizon model** — a new model operating at sub-second/tick granularity with a much shorter prediction horizon, not a retrained version of today's daily classifier.
+- **Real slippage- and latency-aware execution** — an actual fill simulator and limit-order support, replacing today's `SetHoldings`/`Liquidate` market orders with no slippage model wired to fills.
+- **A low-latency, event-driven runtime** — replacing the daily-bar `on_data()` callback and the 30s+ polling background workers with something closer to a real-time event loop.
+- **Real broker/exchange connectivity beyond paper trading** — building on the credential/readiness groundwork V2-21/V2-22 already laid.
+- **Continuous / online retraining** — moving beyond today's offline, cooldown-gated batch retraining pipeline.
+- Further out: an expanded asset universe, multi-timeframe ensembles, and reinforcement-learning-based position sizing/execution.
 
-1. Signal entsteht in Backtest, Observation Mode oder Live Loop.
-2. Rohmetriken werden sofort nach Redis geschrieben, zum Beispiel per `XADD` Stream oder `LPUSH` Queue.
-3. Ein separater Worker liest Redis entkoppelt per `XREAD` oder `BLPOP`.
-4. Der Worker schreibt Events per Batch-Insert nach PostgreSQL.
-5. Controlled Retraining liest spaeter nur aus PostgreSQL als Single Source of Truth.
+## Contributing
 
-## V2 Phasenplan Ab Jetzt
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes following the existing module structure (see [`development/Changelog.md`](development/Changelog.md) for this project's development history)
+4. Open a Pull Request
 
-1. [x] V2-1: Fork & Architektur-Fundament
-2. [x] V2-2: Lean-Datenpipeline V2
-3. [x] V2-3: Dynamic Risk & Position Sizing
-4. [x] V2-4: HTML Live Volatility Dashboard
-5. [x] V2-5: Docker Compose Infrastruktur fuer Lean, Grafana, Redis und PostgreSQL (Grafana spaeter entfernt, siehe V2-18)
-6. [x] V2-6: Regime Detection
-7. [x] V2-7: Expert-Datasets fuer Bullish, Bearish, Sideways und Volatility
-8. [x] V2-8: Experten-Modelle
-9. [x] V2-8.5: Expert Model Stabilization & Quality Gates
-10. [x] V2-9: Gating Network
-11. [x] V2-10: Zentraler Markt-Analysator
-12. [x] V2-11: 3D Topology Market Modeling
-13. [x] V2-12: Market Impact & Liquidity Engine
-14. [x] V2-13: Redis Experience Queue/Stream
-15. [x] V2-14: PostgreSQL Persistence Worker
-16. [x] V2-15: Observation Mode
-17. [x] V2-16: Performance Trigger
-18. [x] V2-17: Controlled Retraining
-19. [x] V2-17.5: Non-deterministic Topology & Retrain-Trigger Upgrade (ersetzt die deterministischen V2-10/V2-11-Heuristiken durch datengetriebene Versionen, sobald V2-13/14/16/17 stehen)
-20. [x] V2-18: Grafana entfernt, React-Tracing-Dashboard
-21. [x] V2-19: Telegram Alerts
-22. [x] V2-19.5: Yahoo Finance Historical Data Backfill — ergaenzendes, manuelles Offline-Skript, kein eigener Roadmap-Punkt im urspruenglichen Plan
-23. [x] V2-20: Lean Backtesting Integration — bestaetigt per neuem Integrationstest, dass ein normaler Backtest bereits das gesamte ML-System (Basismodell, alle 4 Experten, MoE-Gating, Regime, Topologie) pro Bar durchlaeuft; ergaenzt eine neue Neural-Network-Visualisierungsseite im Webui
-24. [x] V2-21: Paper Trading Vorbereitung — echte Broker-Readiness-Pruefung (`execution/paper_readiness.py`, `aq paper-readiness`) statt des alten No-op-Flags; nutzt Lean's eingebaute `PaperBrokerage` (`live-paper`-Environment in `lean.json`, keine echten Broker-Credentials noetig), nicht ein echtes IBKR-Paper-Konto
-25. [x] V2-22: Live Deployment Struktur — Credential-Loader (`execution/live_credentials*.py`), Live-Risiko-Deckel, Auto-Promote-Sperre im Live-Modus, `live_order_permission_blocked_trigger`; rein strukturell, keine echten Broker-Credentials oder Live-Trades in dieser Phase konfiguriert/getestet
-26. [x] V2-23.1: Datengetriebene Liquidity-Threshold-Kalibrierung — geschlossen ueber einen echten High-Low-Spread-Schaetzer (Corwin-Schultz), nicht ueber Fill-Daten-Kalibrierung, siehe `liquidity/README.md`
-27. [x] V2-23.2: Statische Config-Luecken geschlossen + totes `average_correlation`-Feature verdrahtet — ergaenzend, gefunden bei einem Static-vs-Dynamic-Architektur-Audit
-28. [x] V2-23.3: Echtes Topology-Embedding (SMACOF statt kosmetischer Index-Platzierung) — ergaenzend, gleicher Audit
-29. [ ] V2-24: Finaler V2 Review
+---
 
-## Hinweise
-
-- `ml/model.pt`, `.env` und `ib_config.py` bleiben lokal und werden nicht versioniert.
-- Das Projektgeruest ist bewusst konservativ: Zuerst ein stabiler Kern, dann Online-Lernen und 3D-Simulation.
+<div align="center">
+  <sub>Built with Python · PyTorch · QuantConnect Lean · FastAPI · React · Redis · PostgreSQL · Docker</sub>
+</div>

@@ -12,11 +12,11 @@ The goal is to make market structure useful for analysis, not only visual.
 ## V2-11 behavior
 
 - `topology/market_topology.py::build_market_topology(...)` is a pure,
-  deterministic function (no numpy/sklearn, matching `regime/` and `risk/`):
-  it computes pairwise return correlation, clusters assets via union-find
-  on a correlation threshold, and assigns 3D coordinates so correlated
-  assets sit near each other and high-volatility assets separate on the
-  z-axis.
+  deterministic function: it computes pairwise return correlation, clusters
+  assets via union-find on a correlation threshold, and assigns 3D
+  coordinates so correlated assets sit near each other and high-volatility
+  assets separate on the z-axis. Deterministic given the same inputs, but
+  no longer numpy-free — see the vectorization note below.
 - **x/y placement is a real distance-preserving embedding**, not a cosmetic
   layout: `_stress_majorize_2d(...)` runs SMACOF (Scaling by MAjorizing a
   COmplicated Function) — an iterative stress-majorization algorithm,
@@ -24,11 +24,42 @@ The goal is to make market structure useful for analysis, not only visual.
   convergence, never randomness) — over the full pairwise correlation
   distance matrix across all eligible symbols, so two assets end up
   spatially closer only when they're actually more correlated, not merely
-  because of index ordering or shared cluster membership. Pure Python, no
-  numpy/scipy, matching this module's zero-heavy-runtime-deps convention.
-  Iteration count is `phase_v2.topology.embedding_iterations` (default 100).
-  The z-axis (volatility encoding) is unchanged by this — it's a separate,
-  deliberate encoding, not part of the spatial embedding.
+  because of index ordering or shared cluster membership. Iteration count
+  is `phase_v2.topology.embedding_iterations` (default 100). The z-axis
+  (volatility encoding) is unchanged by this — it's a separate, deliberate
+  encoding, not part of the spatial embedding.
+- **Vectorized with numpy** (latency-optimization pass, post-V2-23) —
+  `_stress_majorize_2d` was pure Python, an `O(N² × iterations)` nested
+  loop and the dominant per-bar cost in this whole module. Same
+  inputs/outputs/iteration count/seeding as the pure-Python version it
+  replaced; `tests/test_market_topology.py`'s
+  `test_stress_majorize_2d_matches_pure_python_reference` is the parity
+  guard. The pairwise-correlation loop above stays pure Python on
+  purpose — eligible symbols don't share a common window length in
+  practice (staggered asset onboarding, thin markets like
+  ETHUSD/LTCUSD), so a single vectorized `np.corrcoef` call over a ragged
+  input isn't a safe drop-in. `topology/learned_topology.py` (below)
+  stays fully numpy-free for the same reason plus its own — see its
+  section below.
+- **Warm-started seeding + early convergence exit** (same pass,
+  **behavior-changing**): `build_market_topology(...)` accepts an optional
+  `previous_positions` dict — any eligible symbol present in it seeds
+  SMACOF from its prior-bar position instead of the cosmetic angle-based
+  layout (correlations evolve slowly bar to bar, so this is usually
+  already close to the new stationary point). `main.py` stores every bar's
+  node positions and feeds them back in, gated by
+  `phase_v2.topology.warm_start_enabled` (default `true`). A new
+  `convergence_tolerance` parameter (`phase_v2.topology.convergence_tolerance`,
+  default `0.01`) lets `_stress_majorize_2d` exit before the full iteration
+  budget once movement drops below it — the actual source of the speedup,
+  since a warm start alone saves nothing if every iteration still runs
+  regardless. **This changes bar-by-bar topology coordinate values** —
+  historical backtests and models trained/validated against the old
+  always-fresh-seed behavior won't reproduce bit-for-bit. Setting
+  `warm_start_enabled: false` reproduces the exact pre-warm-start behavior
+  as a redeploy-free rollback. See `development/v2_architecture.md`'s "3D
+  Topology Contract" section and `development/Problems.md` for the full
+  writeup.
 - `main.py` calls it once per bar (before the per-symbol loop) from
   `self.symbol_windows`, writes the result to `visualization/topology_state.json`
   and `state["topology"]`, and replaces `_build_scene_payload`'s orbit
@@ -48,7 +79,11 @@ The goal is to make market structure useful for analysis, not only visual.
 ## V2-17.5 behavior
 
 - `topology/learned_topology.py::apply_learned_topology(...)` is the
-  promised replacement layer: a pure-Python (no numpy/sklearn at runtime)
+  promised replacement layer: a pure-Python (no numpy/sklearn at runtime —
+  deliberately kept that way even after `market_topology.py`'s
+  vectorization above; its own `O(N² × 5)` cost is negligible at this
+  project's universe size, and vectorizing it would mean restructuring its
+  per-node try/except fallback isolation for no measurable benefit)
   probabilistic overlay on top of `build_market_topology(...)`'s output,
   never in place of it. Per node it adds `cluster_probs`,
   `topology_confidence`, `topology_uncertainty`, `stress_score`,

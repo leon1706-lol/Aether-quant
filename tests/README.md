@@ -1,7 +1,8 @@
 # tests
 
-Pytest suite for every non-`webui` module. 507 tests as of the
-latency-optimization + Docker consolidation pass (post-V2-23).
+Pytest suite for every non-`webui` module. 528 tests as of the README
+flagship-rewrite pass (`aq test` keeps the count badge in the root
+`README.md` in sync automatically — see `aq_cli.py::cmd_test`).
 
 Conventions (established since the first V2 test files and followed
 throughout): one test file per source module (`tests/test_<module>.py`),

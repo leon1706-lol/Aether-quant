@@ -1126,7 +1126,7 @@ live market data feed.
   outside the repo), and `manual_review_confirmed` (human attestation,
   replaces the old, never-actually-checked `phase6.paper_trading.ready_for_live_paper`
   stub). `evaluate_observation_readiness(summary, thresholds)` turns 4 of the
-  5 bullets in the (now superseded) "Bereit fuer Paper Trading?" manual
+  5 bullets in the (now superseded) "Ready for Paper Trading?" manual
   checklist below into code: minimum observation count, `simulated_sharpe`
   floor, `simulated_max_drawdown` floor, no single `rejected_by_reason`
   dominating. The 5th bullet (manual review of trade history for plausible
@@ -1155,7 +1155,7 @@ live market data feed.
   the old no-op check). New `self.phase_v2_paper_trading` (from `phase_v2.paper_trading`)
   and a single `_recompute_broker_config()` method, called once in
   `initialize()` and again every session rollover in `_refresh_risk_state()`
-  (same "frisch von der Platte, no restart needed" rule as the manual
+  (same "fresh from disk, no restart needed" rule as the manual
   trade-lock override) — `_order_permission()` now reads `self._broker_config_present`
   from this instead of the old string-truthiness check.
 - Dashboard/API: merged into `/api/state` under `state["paper_readiness"]`

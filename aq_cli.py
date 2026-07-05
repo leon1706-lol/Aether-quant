@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -38,11 +39,16 @@ from risk.manual_override import read_manual_trade_lock_override, write_manual_t
 ROOT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT_DIR / "config.json"
 WEBUI_DIR = ROOT_DIR / "webui"
+README_PATH = ROOT_DIR / "README.md"
 
 PACKAGE_NAME = "aether-quant"
 UPDATE_CACHE_PATH = Path.home() / ".aq" / "update_check.json"
 UPDATE_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 UPDATE_CHECK_TIMEOUT_SECONDS = 2
+
+_ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
+_TEST_BADGE_MARKER_START = "<!-- AQ:TEST_BADGE_START -->"
+_TEST_BADGE_MARKER_END = "<!-- AQ:TEST_BADGE_END -->"
 
 
 def _run(cmd: list[str], cwd: Path = ROOT_DIR) -> int:
@@ -165,8 +171,82 @@ def cmd_train(args: argparse.Namespace) -> int:
     return _run(cmd)
 
 
+def _update_readme_test_badge(passed: int, failed: int) -> None:
+    """Atomically rewrites the shields.io test-count badge between the
+    AQ:TEST_BADGE markers in README.md, so it never drifts from the real
+    pass count. Mirrors the equivalent mechanism in the sibling Aether-Vault
+    project's `av test`. Never raises - a badge-update bug must never fail
+    `aq test` itself."""
+    total = passed + failed
+    if total == 0:
+        return  # nothing collected - leave the badge alone rather than zero it out
+    if not README_PATH.is_file():
+        return
+    text = README_PATH.read_text(encoding="utf-8")
+    if _TEST_BADGE_MARKER_START not in text or _TEST_BADGE_MARKER_END not in text:
+        return
+
+    color = "brightgreen" if failed == 0 else "red"
+    badge = (
+        f'<img src="https://img.shields.io/badge/tests-{passed}%2F{total}%20passing-{color}'
+        f'?style=flat-square&labelColor=1A1A1A" alt="{passed} of {total} tests passing">'
+    )
+    pattern = re.compile(re.escape(_TEST_BADGE_MARKER_START) + r".*?" + re.escape(_TEST_BADGE_MARKER_END), re.DOTALL)
+    replacement = f"{_TEST_BADGE_MARKER_START}{badge}{_TEST_BADGE_MARKER_END}"
+    updated_text = pattern.sub(replacement, text, count=1)
+    if updated_text == text:
+        return
+
+    tmp_path = README_PATH.with_suffix(README_PATH.suffix + ".tmp")
+    tmp_path.write_text(updated_text, encoding="utf-8")
+    tmp_path.replace(README_PATH)
+    print(f"Updated README.md test badge: {passed}/{total} passing")
+
+
+def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
+    """Like _run(), but also captures combined stdout+stderr while still
+    streaming it live to the terminal - used only by cmd_test, which needs
+    the captured text afterward to parse the real pass/fail count for the
+    README badge. Kept as its own function, separate from _run() (every
+    other subprocess-wrapping command's single choke point - see this
+    module's test file docstring), specifically so tests can mock this one
+    choke point without silently falling through to a real subprocess call
+    the way mocking only `_run` would (that exact gap previously let
+    `aq test`'s own test recursively spawn a real, full pytest run on every
+    invocation of the suite)."""
+    process = subprocess.Popen(
+        cmd,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    output_lines = []
+    for line in process.stdout:
+        print(line, end="")
+        output_lines.append(line)
+    process.wait()
+    return process.returncode, "".join(output_lines)
+
+
 def cmd_test(_args: argparse.Namespace) -> int:
-    return _run([sys.executable, "-m", "pytest", "tests/"])
+    """Runs pytest with live-streamed output (same UX as a plain
+    subprocess.run), while also capturing it so the real pass/fail count can
+    be parsed afterward and used to refresh README.md's test badge - mirrors
+    the sibling Aether-Vault project's `av test` exactly."""
+    exit_code, output = _run_captured([sys.executable, "-m", "pytest", "tests/", "--color=yes"])
+
+    captured = _ANSI_ESCAPE_PATTERN.sub("", output)
+    passed_match = re.search(r"(\d+) passed", captured)
+    failed_match = re.search(r"(\d+) failed", captured)
+    error_match = re.search(r"(\d+) error", captured)
+    if passed_match:
+        passed = int(passed_match.group(1))
+        failed = (int(failed_match.group(1)) if failed_match else 0) + (int(error_match.group(1)) if error_match else 0)
+        _update_readme_test_badge(passed, failed)
+
+    return exit_code
 
 
 def cmd_backtest(_args: argparse.Namespace) -> int:
@@ -174,7 +254,16 @@ def cmd_backtest(_args: argparse.Namespace) -> int:
     if lean_binary is None:
         print("error: QuantConnect Lean CLI not found (checked .venv and PATH).", file=sys.stderr)
         return 1
-    return _run([lean_binary, "backtest", "."])
+    exit_code = _run([lean_binary, "backtest", "."])
+    if exit_code == 0:
+        try:
+            from generate_backtest_report import update_readme_from_latest_backtest
+
+            if update_readme_from_latest_backtest():
+                print("Updated README.md's Backtest Results section.")
+        except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
+            print(f"warning: failed to update README.md's backtest results ({error})", file=sys.stderr)
+    return exit_code
 
 
 def cmd_report(args: argparse.Namespace) -> int:

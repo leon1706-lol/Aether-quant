@@ -19,14 +19,21 @@ requires-python = ">=3.10"
 aq = "aq_cli:main"
 
 [tool.setuptools]
-py-modules = ["aq_cli"]
 # Explicit, not auto-discovered: backtests/*/code/ contains full copies of
 # this repo's packages (each backtest run snapshots the algorithm code), so
 # unrestricted package discovery from repo root would pick up duplicates.
-# List only what aq_cli.py actually imports directly - extend this list if a
-# future aq subcommand needs another first-party package imported in-process
-# rather than invoked via subprocess.
-packages = ["risk"]
+# List only what aq_cli.py actually imports directly (including
+# transitively) - extend this list if a future aq subcommand needs another
+# first-party module/package imported in-process rather than invoked via
+# subprocess. `execution` was added after `risk/manual_override.py` gained
+# a `from execution.config_cache import read_cached` import - a real
+# regression this exact comment exists to prevent from recurring (the
+# installed `aq` command failed with `ModuleNotFoundError: No module named
+# 'execution'` until this was added, even though `python -m pytest`/the
+# Lean container both masked it by putting the repo root on sys.path
+# directly).
+py-modules = ["aq_cli", "generate_backtest_report"]
+packages = ["risk", "execution"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

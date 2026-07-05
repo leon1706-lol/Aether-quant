@@ -1,699 +1,697 @@
 # Changelog
 
-Detaillierte Phase-Ergebnisse fuer Aether Quant, verschoben aus `README.md`
-(siehe dort fuer aktuellen Stand, Projektstruktur und Runbook). Neueste
-Eintraege unten, chronologisch nach Phase geordnet.
+Detailed phase results for Aether Quant, moved out of `README.md` (see there
+for the current status, project structure, and runbook). Newest entries at
+the bottom, ordered chronologically by phase.
 
-## Phase-2-Ergebnis
+## Phase 2 Result
 
-Die aktuelle Pipeline macht Folgendes:
+The current pipeline does the following:
 
-- Lean-ZIP-Dateien fuer `AAPL`, `SPY`, `QQQ` und `BTCUSD` laden
-- Preise normalisieren
-- Assets pro Datenfenster laden, ohne sie auf die kleinste gemeinsame Schnittmenge zu reduzieren
-- Features und Zielvariable berechnen
-- Train-, Validation- und Backtest-Splits erzeugen
-- den Scaler auf dem Trainingssplit fitten und speichern
+- Loads Lean ZIP files for `AAPL`, `SPY`, `QQQ`, and `BTCUSD`
+- Normalizes prices
+- Loads assets per data window without reducing them to the smallest common intersection
+- Computes features and the target variable
+- Produces train, validation, and backtest splits
+- Fits the scaler on the training split and saves it
 
-## Phase-3-Ergebnis
+## Phase 3 Result
 
-Die aktuelle Trainingsstufe macht zusaetzlich Folgendes:
+The current training stage additionally does the following:
 
-- ein robusteres MLP-Klassifikationsmodell in PyTorch trainieren
-- Layer-Normalisierung und Dropout fuer stabileres Verhalten nutzen
-- Asset-Kontext als zusaetzliche Modell-Eingabe verwenden
-- Validierungsverlust fuer Early Stopping verwenden
-- die Entscheidungsschwelle auf dem Validation-Split optimieren
-- Train-, Validation- und Backtest-Metriken speichern
-- einen binaren Checkpoint in `ml/model.pt` sichern
-- einen JSON-Export fuer spaetere Lean-Inferenz vorbereiten
+- Trains a more robust MLP classification model in PyTorch
+- Uses layer normalization and dropout for more stable behavior
+- Uses asset context as an additional model input
+- Uses validation loss for early stopping
+- Optimizes the decision threshold on the validation split
+- Saves train, validation, and backtest metrics
+- Saves a binary checkpoint to `ml/model.pt`
+- Prepares a JSON export for later Lean inference
 
-## Phase-4-Ergebnis
+## Phase 4 Result
 
-Die aktuelle Laufzeitstufe macht jetzt zusaetzlich Folgendes:
+The current runtime stage additionally does the following:
 
-- laedt `model_weights.json`, `feature_schema.json`, `dataset_manifest.json` und `scaler_stats.json`
-- berechnet dieselben Features wie das Training direkt in Lean
-- fuehrt den exportierten MLP-Forward-Pass lokal aus
-- erzeugt aus der Modellwahrscheinlichkeit echte `buy`-, `sell`- und `hold`-Signale
-- schreibt Modellstatus, Schwellenwerte und Signalwahrscheinlichkeiten in `visualization/state.json`
+- Loads `model_weights.json`, `feature_schema.json`, `dataset_manifest.json`, and `scaler_stats.json`
+- Computes the same features as training directly in Lean
+- Runs the exported MLP forward pass locally
+- Produces real `buy`, `sell`, and `hold` signals from the model probability
+- Writes model status, thresholds, and signal probabilities to `visualization/state.json`
 
-## Phase-5-Ergebnis
+## Phase 5 Result
 
-Die aktuelle Validierungsstufe macht jetzt zusaetzlich Folgendes:
+The current validation stage additionally does the following:
 
-- berechnet Strategie-Returns aus den Modellwahrscheinlichkeiten
-- vergleicht die Strategie gegen Buy-and-Hold
-- exportiert Return, annualisierte Volatilitaet, Sharpe und Max Drawdown
-- schreibt Equity-Curves fuer Validation und Backtest nach `backtests/equity_curves.csv`
-- speichert einen Gesamtbericht in `backtests/strategy_report.json`
+- Computes strategy returns from the model probabilities
+- Compares the strategy against buy-and-hold
+- Exports return, annualized volatility, Sharpe, and max drawdown
+- Writes equity curves for validation and backtest to `backtests/equity_curves.csv`
+- Saves an overall report to `backtests/strategy_report.json`
 
-## Phase-6-Ergebnis
+## Phase 6 Result
 
-Die aktuelle Paper-Trading-Vorbereitung macht jetzt zusaetzlich Folgendes:
+The current paper trading preparation additionally does the following:
 
-- trennt Lean-Runtime-Abhaengigkeiten von lokalen Dev-Abhaengigkeiten
-- fuehrt den Algorithmus erfolgreich in der echten lokalen Lean-Docker-Laufzeit aus
-- nutzt Risk Controls fuer Daily- und Total-Drawdown
-- blockiert neue Trades bei Risk-Breach und liquidiert optional offene Positionen
-- nutzt Mindest-Confidence und Cooldown zwischen Trades fuer konservativere Signal-Ausfuehrung
+- Separates Lean runtime dependencies from local dev dependencies
+- Successfully runs the algorithm in the real local Lean Docker runtime
+- Uses risk controls for daily and total drawdown
+- Blocks new trades on a risk breach and optionally liquidates open positions
+- Uses minimum confidence and a cooldown between trades for more conservative signal execution
 
-## Phase-8-Ergebnis
+## Phase 8 Result
 
-Die aktuelle Visualisierungsstufe macht jetzt zusaetzlich Folgendes:
+The current visualization stage additionally does the following:
 
-- erweitert `visualization/state.json` um Dashboard-, Monitoring- und Szenendaten
-- erzeugt `visualization/scene.json` als Grundlage fuer die Markt-/Portfolio-Buehne
-- exportiert Grafana-freundliche Snapshots und CSV-Dateien unter `visualization/grafana/`
-- zeigt im Dashboard Scorecards, Asset-Heatmap, Risk-Band, Positionen und eine 3D-artige Asset-Szene
+- Extends `visualization/state.json` with dashboard, monitoring, and scene data
+- Produces `visualization/scene.json` as the basis for the market/portfolio stage
+- Exports Grafana-friendly snapshots and CSV files under `visualization/grafana/`
+- Shows scorecards, an asset heatmap, a risk band, positions, and a 3D-like asset scene in the dashboard
 
-## Phase-9-Ergebnis
+## Phase 9 Result
 
-Die aktuelle Multi-Asset-Stufe macht jetzt zusaetzlich Folgendes:
+The current multi-asset stage additionally does the following:
 
-- erweitert das Universum auf Aktien, ETFs und drei Spot-Krypto-Coins
-- leitet `ETHUSD`- und `LTCUSD`-Daily-Serien aus vorhandenen Coinbase-Minute-Daten ab
-- nutzt eine flexiblere Trainingspipeline, die Assets nicht mehr auf die kleinste gemeinsame Schnittmenge reduziert
-- bewertet jedes Asset nach Datenqualitaet, Trainingszeilen und Backtestzeilen
-- trainiert Modell und Scaler nur auf ausreichend belastbaren Assets
-- markiert zu kurze Reihen wie `ETHUSD` und `LTCUSD` automatisch als `observation_only`
-- verhindert in Lean Trades auf Observation-only Assets, zeigt sie aber weiter in State, Dashboard und Szene
-- begrenzt die Portfolio-Ausweitung mit maximalen aktiven Positionen sowie Equity- und Krypto-Exposure-Caps
-- fuehrt einen erfolgreichen Lean-Backtest ueber das erweiterte Daily-Universum aus
+- Expands the universe to equities, ETFs, and three spot crypto coins
+- Derives `ETHUSD` and `LTCUSD` daily series from existing Coinbase minute data
+- Uses a more flexible training pipeline that no longer reduces assets to the smallest common intersection
+- Scores each asset by data quality, training rows, and backtest rows
+- Trains the model and scaler only on sufficiently robust assets
+- Automatically flags series that are too short, like `ETHUSD` and `LTCUSD`, as `observation_only`
+- Prevents trades on observation-only assets in Lean, while still showing them in state, dashboard, and scene
+- Caps portfolio expansion with a maximum number of active positions plus equity and crypto exposure caps
+- Runs a successful Lean backtest over the expanded daily universe
 
-## Phase-10-Ergebnis
+## Phase 10 Result
 
-Die aktuelle Stabilisierung macht jetzt zusaetzlich Folgendes:
+The current stabilization stage additionally does the following:
 
-- haelt grosse lokale Artefakte wie `data/`, `backtests/`, `ml/datasets/` und `.venv/` aus dem oeffentlichen Git-Repo heraus
-- dokumentiert die wichtigsten lokalen Befehle fuer Training, Tests, Lean-Backtests, Lean-Reports und Dashboard
-- nutzt strukturierte Laufzeitlogs in `train.py` fuer Dataset-Aufbau, Asset-Qualitaet und Trainingsfortschritt
-- fuegt erste `pytest`-Tests fuer Feature Engineering, Asset-Quality-Entscheidungen und Scaler-Fitting hinzu
-- fuegt Risk-Control-Tests fuer Drawdown-Locks, Positionslimits und Exposure-Caps hinzu
-- prueft vor dem Training Datenpfade, Asset-Konfiguration und Zeitfenster mit klaren Fehlermeldungen
-- prueft vor Lean-Inferenz, ob Modell-, Feature- und Scaler-Artefakte vorhanden sind
+- Keeps large local artifacts such as `data/`, `backtests/`, `ml/datasets/`, and `.venv/` out of the public Git repo
+- Documents the most important local commands for training, tests, Lean backtests, Lean reports, and the dashboard
+- Uses structured runtime logs in `train.py` for dataset build, asset quality, and training progress
+- Adds first `pytest` tests for feature engineering, asset quality decisions, and scaler fitting
+- Adds risk control tests for drawdown locks, position limits, and exposure caps
+- Validates data paths, asset configuration, and time windows before training with clear error messages
+- Checks before Lean inference whether model, feature, and scaler artifacts are present
 
-## Phase-V2-1-Ergebnis
+## Phase V2-1 Result
 
-Die neue V2-Fork macht jetzt zusaetzlich Folgendes:
+The new V2 fork additionally does the following:
 
-- nutzt den bisherigen V1/Phase-10-Code als stabiles Grundgeruest
-- legt die V2-Modulstruktur fuer MoE, Experten, Regime, Topology, Experience, Risk und Monitoring an
-- dokumentiert den geplanten V2-Prozessfluss in `development/v2_architecture.md`
-- dokumentiert den geplanten Tech-Stack fuer Docker, Lean, PyTorch, PostgreSQL, Grafana, Telegram und HTML-Dashboard
-- haelt Training und Backtesting weiterhin auf dem lokalen Lean `data/` Ordner als Hauptdatenquelle
+- Uses the prior V1/Phase 10 code as a stable foundation
+- Sets up the V2 module structure for MoE, experts, regime, topology, experience, risk, and monitoring
+- Documents the planned V2 process flow in `development/v2_architecture.md`
+- Documents the planned tech stack for Docker, Lean, PyTorch, PostgreSQL, Grafana, Telegram, and the HTML dashboard
+- Keeps training and backtesting on the local Lean `data/` folder as the primary data source
 
-## Phase-V2-2-Ergebnis
+## Phase V2-2 Result
 
-Die V2 Lean-Datenpipeline macht jetzt zusaetzlich Folgendes:
+The V2 Lean data pipeline additionally does the following:
 
-- legt `data_pipeline/` als stabile V2-Schicht ueber der bestehenden `train.py` Pipeline an
-- definiert ein V2-Pipeline-Manifest fuer Datenquelle, Universum, Features, Zeitfenster und Asset-Qualitaet
-- dokumentiert explizit, dass Training und Backtesting weiter ueber den lokalen Lean `data/` Ordner laufen
-- bereitet saubere Anschlusspunkte fuer MoE-Experten, Regime Detection, Topology, Dynamic Risk und Volatility Dashboard vor
-- fuegt Tests hinzu, die diesen Lean-Datenvertrag absichern
+- Sets up `data_pipeline/` as a stable V2 layer on top of the existing `train.py` pipeline
+- Defines a V2 pipeline manifest for data source, universe, features, time windows, and asset quality
+- Explicitly documents that training and backtesting continue to run over the local Lean `data/` folder
+- Prepares clean integration points for MoE experts, regime detection, topology, dynamic risk, and the volatility dashboard
+- Adds tests that lock in this Lean data contract
 
-## Phase-V2-3-Ergebnis
+## Phase V2-3 Result
 
-Die V2 Dynamic-Risk- und Position-Sizing-Stufe macht jetzt zusaetzlich Folgendes:
+The V2 dynamic risk and position sizing stage additionally does the following:
 
-- fuegt `risk/position_sizing.py` als testbare V2-Risikologik hinzu
-- klassifiziert Volatilitaet in `low_volatility`, `normal_volatility` und `high_volatility`
-- passt Ziel-Positionsgroessen an die aktuelle Rolling Volatility an
-- reduziert Positionsgroessen in hoher Volatilitaet und erlaubt kontrollierte Erhoehung in ruhigen Marktphasen
-- berechnet `base_target_weight`, dynamisches `target_weight`, annualisierte Volatilitaet und `leverage_factor`
-- schreibt diese Werte in Runtime-State, Dashboard-Heatmap und `visualization/grafana/runtime_asset_metrics.csv`
-- bereitet damit das HTML Live Volatility Dashboard vor
+- Adds `risk/position_sizing.py` as testable V2 risk logic
+- Classifies volatility into `low_volatility`, `normal_volatility`, and `high_volatility`
+- Adjusts target position sizes to the current rolling volatility
+- Reduces position sizes in high volatility and allows controlled expansion in calm market phases
+- Computes `base_target_weight`, dynamic `target_weight`, annualized volatility, and `leverage_factor`
+- Writes these values into runtime state, the dashboard heatmap, and `visualization/grafana/runtime_asset_metrics.csv`
+- Prepares the ground for the HTML live volatility dashboard
 
-## Phase-V2-4-Ergebnis
+## Phase V2-4 Result
 
-Das HTML Live Volatility Dashboard macht jetzt zusaetzlich Folgendes:
+The HTML live volatility dashboard additionally does the following:
 
-- fuegt `volatility_dashboard.html` als eigene V2-Live-Ansicht hinzu
-- liest automatisch `visualization/state.json`
-- aktualisiert sich alle 5 Sekunden
-- zeigt Portfolio, Risk Lock, Drawdown, Zielvolatilitaet und maximalen Hebelfaktor
-- zeigt pro Asset Signal, Volatilitaetsregime, annualisierte Volatilitaet, Basisgewicht, dynamisches Zielgewicht, Hebelfaktor, Confidence und Sizing-Grund
-- funktioniert im Backtest-/Observation-Modus ohne Broker-API-Key
+- Adds `volatility_dashboard.html` as its own V2 live view
+- Automatically reads `visualization/state.json`
+- Refreshes every 5 seconds
+- Shows portfolio, risk lock, drawdown, target volatility, and maximum leverage factor
+- Shows, per asset, signal, volatility regime, annualized volatility, base weight, dynamic target weight, leverage factor, confidence, and sizing reason
+- Works in backtest/observation mode without a broker API key
 
-## Phase-V2-6-Ergebnis
+## Phase V2-6 Result
 
-Die V2 Regime Detection macht jetzt zusaetzlich Folgendes:
+V2 regime detection additionally does the following:
 
-- fuegt `regime/market_regime.py` als testbare quantitative Regime-Schicht hinzu
-- erkennt `bullish`, `bearish` und `sideways` aus 5d/20d Momentum
-- erkennt `low_volatility`, `normal_volatility` und `high_volatility` aus Rolling Volatility
-- kombiniert Trend, Volatilitaet, Drawdown und optionale Korrelation zu `risk_on`, `risk_neutral` oder `risk_off`
-- schreibt pro Asset einen `regime`-Block in den Lean Runtime-State
-- exportiert Regime-Felder in die Runtime-Monitoring-CSV fuer Grafana
-
-## Phase-V2-7-Ergebnis
-
-Die V2 Expert-Dataset-Stufe macht jetzt zusaetzlich Folgendes:
-
-- fuegt `experts/expert_datasets.py` als Slice-Schicht fuer spaetere Expertenmodelle hinzu
-- nutzt die quantitative Regime Detection fuer Bullish-, Bearish-, Sideways- und Volatility-Slices
-- filtert Expert-Trainingsdaten auf `training_eligible` Assets
-- erzeugt beim Dataset-Build lokale Expert-CSV-Dateien unter `ml/expert_datasets/`
-- schreibt `ml/expert_dataset_manifest.json` mit Row Counts, Split Counts, Tickern, Target Balance und Routing-Filtern
-- haelt die generierten Expert-Artefakte aus Git heraus
-
-## Phase-V2-8-Ergebnis
-
-Die V2 Experten-Modell-Stufe macht jetzt zusaetzlich Folgendes:
-
-- trainiert getrennte PyTorch-Modelle fuer `bullish`, `bearish`, `sideways` und `volatility`
-- nutzt dieselbe MLP-Familie wie das Basismodell, aber mit regime-spezifischen Trainingsdaten
-- fuegt `python train.py --experts-only` fuer reines Expert-Training hinzu
-- aktualisiert bei normalem `python train.py` auch die Expert-Modelle
-- schreibt lokale Expert-Gewichte und Metriken unter `ml/expert_models/<expert>/`
-- schreibt eine Gesamtuebersicht nach `ml/expert_training_metrics.json`
-- haelt alle generierten Expert-Modellartefakte aus Git heraus
-
-## Phase-V2-8.5-Ergebnis
-
-Die V2 Expert-Stabilisierung macht jetzt zusaetzlich Folgendes:
-
-- nutzt fuer Experten kleinere Default-Netze mit staerkerem Dropout und hoeherem Weight Decay
-- reduziert Expert-Training standardmaessig auf weniger Epochen und strengere Early-Stopping-Patience
-- bewertet jeden Experten mit einem Quality-Gate gegen Validation, Backtest, MCC und Train/Backtest-Gap
-- markiert Experten als `stable`, `watchlist` oder `disabled_for_gating`
-- schreibt `gating_eligible_experts` und `disabled_for_gating_experts` in `ml/expert_training_metrics.json`
-- verhindert damit, dass das spaetere Gating Network schwache oder overfittete Experten blind verwendet
-
-## Phase-V2-9-Ergebnis
-
-Das V2 Gating Network macht jetzt zusaetzlich Folgendes:
-
-- fuegt `moe/gating.py` als erklaerbaren Manager fuer die Expert-Modelle hinzu
-- gewichtet Experten nach Quality Gate, Regime-Passung und Backtest-/Validation-Stabilitaet
-- nutzt `stable` und `watchlist` Experten, ignoriert aber `disabled_for_gating`
-- laedt in `main.py` lokale Expert-JSON-Exports aus `ml/expert_models/<expert>/model_weights.json`
-- kombiniert Basismodell-Wahrscheinlichkeit und Experten-Wahrscheinlichkeit zu einer finalen MoE-Wahrscheinlichkeit
-- schreibt `moe_gating`, Expert-Wahrscheinlichkeiten, aktive Experten und Entscheidungstyp in Runtime-State und Grafana-CSV
-- faellt automatisch auf das Basismodell zurueck, falls Expert-Artefakte fehlen
-
-## Phase-V2-10-Ergebnis
-
-Der Zentrale Markt-Analysator macht jetzt zusaetzlich Folgendes:
-
-- fuegt `analyzer/market_analyzer.py` als reine, deterministische Entscheidungsschicht hinzu, die Experten- (`moe_gating`), Regime-, Topology- (optional, bis V2-11) und Risiko-Ausgaben (Risk Lock, Position Sizing) zu einer finalen Kategorie zusammenfuehrt
-- ersetzt die bisherige ad-hoc if/elif-Kette in `main.py.on_data()` durch einen Aufruf von `build_market_analysis_decision(...)`, ohne das tatsaechliche Order-Placement-Verhalten zu aendern: `_apply_signal` wird weiterhin nur bei der Kategorie `trade` ausgefuehrt
-- klassifiziert jedes Asset pro Bar in genau eine von fuenf Kategorien: `observe`, `simulate`, `trade`, `reduce_risk`, `retrain_candidate`
-- priorisiert Risikoeindaemmung vor Modell-Gesundheit vor Profit-Aktion vor Paper-Tracking vor reiner Beobachtung (portfolioweiter Trade Lock und Asset-Risk-Off-Regime schlagen immer `retrain_candidate` und `trade`)
-- erkennt `retrain_candidate` ueber eine zustandslose Heuristik (keine aktiven Experten plus niedrige Regime-Confidence), da die zeitfensterbasierten Performance-Trigger erst in V2-16 folgen
-- schreibt die volle Entscheidung inklusive `reasons`-Liste als `market_analysis`-Block in jedes Asset-Signal in `visualization/state.json`, automatisch sichtbar im Webui ueber die bestehende FastAPI-Pipeline
-- fuegt `tests/test_market_analyzer.py` mit 13 Tests hinzu (alle fuenf Kategorien, Topology-Absenz, zwei Prioritaets-Tiebreaks)
-
-## Phase-V2-11-Ergebnis
-
-Das 3D Topology Market Modeling macht jetzt zusaetzlich Folgendes:
-
-- fuegt `topology/market_topology.py` als reine, deterministische Cross-Asset-Schicht hinzu: paarweise Pearson-Korrelation aus Returns, Union-Find-Clustering ueber einen Korrelations-Schwellenwert, 3D-Koordinaten (aehnliche Assets nahe beieinander, hohe Volatilitaet trennt sich auf der z-Achse)
-- berechnet Topology einmal pro Bar in `main.py` aus `self.symbol_windows` (Stand der vorherigen Bar, kein Lookahead) vor der Pro-Asset-Schleife, ohne diese umzustrukturieren
-- schreibt `visualization/topology_state.json` und einen `state["topology"]`-Block, sowie pro Asset einen `topology`-Kontext (`cluster_id`, `correlation_strength`, `market_distance`, `topology_risk`) in `visualization/state.json`
-- ersetzt die bisherige Orbit-Platzierung in `_build_scene_payload` durch echte Topology-Koordinaten und ergaenzt Korrelations-Links zwischen Assets in der bestehenden Overview-Szene
-- **aendert echte Handelsentscheidungen**: `analyzer/market_analyzer.py` bekommt zwei neue, deterministische Prioritaetsstufen — ein Asset mit `topology_risk == "elevated"` wird zu `reduce_risk` gezwungen, ein isoliertes Asset (`topology_risk == "isolated"`, keine hinreichend korrelierten Peers) kann nicht mehr `trade` erreichen und faellt auf `simulate` zurueck
-- fuegt einen neuen Webui-Tab `/topology` hinzu (eigene 3D-Szene mit Einfaerbung nach Action/Regime/Risk, plus lesbare Cluster-Liste) und einen `/api/topology`-Endpunkt in `monitoring/api_server.py`
-- fuegt `tests/test_market_topology.py` (stabile Koordinaten, staerkere Links fuer korrelierte Assets, robust bei fehlenden/duennen Daten, Regime-Label-Aggregation) sowie vier neue Faelle in `tests/test_market_analyzer.py` hinzu
-- dokumentiert in `V2-17.5` (siehe Phasenplan im README), dass diese deterministischen Regeln spaeter durch datengetriebene/gelernte Versionen ersetzt werden sollen, sobald die Experience-Pipeline (V2-13/14) und kontrolliertes Retraining (V2-16/17) stehen
-
-## Phase-V2-12-Ergebnis
-
-Die Market Impact & Liquidity Engine macht jetzt zusaetzlich Folgendes:
-
-- fuegt `liquidity/market_liquidity.py` als reine, deterministische Per-Asset-Liquiditaetsschicht hinzu: schaetzt taeglich gehandeltes Dollar-Volumen (`DDV = close × volume`), Orderwert, Participations-Rate, Slippage und Round-Trip-Kosten ohne externe Daten
-- klassifiziert jeden Asset-Order-Versuch in `normal`, `thin`, `high_impact` oder `blocked` und empfiehlt `allow`, `reduce_size`, `simulate_instead` oder `block`
-- wendet bei `high_impact` automatisch eine konfigurierbare Groessenreduktion (`high_impact_size_factor=0.5`) an, bevor der Markt-Analysator entscheidet
-- ergaenzt `analyzer/market_analyzer.py` um zwei neue deterministische Prioritaetsstufen: `liquidity_blocked` zwingt zu `simulate`, `liquidity_thin` zwingt ebenfalls zu `simulate` (unter den bestehenden Risk-Off- und Topology-Prioritaeten, aber ueber dem `trade`-Pfad)
-- schreibt alle Liquidity-Felder (`daily_dollar_volume`, `participation_rate`, `estimated_slippage`, `spread_proxy`, `estimated_round_trip_cost`, `liquidity_risk`, `recommended_action`, `adjusted_target_weight`) als `liquidity`-Block in jedes Asset-Signal in `visualization/state.json`
-- fuegt statische Bid-Ask-Spread-Proxies per Security-Type ein (Equity: 5 bps, Crypto: 20 bps), da echte Bid-Ask-Daten aus Daily-OHLCV nicht ableitbar sind
-- belegt in Lean tatsaechliche Transaktionskosten per Asset: `ConstantPercentageFeeModel(0.0025)` fuer Crypto (25 bps Taker-Proxy) und `ConstantFeeModel(1.0)` fuer Equities ($1/Trade IB-Proxy)
-- fuegt `webui/src/components/risk/LiquidityTable.tsx` als neue Liquiditaets-Panel auf der Risk-Seite hinzu: zeigt per Asset DDV, Orderwert, Participations-Rate, Slippage, Spread, Round-Trip-Kosten, Risk-Level und empfohlene Aktion mit farbigen Badges
-- fuegt `Dockerfile` (Multi-Stage: Node.js Webui-Build → Python Laufzeit) und erweitertes `docker-compose.yml` (neuer `aether-quant`-Service auf Port 8000, Grafana auf Port 3001 statt 3000) hinzu, damit die Gesamtinfrastruktur konsistent startbar ist
-- fuegt 9 neue Unit-Tests in `tests/test_market_liquidity.py` und 4 neue Faelle in `tests/test_market_analyzer.py` hinzu
-- LTCUSD (nur 2 Tage Daten im Universum → DDV unter $100k Floor) trifft korrekt auf `blocked` und wird zu `simulate` gezwungen, ohne den uebrigen Entscheidungsbaum zu stoeren
-
-## Phase-V2-13-Ergebnis
-
-Die Redis Experience Queue macht jetzt zusaetzlich Folgendes:
-
-- fuegt `experience/redis_queue.py` als neues Modul hinzu mit `build_experience_event()` (pure Funktion) und `ExperienceQueue` (fire-and-forget Redis Stream Publisher)
-- schreibt nach jeder vollstaendigen Asset-Entscheidung (nach `signal_payload.update`) sofort ein JSON-Event per `XADD` in den Redis Stream `aether:experience`, begrenzt auf `maxlen=100000` Eintraege (approximativ)
-- jedes Event enthaelt: `event_id` (UUID), `event_type`, `created_at` (ISO UTC), `mode` (`backtest`/`observation`/`paper`/`live`), `symbol`, `ticker`, `signal`, `action`, `execution_note`, `probability_up`, `confidence`, `target_weight`, `regime`, `moe_gating`, `topology`, `liquidity`, `market_analysis`, `portfolio` (mit `total_value`, `cash`, `current_drawdown`)
-- schlaegt Redis Fehler still nieder: `ExperienceQueue.push()` gibt `False` zurueck und loggt eine WARNING, der Lean-Loop wird niemals blockiert oder unterbrochen
-- laedt `redis_url` aus der Umgebungsvariablen `AETHER_REDIS_URL` (gesetzt in `docker-compose.yml` auf `redis://redis:6379/0`), faellt zurueck auf `redis://localhost:6379/0` fuer lokale Entwicklung
-- konfigurierbar ueber `config.json phase_v2.experience` mit `enabled`, `redis_stream` und `maxlen`
-- Redis-Import ist deferred (innerhalb von `ExperienceQueue.__init__`), damit der Code auch in Lean-Umgebungen ohne `redis`-Paket importierbar bleibt
-- fuegt `redis>=5.0.0` zu `requirements.txt` und `fakeredis>=2.20.0` zu `requirements-dev.txt` hinzu
-- fuegt `tests/test_experience_queue.py` mit 8 Tests hinzu (Pflichtfelder im Schema, disabled = sicheres No-Op, Redis nicht erreichbar = kein Crash, JSON-Serialisierung, konfigurierbarer Stream-Name, alle 4 Modes, Push schreibt in Stream, Event-ID eindeutig)
-- Stop bei Redis: kein PostgreSQL in V2-13; V2-14 baut den Persistence Worker (`XREAD → INSERT INTO experience_events`)
-
-## Phase-V2-14-Ergebnis
-
-Der PostgreSQL Persistence Worker macht jetzt zusaetzlich Folgendes:
-
-- fuegt `experience/postgres_worker.py` als eigenstaendigen, synchronen Worker hinzu, der `aether:experience` per `XREADGROUP` liest und Events dauerhaft in PostgreSQL speichert
-- legt die Tabelle `experience_events` mit eingebettetem DDL an: `event_id` (UUID, UNIQUE), `created_at`, `ingested_at`, `mode`, `ticker`, `symbol`, `signal`, `action`, `confidence`, `target_weight`, `payload` (JSONB) plus 5 Indizes — kein Alembic, keine Migrationsdateien
-- nutzt `ON CONFLICT (event_id) DO NOTHING` fuer sichere idempotente Wiederholung bei Redis-Wiederlieferung nach Worker-Absturz
-- routet fehlerhafte JSON-Nachrichten in den Dead-Letter-Stream `aether:experience:deadletter` und quittiert sie sofort per `XACK`, ohne den Betrieb zu unterbrechen
-- laesst Nachrichten bei PG-Fehler ungequittiert — sie bleiben pending und werden nach dem Redis Visibility-Timeout erneut geliefert
-- implementiert exponentiellen Backoff (1→2→4→...→60 s) und automatischen PG-Reconnect in der `run()`-Schleife
-- exportiert `event_to_row` (pure Funktion, kein I/O) und `PostgresWorker` aus `experience/__init__.py`
-- fuegt `psycopg[binary]>=3.1` zu `requirements.txt` und `requirements-dev.txt` hinzu
-- legt `requirements-worker.txt` als minimale Abhaengigkeitsliste fuer den Worker-Container an
-- baut `Dockerfile.worker` als minimales `python:3.11-slim`-Image mit nur `redis` und `psycopg[binary]`
-- fuegt den `experience-worker`-Service in `docker-compose.yml` hinzu (`depends_on: redis:healthy, postgres:healthy`, `restart: unless-stopped`)
-- ergaenzt `config.json phase_v2.experience` um den `worker`-Sub-Block fuer Group, Consumer, Batch-Size, Dead-Letter-Stream und Backoff-Max
-- fuegt 7 Tests in `tests/test_postgres_worker.py` hinzu: skalare Felder korrekt extrahiert, Payload vollstaendig, Batch-Persistierung, Duplikat-Idempotenz, Dead-Letter-Routing, PG-Fehler laesst Messages pending, leerer Stream gibt 0
-- Stop bei PostgreSQL: V2-15 baut Observation Mode auf dem jetzt vorhandenen Experience-Trail auf
-
-## Phase-V2-15-Ergebnis
-
-Observation Mode macht jetzt zusaetzlich Folgendes:
-
-- fuegt `phase_v2.runtime` mit `mode` (`backtest`/`observation`/`paper`/`live`, committed Default `"backtest"` — unveraendertes Verhalten von `lean backtest .`) und `allow_live_orders` (Default `false`) zu `config.json` hinzu
-- legt das neue, Lean-freie Paket `execution/order_gate.py` an: `resolve_runtime_mode` (Fallback auf `"observation"` bei fehlendem/unbekanntem Wert), `resolve_order_permission` (Wahrheitstabelle: `backtest` immer erlaubt, `observation` **niemals** erlaubt — unabhaengig von allen anderen Flags, `paper`/`live` nur mit `allow_live_orders` + Broker-Konfiguration + bei `live` zusaetzlich gesundem Risk-Lock) und `simulate_fill` (reine Fill-Preis-/Mengen-Mathematik)
-- fuegt eine einzige Gate-Methode `_apply_signal`/`_refresh_risk_state` in `main.py` hinzu (`_order_permission()`), die an allen drei realen Order-Stellen (`SetHoldings`, `Liquidate` pro Symbol, portfolioweites `Liquidate` bei Drawdown-Bruch) entscheidet: echte Order oder Simulation
-- legt `experience/simulated_portfolio.py` (`SimulatedPortfolioState`) an: verwaltet Fake-Cash/Holdings/Equity-Kurve/Drawdown/Exposure/Turnover komplett im Speicher, ruehrt niemals `self.Portfolio` oder Broker-Aufrufe an; `snapshot()` ist eine Obermenge des bisherigen `portfolio={...}`-Dicts, daher **keine Signaturaenderung** an `build_experience_event`, `event_to_row` oder dem Postgres-DDL noetig (`mode VARCHAR(20)` hat `observation`/`paper`/`live` schon unterstuetzt)
-- macht `self._experience_mode` (vorher hart auf `"backtest"` codiert) abhaengig vom neuen `runtime_mode`
-- macht Cooldown-, Max-Position- und Exposure-Cap-Pruefungen sowie die Drawdown-/Risk-Lock-Berechnung modusbewusst: wenn echte Orders blockiert sind, zaehlen diese Checks gegen das simulierte statt das reale (in blockierten Modi dauerhaft leere) Portfolio — sonst waeren Risikoregeln in Observation Mode wirkungslos
-- legt `experience/observation_metrics.py` an: reine Funktionen (`count_observations`, `signal_distribution`, `action_distribution`, `rejected_by_reason`, `simulated_win_loss`, `simulated_sharpe`, `simulated_max_drawdown`, `compute_observation_summary`) auf einer einzigen `list[dict]`-Form, identisch nutzbar fuer In-Memory-Logs und Postgres-JSONB-Rows; `rejected_by_reason` liest die bereits vorhandene `reasons`-Liste aus `analyzer/market_analyzer.py` — kein neues Schema-Feld noetig
-- schreibt neue Dashboard-Exporte `visualization/grafana/observation_summary.json` und `visualization/grafana/observation_equity_curve.csv`, eingebettet zusaetzlich als `state["observation"]` in `visualization/state.json`; deutlich als "SIMULATED - NOT REAL TRADES" markiert
-- ergaenzt `monitoring/api_server.py` um `/api/grafana/observation-summary` und `/api/grafana/observation-equity-curve`
-- fuegt das Webui-Panel `webui/src/components/monitoring/ObservationPanel.tsx` hinzu (Datentabellen-Stil, kein neues Chart-Package), eingebunden in `webui/src/pages/Overview.tsx`
-- fuegt 33 neue Tests hinzu (80 → 113 gesamt): `tests/test_order_gate.py` (10, inkl. der sicherheitskritischen `test_observation_mode_never_allows_orders_even_if_flags_true`), `tests/test_simulated_portfolio.py` (9), `tests/test_observation_metrics.py` (14) — `main.py` bleibt bewusst ohne eigene Unit-Tests (Import erfordert `AlgorithmImports`/Lean, was keine der 13 bisherigen Testdateien tut); die Sicherheitsgarantie ist vollstaendig auf Ebene von `order_gate`/`simulated_portfolio` bewiesen
-- manuell verifiziert per echtem `lean backtest .`-Lauf mit `mode="observation"` (2014-2018, BTCUSD/ETHUSD/LTCUSD): Lean-eigene Statistik zeigt `"Total Orders": "0"` und `"End Equity": "100000"` (unveraendert) ueber den gesamten Lauf — das reale Portfolio wurde nie angefasst — waehrend das Observation-Panel im Webui echte simulierte Aktivitaet zeigte (Drawdown, Turnover, einen simulierten Risk-Lock-Breach bei -12%)
-- Stop: `phase_v2.runtime.mode` wird nur beim Start gelesen, kein Hot-Reload waehrend eines laufenden Runs
-- Nach Abschluss zwei Bugs beim Docker-Review gefunden und behoben — siehe `development/Problems.md`: `Dockerfile.worker` kopierte `execution/` nicht (ModuleNotFoundError), `requirements-worker.txt` fehlte `numpy` (ModuleNotFoundError, Crash-Loop im laufenden Container)
-
-## Phase-V2-16-Ergebnis
-
-Performance Triggers macht jetzt zusaetzlich Folgendes:
-
-- legt das neue, Lean-freie Paket `performance/triggers.py` an: 8 Trigger-Funktionen (`observation_count_trigger`, `drawdown_trigger`, `sharpe_degradation_trigger`, `win_rate_trigger`, `confidence_decay_trigger`, `regime_shift_trigger`, `liquidity_warning_trigger`, `risk_lock_trigger`) plus `evaluate_all_triggers()` als Aggregator — reine Funktionen auf derselben `list[dict]`-Form wie `experience/observation_metrics.py` (V2-15), inkl. Wiederverwendung von `simulated_sharpe`/`simulated_max_drawdown` statt Neuimplementierung
-- jeder Trigger liefert ein strukturiertes Event: `trigger_id`, `created_at`, `trigger_type`, `severity` (`info`/`warning`/`critical` nach Breach-Ratio-Regel), `mode`, `scope` (`portfolio` oder Ticker), `metric_value`, `threshold`, `message`, `recommended_action`, `retrain_candidate`
-- `liquidity_warning_trigger` zaehlt bewusst nur `block`/`reduce_size` als Ablehnung — `simulate_instead` (Observation-Mode-Routing) wird explizit ausgeschlossen, damit Observation Mode nicht faelschlich wie eine Liquiditaetskrise aussieht
-- `risk_lock_trigger` feuert sowohl beim Aktivierungs-Uebergang (`warning`) als auch bei anhaltender Sperre ueber `max_consecutive_locked_events` (`critical`, immer `retrain_candidate=True`) — dafuer bekommt der `portfolio`-Block in `main.py` zusaetzlich `trade_lock_active`/`trade_lock_reason` (rein additiv, keine Schema-/DDL-Aenderung noetig)
-- ergaenzt `config.json phase_v2.performance_triggers` mit den 7 vom Nutzer vorgegebenen Schwellenwerten plus 5 weiteren (Confidence-Decay/-Instabilitaet, Risk-Lock-Dauer, Rolling-Window, Suppression-Minuten)
-- legt `performance/postgres_triggers.py` an: eingebettetes DDL fuer eine **eigene** Tabelle `performance_triggers` (nicht `experience_events` mit neuem `event_type`, damit Grafana/Phase 17 sauber darauf zugreifen koennen) plus `performance_trigger_watermark` fuer den Fortschritt, `ON CONFLICT (trigger_id) DO NOTHING` plus explizite Suppression-Window-Pruefung gegen Duplikat-Spam bei anhaltenden Breaches
-- legt `performance/trigger_worker.py` als eigenstaendigen Worker an (`python -m performance.trigger_worker`, `--once`-Flag wie `postgres_worker.py`), der `experience_events` per Watermark abgrast und Trigger dauerhaft persistiert — bewusst **nicht** synchron in `main.py`/Lean, weil der asynchrone Redis→Worker-Pfad zum Zeitpunkt einer Mid-Backtest-Abfrage noch nicht aufgeholt haben koennte (gleiches Entkopplungsprinzip wie V2-13/14)
-- `main.py` bekommt zusaetzlich eine schnelle, rein In-Memory-Ansicht (`_build_performance_triggers_view()`, ueber `_observation_event_log`) fuer `state["performance_triggers"]` und `visualization/grafana/performance_triggers.json` — explizit als nicht-dauerhaft markiert (`source: "in_memory_current_run"`), die Postgres-Tabelle bleibt die einzige Quelle fuer Phase 17
-- neuer Service `performance-trigger-worker` in `docker-compose.yml` (nur von `postgres` abhaengig, kein Redis; mountet `config.json` read-only, da die Schwellenwerte Strategie- statt Infra-Konfiguration sind) sowie `Dockerfile.trigger_worker` und `requirements-trigger-worker.txt`
-- ergaenzt `monitoring/api_server.py` um `/api/grafana/performance-triggers`
-- fuegt das Webui-Panel `PerformanceTriggersPanel.tsx` hinzu (Retrain-Kandidat-Banner, Schweregrad-Verteilung, letzter Trigger, Trigger-Typ-Aufschluesselung) und platziert es zusammen mit `ObservationPanel` ganz oben in der rechten Spalte, damit es bei vielen Assets nicht durch ein wachsendes Signal-Board nach unten verdraengt wird
-- fuegt 37 neue Tests hinzu (113 → 150 gesamt): `tests/test_triggers.py` (24), `tests/test_postgres_triggers.py` (11), `tests/test_trigger_worker.py` (2)
-- Nebenbei: Dokumentation neu organisiert — `docs/v2_architecture.md` und `infrastructure/README.md` nach `development/` verschoben (als `v2_architecture.md`/`infrastructure.md`), neue `development/Changelog.md` (dieser Datei) und `development/Problems.md` angelegt; Webui bekommt ein durchgaengiges Schwarz/Orange/Weiss-Theme mit orangem Hover-Glow auf allen Panels
-- Stop: Phase 16 retrained nichts — `retrain_candidate` ist nur ein Flag fuer V2-17, keine automatischen Modell-Gewichts-Aenderungen
-
-## Visualization-Unification-Ergebnis
-
-Die Zusammenfuehrung der Visualisierung macht jetzt zusaetzlich Folgendes:
-
-- ersetzt `dashboard.html` und `volatility_dashboard.html` durch eine einzige React/Vite-Webui unter `webui/` auf `http://localhost:3000`
-- fuegt `monitoring/api_server.py` als FastAPI-JSON-API hinzu, die `visualization/state.json`, `visualization/scene.json` und die Grafana-Exporte unter `localhost:8000` bereitstellt, statt dass das Frontend Dateien direkt vom Dateisystem liest
-- bildet die Overview-Seite (Scorecards, Asset-Heatmap, Signal-Board, Positionen, Strategy/Risk-Karten, Monitoring-Feeds) und die Risk-Seite (Risk Core, Asset-Volatility-/Sizing-Tabelle) 1:1 auf die bisherigen HTML-Dashboards ab
-- rendert die Marktszene erstmals echt dreidimensional und drehbar mit `@react-three/fiber`/`@react-three/drei` statt der bisherigen 2D-Div-Annaeherung, als Grundlage fuer das spaetere V2-11 3D Topology Market Modeling
-- behaelt das bestehende Polling-Muster bei (React Query, 5s Intervall) und aendert nichts an den Python-Schreibern von `state.json`/`scene.json`
-
-## Phase-V2-17-Ergebnis
-
-Controlled Retraining schliesst die Phase-16-Schleife und macht jetzt Folgendes:
-
-- legt das neue Paket `retraining/` an, in derselben pure/IO/Worker-Aufteilung wie `performance/` (V2-16): `planning.py` (rein, Trigger-Auswahl/Cooldown/Mindestbeobachtungen), `postgres_registry.py` (eingebettetes DDL fuer `model_versions` und `retraining_events`), `validation_gate.py` (rein, Kandidat-vs-Aktiv-Vergleich statt `assess_expert_quality`s Fixschwellen), `backtest_gate.py`/`lean_backtest.py` (Backtest-Vergleich plus optionaler, bestmoeglicher Lean-Lauf), `vault_commands.py`/`vault_client.py` (reiner `av`-Kommandobauer plus Subprocess-Wrapper, faengt fehlendes `av`-Binary immer ab), `artifacts.py` (Hashing/Kopieren/Wiederherstellen von Kandidat-Artefakten), `status_export.py` (schreibt `visualization/grafana/retraining_status.json`), `orchestrator.py` (CLI-Subcommands `plan`/`train`/`validate`/`backtest`/`commit`/`promote`/`rollback`/`status`), `worker.py` (`RetrainingWorker`, kontinuierlich per `phase_v2.retraining.enabled` an-/abschaltbar)
-- `train.py` bekommt einen vierten Modus `--candidate --version-id <uuid>`: `train_model()`/`write_model_export()`/die Scaler-Schreiblogik (neu extrahiert als `write_scaler_artifacts()`) nehmen jetzt optionale Pfad-Kwargs, mit Default = den bisherigen aktiven `ml/`/`backtests/`-Konstanten, sodass kein bestehender Aufrufer sein Verhalten aendert; der Kandidat-Zweig schreibt ausschliesslich nach `ml/versions/<version_id>/` und beruehrt nie die aktiven Pfade
-- `model_versions` trackt `status` (`active`/`candidate`/`rejected`/`promoted`/`rolled_back`/`archived`), `git_commit`, `aether_vault_commit`, Artefaktpfade/-hashes, Trainings-/Validierungs-/Backtest-Fenster und Metriken; ein partieller Unique-Index erzwingt auf DB-Ebene genau ein `active`-Modell
-- `retraining_events` trackt `retraining_id`, `source_trigger_id`, `status` (`planned`/`running`/`validated`/`rejected`/`promoted`/`failed`), `reason`, `candidate_version_id`, Metriken und Notizen — der volle Audit-Trail pro Retraining-Versuch
-- Promotion kopiert bewusst mehr Dateien als in der urspruenglichen Spezifikation (`model_weights.json`, `scaler.pkl`, `training_metrics.json`) genannt: zusaetzlich `feature_schema.json` und `scaler_stats.json`, weil `main.py`s `_validate_runtime_artifacts()` genau diese beiden zusaetzlich zwingend braucht — ohne sie wuerde eine Promotion den Lean-Loader leise brechen
-- Promotion verlangt hart einen vorhandenen `aether_vault_commit` (`phase_v2.retraining.promotion.require_vault_commit`) — ohne erfolgreichen Aether-Vault-Commit gibt es keine Uebernahme
-- Rollback verifiziert SHA-256-Hashes gegen `model_versions.artifact_hashes`, bevor irgendeine Datei aktiviert wird; bei fehlenden lokalen `ml/versions/<id>/`-Dateien faellt es auf einen `av checkout <commit>` zurueck, bevor der Wiederherstellungsversuch wiederholt wird
-- Aether-Vault (`C:\Users\Blackhead\Desktop\aether-vault`, ein separates Schwesterprojekt) wird ausschliesslich als externer `av`-Subprocess aufgerufen — dessen Quellcode wird nirgends gelesen oder importiert; `run_av_command()` faengt ein fehlendes `av`-Binary/Timeout immer ab und markiert den `retraining_event` als `failed`, ohne die Pipeline abstuerzen zu lassen
-- `RetrainingWorker` ist bewusst **kein** unbedingt automatisch-promotender Daemon: `phase_v2.retraining.worker.auto_promote` ist standardmaessig `false`, sodass der Worker nach einem erfolgreichen Vault-Commit anhaelt (`status=validated`) und die eigentliche Modell-Uebernahme eine manuelle `python -m retraining.orchestrator promote --version-id <id>` bleibt — "kein unkontrolliertes Live-Lernen" bleibt damit auch bei aktivem Worker gewahrt
-- neuer Service `retraining-worker` in `docker-compose.yml`; im Unterschied zu `experience-worker`/`performance-trigger-worker`s Minimal-Images braucht dieser Worker den vollen Trainings-Stack (`torch`, `pandas`, `scikit-learn`, `joblib`), weil `orchestrator.py`s `train()`-Schritt `train.py` per Subprocess aufruft — `Dockerfile.retraining_worker` kopiert entsprechend zusaetzlich `experts/`, `regime/` und `train.py`
-- ergaenzt `config.json phase_v2.retraining` (Cooldown, Mindestbeobachtungen, Tageslimit, Validation-/Backtest-Gate-Schwellenwerte, Vault-/Promotion-/Worker-Konfiguration)
-- ergaenzt `monitoring/api_server.py` um `/api/grafana/retraining-status`; `/api/state` mergt `retraining_status.json` serverseitig dazu, weil `main.py` (anders als bei `performance_triggers`) keine In-Memory-Annaeherung liefern kann — es haelt nie eine eigene Postgres-Verbindung
-- fuegt das Webui-Panel `RetrainingStatusPanel.tsx` hinzu (aktive/Kandidat-Version, Validierungsstatus, Vault-Commit-Kurzhash, letzter Trigger, Rollback-Verfuegbarkeit), platziert direkt unter `PerformanceTriggersPanel`
-- fuegt 90 neue Tests hinzu (150 → 244 gesamt), je Quelldatei eine Testdatei nach bestehender Konvention
-
-## Phase-V2-17.5-Ergebnis
-
-Non-Deterministic Topology & Retrain-Trigger Upgrade macht jetzt zusaetzlich Folgendes:
-
-- Sicherheitsregel zuerst: "nicht-deterministisch" heisst probabilistisches Scoring (Confidence/Uncertainty), nicht zufaellige Trades — jede Order durchlaeuft weiterhin unveraendert Risk Engine, Liquidity Engine, Order Gate, Observation Mode und die V2-17-Gates; `analyzer/market_analyzer.py` wird **nicht** angefasst und liest weiterhin nur `topology_risk`/`state` aus der deterministischen Schicht
-- legt `topology/learned_topology.py` an: reines Python (kein numpy/sklearn zur Laufzeit, wie `market_topology.py`/`regime/`/`liquidity/`), `apply_learned_topology(...)` legt eine probabilistische Ueberlagerung auf die bestehende deterministische Topologie — nie ein Ersatz. Pro Knoten: `cluster_probs` (Softmax ueber Abstaende zu trainierten Prototypen), `topology_confidence`, `topology_uncertainty` (normalisierte Entropie), `stress_score` (Neuheits-Signal), `neighbor_shift_score` (Jaccard-Drift der gelernten Nachbarmenge), `topology_disagreement`, begrenzte x/y/z-Offsets (nie eine volle Ersatz-Einbettung) und `topology_source` (`deterministic`/`learned`/`hybrid`/`fallback`). Faellt bei fehlendem/unsicherem Modell pro Knoten (und im schlimmsten Fall komplett) auf die deterministische Position zurueck — nie ein Absturz
-- neues Root-Skript `train_topology.py` (numpy/scikit-learn erlaubt, laeuft nie im Lean-Container): liest `experience_events` ueber das wiederverwendete `performance.postgres_triggers.fetch_recent_events()`, leitet ein `win`/`loss`/`neutral`-Ergebnis-Label pro Ticker aus `portfolio.last_realized_pnl` her (Open-Trade-Span rueckwirkend markiert), baut Feature-Vektoren und fittet `sklearn.cluster.KMeans`-Prototypen ueber z-skalierte Features. Schreibt `topology_model.json`/`topology_training_metrics.json`/`topology_feature_schema.json` ausschliesslich nach `ml/versions/<version_id>/`; bei zu wenig Trainingsdaten Exit-Code 0 (uebersprungen, kein Fehler)
-- `retraining/orchestrator.py` bekommt `train_topology()`: ein zweiter, unabhaengig fehlschlagbarer Subprocess zwischen `train` und `validate` — ein Fehlschlag wird als Notiz auf `retraining_events` geloggt und lehnt den Kandidaten **nie** ab. `retraining/artifacts.py` bekommt `OPTIONAL_TOPOLOGY_FILES` (bewusst **nicht** in `REQUIRED_CANDIDATE_FILES`, damit `validate()` nie wegen fehlender Topologie-Artefakte ablehnt), aber in `ACTIVE_ARTIFACT_FILES`/`ALL_TRACKED_FILES` — der ganze `ml/versions/<id>/`-Ordner wird bereits per `av add` committet, Topologie-Artefakte werden also automatisch mitgenommen. `RetrainingWorker` ruft `train_topology()` an derselben Stelle auf; `auto_promote` bleibt standardmaessig `false`
-- `performance/triggers.py` bekommt 5 neue Trigger: `topology_uncertainty_trigger`, `topology_regime_mismatch_trigger`, `cluster_drift_trigger`, `model_topology_disagreement_trigger` (alle mit Persistenz-Schutz: Fenster-Durchschnitt **und** Mindestanteil einzeln brechender Bars, damit ein einzelner Ausreisser nie feuert) sowie `trigger_frequency_spike` (Meta-Trigger ueber Trigger-*Zeilen*, nicht Events — Rate-Anstieg gegen eigene Baseline). `evaluate_all_triggers()` bekommt ein optionales `recent_triggers`-Argument, abwaertskompatibel
-- behebt die V2-16-Einschraenkung: `performance/trigger_worker.py`s `run_once()` schiebt den Watermark weiterhin nur ueber den inkrementellen Batch vor (billige Leerlauf-Polls), wertet Trigger aber jetzt ueber ein echtes Rolling-Window aus `fetch_recent_events()` aus — die letzten `rolling_window_events` Beobachtungen, begrenzt auf `rolling_window_days` Tage oder seit dem letzten Retraining (`fetch_last_retraining_at()`), je nachdem was juenger ist
-- `retraining/planning.py::select_candidate_trigger()` waehlt jetzt nach Prioritaets-Score statt nur nach Zeitstempel: Schweregrad + Trigger-Typ-Gewicht + Bonus wenn Regime-Shift und ein Topologie-Trigger gemeinsam auftreten (nur fuer diese Typen, nicht fuer unbeteiligte Kandidaten) + gedeckelter Wiederholungs-Bonus. Ein einzelnes schwaches Topologie-Event erreicht diese Auswahl gar nicht erst — das erledigen bereits die Persistenz-Schutzmechanismen in `performance/triggers.py`
-- ergaenzt `config.json` um `phase_v2.topology_learning` (Modell-Schwellenwerte plus `training`-Unterblock), neue Schwellenwerte/Fenstergroessen in `phase_v2.performance_triggers`, `phase_v2.retraining.topology_training` sowie die drei neuen Dateinamen in `phase_v2.retraining.promotion.active_artifact_files`
-- `main.py` laedt `ml/topology_model.json`/`ml/topology_feature_schema.json` optional (fehlende Datei ⇒ `None`, kein harter Fehler, wie bei den MoE-Experten-Exports) und ruft `apply_learned_topology()` nach dem bestehenden `build_market_topology()`-Aufruf auf; Liquiditaets-/Regime-Risk-Score-Inputs sind zwangslaeufig einen Bar verzoegert (dieselbe bestehende Einschraenkung wie bei `latest_regime_by_symbol`)
-- Webui: `state.ts` bekommt die neuen Topologie-Felder, `TopologyScene3D.tsx` zeigt `topology_source`/`topology_confidence` im Tooltip und dimmt Fallback-Knoten leicht, neues Panel `TopologyLearningPanel.tsx` (Deterministic/Learned/Hybrid/Fallback-Badge, aggregierte Confidence-/Uncertainty-/Stress-/Mismatch-Statistik) auf der Topology-Seite
-- `Dockerfile.retraining_worker` kopiert zusaetzlich `topology/` und `train_topology.py` — `requirements-retraining-worker.txt` hatte numpy/scikit-learn/psycopg bereits seit V2-17, keine neuen Abhaengigkeiten noetig
-- fuegt 69 neue Tests hinzu (244 → 313 gesamt): `tests/test_learned_topology.py` (18), Erweiterungen von `tests/test_triggers.py`/`test_trigger_worker.py`/`test_postgres_triggers.py`, `tests/test_retraining_planning.py`, `tests/test_train_topology.py` (10, neu), `tests/test_retraining_artifacts.py`, `tests/test_retraining_orchestrator.py`, `tests/test_retraining_worker.py`
-- Nebenbei: Docker-Host-Ports neu gemappt, damit ein lokaler Aether-Quant-Stack nie mit dem separaten Aether-Vault-Compose-Stack kollidiert (dieser bindet unabhaengig Host 8000/3000/5432/6379) — `aether-quant` 8000→8001, Redis 6379→6380, PostgreSQL 5432→5433, lokaler Vite-Dev-Server 3000→3002, Grafana bleibt bei 3001; lokaler, nicht containerisierter `uvicorn` zieht ebenfalls auf 8001 um
-
-## Phase-V2-18-Ergebnis
-
-Grafana entfernt, natives React-Tracing-Dashboard:
-
-- Grafanas einzige Aufgabe war, die bereits als JSON/CSV ueber `monitoring/api_server.py`s `/api/grafana/*`-Routen servierten Exporte (`equity_curves.csv`, `asset_performance.csv`, `observation_equity_curve.csv`, `runtime_metrics_snapshot.json`) darzustellen — kein eigener Rechenpfad, also auch kein Backend-Change noetig, nur ein neuer Konsument
-- `docker-compose.yml`: `grafana`-Service, `grafana-data`-Volume und `AETHER_GRAFANA_URL`-Env auf dem `lean`-Service entfernt; der Stack besteht jetzt aus Redis, PostgreSQL, `aether-quant` und den drei Workern
-- neue Webui-Seite `TracingPage.tsx` unter `/tracing` (Nav-Eintrag in `AppShell.tsx`) mit vier Panels unter `src/components/tracing/`: `MetricsSnapshotPanel.tsx` (Stat-Tiles aus dem Runtime-Metrics-Snapshot), `AssetPerformancePanel.tsx` (divergierende Sharpe-Balken je Ticker, blau/rot nach Vorzeichen, plus Tabellen-Ansicht), `BacktestEquityPanel.tsx` (Ticker-Dropdown, Strategie- vs. Buy-and-Hold-Cumulative-Return-Linienchart) und `ObservationEquityPanel.tsx` (simulierte Equity/Cash-Linienchart plus Drawdown-Chart, client-seitig auf ~400 Punkte downgesampelt gegen die mehreren tausend Bars des Observation-Mode-Exports)
-- zwei neue, abhaengigkeitsfreie SVG-Chart-Primitives statt einer Charting-Library: `LineChart.tsx` (Crosshair+Tooltip, Legende ab zwei Serien, dezente Gridlines, nie zwei Y-Achsen) und `DivergingBarChart.tsx`, beide von mehreren Panels wiederverwendet
-- `src/api/client.ts`/`hooks.ts` bekommen `fetchMetricsSnapshot`/`fetchEquityCurves`/`fetchAssetPerformance`/`fetchObservationEquityCurve` und die passenden `useX()`-Hooks (15s Refresh, nur von der Tracing-Seite selbst aufgerufen, nicht global wie `useRuntimeState()`); neue Typen in `src/types/tracing.ts`
-- bewusst NICHT umbenannt: der Ordner `visualization/grafana/`, `retraining/status_export.py`, `performance/postgres_triggers.py` und die `/api/grafana/*`-Routennamen — nur der Konsument hat gewechselt, ein Rename waere reines Umbenennungsrisiko ohne Nutzerwert gewesen
-- Doku aktualisiert: `README.md`, `development/v2_architecture.md` (inkl. neuem Abschnitt "Remove Grafana, React Tracing Dashboard (V2-18)" und aktualisierter Port-Tabelle ohne Grafana-Zeile), `webui/README.md`
-
-## Phase-V2-19-Ergebnis
-
-Telegram Alerts macht jetzt zusaetzlich Folgendes:
-
-- legt das neue, Lean-freie Paket `notifications/` an, in derselben pure/IO/Worker-Aufteilung wie `performance/` (V2-16) und `retraining/` (V2-17): `telegram_alerts.py` (rein — `should_alert_trigger()`, `format_trigger_alert()`, `format_session_summary_alert()`, rendert nur bereits berechnete Felder, berechnet nichts neu), `postgres_telegram.py` (eingebettetes DDL fuer `telegram_alert_watermark`, ein Row pro Kanal `"triggers"`/`"session_summary"`, plus `fetch_session_summaries_since()` als defensiver, nie werfender Read auf `experience_events`), `telegram_client.py` (injizierbarer Telegram-Bot-API-Wrapper, `send_message()` wirft nie, deferred `import requests`), `telegram_worker.py` (`TelegramWorker`, `python -m notifications.telegram_worker [--once]`)
-- **Trigger-Kanal**: pollt die bereits durchgehend laufende `performance_triggers`-Tabelle (V2-16) direkt ueber `performance.postgres_triggers.fetch_triggers_since()` — keine eigene Trigger-Erkennung. Da jede Trigger-Art (nicht nur `drawdown_trigger`) ab `phase_v2.telegram.min_severity_for_trigger_alert` gemeldet wird, kommen Risk-Lock-Aktivierung, Regime-Shifts, Liquiditaets-Ablehnungen, Sharpe-/Win-Rate-/Confidence-Verschlechterung und alle fuenf Topologie-Trigger ohne zusaetzliche Instrumentierung mit
-- **Session-Summary-Kanal**: `main.py` bekommt drei additive Aenderungen — `self._session_events: list[dict]` sammelt die Events der laufenden Session (parallel zu `self._observation_event_log`); in der bestehenden Session-Rollover-Verzweigung von `_refresh_risk_state()` (der Datums-Wechsel-Check, der bereits `session_start_equity` zuruecksetzt) wird jetzt **vor** dem Reset, und abgesichert gegen den allerersten Bar, ein neues `experience.redis_queue.build_session_summary_event()`-Event (`event_type="session_summary"`) ueber die bestehende `ExperienceQueue` gepusht — dieselbe Redis→`experience-worker`→Postgres-Pipeline wie jedes andere Event, kein neuer Transport noetig
-- `build_session_summary_event()` (`experience/redis_queue.py`, exportiert aus `experience/__init__.py`) berechnet selbst nur `session_return`; alle uebrigen Statistiken kommen unveraendert aus dem bereits vorhandenen `experience.observation_metrics.compute_observation_summary()`
-- **Notwendiger, nicht-additiver Fix**: `experience/postgres_worker.py::event_to_row()` indizierte bisher `event["ticker"]`/`["symbol"]`/`["signal"]`/`["action"]` direkt. Ein `session_summary`-Event hat keines dieser Felder (Portfolio-Ebene, nicht Asset-Ebene) — ohne den Fix waere `KeyError` geflogen, das Event still in den Dead-Letter-Stream geroutet worden, und `fetch_session_summaries_since()` haette fuer immer `[]` zurueckgegeben, ohne dass irgendwo ein Fehler sichtbar geworden waere. Fix: `.get(key, "")`-Defaults (rueckwaertskompatibel, da `experience_events`-Spalten `VARCHAR NOT NULL` ohne Unique-Constraint sind), `action` faellt auf `event_type` zurueck
-- `Dockerfile.telegram_worker` kopiert `execution/`, `experience/`, `performance/`, `notifications/` — `execution/` ist noetig, weil das Importieren von `performance.postgres_triggers` `performance/__init__.py` → `.triggers` → `experience.observation_metrics` → (via `experience/__init__.py`) `.simulated_portfolio` → `execution.order_gate` transitiv initialisiert; dieselbe Lektion wie `development/Problems.md` #1/#2, hier proaktiv angewendet statt erst nach einem kaputten Build entdeckt. `requirements-telegram-worker.txt` enthaelt aus demselben Grund `numpy`
-- neuer Service `telegram-worker` in `docker-compose.yml`, haengt nur von `postgres` ab (kein Redis — der Worker ruehrt den Experience-Stream nie an); neue `.env.compose.example` (die `.gitignore`-Ausnahme dafuer existierte bereits, die Datei selbst nicht) dokumentiert `AETHER_TELEGRAM_BOT_TOKEN`/`AETHER_TELEGRAM_CHAT_ID`
-- ergaenzt `config.json phase_v2.telegram` (`enabled`, `min_severity_for_trigger_alert`, `session_summary_enabled`, `worker.{poll_interval_seconds,batch_size,backoff_max}`)
-- fuegt 24 neue Tests hinzu (Telegram-Teil) plus 7 Erweiterungen bestehender Testdateien: `tests/test_telegram_alerts.py` (4), `tests/test_postgres_telegram.py` (7), `tests/test_telegram_client.py` (7), `tests/test_telegram_worker.py` (6), Erweiterung von `tests/test_experience_queue.py` (5, `build_session_summary_event`) und `tests/test_postgres_worker.py` (2, `event_to_row` mit `session_summary`-Events) — zusammen mit V2-19.5s 20 neuen Tests: 313 → 364 gesamt
-- `tests/README.md`s Testzahl war bereits seit V2-17.5/V2-18 stale ("244 tests as of V2-17", tatsaechlich 313) — in diesem Zug korrigiert
-- Stop: kein Retry/Backoff ueber das Noetigste hinaus fuer den eigentlichen Telegram-API-Call, kein Webui-Panel fuer Alert-Historie — beides bewusst nicht Teil von V2-19
-
-## Phase-V2-19.5-Ergebnis
-
-Yahoo Finance Historical Data Backfill (ergaenzende Anfrage neben V2-19, kein Punkt im urspruenglichen nummerierten Plan) macht jetzt Folgendes:
-
-- legt `data_pipeline/yfinance_backfill.py` als **manuelles Offline-Skript** an — laeuft nie aus `train.py`/`main.py`/einem Docker-Worker heraus, keine Netzwerkzugriffe waehrend Training oder Backtest (gleicher Status wie `train_topology.py`: "laeuft nie im Lean-Container")
-- fuellt Luecken in duennen lokalen Lean-Zips, allen voran `ETHUSD`/`LTCUSD` (nur wenige verstreute Tage echter Coinbase-Minutendaten, siehe `train.py::ensure_derived_crypto_daily_series()` und den Phase-9-Eintrag oben) — deshalb bisher `observation_only` nach `train.py::build_asset_quality()`s Zeilen-Schwellenwerten
-- neuer, optionaler `"backfill"`-Unterblock pro Asset in `config.json phase1.universe.assets[]` (`source`, `symbol`, `backfill_from`, `backfill_to`) — bewusst ein neuer Schluessel statt Wiederverwendung von `aggregation: "daily_from_minute_trade"`, da dieser Wert bereits `train.py`s eigene Coinbase-Aggregation bei jedem Lauf ausloest und dieser Pfad manuell bleiben muss
-- reine Funktionen (`yahoo_symbol_for`, `detect_gap`, `scale_for_lean`, `rows_to_lean_csv`, `write_lean_zip`) spiegeln `train.py::ensure_derived_crypto_daily_series()`s exaktes Lean-Zip-Schreibmuster (`ZipFile(pfad, "w")`, Member-Name `f"{ticker.lower()}.csv"`, Zeilenformat `f"{date:%Y%m%d} 00:00,{o},{h},{l},{c},{v}"`), mit einer Ergaenzung: `scale_for_lean()` wendet die x10000-Ganzzahl-Konvention fuer Aktien an (Yahoo liefert echte Dollar-Floats), Krypto bleibt unskaliert
-- `fetch_yahoo_ohlcv()` ist die einzige Funktion, die `yfinance` importiert, deferred innerhalb der Funktion (spiegelt `experience/redis_queue.py`s deferred `import redis`) — `data_pipeline` zu importieren erfordert `yfinance` nie zwingend
-- zwei unabhaengige Sicherheitsgrenzen, beide mit explizitem manuellem Schritt: (1) Schreiben/Mergen von Zip-Dateien nur mit `--apply` (Default: Dry Run, nur Report); (2) `config.json`s `available_from`/`available_to` werden **nie** automatisch geaendert, auch nicht mit `--apply` — `train.py::build_asset_quality()` zaehlt Zeilen nur innerhalb der konfigurierten Fenster, das Skript gibt nur die vorgeschlagenen neuen Werte auf der Konsole aus
-- `write_lean_zip()`s Merge laesst bestehende echte Lean-Zeilen bei ueberlappenden Daten immer gewinnen; Yahoo-Daten fuellen nur echte Luecken
-- `yfinance` ist eine reine Dev-Abhaengigkeit (`requirements/requirements-dev.txt`), nie in `requirements.txt`/`requirements-runtime.txt`
-- fuegt `tests/test_yfinance_backfill.py` mit 20 Tests hinzu (alle mit injiziertem `fetch_fn`-Stub — `yfinance` wird in der gesamten Testdatei kein einziges Mal importiert)
-- Stop: kein automatisches Nachziehen von `available_from`/`available_to`, kein Docker-Worker — bewusst ein manuelles Offline-Skript, gleicher Status wie `train_topology.py`
-
-## Phase-V2-23.1-Ergebnis
-
-Data-Driven Liquidity Threshold Calibration — geschlossen, aber anders als urspruenglich geplant:
-
-- der urspruengliche Plan war, `spread_proxy` aus echten historischen Fill-/Slippage-Daten zu kalibrieren, sobald die Experience-Pipeline (V2-13/14) genug Historie angesammelt hat. Eine tiefere Pruefung in dieser Session zeigte: diese Grundannahme hatte keine Datenbasis — Lean-Backtests setzen nie ein `SlippageModel` (nur ein `InteractiveBrokersFeeModel`, das eine Transaktionsgebuehr, keine Preis-Impact-Slippage ist), und `experience/simulated_portfolio.py`s `enter_long()` ruft `execution.order_gate.simulate_fill(...)` immer mit dem Default `slippage_bps=0.0` auf — es wurde also noch nie irgendwo eine realisierte Spread-/Slippage-Beobachtung geloggt, aus der man haette kalibrieren koennen
-- statt neue Fill-Telemetrie-Infrastruktur als Voraussetzung zu bauen, wurde stattdessen der **Corwin & Schultz (2012) High-Low-Spread-Schaetzer** implementiert: eine publizierte, geschlossene Formel, die den Bid-Ask-Spread allein aus aufeinanderfolgenden Tages-High/Low-Ranges schaetzt — Daten, die ohnehin jede Bar in `main.py::self.symbol_windows` gesammelt werden
-- `liquidity/market_liquidity.py::estimate_high_low_spread(highs, lows)` (rein, kein I/O): berechnet pro aufeinanderfolgendem 2-Bar-Fenster einen Schaetzwert nach der Corwin-Schultz-Formel (`beta`, `gamma`, `alpha`, dann `spread = 2*(e^alpha-1)/(1+e^alpha)`), klippt negative Einzelfenster-Schaetzungen auf `0.0` (ein bekanntes, dokumentiertes Artefakt der Methode bei geringer Volatilitaet, kein Bug) und mittelt ueber alle Fenster; gibt `None` zurueck bei weniger als 2 gueltigen Bars
-- `build_liquidity_decision(...)` bekommt einen neuen optionalen `dynamic_spread`-Parameter — ersetzt `TYPICAL_SPREAD_BY_TYPE.get(security_type, ...)` als primaeren Pfad; die statische Lookup-Tabelle bleibt nur als Fallback fuer die ersten Bars eines Laufs (`phase_v2.liquidity.spread_estimation.min_bars`, Default 2) oder wenn der Schaetzer keinen gueltigen Wert liefert
-- `main.py` liest an der Liquiditaets-Aufrufstelle `highs`/`lows` aus `self.symbol_windows[symbol]` (bereits jede Bar befuellt, keine neue State-Verwaltung noetig) und uebergibt das Ergebnis als `dynamic_spread`
-- ergaenzt `config.json phase_v2.liquidity.spread_estimation` (`enabled`, `min_bars`)
-- fuegt 10 neue Tests zu `tests/test_market_liquidity.py` hinzu: eine unabhaengig nachgerechnete Referenz-Berechnung, Nullspread bei flachen Preisen, Monotonie (schmalerer Range -> kleinerer Spread), Mittelwertbildung ueber mehrere Fenster, `None` bei zu wenig/inkonsistenten Bars, Ueberspringen ungueltiger Fenster, sowie `dynamic_spread`-Override/Fallback-Verhalten in `build_liquidity_decision`
-- Stop: kein Ruecklauf auf echte Fill-Daten-Kalibrierung — dafuer muesste zuerst ein `SlippageModel`/echte Fill-Telemetrie eingefuehrt werden, was bewusst nicht Teil dieser Phase ist
-
-## Phase-V2-23.2-Ergebnis
-
-Static-Config-Wiring + totes `average_correlation`-Feature (ergaenzend, gefunden bei einem Static-vs-Dynamic-Architektur-Audit dieser Session):
-
-- `config.json` bekommt drei zuvor fehlende `phase_v2`-Bloecke (`dynamic_risk`, `regime_detection`, `gating_network`), die `main.py` bereits seit V2-3/V2-6/V2-9 liest (`self.phase_v2.get("dynamic_risk", {})` etc.) — ohne diese Bloecke fiel jeder einzelne Wert (Ziel-Volatilitaet, Regime-Schwellenwerte, Gating-Baseline-Gewicht) still und für immer auf den Python-Hardcoded-Default zurueck, ohne dass es je konfigurierbar war. Rein additiv: die neuen Werte entsprechen exakt den bisherigen Defaults, keine Verhaltensaenderung
-- `regime/market_regime.py::build_market_regime_vector()`s `average_correlation`-Parameter existierte bereits seit V2-6, wurde aber nie mit einem echten Wert gefuettert — `main.py` rief `_build_regime_payload()` immer ohne diesen Parameter auf, sodass der korrelationsgesteuerte risk_off-Zweig in `classify_risk_regime()` in der Praxis unerreichbar war. Fix: `main.py::_build_regime_payload()` bekommt einen neuen `average_correlation`-Parameter, der an der Aufrufstelle mit `topology_payload["correlation_strength"]` befuellt wird — dem bereits von `topology/market_topology.py` pro Asset berechneten mittleren Peer-Korrelationswert innerhalb des eigenen Clusters, verfuegbar, weil `_build_topology_payload()` bereits einmal pro Bar vor der Pro-Asset-Schleife laeuft. Keine Aenderung in `regime/market_regime.py` oder `topology/market_topology.py` selbst noetig — reine `main.py`-Verdrahtung eines bereits echten Wertes in einen bereits echten Parameter
-- fuegt 1 neuen Test zu `tests/test_market_regime.py` hinzu: bestaetigt, dass `average_correlation` durchgereicht wird und `risk_score`/`reasons` tatsaechlich beeinflusst
-- Stop: `main.py` bleibt bewusst ohne eigene Unit-Tests (Import erfordert `AlgorithmImports`/Lean) — die Verdrahtung ist bis zur main.py-Grenze getestet, nicht end-to-end in Lean
-
-## Phase-V2-23.3-Ergebnis
-
-Echtes Topology-Embedding (ergaenzend, gleicher Audit):
-
-- `topology/market_topology.py`s bisherige 3D-Koordinaten-Platzierung war rein kosmetisch: Cluster-Zentroiden wurden per `index -> angle` auf einer festen Ellipse platziert, Mitglieder innerhalb eines Clusters ebenfalls per `member_index -> angle` — nur der Radius war datengetrieben (Marktdistanz), die Richtung nie. Zwei stark korrelierte Cluster konnten so auf gegenueberliegenden Seiten der Szene landen
-- ersetzt durch `_stress_majorize_2d(...)`: SMACOF (Scaling by MAjorizing a COmplicated Function), ein iterativer Stress-Majorisierungs-Algorithmus (klassischer Guttman-Transform), der ueber die vollstaendige paarweise Korrelations-Distanz-Matrix aller berechtigten Symbole laeuft (nicht nur innerhalb eines Clusters) — Position im Raum spiegelt jetzt tatsaechlich Korrelationsdistanz wider, nicht nur Cluster-Zugehoerigkeit
-- bewusst SMACOF statt klassischem MDS gewaehlt: keine Eigenwertzerlegung noetig (nur gewichtete Positions-Mittelwertbildung pro Iteration), bleibt dadurch reines Python ohne numpy/scipy — dieselbe Begruendung, aus der `topology/learned_topology.py` schon numpy-frei bleibt
-- deterministisch geseedet aus dem bisherigen kosmetischen Layout (nicht zufaellig) — `test_stable_coordinates_are_deterministic` besteht unveraendert weiter
-- `_rescale_positions_to_bounds(...)` skaliert das Ergebnis isometrisch (ein einzelner Skalierungsfaktor, kein unabhaengiges Achsen-Stretching, das die zu erhaltenden Distanzen verzerren wuerde) zurueck in die bestehenden `NEUTRAL_DIMENSIONS` `[0,100]x[0,100]`-Grenzen — `webui/src/components/topology/TopologyScene3D.tsx` brauchte keine Aenderung, da es bereits ueber `topology.dimensions` normalisiert
-- die z-Achse (Volatilitaets-Encoding) bleibt unveraendert — bewusst eine separate, bedeutungsvolle Kodierung, kein Teil des raeumlichen Embeddings
-- `build_market_topology(...)` bekommt einen neuen `embedding_iterations`-Parameter (Default 100), `config.json phase_v2.topology.embedding_iterations` ergaenzt, `main.py` reicht ihn durch
-- fuegt 3 neue Tests zu `tests/test_market_topology.py` hinzu: korrelierte Assets sind jetzt raeumlich naeher beieinander als unkorrelierte (staerkere Aussage als der bisherige reine Cluster-ID-Vergleich), Koordinaten bleiben innerhalb der Grenzen, `embedding_iterations` beeinflusst das Layout tatsaechlich (kein ignorierter Config-Wert)
-- Stop: kein 3D-Embedding (z bleibt Volatilitaets-Encoding, nicht Teil der Distanzerhaltung) — bewusst, da z bereits eine etablierte, separate Bedeutung traegt
+- Adds `regime/market_regime.py` as a testable quantitative regime layer
+- Detects `bullish`, `bearish`, and `sideways` from 5d/20d momentum
+- Detects `low_volatility`, `normal_volatility`, and `high_volatility` from rolling volatility
+- Combines trend, volatility, drawdown, and optional correlation into `risk_on`, `risk_neutral`, or `risk_off`
+- Writes a `regime` block per asset into the Lean runtime state
+- Exports regime fields into the runtime monitoring CSV for Grafana
+
+## Phase V2-7 Result
+
+The V2 expert dataset stage additionally does the following:
+
+- Adds `experts/expert_datasets.py` as a slicing layer for later expert models
+- Uses quantitative regime detection for bullish, bearish, sideways, and volatility slices
+- Filters expert training data to `training_eligible` assets
+- Produces local expert CSV files under `ml/expert_datasets/` during the dataset build
+- Writes `ml/expert_dataset_manifest.json` with row counts, split counts, tickers, target balance, and routing filters
+- Keeps the generated expert artifacts out of Git
+
+## Phase V2-8 Result
+
+The V2 expert model stage additionally does the following:
+
+- Trains separate PyTorch models for `bullish`, `bearish`, `sideways`, and `volatility`
+- Uses the same MLP family as the baseline model, but with regime-specific training data
+- Adds `python train.py --experts-only` for training experts only
+- Also refreshes the expert models on a normal `python train.py` run
+- Writes local expert weights and metrics under `ml/expert_models/<expert>/`
+- Writes an overall summary to `ml/expert_training_metrics.json`
+- Keeps all generated expert model artifacts out of Git
+
+## Phase V2-8.5 Result
+
+V2 expert stabilization additionally does the following:
+
+- Uses smaller default networks for experts, with stronger dropout and higher weight decay
+- Reduces expert training by default to fewer epochs and stricter early-stopping patience
+- Scores each expert with a quality gate against validation, backtest, MCC, and the train/backtest gap
+- Flags experts as `stable`, `watchlist`, or `disabled_for_gating`
+- Writes `gating_eligible_experts` and `disabled_for_gating_experts` into `ml/expert_training_metrics.json`
+- This prevents the later gating network from blindly using weak or overfit experts
+
+## Phase V2-9 Result
+
+The V2 gating network additionally does the following:
+
+- Adds `moe/gating.py` as an explainable manager for the expert models
+- Weights experts by quality gate, regime fit, and backtest/validation stability
+- Uses `stable` and `watchlist` experts, but ignores `disabled_for_gating`
+- Loads local expert JSON exports from `ml/expert_models/<expert>/model_weights.json` in `main.py`
+- Combines baseline model probability and expert probability into a final MoE probability
+- Writes `moe_gating`, expert probabilities, active experts, and decision type into runtime state and the Grafana CSV
+- Automatically falls back to the baseline model if expert artifacts are missing
+
+## Phase V2-10 Result
+
+The central market analyzer additionally does the following:
+
+- Adds `analyzer/market_analyzer.py` as a pure, deterministic decision layer that combines expert (`moe_gating`), regime, topology (optional, until V2-11), and risk output (risk lock, position sizing) into one final category
+- Replaces the previous ad-hoc if/elif chain in `main.py.on_data()` with a call to `build_market_analysis_decision(...)`, without changing the actual order-placement behavior: `_apply_signal` still only runs for the `trade` category
+- Classifies each asset per bar into exactly one of five categories: `observe`, `simulate`, `trade`, `reduce_risk`, `retrain_candidate`
+- Prioritizes risk containment over model health over profit action over paper tracking over pure observation (a portfolio-wide trade lock and an asset risk-off regime always beat `retrain_candidate` and `trade`)
+- Detects `retrain_candidate` via a stateless heuristic (no active experts plus low regime confidence), since the window-based performance triggers only arrive in V2-16
+- Writes the full decision, including a `reasons` list, as a `market_analysis` block into every asset signal in `visualization/state.json`, automatically visible in the webui via the existing FastAPI pipeline
+- Adds `tests/test_market_analyzer.py` with 13 tests (all five categories, topology absence, two priority tiebreaks)
+
+## Phase V2-11 Result
+
+3D topology market modeling additionally does the following:
+
+- Adds `topology/market_topology.py` as a pure, deterministic cross-asset layer: pairwise Pearson correlation from returns, union-find clustering over a correlation threshold, 3D coordinates (similar assets sit close together, high volatility separates on the z-axis)
+- Computes topology once per bar in `main.py` from `self.symbol_windows` (as of the previous bar, no lookahead) before the per-asset loop, without restructuring it
+- Writes `visualization/topology_state.json` and a `state["topology"]` block, plus a per-asset `topology` context (`cluster_id`, `correlation_strength`, `market_distance`, `topology_risk`) into `visualization/state.json`
+- Replaces the previous orbit placement in `_build_scene_payload` with real topology coordinates and adds correlation links between assets to the existing overview scene
+- **Changes real trading decisions**: `analyzer/market_analyzer.py` gets two new, deterministic priority tiers — an asset with `topology_risk == "elevated"` is forced to `reduce_risk`, and an isolated asset (`topology_risk == "isolated"`, no sufficiently correlated peers) can no longer reach `trade` and falls back to `simulate`
+- Adds a new webui tab `/topology` (its own 3D scene colored by action/regime/risk, plus a readable cluster list) and a `/api/topology` endpoint in `monitoring/api_server.py`
+- Adds `tests/test_market_topology.py` (stable coordinates, stronger links for correlated assets, robust with missing/thin data, regime label aggregation) plus four new cases in `tests/test_market_analyzer.py`
+- Documents in `V2-17.5` (see phase plan in the README) that these deterministic rules are meant to later be replaced by data-driven/learned versions once the experience pipeline (V2-13/14) and controlled retraining (V2-16/17) are in place
+
+## Phase V2-12 Result
+
+The market impact & liquidity engine additionally does the following:
+
+- Adds `liquidity/market_liquidity.py` as a pure, deterministic per-asset liquidity layer: estimates daily dollar volume (`DDV = close × volume`), order value, participation rate, slippage, and round-trip cost without external data
+- Classifies every asset order attempt as `normal`, `thin`, `high_impact`, or `blocked`, and recommends `allow`, `reduce_size`, `simulate_instead`, or `block`
+- Automatically applies a configurable size reduction (`high_impact_size_factor=0.5`) on `high_impact`, before the market analyzer decides
+- Adds two new deterministic priority tiers to `analyzer/market_analyzer.py`: `liquidity_blocked` forces `simulate`, `liquidity_thin` also forces `simulate` (below the existing risk-off and topology priorities, but above the `trade` path)
+- Writes all liquidity fields (`daily_dollar_volume`, `participation_rate`, `estimated_slippage`, `spread_proxy`, `estimated_round_trip_cost`, `liquidity_risk`, `recommended_action`, `adjusted_target_weight`) as a `liquidity` block into every asset signal in `visualization/state.json`
+- Adds static bid-ask spread proxies per security type (equity: 5 bps, crypto: 20 bps), since real bid-ask data can't be derived from daily OHLCV
+- Bills real per-asset transaction costs in Lean: `ConstantPercentageFeeModel(0.0025)` for crypto (25 bps taker proxy) and `ConstantFeeModel(1.0)` for equities ($1/trade IB proxy)
+- Adds `webui/src/components/risk/LiquidityTable.tsx` as a new liquidity panel on the risk page: shows per asset DDV, order value, participation rate, slippage, spread, round-trip cost, risk level, and recommended action with colored badges
+- Adds `Dockerfile` (multi-stage: Node.js webui build → Python runtime) and an extended `docker-compose.yml` (new `aether-quant` service on port 8000, Grafana on port 3001 instead of 3000) so the overall infrastructure can be started consistently
+- Adds 9 new unit tests in `tests/test_market_liquidity.py` and 4 new cases in `tests/test_market_analyzer.py`
+- LTCUSD (only 2 days of data in the universe → DDV below the $100k floor) correctly hits `blocked` and is forced to `simulate` without disrupting the rest of the decision tree
+
+## Phase V2-13 Result
+
+The Redis experience queue additionally does the following:
+
+- Adds `experience/redis_queue.py` as a new module with `build_experience_event()` (pure function) and `ExperienceQueue` (fire-and-forget Redis stream publisher)
+- Immediately writes a JSON event via `XADD` into the Redis stream `aether:experience` after every complete asset decision (after `signal_payload.update`), capped at `maxlen=100000` entries (approximate)
+- Every event contains: `event_id` (UUID), `event_type`, `created_at` (ISO UTC), `mode` (`backtest`/`observation`/`paper`/`live`), `symbol`, `ticker`, `signal`, `action`, `execution_note`, `probability_up`, `confidence`, `target_weight`, `regime`, `moe_gating`, `topology`, `liquidity`, `market_analysis`, `portfolio` (with `total_value`, `cash`, `current_drawdown`)
+- Fails silently on Redis errors: `ExperienceQueue.push()` returns `False` and logs a WARNING; the Lean loop is never blocked or interrupted
+- Loads `redis_url` from the `AETHER_REDIS_URL` environment variable (set in `docker-compose.yml` to `redis://redis:6379/0`), falling back to `redis://localhost:6379/0` for local development
+- Configurable via `config.json phase_v2.experience` with `enabled`, `redis_stream`, and `maxlen`
+- The Redis import is deferred (inside `ExperienceQueue.__init__`), so the code stays importable in Lean environments without the `redis` package
+- Adds `redis>=5.0.0` to `requirements.txt` and `fakeredis>=2.20.0` to `requirements-dev.txt`
+- Adds `tests/test_experience_queue.py` with 8 tests (required schema fields, disabled = safe no-op, Redis unreachable = no crash, JSON serialization, configurable stream name, all 4 modes, push writes to the stream, event ID uniqueness)
+- Stopping point for Redis: no PostgreSQL yet in V2-13; V2-14 builds the persistence worker (`XREAD → INSERT INTO experience_events`)
+
+## Phase V2-14 Result
+
+The PostgreSQL persistence worker additionally does the following:
+
+- Adds `experience/postgres_worker.py` as a standalone, synchronous worker that reads `aether:experience` via `XREADGROUP` and durably stores events in PostgreSQL
+- Creates the `experience_events` table with embedded DDL: `event_id` (UUID, UNIQUE), `created_at`, `ingested_at`, `mode`, `ticker`, `symbol`, `signal`, `action`, `confidence`, `target_weight`, `payload` (JSONB) plus 5 indexes — no Alembic, no migration files
+- Uses `ON CONFLICT (event_id) DO NOTHING` for safe, idempotent retry on Redis redelivery after a worker crash
+- Routes malformed JSON messages into the dead-letter stream `aether:experience:deadletter` and immediately acknowledges them via `XACK`, without interrupting operation
+- Leaves messages unacknowledged on a PG error — they stay pending and are redelivered after the Redis visibility timeout
+- Implements exponential backoff (1→2→4→...→60s) and automatic PG reconnect in the `run()` loop
+- Exports `event_to_row` (pure function, no I/O) and `PostgresWorker` from `experience/__init__.py`
+- Adds `psycopg[binary]>=3.1` to `requirements.txt` and `requirements-dev.txt`
+- Creates `requirements-worker.txt` as a minimal dependency list for the worker container
+- Builds `Dockerfile.worker` as a minimal `python:3.11-slim` image with only `redis` and `psycopg[binary]`
+- Adds the `experience-worker` service to `docker-compose.yml` (`depends_on: redis:healthy, postgres:healthy`, `restart: unless-stopped`)
+- Extends `config.json phase_v2.experience` with a `worker` sub-block for group, consumer, batch size, dead-letter stream, and backoff max
+- Adds 7 tests in `tests/test_postgres_worker.py`: scalar fields extracted correctly, full payload, batch persistence, duplicate idempotency, dead-letter routing, a PG error leaves messages pending, an empty stream returns 0
+- Stopping point for PostgreSQL: V2-15 builds Observation Mode on top of the now-existing experience trail
+
+## Phase V2-15 Result
+
+Observation Mode additionally does the following:
+
+- Adds `phase_v2.runtime` to `config.json` with `mode` (`backtest`/`observation`/`paper`/`live`, committed default `"backtest"` — unchanged behavior for `lean backtest .`) and `allow_live_orders` (default `false`)
+- Adds the new, Lean-free package `execution/order_gate.py`: `resolve_runtime_mode` (falls back to `"observation"` on a missing/unknown value), `resolve_order_permission` (truth table: `backtest` always allowed, `observation` **never** allowed — regardless of any other flag, `paper`/`live` only with `allow_live_orders` + broker configuration + for `live` additionally a healthy risk lock), and `simulate_fill` (pure fill-price/quantity math)
+- Adds a single gate method `_apply_signal`/`_refresh_risk_state` in `main.py` (`_order_permission()`) that decides, at all three real order sites (`SetHoldings`, per-symbol `Liquidate`, portfolio-wide `Liquidate` on a drawdown breach): a real order or a simulation
+- Adds `experience/simulated_portfolio.py` (`SimulatedPortfolioState`): manages fake cash/holdings/equity curve/drawdown/exposure/turnover entirely in memory, never touching `self.Portfolio` or any broker call; `snapshot()` is a superset of the previous `portfolio={...}` dict, so **no signature change** is needed for `build_experience_event`, `event_to_row`, or the Postgres DDL (`mode VARCHAR(20)` already supported `observation`/`paper`/`live`)
+- Makes `self._experience_mode` (previously hardcoded to `"backtest"`) depend on the new `runtime_mode`
+- Makes cooldown, max-position, and exposure-cap checks, as well as the drawdown/risk-lock computation, mode-aware: when real orders are blocked, these checks run against the simulated instead of the real portfolio (which stays permanently empty in blocked modes) — otherwise risk rules would be ineffective in Observation Mode
+- Adds `experience/observation_metrics.py`: pure functions (`count_observations`, `signal_distribution`, `action_distribution`, `rejected_by_reason`, `simulated_win_loss`, `simulated_sharpe`, `simulated_max_drawdown`, `compute_observation_summary`) operating on a single `list[dict]` shape, usable identically for in-memory logs and Postgres JSONB rows; `rejected_by_reason` reads the already-existing `reasons` list from `analyzer/market_analyzer.py` — no new schema field needed
+- Writes new dashboard exports `visualization/grafana/observation_summary.json` and `visualization/grafana/observation_equity_curve.csv`, also embedded as `state["observation"]` in `visualization/state.json`; clearly marked "SIMULATED - NOT REAL TRADES"
+- Extends `monitoring/api_server.py` with `/api/grafana/observation-summary` and `/api/grafana/observation-equity-curve`
+- Adds the webui panel `webui/src/components/monitoring/ObservationPanel.tsx` (data-table style, no new chart package), wired into `webui/src/pages/Overview.tsx`
+- Adds 33 new tests (80 → 113 total): `tests/test_order_gate.py` (10, including the safety-critical `test_observation_mode_never_allows_orders_even_if_flags_true`), `tests/test_simulated_portfolio.py` (9), `tests/test_observation_metrics.py` (14) — `main.py` deliberately still has no unit tests of its own (importing it requires `AlgorithmImports`/Lean, which none of the 13 existing test files do); the safety guarantee is fully proven at the `order_gate`/`simulated_portfolio` level
+- Manually verified via a real `lean backtest .` run with `mode="observation"` (2014-2018, BTCUSD/ETHUSD/LTCUSD): Lean's own statistics show `"Total Orders": "0"` and `"End Equity": "100000"` (unchanged) across the whole run — the real portfolio was never touched — while the observation panel in the webui showed real simulated activity (drawdown, turnover, a simulated risk-lock breach at -12%)
+- Stopping point: `phase_v2.runtime.mode` is only read at startup, no hot-reload during a running run
+- After completion, two bugs were found and fixed during a Docker review — see `development/Problems.md`: `Dockerfile.worker` didn't copy `execution/` (ModuleNotFoundError), `requirements-worker.txt` was missing `numpy` (ModuleNotFoundError, crash loop in the running container)
+
+## Phase V2-16 Result
+
+Performance Triggers additionally does the following:
+
+- Adds the new, Lean-free package `performance/triggers.py`: 8 trigger functions (`observation_count_trigger`, `drawdown_trigger`, `sharpe_degradation_trigger`, `win_rate_trigger`, `confidence_decay_trigger`, `regime_shift_trigger`, `liquidity_warning_trigger`, `risk_lock_trigger`) plus `evaluate_all_triggers()` as an aggregator — pure functions on the same `list[dict]` shape as `experience/observation_metrics.py` (V2-15), including reuse of `simulated_sharpe`/`simulated_max_drawdown` instead of reimplementing them
+- Every trigger returns a structured event: `trigger_id`, `created_at`, `trigger_type`, `severity` (`info`/`warning`/`critical` by a breach-ratio rule), `mode`, `scope` (`portfolio` or ticker), `metric_value`, `threshold`, `message`, `recommended_action`, `retrain_candidate`
+- `liquidity_warning_trigger` deliberately only counts `block`/`reduce_size` as a rejection — `simulate_instead` (Observation Mode routing) is explicitly excluded, so Observation Mode doesn't falsely look like a liquidity crisis
+- `risk_lock_trigger` fires both on the activation transition (`warning`) and on a sustained lock past `max_consecutive_locked_events` (`critical`, always `retrain_candidate=True`) — for this, the `portfolio` block in `main.py` additionally gets `trade_lock_active`/`trade_lock_reason` (purely additive, no schema/DDL change needed)
+- Extends `config.json phase_v2.performance_triggers` with the 7 user-specified thresholds plus 5 more (confidence decay/instability, risk-lock duration, rolling window, suppression minutes)
+- Adds `performance/postgres_triggers.py`: embedded DDL for a **dedicated** `performance_triggers` table (not `experience_events` with a new `event_type`, so Grafana/Phase 17 can query it cleanly) plus `performance_trigger_watermark` for progress, `ON CONFLICT (trigger_id) DO NOTHING` plus an explicit suppression-window check against duplicate spam on sustained breaches
+- Adds `performance/trigger_worker.py` as a standalone worker (`python -m performance.trigger_worker`, `--once` flag like `postgres_worker.py`) that advances through `experience_events` by watermark and durably persists triggers — deliberately **not** synchronous inside `main.py`/Lean, because the async Redis→worker path might not have caught up yet at the moment of a mid-backtest query (same decoupling principle as V2-13/14)
+- `main.py` additionally gets a fast, purely in-memory view (`_build_performance_triggers_view()`, over `_observation_event_log`) for `state["performance_triggers"]` and `visualization/grafana/performance_triggers.json` — explicitly marked as non-durable (`source: "in_memory_current_run"`); the Postgres table remains the only source for Phase 17
+- New service `performance-trigger-worker` in `docker-compose.yml` (depends only on `postgres`, no Redis; mounts `config.json` read-only, since the thresholds are strategy, not infra, configuration) plus `Dockerfile.trigger_worker` and `requirements-trigger-worker.txt`
+- Extends `monitoring/api_server.py` with `/api/grafana/performance-triggers`
+- Adds the webui panel `PerformanceTriggersPanel.tsx` (retrain-candidate banner, severity distribution, last trigger, trigger-type breakdown) and places it together with `ObservationPanel` at the very top of the right column, so it isn't pushed down by a growing signal board when there are many assets
+- Adds 37 new tests (113 → 150 total): `tests/test_triggers.py` (24), `tests/test_postgres_triggers.py` (11), `tests/test_trigger_worker.py` (2)
+- Along the way: documentation reorganized — `docs/v2_architecture.md` and `infrastructure/README.md` moved to `development/` (as `v2_architecture.md`/`infrastructure.md`), new `development/Changelog.md` (this file) and `development/Problems.md` created; the webui gets a consistent black/orange/white theme with an orange hover glow on every panel
+- Stopping point: Phase 16 doesn't retrain anything — `retrain_candidate` is only a flag for V2-17, no automatic model-weight changes
+
+## Visualization Unification Result
+
+The visualization unification additionally does the following:
+
+- Replaces `dashboard.html` and `volatility_dashboard.html` with a single React/Vite webui under `webui/` on `http://localhost:3000`
+- Adds `monitoring/api_server.py` as a FastAPI JSON API that serves `visualization/state.json`, `visualization/scene.json`, and the Grafana exports on `localhost:8000`, instead of the frontend reading files directly from the filesystem
+- Maps the Overview page (scorecards, asset heatmap, signal board, positions, strategy/risk cards, monitoring feeds) and the Risk page (risk core, asset volatility/sizing table) 1:1 onto the previous HTML dashboards
+- Renders the market scene as genuinely three-dimensional and rotatable for the first time, using `@react-three/fiber`/`@react-three/drei` instead of the previous 2D-div approximation, as the foundation for the later V2-11 3D topology market modeling
+- Keeps the existing polling pattern (React Query, 5s interval) and changes nothing about the Python writers of `state.json`/`scene.json`
+
+## Phase V2-17 Result
+
+Controlled Retraining closes the loop left open by Phase 16, and now does the following:
+
+- Adds the new `retraining/` package, using the same pure/IO/worker split as `performance/` (V2-16): `planning.py` (pure, trigger selection/cooldown/minimum observations), `postgres_registry.py` (embedded DDL for `model_versions` and `retraining_events`), `validation_gate.py` (pure, candidate-vs-active comparison instead of `assess_expert_quality`'s fixed thresholds), `backtest_gate.py`/`lean_backtest.py` (backtest comparison plus an optional, best-effort real Lean run), `vault_commands.py`/`vault_client.py` (pure `av` command builder plus a subprocess wrapper, always catches a missing `av` binary), `artifacts.py` (hashing/copying/restoring candidate artifacts), `status_export.py` (writes `visualization/grafana/retraining_status.json`), `orchestrator.py` (CLI subcommands `plan`/`train`/`validate`/`backtest`/`commit`/`promote`/`rollback`/`status`), `worker.py` (`RetrainingWorker`, continuous, toggled via `phase_v2.retraining.enabled`)
+- `train.py` gets a fourth mode, `--candidate --version-id <uuid>`: `train_model()`/`write_model_export()`/the scaler-writing logic (newly extracted as `write_scaler_artifacts()`) now take optional path kwargs, defaulting to the previous active `ml/`/`backtests/` constants, so no existing caller changes behavior; the candidate branch writes exclusively to `ml/versions/<version_id>/` and never touches the active paths
+- `model_versions` tracks `status` (`active`/`candidate`/`rejected`/`promoted`/`rolled_back`/`archived`), `git_commit`, `aether_vault_commit`, artifact paths/hashes, training/validation/backtest windows, and metrics; a partial unique index enforces exactly one `active` model at the DB level
+- `retraining_events` tracks `retraining_id`, `source_trigger_id`, `status` (`planned`/`running`/`validated`/`rejected`/`promoted`/`failed`), `reason`, `candidate_version_id`, metrics, and notes — the full audit trail per retraining attempt
+- Promotion deliberately copies more files than named in the original spec (`model_weights.json`, `scaler.pkl`, `training_metrics.json`): also `feature_schema.json` and `scaler_stats.json`, because `main.py`'s `_validate_runtime_artifacts()` strictly needs exactly these two as well — without them a promotion would silently break the Lean loader
+- Promotion hard-requires an existing `aether_vault_commit` (`phase_v2.retraining.promotion.require_vault_commit`) — without a successful Aether-Vault commit, there is no promotion
+- Rollback verifies SHA-256 hashes against `model_versions.artifact_hashes` before activating any file; if local `ml/versions/<id>/` files are missing, it falls back to `av checkout <commit>` before retrying the restore
+- Aether-Vault (`C:\Users\Blackhead\Desktop\aether-vault`, a separate sibling project) is invoked exclusively as an external `av` subprocess — its source is never read or imported anywhere; `run_av_command()` always catches a missing `av` binary/timeout and marks the `retraining_event` as `failed`, without crashing the pipeline
+- `RetrainingWorker` is deliberately **not** an unconditionally auto-promoting daemon: `phase_v2.retraining.worker.auto_promote` defaults to `false`, so the worker stops after a successful vault commit (`status=validated`), and the actual model takeover remains a manual `python -m retraining.orchestrator promote --version-id <id>` — "no uncontrolled live learning" is thus preserved even with the worker running
+- New service `retraining-worker` in `docker-compose.yml`; unlike `experience-worker`/`performance-trigger-worker`'s minimal images, this worker needs the full training stack (`torch`, `pandas`, `scikit-learn`, `joblib`), because `orchestrator.py`'s `train()` step invokes `train.py` via subprocess — `Dockerfile.retraining_worker` accordingly also copies `experts/`, `regime/`, and `train.py`
+- Extends `config.json phase_v2.retraining` (cooldown, minimum observations, daily limit, validation/backtest gate thresholds, vault/promotion/worker configuration)
+- Extends `monitoring/api_server.py` with `/api/grafana/retraining-status`; `/api/state` merges `retraining_status.json` in server-side, because `main.py` (unlike with `performance_triggers`) can't provide an in-memory approximation — it never holds its own Postgres connection
+- Adds the webui panel `RetrainingStatusPanel.tsx` (active/candidate version, validation status, vault commit short hash, last trigger, rollback availability), placed directly below `PerformanceTriggersPanel`
+- Adds 90 new tests (150 → 244 total), one test file per source file per the existing convention
+
+## Phase V2-17.5 Result
+
+The non-deterministic topology & retrain-trigger upgrade additionally does the following:
+
+- Safety rule first: "non-deterministic" means probabilistic scoring (confidence/uncertainty), not random trades — every order still passes unchanged through the risk engine, liquidity engine, order gate, Observation Mode, and the V2-17 gates; `analyzer/market_analyzer.py` is **not** touched and continues to read only `topology_risk`/`state` from the deterministic layer
+- Adds `topology/learned_topology.py`: pure Python (no numpy/sklearn at runtime, like `market_topology.py`/`regime/`/`liquidity/`); `apply_learned_topology(...)` overlays a probabilistic layer on top of the existing deterministic topology — never a replacement. Per node: `cluster_probs` (softmax over distances to trained prototypes), `topology_confidence`, `topology_uncertainty` (normalized entropy), `stress_score` (novelty signal), `neighbor_shift_score` (Jaccard drift of the learned neighbor set), `topology_disagreement`, bounded x/y/z offsets (never a full replacement embedding), and `topology_source` (`deterministic`/`learned`/`hybrid`/`fallback`). Falls back to the deterministic position per node (and, in the worst case, entirely) whenever the model is missing or not confident enough — never a crash
+- New root script `train_topology.py` (numpy/scikit-learn allowed, never runs inside the Lean container): reads `experience_events` via the reused `performance.postgres_triggers.fetch_recent_events()`, derives a `win`/`loss`/`neutral` outcome label per ticker from `portfolio.last_realized_pnl` (backfilling the open-trade span retroactively), builds feature vectors, and fits `sklearn.cluster.KMeans` prototypes over z-scored features. Writes `topology_model.json`/`topology_training_metrics.json`/`topology_feature_schema.json` exclusively to `ml/versions/<version_id>/`; exits 0 (skipped, not an error) when there isn't enough training data
+- `retraining/orchestrator.py` gets `train_topology()`: a second, independently-failable subprocess between `train` and `validate` — a failure is logged as a note on `retraining_events` and **never** rejects the candidate. `retraining/artifacts.py` gets `OPTIONAL_TOPOLOGY_FILES` (deliberately **not** in `REQUIRED_CANDIDATE_FILES`, so `validate()` never rejects for missing topology artifacts), but included in `ACTIVE_ARTIFACT_FILES`/`ALL_TRACKED_FILES` — the whole `ml/versions/<id>/` folder is already committed via `av add`, so topology artifacts are picked up automatically. `RetrainingWorker` calls `train_topology()` at the same spot; `auto_promote` remains `false` by default
+- `performance/triggers.py` gets 5 new triggers: `topology_uncertainty_trigger`, `topology_regime_mismatch_trigger`, `cluster_drift_trigger`, `model_topology_disagreement_trigger` (all persistence-guarded: a window average **and** a minimum fraction of individually-breaching bars, so a single outlier never fires) plus `trigger_frequency_spike` (a meta-trigger over trigger *rows*, not events — a rate increase against its own baseline). `evaluate_all_triggers()` gets an optional `recent_triggers` argument, backward-compatible
+- Fixes the V2-16 limitation: `performance/trigger_worker.py`'s `run_once()` still only advances the watermark over the incremental batch (cheap idle polls), but now evaluates triggers over a real rolling window from `fetch_recent_events()` — the last `rolling_window_events` observations, bounded to `rolling_window_days` days or since the last retraining (`fetch_last_retraining_at()`), whichever is more recent
+- `retraining/planning.py::select_candidate_trigger()` now picks by priority score instead of just timestamp: severity + trigger-type weight + a bonus when a regime shift and a topology trigger co-occur (only for these types, not for unrelated candidates) + a capped repetition bonus. A single weak topology event doesn't even reach this selection stage — the persistence guards in `performance/triggers.py` already handle that
+- Extends `config.json` with `phase_v2.topology_learning` (model thresholds plus a `training` sub-block), new thresholds/window sizes in `phase_v2.performance_triggers`, `phase_v2.retraining.topology_training`, and the three new filenames in `phase_v2.retraining.promotion.active_artifact_files`
+- `main.py` loads `ml/topology_model.json`/`ml/topology_feature_schema.json` optionally (missing file ⇒ `None`, no hard failure, like the MoE expert exports) and calls `apply_learned_topology()` after the existing `build_market_topology()` call; liquidity/regime-risk-score inputs are necessarily one bar lagged (the same existing limitation as `latest_regime_by_symbol`)
+- Webui: `state.ts` gets the new topology fields, `TopologyScene3D.tsx` shows `topology_source`/`topology_confidence` in the tooltip and slightly dims fallback nodes, a new panel `TopologyLearningPanel.tsx` (deterministic/learned/hybrid/fallback badge, aggregated confidence/uncertainty/stress/mismatch statistics) on the topology page
+- `Dockerfile.retraining_worker` additionally copies `topology/` and `train_topology.py` — `requirements-retraining-worker.txt` already had numpy/scikit-learn/psycopg since V2-17, no new dependencies needed
+- Adds 69 new tests (244 → 313 total): `tests/test_learned_topology.py` (18), extensions to `tests/test_triggers.py`/`test_trigger_worker.py`/`test_postgres_triggers.py`, `tests/test_retraining_planning.py`, `tests/test_train_topology.py` (10, new), `tests/test_retraining_artifacts.py`, `tests/test_retraining_orchestrator.py`, `tests/test_retraining_worker.py`
+- Along the way: Docker host ports remapped so a local Aether Quant stack never collides with the separate Aether-Vault compose stack (which independently binds host 8000/3000/5432/6379) — `aether-quant` 8000→8001, Redis 6379→6380, PostgreSQL 5432→5433, the local Vite dev server 3000→3002, Grafana stays at 3001; the local, non-containerized `uvicorn` also moves to 8001
+
+## Phase V2-18 Result
+
+Grafana removed, native React tracing dashboard:
+
+- Grafana's only job was displaying exports already served as JSON/CSV via `monitoring/api_server.py`'s `/api/grafana/*` routes (`equity_curves.csv`, `asset_performance.csv`, `observation_equity_curve.csv`, `runtime_metrics_snapshot.json`) — no computation path of its own, so no backend change was needed, just a new consumer
+- `docker-compose.yml`: the `grafana` service, `grafana-data` volume, and `AETHER_GRAFANA_URL` env on the `lean` service removed; the stack now consists of Redis, PostgreSQL, `aether-quant`, and the three workers
+- New webui page `TracingPage.tsx` under `/tracing` (nav entry in `AppShell.tsx`) with four panels under `src/components/tracing/`: `MetricsSnapshotPanel.tsx` (stat tiles from the runtime metrics snapshot), `AssetPerformancePanel.tsx` (diverging Sharpe bars per ticker, blue/red by sign, plus a table view), `BacktestEquityPanel.tsx` (ticker dropdown, strategy vs. buy-and-hold cumulative return line chart), and `ObservationEquityPanel.tsx` (simulated equity/cash line chart plus a drawdown chart, downsampled client-side to ~400 points against the several thousand bars of the Observation Mode export)
+- Two new, dependency-free SVG chart primitives instead of a charting library: `LineChart.tsx` (crosshair+tooltip, a legend from two series on, subtle gridlines, never two Y axes) and `DivergingBarChart.tsx`, both reused by several panels
+- `src/api/client.ts`/`hooks.ts` get `fetchMetricsSnapshot`/`fetchEquityCurves`/`fetchAssetPerformance`/`fetchObservationEquityCurve` and matching `useX()` hooks (15s refresh, called only from the tracing page itself, not globally like `useRuntimeState()`); new types in `src/types/tracing.ts`
+- Deliberately NOT renamed: the `visualization/grafana/` folder, `retraining/status_export.py`, `performance/postgres_triggers.py`, and the `/api/grafana/*` route names — only the consumer changed; a rename would have been pure renaming risk with no user value
+- Docs updated: `README.md`, `development/v2_architecture.md` (including a new "Remove Grafana, React Tracing Dashboard (V2-18)" section and an updated port table without the Grafana row), `webui/README.md`
+
+## Phase V2-19 Result
+
+Telegram Alerts additionally does the following:
+
+- Adds the new, Lean-free package `notifications/`, using the same pure/IO/worker split as `performance/` (V2-16) and `retraining/` (V2-17): `telegram_alerts.py` (pure — `should_alert_trigger()`, `format_trigger_alert()`, `format_session_summary_alert()`, only renders already-computed fields, computes nothing new), `postgres_telegram.py` (embedded DDL for `telegram_alert_watermark`, one row per channel `"triggers"`/`"session_summary"`, plus `fetch_session_summaries_since()` as a defensive, never-raising read on `experience_events`), `telegram_client.py` (injectable Telegram Bot API wrapper, `send_message()` never raises, deferred `import requests`), `telegram_worker.py` (`TelegramWorker`, `python -m notifications.telegram_worker [--once]`)
+- **Trigger channel**: polls the already continuously running `performance_triggers` table (V2-16) directly via `performance.postgres_triggers.fetch_triggers_since()` — no trigger detection of its own. Since every trigger type (not just `drawdown_trigger`) is reported from `phase_v2.telegram.min_severity_for_trigger_alert` up, risk-lock activation, regime shifts, liquidity rejections, Sharpe/win-rate/confidence degradation, and all five topology triggers come along with no extra instrumentation
+- **Session summary channel**: `main.py` gets three additive changes — `self._session_events: list[dict]` collects the running session's events (alongside `self._observation_event_log`); in the existing session-rollover branch of `_refresh_risk_state()` (the date-change check that already resets `session_start_equity`), a new `experience.redis_queue.build_session_summary_event()` event (`event_type="session_summary"`) is now pushed **before** the reset, guarded against the very first bar, via the existing `ExperienceQueue` — the same Redis→`experience-worker`→Postgres pipeline as every other event, no new transport needed
+- `build_session_summary_event()` (`experience/redis_queue.py`, exported from `experience/__init__.py`) itself only computes `session_return`; every other statistic comes unchanged from the already-existing `experience.observation_metrics.compute_observation_summary()`
+- **Necessary, non-additive fix**: `experience/postgres_worker.py::event_to_row()` previously indexed `event["ticker"]`/`["symbol"]`/`["signal"]`/`["action"]` directly. A `session_summary` event has none of these fields (portfolio-level, not asset-level) — without the fix, a `KeyError` would have been raised, the event silently routed to the dead-letter stream, and `fetch_session_summaries_since()` would have returned `[]` forever, with no visible error anywhere. Fix: `.get(key, "")` defaults (backward-compatible, since `experience_events` columns are `VARCHAR NOT NULL` with no unique constraint), `action` falls back to `event_type`
+- `Dockerfile.telegram_worker` copies `execution/`, `experience/`, `performance/`, `notifications/` — `execution/` is needed because importing `performance.postgres_triggers` transitively initializes `performance/__init__.py` → `.triggers` → `experience.observation_metrics` → (via `experience/__init__.py`) `.simulated_portfolio` → `execution.order_gate`; the same lesson as `development/Problems.md` #1/#2, applied proactively here instead of discovered after a broken build. `requirements-telegram-worker.txt` includes `numpy` for the same reason
+- New service `telegram-worker` in `docker-compose.yml`, depends only on `postgres` (no Redis — the worker never touches the experience stream); new `.env.compose.example` (the `.gitignore` exception for it already existed, the file itself did not) documents `AETHER_TELEGRAM_BOT_TOKEN`/`AETHER_TELEGRAM_CHAT_ID`
+- Extends `config.json phase_v2.telegram` (`enabled`, `min_severity_for_trigger_alert`, `session_summary_enabled`, `worker.{poll_interval_seconds,batch_size,backoff_max}`)
+- Adds 24 new tests (Telegram part) plus 7 extensions to existing test files: `tests/test_telegram_alerts.py` (4), `tests/test_postgres_telegram.py` (7), `tests/test_telegram_client.py` (7), `tests/test_telegram_worker.py` (6), extending `tests/test_experience_queue.py` (5, `build_session_summary_event`) and `tests/test_postgres_worker.py` (2, `event_to_row` with `session_summary` events) — together with V2-19.5's 20 new tests: 313 → 364 total
+- `tests/README.md`'s test count had already been stale since V2-17.5/V2-18 ("244 tests as of V2-17", actually 313) — corrected in this pass
+- Stopping point: no more retry/backoff than necessary for the actual Telegram API call, no webui panel for alert history — both deliberately out of scope for V2-19
+
+## Phase V2-19.5 Result
+
+Yahoo Finance Historical Data Backfill (a supplementary request alongside V2-19, not an item in the original numbered plan) now does the following:
+
+- Adds `data_pipeline/yfinance_backfill.py` as a **manual offline script** — never runs from `train.py`/`main.py`/a Docker worker, no network access during training or a backtest (same status as `train_topology.py`: "never runs inside the Lean container")
+- Fills gaps in thin local Lean zips, most notably `ETHUSD`/`LTCUSD` (only a few scattered days of real Coinbase minute data, see `train.py::ensure_derived_crypto_daily_series()` and the Phase 9 entry above) — hence `observation_only` so far under `train.py::build_asset_quality()`'s row thresholds
+- New, optional `"backfill"` sub-block per asset in `config.json phase1.universe.assets[]` (`source`, `symbol`, `backfill_from`, `backfill_to`) — deliberately a new key instead of reusing `aggregation: "daily_from_minute_trade"`, since that value already triggers `train.py`'s own Coinbase aggregation on every run, and this path must stay manual
+- Pure functions (`yahoo_symbol_for`, `detect_gap`, `scale_for_lean`, `rows_to_lean_csv`, `write_lean_zip`) mirror `train.py::ensure_derived_crypto_daily_series()`'s exact Lean zip write pattern (`ZipFile(path, "w")`, member name `f"{ticker.lower()}.csv"`, row format `f"{date:%Y%m%d} 00:00,{o},{h},{l},{c},{v}"`), with one addition: `scale_for_lean()` applies the x10000 integer convention for equities (Yahoo returns real dollar floats), crypto stays unscaled
+- `fetch_yahoo_ohlcv()` is the only function that imports `yfinance`, deferred inside the function (mirroring `experience/redis_queue.py`'s deferred `import redis`) — importing `data_pipeline` never requires `yfinance`
+- Two independent safety limits, both with an explicit manual step: (1) writing/merging zip files only with `--apply` (default: dry run, report only); (2) `config.json`'s `available_from`/`available_to` are **never** changed automatically, even with `--apply` — `train.py::build_asset_quality()` only counts rows inside the configured windows, so the script only prints the suggested new values to the console
+- `write_lean_zip()`'s merge always lets existing real Lean rows win on overlapping dates; Yahoo data only fills genuine gaps
+- `yfinance` is a pure dev dependency (`requirements/requirements-dev.txt`), never in `requirements.txt`/`requirements-runtime.txt`
+- Adds `tests/test_yfinance_backfill.py` with 20 tests (all using an injected `fetch_fn` stub — `yfinance` is never imported anywhere in the test file)
+- Stopping point: no automatic follow-up of `available_from`/`available_to`, no Docker worker — deliberately a manual offline script, same status as `train_topology.py`
+
+## Phase V2-23.1 Result
+
+Data-Driven Liquidity Threshold Calibration — closed, but differently than originally planned:
+
+- The original plan was to calibrate `spread_proxy` from real historical fill/slippage data once the experience pipeline (V2-13/14) had accumulated enough history. A deeper look during this session found that this premise had no data to stand on — Lean backtests never set a `SlippageModel` (only an `InteractiveBrokersFeeModel`, which is a transaction fee, not price-impact slippage), and `experience/simulated_portfolio.py`'s `enter_long()` always calls `execution.order_gate.simulate_fill(...)` with the default `slippage_bps=0.0` — so no realized spread/slippage observation had ever been logged anywhere to calibrate from
+- Instead of building new fill-telemetry infrastructure as a prerequisite, the **Corwin & Schultz (2012) high-low spread estimator** was implemented instead: a published, closed-form formula that estimates the bid-ask spread purely from consecutive daily high/low ranges — data already collected every bar in `main.py::self.symbol_windows`
+- `liquidity/market_liquidity.py::estimate_high_low_spread(highs, lows)` (pure, no I/O): computes an estimate per consecutive 2-bar window using the Corwin-Schultz formula (`beta`, `gamma`, `alpha`, then `spread = 2*(e^alpha-1)/(1+e^alpha)`), clips negative single-window estimates to `0.0` (a known, documented artifact of the method at low volatility, not a bug), and averages across all windows; returns `None` with fewer than 2 valid bars
+- `build_liquidity_decision(...)` gets a new optional `dynamic_spread` parameter — replaces `TYPICAL_SPREAD_BY_TYPE.get(security_type, ...)` as the primary path; the static lookup table remains only as a fallback for the first bars of a run (`phase_v2.liquidity.spread_estimation.min_bars`, default 2) or if the estimator can't produce a valid value
+- `main.py` reads `highs`/`lows` from `self.symbol_windows[symbol]` at the liquidity call site (already populated every bar, no new state management needed) and passes the result as `dynamic_spread`
+- Extends `config.json phase_v2.liquidity.spread_estimation` (`enabled`, `min_bars`)
+- Adds 10 new tests to `tests/test_market_liquidity.py`: an independently recomputed reference calculation, zero spread on flat prices, monotonicity (narrower range → smaller spread), averaging across multiple windows, `None` with too few/inconsistent bars, skipping invalid windows, and `dynamic_spread` override/fallback behavior in `build_liquidity_decision`
+- Stopping point: no fallback to real fill-data calibration — that would first require introducing a `SlippageModel`/real fill telemetry, which is deliberately out of scope for this phase
+
+## Phase V2-23.2 Result
+
+Static config wiring + a dead `average_correlation` feature (supplementary, found during a static-vs-dynamic architecture audit this session):
+
+- `config.json` gets three previously missing `phase_v2` blocks (`dynamic_risk`, `regime_detection`, `gating_network`) that `main.py` has already been reading since V2-3/V2-6/V2-9 (`self.phase_v2.get("dynamic_risk", {})` etc.) — without these blocks, every single value (target volatility, regime thresholds, gating baseline weight) silently and permanently fell back to the Python-hardcoded default, without ever actually being configurable. Purely additive: the new values match the previous defaults exactly, no behavior change
+- `regime/market_regime.py::build_market_regime_vector()`'s `average_correlation` parameter has existed since V2-6, but was never fed a real value — `main.py` always called `_build_regime_payload()` without this parameter, so the correlation-driven risk_off branch in `classify_risk_regime()` was practically unreachable. Fix: `main.py::_build_regime_payload()` gets a new `average_correlation` parameter, filled at the call site with `topology_payload["correlation_strength"]` — the mean peer correlation within its own cluster, already computed per asset by `topology/market_topology.py`, available because `_build_topology_payload()` already runs once per bar before the per-asset loop. No change needed in `regime/market_regime.py` or `topology/market_topology.py` themselves — purely `main.py` wiring of an already-real value into an already-real parameter
+- Adds 1 new test to `tests/test_market_regime.py`: confirms `average_correlation` is passed through and actually affects `risk_score`/`reasons`
+- Stopping point: `main.py` deliberately still has no unit tests of its own (importing it requires `AlgorithmImports`/Lean) — the wiring is tested up to the `main.py` boundary, not end-to-end in Lean
+
+## Phase V2-23.3 Result
+
+Real topology embedding (supplementary, same audit):
+
+- `topology/market_topology.py`'s previous 3D coordinate placement was purely cosmetic: cluster centroids were placed via `index -> angle` on a fixed ellipse, and members within a cluster likewise via `member_index -> angle` — only the radius was data-driven (market distance), never the direction. Two strongly correlated clusters could end up on opposite sides of the scene
+- Replaced with `_stress_majorize_2d(...)`: SMACOF (Scaling by MAjorizing a COmplicated Function), an iterative stress-majorization algorithm (the classical Guttman transform) that runs over the full pairwise correlation-distance matrix of all eligible symbols (not just within a cluster) — spatial position now actually reflects correlation distance, not just cluster membership
+- SMACOF was deliberately chosen over classical MDS: no eigendecomposition needed (just a weighted position average per iteration), so it stays pure Python with no numpy/scipy — the same reasoning that already keeps `topology/learned_topology.py` numpy-free
+- Deterministically seeded from the previous cosmetic layout (not randomly) — `test_stable_coordinates_are_deterministic` keeps passing unchanged
+- `_rescale_positions_to_bounds(...)` scales the result isometrically (a single scale factor, not independent per-axis stretching, which would distort the very distances being preserved) back into the existing `NEUTRAL_DIMENSIONS` `[0,100]x[0,100]` bounds — `webui/src/components/topology/TopologyScene3D.tsx` needed no change, since it already normalizes via `topology.dimensions`
+- The z-axis (volatility encoding) stays unchanged — deliberately a separate, meaningful encoding, not part of the spatial embedding
+- `build_market_topology(...)` gets a new `embedding_iterations` parameter (default 100), `config.json phase_v2.topology.embedding_iterations` added, `main.py` passes it through
+- Adds 3 new tests to `tests/test_market_topology.py`: correlated assets are now spatially closer than uncorrelated ones (a stronger claim than the previous pure cluster-ID comparison), coordinates stay within bounds, `embedding_iterations` actually affects the layout (not an ignored config value)
+- Stopping point: no 3D embedding (z stays a volatility encoding, not part of distance preservation) — deliberate, since z already carries an established, separate meaning
 
 ## Test Suite
 
-313 → 378 Tests gesamt nach diesem Audit-getriebenen Durchlauf (14 neu: 10 Liquidity, 1 Regime, 3 Topology). `tests/README.md` aktualisiert.
+313 → 378 tests total after this audit-driven pass (14 new: 10 liquidity, 1 regime, 3 topology). `tests/README.md` updated.
 
-## Phase-V2-20-Ergebnis
+## Phase V2-20 Result
 
-Lean Backtesting Integration macht jetzt zusaetzlich Folgendes:
+Lean Backtesting Integration additionally does the following:
 
-- beantwortet die offene Frage, ob ein normaler `lean backtest .`-Lauf bereits
-  das gesamte ML-System durchlaeuft (Basismodell, alle 4 Experten, MoE-Gating,
-  Regime, Topologie), mit **Ja** — durch Nachverfolgung von `main.py::on_data`:
-  `_run_model` (Basismodell), `_run_expert_models` (alle 4 Experten ueber
-  denselben `_run_exported_model`-Interpreter), `build_gating_decision`
-  (MoE-Gating), `_build_topology_payload` (deterministische + gelernte
-  Topologie, einmal pro Bar vor der Symbol-Schleife) und
-  `build_market_regime_vector` (Regime) laufen alle unveraendert seit
-  V2-9/V2-11/V2-12 pro Bar und pro Symbol — V2-20 hat daher keine
-  Laufzeit-Logik umgebaut, sondern die bestehende Abdeckung nachgewiesen
-- fuegt `tests/test_lean_backtest_ml_coverage.py` hinzu: ein echter
-  Integrationstest, der `lean backtest .` per Subprocess ausfuehrt und danach
-  `visualization/state.json` darauf prueft, dass mindestens ein voll
-  ausgewertetes Signal alle 4 Expertennamen in `expert_probabilities`, 4
-  gewichtete Eintraege in `moe_gating.weights`, ein gesetztes
-  `regime.trend_regime` und ein gesetztes `liquidity.liquidity_risk` zeigt,
-  sowie dass `state["topology"]["nodes"]` nicht leer ist — schliesst damit die
-  in `development/Problems.md` #8 dokumentierte Luecke, dass `main.py` bisher
-  keine eigenen Tests hatte
-- der neue Test uebernimmt `retraining/lean_backtest.py`s Konvention
-  (optionale Abhaengigkeit, Skip statt Fail, wenn Lean-CLI fehlt), ergaenzt
-  aber eine Absicherung: auf Maschinen mit installiertem `elan` (Lean 4, der
-  Theorembeweiser) zeigt ein blosses `lean` auf `PATH` auf das **falsche**
-  Programm (Namenskollision); `_find_quantconnect_lean_binary()` prueft die
-  `--version`-Ausgabe und bevorzugt das Projekt-eigene `.venv/Scripts/lean.exe`,
-  damit der Test sauber uebersprungen statt mit einer verwirrenden Fehlermeldung
-  abgebrochen wird
-- fuegt die neue Webui-Seite `/neural-network` hinzu (Nav-Eintrag zwischen
-  Topology und Tracing): eine interaktive 3D-Ansicht aller 5 real trainierten
-  neuronalen Netze (Basismodell + 4 Experten) nebeneinander in einer
-  gemeinsamen Kamera/Orbit-Szene, plus eine live aktualisierte Statistik-Box
-  (Layer/Node/Edge-Anzahl je Netz, Quality-Status, letzte Aenderung) — siehe
-  Neural Network Visualization Contract (V2-20) in `v2_architecture.md` fuer
-  das vollstaendige Datenschema und die bewusst ausgeschlossenen Nicht-Netze
-  (MoE-Gating, gelernte Topologie-Prototypen)
-- neues Backend-Modul `monitoring/neural_network_state.py`
-  (`build_neural_network_state()`, reine Funktion) und neue Route
-  `GET /api/neural-network`, beide nach demselben Read-only-Reshape-Muster
-  wie `/api/topology`
+- Answers the open question of whether a normal `lean backtest .` run already
+  exercises the entire ML system (baseline model, all 4 experts, MoE gating,
+  regime, topology) with **yes** — by tracing `main.py::on_data`:
+  `_run_model` (baseline model), `_run_expert_models` (all 4 experts through
+  the same `_run_exported_model` interpreter), `build_gating_decision`
+  (MoE gating), `_build_topology_payload` (deterministic + learned
+  topology, once per bar before the symbol loop), and
+  `build_market_regime_vector` (regime) all run unchanged since
+  V2-9/V2-11/V2-12 per bar and per symbol — V2-20 therefore didn't rebuild
+  any runtime logic, it proved the existing coverage
+- Adds `tests/test_lean_backtest_ml_coverage.py`: a real
+  integration test that runs `lean backtest .` via subprocess and then
+  checks `visualization/state.json` to confirm that at least one fully
+  evaluated signal shows all 4 expert names in `expert_probabilities`, 4
+  weighted entries in `moe_gating.weights`, a populated
+  `regime.trend_regime`, and a populated `liquidity.liquidity_risk`,
+  and that `state["topology"]["nodes"]` isn't empty — closing the
+  gap documented in `development/Problems.md` #8, that `main.py` had no
+  tests of its own until now
+- The new test adopts `retraining/lean_backtest.py`'s convention
+  (optional dependency, skip instead of fail if the Lean CLI is missing), but
+  adds a safeguard: on machines with `elan` installed (Lean 4, the
+  theorem prover), a bare `lean` on `PATH` points to the **wrong**
+  program (a name collision); `_find_quantconnect_lean_binary()` checks the
+  `--version` output and prefers the project's own `.venv/Scripts/lean.exe`,
+  so the test is cleanly skipped instead of failing with a confusing error
+  message
+- Adds the new webui page `/neural-network` (nav entry between
+  Topology and Tracing): an interactive 3D view of all 5 actually trained
+  neural networks (baseline model + 4 experts) side by side in a
+  shared camera/orbit scene, plus a live-updated statistics box
+  (layer/node/edge count per network, quality status, last change) — see
+  the Neural Network Visualization Contract (V2-20) in `v2_architecture.md` for
+  the full data schema and the deliberately excluded non-networks
+  (MoE gating, learned topology prototypes)
+- New backend module `monitoring/neural_network_state.py`
+  (`build_neural_network_state()`, pure function) and a new route
+  `GET /api/neural-network`, both following the same read-only reshape pattern
+  as `/api/topology`
 
-## Phase-V2-21-Ergebnis
+## Phase V2-21 Result
 
-Paper Trading Vorbereitung — schliesst die Luecke, dass `broker_config_present`
-bisher ein No-op war (`bool(self.paper_brokerage)`, ein String, der per
-Default nie leer ist), ohne echtes IBKR-Paper-Konto anzulegen:
+Paper Trading Preparation — closes the gap where `broker_config_present`
+was previously a no-op (`bool(self.paper_brokerage)`, a string that is
+never empty by default), without setting up a real IBKR paper account:
 
-- neues, reines Modul `execution/paper_readiness.py`: `evaluate_paper_broker_config()`
-  verlangt drei Bestaetigungen (`brokerage` gesetzt, `live_data_provider_configured`,
-  `manual_review_confirmed` — letzteres ersetzt den alten toten
-  `phase6.paper_trading.ready_for_live_paper`-Stub) und
-  `evaluate_observation_readiness()` uebersetzt 4 der 5 Punkte aus
-  `development/infrastructure.md`s "Bereit fuer Paper Trading?"-Checkliste in
-  Code (Mindest-Beobachtungszahl, `simulated_sharpe`-Untergrenze,
-  `simulated_max_drawdown`-Untergrenze, kein dominanter `rejected_by_reason`)
-  — der 5. Punkt (manuelle Durchsicht der Trade-Historie) bleibt bewusst eine
-  menschliche Entscheidung
-- Zielarchitektur ist Lean's eingebaute `PaperBrokerage` (`lean.json`s bereits
-  vorhandenes `live-paper`-Environment, keine echten Broker-Credentials
-  noetig) statt eines echten IBKR-Paper-Kontos — Nutzerentscheidung fuer diese
-  Phase
-- `execution/paper_readiness_io.py` (IO): `read_paper_trading_config()` liest
-  `phase_v2.paper_trading` frisch von der Platte (gleiches Muster wie
-  `risk/manual_override.py`); `fetch_observation_mode_events()` ist die erste
-  `mode='observation'`-gefilterte Experience-Events-Query (die bestehenden
-  `fetch_recent_events()`/`fetch_events_since()` filtern nicht nach `mode`)
-- neues Offline-Report-Modul `execution/paper_readiness_report.py`
-  (`build_paper_readiness_view()`, Muster identisch zu
-  `retraining/status_export.py`): schreibt
-  `visualization/grafana/paper_readiness_report.json`; neuer CLI-Befehl
-  `aq paper-readiness` (`aq_cli.py`) als menschlich ausgeloestes Gate vor dem
-  Umschalten von `phase_v2.runtime.mode` auf `"paper"`
-- `main.py`: `phase6.paper_trading` komplett entfernt (`self.paper_brokerage`/
-  `self.ready_for_live_paper` waren nur ein No-op); neue
-  `self.phase_v2_paper_trading`, neue `_recompute_broker_config()`-Methode
-  (aufgerufen einmal in `initialize()` und einmal pro Session-Rollover in
-  `_refresh_risk_state()`, gleiches "frisch von der Platte, kein Neustart
-  noetig"-Prinzip wie beim Manual-Trade-Lock-Override), `_order_permission()`
-  liest jetzt `self._broker_config_present` statt des alten No-op-Checks
-- `monitoring/api_server.py`: `paper_readiness_report.json` wird sowohl in
-  `/api/state` (unter `state["paper_readiness"]`, gleiches Muster wie
-  `retraining_status`) als auch als eigene Route
-  `GET /api/grafana/paper-readiness` bereitgestellt
-- neues Webui-Panel `PaperReadinessPanel.tsx` (gleiche Struktur wie
-  `RetrainingStatusPanel.tsx`), in `Overview.tsx` neben dem Retraining-Status-
-  Panel platziert; neuer `PaperReadiness`-Typ in `types/state.ts`
-- neuer Docker-Compose-Service `lean-live` (Profil `lean-live`, nie Teil von
-  `--all`/`--lean`): laesst `lean live deploy . --environment
-  ${LEAN_LIVE_ENVIRONMENT:-live-paper}` dauerhaft laufen (`restart:
-  unless-stopped`), im Unterschied zum bestehenden `lean`-Service, der nur
-  `sleep infinity` fuer Ad-hoc-`lean backtest .`-Laeufe bereitstellt
-- `config.json` bekommt `phase_v2.paper_trading` (Default: alles blockierend,
-  `live_data_provider_configured`/`manual_review_confirmed` beide `false`)
-- neue Tests: `tests/test_paper_readiness.py`, `tests/test_paper_readiness_io.py`,
+- New, pure module `execution/paper_readiness.py`: `evaluate_paper_broker_config()`
+  requires three confirmations (`brokerage` set, `live_data_provider_configured`,
+  `manual_review_confirmed` — the latter replaces the old dead
+  `phase6.paper_trading.ready_for_live_paper` stub), and
+  `evaluate_observation_readiness()` translates 4 of the 5 items from
+  `development/infrastructure.md`'s "Ready for Paper Trading?" checklist into
+  code (minimum observation count, `simulated_sharpe` floor,
+  `simulated_max_drawdown` floor, no dominant `rejected_by_reason`)
+  — the 5th item (manual review of trade history) deliberately remains a
+  human decision
+- The target architecture is Lean's built-in `PaperBrokerage` (`lean.json`'s already
+  existing `live-paper` environment, no real broker credentials
+  needed) instead of a real IBKR paper account — a user decision for this
+  phase
+- `execution/paper_readiness_io.py` (IO): `read_paper_trading_config()` reads
+  `phase_v2.paper_trading` fresh from disk (same pattern as
+  `risk/manual_override.py`); `fetch_observation_mode_events()` is the first
+  `mode='observation'`-filtered experience-events query (the existing
+  `fetch_recent_events()`/`fetch_events_since()` don't filter by `mode`)
+- New offline report module `execution/paper_readiness_report.py`
+  (`build_paper_readiness_view()`, the same pattern as
+  `retraining/status_export.py`): writes
+  `visualization/grafana/paper_readiness_report.json`; new CLI command
+  `aq paper-readiness` (`aq_cli.py`) as a human-triggered gate before
+  switching `phase_v2.runtime.mode` to `"paper"`
+- `main.py`: `phase6.paper_trading` removed entirely (`self.paper_brokerage`/
+  `self.ready_for_live_paper` were only a no-op); new
+  `self.phase_v2_paper_trading`, a new `_recompute_broker_config()` method
+  (called once in `initialize()` and once per session rollover in
+  `_refresh_risk_state()`, the same "fresh from disk, no restart
+  needed" principle as the manual trade-lock override), `_order_permission()`
+  now reads `self._broker_config_present` instead of the old no-op check
+- `monitoring/api_server.py`: `paper_readiness_report.json` is served both in
+  `/api/state` (under `state["paper_readiness"]`, same pattern as
+  `retraining_status`) and as its own route,
+  `GET /api/grafana/paper-readiness`
+- New webui panel `PaperReadinessPanel.tsx` (same structure as
+  `RetrainingStatusPanel.tsx`), placed next to the Retraining Status
+  panel in `Overview.tsx`; new `PaperReadiness` type in `types/state.ts`
+- New Docker Compose service `lean-live` (profile `lean-live`, never part of
+  `--all`/`--lean`): keeps `lean live deploy . --environment
+  ${LEAN_LIVE_ENVIRONMENT:-live-paper}` running continuously (`restart:
+  unless-stopped`), unlike the existing `lean` service, which only
+  provides `sleep infinity` for ad-hoc `lean backtest .` runs
+- `config.json` gets `phase_v2.paper_trading` (default: everything blocking,
+  `live_data_provider_configured`/`manual_review_confirmed` both `false`)
+- New tests: `tests/test_paper_readiness.py`, `tests/test_paper_readiness_io.py`,
   `tests/test_paper_readiness_report.py`, plus `test_paper_readiness_wraps_the_report_module`
   in `tests/test_aq_cli.py`
-- Stop: kein echter Broker/keine echten Live-Marktdaten in dieser Session
-  konfiguriert oder getestet — `lean live deploy`s genaue CLI-Flags sind nicht
-  gegen eine installierte Lean-CLI verifiziert, das Runbook in
-  `development/infrastructure.md` weist explizit darauf hin, vor dem
-  produktiven Einsatz `lean live deploy --help` zu pruefen
+- Stopping point: no real broker/real live market data configured or tested
+  in this session — `lean live deploy`'s exact CLI flags aren't
+  verified against an installed Lean CLI; the runbook in
+  `development/infrastructure.md` explicitly points out to check
+  `lean live deploy --help` before production use
 
-## Phase-V2-22-Ergebnis
+## Phase V2-22 Result
 
-Live Deployment Struktur — rein strukturell: macht den spaeteren Wechsel von
-Paper zu echtem Live-Trading zu einer Config-/Credential-Aenderung, kein
-Code-Umbau. Keine echten Broker-Credentials oder Live-Trades in dieser Phase
-konfiguriert oder getestet.
+Live Deployment Structure — purely structural: turns the later switch from
+paper to real live trading into a config/credential change, not a code
+rewrite. No real broker credentials or live trades configured or tested
+in this phase.
 
-- neues Credential-Handling: `.env.live.example` (neue `.gitignore`-Ausnahme
-  `!.env.live.example`, analog zu `.env.compose.example`), reines
+- New credential handling: `.env.live.example` (new `.gitignore` exception
+  `!.env.live.example`, analogous to `.env.compose.example`), pure
   `execution/live_credentials.py` (`credentials_present()`,
-  `describe_missing_fields()`) und IO-Modul
-  `execution/live_credentials_io.py::load_live_credentials()` — versucht
-  zuerst `ib_config.py` (Repo-Root, gitignored, bisher nur geplant), faellt
-  sonst auf `AETHER_IB_*`-Umgebungsvariablen zurueck. Reine Preflight-
-  Validierung — verdrahtet Lean selbst nicht; Lean liest `ib-account`/
-  `ib-user-name`/`ib-password` weiterhin direkt aus `lean.json`, das bleibt
-  ein manueller Schritt (siehe neues Runbook unten)
-- `execution/paper_readiness.py` bekommt `evaluate_live_broker_config()`
-  (verlangt zusaetzlich zum bestandenen Paper-Check echte Credentials) und
-  `evaluate_live_risk_posture()` (Sicherheits-Deckel: `max_daily_drawdown_pct`/
-  `max_total_drawdown_pct` duerfen `phase_v2.live.max_allowed_*_drawdown_pct`
-  nicht ueberschreiten, `liquidate_on_risk_breach` muss `true` sein) — dieselbe
-  Entscheidungstabelle wie fuer `paper`, nur mit zusaetzlichen Bedingungen,
-  daher ein Beleg dafuer, dass der Wechsel paper->live tatsaechlich nur eine
-  Konfigurationsfrage ist
-- `main.py`: `self._live_credentials` wird einmal in `initialize()` geladen
-  (Umgebungsvariablen/`ib_config.py` aendern sich nicht waehrend eines Laufs,
-  anders als `config.json`); `_recompute_broker_config()` reicht
-  `credentials_present(...)` sowie den aktuellen Risk-/Live-Config-Zustand an
-  `evaluate_broker_config()` durch
-- `config.json` bekommt `phase_v2.live` (`max_allowed_daily_drawdown_pct: 0.05`,
+  `describe_missing_fields()`), and IO module
+  `execution/live_credentials_io.py::load_live_credentials()` — tries
+  `ib_config.py` first (repo root, gitignored, previously only planned), then
+  falls back to `AETHER_IB_*` environment variables. Pure preflight
+  validation — doesn't wire up Lean itself; Lean still reads `ib-account`/
+  `ib-user-name`/`ib-password` directly from `lean.json`, which remains
+  a manual step (see the new runbook below)
+- `execution/paper_readiness.py` gets `evaluate_live_broker_config()`
+  (requires real credentials in addition to a passed paper check) and
+  `evaluate_live_risk_posture()` (a safety ceiling: `max_daily_drawdown_pct`/
+  `max_total_drawdown_pct` must not exceed `phase_v2.live.max_allowed_*_drawdown_pct`,
+  `liquidate_on_risk_breach` must be `true`) — the same decision table as
+  for `paper`, just with additional conditions, thus evidence that the
+  paper→live switch is genuinely just a configuration question
+- `main.py`: `self._live_credentials` is loaded once in `initialize()`
+  (environment variables/`ib_config.py` don't change during a run, unlike
+  `config.json`); `_recompute_broker_config()` passes
+  `credentials_present(...)` and the current risk/live config state through to
+  `evaluate_broker_config()`
+- `config.json` gets `phase_v2.live` (`max_allowed_daily_drawdown_pct: 0.05`,
   `max_allowed_total_drawdown_pct: 0.15`)
-- Auto-Promote-Sicherheitsnetz: neues, winziges IO-Modul
-  `execution/runtime_config_io.py::read_runtime_mode()` (gleiches Muster wie
-  `risk/manual_override.py`); `retraining/worker.py::run_once()` erzwingt
-  manuelle Promotion (`auto_promote` wird fuer diesen Zyklus auf `False`
-  gesetzt, mit Warn-Log), sobald `phase_v2.runtime.mode == "live"` UND
-  `phase_v2.retraining.worker.auto_promote_blocked_in_live_mode` (Default
-  `true`) — volle Autonomie ist unproblematisch, solange noch kein echtes
-  Live-Trading existiert, aber ein Modellwechsel soll nie unbeaufsichtigt live
-  gehen, sobald echte Orders moeglich sind
-- neuer Trigger `live_order_permission_blocked_trigger` in
-  `performance/triggers.py`: feuert `critical`, wenn `mode == "live"`, aber
-  juengste `execution_note`s weiterhin `simulated_*` sind (Order-Gate
-  blockiert stillschweigend, was eine echte Order sein sollte — Hinweis auf
-  falsch konfigurierte Credentials/Flag/Risk-Lock). Bewusst **nicht**
-  retrain-faehig (`_NON_RETRAIN_TRIGGERS`) — ein neues Modell behebt keine
-  Broker-Fehlkonfiguration; `notifications/telegram_alerts.py` brauchte keine
-  Aenderung, da es Trigger bereits generisch formatiert
-- neue Tests: `tests/test_live_credentials.py`, `tests/test_live_credentials_io.py`,
-  `tests/test_runtime_config_io.py`, plus Erweiterungen in
-  `tests/test_retraining_worker.py` und `tests/test_triggers.py`
-- Stop: kein neues generisches "Watch-a-directory-and-auto-commit"-Feature
-  gebaut — der bestehende `retraining/worker.py`-Loop plus Aether-Vault-
-  Commit (`retraining/vault_client.py`) erfuellt das bereits; hier wurde nur
-  `phase_v2.retraining.worker.auto_promote` auf `true` gestellt (siehe
-  separater Abschnitt in `development/v2_architecture.md`s Controlled
+- Auto-promote safety net: new, tiny IO module
+  `execution/runtime_config_io.py::read_runtime_mode()` (same pattern as
+  `risk/manual_override.py`); `retraining/worker.py::run_once()` forces
+  manual promotion (`auto_promote` set to `False` for this cycle, with a
+  warning log) whenever `phase_v2.runtime.mode == "live"` AND
+  `phase_v2.retraining.worker.auto_promote_blocked_in_live_mode` (default
+  `true`) — full autonomy is fine as long as no real live trading exists yet,
+  but a model change should never go live unsupervised once real orders are
+  possible
+- New trigger `live_order_permission_blocked_trigger` in
+  `performance/triggers.py`: fires `critical` when `mode == "live"` but
+  recent `execution_note`s are still `simulated_*` (the order gate is
+  silently blocking what should be a real order — a sign of
+  misconfigured credentials/flag/risk lock). Deliberately **not**
+  retrain-eligible (`_NON_RETRAIN_TRIGGERS`) — a new model doesn't fix a
+  broker misconfiguration; `notifications/telegram_alerts.py` needed no
+  change, since it already formats triggers generically
+- New tests: `tests/test_live_credentials.py`, `tests/test_live_credentials_io.py`,
+  `tests/test_runtime_config_io.py`, plus extensions to
+  `tests/test_retraining_worker.py` and `tests/test_triggers.py`
+- Stopping point: no new generic "watch-a-directory-and-auto-commit"
+  feature built — the existing `retraining/worker.py` loop plus the
+  Aether-Vault commit (`retraining/vault_client.py`) already covers that;
+  here only `phase_v2.retraining.worker.auto_promote` was set to `true`
+  (see the separate section in `development/v2_architecture.md`'s Controlled
   Retraining Contract)
 
-## Latenz-Optimierung + Docker-Image-Konsolidierung
+## Latency Optimization + Docker Image Consolidation
 
-Ausgangspunkt: eine statische Komplexitaets-Analyse von `main.py`s
-Per-Bar-Hotpath fand drei echte Bugs (nicht nur langsamer Code, sondern
-Verhalten, das schlechter als linear mit der Backtest-Zeitspanne skaliert)
-sowie zwei echte CPU-Bottlenecks (ein reines-Python-Neural-Net-Forward-Pass,
-5x pro Symbol pro Bar, und eine reine-Python-O(N²×100-Iterationen)-
-Topologie-Einbettung, 1x pro Bar). Parallel dazu: Konsolidierung der
-Docker-Images von 5 auf 3 als Vorarbeit fuer eine spaetere, latenz-
-optimierte Systemvariante — **das macht dieses System nicht zu einem
-HFT-System** (dafuer waere eine komplett andere Daten-/Execution-Architektur
-noetig), es macht nur das bestehende Daily-Bar-System schneller und das
-Docker-Layout aufgeraeumter.
+Starting point: a static complexity analysis of `main.py`'s per-bar hot path
+found three real bugs (not just slow code, but behavior that scales worse
+than linearly with the backtest timespan) plus two real CPU bottlenecks (a
+pure-Python neural-net forward pass, run 5x per symbol per bar, and a
+pure-Python O(N²×100-iteration) topology embedding, run once per bar). In
+parallel: consolidating Docker images from 5 to 3 as groundwork for a
+later, latency-optimized system variant — **this does not make this
+system HFT** (that would require a completely different data/execution
+architecture), it only makes the existing daily-bar system faster and the
+Docker layout cleaner.
 
-**Drei Bugfixes (Problems.md #11-#13):**
+**Three bug fixes (Problems.md #11-#13):**
 
-- `main.py::_write_state()`s Throttle-Guard war durch einen unerreichbaren
-  Vergleich (`signals is None`, aber `on_data()` uebergibt `signals` immer
-  als Dict) faktisch wirkungslos — alle 7 Zustandsdateien wurden jeden
-  einzelnen Bar komplett neu geschrieben statt einmal pro Zeitstempel
-- `experience/simulated_portfolio.py::mark_to_market()` wurde pro Symbol
-  pro Bar aufgerufen statt einmal pro Bar mit allen Symbolpreisen —
-  `equity_curve` hatte dadurch `N·Bars` statt `Bars` Eintraege; zusammen mit
-  der vollstaendigen CSV-Neuerstellung bei jedem Schreiben ergab das
-  `O((Bars·Symbole)²)` Arbeit fuer `observation_equity_curve.csv`. Fix:
-  `on_data()` sammelt jetzt `close_prices_by_symbol` waehrend der
-  Symbol-Schleife und ruft `mark_to_market(...)` einmal danach auf; neue
-  `main.py::_flush_observation_equity_csv()` schreibt nur noch die seit dem
-  letzten Flush neuen Zeilen an (Header einmalig beim ersten Flush)
-- neues `execution/config_cache.py::read_cached()`: mtime-gecachte Reads
-  fuer `risk/manual_override.py`, `execution/paper_readiness_io.py`,
-  `execution/runtime_config_io.py` (alle drei lesen `config.json` haeufiger,
-  als sich die Datei tatsaechlich aendert). **Ein echter Bug wurde dabei nur
-  durch den echten `lean backtest .`-Integrationstest gefunden, nicht durch
-  Unit-Tests:** die erste Version cachte nur nach Dateipfad, nicht nach
-  Pfad+Loader — da mehrere Reader (`manual_trade_lock_override`,
-  `paper_trading_config`, ...) dieselbe `config.json` im selben Bar lesen,
-  ueberschrieb der zweite Reader-Aufruf faelschlich den Cache-Eintrag des
-  ersten, was `main.py::_recompute_broker_config()` mit `None` statt einem
-  Dict abstuerzen liess. Gefixt durch Cache-Key `(config_path, loader)`.
+- `main.py::_write_state()`'s throttle guard was effectively useless due to
+  an unreachable comparison (`signals is None`, but `on_data()` always
+  passes `signals` as a dict) — all 7 state files were fully rewritten
+  every single bar instead of once per timestamp
+- `experience/simulated_portfolio.py::mark_to_market()` was called once
+  per symbol per bar instead of once per bar with all symbol prices —
+  `equity_curve` therefore had `N·bars` instead of `bars` entries; combined
+  with a full CSV rebuild on every write, that added up to
+  `O((bars·symbols)²)` work for `observation_equity_curve.csv`. Fix:
+  `on_data()` now collects `close_prices_by_symbol` during the
+  symbol loop and calls `mark_to_market(...)` once afterward; the new
+  `main.py::_flush_observation_equity_csv()` only appends the rows new
+  since the last flush (writing the header once, on the first flush)
+- New `execution/config_cache.py::read_cached()`: mtime-cached reads
+  for `risk/manual_override.py`, `execution/paper_readiness_io.py`,
+  `execution/runtime_config_io.py` (all three read `config.json` far more
+  often than the file actually changes). **A real bug was found here only
+  through the real `lean backtest .` integration test, not through
+  unit tests:** the first version cached only by file path, not by
+  path+loader — since several readers (`manual_trade_lock_override`,
+  `paper_trading_config`, ...) read the same `config.json` within the same
+  bar, the second reader's call incorrectly overwrote the first one's
+  cache entry, causing `main.py::_recompute_broker_config()` to crash with
+  `None` instead of a dict. Fixed via the cache key `(config_path, loader)`.
 
-**Bewusst offen gelassen:** `experience/redis_queue.py::push()` in
-Backtest-Mode zu ueberspringen waere trivial, wuerde aber
-`development/v2_architecture.md`s dokumentiertem Redis-Experience-Queue-
-Verhalten widersprechen, ohne dass eine vermutete Downstream-Abhaengigkeit
-bestaetigt oder widerlegt waere (siehe Problems.md #14, `open`).
+**Deliberately left open:** skipping `experience/redis_queue.py::push()`
+in backtest mode would be trivial, but would contradict
+`development/v2_architecture.md`'s documented Redis experience queue
+behavior, without a suspected downstream dependency being either
+confirmed or ruled out (see Problems.md #14, `open`).
 
-**Docker-Konsolidierung (5 → 3 Custom-Images):** `experience-worker`,
-`performance-trigger-worker` und `telegram-worker` teilen sich jetzt ein
-Image (`Dockerfile.workers` + `requirements/requirements-workers.txt`,
-Vereinigung der bisherigen drei Requirements-Dateien) statt je ein eigenes
-Dockerfile/Requirements-Paar. Verifiziert per `docker compose build`/`up`
-und sauberem Start aller drei Container. `aether-quant`- und
-`retraining-worker`-Image unveraendert.
+**Docker consolidation (5 → 3 custom images):** `experience-worker`,
+`performance-trigger-worker`, and `telegram-worker` now share one
+image (`Dockerfile.workers` + `requirements/requirements-workers.txt`,
+a union of the previous three requirements files) instead of each having
+its own Dockerfile/requirements pair. Verified via `docker compose build`/`up`
+and a clean startup of all three containers. The `aether-quant` and
+`retraining-worker` images are unchanged.
 
-**NN-Inferenz extrahiert und vektorisiert:** `_run_exported_model`/
-`_linear`/`_layernorm`/`_sigmoid` waren private `main.py`-Methoden, reines
-Python, 5x pro Symbol pro Bar (Baseline + 4 Experten) aufgerufen — trotz
-`numpy` als laengst deklarierter Abhaengigkeit, die in `main.py`s
-Import-Kette bis dahin nie tatsaechlich importiert wurde. Erst verhaltens-
-identisch nach `inference/exported_model.py` extrahiert (freie Funktionen,
-gleiches Muster wie `risk/position_sizing.py`), dann dort mit `numpy`
-vektorisiert. Absicherung: `tests/test_exported_model.py` (Hand-berechnete
-Werte plus ein Referenz-Forward-Pass).
+**NN inference extracted and vectorized:** `_run_exported_model`/
+`_linear`/`_layernorm`/`_sigmoid` were private `main.py` methods, pure
+Python, called 5x per symbol per bar (baseline + 4 experts) — despite
+`numpy` having long been a declared dependency that nothing in `main.py`'s
+import chain had ever actually imported. First extracted behavior-
+identically into `inference/exported_model.py` (free functions, the
+same pattern as `risk/position_sizing.py`), then vectorized there with
+`numpy`. Safety net: `tests/test_exported_model.py` (hand-computed
+values plus a reference forward pass).
 
-**Topologie vektorisiert + Warm-Start (Problems.md-Stil, `v2_architecture.md`
-hat die Details):** `topology/market_topology.py::_stress_majorize_2d()`
-(die SMACOF-Einbettung, dominanter Kostenfaktor der Topologie-Schicht) ist
-jetzt mit `numpy` vektorisiert, gleiche Ein-/Ausgaben/Iterationszahl/Seeding
-wie die reine-Python-Version (Parity-Test in `tests/test_market_topology.py`).
-Die paarweise Korrelationsschleife bleibt bewusst reines Python (Symbole
-teilen sich in der Praxis keine einheitliche Fensterlaenge — gestaffeltes
-Onboarding, duenne Maerkte wie ETHUSD/LTCUSD); `topology/learned_topology.py`s
-kleinerer `O(N²×5)`-Anteil bleibt aus demselben Grund unvektorisiert plus bei
-nur 10 Assets im Universum ohnehin vernachlaessigbar gegenueber SMACOF.
+**Topology vectorized + warm start (Problems.md style, `v2_architecture.md`
+has the details):** `topology/market_topology.py::_stress_majorize_2d()`
+(the SMACOF embedding, the dominant cost factor of the topology layer) is
+now vectorized with `numpy`, with the same inputs/outputs/iteration
+count/seeding as the pure-Python version (parity test in
+`tests/test_market_topology.py`). The pairwise correlation loop deliberately
+stays pure Python (symbols don't share a uniform window length in
+practice — staggered onboarding, thin markets like ETHUSD/LTCUSD);
+`topology/learned_topology.py`'s smaller `O(N²×5)` portion stays
+unvectorized for the same reason, and is negligible next to SMACOF anyway
+at only 10 assets in the universe.
 
-**Verhaltensaendernd, nicht nur Geschwindigkeit:** `build_market_topology()`
-akzeptiert jetzt `previous_positions` — SMACOF startet fuer bekannte Symbole
-vom Vorbar-Ergebnis statt vom kosmetischen Winkel-Seed, kombiniert mit einem
-neuen `convergence_tolerance`-Parameter fuer vorzeitigen Iterationsabbruch,
-sobald sich Punkte kaum noch bewegen (erst das spart tatsaechlich Zeit — ein
-Warm-Start allein bringt nichts, wenn trotzdem immer alle 100 Iterationen
-laufen). Neue Config-Keys `phase_v2.topology.warm_start_enabled` (Default
-`true`) und `phase_v2.topology.convergence_tolerance` (Default `0.01`).
-**Das aendert Bar-fuer-Bar die Topologie-Koordinatenwerte** — historische
-Backtest-Ergebnisse und bereits promotete Modelle, die gegen das alte,
-immer-frisch-geseedete Verhalten trainiert/validiert wurden, reproduzieren
-sich danach nicht mehr bitgenau. `warm_start_enabled: false` reproduziert
-das alte (vektorisierte, aber kalt geseedete) Verhalten exakt — ein echter,
-redeploy-freier Rollback-Schalter, kein reiner Default.
+**Behavior-changing, not just speed:** `build_market_topology()` now
+accepts `previous_positions` — for known symbols, SMACOF starts from the
+prior bar's result instead of the cosmetic angle seed, combined with a
+new `convergence_tolerance` parameter for early iteration exit once
+points barely move anymore (this is what actually saves time — a
+warm start alone gains nothing if all 100 iterations still always run).
+New config keys `phase_v2.topology.warm_start_enabled` (default
+`true`) and `phase_v2.topology.convergence_tolerance` (default `0.01`).
+**This changes the topology coordinate values bar by bar** — historical
+backtest results and already-promoted models trained/validated against the
+old, always-freshly-seeded behavior no longer reproduce bit-for-bit
+afterward. `warm_start_enabled: false` reproduces the old (vectorized, but
+cold-seeded) behavior exactly — a genuine, redeploy-free rollback switch,
+not just a default.
 
-Neue Tests: `tests/test_config_cache.py`,
-`tests/test_exported_model.py`, plus Erweiterungen in
+New tests: `tests/test_config_cache.py`,
+`tests/test_exported_model.py`, plus extensions to
 `tests/test_simulated_portfolio.py`, `tests/test_manual_override.py`,
 `tests/test_paper_readiness_io.py`, `tests/test_runtime_config_io.py`,
 `tests/test_market_topology.py`.
-
