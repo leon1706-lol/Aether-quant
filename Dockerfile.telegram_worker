@@ -1,9 +1,0 @@
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements/requirements-telegram-worker.txt .
-RUN pip install --no-cache-dir -r requirements-telegram-worker.txt
-COPY execution/ ./execution/
-COPY experience/ ./experience/
-COPY performance/ ./performance/
-COPY notifications/ ./notifications/
-CMD ["python", "-m", "notifications.telegram_worker"]

@@ -198,9 +198,12 @@ DDL is embedded in `postgres_worker.py` — no Alembic, no migration files.
 
 ### Container
 
-`Dockerfile.worker` builds a minimal `python:3.11-slim` image with only
-`redis>=5.0.0` and `psycopg[binary]>=3.1`. The `experience-worker` service in
-`docker-compose.yml` depends on `redis:healthy` and `postgres:healthy` and runs
+`Dockerfile.workers` (shared with `performance-trigger-worker` and
+`telegram-worker` since the Docker image consolidation — see
+`requirements/README.md`) builds a minimal `python:3.11-slim` image with
+`redis>=5.0.0`, `psycopg[binary]>=3.1`, `numpy>=1.24.0`, and
+`requests>=2.31.0`. The `experience-worker` service in `docker-compose.yml`
+depends on `redis:healthy` and `postgres:healthy` and runs
 `restart: unless-stopped`. Since V2-15, the image also copies `execution/`
 (not just `experience/`) — `experience/__init__.py` imports
 `simulated_portfolio.py`, which imports `execution.order_gate`, so the worker
@@ -609,7 +612,11 @@ It emits:
 
 Topology risk feeds directly into the market analyzer: `elevated` forces `reduce_risk`, `isolated` blocks the `trade` path.
 
-**x/y placement is a real distance-preserving embedding (post-V2-18 architecture audit), not the original cosmetic layout.** The original 3D-coordinate implementation placed cluster centroids and within-cluster members by `index -> angle` on a fixed ellipse — cluster membership was real, but position within/between clusters was arbitrary (two highly-correlated clusters could land on opposite sides of the circle). This was replaced with `_stress_majorize_2d(...)`: SMACOF (Scaling by MAjorizing a COmplicated Function), an iterative stress-majorization algorithm run over the full pairwise correlation-distance matrix across all eligible symbols (not just within-cluster pairs), seeded from the old cosmetic layout for determinism and fast convergence — no randomness anywhere, so `build_market_topology(...)` stays fully deterministic given the same inputs (the existing `test_stable_coordinates_are_deterministic` test still passes unchanged). Pure Python, no numpy/scipy, matching this module's existing zero-heavy-runtime-deps convention. The result is rescaled to fit the existing `NEUTRAL_DIMENSIONS` `[0,100]x[0,100]` bounds via a single isometric scale factor (not independent per-axis stretching, which would distort the very distances the embedding exists to preserve) — the webui's `TopologyScene3D.tsx` needed no changes, since it already normalizes off `topology.dimensions`. The z-axis (volatility encoding) is untouched. `phase_v2.topology.embedding_iterations` (default 100) controls the iteration count.
+**x/y placement is a real distance-preserving embedding (post-V2-18 architecture audit), not the original cosmetic layout.** The original 3D-coordinate implementation placed cluster centroids and within-cluster members by `index -> angle` on a fixed ellipse — cluster membership was real, but position within/between clusters was arbitrary (two highly-correlated clusters could land on opposite sides of the circle). This was replaced with `_stress_majorize_2d(...)`: SMACOF (Scaling by MAjorizing a COmplicated Function), an iterative stress-majorization algorithm run over the full pairwise correlation-distance matrix across all eligible symbols (not just within-cluster pairs), seeded from the old cosmetic layout for determinism and fast convergence — no randomness anywhere, so `build_market_topology(...)` stays fully deterministic given the same inputs (the existing `test_stable_coordinates_are_deterministic` test still passes unchanged). The result is rescaled to fit the existing `NEUTRAL_DIMENSIONS` `[0,100]x[0,100]` bounds via a single isometric scale factor (not independent per-axis stretching, which would distort the very distances the embedding exists to preserve) — the webui's `TopologyScene3D.tsx` needed no changes, since it already normalizes off `topology.dimensions`. The z-axis (volatility encoding) is untouched. `phase_v2.topology.embedding_iterations` (default 100) controls the iteration count.
+
+**Vectorized with numpy (latency-optimization pass, post-V2-23).** `_stress_majorize_2d` was pure Python (an O(N² × iterations) nested loop, the dominant per-bar cost in the whole topology layer) — this module's "no numpy/scipy" convention, referenced above and in the Non-Deterministic Topology section below, is retired for `market_topology.py` specifically now that a real measured bottleneck justifies it. Same inputs/outputs/iteration count/seeding as the pure-Python version; `tests/test_market_topology.py::test_stress_majorize_2d_matches_pure_python_reference` is the parity guard. The pairwise-correlation loop in `build_market_topology()` stays pure Python on purpose — it truncates each pair to the shorter of the two series' lengths (`_pearson_correlation`), and eligible symbols do not all share a common window length in this codebase (staggered asset onboarding, thin markets like ETHUSD/LTCUSD), so a single vectorized `np.corrcoef` call isn't a safe drop-in replacement. `topology/learned_topology.py`'s smaller `O(N² × 5)` pairwise-feature-distance cost was deliberately left pure Python too — at this project's universe size (10 assets), it's genuinely negligible next to SMACOF's cost, and vectorizing it would mean restructuring `apply_learned_topology()`'s per-node try/except (deliberate per-node fallback isolation on malformed data) for no measurable benefit.
+
+**Warm-started seeding + early convergence exit (same pass, behavior-changing).** `build_market_topology()` accepts an optional `previous_positions` dict; for any eligible symbol present in it, SMACOF seeds from that value instead of the cosmetic angle-based layout (symbols absent — new to the universe, or isolated last bar — still fall back to the cosmetic seed). `main.py` stores every bar's final node `(x, y)` positions in `self._previous_topology_positions` and passes it in as `previous_positions` on the next bar, gated by `phase_v2.topology.warm_start_enabled` (default `true`). `_stress_majorize_2d` also accepts `convergence_tolerance` (`phase_v2.topology.convergence_tolerance`, default `0.01`): once every point's per-iteration movement drops below it, the loop exits before `embedding_iterations` — this is what actually turns a good warm start into fewer iterations, since a warm start alone doesn't save time if it always still runs the full fixed budget. **This changes bar-by-bar topology output values** — historical backtest results and any already-promoted models trained/validated against the old fixed-iteration, fresh-cosmetic-seed-every-bar behavior will not reproduce bit-for-bit after this shipped. Setting `warm_start_enabled: false` reproduces the exact pre-warm-start (vectorized-but-cold) behavior exactly (`tests/test_market_topology.py::test_warm_start_disabled_matches_omitting_previous_positions`), so it is a genuine, redeploy-free rollback switch, not just a default toggle.
 
 A dedicated `/api/topology` endpoint and `/topology` React page expose the live cluster view.
 
@@ -625,8 +632,10 @@ reads only `topology_risk`/`state` from the deterministic layer; the new
 fields this phase adds are never read by the priority-tier decision logic.
 
 **Learned topology overlay** (`topology/learned_topology.py`, pure Python,
-no numpy/sklearn at runtime — matches `market_topology.py`'s own
-convention): sits on top of, never in place of, the deterministic layer.
+no numpy/sklearn at runtime — deliberately left that way in the
+latency-optimization pass; see the note above on why `market_topology.py`'s
+numpy vectorization wasn't extended here): sits on top of, never in place
+of, the deterministic layer.
 `apply_learned_topology(deterministic_topology, symbol_features,
 previous_neighbors_by_symbol, model, feature_schema, ...)` scores each
 node against a set of trained "prototypes" (feature-space centroids) via
@@ -961,17 +970,19 @@ are `VARCHAR NOT NULL`, not unique-constrained, so an empty default is safe),
 with `action` falling back to `event_type` so a session_summary row stays
 filterable.
 
-**Docker:** `telegram-worker` service (`Dockerfile.telegram_worker`,
-`requirements/requirements-telegram-worker.txt`), depends only on `postgres`
-(no Redis — this worker never touches the experience stream directly). Its
-image must copy `execution/` in addition to `experience/`/`performance/` —
-importing `performance.postgres_triggers` initializes `performance/__init__.py`
+**Docker:** `telegram-worker` service, built from the shared
+`Dockerfile.workers`/`requirements/requirements-workers.txt` (also used by
+`experience-worker`/`performance-trigger-worker` since the Docker image
+consolidation), depends only on `postgres` (no Redis — this worker never
+touches the experience stream directly). Its image must copy `execution/`
+in addition to `experience/`/`performance/` — importing
+`performance.postgres_triggers` initializes `performance/__init__.py`
 → `.triggers` → `experience.observation_metrics` → (via `experience/__init__.py`)
 `.simulated_portfolio` → `execution.order_gate` — the same transitive-import
 lesson already learned in `development/Problems.md` #1/#2 for the
 experience/trigger workers, applied proactively here rather than discovered
-after a broken build. `requirements-telegram-worker.txt` includes `numpy`
-for the same reason.
+after a broken build. `requirements-workers.txt` includes `numpy` for the
+same reason.
 
 **Config:** new `phase_v2.telegram` block (`enabled`,
 `min_severity_for_trigger_alert`, `session_summary_enabled`,
@@ -1052,12 +1063,27 @@ Traced call chain inside `main.py::on_data` (`main.py:225`), per bar:
 | Subsystem | Call site | Reads |
 |---|---|---|
 | Topology (deterministic + learned) | `main.py:231 self._build_topology_payload()` — once per bar, before the symbol loop | `topology/market_topology.py`, `topology/learned_topology.py` |
-| Baseline NN | `main.py:270 self._run_model(...)` → `_run_exported_model` (`main.py:550`) | `ml/model_weights.json` |
-| Regime detection | `main.py:272 self._build_regime_payload(...)` → `regime.build_market_regime_vector` | `regime/market_regime.py` |
-| All 4 experts | `main.py:276 self._run_expert_models(...)` (`main.py:576`) — loops `moe.EXPERT_NAMES`, reuses the same `_run_exported_model` interpreter | `ml/expert_models/{bullish,bearish,sideways,volatility}/model_weights.json` |
+| Baseline NN | `main.py self._run_model(...)` → `inference.run_exported_model` | `ml/model_weights.json` |
+| Regime detection | `main.py self._build_regime_payload(...)` → `regime.build_market_regime_vector` | `regime/market_regime.py` |
+| All 4 experts | `main.py self._run_expert_models(...)` — loops `moe.EXPERT_NAMES`, reuses the same `inference.run_exported_model` interpreter | `ml/expert_models/{bullish,bearish,sideways,volatility}/model_weights.json` |
 | MoE gating | `main.py:277 build_gating_decision(...)` | `moe/gating.py:114` |
 | Liquidity / dynamic sizing | `main.py:286-311` | `risk/position_sizing.py`, `liquidity/market_liquidity.py` |
 | Final decision | `main.py:315 build_market_analysis_decision(...)` | `analyzer/` |
+
+**Extracted and vectorized (latency-optimization pass, post-V2-23).** The
+forward-pass interpreter (`_run_exported_model`/`_linear`/`_layernorm`/
+`_sigmoid`) used to live as private `main.py` methods, run once per symbol
+per bar, 5x (baseline + 4 experts) — plain Python nested loops, no numpy,
+despite `numpy` already being a declared dependency of `requirements.txt`
+that nothing in `main.py`'s import chain had ever actually imported.
+Extracted verbatim first (behavior-preserving refactor) into
+`inference/exported_model.py` as free functions (`run_exported_model` plus
+private `_linear`/`_layernorm`/`_sigmoid` helpers — same pattern as
+`risk/position_sizing.py`/`regime/market_regime.py`), then vectorized with
+numpy inside that module only. `tests/test_exported_model.py` is the
+parity net: hand-computed `_linear`/`_layernorm`/`_sigmoid` assertions plus
+a full-stack forward-pass test against an independently hand-transcribed
+reference. `main.py` now just calls `inference.run_exported_model(...)`.
 
 Not exercised by a backtest, correctly: the offline artifact builders
 (`train.py`, `train_topology.py`, `experts/expert_datasets.py`) that *produce*

@@ -1,6 +1,9 @@
 import math
 
+import pytest
+
 from topology import build_market_topology
+from topology.market_topology import _stress_majorize_2d
 
 
 def _series(values: list[float], length: int = 8) -> list[float]:
@@ -149,3 +152,133 @@ def test_regime_labels_aggregate_to_dominant_cluster_label():
     topology = build_market_topology(returns, regime_labels_by_symbol=regime_labels, correlation_threshold=0.6)
 
     assert topology.clusters[0].dominant_regime_label == "bullish"
+
+
+def test_stress_majorize_2d_matches_pure_python_reference():
+    """Parity guard for the numpy vectorization of `_stress_majorize_2d`
+    (Part D1 of the latency-optimization pass): these expected values were
+    captured from the original pure-Python nested-loop implementation on
+    this exact input, run once as a throwaway script before the
+    vectorization landed. BLAS reduction order can differ across
+    platforms/backends, hence the (still tight) 1e-6 tolerance rather than
+    1e-9."""
+    symbols = ["AAA", "BBB", "CCC", "DDD"]
+    initial_positions = {
+        "AAA": (10.0, 20.0),
+        "BBB": (30.0, 5.0),
+        "CCC": (-15.0, 40.0),
+        "DDD": (0.0, 0.0),
+    }
+    distances = {
+        ("AAA", "BBB"): 0.3,
+        ("AAA", "CCC"): 0.9,
+        ("AAA", "DDD"): 0.5,
+        ("BBB", "CCC"): 0.7,
+        ("BBB", "DDD"): 0.2,
+        ("CCC", "DDD"): 0.6,
+    }
+
+    def distance_fn(symbol_a: str, symbol_b: str) -> float:
+        if symbol_a == symbol_b:
+            return 0.0
+        key = (symbol_a, symbol_b) if (symbol_a, symbol_b) in distances else (symbol_b, symbol_a)
+        return distances[key]
+
+    expected = {
+        "AAA": (6.638068704388609, 16.34692047415163),
+        "BBB": (6.340899192710371, 16.388781999201612),
+        "CCC": (5.879793332858152, 15.862124525742345),
+        "DDD": (6.141238770042861, 16.402173000904398),
+    }
+
+    result = _stress_majorize_2d(symbols, distance_fn, initial_positions, iterations=100)
+
+    for symbol in symbols:
+        assert result[symbol] == pytest.approx(expected[symbol], abs=1e-6)
+
+
+def _sample_distance_fn(distances: dict) -> callable:
+    def distance_fn(symbol_a: str, symbol_b: str) -> float:
+        if symbol_a == symbol_b:
+            return 0.0
+        key = (symbol_a, symbol_b) if (symbol_a, symbol_b) in distances else (symbol_b, symbol_a)
+        return distances[key]
+
+    return distance_fn
+
+
+def test_warm_started_seed_needs_far_fewer_iterations_to_stay_near_the_fixed_point():
+    """Part D2: a seed already at (or near) this bar's stationary point
+    should barely move in a handful of iterations, while a cold, far-off
+    seed should still be well short of it - this is the property that lets
+    convergence_tolerance actually save iterations on a warm start."""
+    symbols = ["AAA", "BBB", "CCC", "DDD"]
+    distances = {
+        ("AAA", "BBB"): 0.3,
+        ("AAA", "CCC"): 0.9,
+        ("AAA", "DDD"): 0.5,
+        ("BBB", "CCC"): 0.7,
+        ("BBB", "DDD"): 0.2,
+        ("CCC", "DDD"): 0.6,
+    }
+    distance_fn = _sample_distance_fn(distances)
+    cold_seed = {
+        "AAA": (10.0, 20.0),
+        "BBB": (30.0, 5.0),
+        "CCC": (-15.0, 40.0),
+        "DDD": (0.0, 0.0),
+    }
+
+    converged = _stress_majorize_2d(symbols, distance_fn, cold_seed, iterations=200, convergence_tolerance=1e-9)
+
+    cold_start_few_iterations = _stress_majorize_2d(symbols, distance_fn, cold_seed, iterations=2)
+    warm_start_few_iterations = _stress_majorize_2d(symbols, distance_fn, converged, iterations=2)
+
+    def total_distance_to_converged(candidate: dict) -> float:
+        return sum(math.dist(candidate[symbol], converged[symbol]) for symbol in symbols)
+
+    assert total_distance_to_converged(warm_start_few_iterations) < total_distance_to_converged(cold_start_few_iterations)
+
+
+def test_build_market_topology_handles_partial_previous_positions_without_crashing():
+    """A symbol new to the universe (or isolated last bar) won't have an
+    entry in previous_positions - must fall back to the cosmetic seed for
+    that symbol alone, not crash."""
+    base = _series([0.01, -0.02, 0.015, 0.005, -0.01, 0.02, 0.03, -0.025])
+    returns = {
+        "AAA": base,
+        "BBB": [value * 1.05 for value in base],
+        "CCC": _series([-0.04, 0.05, -0.06, 0.07, -0.03, 0.02, -0.05, 0.04]),
+    }
+    partial_previous_positions = {"AAA": (60.0, 40.0)}
+
+    topology = build_market_topology(
+        returns,
+        correlation_threshold=0.6,
+        link_threshold=0.4,
+        min_observations=5,
+        previous_positions=partial_previous_positions,
+    )
+
+    symbols = {node.symbol for node in topology.nodes}
+    assert symbols == {"AAA", "BBB", "CCC"}
+
+
+def test_warm_start_disabled_matches_omitting_previous_positions():
+    """previous_positions=None (how main.py calls this when
+    phase_v2.topology.warm_start_enabled is false) must reproduce the exact
+    D1 (vectorized, pre-warm-start) behavior - the config flag is a genuine
+    safe fallback, not a partial behavior change."""
+    base = _series([0.01, -0.02, 0.015, 0.005, -0.01, 0.02, 0.03, -0.025])
+    returns = {
+        "AAA": base,
+        "BBB": [value * 1.05 for value in base],
+        "CCC": _series([-0.04, 0.05, -0.06, 0.07, -0.03, 0.02, -0.05, 0.04]),
+    }
+
+    without_param = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    with_explicit_none = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5, previous_positions=None
+    )
+
+    assert without_param.to_dict() == with_explicit_none.to_dict()

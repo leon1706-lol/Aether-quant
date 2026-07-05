@@ -309,3 +309,161 @@ the Actions UI (expand the "Run tests" step) or via `gh run view --log
 in a Linux BLAS backend affecting one of the sklearn/topology tests, a
 Python 3.11-vs-3.14 stdlib behavior difference) can't be distinguished
 without the real error text.
+
+---
+
+### 11. `_write_state()`'s per-bar throttle was unreachable
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+Found during a latency audit of `main.py`'s per-bar hot path (`on_data()`/
+`_write_state()`). The guard `if self.last_state_write == now and signals is
+None: return` could never short-circuit, because `on_data()` always calls
+`self._write_state(mode="runtime", insight=insight, signals=signals)` with a
+non-`None` `signals` dict. Result: seven output files (`state.json`,
+`scene.json`, `topology_state.json`, `runtime_metrics_snapshot.json`,
+`runtime_asset_metrics.csv`, `observation_summary.json`,
+`observation_equity_curve.csv`, `performance_triggers.json`) were fully
+rewritten on every single bar, not throttled to once per timestamp as the
+code's own intent implies.
+
+**Fix:** dropped the impossible clause — `if self.last_state_write == now:
+return`. Caps writes at once per distinct `self.Time` value (matching
+`on_data()`'s actual call cadence), which is correct for live/paper and
+removes the dead-code confusion. No config key needed; no behavior change
+beyond "actually do what the code already intended." See also #12/#13,
+found in the same audit pass.
+
+---
+
+### 12. `observation_equity_curve.csv` quadratic rewrite (N-per-bar equity-curve entries + full-file rewrite every bar)
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+Two compounding issues found in the same latency audit as #11:
+
+1. `experience/simulated_portfolio.py::mark_to_market()` was called once
+   *per symbol* per bar (`main.py::on_data()`, inside the per-symbol loop),
+   each call unconditionally appending one entry to `self.equity_curve` —
+   so after `B` bars × `N` symbols, the list held `N·B` entries instead of
+   `B`, and (with all symbols' prices not yet known) each entry only
+   reflected one symbol's price, not the whole portfolio's.
+2. `main.py::_build_observation_equity_csv()` rebuilt the *entire* CSV
+   string from the *entire* in-memory list on every flush. Combined with
+   #11's bug (a flush every bar instead of once per timestamp), total
+   cumulative write work was `O((bars·symbols)²)` — genuinely
+   super-linear, not just slow, and very likely the dominant reason
+   backtests scaled worse than linearly with timespan.
+
+**Fix — cadence:** `on_data()` now accumulates a `close_prices_by_symbol`
+dict across the per-symbol loop and calls
+`mark_to_market(close_prices_by_symbol, bar_index=self.bar_index)` exactly
+once after the loop, instead of once per symbol. This shrinks
+`equity_curve` to exactly one entry per bar — a real whole-portfolio
+snapshot, not `N` intermediate half-updated ones (arguably more correct
+semantics, not just faster). Verified no other consumer of
+`SimulatedPortfolioState.equity_curve` assumed the old N-per-bar
+granularity (only `_build_observation_equity_csv`/its replacement reads
+it; `monitoring/api_server.py` reads the CSV file, not the in-memory list).
+
+**Fix — write cadence:** replaced `_build_observation_equity_csv()`'s
+full-rebuild with `_flush_observation_equity_csv()`, an append-only flush
+tracked via `self._equity_curve_flushed_count`: writes a header once on the
+very first flush (mode `"w"`), then appends only the entries produced since
+the last flush (mode `"a"`) on every subsequent call. Together, #11 + #12
+turn `O((bars·symbols)²)` into `O(bars)`.
+
+**Tests:** `tests/test_simulated_portfolio.py::test_mark_to_market_with_multi_symbol_dict_produces_exactly_one_equity_curve_entry`
+asserts a single multi-symbol `mark_to_market()` call produces exactly one
+`equity_curve` entry reflecting every symbol's updated price. The CSV
+flush's row-count-equals-bar-count property is verified via the real Lean
+backtest integration test's output file, matching this codebase's
+established integration-only convention for `main.py`-level behavior (see
+`tests/README.md`).
+
+---
+
+### 13. Per-bar/per-poll `config.json` reads on every session rollover, uncached
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+At Daily resolution, `self.Time.date()` changes every bar, so
+`_refresh_risk_state()`'s `if self.current_session_date != current_date:`
+guard — correctly intended as "once per session" for a live/paper
+deployment — fires every single bar in a backtest. Inside it,
+`read_manual_trade_lock_override()` and `read_paper_trading_config()` each
+did a full `open()` + `json.load()` of `config.json`, every bar. The
+identical pattern existed in `execution/runtime_config_io.py::read_runtime_mode()`,
+called every iteration of `retraining/worker.py`'s poll loop (a different
+process, same bug class). This is not a bug in *when* the check runs (that
+part is correct and intentional, per the code's own comments) — it's that
+the read itself is expensive despite `config.json` almost never actually
+changing bar-to-bar.
+
+**Fix:** new `execution/config_cache.py::read_cached(config_path, loader)`,
+an mtime-gated cache: returns a cached value if the file's mtime hasn't
+changed since the last call for that exact `(config_path, loader)` pair,
+otherwise calls `loader` fresh. Falls back to calling `loader` directly,
+uncached, when the file doesn't exist (preserving each loader's own
+missing-file handling). Wrapped `read_manual_trade_lock_override`,
+`read_paper_trading_config`, and `read_runtime_mode` with it (each renamed
+to a private `_read_*_uncached` helper). Left
+`retraining/orchestrator.py::_load_retraining_config()`,
+`performance/trigger_worker.py::_load_performance_triggers_config()`, and
+`notifications/telegram_worker.py::_load_telegram_config()` uncached —
+confirmed these are only called once at process startup, not inside a
+repeating loop, so caching adds complexity with no benefit.
+
+**A real bug caught only by the Lean integration test, not by unit tests:**
+the first version of `read_cached()` keyed its cache by `config_path`
+alone. `_refresh_risk_state()` calls `read_manual_trade_lock_override()`
+and `read_paper_trading_config()` back-to-back on the *same* `config.json`
+path within the same session rollover — with the path-only cache, the
+second call's cache lookup returned the *first* call's cached value (e.g.
+`None`, the override's common "unset" value) instead of calling its own
+loader, so `self.phase_v2_paper_trading` silently became `None` and crashed
+`_recompute_broker_config()` (`'NoneType' object has no attribute 'get'`)
+on the very first bar of a real `lean backtest .` run. Every unit test for
+the three readers used its own isolated `tmp_path` with only one loader
+ever touching it, so none of them could have caught this. Fixed by keying
+the cache by `(config_path, loader)` instead of `config_path` alone.
+Confirmed fixed by re-running the real Lean backtest integration test
+end-to-end (see `tests/test_lean_backtest_ml_coverage.py`), and by a new
+regression test,
+`tests/test_config_cache.py::test_two_different_loaders_on_the_same_path_do_not_collide`.
+
+**Tests:** `tests/test_config_cache.py` (loader-invoked-once-when-untouched,
+invoked-again-after-mtime-change, missing-file passthrough, the
+multi-loader-collision regression above). Extended
+`tests/test_manual_override.py`, `tests/test_paper_readiness_io.py`,
+`tests/test_runtime_config_io.py` with a regression assertion that a value
+change is still picked up after the file's mtime changes, guarding against
+the cache silently breaking hot-reload.
+
+---
+
+### 14. Redis push in backtest mode — deliberately left unoptimized
+**Severity:** n/a · **Status:** 🟠 `open` (deferred by design)
+
+`experience/redis_queue.py::push()` does a synchronous, blocking `XADD` per
+symbol per bar, plus one more at every session rollover (which, per #13, is
+every bar at Daily resolution in a backtest). Gating this off when
+`runtime_mode == "backtest"` would be trivial — both call sites already
+have `self.runtime_mode`/`self._experience_mode` available — and would save
+real per-bar network I/O during backtests, which never need live
+experience-stream delivery.
+
+**Why this stays open on purpose:** `development/v2_architecture.md`'s
+Redis Experience Queue section documents `"backtest"` as one of four
+normal, expected mode values flowing into Redis, and
+`tests/test_experience_queue.py`'s default fixture treats `mode="backtest"`
+as the canonical case, not an exclusion. There is at least one plausible
+downstream dependency on backtest-mode Redis events reaching Postgres via
+`experience-worker` — debugging via the observation dashboard against a
+backtest run, or later analysis of a backtest's persisted events — that
+has not been confirmed one way or the other. Skipping the push would
+contradict documented, tested behavior on the strength of an unconfirmed
+assumption, so it is recorded here instead of implemented.
+
+**Next step, when revisited:** confirm whether anything actually reads
+backtest-mode experience events out of Postgres after the fact; if nothing
+does, gate `push()` on `runtime_mode != "backtest"` and update
+`v2_architecture.md`'s Redis Experience Queue section and
+`test_experience_queue.py`'s default fixture accordingly.

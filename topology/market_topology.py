@@ -8,6 +8,8 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Callable
 
+import numpy as np
+
 
 ANNUALIZATION_FACTOR = math.sqrt(252)
 ELEVATED_VOLATILITY_THRESHOLD = 0.45
@@ -131,6 +133,7 @@ def _stress_majorize_2d(
     distance_fn: Callable[[str, str], float],
     initial_positions: dict[str, tuple[float, float]],
     iterations: int = 100,
+    convergence_tolerance: float | None = None,
 ) -> dict[str, tuple[float, float]]:
     """Deterministic SMACOF (Scaling by MAjorizing a COmplicated Function):
     iteratively moves each point toward the position implied by every other
@@ -138,42 +141,61 @@ def _stress_majorize_2d(
     layout's pairwise Euclidean distances approximate the real target
     distances instead of an arbitrary index-based placement.
 
-    Seeded from initial_positions (the existing cosmetic circular layout)
-    rather than randomly, so the result is fully deterministic given the
-    same inputs and converges in a fixed number of iterations. Pure Python
-    -- no numpy/scipy, matching this module's existing zero-heavy-runtime-
-    deps convention (the same reason topology/learned_topology.py stays
-    numpy-free).
+    Seeded from initial_positions - the existing cosmetic circular layout,
+    or (Part D2) the previous bar's converged positions when warm-starting
+    is enabled - rather than randomly, so the result is fully deterministic
+    given the same inputs. Vectorized with numpy (this was previously pure
+    Python, an O(N^2 x iterations) nested loop and the dominant per-bar
+    cost in the topology layer) - same inputs/outputs/seeding as the
+    pure-Python version when `convergence_tolerance` is None; see
+    tests/test_market_topology.py's parity test.
+
+    `convergence_tolerance`, when set, exits before `iterations` once every
+    point's per-iteration movement drops below it - this is what lets a
+    warm start (already close to this bar's stationary point) actually
+    finish faster, rather than always spending the full fixed iteration
+    budget regardless of how close the seed already is.
     """
     if len(symbols) < 2:
         return dict(initial_positions)
 
-    positions = dict(initial_positions)
-    denominator = len(symbols) - 1
+    n = len(symbols)
+    denominator = n - 1
+    positions = np.array([initial_positions[symbol] for symbol in symbols], dtype=np.float64)
+    target_distances = np.array(
+        [[distance_fn(symbol_a, symbol_b) for symbol_b in symbols] for symbol_a in symbols],
+        dtype=np.float64,
+    )
+    np.fill_diagonal(target_distances, 0.0)
 
     for _ in range(iterations):
-        new_positions: dict[str, tuple[float, float]] = {}
-        for symbol in symbols:
-            sum_x, sum_y = 0.0, 0.0
-            for other in symbols:
-                if other == symbol:
-                    continue
-                target_distance = distance_fn(symbol, other)
-                current_distance = _distance_2d(positions[symbol], positions[other])
-                if current_distance > 1e-9:
-                    scale = target_distance / current_distance
-                    direction_x = (positions[symbol][0] - positions[other][0]) * scale
-                    direction_y = (positions[symbol][1] - positions[other][1]) * scale
-                else:
-                    # Coincident points: nudge apart along a fixed axis
-                    # rather than dividing by zero.
-                    direction_x, direction_y = target_distance, 0.0
-                sum_x += positions[other][0] + direction_x
-                sum_y += positions[other][1] + direction_y
-            new_positions[symbol] = (sum_x / denominator, sum_y / denominator)
-        positions = new_positions
+        diff = positions[:, None, :] - positions[None, :, :]
+        current_distance = np.sqrt((diff**2).sum(axis=-1))
+        coincident = current_distance <= 1e-9
+        safe_distance = np.where(coincident, 1.0, current_distance)
+        scale = np.where(coincident, 0.0, target_distances / safe_distance)
+        direction = diff * scale[:, :, None]
+        # Coincident points (including the i==j diagonal, always coincident
+        # with itself): nudge apart along a fixed axis rather than dividing
+        # by zero. target_distances' diagonal is 0, so the i==j case
+        # naturally contributes (0, 0), matching the original loop's
+        # `if other == symbol: continue` skip.
+        direction[..., 0] = np.where(coincident, target_distances, direction[..., 0])
+        direction[..., 1] = np.where(coincident, 0.0, direction[..., 1])
 
-    return positions
+        sum_positions = positions.sum(axis=0)
+        direction_sum = direction.sum(axis=1)
+        new_positions = (sum_positions[None, :] + direction_sum - positions) / denominator
+
+        if convergence_tolerance is not None:
+            max_shift = np.sqrt(((new_positions - positions) ** 2).sum(axis=1)).max()
+            positions = new_positions
+            if max_shift < convergence_tolerance:
+                break
+        else:
+            positions = new_positions
+
+    return {symbol: (float(positions[index, 0]), float(positions[index, 1])) for index, symbol in enumerate(symbols)}
 
 
 def _rescale_positions_to_bounds(
@@ -229,6 +251,8 @@ def build_market_topology(
     link_threshold: float = 0.5,
     min_observations: int = 5,
     embedding_iterations: int = 100,
+    previous_positions: dict[str, tuple[float, float]] | None = None,
+    convergence_tolerance: float | None = None,
 ) -> MarketTopology:
     regime_labels_by_symbol = regime_labels_by_symbol or {}
     reasons: list[str] = []
@@ -341,18 +365,32 @@ def build_market_topology(
             member_count_by_symbol[symbol] = len(members)
             seed_positions[symbol] = (seed_x, seed_y)
 
+    # Part D2 warm start: for any eligible symbol present in
+    # previous_positions (the prior bar's converged embedding), seed
+    # SMACOF from there instead of the cosmetic angle-based layout above -
+    # correlations evolve slowly bar to bar, so the prior bar's embedding
+    # is typically already close to this bar's stationary point. Symbols
+    # absent from previous_positions (new to the universe, or isolated
+    # last bar) fall back to the cosmetic seed untouched.
+    if previous_positions:
+        for symbol in eligible_symbols:
+            if symbol in previous_positions:
+                seed_positions[symbol] = previous_positions[symbol]
+
     # Pass 2: real distance-preserving embedding -- pairwise distance across
     # ALL eligible symbols (not just within-cluster pairs; cross-cluster
     # distance matters for a meaningful layout too), seeded from the
-    # cosmetic layout above so the result is deterministic and converges
-    # fast. This is what makes spatial distance actually reflect
-    # correlation distance instead of arbitrary index-based placement.
+    # cosmetic layout (or the warm-start layout above) so the result is
+    # deterministic and converges fast. This is what makes spatial distance
+    # actually reflect correlation distance instead of arbitrary
+    # index-based placement.
     final_positions = _rescale_positions_to_bounds(
         _stress_majorize_2d(
             eligible_symbols,
             lambda symbol_a, symbol_b: max(0.0, 1.0 - correlation_between(symbol_a, symbol_b)),
             seed_positions,
             iterations=embedding_iterations,
+            convergence_tolerance=convergence_tolerance,
         )
     )
 

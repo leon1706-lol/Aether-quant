@@ -38,6 +38,7 @@ from experience import (
 from execution import credentials_present, evaluate_broker_config, resolve_order_permission, resolve_runtime_mode
 from execution.live_credentials_io import load_live_credentials
 from execution.paper_readiness_io import read_paper_trading_config
+from inference import run_exported_model
 from performance import evaluate_all_triggers
 
 
@@ -139,6 +140,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
         self.topology_embedding_iterations = int(phase_v2_topology.get("embedding_iterations", 100))
+        self.topology_warm_start_enabled = bool(phase_v2_topology.get("warm_start_enabled", True))
+        self.topology_convergence_tolerance = float(phase_v2_topology.get("convergence_tolerance", 0.01))
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -175,6 +178,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             maxlen=int(phase_v2_experience.get("maxlen", 100_000)),
         )
         self._simulated_portfolio = SimulatedPortfolioState(initial_cash=float(self.runtime["initial_cash"]))
+        self._equity_curve_flushed_count = 0
         self._observation_event_log = deque(maxlen=5000)
         self._session_events: list[dict] = []
         self._performance_triggers_config = self.phase_v2.get("performance_triggers", {})
@@ -208,6 +212,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_liquidity_by_symbol = {}
         self.latest_learned_neighbors_by_symbol = {}
         self.latest_topology_payload = {}
+        self._previous_topology_positions: dict[str, tuple[float, float]] = {}
 
         for asset in self.phase1["universe"]["assets"]:
             symbol = self._add_asset(asset)
@@ -235,6 +240,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_topology_payload = self._build_topology_payload()
         topology_by_symbol = {node["symbol"]: node for node in self.latest_topology_payload.get("nodes", [])}
         signals = {}
+        close_prices_by_symbol: dict[str, float] = {}
 
         for symbol in self.symbols:
             bar = slice.bars.get(symbol)
@@ -342,7 +348,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 else:
                     execution_note = decision["action"]
 
-                self._simulated_portfolio.mark_to_market({str(symbol): close_price}, bar_index=self.bar_index)
+                close_prices_by_symbol[str(symbol)] = close_price
 
                 self.latest_regime_by_symbol[str(symbol)] = regime_payload.get("trend_regime", "unknown")
                 self.latest_regime_risk_score_by_symbol[str(symbol)] = float(regime_payload.get("risk_score", 0.0) or 0.0)
@@ -403,6 +409,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 signal_payload["reason"] = feature_payload["reason"]
 
             signals[str(symbol)] = signal_payload
+
+        if close_prices_by_symbol:
+            self._simulated_portfolio.mark_to_market(close_prices_by_symbol, bar_index=self.bar_index)
 
         if signals:
             insight = "Phase 4 model inference active" if not self.is_warming_up else "Warming up feature history"
@@ -551,31 +560,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "model_inputs": model_inputs,
         }
 
-    def _run_exported_model(self, model_export: dict, inputs: list[float]) -> float:
-        current = list(inputs)
-        for layer in model_export["export"]["architecture"]:
-            layer_type = layer["type"]
-            if layer_type == "linear":
-                weights = model_export["export"]["state_dict"][layer["weight_key"]]
-                bias = model_export["export"]["state_dict"][layer["bias_key"]]
-                current = self._linear(current, weights, bias)
-            elif layer_type == "layernorm":
-                weights = model_export["export"]["state_dict"][layer["weight_key"]]
-                bias = model_export["export"]["state_dict"][layer["bias_key"]]
-                current = self._layernorm(current, weights, bias, float(layer.get("eps", 1e-5)))
-            elif layer_type == "relu":
-                current = [max(0.0, value) for value in current]
-            elif layer_type == "dropout":
-                continue
-            elif layer_type == "sigmoid":
-                current = [self._sigmoid(value) for value in current]
-            else:
-                raise ValueError(f"Unsupported layer type in export: {layer_type}")
-
-        return float(current[0])
-
     def _run_model(self, inputs: list[float]) -> float:
-        return self._run_exported_model(self.model_export, inputs)
+        return run_exported_model(self.model_export, inputs)
 
     def _run_expert_models(self, inputs: list[float]) -> dict:
         probabilities = {}
@@ -585,7 +571,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 probabilities[expert_name] = None
                 continue
             try:
-                probabilities[expert_name] = self._run_exported_model(model_export, inputs)
+                probabilities[expert_name] = run_exported_model(model_export, inputs)
             except Exception as error:
                 probabilities[expert_name] = None
                 self.Debug(f"Expert inference failed for {expert_name}: {error}")
@@ -650,7 +636,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
             link_threshold=self.topology_link_threshold,
             min_observations=self.topology_min_observations,
             embedding_iterations=self.topology_embedding_iterations,
+            previous_positions=self._previous_topology_positions if self.topology_warm_start_enabled else None,
+            convergence_tolerance=self.topology_convergence_tolerance,
         ).to_dict()
+        self._previous_topology_positions = {
+            node["symbol"]: (node["x"], node["y"]) for node in deterministic_topology["nodes"]
+        }
 
         # V2-17.5 - probabilistic overlay on top of the deterministic layer
         # above (never a replacement). Liquidity/regime-risk-score inputs
@@ -924,7 +915,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _write_state(self, mode: str, insight: str, signals: dict | None = None) -> None:
         now = self.Time if hasattr(self, "Time") else datetime.utcnow()
-        if self.last_state_write == now and signals is None:
+        if self.last_state_write == now:
             return
 
         state = {
@@ -1001,7 +992,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.runtime_metrics_path.write_text(json.dumps(state["monitoring"], indent=2), encoding="utf-8")
             self.runtime_asset_metrics_path.write_text(self._build_runtime_asset_csv(state), encoding="utf-8")
             self.observation_summary_path.write_text(json.dumps(state["observation"], indent=2), encoding="utf-8")
-            self.observation_equity_curve_path.write_text(self._build_observation_equity_csv(), encoding="utf-8")
+            self._flush_observation_equity_csv()
             self.performance_triggers_path.write_text(
                 json.dumps(state["performance_triggers"], indent=2), encoding="utf-8"
             )
@@ -1141,10 +1132,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         report["source"] = "in_memory_current_run"
         return report
 
-    def _build_observation_equity_csv(self) -> str:
-        rows = ["bar_index,equity,cash,exposure,drawdown"]
-        for point in self._simulated_portfolio.equity_curve:
-            rows.append(
+    def _flush_observation_equity_csv(self) -> None:
+        """Append-only flush: writes only the equity_curve entries produced
+        since the last flush (plus a header on the very first flush), instead
+        of rebuilding the full CSV from the entire in-memory list every bar."""
+        equity_curve = self._simulated_portfolio.equity_curve
+        new_points = equity_curve[self._equity_curve_flushed_count :]
+        is_first_flush = self._equity_curve_flushed_count == 0
+        if not new_points and not is_first_flush:
+            return
+
+        lines = []
+        if is_first_flush:
+            lines.append("bar_index,equity,cash,exposure,drawdown")
+        for point in new_points:
+            lines.append(
                 ",".join(
                     [
                         str(point.get("bar_index", "")),
@@ -1155,7 +1157,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     ]
                 )
             )
-        return "\n".join(rows) + "\n"
+        if not lines:
+            return
+
+        mode = "w" if is_first_flush else "a"
+        with self.observation_equity_curve_path.open(mode, encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        self._equity_curve_flushed_count = len(equity_curve)
 
     def _build_dashboard_view(self, state: dict) -> dict:
         total_portfolio_value = float(state["portfolio"]["total_portfolio_value"])
@@ -1396,30 +1404,6 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
             )
         return "\n".join(rows) + "\n"
-
-    def _linear(self, inputs: list[float], weights: list[list[float]], bias: list[float]) -> list[float]:
-        outputs = []
-        for row_index, row_weights in enumerate(weights):
-            total = float(bias[row_index])
-            for input_value, weight in zip(inputs, row_weights):
-                total += float(input_value) * float(weight)
-            outputs.append(total)
-        return outputs
-
-    def _layernorm(self, values: list[float], weights: list[float], bias: list[float], eps: float) -> list[float]:
-        mean_value = sum(values) / len(values)
-        variance = sum((value - mean_value) ** 2 for value in values) / len(values)
-        denominator = math.sqrt(variance + eps)
-
-        normalized = []
-        for index, value in enumerate(values):
-            centered = (value - mean_value) / denominator
-            normalized.append(centered * float(weights[index]) + float(bias[index]))
-        return normalized
-
-    def _sigmoid(self, value: float) -> float:
-        clipped = max(min(value, 60.0), -60.0)
-        return 1.0 / (1.0 + math.exp(-clipped))
 
     def _standard_deviation(self, values: list[float]) -> float:
         if len(values) < 2:

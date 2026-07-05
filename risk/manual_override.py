@@ -25,6 +25,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from execution.config_cache import read_cached
+
 _PHASE_V2_KEY = "phase_v2"
 _RISK_KEY = "risk"
 _OVERRIDE_KEY = "manual_trade_lock_override"
@@ -32,7 +34,13 @@ _OVERRIDE_KEY = "manual_trade_lock_override"
 
 def read_manual_trade_lock_override(config_path: Path) -> bool | None:
     """Returns True/False if a manual override is set, None if absent/unset
-    or the config file doesn't exist yet - never raises."""
+    or the config file doesn't exist yet - never raises. Mtime-gated cache
+    (see execution/config_cache.py) - picks up an edit as soon as the file's
+    mtime changes, not on a fixed schedule."""
+    return read_cached(config_path, _read_manual_trade_lock_override_uncached)
+
+
+def _read_manual_trade_lock_override_uncached(config_path: Path) -> bool | None:
     if not config_path.exists():
         return None
     with config_path.open("r", encoding="utf-8") as f:

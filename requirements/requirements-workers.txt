@@ -1,0 +1,14 @@
+# Aether Quant shared internal-worker image — union of the runtime deps
+# for experience-worker, performance-trigger-worker, and telegram-worker
+# (merged in the 5->3 Docker image consolidation; see
+# development/Problems.md).
+redis>=5.0.0
+psycopg[binary]>=3.1
+numpy>=1.24.0
+requests>=2.31.0
+# numpy is transitively required by performance-trigger-worker and
+# telegram-worker: importing performance.postgres_triggers initializes
+# performance/__init__.py -> .triggers -> experience.observation_metrics,
+# which imports numpy. See development/Problems.md #1 for the same lesson
+# learned the hard way on the original experience-worker/trigger-worker
+# images.

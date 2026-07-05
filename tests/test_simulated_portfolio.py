@@ -107,6 +107,23 @@ def test_mark_to_market_updates_drawdown_and_peak_equity():
     assert down_snapshot["peak_equity"] == up_snapshot["peak_equity"]
 
 
+def test_mark_to_market_with_multi_symbol_dict_produces_exactly_one_equity_curve_entry():
+    """Regression guard for the equity-curve cadence fix in main.py::on_data():
+    a single mark_to_market() call carrying every symbol's price for the bar
+    must append exactly one equity_curve entry that reflects all of them,
+    not one entry per symbol."""
+    portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
+    portfolio.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1)
+    portfolio.enter_long("MSFT", close_price=50.0, target_weight=0.25, bar_index=1)
+    entries_before = len(portfolio.equity_curve)
+
+    portfolio.mark_to_market({"AAPL": 120.0, "MSFT": 55.0}, bar_index=2)
+
+    assert len(portfolio.equity_curve) == entries_before + 1
+    assert portfolio.position_value("AAPL") == 25.0 * 120.0
+    assert portfolio.position_value("MSFT") == 50.0 * 55.0
+
+
 def test_position_value_reflects_latest_mark_to_market_price():
     portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
     portfolio.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1)

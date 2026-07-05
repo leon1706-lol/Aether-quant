@@ -600,3 +600,100 @@ konfiguriert oder getestet.
   separater Abschnitt in `development/v2_architecture.md`s Controlled
   Retraining Contract)
 
+## Latenz-Optimierung + Docker-Image-Konsolidierung
+
+Ausgangspunkt: eine statische Komplexitaets-Analyse von `main.py`s
+Per-Bar-Hotpath fand drei echte Bugs (nicht nur langsamer Code, sondern
+Verhalten, das schlechter als linear mit der Backtest-Zeitspanne skaliert)
+sowie zwei echte CPU-Bottlenecks (ein reines-Python-Neural-Net-Forward-Pass,
+5x pro Symbol pro Bar, und eine reine-Python-O(N²×100-Iterationen)-
+Topologie-Einbettung, 1x pro Bar). Parallel dazu: Konsolidierung der
+Docker-Images von 5 auf 3 als Vorarbeit fuer eine spaetere, latenz-
+optimierte Systemvariante — **das macht dieses System nicht zu einem
+HFT-System** (dafuer waere eine komplett andere Daten-/Execution-Architektur
+noetig), es macht nur das bestehende Daily-Bar-System schneller und das
+Docker-Layout aufgeraeumter.
+
+**Drei Bugfixes (Problems.md #11-#13):**
+
+- `main.py::_write_state()`s Throttle-Guard war durch einen unerreichbaren
+  Vergleich (`signals is None`, aber `on_data()` uebergibt `signals` immer
+  als Dict) faktisch wirkungslos — alle 7 Zustandsdateien wurden jeden
+  einzelnen Bar komplett neu geschrieben statt einmal pro Zeitstempel
+- `experience/simulated_portfolio.py::mark_to_market()` wurde pro Symbol
+  pro Bar aufgerufen statt einmal pro Bar mit allen Symbolpreisen —
+  `equity_curve` hatte dadurch `N·Bars` statt `Bars` Eintraege; zusammen mit
+  der vollstaendigen CSV-Neuerstellung bei jedem Schreiben ergab das
+  `O((Bars·Symbole)²)` Arbeit fuer `observation_equity_curve.csv`. Fix:
+  `on_data()` sammelt jetzt `close_prices_by_symbol` waehrend der
+  Symbol-Schleife und ruft `mark_to_market(...)` einmal danach auf; neue
+  `main.py::_flush_observation_equity_csv()` schreibt nur noch die seit dem
+  letzten Flush neuen Zeilen an (Header einmalig beim ersten Flush)
+- neues `execution/config_cache.py::read_cached()`: mtime-gecachte Reads
+  fuer `risk/manual_override.py`, `execution/paper_readiness_io.py`,
+  `execution/runtime_config_io.py` (alle drei lesen `config.json` haeufiger,
+  als sich die Datei tatsaechlich aendert). **Ein echter Bug wurde dabei nur
+  durch den echten `lean backtest .`-Integrationstest gefunden, nicht durch
+  Unit-Tests:** die erste Version cachte nur nach Dateipfad, nicht nach
+  Pfad+Loader — da mehrere Reader (`manual_trade_lock_override`,
+  `paper_trading_config`, ...) dieselbe `config.json` im selben Bar lesen,
+  ueberschrieb der zweite Reader-Aufruf faelschlich den Cache-Eintrag des
+  ersten, was `main.py::_recompute_broker_config()` mit `None` statt einem
+  Dict abstuerzen liess. Gefixt durch Cache-Key `(config_path, loader)`.
+
+**Bewusst offen gelassen:** `experience/redis_queue.py::push()` in
+Backtest-Mode zu ueberspringen waere trivial, wuerde aber
+`development/v2_architecture.md`s dokumentiertem Redis-Experience-Queue-
+Verhalten widersprechen, ohne dass eine vermutete Downstream-Abhaengigkeit
+bestaetigt oder widerlegt waere (siehe Problems.md #14, `open`).
+
+**Docker-Konsolidierung (5 → 3 Custom-Images):** `experience-worker`,
+`performance-trigger-worker` und `telegram-worker` teilen sich jetzt ein
+Image (`Dockerfile.workers` + `requirements/requirements-workers.txt`,
+Vereinigung der bisherigen drei Requirements-Dateien) statt je ein eigenes
+Dockerfile/Requirements-Paar. Verifiziert per `docker compose build`/`up`
+und sauberem Start aller drei Container. `aether-quant`- und
+`retraining-worker`-Image unveraendert.
+
+**NN-Inferenz extrahiert und vektorisiert:** `_run_exported_model`/
+`_linear`/`_layernorm`/`_sigmoid` waren private `main.py`-Methoden, reines
+Python, 5x pro Symbol pro Bar (Baseline + 4 Experten) aufgerufen — trotz
+`numpy` als laengst deklarierter Abhaengigkeit, die in `main.py`s
+Import-Kette bis dahin nie tatsaechlich importiert wurde. Erst verhaltens-
+identisch nach `inference/exported_model.py` extrahiert (freie Funktionen,
+gleiches Muster wie `risk/position_sizing.py`), dann dort mit `numpy`
+vektorisiert. Absicherung: `tests/test_exported_model.py` (Hand-berechnete
+Werte plus ein Referenz-Forward-Pass).
+
+**Topologie vektorisiert + Warm-Start (Problems.md-Stil, `v2_architecture.md`
+hat die Details):** `topology/market_topology.py::_stress_majorize_2d()`
+(die SMACOF-Einbettung, dominanter Kostenfaktor der Topologie-Schicht) ist
+jetzt mit `numpy` vektorisiert, gleiche Ein-/Ausgaben/Iterationszahl/Seeding
+wie die reine-Python-Version (Parity-Test in `tests/test_market_topology.py`).
+Die paarweise Korrelationsschleife bleibt bewusst reines Python (Symbole
+teilen sich in der Praxis keine einheitliche Fensterlaenge — gestaffeltes
+Onboarding, duenne Maerkte wie ETHUSD/LTCUSD); `topology/learned_topology.py`s
+kleinerer `O(N²×5)`-Anteil bleibt aus demselben Grund unvektorisiert plus bei
+nur 10 Assets im Universum ohnehin vernachlaessigbar gegenueber SMACOF.
+
+**Verhaltensaendernd, nicht nur Geschwindigkeit:** `build_market_topology()`
+akzeptiert jetzt `previous_positions` — SMACOF startet fuer bekannte Symbole
+vom Vorbar-Ergebnis statt vom kosmetischen Winkel-Seed, kombiniert mit einem
+neuen `convergence_tolerance`-Parameter fuer vorzeitigen Iterationsabbruch,
+sobald sich Punkte kaum noch bewegen (erst das spart tatsaechlich Zeit — ein
+Warm-Start allein bringt nichts, wenn trotzdem immer alle 100 Iterationen
+laufen). Neue Config-Keys `phase_v2.topology.warm_start_enabled` (Default
+`true`) und `phase_v2.topology.convergence_tolerance` (Default `0.01`).
+**Das aendert Bar-fuer-Bar die Topologie-Koordinatenwerte** — historische
+Backtest-Ergebnisse und bereits promotete Modelle, die gegen das alte,
+immer-frisch-geseedete Verhalten trainiert/validiert wurden, reproduzieren
+sich danach nicht mehr bitgenau. `warm_start_enabled: false` reproduziert
+das alte (vektorisierte, aber kalt geseedete) Verhalten exakt — ein echter,
+redeploy-freier Rollback-Schalter, kein reiner Default.
+
+Neue Tests: `tests/test_config_cache.py`,
+`tests/test_exported_model.py`, plus Erweiterungen in
+`tests/test_simulated_portfolio.py`, `tests/test_manual_override.py`,
+`tests/test_paper_readiness_io.py`, `tests/test_runtime_config_io.py`,
+`tests/test_market_topology.py`.
+

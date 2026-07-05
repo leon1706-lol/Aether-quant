@@ -1,6 +1,12 @@
 import json
+import os
 
 from risk.manual_override import read_manual_trade_lock_override, write_manual_trade_lock_override
+
+
+def _bump_mtime(path) -> None:
+    current = os.stat(path).st_mtime
+    os.utime(path, (current + 1.0, current + 1.0))
 
 
 def _write_config(path, phase_v2_overrides=None) -> None:
@@ -73,3 +79,17 @@ def test_write_creates_missing_phase_v2_and_risk_blocks(tmp_path):
     write_manual_trade_lock_override(False, config_path)
 
     assert read_manual_trade_lock_override(config_path) is False
+
+
+def test_read_picks_up_a_later_change_after_mtime_updates(tmp_path):
+    """Regression guard for the mtime-gated cache in execution/config_cache.py
+    - a stale cache would silently break the hot-reload behavior this module
+    exists for."""
+    config_path = tmp_path / "config.json"
+    _write_config(config_path)
+    assert read_manual_trade_lock_override(config_path) is None
+
+    write_manual_trade_lock_override(True, config_path)
+    _bump_mtime(config_path)
+
+    assert read_manual_trade_lock_override(config_path) is True

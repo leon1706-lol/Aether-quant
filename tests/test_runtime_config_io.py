@@ -1,6 +1,12 @@
 import json
+import os
 
 from execution.runtime_config_io import read_runtime_mode
+
+
+def _bump_mtime(path) -> None:
+    current = os.stat(path).st_mtime
+    os.utime(path, (current + 1.0, current + 1.0))
 
 
 def _write_config(path, mode=None) -> None:
@@ -34,3 +40,15 @@ def test_read_runtime_mode_passes_through_valid_modes(tmp_path):
         _write_config(config_path, mode=mode)
 
         assert read_runtime_mode(config_path) == mode
+
+
+def test_read_runtime_mode_picks_up_a_later_change_after_mtime_updates(tmp_path):
+    """Regression guard for the mtime-gated cache in execution/config_cache.py."""
+    config_path = tmp_path / "config.json"
+    _write_config(config_path, mode="paper")
+    assert read_runtime_mode(config_path) == "paper"
+
+    _write_config(config_path, mode="live")
+    _bump_mtime(config_path)
+
+    assert read_runtime_mode(config_path) == "live"

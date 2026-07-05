@@ -1,6 +1,7 @@
 # tests
 
-Pytest suite for every non-`webui` module. 488 tests as of V2-21/V2-22.
+Pytest suite for every non-`webui` module. 507 tests as of the
+latency-optimization + Docker consolidation pass (post-V2-23).
 
 Conventions (established since the first V2 test files and followed
 throughout): one test file per source module (`tests/test_<module>.py`),

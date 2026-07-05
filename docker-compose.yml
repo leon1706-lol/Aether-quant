@@ -113,7 +113,7 @@ services:
   experience-worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile.workers
     container_name: aether-experience-worker
     command: python -m experience.postgres_worker
     environment:
@@ -134,7 +134,7 @@ services:
   performance-trigger-worker:
     build:
       context: .
-      dockerfile: Dockerfile.trigger_worker
+      dockerfile: Dockerfile.workers
     container_name: aether-performance-trigger-worker
     command: python -m performance.trigger_worker
     environment:
@@ -151,7 +151,7 @@ services:
   telegram-worker:
     build:
       context: .
-      dockerfile: Dockerfile.telegram_worker
+      dockerfile: Dockerfile.workers
     container_name: aether-telegram-worker
     command: python -m notifications.telegram_worker
     environment:
