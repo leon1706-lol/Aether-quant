@@ -2,8 +2,8 @@
 
 Status: In development
 Version: V2
-Completed phases: V2-1 through V2-19.5
-Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment
+Completed phases: V2-1 through V2-22 (V2-24 final review outstanding)
+Focus: Adaptive MoE systems, Lean-data backtesting, observation-first deployment, paper/live deployment structure
 
 ## Objective
 
@@ -429,10 +429,18 @@ Package split (mirrors the pure/IO/worker convention already established by
   `experience-worker`/`performance-trigger-worker`), gated by
   `phase_v2.retraining.enabled` (checked every cycle — flip it in
   `config.json` without touching the container) and
-  `phase_v2.retraining.worker.auto_promote` (default `false`: the worker
-  stops at `status="validated"` after a successful Vault commit and leaves
-  the actual model swap to a manual
-  `python -m retraining.orchestrator promote --version-id <id>` call).
+  `phase_v2.retraining.worker.auto_promote` (default `true` as of V2-22: the
+  worker calls `promote()` itself after a successful Vault commit, rather
+  than stopping at `status="validated"` for a human to run
+  `python -m retraining.orchestrator promote --version-id <id>`). Full
+  autonomy is judged safe today specifically **because no live trading
+  exists yet** (V2-22 is structural only, no real broker wired up) — the
+  moment `phase_v2.runtime.mode` can genuinely equal `"live"`,
+  `phase_v2.retraining.worker.auto_promote_blocked_in_live_mode` (default
+  `true`, see the Live Deployment Contract below) forces manual promotion
+  regardless of this flag. Revisit whether `auto_promote` itself should
+  default back to `false` once V2-22's structural pieces are actually
+  connected to a real live brokerage.
   `retraining/orchestrator.py` exposes every stage (`plan`, `train`,
   `validate`, `backtest`, `commit`, `promote`, `rollback`, `status`) as an
   independent CLI subcommand for manual/staged use regardless of whether the
@@ -457,7 +465,7 @@ trigger and rollback availability — placed directly under
 
 ## API Key Status
 
-No broker API key is required for V2 foundation, training, backtesting, observation mode, dashboard work, Grafana exports, MoE experiments or controlled retraining. API keys are only required for real paper/live trading.
+No broker API key is required for V2 foundation, training, backtesting, observation mode, dashboard work, Grafana exports, MoE experiments or controlled retraining. Real broker API keys are only required for **live** trading (V2-22, IBKR or another Lean-supported brokerage). Paper trading (V2-21) targets Lean's built-in `PaperBrokerage` instead, which needs no broker credentials at all — the one remaining external dependency is a live market **data** feed, either a QuantConnect cloud login (`lean login`) or a self-serve provider key (IEX/Polygon, already-present placeholder fields in `lean.json`). See the Paper Trading Readiness Contract (V2-21) and Live Deployment Contract (V2-22) below.
 
 ## Lean Data Contract
 
@@ -1071,3 +1079,205 @@ name, unrelated tool). The test's `_find_quantconnect_lean_binary()` checks
 `--version` output (Lean 4 prints `"Lean (version 4...."`; QuantConnect's CLI
 does not) and prefers this repo's own `.venv/Scripts/lean.exe` before falling
 back to `PATH`, so it skips cleanly instead of erroring on such machines.
+
+## Paper Trading Readiness Contract (V2-21)
+
+Before V2-21, `main.py`'s `broker_config_present` flag (feeding
+`execution/order_gate.py::resolve_order_permission()`'s `paper`/`live` branches)
+was `bool(self.paper_brokerage)` — a string from `phase6.paper_trading.brokerage`
+that defaults non-empty, so the check was structurally always `True`. V2-21
+replaces it with a real decision, and targets Lean's built-in `PaperBrokerage`
+(`lean.json`'s existing `live-paper` environment) rather than a real IBKR
+paper account — `PaperBrokerage` needs no broker credentials at all, only a
+live market data feed.
+
+- `execution/paper_readiness.py` (pure) — `evaluate_paper_broker_config(paper_trading_config)`
+  requires three things, in order, short-circuiting with a distinguishing
+  reason on the first failure: a non-empty `brokerage`, `live_data_provider_configured`
+  (human attestation — a live data feed is a real dependency Lean's
+  `LiveDataQueue`/IEX/Polygon data-queue-handler choice, and can't be
+  verified from `lean.json` alone since a QuantConnect cloud login lives
+  outside the repo), and `manual_review_confirmed` (human attestation,
+  replaces the old, never-actually-checked `phase6.paper_trading.ready_for_live_paper`
+  stub). `evaluate_observation_readiness(summary, thresholds)` turns 4 of the
+  5 bullets in the (now superseded) "Bereit fuer Paper Trading?" manual
+  checklist below into code: minimum observation count, `simulated_sharpe`
+  floor, `simulated_max_drawdown` floor, no single `rejected_by_reason`
+  dominating. The 5th bullet (manual review of trade history for plausible
+  entry/exit prices) is deliberately **not** automated — it stays a human
+  judgment call, gated by `manual_review_confirmed` above. This mirrors the
+  codebase's existing bias toward manual gates elsewhere (trade-lock
+  override, retraining promote/rollback).
+- `execution/paper_readiness_io.py` (IO) — `read_paper_trading_config(config_path)`
+  is a fresh, uncached single-key read of `phase_v2.paper_trading` (same
+  shape as `risk/manual_override.py::read_manual_trade_lock_override()`), so
+  a long-running paper process picks up an attestation-flag change at the
+  next session rollover without a restart. `fetch_observation_mode_events(conn)`
+  is the first `mode='observation'`-filtered `experience_events` query — the
+  existing `performance/postgres_triggers.py::fetch_recent_events()`/
+  `fetch_events_since()` don't filter by mode.
+- `execution/paper_readiness_report.py` — the offline report `main.py` cannot
+  compute itself (it never opens its own Postgres connection, same invariant
+  documented in the Controlled Retraining Contract above). `build_paper_readiness_view(conn, config)`
+  merges `evaluate_observation_readiness()` (fed by `experience.observation_metrics.compute_observation_summary()`)
+  with `evaluate_paper_broker_config()`, and writes
+  `visualization/grafana/paper_readiness_report.json` — sole writer, same
+  pattern as `retraining/status_export.py`. `aq paper-readiness` (`aq_cli.py`)
+  runs this as a human-invoked, exit-code-1-if-not-ready gate before flipping
+  `phase_v2.runtime.mode` to `"paper"`.
+- `main.py`: `phase6.paper_trading` is removed entirely (it fed nothing but
+  the old no-op check). New `self.phase_v2_paper_trading` (from `phase_v2.paper_trading`)
+  and a single `_recompute_broker_config()` method, called once in
+  `initialize()` and again every session rollover in `_refresh_risk_state()`
+  (same "frisch von der Platte, no restart needed" rule as the manual
+  trade-lock override) — `_order_permission()` now reads `self._broker_config_present`
+  from this instead of the old string-truthiness check.
+- Dashboard/API: merged into `/api/state` under `state["paper_readiness"]`
+  (`monitoring/api_server.py::get_state()`, same pattern as `retraining_status`)
+  plus a standalone `GET /api/grafana/paper-readiness` route. `PaperReadinessPanel.tsx`
+  (same shape as `RetrainingStatusPanel.tsx`) shows a ready/not-ready banner,
+  each threshold check with its value vs. threshold, and the broker-config
+  reason — placed in `Overview.tsx` next to the retraining status panel.
+- `docker-compose.yml` gains a `lean-live` service (profile `lean-live`,
+  never part of `--all`/`--lean`) that runs `lean live deploy . --environment
+  ${LEAN_LIVE_ENVIRONMENT:-live-paper}` continuously (`restart: unless-stopped`)
+  — distinct from the existing `lean` service, which only runs `sleep
+  infinity` for ad-hoc `lean backtest .` invocations. The same service,
+  parameterized by `LEAN_LIVE_ENVIRONMENT`, is reused for live deployment in
+  V2-22 (`live-interactive`) — the concrete demonstration that paper→live is
+  a config change, not a rewrite.
+- **Stop:** no real broker or live market data was configured or tested in
+  this phase. `lean live deploy`'s exact CLI flags were not verified against
+  an installed Lean CLI — run `lean live deploy --help` once before relying
+  on the compose command above. `phase_v2.paper_trading` defaults to fully
+  blocking (`live_data_provider_configured`/`manual_review_confirmed` both
+  `false`) so flipping to `"paper"` mode requires an explicit, deliberate
+  human action.
+
+## Live Deployment Contract (V2-22)
+
+Purely structural: makes a later flip from paper to real live trading a
+config/credential change, not a code rewrite. No real broker credentials or
+live trades were configured or tested in this phase.
+
+- Credential handling: `.env.live.example` (tracked, placeholder-only —
+  `.gitignore` gained a `!.env.live.example` exception mirroring
+  `!.env.compose.example`) documents the `AETHER_IB_*` environment-variable
+  path. `execution/live_credentials.py` (pure) — `credentials_present(credentials)`
+  and `describe_missing_fields(credentials)` over `REQUIRED_FIELDS =
+  ("ib_account", "ib_user_name", "ib_password")`. `execution/live_credentials_io.py`
+  (IO) — `load_live_credentials()` tries importing `ib_config` (repo-root,
+  gitignored, planned-but-absent per `.gitignore`) first, falls back to
+  `AETHER_IB_*` env vars, never raises. This is **pre-flight validation
+  only** — it does not wire Lean itself. Lean's `BrokerageSetupHandler`
+  reads `ib-account`/`ib-user-name`/`ib-password`/`ib-trading-mode` directly
+  out of `lean.json` (already gitignored, already has these exact fields as
+  empty placeholders); populating those stays a manual step.
+- `execution/paper_readiness.py` gains `evaluate_live_broker_config(paper_trading_config, live_credentials_present, risk_config, live_config)`
+  — requires the paper check to *also* pass (you cannot go straight to live
+  without a validated paper corridor) AND real credentials present AND (if
+  risk/live config supplied) `evaluate_live_risk_posture(risk_config, live_config)`:
+  a sanity ceiling, not a redesign of the drawdown circuit breaker — `main.py`'s
+  `max_daily_drawdown_pct`/`max_total_drawdown_pct` must not exceed
+  `phase_v2.live.max_allowed_{daily,total}_drawdown_pct` (defaults `0.05`/`0.15`),
+  and `liquidate_on_risk_breach` must be `true`. `evaluate_broker_config()`
+  is the single dispatch point `main.py` calls regardless of mode — the same
+  decision table, just with additional conditions for `live`, is itself the
+  concrete proof that paper→live is a config question, not an architecture
+  question.
+- `main.py`: `self._live_credentials` is loaded once in `initialize()`
+  (environment variables/`ib_config.py` don't change mid-run the way
+  `config.json` can) via `load_live_credentials()`; `_recompute_broker_config()`
+  passes `credentials_present(self._live_credentials)` plus the live
+  `risk_config`/`live_config` dicts into `evaluate_broker_config()` every
+  session rollover.
+- Auto-promote safety net: `execution/runtime_config_io.py::read_runtime_mode(config_path)`
+  (same fresh-read shape as `risk/manual_override.py`). `retraining/worker.py::run_once()`
+  forces `auto_promote` off for that cycle (with a warning log pointing at
+  `aq retrain promote --version-id <id>`) whenever `auto_promote` is `True`
+  **and** `phase_v2.retraining.worker.auto_promote_blocked_in_live_mode`
+  (default `true`) **and** `read_runtime_mode(...) == "live"`. See the
+  updated Controlled Retraining Contract above for why full autonomy is
+  judged safe only while no live trading exists yet.
+- Deployment-health alerting: `performance/triggers.py::live_order_permission_blocked_trigger(events, window)`
+  fires `critical` when `mode == "live"` but recent `execution_note`s are
+  still `simulated_*` — the order gate is silently blocking what should be a
+  real order (misconfigured credentials/`allow_live_orders`/risk lock in a
+  deployment that believes it's live). Added to `TRIGGER_TYPES` but
+  deliberately excluded from `_is_retrain_candidate()` via a new
+  `_NON_RETRAIN_TRIGGERS` set — a broker misconfiguration is an ops problem,
+  not something a new model version fixes. No change needed in
+  `notifications/telegram_alerts.py`, which already formats any trigger row
+  generically and already alerts at `critical`.
+- `docker-compose.yml`'s `lean-live` service (introduced in V2-21, see
+  above) is reused unchanged for live deployment — set
+  `LEAN_LIVE_ENVIRONMENT=live-interactive` (or another Lean-supported
+  brokerage environment already present in `lean.json`'s `environments`
+  block) instead of the default `live-paper`.
+- **Stop:** no `ib_config.py` was created, no real IBKR (or other) broker
+  credentials exist anywhere in this repo, and no live order was ever
+  placed. This phase only built the scaffolding a real live-trading rollout
+  would need.
+
+## Why This Is Not HFT, And What It Would Take (Advisory)
+
+Analysis only — no code changed as a result of this section (explicit
+project-owner decision during V2-21/V2-22 planning). Kept here as a standing
+reference so the question doesn't get re-investigated from scratch later.
+
+**Why the system is not HFT today**, in order of how fundamental each gap is:
+
+1. **Daily bars everywhere.** Data storage (`data/equity/usa/daily/*.zip`),
+   feature set (`close_to_close_return_{1,5,20}d`, `rolling_volatility_*`,
+   etc.), the model's prediction target (`phase1.target`: "1 trading day
+   ahead"), the backtest resolution (`self.resolution = Resolution.DAILY` in
+   `main.py`), and warm-up all assume one bar per symbol per day. HFT needs
+   tick or L1/L2 order-book data at micro/millisecond granularity — a
+   different data source and storage layer entirely, not a config flag.
+2. **Trading throttled to roughly one decision per symbol per few days.**
+   `phase6.risk.trade_cooldown_bars` (default `3`) blocks a signal flip
+   inside that window; combined with daily bars and ~10 symbols, a backtest
+   produces on the order of single-digit orders per day across the whole
+   book. HFT strategies place hundreds to thousands of orders per second.
+3. **Orders are `SetHoldings`/`Liquidate` market orders with no slippage
+   modeling wired to fills.** `liquidity/market_liquidity.py` computes an
+   `estimated_slippage`/spread proxy purely as a pre-trade sizing/blocking
+   signal — it never feeds into an actual fill price (no `SlippageModel` is
+   ever attached to a Lean security, confirmed in the Liquidity Engine
+   Contract above). Observation-mode simulated fills also hardcode
+   `slippage_bps=0.0`. HFT requires limit-order/queue-position-aware
+   execution and explicit latency simulation, both absent.
+4. **Retraining is an offline, gated batch process**, not online/continuous
+   learning: `phase_v2.retraining.cooldown_minutes` (720 = 12h),
+   `max_retrainings_per_day` (2), and a full
+   plan→train→validate→backtest→commit pipeline per candidate. HFT models
+   typically predict seconds-or-less ahead and either retrain far more
+   frequently or adapt continuously.
+5. **Infrastructure is batch/polling, not a low-latency event loop.** The
+   background workers (`experience-worker`, `performance-trigger-worker`,
+   `retraining-worker`, `telegram-worker`) all poll every 30s-5min; Redis is
+   used only as a fire-and-forget experience-event log, never a low-latency
+   market-data/order bus. The core trading loop is Lean's own daily-bar
+   `on_data()` callback, not an async tick-driven engine.
+6. **No real broker/exchange connectivity exists yet** (this is what
+   V2-21/V2-22 above start to address) — HFT additionally needs colocated,
+   low-latency exchange connectivity, which is a hosting/infrastructure
+   commitment well beyond what V2-21/V2-22 scope to.
+
+**What "nudging toward HFT" would concretely require**, roughly in the order
+the gaps above would need closing: tick/L1-L2 data ingestion and storage
+(replacing the daily Lean zip files — a new data pipeline, not an extension
+of the current one); a model and feature set operating at sub-second/tick
+granularity with a much shorter prediction horizon (a new model, not a
+retrained version of the current daily classifier); removing or drastically
+shrinking `trade_cooldown_bars` and every daily-bar-calibrated risk/liquidity
+threshold; a real slippage/latency-aware execution simulator plus limit-order
+support (currently entirely absent); a genuine low-latency event-driven
+runtime replacing the `on_data()` bar callback and the 30s+ polling workers;
+and real low-latency broker/exchange connectivity, likely requiring colocated
+infrastructure for true live HFT. In practice this is closer to a second,
+parallel trading system than an incremental change to the current one — the
+daily-bar architecture's data model, risk calibration, and infrastructure
+choices are all load-bearing assumptions the rest of V2 (MoE experts, regime
+detection, topology, liquidity engine, controlled retraining) is built on top
+of.

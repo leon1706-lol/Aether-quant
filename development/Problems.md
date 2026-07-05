@@ -7,7 +7,7 @@ data-loss/safety issue), and a status tag. Newest first.
 ---
 
 ### 1. `experience-worker` crash loop — missing `numpy` dependency
-**Severity:** 6/10 · **Status:** `fixed`
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
 
 `experience/observation_metrics.py` (added in V2-15) imports `numpy` for
 `simulated_sharpe`. `experience/__init__.py` imports `observation_metrics` at
@@ -28,7 +28,7 @@ repeated in the new trigger worker.
 ---
 
 ### 2. `Dockerfile.worker` missing `execution/` copy
-**Severity:** 6/10 · **Status:** `fixed`
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
 
 V2-15 added `experience/simulated_portfolio.py`, which imports
 `execution.order_gate`. `experience/__init__.py` imports
@@ -47,7 +47,7 @@ Docker section, and applied proactively to the new
 ---
 
 ### 3. Simulated portfolio/positions snapshot not mode-aware
-**Severity:** 5/10 · **Status:** `fixed`
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
 
 `main.py`'s `_snapshot_positions()` and the top-level `state["portfolio"]`
 dict (`total_portfolio_value`, `cash`, `holdings_value`, `invested_positions`)
@@ -69,7 +69,7 @@ already used for `_active_position_count`/`_asset_class_exposure`/
 ---
 
 ### 4. Webui: empty space above Market Scene panel
-**Severity:** 2/10 · **Status:** `fixed`
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
 
 `Overview.tsx`'s outer two-column layout used CSS Grid with default
 `align-items: stretch`. Since the right column (Signal Board, Positions,
@@ -88,7 +88,7 @@ naturally sizes to its children's content with no cross-stretch behavior).
 ---
 
 ### 5. Webui: Signal Distribution / Rejected By Reason tables overflow the panel
-**Severity:** 2/10 · **Status:** `fixed`
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
 
 `ObservationPanel.tsx`'s `CountTable` sub-component rendered label/count
 pairs as an HTML `<table>` inside a CSS Grid cell. Long reason strings (e.g.
@@ -105,7 +105,7 @@ added `min-w-0` to the grid containers so they're allowed to shrink, and
 ---
 
 ### 6. `aether-grafana` container name collision blocks the real Grafana service
-**Severity:** 3/10 · **Status:** `open`
+**Severity:** 3/10 · **Status:** 🟢 `closed (moot)`
 
 Found during a Docker inventory review (unrelated to V2-15/16 code — a
 housekeeping finding). A container named `aether-grafana` exists (exited 8
@@ -118,14 +118,17 @@ wants `container_name: aether-grafana` (port 3001, volume `grafana-data`) —
 since Docker container names must be unique, this orphaned container would
 block `docker compose up -d grafana` from ever creating the real one.
 
-**Fix (not yet applied — awaiting user confirmation):** `docker rm
-aether-grafana` to free the name, then `docker compose up -d grafana` will
-create the compose-managed one correctly.
+**Re-checked 2026-07-04 (V2-21/22 planning pass):** `docker ps -a` shows no
+`aether-grafana` container at all anymore, and `docker-compose.yml` no
+longer defines a `grafana` service (removed entirely in V2-18, in favor of
+the React tracing dashboard). The collision this item describes can no
+longer happen. Closed as moot rather than fixed — no action was taken,
+the scenario stopped applying once Grafana was removed from the stack.
 
 ---
 
 ### 7. ~85GB of orphaned duplicate Lean engine images + stale containers/volumes
-**Severity:** 2/10 · **Status:** `open`
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
 
 Found during the same Docker inventory review. Two untagged
 (`<none>`) `quantconnect/lean` images (`650dd8d4063a`, `cb13534ee02c`,
@@ -142,18 +145,30 @@ container since `docker compose` now tags it `aether-quant-aether-quant`),
 and unused standalone `redis:latest`/`postgres:latest` image pulls not
 pinned by either `docker-compose.yml` (aether-quant or aether-vault).
 
-**Fix (not yet applied — awaiting user confirmation, purely disk-space
-hygiene, no functional impact):**
-```powershell
-docker rm quizzical_maxwell loving_antonelli
-docker rmi 650dd8d4063a cb13534ee02c aether-quant:latest redis:latest postgres:latest
-docker volume rm lean_cli_python_9c2708201519fa8d08977929a7584533 lean_cli_python_09fe6a52b86d1b5481d303363de59d1a lean_cli_python_2247f36d850e433c9582ac3514c5c1bb lean_cli_python_d4b32878b8dc1a8af8ccd4d44ced374a
-```
+**Re-checked 2026-07-04 (V2-21/22 planning pass):** `quizzical_maxwell`,
+`loving_antonelli`, `cb13534ee02c`, the four named `lean_cli_python_*`
+volumes, and the stray `aether-quant:latest`/`redis:latest`/`postgres:latest`
+tags are all genuinely gone — the ~85GB figure and the original combined fix
+command are stale. **Correction, 2026-07-05:** the first re-check incorrectly
+claimed `650dd8d4063a` (one of the two original untagged 42.5GB
+`quantconnect/lean` images) was also gone — a plain `docker images` should
+have shown it and didn't get checked carefully enough at the time. It is
+still present (`docker images -a` confirms a `<none>:<none>` entry with this
+exact ID, 42.5GB, no container references it) and is a real, sizeable orphan.
+Also found, separately: an unused `grafana-storage` volume and an unused
+`grafana/grafana:latest` image (~1.45GB), leftover from before Grafana was
+removed in V2-18 — neither referenced by the current `docker-compose.yml`.
+**Fixed, 2026-07-05:** `docker volume rm grafana-storage`, `docker rmi
+650dd8d4063a`, and `docker rmi grafana/grafana:latest` all applied by the
+user; re-verified via `docker images -a`/`docker volume ls` that all three
+are gone. All Aether-Vault images, containers, and volumes
+(`aether-vault-*`) were explicitly left untouched throughout — they were
+never orphans, just a separate project's own (currently stopped) stack.
 
 ---
 
 ### 8. Bare `pytest` (no path) fails from repo root
-**Severity:** 3/10 · **Status:** `open`
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
 
 `README.md`'s documented test command is bare `pytest` (no `tests/` path).
 Running it from the repo root also crawls `backtests/*/code/tests/`
@@ -183,7 +198,7 @@ now works too.
 ---
 
 ### 9. Total-drawdown trade lock never auto-clears within a run
-**Severity:** 4/10 · **Status:** `addressed` (manual override + auto-clear on promotion, not a behavior change to the default)
+**Severity:** 4/10 · **Status:** 🟢 `addressed` (manual override + auto-clear on promotion, not a behavior change to the default)
 
 `main.py::_refresh_risk_state()`'s session-rollover branch only resets
 `trade_lock_active` when `trade_lock_reason != "total_drawdown_limit_breached"`
@@ -212,3 +227,85 @@ it on every successful promotion, gated by
 ties "trading resumes" to "a genuinely new model shipped," not to a bare
 restart. See the Manual Trade-Lock Override Contract in
 `development/v2_architecture.md`.
+
+---
+
+### 10. `ci.yml`'s `test` job fails on GitHub's Linux runner — root cause still unknown
+**Severity:** 3/10 · **Status:** 🟠 `open`
+
+Found while setting up the open-source release pipeline (PyPI + GHCR
+publishing via `.github/workflows/ci.yml`/`release.yml`). Three distinct
+problems surfaced in sequence, all triggered by the same event: this was the
+**first time anyone ever ran a truly clean install + bare `pytest` invocation**
+of this repo (every local dev session, this one included, always used
+`python -m pytest` from an already-populated `.venv`, which masks the
+underlying gaps described below).
+
+1. **Fixed** — `requirements/requirements-dev.txt` listed `lean-cli>=35.0`
+   and `qcalgorithm>=1.0`, neither of which exists on PyPI under those names
+   (confirmed via PyPI's JSON API: both 404). The real QuantConnect package
+   is named `lean`, which also pulls in `quantconnect-stubs` transitively
+   (what `qcalgorithm` was presumably trying to reach). Changed to
+   `lean>=1.0.225`.
+2. **Fixed** — bare `pytest` (the installed console script, not
+   `python -m pytest`) never had this repo's root on `sys.path`: unlike
+   `python -m pytest`, which causes Python itself to prepend the CWD,
+   invoking `pytest` directly leaves it to pytest alone to decide what's
+   importable, and pytest's default "prepend" import mode only adds the
+   nearest `__init__.py`-free directory (`tests/` itself) — not the repo
+   root one level up, where `train.py`, `moe/`, `risk/`, `retraining/`, etc.
+   all live. Every test file that imports a first-party module failed with
+   `ModuleNotFoundError`. Fixed by adding `pythonpath = ["."]` to
+   `pyproject.toml`'s `[tool.pytest.ini_options]`, which works identically
+   regardless of invocation style or OS.
+3. **Still open** — after both fixes above, dependency install and test
+   *collection* both succeed in CI, but the actual `pytest` run itself still
+   fails (`exit code 1`) on GitHub's `ubuntu-latest` + Python 3.11 runner.
+   All 488 tests pass cleanly and repeatedly on the local Windows + Python
+   3.14 dev environment (`.venv/Scripts/pytest.exe`, the exact same bare
+   invocation style as CI). Root cause not yet identified.
+   - Confirmed via the public unauthenticated GitHub API
+     (`GET /repos/leon1706-lol/Aether-quant/actions/runs/<id>/jobs`) that the
+     `test` job's "Run tests" step is specifically what fails — every other
+     step (checkout, setup-python, install dependencies) succeeds. The raw
+     log itself (`GET /actions/jobs/<id>/logs`) returns HTTP 403 without an
+     authenticated token, confirmed directly; an unauthenticated web-page
+     fetch of the job's Actions UI also only shows the same generic "1
+     error" annotation, not the pytest traceback.
+   - Attempted a local repro during V2-21/V2-22 planning
+     (2026-07-04/05): `docker run --rm -v <repo>:/repo -w /repo
+     python:3.11-slim bash -c "pip install -r requirements/requirements.txt
+     -r requirements/requirements-dev.txt && pytest"`, to match CI's exact
+     OS/Python combination without needing `gh` auth. **Inconclusive** — the
+     container made effectively zero installation progress after 30+
+     minutes (still only base `pip`/`setuptools`/`wheel`, none of this
+     repo's dependencies), and a direct network check from inside the
+     container timed a single PyPI simple-index fetch (`pypi.org/simple/torch/`)
+     at ~10.5 seconds. This points to severe network-bandwidth/latency
+     constraints in the local sandbox this session ran in, not a
+     dependency-resolution bug — the repro was stopped rather than left
+     running indefinitely. Worth retrying from an environment with normal
+     PyPI throughput before concluding anything from it either way.
+   - **Next step, still open:** either (a) retry the same Docker repro
+     command above from a machine/network with normal PyPI download speeds,
+     or (b) install/authenticate the `gh` CLI (`winget install GitHub.cli`,
+     then `gh auth login`) and run `gh run view <run-id> --log --job <job-id>`
+     to get the actual pytest failure text — this remains the fastest path
+     if (a) isn't convenient. Suspected root causes, unchanged from before:
+     a Linux BLAS numeric-precision difference affecting a sklearn/topology
+     test, or a Python 3.11-vs-3.14 stdlib behavior difference.
+
+**Not currently blocking releases**: `release.yml`'s `publish-pypi`/
+`publish-docker` jobs no longer depend on a test job at all (removed at the
+user's explicit request, in favor of testing locally before tagging) — see
+`v2_architecture.md`/git history around the `v0.2.0` release. `ci.yml`'s
+`test` job still runs (and still fails) on every push/PR to `main`, so it
+remains a visible red check, just not a release gate.
+
+**Next step, when revisited:** grab the actual failing test's output from
+the Actions UI (expand the "Run tests" step) or via `gh run view --log
+--job <id>` with an authenticated `gh` CLI, since likely candidates
+(platform-specific path/locale assumptions, a numeric-precision difference
+in a Linux BLAS backend affecting one of the sklearn/topology tests, a
+Python 3.11-vs-3.14 stdlib behavior difference) can't be distinguished
+without the real error text.

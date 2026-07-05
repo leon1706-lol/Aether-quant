@@ -6,7 +6,7 @@ directly). Unlike TriggerWorker, each run_once() cycle can drive the full
 plan -> train -> validate -> backtest -> commit -> (promote) pipeline via
 retraining/orchestrator.py's stage functions.
 
-Two safety knobs keep this "no uncontrolled live learning":
+Three safety knobs keep this "no uncontrolled live learning":
 - config["enabled"] (phase_v2.retraining.enabled): a live off-switch checked
   every cycle - flip it in config.json without touching the running
   container.
@@ -14,6 +14,11 @@ Two safety knobs keep this "no uncontrolled live learning":
   a successful vault commit (status="validated") and leaves promotion for a
   manual `python -m retraining.orchestrator promote --version-id <id>` call.
   Only when explicitly set True does the worker call promote() itself.
+- config["worker"]["auto_promote_blocked_in_live_mode"] (default True,
+  V2-22): even with auto_promote=True, the worker forces manual promotion
+  whenever phase_v2.runtime.mode == "live" - full autonomy is fine while no
+  live trading exists yet, but a model change should not silently go live
+  without a human looking at it once real orders are possible.
 """
 
 from __future__ import annotations
@@ -22,8 +27,11 @@ import argparse
 import logging
 import os
 import time
+from pathlib import Path
 
+from execution.runtime_config_io import read_runtime_mode
 from retraining.orchestrator import (
+    _CONFIG_PATH,
     _load_retraining_config,
     backtest,
     commit,
@@ -57,10 +65,12 @@ class RetrainingWorker:
         postgres_dsn: str = "",
         config: dict,
         poll_interval: int = 300,
+        config_path: Path = _CONFIG_PATH,
         _pg_conn=None,
     ) -> None:
         self.config = config
         self.poll_interval = poll_interval
+        self._config_path = config_path
 
         if _pg_conn is not None:
             self._conn = _pg_conn
@@ -111,7 +121,15 @@ class RetrainingWorker:
         if not commit_result["ok"]:
             return {"ran": True, "reason": "vault_commit_failed", "retraining_id": retraining_id, "version_id": version_id}
 
-        auto_promote = bool(self.config.get("worker", {}).get("auto_promote", False))
+        worker_config = self.config.get("worker", {})
+        auto_promote = bool(worker_config.get("auto_promote", False))
+        auto_promote_blocked_in_live_mode = bool(worker_config.get("auto_promote_blocked_in_live_mode", True))
+        if auto_promote and auto_promote_blocked_in_live_mode and read_runtime_mode(self._config_path) == "live":
+            auto_promote = False
+            logger.warning(
+                "RetrainingWorker: auto_promote forced off because phase_v2.runtime.mode=='live' "
+                "(V2-22 safety net) - promote manually via `aq retrain promote --version-id <id>`."
+            )
         if auto_promote:
             promote_result = promote(self._conn, version_id, retraining_id, self.config)
             status(self._conn)

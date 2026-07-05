@@ -49,6 +49,12 @@ TRIGGER_TYPES = (
     # sustained_drawdown_trigger's own docstrings.
     "executed_trade_count_trigger",
     "sustained_drawdown_trigger",
+    # V2-22 - deployment-health trigger, not a model-quality trigger. Fires
+    # when mode=='live' but the order gate is still silently simulating
+    # fills (misconfigured credentials/flag/risk-lock in a deployment that
+    # believes it's live). See _NON_RETRAIN_TRIGGERS below - retraining a
+    # model cannot fix a broker misconfiguration.
+    "live_order_permission_blocked_trigger",
 )
 
 _MODEL_QUALITY_TRIGGERS = {
@@ -72,6 +78,13 @@ _CADENCE_TRIGGERS = {
     "executed_trade_count_trigger",
 }
 
+# Deployment-health triggers are never retrain-eligible, even at critical
+# severity - a broker/credential/flag misconfiguration is an ops problem,
+# not something a new model version can fix.
+_NON_RETRAIN_TRIGGERS = {
+    "live_order_permission_blocked_trigger",
+}
+
 _RECOMMENDED_ACTIONS = {
     "observation_count_trigger": "monitor",
     "drawdown_trigger": "reduce_exposure",
@@ -88,6 +101,7 @@ _RECOMMENDED_ACTIONS = {
     "trigger_frequency_spike": "investigate_trigger_volume",
     "executed_trade_count_trigger": "consider_scheduled_retraining",
     "sustained_drawdown_trigger": "reduce_exposure",
+    "live_order_permission_blocked_trigger": "escalate_deployment_review",
 }
 
 _LIQUIDITY_REJECTION_ACTIONS = {"block", "reduce_size"}
@@ -118,6 +132,8 @@ def _severity_for_breach(breach_ratio: float) -> str:
 
 
 def _is_retrain_candidate(trigger_type: str, severity: str) -> bool:
+    if trigger_type in _NON_RETRAIN_TRIGGERS:
+        return False
     if trigger_type in _CADENCE_TRIGGERS:
         return True
     if severity == "critical":
@@ -534,6 +550,41 @@ def risk_lock_trigger(
     return triggers
 
 
+def live_order_permission_blocked_trigger(
+    events: list[dict],
+    window: int = 100,
+) -> list[dict]:
+    """V2-22 deployment-health trigger: fires critical when mode=='live'
+    but recent execution_notes are still 'simulated_*' - the order gate is
+    silently blocking what should be a real order (misconfigured
+    credentials/allow_live_orders flag/risk lock in a deployment that
+    believes it's live). Unlike the model-quality triggers above, this is
+    never retrain-eligible - see _NON_RETRAIN_TRIGGERS."""
+    windowed = events[-window:] if window > 0 else events
+    live_events = [event for event in windowed if event.get("mode") == "live"]
+    if not live_events:
+        return []
+
+    blocked_count = sum(
+        1 for event in live_events if str(event.get("execution_note") or "").startswith("simulated_")
+    )
+    if blocked_count == 0:
+        return []
+
+    return [
+        _make_trigger(
+            "live_order_permission_blocked_trigger",
+            "critical",
+            "live",
+            "portfolio",
+            float(blocked_count),
+            0.0,
+            f"{blocked_count}/{len(live_events)} recent live-mode events were simulated, not real orders - "
+            "check broker credentials, allow_live_orders, and the risk lock.",
+        )
+    ]
+
+
 def _topology_field_values(events: list[dict], window: int, field: str) -> list[float]:
     windowed = events[-window:] if window > 0 else events
     return [
@@ -772,6 +823,7 @@ def evaluate_all_triggers(events: list[dict], config: dict, recent_triggers: lis
     triggers += risk_lock_trigger(
         events, max_consecutive_locked_events=int(config.get("max_consecutive_locked_events", 20))
     )
+    triggers += live_order_permission_blocked_trigger(events, window=rolling_window)
     triggers += topology_uncertainty_trigger(
         events,
         window=rolling_window,

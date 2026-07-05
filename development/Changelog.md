@@ -480,3 +480,123 @@ Lean Backtesting Integration macht jetzt zusaetzlich Folgendes:
   `GET /api/neural-network`, beide nach demselben Read-only-Reshape-Muster
   wie `/api/topology`
 
+## Phase-V2-21-Ergebnis
+
+Paper Trading Vorbereitung — schliesst die Luecke, dass `broker_config_present`
+bisher ein No-op war (`bool(self.paper_brokerage)`, ein String, der per
+Default nie leer ist), ohne echtes IBKR-Paper-Konto anzulegen:
+
+- neues, reines Modul `execution/paper_readiness.py`: `evaluate_paper_broker_config()`
+  verlangt drei Bestaetigungen (`brokerage` gesetzt, `live_data_provider_configured`,
+  `manual_review_confirmed` — letzteres ersetzt den alten toten
+  `phase6.paper_trading.ready_for_live_paper`-Stub) und
+  `evaluate_observation_readiness()` uebersetzt 4 der 5 Punkte aus
+  `development/infrastructure.md`s "Bereit fuer Paper Trading?"-Checkliste in
+  Code (Mindest-Beobachtungszahl, `simulated_sharpe`-Untergrenze,
+  `simulated_max_drawdown`-Untergrenze, kein dominanter `rejected_by_reason`)
+  — der 5. Punkt (manuelle Durchsicht der Trade-Historie) bleibt bewusst eine
+  menschliche Entscheidung
+- Zielarchitektur ist Lean's eingebaute `PaperBrokerage` (`lean.json`s bereits
+  vorhandenes `live-paper`-Environment, keine echten Broker-Credentials
+  noetig) statt eines echten IBKR-Paper-Kontos — Nutzerentscheidung fuer diese
+  Phase
+- `execution/paper_readiness_io.py` (IO): `read_paper_trading_config()` liest
+  `phase_v2.paper_trading` frisch von der Platte (gleiches Muster wie
+  `risk/manual_override.py`); `fetch_observation_mode_events()` ist die erste
+  `mode='observation'`-gefilterte Experience-Events-Query (die bestehenden
+  `fetch_recent_events()`/`fetch_events_since()` filtern nicht nach `mode`)
+- neues Offline-Report-Modul `execution/paper_readiness_report.py`
+  (`build_paper_readiness_view()`, Muster identisch zu
+  `retraining/status_export.py`): schreibt
+  `visualization/grafana/paper_readiness_report.json`; neuer CLI-Befehl
+  `aq paper-readiness` (`aq_cli.py`) als menschlich ausgeloestes Gate vor dem
+  Umschalten von `phase_v2.runtime.mode` auf `"paper"`
+- `main.py`: `phase6.paper_trading` komplett entfernt (`self.paper_brokerage`/
+  `self.ready_for_live_paper` waren nur ein No-op); neue
+  `self.phase_v2_paper_trading`, neue `_recompute_broker_config()`-Methode
+  (aufgerufen einmal in `initialize()` und einmal pro Session-Rollover in
+  `_refresh_risk_state()`, gleiches "frisch von der Platte, kein Neustart
+  noetig"-Prinzip wie beim Manual-Trade-Lock-Override), `_order_permission()`
+  liest jetzt `self._broker_config_present` statt des alten No-op-Checks
+- `monitoring/api_server.py`: `paper_readiness_report.json` wird sowohl in
+  `/api/state` (unter `state["paper_readiness"]`, gleiches Muster wie
+  `retraining_status`) als auch als eigene Route
+  `GET /api/grafana/paper-readiness` bereitgestellt
+- neues Webui-Panel `PaperReadinessPanel.tsx` (gleiche Struktur wie
+  `RetrainingStatusPanel.tsx`), in `Overview.tsx` neben dem Retraining-Status-
+  Panel platziert; neuer `PaperReadiness`-Typ in `types/state.ts`
+- neuer Docker-Compose-Service `lean-live` (Profil `lean-live`, nie Teil von
+  `--all`/`--lean`): laesst `lean live deploy . --environment
+  ${LEAN_LIVE_ENVIRONMENT:-live-paper}` dauerhaft laufen (`restart:
+  unless-stopped`), im Unterschied zum bestehenden `lean`-Service, der nur
+  `sleep infinity` fuer Ad-hoc-`lean backtest .`-Laeufe bereitstellt
+- `config.json` bekommt `phase_v2.paper_trading` (Default: alles blockierend,
+  `live_data_provider_configured`/`manual_review_confirmed` beide `false`)
+- neue Tests: `tests/test_paper_readiness.py`, `tests/test_paper_readiness_io.py`,
+  `tests/test_paper_readiness_report.py`, plus `test_paper_readiness_wraps_the_report_module`
+  in `tests/test_aq_cli.py`
+- Stop: kein echter Broker/keine echten Live-Marktdaten in dieser Session
+  konfiguriert oder getestet — `lean live deploy`s genaue CLI-Flags sind nicht
+  gegen eine installierte Lean-CLI verifiziert, das Runbook in
+  `development/infrastructure.md` weist explizit darauf hin, vor dem
+  produktiven Einsatz `lean live deploy --help` zu pruefen
+
+## Phase-V2-22-Ergebnis
+
+Live Deployment Struktur — rein strukturell: macht den spaeteren Wechsel von
+Paper zu echtem Live-Trading zu einer Config-/Credential-Aenderung, kein
+Code-Umbau. Keine echten Broker-Credentials oder Live-Trades in dieser Phase
+konfiguriert oder getestet.
+
+- neues Credential-Handling: `.env.live.example` (neue `.gitignore`-Ausnahme
+  `!.env.live.example`, analog zu `.env.compose.example`), reines
+  `execution/live_credentials.py` (`credentials_present()`,
+  `describe_missing_fields()`) und IO-Modul
+  `execution/live_credentials_io.py::load_live_credentials()` — versucht
+  zuerst `ib_config.py` (Repo-Root, gitignored, bisher nur geplant), faellt
+  sonst auf `AETHER_IB_*`-Umgebungsvariablen zurueck. Reine Preflight-
+  Validierung — verdrahtet Lean selbst nicht; Lean liest `ib-account`/
+  `ib-user-name`/`ib-password` weiterhin direkt aus `lean.json`, das bleibt
+  ein manueller Schritt (siehe neues Runbook unten)
+- `execution/paper_readiness.py` bekommt `evaluate_live_broker_config()`
+  (verlangt zusaetzlich zum bestandenen Paper-Check echte Credentials) und
+  `evaluate_live_risk_posture()` (Sicherheits-Deckel: `max_daily_drawdown_pct`/
+  `max_total_drawdown_pct` duerfen `phase_v2.live.max_allowed_*_drawdown_pct`
+  nicht ueberschreiten, `liquidate_on_risk_breach` muss `true` sein) — dieselbe
+  Entscheidungstabelle wie fuer `paper`, nur mit zusaetzlichen Bedingungen,
+  daher ein Beleg dafuer, dass der Wechsel paper->live tatsaechlich nur eine
+  Konfigurationsfrage ist
+- `main.py`: `self._live_credentials` wird einmal in `initialize()` geladen
+  (Umgebungsvariablen/`ib_config.py` aendern sich nicht waehrend eines Laufs,
+  anders als `config.json`); `_recompute_broker_config()` reicht
+  `credentials_present(...)` sowie den aktuellen Risk-/Live-Config-Zustand an
+  `evaluate_broker_config()` durch
+- `config.json` bekommt `phase_v2.live` (`max_allowed_daily_drawdown_pct: 0.05`,
+  `max_allowed_total_drawdown_pct: 0.15`)
+- Auto-Promote-Sicherheitsnetz: neues, winziges IO-Modul
+  `execution/runtime_config_io.py::read_runtime_mode()` (gleiches Muster wie
+  `risk/manual_override.py`); `retraining/worker.py::run_once()` erzwingt
+  manuelle Promotion (`auto_promote` wird fuer diesen Zyklus auf `False`
+  gesetzt, mit Warn-Log), sobald `phase_v2.runtime.mode == "live"` UND
+  `phase_v2.retraining.worker.auto_promote_blocked_in_live_mode` (Default
+  `true`) — volle Autonomie ist unproblematisch, solange noch kein echtes
+  Live-Trading existiert, aber ein Modellwechsel soll nie unbeaufsichtigt live
+  gehen, sobald echte Orders moeglich sind
+- neuer Trigger `live_order_permission_blocked_trigger` in
+  `performance/triggers.py`: feuert `critical`, wenn `mode == "live"`, aber
+  juengste `execution_note`s weiterhin `simulated_*` sind (Order-Gate
+  blockiert stillschweigend, was eine echte Order sein sollte — Hinweis auf
+  falsch konfigurierte Credentials/Flag/Risk-Lock). Bewusst **nicht**
+  retrain-faehig (`_NON_RETRAIN_TRIGGERS`) — ein neues Modell behebt keine
+  Broker-Fehlkonfiguration; `notifications/telegram_alerts.py` brauchte keine
+  Aenderung, da es Trigger bereits generisch formatiert
+- neue Tests: `tests/test_live_credentials.py`, `tests/test_live_credentials_io.py`,
+  `tests/test_runtime_config_io.py`, plus Erweiterungen in
+  `tests/test_retraining_worker.py` und `tests/test_triggers.py`
+- Stop: kein neues generisches "Watch-a-directory-and-auto-commit"-Feature
+  gebaut — der bestehende `retraining/worker.py`-Loop plus Aether-Vault-
+  Commit (`retraining/vault_client.py`) erfuellt das bereits; hier wurde nur
+  `phase_v2.retraining.worker.auto_promote` auf `true` gestellt (siehe
+  separater Abschnitt in `development/v2_architecture.md`s Controlled
+  Retraining Contract)
+

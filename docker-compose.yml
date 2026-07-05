@@ -78,6 +78,38 @@ services:
     networks:
       - aether-net
 
+  # Long-running paper/live trading process (V2-21/V2-22) - distinct from
+  # the `lean` service above, which is a one-shot `sleep infinity` workspace
+  # container exec'd into for ad-hoc `lean backtest .` runs. This one
+  # actually runs `lean live deploy` continuously and restarts on crash.
+  # Parameterized by LEAN_LIVE_ENVIRONMENT so the same service serves both
+  # paper (default: live-paper, no broker credentials needed) and live
+  # (live-interactive, V2-22, once real IBKR credentials are configured) -
+  # flipping from paper to live is a config change, not a rewrite. Never
+  # started by `docker compose up` or `--all`/`--lean` - profile-gated on
+  # purpose so a bare `up` never accidentally starts real/paper trading.
+  lean-live:
+    image: ${LEAN_IMAGE:-quantconnect/lean:latest}
+    container_name: aether-lean-live
+    profiles:
+      - lean-live
+    working_dir: /workspace
+    command: ["bash", "-lc", "lean live deploy . --environment ${LEAN_LIVE_ENVIRONMENT:-live-paper}"]
+    environment:
+      AETHER_REDIS_URL: redis://redis:6379/0
+      AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
+      LEAN_LIVE_ENVIRONMENT: ${LEAN_LIVE_ENVIRONMENT:-live-paper}
+    volumes:
+      - ./:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aether-net
+    restart: unless-stopped
+
   experience-worker:
     build:
       context: .

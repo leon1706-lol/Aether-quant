@@ -10,10 +10,15 @@ rollback always available. See `development/v2_architecture.md`'s
 writeup; this file is the short version.
 
 **No uncontrolled live learning** is the hard constraint: every stage is a
-Postgres-audited row (`retraining_events`/`model_versions`), and full
-autonomy (the worker auto-promoting without a human looking) is an opt-in
-config flag (`phase_v2.retraining.worker.auto_promote`), `false` by
-default.
+Postgres-audited row (`retraining_events`/`model_versions`). Full autonomy
+(the worker auto-promoting without a human looking) is controlled by
+`phase_v2.retraining.worker.auto_promote` — `true` by default as of V2-22,
+judged safe because no live trading exists yet. The moment
+`phase_v2.runtime.mode` is genuinely `"live"`,
+`phase_v2.retraining.worker.auto_promote_blocked_in_live_mode` (`true` by
+default) forces manual promotion regardless of `auto_promote` — see
+`execution/runtime_config_io.py` and the Live Deployment Contract in
+`development/v2_architecture.md`.
 
 Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
 

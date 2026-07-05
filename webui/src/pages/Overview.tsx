@@ -9,6 +9,7 @@ import { MonitoringFeeds } from '../components/monitoring/MonitoringFeeds'
 import { ObservationPanel } from '../components/monitoring/ObservationPanel'
 import { PerformanceTriggersPanel } from '../components/monitoring/PerformanceTriggersPanel'
 import { RetrainingStatusPanel } from '../components/monitoring/RetrainingStatusPanel'
+import { PaperReadinessPanel } from '../components/monitoring/PaperReadinessPanel'
 import { RawStateViewer } from '../components/monitoring/RawStateViewer'
 
 export function Overview({ state }: { state: RuntimeState | undefined }) {
@@ -22,6 +23,7 @@ export function Overview({ state }: { state: RuntimeState | undefined }) {
       <div className="flex min-w-0 flex-col gap-4">
         <PerformanceTriggersPanel report={state?.performance_triggers} />
         <RetrainingStatusPanel status={state?.retraining_status} />
+        <PaperReadinessPanel status={state?.paper_readiness} />
         <ObservationPanel observation={state?.observation} />
         <SignalBoard signals={state?.signals} />
         <PositionsList positions={state?.positions} />

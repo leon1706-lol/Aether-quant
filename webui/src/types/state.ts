@@ -352,6 +352,21 @@ export interface RetrainingStatus {
   rollback_candidates: { model_version_id: string; created_at: string }[]
 }
 
+export interface PaperReadinessCheck {
+  pass: boolean
+  value: number | string
+  threshold: number | string
+}
+
+export interface PaperReadiness {
+  generated_at?: string
+  ready: boolean
+  checks: Record<string, PaperReadinessCheck>
+  blocking_reasons: string[]
+  broker_config_present: boolean
+  broker_config_reason: string
+}
+
 export interface RuntimeState {
   project?: string
   mode?: string
@@ -368,4 +383,5 @@ export interface RuntimeState {
   observation?: ObservationSummary
   performance_triggers?: PerformanceTriggerReport
   retraining_status?: RetrainingStatus
+  paper_readiness?: PaperReadiness
 }

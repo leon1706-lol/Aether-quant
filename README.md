@@ -396,8 +396,8 @@ Der geplante Datenfluss:
 21. [x] V2-19: Telegram Alerts
 22. [x] V2-19.5: Yahoo Finance Historical Data Backfill — ergaenzendes, manuelles Offline-Skript, kein eigener Roadmap-Punkt im urspruenglichen Plan
 23. [x] V2-20: Lean Backtesting Integration — bestaetigt per neuem Integrationstest, dass ein normaler Backtest bereits das gesamte ML-System (Basismodell, alle 4 Experten, MoE-Gating, Regime, Topologie) pro Bar durchlaeuft; ergaenzt eine neue Neural-Network-Visualisierungsseite im Webui
-24. [ ] V2-21: Paper Trading Vorbereitung
-25. [ ] V2-22: Live Deployment Struktur
+24. [x] V2-21: Paper Trading Vorbereitung — echte Broker-Readiness-Pruefung (`execution/paper_readiness.py`, `aq paper-readiness`) statt des alten No-op-Flags; nutzt Lean's eingebaute `PaperBrokerage` (`live-paper`-Environment in `lean.json`, keine echten Broker-Credentials noetig), nicht ein echtes IBKR-Paper-Konto
+25. [x] V2-22: Live Deployment Struktur — Credential-Loader (`execution/live_credentials*.py`), Live-Risiko-Deckel, Auto-Promote-Sperre im Live-Modus, `live_order_permission_blocked_trigger`; rein strukturell, keine echten Broker-Credentials oder Live-Trades in dieser Phase konfiguriert/getestet
 26. [x] V2-23.1: Datengetriebene Liquidity-Threshold-Kalibrierung — geschlossen ueber einen echten High-Low-Spread-Schaetzer (Corwin-Schultz), nicht ueber Fill-Daten-Kalibrierung, siehe `liquidity/README.md`
 27. [x] V2-23.2: Statische Config-Luecken geschlossen + totes `average_correlation`-Feature verdrahtet — ergaenzend, gefunden bei einem Static-vs-Dynamic-Architektur-Audit
 28. [x] V2-23.3: Echtes Topology-Embedding (SMACOF statt kosmetischer Index-Platzierung) — ergaenzend, gleicher Audit

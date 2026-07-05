@@ -35,7 +35,9 @@ from experience import (
     build_session_summary_event,
     compute_observation_summary,
 )
-from execution import resolve_order_permission, resolve_runtime_mode
+from execution import credentials_present, evaluate_broker_config, resolve_order_permission, resolve_runtime_mode
+from execution.live_credentials_io import load_live_credentials
+from execution.paper_readiness_io import read_paper_trading_config
 from performance import evaluate_all_triggers
 
 
@@ -85,7 +87,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         phase5_backtest = self.phase5.get("backtest", {})
         phase6_risk = self.phase6.get("risk", {})
-        phase6_paper = self.phase6.get("paper_trading", {})
+        self.phase_v2_paper_trading = self.phase_v2.get("paper_trading", {})
+        self.phase_v2_live = self.phase_v2.get("live", {})
+        self._live_credentials = load_live_credentials()
         phase9_portfolio = self.phase9.get("portfolio", {})
         phase_v2_risk = self.phase_v2.get("dynamic_risk", {})
         phase_v2_regime = self.phase_v2.get("regime_detection", {})
@@ -102,8 +106,6 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.max_daily_drawdown_pct = float(phase6_risk.get("max_daily_drawdown_pct", 0.03))
         self.max_total_drawdown_pct = float(phase6_risk.get("max_total_drawdown_pct", 0.12))
         self.liquidate_on_risk_breach = bool(phase6_risk.get("liquidate_on_risk_breach", True))
-        self.paper_brokerage = str(phase6_paper.get("brokerage", "interactive_brokers_paper"))
-        self.ready_for_live_paper = bool(phase6_paper.get("ready_for_live_paper", False))
         self.asset_quality = self.dataset_manifest.get(
             "asset_quality",
             self.feature_schema.get("asset_quality", {}),
@@ -164,6 +166,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if self.runtime_mode != raw_runtime_mode:
             self.Debug(f"Unknown phase_v2.runtime.mode={raw_runtime_mode!r}; falling back to '{self.runtime_mode}'")
         self.allow_live_orders = bool(phase_v2_runtime.get("allow_live_orders", False))
+        self._recompute_broker_config()
         self._experience_mode = self.runtime_mode
         self._experience_queue = ExperienceQueue(
             enabled=bool(phase_v2_experience.get("enabled", False)),
@@ -699,11 +702,32 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         return vector.to_dict()
 
+    def _recompute_broker_config(self) -> None:
+        """Single place both initialize() and _refresh_risk_state()'s
+        session-rollover call into - keeps the paper (V2-21) and live
+        (V2-22) broker-readiness check consistent regardless of which
+        mode is active. Live credentials are loaded once at startup
+        (execution/live_credentials_io.load_live_credentials() reads
+        ib_config.py/env vars, neither of which changes mid-run the way
+        config.json can), but the risk-posture ceiling and paper_trading
+        attestation flags are re-evaluated fresh every rollover."""
+        self._broker_config_present, self._broker_config_reason = evaluate_broker_config(
+            self.runtime_mode,
+            self.phase_v2_paper_trading,
+            live_credentials_present=credentials_present(self._live_credentials),
+            risk_config={
+                "max_daily_drawdown_pct": self.max_daily_drawdown_pct,
+                "max_total_drawdown_pct": self.max_total_drawdown_pct,
+                "liquidate_on_risk_breach": self.liquidate_on_risk_breach,
+            },
+            live_config=self.phase_v2_live,
+        )
+
     def _order_permission(self) -> tuple[bool, str]:
         return resolve_order_permission(
             mode=self.runtime_mode,
             allow_live_orders=self.allow_live_orders,
-            broker_config_present=bool(self.paper_brokerage),
+            broker_config_present=self._broker_config_present,
             risk_locks_healthy=not self.trade_lock_active,
         )
 
@@ -866,6 +890,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.trade_lock_active = False
                 self.trade_lock_reason = None
 
+            # Same "fresh from config.json once per session rollover" rule
+            # as the manual trade-lock override above - lets a long-running
+            # paper/live process pick up a broker-readiness attestation flag
+            # (phase_v2.paper_trading.manual_review_confirmed etc.) without
+            # a restart. The heavier observation-mode readiness check
+            # (min_observations/simulated_sharpe/...) deliberately stays out
+            # of this per-bar path - main.py never opens its own Postgres
+            # connection, so that check lives only in the offline
+            # execution/paper_readiness_report.py (see `aq paper-readiness`).
+            self.phase_v2_paper_trading = read_paper_trading_config(self.root_path / "config.json")
+            self._recompute_broker_config()
+
         self.peak_equity = max(self.peak_equity, portfolio_value)
         self.current_daily_drawdown = portfolio_value / max(self.session_start_equity, 1.0) - 1.0
         self.current_total_drawdown = portfolio_value / max(self.peak_equity, 1.0) - 1.0
@@ -921,8 +957,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 },
             },
             "paper_trading": {
-                "brokerage": self.paper_brokerage,
-                "ready_for_live_paper": self.ready_for_live_paper,
+                "brokerage": self.phase_v2_paper_trading.get("brokerage", ""),
+                "broker_config_present": self._broker_config_present,
+                "broker_config_reason": self._broker_config_reason,
+                "manual_review_confirmed": bool(self.phase_v2_paper_trading.get("manual_review_confirmed", False)),
             },
             "risk": {
                 "trade_lock_active": self.trade_lock_active,

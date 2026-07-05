@@ -126,6 +126,13 @@ def test_docker_build_wraps_compose_build():
     assert run_mock.call_args.args[0] == ["docker", "compose", "build", "aether-quant"]
 
 
+def test_paper_readiness_wraps_the_report_module():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["paper-readiness"], run_mock)
+
+    assert run_mock.call_args.args[0] == [sys.executable, "-m", "execution.paper_readiness_report"]
+
+
 def test_retrain_dispatches_stage_and_forwards_extra_args():
     run_mock = MagicMock(return_value=0)
     _parse_and_dispatch(["retrain", "promote", "--version-id", "abc-123"], run_mock)

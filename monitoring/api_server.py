@@ -63,6 +63,10 @@ def get_state() -> dict:
     if retraining_status_path.exists():
         with retraining_status_path.open("r", encoding="utf-8") as f:
             state["retraining_status"] = json.load(f)
+    paper_readiness_path = GRAFANA_DIR / "paper_readiness_report.json"
+    if paper_readiness_path.exists():
+        with paper_readiness_path.open("r", encoding="utf-8") as f:
+            state["paper_readiness"] = json.load(f)
     return state
 
 
@@ -114,6 +118,11 @@ def get_performance_triggers() -> dict:
 @app.get("/api/grafana/retraining-status")
 def get_retraining_status() -> dict:
     return _read_json(GRAFANA_DIR / "retraining_status.json")
+
+
+@app.get("/api/grafana/paper-readiness")
+def get_paper_readiness() -> dict:
+    return _read_json(GRAFANA_DIR / "paper_readiness_report.json")
 
 
 if WEBUI_DIST.exists():

@@ -16,6 +16,7 @@ env/
 .env
 .env.*
 !.env.compose.example
+!.env.live.example
 ib_config.py
 *_config.local.py
 config.json

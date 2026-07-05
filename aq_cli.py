@@ -230,6 +230,10 @@ def cmd_retrain(args: argparse.Namespace) -> int:
     return _run([sys.executable, "-m", "retraining.orchestrator", args.stage, *args.retrain_args])
 
 
+def cmd_paper_readiness(_args: argparse.Namespace) -> int:
+    return _run([sys.executable, "-m", "execution.paper_readiness_report"])
+
+
 def cmd_trade_lock(args: argparse.Namespace) -> int:
     if args.on:
         write_manual_trade_lock_override(True, CONFIG_PATH)
@@ -300,6 +304,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     retrain_parser.add_argument("retrain_args", nargs=argparse.REMAINDER, help="Passed through verbatim, e.g. --version-id <uuid>")
     retrain_parser.set_defaults(func=cmd_retrain)
+
+    paper_readiness_parser = subparsers.add_parser(
+        "paper-readiness", help="Check whether the system is ready for phase_v2.runtime.mode='paper'"
+    )
+    paper_readiness_parser.set_defaults(func=cmd_paper_readiness)
 
     trade_lock_parser = subparsers.add_parser(
         "trade-lock", help="Manually override the sticky total-drawdown trade lock"

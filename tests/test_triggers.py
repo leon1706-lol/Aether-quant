@@ -13,6 +13,7 @@ from performance.triggers import (
     evaluate_all_triggers,
     executed_trade_count_trigger,
     liquidity_warning_trigger,
+    live_order_permission_blocked_trigger,
     model_topology_disagreement_trigger,
     observation_count_trigger,
     regime_shift_trigger,
@@ -344,6 +345,29 @@ def test_risk_lock_trigger_no_false_fire_when_never_locked():
     events = [_sample_event(portfolio={"total_value": 100_000.0, "simulated": True, "trade_lock_active": False}) for _ in range(25)]
 
     assert risk_lock_trigger(events, max_consecutive_locked_events=20) == []
+
+
+def test_live_order_permission_blocked_trigger_fires_on_blocked_live_orders():
+    events = [_sample_event(mode="live", execution_note="simulated_entered_long:missing_broker_config") for _ in range(5)]
+
+    triggers = live_order_permission_blocked_trigger(events)
+
+    assert len(triggers) == 1
+    assert triggers[0]["severity"] == "critical"
+    assert triggers[0]["mode"] == "live"
+    assert triggers[0]["retrain_candidate"] is False
+
+
+def test_live_order_permission_blocked_trigger_silent_on_real_live_orders():
+    events = [_sample_event(mode="live", execution_note="entered_long") for _ in range(5)]
+
+    assert live_order_permission_blocked_trigger(events) == []
+
+
+def test_live_order_permission_blocked_trigger_silent_on_non_live_modes():
+    for mode in ("backtest", "observation", "paper"):
+        events = [_sample_event(mode=mode, execution_note="simulated_entered_long:observation_mode_no_real_orders") for _ in range(5)]
+        assert live_order_permission_blocked_trigger(events) == []
 
 
 def test_evaluate_all_triggers_returns_report_schema():

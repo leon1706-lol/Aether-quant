@@ -98,6 +98,63 @@ def test_run_once_auto_promote_true_calls_promote():
     assert result["reason"] == "promoted"
 
 
+def test_run_once_auto_promote_forced_off_when_runtime_mode_is_live():
+    """V2-22 safety net: even with auto_promote=True, a live runtime mode
+    must force manual promotion - a model change should never silently go
+    live without a human looking at it once real orders are possible."""
+    worker = _worker({"worker": {"auto_promote": True, "auto_promote_blocked_in_live_mode": True}})
+
+    with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
+        "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
+    ), patch("retraining.worker.train_topology"), patch(
+        "retraining.worker.validate", return_value={"ok": True}
+    ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
+        "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
+    ), patch("retraining.worker.promote") as promote_mock, patch(
+        "retraining.worker.status", return_value={}
+    ), patch("retraining.worker.read_runtime_mode", return_value="live"):
+        result = worker.run_once()
+
+    promote_mock.assert_not_called()
+    assert result["reason"] == "validated_awaiting_manual_promotion"
+
+
+def test_run_once_auto_promote_proceeds_when_runtime_mode_is_not_live():
+    worker = _worker({"worker": {"auto_promote": True, "auto_promote_blocked_in_live_mode": True}})
+
+    with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
+        "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
+    ), patch("retraining.worker.train_topology"), patch(
+        "retraining.worker.validate", return_value={"ok": True}
+    ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
+        "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
+    ), patch("retraining.worker.promote", return_value={"ok": True, "version_id": "v1"}) as promote_mock, patch(
+        "retraining.worker.status", return_value={}
+    ), patch("retraining.worker.read_runtime_mode", return_value="observation"):
+        result = worker.run_once()
+
+    promote_mock.assert_called_once()
+    assert result["reason"] == "promoted"
+
+
+def test_run_once_auto_promote_ignores_live_mode_when_guard_disabled():
+    worker = _worker({"worker": {"auto_promote": True, "auto_promote_blocked_in_live_mode": False}})
+
+    with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
+        "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
+    ), patch("retraining.worker.train_topology"), patch(
+        "retraining.worker.validate", return_value={"ok": True}
+    ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
+        "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
+    ), patch("retraining.worker.promote", return_value={"ok": True, "version_id": "v1"}) as promote_mock, patch(
+        "retraining.worker.status", return_value={}
+    ), patch("retraining.worker.read_runtime_mode", return_value="live"):
+        result = worker.run_once()
+
+    promote_mock.assert_called_once()
+    assert result["reason"] == "promoted"
+
+
 def test_run_once_stops_when_validation_fails():
     worker = _worker()
 

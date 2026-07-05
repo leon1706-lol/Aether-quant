@@ -5,7 +5,7 @@ warning signs in live/observation/backtest activity — but never retrains
 anything itself. `retrain_candidate` is a flag consumed by `retraining/`
 (V2-17), not an action taken here.
 
-- `triggers.py` (pure) — 13 trigger functions
+- `triggers.py` (pure) — 14 trigger functions
   (`observation_count_trigger`, `drawdown_trigger`,
   `sharpe_degradation_trigger`, `win_rate_trigger`,
   `confidence_decay_trigger`, `regime_shift_trigger`,
@@ -18,12 +18,17 @@ anything itself. `retrain_candidate` is a flag consumed by `retraining/`
   `simulated_sharpe`/`simulated_max_drawdown` rather than reimplementing
   them. Each fired trigger carries `severity` (breach-ratio rule: ≥1.5x
   past threshold → `critical`) and a `retrain_candidate` boolean. The four
-  new topology triggers are persistence-guarded (a rolling-window average
+  topology triggers are persistence-guarded (a rolling-window average
   breach plus a minimum fraction of individually-breaching bars) so a
   single noisy observation never fires them; `trigger_frequency_spike` is a
   meta-trigger over trigger *rows*, not events, and is the one exception
   wired in only when `evaluate_all_triggers()`'s new optional
-  `recent_triggers` argument is supplied.
+  `recent_triggers` argument is supplied. V2-22 adds
+  `live_order_permission_blocked_trigger` — a deployment-health trigger
+  (fires `critical` when `mode == "live"` but orders are still being
+  simulated) that's deliberately excluded from `retrain_candidate` via a
+  `_NON_RETRAIN_TRIGGERS` set, since a broker misconfiguration is an ops
+  problem, not something a new model version fixes.
 - `postgres_triggers.py` (IO) — embedded DDL for the durable
   `performance_triggers` table (the system of record — separate from
   `experience_events` so Grafana/V2-17 can query it cleanly) plus a
