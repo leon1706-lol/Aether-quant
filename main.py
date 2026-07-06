@@ -9,6 +9,18 @@ Phase 4 adds the first end-to-end inference loop:
 - keep the dashboard state updated with probabilities and feature readiness
 """
 
+import os
+
+# Lean's own AlgorithmImports bridge pulls in matplotlib (for its charting
+# support), which defaults to a per-container cache directory - and Lean CLI
+# runs each backtest in a fresh Docker container, so that cache never
+# persists and matplotlib rebuilds its font list from scratch every single
+# run (20-40+ seconds, a meaningful chunk of Lean's hard 90-second
+# Initialize() isolator budget - see Problems.md #16). Redirecting it to a
+# directory inside this mounted project folder makes the cache survive
+# across container runs, so only the very first run ever pays this cost.
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".matplotlib_cache"))
+
 import json
 import math
 from collections import deque
@@ -46,6 +58,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
     """Lean algorithm with JSON-model inference and a basic signal engine."""
 
     def initialize(self) -> None:
+        # Lean's AlgorithmFactory.Loader wraps module import + Initialize()
+        # in a hard, non-configurable 90-second isolator timeout. Subscribing
+        # securities (the loop below) must happen here - Lean only calls
+        # on_data() once subscriptions exist - and its cost scales with the
+        # asset count (20 assets vs the old 10 roughly doubles it). Every
+        # other setup step below (model/expert/topology artifact loading,
+        # derived risk/regime/topology/liquidity config, broker/experience
+        # setup) does NOT need to exist before on_data() fires, so it's
+        # deferred into _ensure_ready(), run once on the first on_data()
+        # call, which carries no such time limit. See Problems.md for the
+        # original 20-asset regression this fixes.
         self.root_path = Path(__file__).resolve().parent
         self.state_path = self.root_path / "visualization" / "state.json"
         self.scene_path = self.root_path / "visualization" / "scene.json"
@@ -68,12 +91,54 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
         self.phase1 = self.config["phase1"]
+        self.runtime = self.config["runtime"]
+        self._ready = False
+
+        self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
+        backtest_window = self.phase1["windows"]["backtest"]
+        start_year, start_month, start_day = map(int, backtest_window["start"].split("-"))
+        end_year, end_month, end_day = map(int, backtest_window["end"].split("-"))
+        self.set_start_date(start_year, start_month, start_day)
+        self.set_end_date(end_year, end_month, end_day)
+        self.set_cash(float(self.runtime["initial_cash"]))
+
+        self.symbols = []
+        self.asset_lookup = {}
+        self.ticker_to_symbol = {}
+        self.symbol_windows = {}
+        self.latest_signal_state = {}
+        self.last_trade_bar_by_symbol = {}
+        self.bar_history_size = 25
+
+        for asset in self.phase1["universe"]["assets"]:
+            symbol = self._add_asset(asset)
+            if symbol is None:
+                continue
+
+            ticker = asset["ticker"]
+            self.symbols.append(symbol)
+            self.asset_lookup[str(symbol)] = asset
+            self.ticker_to_symbol[ticker] = symbol
+            self.symbol_windows[symbol] = deque(maxlen=self.bar_history_size)
+            self.latest_signal_state[str(symbol)] = "hold"
+            self.last_trade_bar_by_symbol[symbol] = -1000000
+            self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
+
+        self.set_warm_up(max(int(self.runtime["warmup_bars"]), 21), self.resolution)
+
+    def _ensure_ready(self) -> None:
+        """One-time setup deferred out of initialize() (see the comment
+        there) - loads model/expert/topology artifacts and derives every
+        risk/regime/topology/liquidity/broker/experience config value. Runs
+        once, on the first on_data() call."""
+        if self._ready:
+            return
+
         self.phase3 = self.config["phase3"]
         self.phase5 = self.config.get("phase5", {})
         self.phase6 = self.config.get("phase6", {})
         self.phase9 = self.config.get("phase9", {})
         self.phase_v2 = self.config.get("phase_v2", {})
-        self.runtime = self.config["runtime"]
         self.model_export = self._load_json(self.model_path)
         self.expert_training_metrics = self._load_json(self.expert_metrics_path) if self.expert_metrics_path.exists() else {}
         self.expert_model_exports = self._load_expert_model_exports()
@@ -182,22 +247,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._observation_event_log = deque(maxlen=5000)
         self._session_events: list[dict] = []
         self._performance_triggers_config = self.phase_v2.get("performance_triggers", {})
-        self.bar_history_size = 25
 
-        self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
-        backtest_window = self.phase1["windows"]["backtest"]
-        start_year, start_month, start_day = map(int, backtest_window["start"].split("-"))
-        end_year, end_month, end_day = map(int, backtest_window["end"].split("-"))
-        self.set_start_date(start_year, start_month, start_day)
-        self.set_end_date(end_year, end_month, end_day)
-        self.set_cash(float(self.runtime["initial_cash"]))
-
-        self.symbols = []
-        self.asset_lookup = {}
-        self.ticker_to_symbol = {}
-        self.symbol_windows = {}
-        self.latest_signal_state = {}
-        self.last_trade_bar_by_symbol = {}
         self.last_state_write = None
         self.bar_index = 0
         self.current_session_date = None
@@ -214,24 +264,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_topology_payload = {}
         self._previous_topology_positions: dict[str, tuple[float, float]] = {}
 
-        for asset in self.phase1["universe"]["assets"]:
-            symbol = self._add_asset(asset)
-            if symbol is None:
-                continue
-
-            ticker = asset["ticker"]
-            self.symbols.append(symbol)
-            self.asset_lookup[str(symbol)] = asset
-            self.ticker_to_symbol[ticker] = symbol
-            self.symbol_windows[symbol] = deque(maxlen=self.bar_history_size)
-            self.latest_signal_state[str(symbol)] = "hold"
-            self.last_trade_bar_by_symbol[symbol] = -1000000
-            self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
-
-        self.set_warm_up(max(int(self.runtime["warmup_bars"]), 21), self.resolution)
+        self._ready = True
         self._write_state(mode="initialize", insight="Phase 4 inference engine initialized")
 
     def on_data(self, slice: Slice) -> None:
+        if not self._ready:
+            self._ensure_ready()
+
         if len(slice.Bars) == 0:
             return
 
@@ -418,6 +457,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._write_state(mode="runtime", insight=insight, signals=signals)
 
     def on_end_of_algorithm(self) -> None:
+        self._ensure_ready()
         self._write_state(mode="shutdown", insight="Algorithm finished")
 
     def _load_json(self, path: Path) -> dict:

@@ -117,12 +117,12 @@ flowchart TB
 21. [x] V2-19: Telegram alerts
 22. [x] V2-19.5: Yahoo Finance historical data backfill — supplemental, not in the original numbered plan
 23. [x] V2-20: Lean backtesting integration — confirmed a standard backtest already exercises the full ML system (baseline model, all 4 experts, MoE gating, regime, topology); closed the proof gap with a new integration test rather than any runtime rewiring (see Lean Backtesting Integration Contract)
-24. [ ] V2-21: Paper trading preparation
-25. [ ] V2-22: Live deployment structure
+24. [x] V2-21: Paper trading preparation
+25. [x] V2-22: Live deployment structure
 26. [x] V2-23.1: Data-driven liquidity threshold calibration — closed via a real high-low spread estimator, not fill-data calibration (see Liquidity Engine Contract)
 27. [x] V2-23.2: Static-config wiring + dead average_correlation input fixed — supplemental, found during a static-vs-dynamic architecture audit
 28. [x] V2-23.3: Real topology embedding (SMACOF, replacing cosmetic index-based layout) — supplemental, same audit
-29. [ ] V2-24: Final V2 review
+29. [x] V2-24: Final V2 review
 
 ## Redis Experience Queue (V2-13)
 

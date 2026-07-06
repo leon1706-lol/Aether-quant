@@ -94,3 +94,8 @@ Aether-quant-Obsidian-Vault/
 # Webui (React/Vite) build artifacts and dependencies
 webui/node_modules/
 webui/dist/
+
+# Matplotlib font cache, redirected here by main.py so it persists across
+# Lean CLI's ephemeral per-backtest Docker containers instead of rebuilding
+# every run (see Problems.md)
+.matplotlib_cache/

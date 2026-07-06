@@ -695,3 +695,162 @@ New tests: `tests/test_config_cache.py`,
 `tests/test_simulated_portfolio.py`, `tests/test_manual_override.py`,
 `tests/test_paper_readiness_io.py`, `tests/test_runtime_config_io.py`,
 `tests/test_market_topology.py`.
+
+## 20-Asset Universe Expansion + Genuine Held-Out Backtest Window
+
+V2's second-to-last phase: growing the trading universe from 10 to 20
+assets, backed entirely by real (not synthetic) historical data, and
+restructuring the train/validation/backtest split so the backtest is
+finally a genuine, out-of-sample period instead of re-running over the
+full training history. Purely a `config.json` change plus one real bug
+fix surfaced along the way — confirmed no source file anywhere hardcodes
+the 10-asset universe (`train.py`, `data_pipeline/`, `moe/`, `topology/`
+all iterate `config["phase1"]["universe"]["assets"]` generically).
+
+- **8 new equities at zero backfill cost:** `AIG`, `BNO`, `FB`, `GOOG`,
+  `GOOGL`, `USO`, `WM`, `AAA` — all already had real Lean daily data on
+  disk through `2021-03-31` (QuantConnect's free sample data), completely
+  unused by the previous config. `available_from` set per-ticker from each
+  zip's actual first row, not assumed uniform.
+- **2 new crypto assets from scratch:** `XRPUSD`, `ADAUSD`, added via
+  `data_pipeline/yfinance_backfill.py --apply` with no existing zip —
+  confirmed the script's `write_lean_zip()` already supports this (creates
+  a fresh zip when the target path doesn't exist). A dry run first
+  (`--tickers ... `, no `--apply`) revealed Yahoo's real earliest daily
+  history for both starts `2017-11-09`, not the originally guessed
+  `2017-08-01`/`2017-10-01` — `available_from`/`backfill_from` set from
+  the dry run's actual report, per the script's own safety contract.
+- **`BTCUSD`/`ETHUSD`/`LTCUSD` extended forward to `2021-03-31`:** `BTCUSD`
+  gained a new `backfill` block (`backfill_from: 2018-08-14`, its real
+  local data's last day); `ETHUSD`/`LTCUSD`'s existing `backfill_to` bumped
+  forward from their old, narrower ranges. yfinance's `end` parameter is
+  exclusive, so `backfill_to` was set to `2021-04-01` (not `2021-03-31`)
+  to actually capture the `2021-03-31` trading day — confirmed by
+  inspecting the written zips' last row before/after.
+- **Genuine held-out backtest window:** `common_window` end moved
+  `2018-08-13` → `2021-03-31`. `phase1.windows` restructured — training
+  `2014-12-01`→`2017-12-31`, validation `2018-01-01`→`2018-03-31`,
+  backtest `2018-04-01`→`2021-03-31` (~3 years). Previously `backtest`
+  was identical to the full `common_window` — the Lean backtest re-ran
+  over the entire training history, not a held-out period at all. This is
+  the same universe of assets and same feature/target definitions, just a
+  split that now actually tests generalization.
+- **Real bug found and fixed (Problems.md #15):**
+  `train.py::ensure_derived_crypto_daily_series()` unconditionally
+  overwrote `ETHUSD`/`LTCUSD`'s daily zip from minute-trade data alone on
+  every `train.py` run, silently discarding any yfinance-backfilled rows
+  sitting in the same zip — the backfill script's own write survived on
+  disk only until the next training run. Fixed to merge by date instead of
+  clobber (minute-derived rows win on their dates, backfilled rows for
+  every other date survive). New regression test:
+  `tests/test_train_pipeline.py::test_ensure_derived_crypto_daily_series_merges_with_existing_backfill`.
+- **Dataset manifest result:** 16/20 assets landed
+  `training_eligible`/`trading_eligible`; `AAA`, `ETHUSD`, `XRPUSD`,
+  `ADAUSD` stayed `observation_only` (Phase 9's `asset_quality` gate,
+  unchanged thresholds) — all four for genuine reasons, not a bug:
+  `ETHUSD`/`XRPUSD`/`ADAUSD`'s real history barely overlaps the
+  `2014-2017` training window (~52-54 post-feature-engineering training
+  rows, under `min_training_rows: 100`); `AAA`'s own real Lean data is
+  sparse before `2020-09-09`. `LTCUSD` (real data back to `2016-01-01`)
+  did land `training_eligible` once the merge-clobber bug above was fixed.
+- Trained the baseline model + all 4 experts over the new 20-asset,
+  2018-2021-held-out dataset with zero further code changes —
+  `experts/expert_datasets.py`'s regime-slicing scaled with the asset
+  count as expected.
+- `tests/test_lean_backtest_ml_coverage.py::LEAN_BACKTEST_TIMEOUT_SECONDS`
+  bumped `7200` → `14400`: the new backtest window roughly doubles the
+  asset count against a similar-length window, so this integration test's
+  real Lean CLI runtime is expected to roughly double too.
+- README: new "Universe Size" section listing all 20 tickers with role
+  (trading vs. observation-only) and a Mermaid hub-and-spoke diagram (the
+  baseline DNN + MoE experts as the central node, all 20 tickers as
+  spokes, color-coded by trading eligibility).
+- **`development/logo.png` fixed:** stripped a ~4px stray opaque border
+  artifact around the full perimeter (an export leftover; the rest of the
+  canvas was already transparent) and re-composited the mark onto a
+  rounded dark card (`#1A1A1A`, matching the README badges' `labelColor`)
+  instead of a hard-edged square, so it reads correctly in both GitHub
+  light and dark themes instead of looking like a black box in light mode.
+- **Real bug found and fixed (Problems.md #16), discovered only by
+  actually running `lean backtest .` against the new universe — no unit
+  test could catch this, `main.py` has none:** `main.py::initialize()`
+  now exceeded Lean's hardcoded 90-second isolator timeout on algorithm
+  creation (`AlgorithmFactory.Loader.TryCreateAlgorithmInstanceWithIsolator`,
+  not configurable via `lean.json`). The `add_equity`/`add_crypto`
+  subscription loop — confirmed via direct disk-log instrumentation to be
+  fast (20 assets in 1.8s) — wasn't the problem; loading every
+  model/expert/topology artifact and deriving ~40 config values inside
+  `initialize()` was. Fixed by splitting `initialize()` into the minimal
+  Lean-critical path (config load, dates/cash, the subscription loop,
+  warm-up) plus a new `_ensure_ready()` carrying everything else, deferred
+  to run once on the first `on_data()` call (no isolator limit there).
+  Confirmed fixed against real 20-asset data: `initialize()` alone now
+  takes 1.85s, and the full isolator-timed window (import + instantiate +
+  `initialize()`) totals ~51s, safely under the 90s cap.
+- Stopping point: the real, full `lean backtest .` run over the new
+  universe/window (the multi-hour, 3-year, 20-asset run) was deliberately
+  left for manual, out-of-band execution rather than run to completion by
+  an agent — see the Runbook for the exact commands. Diagnostic Lean runs
+  (stopped early, right after confirming `initialize()` no longer times
+  out) were used to find and fix Problems.md #16 above. This phase does
+  not touch Docker images or the controlled retraining loop.
+- **Follow-up fix (Problems.md #17):** those same diagnostic Lean runs kept
+  hitting the 90-second isolator cap intermittently even after `initialize()`
+  was fixed — root cause was Lean's own `AlgorithmImports` bridge pulling in
+  `matplotlib`, whose font cache never survives Lean CLI's ephemeral
+  per-backtest Docker container, so it rebuilt from scratch (20-40+ seconds)
+  on every single run. Fixed by pointing `MPLCONFIGDIR` at a `.matplotlib_cache/`
+  directory inside the mounted project folder (persists across containers);
+  confirmed via two consecutive runs that the second no longer rebuilds it.
+
+## `aq fetch` — ad-hoc Yahoo Finance ticker fetch
+
+A new `aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end
+<YYYY-MM-DD> [--apply]` command, requested directly by the user to remove
+the multi-step manual process the 20-asset expansion above required for
+onboarding a new crypto ticker (run `yfinance_backfill.py`, inspect its
+output, hand-edit `config.json`). One command now fetches from Yahoo
+Finance, formats into Lean's zip/CSV convention, writes it to the correct
+`data/` path, and — on `--apply` — appends a new asset block straight into
+`config.json`'s `phase1.universe.assets[]`. Deliberately does **not** run
+`train.py` itself; training stays a separate, deliberate step.
+
+- New `data_pipeline/fetch.py`: reuses `yfinance_backfill.py`'s
+  config.json-independent pure functions (`fetch_yahoo_ohlcv`,
+  `scale_for_lean`, `write_lean_zip`) unchanged — no duplicated logic.
+  `ASSET_CLASS_CONFIG` dict drives the Lean path/market convention per
+  asset class (`crypto` → `data/crypto/coinbase/daily/<ticker>_trade.zip`;
+  `stock` → `data/equity/usa/daily/<ticker>.zip`) — adding a `derivative`
+  class in V3 is one new dict entry, not a redesign.
+- **Deliberate policy difference from `yfinance_backfill.py`:** that script
+  never touches `config.json` (its rule exists to stop it from silently
+  widening an *existing* asset's date range without a human decision).
+  `fetch.py` *does* write `config.json` on `--apply`, because adding a
+  brand-new ticker to the universe on purpose is its entire reason to
+  exist, not an accidental side effect. If the ticker already has a
+  `config.json` entry, `fetch.py` leaves it alone and points at
+  `yfinance_backfill.py` instead — scope stays "add a new ticker," not
+  "extend an existing one." See `data_pipeline/README.md`'s new section
+  for the full comparison table.
+- `aq_cli.py`: new `cmd_fetch`, wired as the second in-process exception
+  alongside `trade-lock` (no subprocess) — calls `data_pipeline.fetch`
+  directly. New `_iso_date` argparse validator rejects non-ISO dates (e.g.
+  `02.02.2017`) with a clear error instead of a confusing downstream
+  yfinance failure.
+- **Required packaging fix:** `pyproject.toml`'s `packages` list gained
+  `"data_pipeline"` (→ `["risk", "execution", "data_pipeline"]`) — the same
+  class of `ModuleNotFoundError` bug this list's own comment already
+  documents from `execution` being added previously. Verified via the
+  *installed* `aq fetch --help` (not `python aq_cli.py`), which is the only
+  way this specific regression class is actually caught.
+- New tests: `tests/test_fetch.py` (13 tests, mirrors
+  `tests/test_yfinance_backfill.py`'s style — `fetch_fn` injected via
+  keyword default, never real yfinance) plus 7 wiring tests in
+  `tests/test_aq_cli.py`.
+- Manually verified end-to-end with real yfinance calls (`DOGEUSD`,
+  `MSFT`): dry run writes nothing; `--apply` writes a correctly-scaled zip
+  and adds a config.json block; re-running `--apply` on the same ticker
+  reports `already_exists` without duplicating the entry; `derivative` is
+  rejected by argparse (V3 not implemented yet). Test artifacts removed
+  from `config.json`/`data/` after verification — not part of the real
+  20-asset universe.

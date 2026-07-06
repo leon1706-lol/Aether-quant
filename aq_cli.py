@@ -3,11 +3,12 @@
 Matches this codebase's existing CLI convention exactly (see
 `retraining/orchestrator.py`'s `argparse` + `subparsers.add_parser(...)`
 shape) - a single-file dispatcher, not a framework. Every subcommand other
-than `trade-lock` is a thin `subprocess.run(...)` wrapper around a command
-that already exists and is already documented elsewhere (README.md,
-development/infrastructure.md) - no logic is reimplemented here, this file
-only saves typing. `trade-lock` is the one exception: it calls
-`risk/manual_override.py` directly, no subprocess.
+than `trade-lock` and `fetch` is a thin `subprocess.run(...)` wrapper around
+a command that already exists and is already documented elsewhere
+(README.md, development/infrastructure.md) - no logic is reimplemented
+here, this file only saves typing. `trade-lock` and `fetch` are the two
+exceptions: they call `risk/manual_override.py` and
+`data_pipeline/fetch.py` directly, in-process, no subprocess.
 
 Deliberately scoped for v1 - wraps the commands already in daily use, not
 every command mentioned anywhere in the project. Designed to be extended
@@ -31,9 +32,11 @@ import subprocess
 import sys
 import time
 import urllib.request
+from datetime import date
 from importlib.metadata import version as installed_version
 from pathlib import Path
 
+from data_pipeline.fetch import ASSET_CLASSES, fetch_adhoc_asset
 from risk.manual_override import read_manual_trade_lock_override, write_manual_trade_lock_override
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -92,6 +95,18 @@ def _parse_simple_version(value: str) -> tuple[int, ...] | None:
         return tuple(int(part) for part in value.split("."))
     except ValueError:
         return None
+
+
+def _iso_date(value: str) -> str:
+    """Validates --start/--end as strict ISO 8601 YYYY-MM-DD, matching the
+    convention used everywhere else in this repo (config.json,
+    yfinance_backfill.py) - rejects other formats (e.g. DD.MM.YYYY) with a
+    clear error instead of a confusing downstream yfinance failure."""
+    try:
+        date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid date {value!r} - expected ISO 8601 YYYY-MM-DD") from exc
+    return value
 
 
 def _read_update_cache() -> dict:
@@ -340,6 +355,30 @@ def cmd_trade_lock(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fetch(args: argparse.Namespace) -> int:
+    report = fetch_adhoc_asset(args.asset_class, args.ticker, args.start, args.end, apply=args.apply)
+    label = "APPLY" if args.apply else "DRY RUN"
+    print(f"{label} — {report['ticker']} ({report['yahoo_symbol']}): {report['action']}, rows_fetched={report['rows_fetched']}")
+    if report["suggested_available_from"]:
+        print(f"    date range fetched: {report['suggested_available_from']} .. {report['suggested_available_to']}")
+    print(f"    data_path: {report['data_path']}")
+
+    if report["config_status"] == "added":
+        print(f"    config.json: added a new {report['ticker']} asset block to phase1.universe.assets[]")
+    elif report["config_status"] == "already_exists":
+        print(
+            f"    config.json: {report['ticker']} is already configured - left untouched. "
+            "Use data_pipeline/yfinance_backfill.py to extend an existing asset's date range instead."
+        )
+
+    if not args.apply:
+        print("\nDry run only — nothing was written. Re-run with --apply to write the zip file and update config.json.")
+    elif report["action"] == "written":
+        print("\nReady to prepare training: run `python train.py --dataset-only` to confirm this ticker's asset quality, then `python train.py` when ready.")
+
+    return 1 if report["action"] == "no_data_returned" else 0
+
+
 def cmd_status(_args: argparse.Namespace) -> int:
     return _run(["git", "status"])
 
@@ -408,6 +447,20 @@ def build_parser() -> argparse.ArgumentParser:
     trade_lock_group.add_argument("--auto", action="store_true", help="Return to fully automatic behavior")
     trade_lock_group.add_argument("--status", dest="status", action="store_true", help="Print the current override state")
     trade_lock_parser.set_defaults(func=cmd_trade_lock)
+
+    fetch_parser = subparsers.add_parser(
+        "fetch", help="Ad-hoc fetch of historical OHLCV from Yahoo Finance for a ticker not yet in config.json"
+    )
+    fetch_parser.add_argument(
+        "asset_class", choices=list(ASSET_CLASSES), help="Asset class (picks the Lean data_path/market convention)"
+    )
+    fetch_parser.add_argument("--ticker", required=True, help="Internal ticker, e.g. AAPL or BTCUSD")
+    fetch_parser.add_argument("--start", required=True, type=_iso_date, help="Start date, ISO 8601 YYYY-MM-DD")
+    fetch_parser.add_argument("--end", required=True, type=_iso_date, help="End date, ISO 8601 YYYY-MM-DD")
+    fetch_parser.add_argument(
+        "--apply", action="store_true", help="Actually write the zip file and update config.json (default: dry run, report only)"
+    )
+    fetch_parser.set_defaults(func=cmd_fetch)
 
     status_parser = subparsers.add_parser("status", help="Show git status")
     status_parser.set_defaults(func=cmd_status)

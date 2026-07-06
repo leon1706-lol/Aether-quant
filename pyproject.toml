@@ -31,9 +31,10 @@ aq = "aq_cli:main"
 # installed `aq` command failed with `ModuleNotFoundError: No module named
 # 'execution'` until this was added, even though `python -m pytest`/the
 # Lean container both masked it by putting the repo root on sys.path
-# directly).
+# directly). `data_pipeline` was added the same way, after `aq_cli.py`
+# gained `from data_pipeline.fetch import ...` for the `aq fetch` command.
 py-modules = ["aq_cli", "generate_backtest_report"]
-packages = ["risk", "execution"]
+packages = ["risk", "execution", "data_pipeline"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

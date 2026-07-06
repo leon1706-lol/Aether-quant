@@ -35,6 +35,7 @@ window and hope it generalizes.
 - [Getting Started](#getting-started)
 - [Requirements](#requirements)
 - [Architecture](#architecture)
+- [Universe Size](#universe-size)
 - [Project Structure](#project-structure)
 - [Module Documentation](#module-documentation)
 - [Development Documentation](#development-documentation)
@@ -202,6 +203,105 @@ and more), the module map, and an honest analysis of what would need to
 change for this to become a genuinely low-latency/HFT system — see
 **[`development/v2_architecture.md`](development/v2_architecture.md)**.
 
+## Universe Size
+
+The trading universe currently spans **20 assets** — 15 equities and 5
+crypto pairs — defined in `config.json`'s `phase1.universe.assets` and
+shared across training, validation, and backtesting
+(`phase1.universe.common_window`: `2014-12-01` to `2021-03-31`).
+
+| Ticker | Type | Role |
+|---|---|---|
+| AAPL | Equity | Trading |
+| SPY | Equity | Trading |
+| QQQ | Equity | Trading |
+| IWM | Equity | Trading |
+| EEM | Equity | Trading |
+| BAC | Equity | Trading |
+| IBM | Equity | Trading |
+| AIG | Equity | Trading |
+| BNO | Equity | Trading |
+| FB | Equity | Trading |
+| GOOG | Equity | Trading |
+| GOOGL | Equity | Trading |
+| USO | Equity | Trading |
+| WM | Equity | Trading |
+| AAA | Equity | Observation-only (thin history) |
+| BTCUSD | Crypto | Trading |
+| ETHUSD | Crypto | Observation-only (thin history) |
+| LTCUSD | Crypto | Trading |
+| XRPUSD | Crypto | Observation-only (thin history) |
+| ADAUSD | Crypto | Observation-only (thin history) |
+
+"Observation-only" assets (Phase 9's `asset_quality` gate) are still fed
+through the full model/expert/topology pipeline every bar and visible on
+the dashboard, but are never sized into real positions — their real
+history is too short relative to the training window to be trusted for
+trading decisions (see [`development/Changelog.md`](development/Changelog.md)
+for the exact row-count thresholds). This is re-evaluated automatically
+every time `train.py` rebuilds the dataset, so an asset can move between
+these two roles as more history accumulates.
+
+```mermaid
+flowchart TD
+    DNN(("Baseline DNN<br/>+ MoE Experts<br/>bullish / bearish /<br/>sideways / volatility"))
+
+    subgraph Equities["Equities (15)"]
+        AAPL["AAPL"]
+        SPY["SPY"]
+        QQQ["QQQ"]
+        IWM["IWM"]
+        EEM["EEM"]
+        BAC["BAC"]
+        IBM["IBM"]
+        AIG["AIG"]
+        BNO["BNO"]
+        FB["FB"]
+        GOOG["GOOG"]
+        GOOGL["GOOGL"]
+        USO["USO"]
+        WM["WM"]
+        AAA["AAA"]
+    end
+
+    subgraph Crypto["Crypto (5)"]
+        BTCUSD["BTCUSD"]
+        ETHUSD["ETHUSD"]
+        LTCUSD["LTCUSD"]
+        XRPUSD["XRPUSD"]
+        ADAUSD["ADAUSD"]
+    end
+
+    AAPL --- DNN
+    SPY --- DNN
+    QQQ --- DNN
+    IWM --- DNN
+    EEM --- DNN
+    BAC --- DNN
+    IBM --- DNN
+    AIG --- DNN
+    BNO --- DNN
+    FB --- DNN
+    GOOG --- DNN
+    GOOGL --- DNN
+    USO --- DNN
+    WM --- DNN
+    AAA --- DNN
+    BTCUSD --- DNN
+    ETHUSD --- DNN
+    LTCUSD --- DNN
+    XRPUSD --- DNN
+    ADAUSD --- DNN
+
+    classDef hub fill:#1A1A1A,stroke:#FF8C00,color:#FF8C00,stroke-width:2px;
+    classDef trading fill:#FF8C00,stroke:#1A1A1A,color:#1A1A1A,stroke-width:1px;
+    classDef observation fill:#3A3A3A,stroke:#FF8C00,color:#FF8C00,stroke-width:1px,stroke-dasharray: 4 2;
+
+    class DNN hub;
+    class AAPL,SPY,QQQ,IWM,EEM,BAC,IBM,AIG,BNO,FB,GOOG,GOOGL,USO,WM,BTCUSD,LTCUSD trading;
+    class AAA,ETHUSD,XRPUSD,ADAUSD observation;
+```
+
 ## Project Structure
 
 ```text
@@ -343,7 +443,25 @@ This section is regenerated automatically every time you run `aq backtest`
 always reflects your most recent successful Lean backtest, reading directly
 from Lean's own result JSON (strategy equity curve, its native SPY benchmark
 series, and the full statistics block), so it never goes stale as long as
-you keep backtesting.
+you keep backtesting. Both the chart image and every statistic above are
+overwritten on each run — there is no manual step and nothing here can go
+stale relative to your last `aq backtest`.
+
+**What this backtest does *not* prove:** a bare `lean backtest .` run
+exercises the full inference stack (baseline model, all 4 experts, MoE
+gating, regime, topology, liquidity) every bar, but it does **not**
+exercise the controlled retraining loop — the "learning while trading"
+half of this system's thesis. That loop is a decoupled, asynchronous
+pipeline (`main.py` → Redis → experience-worker → Postgres →
+performance-trigger-worker → retraining-worker), and a bare backtest run
+outside the Docker Compose network can't even reach Redis — events are
+dropped with a warning, so nothing reaches Postgres, no performance
+trigger can fire, and no retraining ever runs (see
+`development/infrastructure.md`). Exercising retraining for real requires
+the full Compose stack up (`docker compose up -d redis postgres
+experience-worker performance-trigger-worker retraining-worker`) with the
+backtest run inside that network, plus an actual trigger condition being
+met during the run.
 
 ## Test Suite
 
@@ -387,11 +505,12 @@ aq docker up [--lean|--all]
 aq docker build
 aq retrain <plan|train|validate|backtest|commit|promote|rollback|status> [...]
 aq trade-lock --on|--off|--auto|--status
+aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]
 aq status
 ```
 
-Every command except `aq trade-lock` is a thin `subprocess` wrapper around a
-command already documented elsewhere in this README:
+Every command except `aq trade-lock` and `aq fetch` is a thin `subprocess`
+wrapper around a command already documented elsewhere in this README:
 
 - **`aq train`** — runs `train.py`: builds the dataset and trains the baseline + expert models.
 - **`aq test`** — runs the pytest suite and refreshes this README's test badge.
@@ -403,6 +522,7 @@ command already documented elsewhere in this README:
 - **`aq docker build`** — rebuilds the `aether-quant` app image.
 - **`aq retrain <stage>`** — dispatches to `python -m retraining.orchestrator <stage> ...` for a single manual pipeline stage.
 - **`aq trade-lock --on|--off|--auto|--status`** — manually overrides `main.py`'s sticky total-drawdown trade lock (see `development/v2_architecture.md`'s Manual Trade-Lock Override Contract). `--off` deliberately clears an otherwise-permanent lock; `--auto` returns to fully automatic behavior.
+- **`aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]`** — fetches historical OHLCV from Yahoo Finance for a ticker that isn't in `config.json` yet, formats it into Lean's zip/CSV convention, and writes it to the right spot under `data/` (`data/crypto/coinbase/daily/<ticker>_trade.zip` or `data/equity/usa/daily/<ticker>.zip`). On `--apply`, it also appends a new asset block to `config.json`'s `phase1.universe.assets[]` — no manual editing needed. Dry run by default (no `--apply`): reports what would happen, writes nothing. Never runs `train.py` itself — once applied, run `python train.py --dataset-only` (then `python train.py` when ready) yourself to actually train on the new ticker. `crypto`/`stock` today; a `derivative` asset class is planned for V3.
 - **`aq status`** — shows `git status`.
 
 ## Release Process

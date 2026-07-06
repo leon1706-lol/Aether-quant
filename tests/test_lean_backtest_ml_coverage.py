@@ -24,13 +24,15 @@ from moe import EXPERT_NAMES
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 STATE_PATH = REPO_ROOT / "visualization" / "state.json"
-# The full committed backtest window (2014-12-01 to 2018-08-13, 10 assets) has
-# been observed taking over an hour wall-clock on this project's Docker Lean
+# The old committed backtest window (2014-12-01 to 2018-08-13, 10 assets) was
+# observed taking over an hour wall-clock on this project's Docker Lean
 # runtime - main.py's per-bar model/expert inference (_run_exported_model) is
-# plain Python with no vectorization, run once per asset per bar. This is
-# genuinely slow, not hung, so the timeout is generous on purpose. This test
-# is meant for a deliberate, occasional run - not a fast per-commit check.
-LEAN_BACKTEST_TIMEOUT_SECONDS = 7200
+# plain Python with no vectorization, run once per asset per bar. The current
+# backtest window (2018-04-01 to 2021-03-31, 20 assets) roughly doubles the
+# per-bar cost from the asset count alone, so the timeout is generous on
+# purpose. This test is meant for a deliberate, occasional run - not a fast
+# per-commit check.
+LEAN_BACKTEST_TIMEOUT_SECONDS = 14400
 
 
 def _find_quantconnect_lean_binary() -> str | None:

@@ -467,3 +467,107 @@ backtest-mode experience events out of Postgres after the fact; if nothing
 does, gate `push()` on `runtime_mode != "backtest"` and update
 `v2_architecture.md`'s Redis Experience Queue section and
 `test_experience_queue.py`'s default fixture accordingly.
+
+---
+
+### 15. `ensure_derived_crypto_daily_series()` silently discarded yfinance-backfilled crypto history on every `train.py` run
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+Found while expanding the trading universe to 20 assets and extending
+`ETHUSD`/`LTCUSD` coverage forward to `2021-03-31` via
+`data_pipeline/yfinance_backfill.py --apply`. `train.py::ensure_derived_crypto_daily_series()`
+runs unconditionally at the start of every `train.py` invocation for any
+asset with `derived_from`/`aggregation: "daily_from_minute_trade"` set
+(`ETHUSD`, `LTCUSD`) and rebuilds their daily Lean zip from the raw minute
+trade files with a bare `ZipFile(output_zip, "w")` — a full overwrite, not
+a merge. Since both tickers' real Coinbase minute data is only a handful
+of scattered days, this wiped the yfinance-backfilled rows (1000+ days)
+back down to 3-4 real rows the moment `train.py` ran again after the
+backfill — the backfill script's own zip write survived on disk right up
+until the very next training run silently undid it. Confirmed directly:
+`ethusd_trade.zip` had 1241 rows after `--apply`, then 4 rows again
+immediately after `python train.py --dataset-only`.
+
+**Fix:** `ensure_derived_crypto_daily_series()` now reads the existing
+output zip first (if present) and merges by date — freshly computed
+minute-derived rows win on any date real minute data actually covers
+(they're genuine trade data), but every other date already in the zip
+(i.e. anything `yfinance_backfill.py` wrote) survives the rebuild instead
+of being discarded. New regression test:
+`tests/test_train_pipeline.py::test_ensure_derived_crypto_daily_series_merges_with_existing_backfill`.
+
+---
+
+### 16. `main.py::initialize()` exceeded Lean's hard 90-second isolator timeout at 20 assets
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+Found by actually running `lean backtest .` against the new 20-asset
+universe (not caught by any unit test — `main.py` has none; this class of
+regression is only observable via a real Lean run). Every `lean backtest .`
+attempt failed identically:
+
+```
+ERROR:: Security.ExecuteWithTimeLimit(): Execution Security Error:
+Operation timed out - 1.5 minutes max. Check for recursive loops.
+```
+
+Root cause: `QuantConnect.AlgorithmFactory.Loader.TryCreateAlgorithmInstanceWithIsolator`
+wraps Python module import + algorithm instantiation + the `initialize()`
+call in a hardcoded 90-second wall-clock limit — not configurable via
+`lean.json` or any Lean CLI flag in the local/community engine. `initialize()`
+loaded every model/expert/topology artifact (`ml/model_weights.json`, 4
+expert exports, `feature_schema.json`, `scaler_stats.json`,
+`dataset_manifest.json`, the learned topology model) and derived ~40
+risk/regime/topology/liquidity/broker config values, in addition to the
+`add_equity`/`add_crypto` subscription loop — the one piece of setup that
+must run inside `initialize()`, since Lean only calls `on_data()` once
+subscriptions exist. Going 10→20 assets pushed the combined cost over the
+90-second cap. Confirmed via direct instrumentation (a side-channel log
+file written straight to disk, since `self.Debug()` calls made inside an
+`initialize()` call that the Isolator later aborts never reach any log —
+they're silently lost, not just delayed) that the per-asset subscription
+loop itself is fast (20 assets subscribed in 1.8 seconds total) — the
+model/config loading was the reducible cost, not the loop.
+
+**Fix:** split `initialize()` into a minimal Lean-critical path (path
+constants, `config.json` load, dates/cash, the `add_equity`/`add_crypto`
+loop, warm-up) and a new `_ensure_ready()` method carrying everything else
+(all artifact loading and derived config) — deferred to run once, on the
+first `on_data()` call, which has no isolator time limit. Verified via the
+same disk-log instrumentation: `initialize()` alone now completes in
+1.85 seconds, and the full isolator-timed window (module import +
+instantiation + `initialize()`) totals ~51 seconds against real 20-asset
+data, safely under the 90-second cap. No scheduled events or other Lean
+callbacks fire between `initialize()` and the first `on_data()` in this
+algorithm, so nothing else needed to change; `on_end_of_algorithm()` also
+calls `_ensure_ready()` defensively in case a backtest somehow produces
+zero bars. `pytest tests/` (525 tests, everything except the
+Docker-dependent Lean integration test) stayed green throughout.
+
+---
+
+### 17. Matplotlib font cache rebuilt from scratch on every single `lean backtest .` run
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+Found while re-verifying Problems.md #16's fix: even with `initialize()`
+down to 1.85 seconds, a real `lean backtest .` run still occasionally timed
+out against the same 90-second isolator cap. The log showed "Matplotlib is
+building the font cache; this may take a moment" printed during Python
+module import, every single run — 20-40+ seconds of the timed window, on
+top of everything else. No file in this repo imports `matplotlib` (grepped
+the entire codebase, confirmed only `generate_backtest_report.py` does, and
+that never runs inside Lean); the import comes from Lean's own
+`AlgorithmImports` bridge (its charting/plotting support). Lean CLI runs
+each backtest in a fresh, ephemeral Docker container, so matplotlib's
+default cache location never survives between runs — every run rebuilt it
+from nothing.
+
+**Fix:** `main.py` now sets `MPLCONFIGDIR` (before any other import, at the
+very top of the file) to `.matplotlib_cache/` inside the mounted project
+directory. That directory lives on the host filesystem, not the ephemeral
+container, so it survives across runs — only the very first run ever pays
+the font-cache-build cost again. Confirmed via two consecutive real Lean
+runs: the first (cold cache) still showed the "building the font cache"
+message and took ~82 seconds just to import; the second (warm cache) showed
+no such message and imported in ~58 seconds, with zero isolator timeout.
+`.matplotlib_cache/` added to `.gitignore` (generated cache, not committed).

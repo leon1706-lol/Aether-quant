@@ -4,7 +4,11 @@ Conventions: no test classes, module-level helpers. Subprocess-wrapping
 commands are tested by mocking aq_cli._run (the single choke point every
 subprocess-based subcommand funnels through) and asserting the exact argv
 built - never actually shelling out. trade-lock is tested via its own real
-logic (risk.manual_override), same as tests/test_manual_override.py.
+logic (risk.manual_override), same as tests/test_manual_override.py. fetch
+is the second in-process exception (calls data_pipeline.fetch directly, no
+subprocess) - tested here as wiring-only, with aq_cli.fetch_adhoc_asset
+patched; its real logic (yfinance never touched, correct Lean paths,
+config.json read-modify-write) is covered by tests/test_fetch.py instead.
 
 `cmd_test` is the one exception to the `_run` choke point: it needs
 captured (not just streamed) output to parse the pass/fail count for the
@@ -292,6 +296,100 @@ def test_trade_lock_requires_exactly_one_flag():
         assert False, "expected SystemExit when no trade-lock flag is given"
     except SystemExit:
         pass
+
+
+# --- fetch ------------------------------------------------------------------
+
+
+def _sample_fetch_report(**overrides) -> dict:
+    report = {
+        "ticker": "DOGEUSD",
+        "asset_class": "crypto",
+        "yahoo_symbol": "DOGE-USD",
+        "data_path": "/tmp/dogeusd_trade.zip",
+        "action": "dry_run",
+        "rows_fetched": 3,
+        "suggested_available_from": "2023-01-01",
+        "suggested_available_to": "2023-01-03",
+        "config_status": "not_attempted",
+    }
+    report.update(overrides)
+    return report
+
+
+def test_fetch_dispatches_to_fetch_adhoc_asset_with_parsed_args():
+    fetch_mock = MagicMock(return_value=_sample_fetch_report())
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["fetch", "crypto", "--ticker", "DOGEUSD", "--start", "2023-01-01", "--end", "2023-01-03"])
+    with patch("aq_cli.fetch_adhoc_asset", fetch_mock):
+        exit_code = args.func(args)
+
+    fetch_mock.assert_called_once_with("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=False)
+    assert exit_code == 0
+
+
+def test_fetch_apply_flag_is_forwarded():
+    fetch_mock = MagicMock(return_value=_sample_fetch_report(action="written", config_status="added"))
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "crypto", "--ticker", "DOGEUSD", "--start", "2023-01-01", "--end", "2023-01-03", "--apply"]
+    )
+    with patch("aq_cli.fetch_adhoc_asset", fetch_mock):
+        args.func(args)
+
+    fetch_mock.assert_called_once_with("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=True)
+
+
+def test_fetch_rejects_unsupported_asset_class():
+    parser = aq_cli.build_parser()
+    try:
+        parser.parse_args(["fetch", "derivative", "--ticker", "X", "--start", "2020-01-01", "--end", "2020-02-01"])
+        assert False, "expected SystemExit - 'derivative' not supported until V3"
+    except SystemExit:
+        pass
+
+
+def test_fetch_rejects_non_iso_dates():
+    parser = aq_cli.build_parser()
+    try:
+        parser.parse_args(["fetch", "stock", "--ticker", "AAPL", "--start", "02.02.2017", "--end", "2018-01-01"])
+        assert False, "expected SystemExit for a non-ISO-8601 date"
+    except SystemExit:
+        pass
+
+
+def test_fetch_returns_nonzero_when_no_data_returned():
+    fetch_mock = MagicMock(return_value=_sample_fetch_report(action="no_data_returned", rows_fetched=0))
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["fetch", "stock", "--ticker", "X", "--start", "2020-01-01", "--end", "2020-02-01"])
+    with patch("aq_cli.fetch_adhoc_asset", fetch_mock):
+        assert args.func(args) == 1
+
+
+def test_fetch_prints_added_config_status(capsys):
+    fetch_mock = MagicMock(return_value=_sample_fetch_report(action="written", config_status="added"))
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "crypto", "--ticker", "DOGEUSD", "--start", "2023-01-01", "--end", "2023-01-03", "--apply"]
+    )
+    with patch("aq_cli.fetch_adhoc_asset", fetch_mock):
+        args.func(args)
+
+    out = capsys.readouterr().out
+    assert "added a new DOGEUSD asset block" in out
+    assert "Ready to prepare training" in out
+
+
+def test_fetch_prints_already_exists_config_status(capsys):
+    fetch_mock = MagicMock(return_value=_sample_fetch_report(action="written", config_status="already_exists"))
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "crypto", "--ticker", "DOGEUSD", "--start", "2023-01-01", "--end", "2023-01-03", "--apply"]
+    )
+    with patch("aq_cli.fetch_adhoc_asset", fetch_mock):
+        args.func(args)
+
+    assert "already configured" in capsys.readouterr().out
 
 
 # --- update-check ---------------------------------------------------------

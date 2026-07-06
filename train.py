@@ -236,10 +236,29 @@ def ensure_derived_crypto_daily_series(config: dict) -> None:
         if not daily_rows:
             continue
 
+        # Merge with whatever is already on disk (e.g. yfinance-backfilled
+        # history from data_pipeline/yfinance_backfill.py) instead of
+        # clobbering it — freshly computed minute-derived rows win on any
+        # overlapping date since they're real trade data, but backfilled
+        # rows for dates with no minute data must survive this rebuild.
+        existing_lines: dict[str, str] = {}
+        if output_zip.exists():
+            with ZipFile(output_zip) as archive:
+                member = archive.namelist()[0]
+                with archive.open(member) as handle:
+                    for line in handle.read().decode("utf-8").splitlines():
+                        if line.strip():
+                            existing_lines[line.split(",")[0].split()[0]] = line
+
+        for line in daily_rows:
+            existing_lines[line.split(",")[0].split()[0]] = line
+
+        merged_lines = [existing_lines[key] for key in sorted(existing_lines)]
+
         output_zip.parent.mkdir(parents=True, exist_ok=True)
         member_name = f"{asset['ticker'].lower()}.csv"
         with ZipFile(output_zip, "w") as archive:
-            archive.writestr(member_name, "\n".join(daily_rows) + "\n")
+            archive.writestr(member_name, "\n".join(merged_lines) + "\n")
 
 
 def summarize_data_tree(limit: int = 12) -> dict:

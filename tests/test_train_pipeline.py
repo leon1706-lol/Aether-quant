@@ -1,8 +1,10 @@
 import inspect
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
 
+import train
 from train import (
     ML_DIR,
     MODEL_CHECKPOINT_PATH,
@@ -13,6 +15,7 @@ from train import (
     build_asset_quality,
     candidate_output_paths,
     engineer_features,
+    ensure_derived_crypto_daily_series,
     fit_and_apply_scaler,
     train_model,
     validate_training_inputs,
@@ -217,3 +220,66 @@ def test_write_scaler_artifacts_writes_only_to_given_paths(tmp_path):
     # never touches the active ml/ scaler path
     active_mtime_after = SCALER_PATH.stat().st_mtime if SCALER_PATH.exists() else None
     assert active_mtime_after == active_mtime_before
+
+
+def test_ensure_derived_crypto_daily_series_merges_with_existing_backfill(tmp_path, monkeypatch):
+    # Regression guard: this function used to ZipFile(output_zip, "w") the
+    # daily series unconditionally from minute trade data alone, silently
+    # discarding any yfinance-backfilled history (data_pipeline/
+    # yfinance_backfill.py) already sitting in the same zip whenever
+    # train.py ran. It must merge instead: real minute-derived rows win on
+    # overlapping dates, but backfilled rows for dates with no minute data
+    # must survive.
+    monkeypatch.setattr(train, "ROOT", tmp_path)
+
+    minute_dir = tmp_path / "data" / "crypto" / "coinbase" / "minute" / "testusd"
+    minute_dir.mkdir(parents=True)
+    with ZipFile(minute_dir / "20180101_trade.zip", "w") as archive:
+        archive.writestr(
+            "20180101_trade.csv",
+            "1514800000,10,11,9,10.5,100\n1514800060,10.5,11.5,9.5,11,50\n",
+        )
+
+    output_zip = tmp_path / "data" / "crypto" / "coinbase" / "daily" / "testusd_trade.zip"
+    output_zip.parent.mkdir(parents=True)
+    with ZipFile(output_zip, "w") as archive:
+        archive.writestr(
+            "testusd.csv",
+            "20171231 00:00,1,1,1,1,1\n20180101 00:00,999,999,999,999,999\n",
+        )
+
+    config = {
+        "phase1": {
+            "universe": {
+                "assets": [
+                    {
+                        "ticker": "TESTUSD",
+                        "security_type": "crypto",
+                        "market": "coinbase",
+                        "data_path": "data/crypto/coinbase/daily/testusd_trade.zip",
+                        "derived_from": "data/crypto/coinbase/minute/testusd",
+                        "aggregation": "daily_from_minute_trade",
+                    }
+                ]
+            }
+        }
+    }
+
+    ensure_derived_crypto_daily_series(config)
+
+    with ZipFile(output_zip) as archive:
+        member = archive.namelist()[0]
+        with archive.open(member) as handle:
+            lines = [line for line in handle.read().decode("utf-8").splitlines() if line.strip()]
+
+    by_date = {line.split(",")[0].split()[0]: line.split(",") for line in lines}
+    assert set(by_date) == {"20171231", "20180101"}
+    # backfilled row for a date with no minute data survives untouched
+    assert by_date["20171231"] == ["20171231 00:00", "1", "1", "1", "1", "1"]
+    # real minute-derived row wins over the stale placeholder for the same date
+    fields = by_date["20180101"]
+    assert float(fields[1]) == 10.0  # open: first row by timestamp
+    assert float(fields[2]) == 11.5  # high: max across the session
+    assert float(fields[3]) == 9.0  # low: min across the session
+    assert float(fields[4]) == 11.0  # close: last row by timestamp
+    assert float(fields[5]) == 150.0  # volume: summed
