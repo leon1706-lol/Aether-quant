@@ -32,6 +32,7 @@ from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
     cap_target_weight,
+    is_backtest_safety_bypass_active,
 )
 from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
@@ -162,6 +163,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase_v2_gating = self.phase_v2.get("gating_network", {})
         phase_v2_analyzer = self.phase_v2.get("market_analyzer", {})
         phase_v2_topology = self.phase_v2.get("topology", {})
+        phase_v2_backtest = self.phase_v2.get("backtest", {})
 
         self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
         self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
@@ -172,6 +174,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.max_daily_drawdown_pct = float(phase6_risk.get("max_daily_drawdown_pct", 0.03))
         self.max_total_drawdown_pct = float(phase6_risk.get("max_total_drawdown_pct", 0.12))
         self.liquidate_on_risk_breach = bool(phase6_risk.get("liquidate_on_risk_breach", True))
+        # Opt-in, statistical/diagnostic-only: see risk_controls.py::is_backtest_safety_bypass_active()'s
+        # docstring and Problems.md for why this is a dedicated flag, not
+        # aq trade-lock's on/off/auto override. Defaults False (gates
+        # active) and only ever takes effect when self.runtime_mode is
+        # literally "backtest" - never in paper/live.
+        self.bypass_safety_gates = bool(phase_v2_backtest.get("bypass_safety_gates", False))
         self.asset_quality = self.dataset_manifest.get(
             "asset_quality",
             self.feature_schema.get("asset_quality", {}),
@@ -719,6 +727,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         return learned_topology
 
     def _build_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
+        # Statistical/diagnostic bypass only (see risk_controls.py::
+        # is_backtest_safety_bypass_active() and Problems.md): disables
+        # only the drawdown-driven branch of risk_off classification, so a
+        # stale, never-recovering portfolio-drawdown number can't freeze
+        # every asset's signal for the rest of a bypass-mode backtest run.
+        # The bearish-trend+high-vol and composite risk-score branches of
+        # classify_risk_regime stay fully active either way.
+        bypass_active = is_backtest_safety_bypass_active(self.runtime_mode, self.bypass_safety_gates)
+        risk_off_drawdown_threshold = float("inf") if bypass_active else self.regime_risk_off_drawdown_threshold
         vector = build_market_regime_vector(
             base_features,
             portfolio_drawdown=self.current_total_drawdown,
@@ -727,7 +744,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             bearish_threshold=self.regime_bearish_threshold,
             low_volatility_threshold=self.low_volatility_threshold,
             high_volatility_threshold=self.high_volatility_threshold,
-            risk_off_drawdown_threshold=self.regime_risk_off_drawdown_threshold,
+            risk_off_drawdown_threshold=risk_off_drawdown_threshold,
             risk_on_drawdown_threshold=self.regime_risk_on_drawdown_threshold,
             high_correlation_threshold=self.regime_high_correlation_threshold,
         )
@@ -903,7 +920,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._session_events = []
             self.current_session_date = current_date
             self.session_start_equity = portfolio_value
-            if self.trade_lock_reason != "total_drawdown_limit_breached":
+            # Statistical/diagnostic bypass only (see risk_controls.py::
+            # is_backtest_safety_bypass_active() and Problems.md): normally
+            # a total-drawdown breach is deliberately excluded from this
+            # daily auto-clear, for live capital preservation - since
+            # peak_equity never decreases, once liquidated to flat cash
+            # this lock would otherwise never clear again for the rest of
+            # a bypass-mode backtest run.
+            if self.trade_lock_reason != "total_drawdown_limit_breached" or is_backtest_safety_bypass_active(
+                self.runtime_mode, self.bypass_safety_gates
+            ):
                 self.trade_lock_active = False
                 self.trade_lock_reason = None
 

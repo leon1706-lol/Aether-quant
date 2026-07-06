@@ -854,3 +854,82 @@ Finance, formats into Lean's zip/CSV convention, writes it to the correct
   rejected by argparse (V3 not implemented yet). Test artifacts removed
   from `config.json`/`data/` after verification — not part of the real
   20-asset universe.
+
+## Trade-frequency tuning — statistical/diagnostic backtest mode
+
+A real 3-year, 20-asset backtest this session produced only 12 filled
+trades: 5 entries, 1 opportunistic exit, then a 5-symbol mass liquidation
+on 2020-03-23 that froze the algorithm for the remaining 374 days of the
+window. Two parallel research passes tracing the full per-bar decision
+pipeline found the suppression compounds across several independent gates,
+plus two structural traps where a gate that fires once effectively never
+clears for the rest of a run — the portfolio sits flat in cash and its own
+drawdown-from-peak calculation can never recover without trading.
+
+- **New opt-in flag, `phase_v2.backtest.bypass_safety_gates`** (default
+  `false`) — deliberately a standalone key, not a repurposing of
+  `aq trade-lock`'s existing `--on`/`--off`/`--auto` override (which keeps
+  its separately-documented meaning completely unchanged in every runtime
+  mode). New pure helper
+  `risk_controls.py::is_backtest_safety_bypass_active(runtime_mode, bypass_flag)`
+  returns `True` only when `runtime_mode == "backtest"` **and** the flag is
+  explicitly `true` — any non-backtest mode always returns `False`
+  regardless of the flag, so live/paper safety behavior is completely
+  untouched by this change.
+- **Bypasses the sticky total-drawdown lock** (`main.py::_refresh_risk_state()`,
+  the `trade_lock_reason != "total_drawdown_limit_breached"` exclusion) and
+  **the regime detector's `risk_off` drawdown branch**
+  (`main.py::_build_regime_payload()`, passes `float("inf")` instead of
+  `regime_risk_off_drawdown_threshold` when the bypass is active) — the
+  regime override was found to be an equally significant, earlier-firing
+  (8% vs. the lock's 12%) version of the same structural trap, independent
+  of the lock. Only these two specific mechanisms are affected; the
+  bearish-trend+high-vol and composite risk-score branches of regime
+  classification, and every liquidity/topology/cooldown/exposure gate,
+  stay fully active either way.
+- **Explicitly scoped to statistical/model-quality evaluation, not a
+  live-representative equity curve** — in live/paper mode both gates are
+  real, designed behavior that would have actually frozen trading on
+  2020-03-23. This is a deliberate, accepted tradeoff for generating enough
+  trade volume to get meaningful backtest metrics and exercise
+  performance-trigger thresholds (`trade_count_interval=100`,
+  `validation_gate.min_trade_count=30`) that never fire at ~12 trades —
+  not a claim about deployable behavior.
+- **Config-only threshold loosening** (confirmed test-safe: no existing
+  test loads the real `config.json` for any of these keys):
+  `phase6.risk.min_confidence_to_trade` 0.12→0.05,
+  `phase5.backtest.buy_threshold_offset`/`sell_threshold_offset` 0.08→0.04
+  each, `phase6.risk.trade_cooldown_bars` 3→1,
+  `phase_v2.liquidity.thin_participation_threshold` 0.002→0.01,
+  `phase_v2.liquidity.blocked_participation_threshold` 0.05→0.10,
+  `phase9.portfolio.max_active_positions` 5→10,
+  `phase9.portfolio.max_crypto_exposure` 0.25→0.35.
+- **`phase9.asset_quality.min_training_rows` 100→50**: unlocked ETHUSD,
+  XRPUSD, and ADAUSD as `training_eligible`/`trading_eligible` (they failed
+  only this one threshold — 52-54 actual training rows, since these coins
+  weren't listed on Yahoo until deep into the 2014-2017 training window;
+  they already comfortably cleared `min_total_feature_rows` and
+  `min_backtest_rows`) — confirmed via `train.py --dataset-only`: 19 of 20
+  assets now `training_eligible`, only `AAA` remains observation-only.
+  `AAA` was deliberately excluded from this fix — its usable data starts
+  2020-09-09, entirely after both the training and validation windows end,
+  so no threshold value can fix it; it would need real pre-2018 backfilled
+  history that doesn't exist for whatever instrument `AAA` actually is.
+- **Deliberately out of scope:** real short-selling (confirmed
+  `phase5.backtest.strategy_mode` is read in exactly one place in the whole
+  repo, `train.py`'s report-metadata code, and is never branched on —
+  `main.py::_apply_signal`'s `sell` branch only ever calls `self.Liquidate()`,
+  there is no code path anywhere that opens a short position; enabling real
+  shorting would be a materially bigger, riskier change than everything
+  above and isn't needed to raise trade count via long/flat cycling alone).
+  Also left alone: the topology "elevated" volatility threshold
+  (`topology/market_topology.py`'s `ELEVATED_VOLATILITY_THRESHOLD = 0.45`,
+  hardcoded, not in `config.json`) — a smaller contributor than the two
+  structural traps, left as a secondary lever for later if needed.
+- New tests: `tests/test_risk_controls.py` (4 new cases for
+  `is_backtest_safety_bypass_active`).
+- Stopping point: the real Lean backtest with `bypass_safety_gates: true`
+  to confirm the actual resulting trade count against the ~200 target was
+  left for the user to run manually, per this session's established
+  preference — the exact starting-point threshold values above may need
+  one iteration based on that real count.

@@ -2,6 +2,7 @@ from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
     cap_target_weight,
+    is_backtest_safety_bypass_active,
 )
 
 
@@ -54,3 +55,21 @@ def test_cap_target_weight_blocks_when_no_exposure_remains():
 
     assert adjusted_weight == 0.0
     assert cap_reached is True
+
+
+def test_backtest_safety_bypass_requires_both_backtest_mode_and_flag():
+    assert is_backtest_safety_bypass_active("backtest", True) is True
+
+
+def test_backtest_safety_bypass_off_by_default_even_in_backtest():
+    assert is_backtest_safety_bypass_active("backtest", False) is False
+
+
+def test_backtest_safety_bypass_never_active_in_paper_mode():
+    assert is_backtest_safety_bypass_active("paper", True) is False
+    assert is_backtest_safety_bypass_active("paper", False) is False
+
+
+def test_backtest_safety_bypass_never_active_in_live_mode():
+    assert is_backtest_safety_bypass_active("live", True) is False
+    assert is_backtest_safety_bypass_active("live", False) is False

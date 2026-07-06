@@ -16,6 +16,20 @@ def assess_drawdown_lock(
     return False, None
 
 
+def is_backtest_safety_bypass_active(runtime_mode: str, bypass_flag: bool) -> bool:
+    """True only when a backtest is running with
+    phase_v2.backtest.bypass_safety_gates explicitly set to true - any
+    non-backtest runtime_mode always returns False regardless of the flag,
+    and the flag defaults to False (gates active, honest/deployable-
+    representative) so this is opt-in, not implicit. Deliberately
+    independent of aq trade-lock's on/off/auto override, which keeps its
+    existing, separately-documented meaning unchanged in every runtime
+    mode. Scoped narrowly to the sticky total-drawdown lock and the
+    regime risk_off drawdown branch - never touches liquidity/topology/
+    cooldown/exposure gates."""
+    return runtime_mode == "backtest" and bypass_flag
+
+
 def active_position_limit_reached(
     active_positions: int,
     max_active_positions: int,

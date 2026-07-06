@@ -571,3 +571,53 @@ runs: the first (cold cache) still showed the "building the font cache"
 message and took ~82 seconds just to import; the second (warm cache) showed
 no such message and imported in ~58 seconds, with zero isolator timeout.
 `.matplotlib_cache/` added to `.gitignore` (generated cache, not committed).
+
+---
+
+### 18. Two structural "never recovers" traps suppressed real backtest trade count to 12 over 3 years
+**Severity:** 5/10 · **Status:** 🟢 `addressed` (opt-in statistical bypass, default behavior unchanged)
+
+Found investigating why a real 3-year, 20-asset backtest produced only 12
+filled trades: a 5-symbol mass liquidation on 2020-03-23 (portfolio total
+drawdown crossed `phase6.risk.max_total_drawdown_pct`, 12%) froze the
+algorithm for the remaining 374 days of the window — no trades at all. The
+sticky lock (`main.py::_refresh_risk_state()`'s daily auto-clear
+deliberately excludes `"total_drawdown_limit_breached"`, by design, for
+live capital preservation) is only half the story: `peak_equity` is a
+running max that never decreases, so once liquidated to flat cash, the
+drawdown-from-peak percentage can never recover on its own — the lock
+cannot ever clear again regardless of the sticky-exclusion logic, purely
+because the underlying number stays permanently breached. A second,
+independent, earlier-firing (8% vs. 12%) version of the identical trap was
+found in `regime/market_regime.py::classify_risk_regime()`'s `risk_off`
+drawdown branch (`phase_v2.regime_detection.risk_off_drawdown_threshold`),
+fed from the same portfolio-wide drawdown number — this alone would
+suppress the whole universe's signals even if the 12% lock were fixed in
+isolation.
+
+**Fix:** new opt-in flag `phase_v2.backtest.bypass_safety_gates` (default
+`false`) and pure helper
+`risk_controls.py::is_backtest_safety_bypass_active(runtime_mode, bypass_flag)`
+— `True` only when `runtime_mode == "backtest"` and the flag is explicitly
+`true`; any non-backtest mode always returns `False` regardless of the
+flag. When active, bypasses only these two specific mechanisms (the sticky
+lock's exclusion, and the regime override's drawdown branch specifically —
+passing `float("inf")` in place of the configured threshold); every other
+gate (liquidity, topology, cooldown, exposure caps, the bearish-trend+
+high-vol and composite-score regime branches) stays fully active. Live/paper
+mode, and a backtest with the flag left at its default `false`, are
+completely unaffected.
+
+**Deliberately not wired into `aq trade-lock`:** `--on`/`--off`/`--auto`
+already has a separately-documented meaning (`--auto` = "return to fully
+automatic \[original, safety-preserving\] behavior") that this must not
+collide with or repurpose — a dedicated config key keeps both mechanisms
+independently meaningful in every runtime mode.
+
+**Explicitly not a claim about live-representative behavior:** in live/paper
+mode both gates are real, designed behavior that would have actually frozen
+trading on 2020-03-23. This flag is scoped to statistical/model-quality
+backtesting only (enough trade volume for meaningful metrics and to
+exercise `performance_triggers.trade_count_interval=100`/
+`retraining.validation_gate.min_trade_count=30`, neither of which ever
+fires at ~12 trades) — never to be read as "what would happen if deployed."
