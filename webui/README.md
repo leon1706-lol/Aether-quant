@@ -19,6 +19,19 @@ Pages (`src/pages/`):
   strategy vs buy-and-hold) and observation-mode equity/drawdown curves.
   Replaces the Grafana instance that used to be the only consumer of these
   feeds — Grafana has been removed from `docker-compose.yml` entirely.
+- `NeuralNetworkPage.tsx` (V2-20) — interactive 3D diagram
+  (`components/neuralnet/NeuralNetworkScene3D.tsx`) plus a stats panel
+  (`NeuralNetworkStatsPanel.tsx`) of every trained network's layer/node/edge
+  structure: the baseline model, the 4 MoE experts, and the optional
+  learned gating blend (`moe/gating.py`'s `ml/gating_model.json`, once
+  `train_gating.py`/`aq train --gating-only` has produced one). Fetches
+  `GET /api/neural-network` on its own hook (`useNeuralNetwork()`), not the
+  shared `/api/state` blob. The scene's `NETWORK_ORDER` array controls
+  which networks actually render and in what order — a new network
+  returned by the backend needs adding there too, or it silently appears
+  only in the stats panel's list. `topology/learned_topology.py`'s KMeans
+  cluster prototypes are the one thing deliberately left out entirely (not
+  a layered network), shown instead as a labelled `excluded` entry.
 
 Monitoring panels live under `src/components/monitoring/`
 (`PerformanceTriggersPanel.tsx`, `RetrainingStatusPanel.tsx`,

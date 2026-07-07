@@ -218,6 +218,54 @@ def train_topology(conn, retraining_id: str, version_id: str, config: dict, time
     return {"ok": True, "version_id": version_id, "stdout": result.stdout}
 
 
+def train_gating(conn, retraining_id: str, version_id: str, config: dict, timeout_seconds: int | None = None) -> dict:
+    """Runs `python train_gating.py --version-id <id>` as a third,
+    independently-failable subprocess, right after train_topology(). Same
+    best-effort contract: a failure here is logged and swallowed - it
+    never rejects the primary candidate model_version. gating_model.json
+    etc. are optional artifacts (see retraining/artifacts.py's
+    OPTIONAL_GATING_FILES) precisely so this stage can fail without
+    blocking the primary model.
+    """
+    gating_config = config.get("gating_training", {})
+    if not gating_config.get("enabled", True):
+        return {"ok": False, "version_id": version_id, "reason": "gating_training_disabled"}
+
+    timeout_seconds = timeout_seconds or int(gating_config.get("timeout_seconds", 300))
+    train_gating_script = ROOT_DIR / "train_gating.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(train_gating_script), "--version-id", version_id],
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
+        logger.warning("train_gating: subprocess failed to launch for %s - %s", version_id, exc)
+        update_retraining_event_status(
+            conn, retraining_id, status="running", notes=[{"stage": "train_gating", "error": str(exc)}]
+        )
+        return {"ok": False, "version_id": version_id, "error": str(exc)}
+
+    if result.returncode != 0:
+        logger.warning(
+            "train_gating: candidate %s gating training failed (rc=%d) - continuing without it.",
+            version_id,
+            result.returncode,
+        )
+        update_retraining_event_status(
+            conn,
+            retraining_id,
+            status="running",
+            notes=[{"stage": "train_gating", "returncode": result.returncode, "stderr": result.stderr[-2000:]}],
+        )
+        return {"ok": False, "version_id": version_id, "error": result.stderr}
+
+    logger.info("train_gating: candidate %s gating model trained (or skipped for insufficient data).", version_id)
+    return {"ok": True, "version_id": version_id, "stdout": result.stdout}
+
+
 def validate(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     version_dir = candidate_dir(version_id)
     present, missing = check_required_artifacts(version_dir)
@@ -438,6 +486,10 @@ def main() -> None:
     train_topology_parser.add_argument("--retraining-id", required=True)
     train_topology_parser.add_argument("--version-id", required=True)
 
+    train_gating_parser = subparsers.add_parser("train_gating")
+    train_gating_parser.add_argument("--retraining-id", required=True)
+    train_gating_parser.add_argument("--version-id", required=True)
+
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--retraining-id", required=True)
     validate_parser.add_argument("--version-id", required=True)
@@ -469,6 +521,8 @@ def main() -> None:
             print(json.dumps(train(conn, args.retraining_id, args.version_id), indent=2, default=str))
         elif args.stage == "train_topology":
             print(json.dumps(train_topology(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
+        elif args.stage == "train_gating":
+            print(json.dumps(train_gating(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "validate":
             print(json.dumps(validate(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "backtest":

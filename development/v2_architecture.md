@@ -590,6 +590,17 @@ It combines:
 
 The output is a final `moe_probability_up`, stored as runtime `probability_up`, plus a `moe_gating` payload showing active experts, disabled experts, weights and decision source.
 
+**Follow-up: the gating network can now optionally use a learned model.**
+The deterministic blend above is unchanged and always computed first — a
+trained model (`ml/gating_model.json`, produced by `train_gating.py` /
+`aq train --gating-only` / the retraining pipeline's best-effort
+`train_gating()` stage) only *overrides* the final probability when
+present, scored via the same `run_exported_model()` interpreter every
+other exported model uses. Any failure (missing file, malformed export,
+disabled config) silently falls back to the hardcoded blend above — see
+`moe/README.md` for the full contract, `GATING_MODEL_FEATURE_KEYS`, and
+the new `"learned_gating"` `decision_source` value.
+
 ## Market Analyzer Contract
 
 `analyzer/market_analyzer.py` is the single deterministic decision layer. It receives the outputs of all upstream modules (MoE gating, regime, topology, liquidity, risk) and emits exactly one action category per asset per bar.
@@ -630,6 +641,15 @@ Mode and the V2-17 validation/promotion gates exactly as before.
 `analyzer/market_analyzer.py` is **unchanged** by this phase — it still
 reads only `topology_risk`/`state` from the deterministic layer; the new
 fields this phase adds are never read by the priority-tier decision logic.
+
+**Follow-up:** `topology_confidence`/`topology_disagreement` were later
+wired into `risk/position_sizing.py::topology_sizing_multiplier()` — a
+continuous, shrink-only sizing factor applied *after* the analyzer has
+already decided to trade. This does not revise the safety rule above: the
+analyzer's action categorization is still fully deterministic and still
+reads only `topology_risk`/`state`; the learned fields only ever shrink
+the size of an action the deterministic layers already approved, never
+choose the action itself. See `risk/README.md` and `analyzer/README.md`.
 
 **Learned topology overlay** (`topology/learned_topology.py`, pure Python,
 no numpy/sklearn at runtime — deliberately left that way in the

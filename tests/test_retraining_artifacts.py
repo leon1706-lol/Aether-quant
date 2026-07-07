@@ -9,8 +9,10 @@ from pathlib import Path
 from retraining.artifacts import (
     ACTIVE_ARTIFACT_FILES,
     ALL_TRACKED_FILES,
+    OPTIONAL_GATING_FILES,
     OPTIONAL_TOPOLOGY_FILES,
     REQUIRED_CANDIDATE_FILES,
+    check_gating_artifacts,
     check_required_artifacts,
     check_topology_artifacts,
     compute_artifact_hashes,
@@ -160,7 +162,7 @@ def test_required_candidate_files_does_not_include_topology_filenames():
 
 
 def test_all_tracked_files_is_union_of_required_and_topology():
-    assert set(ALL_TRACKED_FILES) == set(REQUIRED_CANDIDATE_FILES) | set(OPTIONAL_TOPOLOGY_FILES)
+    assert set(ALL_TRACKED_FILES) == set(REQUIRED_CANDIDATE_FILES) | set(OPTIONAL_TOPOLOGY_FILES) | set(OPTIONAL_GATING_FILES)
 
 
 def test_copy_candidate_to_active_skips_missing_topology_files_gracefully(tmp_path):
@@ -206,6 +208,69 @@ def test_check_topology_artifacts_all_present(tmp_path):
     _write_files(version_dir, OPTIONAL_TOPOLOGY_FILES)
 
     present, missing = check_topology_artifacts(version_dir)
+
+    assert present is True
+    assert missing == []
+
+
+# -- learned-gating artifacts -------------------------------------------------
+
+
+def test_active_artifact_files_includes_gating_filenames():
+    for filename in OPTIONAL_GATING_FILES:
+        assert filename in ACTIVE_ARTIFACT_FILES
+
+
+def test_required_candidate_files_does_not_include_gating_filenames():
+    # Gating training is best-effort - validate()'s gate must never reject
+    # a candidate purely for missing gating artifacts.
+    for filename in OPTIONAL_GATING_FILES:
+        assert filename not in REQUIRED_CANDIDATE_FILES
+
+
+def test_copy_candidate_to_active_skips_missing_gating_files_gracefully(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    ml_dir = tmp_path / "ml"
+    # Candidate has the required files but no gating artifacts at all.
+    _write_files(version_dir, ("model_weights.json", "scaler.pkl", "scaler_stats.json", "training_metrics.json", "feature_schema.json"))
+
+    hashes = copy_candidate_to_active(version_dir, ml_dir=ml_dir, filenames=ACTIVE_ARTIFACT_FILES)
+
+    for filename in OPTIONAL_GATING_FILES:
+        assert filename not in hashes
+        assert not (ml_dir / filename).exists()
+    assert (ml_dir / "model_weights.json").exists()
+
+
+def test_copy_candidate_to_active_includes_gating_files_when_present(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    ml_dir = tmp_path / "ml"
+    _write_files(version_dir, ACTIVE_ARTIFACT_FILES, content="candidate-content")
+
+    hashes = copy_candidate_to_active(version_dir, ml_dir=ml_dir, filenames=ACTIVE_ARTIFACT_FILES)
+
+    for filename in OPTIONAL_GATING_FILES:
+        assert filename in hashes
+        assert (ml_dir / filename).exists()
+
+
+def test_check_gating_artifacts_reports_missing_without_failing(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    _write_files(version_dir, ["gating_model.json"])  # only one of three present
+
+    present, missing = check_gating_artifacts(version_dir)
+
+    assert present is False
+    assert "gating_training_metrics.json" in missing
+    assert "gating_feature_schema.json" in missing
+    assert "gating_model.json" not in missing
+
+
+def test_check_gating_artifacts_all_present(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    _write_files(version_dir, OPTIONAL_GATING_FILES)
+
+    present, missing = check_gating_artifacts(version_dir)
 
     assert present is True
     assert missing == []

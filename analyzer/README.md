@@ -38,6 +38,17 @@ risk engine, and before action categorization / Lean order placement.
   explicitly ruled out of scope for that phase as a materially riskier
   change than what its safety rule ("confidence/uncertainty only, never a
   randomized decision") allows.
+  - **Follow-up:** the learned topology overlay's confidence/disagreement
+    scores now *do* reach a real trade — but through position sizing
+    (`risk/position_sizing.py::topology_sizing_multiplier()`), not this
+    module. That integration point was chosen specifically because sizing
+    is already a continuous, shrink-only multiplier applied after this
+    analyzer has categorized the action, so it changes only *how large* an
+    already-approved trade is, never *whether* one happens — preserving
+    exactly the "confidence/uncertainty only, never a randomized decision"
+    rule above. This module's own `trade`/`simulate`/`observe`/
+    `reduce_risk` categorization remains fully deterministic and
+    unaffected. See `risk/README.md` for details.
 - `main.py` only calls `_apply_signal` when `action == "trade"`. All five
   actions are written into the per-asset `signal_payload` for
   dashboard/Grafana visibility regardless of whether a real order is

@@ -2,17 +2,27 @@
 
 Reads the JSON-exported weights train.py already produces for the baseline
 model and the 4 MoE experts (ml/model_weights.json,
-ml/expert_models/<name>/model_weights.json) and reshapes them into a
-network-agnostic layer/node/edge summary the webui renders as an interactive
-3D diagram. Pure, read-only - never trains anything, never touches the
-binary ml/model.pt checkpoints, only the JSON exports meant for non-PyTorch
-consumers (same exports main.py's own _run_exported_model interpreter reads).
+ml/expert_models/<name>/model_weights.json), plus the optional learned
+gating blend (ml/gating_model.json, see moe/gating.py's
+GATING_MODEL_FEATURE_KEYS/build_gating_model_features()) when
+train_gating.py has produced one - and reshapes all of them into a
+network-agnostic layer/node/edge summary the webui renders as an
+interactive 3D diagram. Pure, read-only - never trains anything, never
+touches the binary ml/model.pt checkpoints, only the JSON exports meant for
+non-PyTorch consumers (same exports main.py's own _run_exported_model
+interpreter reads).
 
-The MoE gating network (moe/gating.py) and the learned-topology KMeans
-prototypes (topology/learned_topology.py) are deliberately excluded - neither
-has a learned weight matrix, so there is nothing to lay out as layers/nodes/
-edges. Their absence is reported explicitly via `excluded` rather than left
-silent.
+The gating network degrades to status="not_trained" (same as any other
+network here) until a gating model has actually been trained - see `aq
+train --gating-only` or the retraining pipeline's best-effort
+train_gating() stage. Before a learned gating model exists, moe/gating.py
+still runs its deterministic hardcoded blend at runtime; that fallback
+path has no weight matrix and is not itself represented as a network here.
+
+The learned-topology KMeans prototypes (topology/learned_topology.py) are
+deliberately excluded - it's cluster centroids, not a layered network, so
+there is nothing to lay out as layers/nodes/edges. Its absence is reported
+explicitly via `excluded` rather than left silent.
 """
 
 from __future__ import annotations
@@ -27,13 +37,6 @@ EXPERT_NAMES = ("bullish", "bearish", "sideways", "volatility")
 DEFAULT_ML_DIR = Path(__file__).resolve().parent.parent / "ml"
 
 EXCLUDED_NON_NETWORKS = [
-    {
-        "name": "gating_network",
-        "reason": (
-            "deterministic rule-based combiner (moe/gating.py) - quality/"
-            "performance/regime-alignment scoring, no learned weight matrix"
-        ),
-    },
     {
         "name": "learned_topology",
         "reason": (
@@ -171,10 +174,11 @@ def _build_network_summary(
 
 
 def build_neural_network_state(ml_dir: Path | None = None) -> dict:
-    """Reads ml/model_weights.json + ml/expert_models/*/model_weights.json and
-    reshapes them into a network-agnostic layer/node/edge summary. A missing
-    export file degrades that one network to status="not_trained" - never
-    raises, mirroring main.py's own optional-expert-export loading."""
+    """Reads ml/model_weights.json + ml/expert_models/*/model_weights.json +
+    the optional ml/gating_model.json and reshapes them into a
+    network-agnostic layer/node/edge summary. A missing export file
+    degrades that one network to status="not_trained" - never raises,
+    mirroring main.py's own optional-model loading."""
     ml_dir = ml_dir or DEFAULT_ML_DIR
 
     expert_metrics = _load_json(ml_dir / "expert_training_metrics.json") or {}
@@ -202,6 +206,21 @@ def build_neural_network_state(ml_dir: Path | None = None) -> dict:
                 quality_status=quality_status,
             )
         )
+
+    # Learned gating blend (train_gating.py) - optional, same graceful
+    # degrade-to-not_trained contract as every other network here. Reuses
+    # the webui's existing "learned" badge tone (already used for the
+    # topology overlay) once a gating model file is actually present.
+    gating_weights_path = ml_dir / "gating_model.json"
+    networks.append(
+        _build_network_summary(
+            name="gating",
+            label="Gating Network",
+            role="gating",
+            weights_path=gating_weights_path,
+            quality_status="learned" if gating_weights_path.exists() else None,
+        )
+    )
 
     totals = {
         "total_networks": len(networks),

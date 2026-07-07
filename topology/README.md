@@ -102,3 +102,10 @@ The goal is to make market structure useful for analysis, not only visual.
   `analyzer/market_analyzer.py`'s decisions — only `topology_risk`/`state`
   do, exactly as before. The safety rule: probabilistic scoring, not
   randomized trading.
+- **Follow-up:** `topology_confidence`/`topology_disagreement` now do
+  reach a real trade, just not through the analyzer — see
+  `risk/position_sizing.py::topology_sizing_multiplier()`
+  (`risk/README.md`). It's a continuous, shrink-only multiplier applied
+  after the analyzer has already decided to trade, so the safety rule
+  above still holds: the analyzer's action categorization stays fully
+  deterministic, only the size of an already-approved trade can shrink.

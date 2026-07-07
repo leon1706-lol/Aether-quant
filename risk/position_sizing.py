@@ -18,9 +18,11 @@ class PositionSizingDecision:
     volatility_regime: str
     volatility_multiplier: float
     confidence_multiplier: float
+    topology_multiplier: float
     leverage_factor: float
     max_leverage: float
     sizing_reason: str
+    topology_sizing_reason: str
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -39,6 +41,39 @@ def classify_volatility_regime(
     return "normal_volatility"
 
 
+def _clamp01(value: float) -> float:
+    return max(0.0, min(float(value), 1.0))
+
+
+def topology_sizing_multiplier(
+    topology_source: str | None,
+    topology_confidence: float | None,
+    topology_disagreement: float | None,
+    min_topology_multiplier: float = 0.5,
+    max_topology_multiplier: float = 1.0,
+) -> tuple[float, str]:
+    """Bounded, continuous, shrink-only adjustment - never above
+    max_topology_multiplier (1.0 by default), i.e. never amplifies size
+    beyond what the deterministic-only sizing already computed. Only
+    engages when topology_source == "learned" - topology/learned_topology.py
+    already gates that label on confidence clearing
+    min_confidence_for_learned upstream, so "fallback"/missing/None here is
+    always a strict no-op, matching the same "a missing/degraded learned
+    model never changes trading behavior" convention already established
+    for the topology overlay itself (see analyzer/README.md and
+    development/v2_architecture.md's V2-17.5 safety rule: probabilistic
+    scoring may only ever produce a bounded, continuous adjustment, never
+    a randomized or amplified decision)."""
+    if topology_source != "learned" or topology_confidence is None:
+        return 1.0, "topology_absent_or_fallback_no_adjustment"
+
+    confidence = _clamp01(topology_confidence)
+    disagreement = _clamp01(topology_disagreement) if topology_disagreement is not None else 0.0
+    raw = confidence * (1.0 - disagreement)
+    multiplier = min_topology_multiplier + (max_topology_multiplier - min_topology_multiplier) * raw
+    return multiplier, "topology_confidence_scaled_sizing"
+
+
 def build_dynamic_position_sizing(
     base_target_weight: float,
     confidence: float,
@@ -51,6 +86,11 @@ def build_dynamic_position_sizing(
     min_volatility_multiplier: float = 0.35,
     max_volatility_multiplier: float = 1.25,
     max_leverage: float = 1.0,
+    topology_source: str | None = None,
+    topology_confidence: float | None = None,
+    topology_disagreement: float | None = None,
+    min_topology_multiplier: float = 0.5,
+    max_topology_multiplier: float = 1.0,
 ) -> PositionSizingDecision:
     base_target_weight = float(base_target_weight)
     confidence = max(0.0, min(float(confidence), 1.0))
@@ -63,6 +103,13 @@ def build_dynamic_position_sizing(
         low_volatility_threshold,
         high_volatility_threshold,
     )
+    topology_multiplier, topology_sizing_reason = topology_sizing_multiplier(
+        topology_source,
+        topology_confidence,
+        topology_disagreement,
+        min_topology_multiplier,
+        max_topology_multiplier,
+    )
 
     if abs_base_target == 0.0 or confidence == 0.0 or max_position_weight == 0.0:
         return PositionSizingDecision(
@@ -73,9 +120,11 @@ def build_dynamic_position_sizing(
             volatility_regime=volatility_regime,
             volatility_multiplier=0.0,
             confidence_multiplier=0.0,
+            topology_multiplier=topology_multiplier,
             leverage_factor=0.0,
             max_leverage=float(max_leverage),
             sizing_reason="no_active_signal",
+            topology_sizing_reason=topology_sizing_reason,
         )
 
     safe_volatility = max(volatility, 1e-6)
@@ -83,7 +132,7 @@ def build_dynamic_position_sizing(
     volatility_multiplier = max(min_volatility_multiplier, min(volatility_multiplier, max_volatility_multiplier))
     confidence_multiplier = 0.5 + 0.5 * confidence
 
-    sized_weight = abs_base_target * volatility_multiplier * confidence_multiplier
+    sized_weight = abs_base_target * volatility_multiplier * confidence_multiplier * topology_multiplier
     sized_weight = min(sized_weight, max_position_weight)
     if sized_weight > 0.0 and min_position_weight > 0.0:
         sized_weight = max(sized_weight, min_position_weight)
@@ -107,7 +156,9 @@ def build_dynamic_position_sizing(
         volatility_regime=volatility_regime,
         volatility_multiplier=volatility_multiplier,
         confidence_multiplier=confidence_multiplier,
+        topology_multiplier=topology_multiplier,
         leverage_factor=leverage_factor,
         max_leverage=float(max_leverage),
         sizing_reason=reason,
+        topology_sizing_reason=topology_sizing_reason,
     )

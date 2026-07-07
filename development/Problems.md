@@ -440,7 +440,7 @@ the cache silently breaking hot-reload.
 ---
 
 ### 14. Redis push in backtest mode — deliberately left unoptimized
-**Severity:** n/a · **Status:** 🟠 `open` (deferred by design)
+**Severity:** n/a · **Status:** 🟢 `resolved` (confirmed no-op, no code change needed)
 
 `experience/redis_queue.py::push()` does a synchronous, blocking `XADD` per
 symbol per bar, plus one more at every session rollover (which, per #13, is
@@ -450,23 +450,28 @@ have `self.runtime_mode`/`self._experience_mode` available — and would save
 real per-bar network I/O during backtests, which never need live
 experience-stream delivery.
 
-**Why this stays open on purpose:** `development/v2_architecture.md`'s
+**Why this stayed open initially:** `development/v2_architecture.md`'s
 Redis Experience Queue section documents `"backtest"` as one of four
 normal, expected mode values flowing into Redis, and
 `tests/test_experience_queue.py`'s default fixture treats `mode="backtest"`
-as the canonical case, not an exclusion. There is at least one plausible
+as the canonical case, not an exclusion. There was at least one plausible
 downstream dependency on backtest-mode Redis events reaching Postgres via
 `experience-worker` — debugging via the observation dashboard against a
 backtest run, or later analysis of a backtest's persisted events — that
-has not been confirmed one way or the other. Skipping the push would
-contradict documented, tested behavior on the strength of an unconfirmed
-assumption, so it is recorded here instead of implemented.
+had not been confirmed one way or the other. Skipping the push would have
+contradicted documented, tested behavior on the strength of an unconfirmed
+assumption.
 
-**Next step, when revisited:** confirm whether anything actually reads
-backtest-mode experience events out of Postgres after the fact; if nothing
-does, gate `push()` on `runtime_mode != "backtest"` and update
-`v2_architecture.md`'s Redis Experience Queue section and
-`test_experience_queue.py`'s default fixture accordingly.
+**Resolution:** the project owner personally confirmed no downstream
+process reads backtest-mode experience events out of Postgres. Since the
+open question this entry was tracking is now answered, it's marked
+resolved on that basis alone — `experience/redis_queue.py::push()` itself
+is intentionally left unchanged (still pushes in backtest mode), since the
+performance cost was never the blocker, only the unconfirmed dependency
+was. A future optimization pass may still gate `push()` on
+`runtime_mode != "backtest"` if the per-bar I/O ever becomes a real
+bottleneck, but that is now a pure performance nice-to-have, not a
+correctness fix blocked on missing information.
 
 ---
 
@@ -621,3 +626,39 @@ backtesting only (enough trade volume for meaningful metrics and to
 exercise `performance_triggers.trade_count_interval=100`/
 `retraining.validation_gate.min_trade_count=30`, neither of which ever
 fires at ~12 trades) — never to be read as "what would happen if deployed."
+
+---
+
+### 19. Neural-network webui tab's gating exclusion went stale the moment gating became learnable
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
+
+`monitoring/neural_network_state.py`'s `EXCLUDED_NON_NETWORKS` listed
+`moe/gating.py`'s gating network with the reason "deterministic rule-based
+combiner ... no learned weight matrix," and `/neural-network`'s 3D scene
+(`webui/src/components/neuralnet/NeuralNetworkScene3D.tsx`) hardcoded its
+render order to exactly 5 network names, silently dropping anything else
+even if the backend did return it. Both became inaccurate the moment
+`moe/gating.py` gained an optional learned model (this session, same
+Phase E work as entry above) — the gating network now genuinely can have
+a learned weight matrix (`ml/gating_model.json`), but the webui had no way
+to show it even after one existed, and the "no learned weight matrix"
+claim was simply wrong.
+
+**Fix:** removed `gating_network` from `EXCLUDED_NON_NETWORKS` (only
+`learned_topology`'s KMeans centroids remain excluded — genuinely not a
+layered network); `build_neural_network_state()` now reads
+`ml/gating_model.json` through the exact same generic
+`_build_network_summary()` path already used for the baseline and the 4
+experts, degrading to `status="not_trained"` when no gating model exists
+yet (same graceful-optional contract as everything else in this module).
+Added `'gating'` to `NeuralNetworkScene3D.tsx`'s `NETWORK_ORDER` array so
+it actually renders in the 3D scene once returned by the backend.
+
+**Why this matters beyond gating specifically:** `NETWORK_ORDER` is a
+silent filter — any future network the backend starts reporting will not
+appear in the 3D scene (though it will still appear in the stats panel's
+list, which iterates the array directly) unless someone remembers to add
+its name here too. Left as-is rather than making it dynamic, since the
+3D layout intentionally controls left-to-right ordering for readability;
+noted here so the next network added to `build_neural_network_state()`
+doesn't quietly repeat this gap.

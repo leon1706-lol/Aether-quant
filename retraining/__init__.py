@@ -1,9 +1,11 @@
 from .artifacts import (
     ACTIVE_ARTIFACT_FILES,
     ALL_TRACKED_FILES,
+    OPTIONAL_GATING_FILES,
     OPTIONAL_TOPOLOGY_FILES,
     REQUIRED_CANDIDATE_FILES,
     candidate_dir,
+    check_gating_artifacts,
     check_required_artifacts,
     check_topology_artifacts,
     compute_artifact_hashes,
@@ -44,9 +46,11 @@ from .worker import RetrainingWorker
 __all__ = [
     "ACTIVE_ARTIFACT_FILES",
     "ALL_TRACKED_FILES",
+    "OPTIONAL_GATING_FILES",
     "OPTIONAL_TOPOLOGY_FILES",
     "REQUIRED_CANDIDATE_FILES",
     "candidate_dir",
+    "check_gating_artifacts",
     "check_required_artifacts",
     "check_topology_artifacts",
     "compute_artifact_hashes",

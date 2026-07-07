@@ -8,7 +8,10 @@ COPY performance/ ./performance/
 COPY regime/ ./regime/
 COPY experts/ ./experts/
 COPY topology/ ./topology/
+COPY moe/ ./moe/
+COPY inference/ ./inference/
 COPY retraining/ ./retraining/
 COPY train.py .
 COPY train_topology.py .
+COPY train_gating.py .
 CMD ["python", "-m", "retraining.worker"]

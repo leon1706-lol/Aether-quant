@@ -12,14 +12,16 @@ const HIDDEN_NODE_RADIUS = 0.18
 const OUTPUT_NODE_RADIUS = 0.32
 const OUTPUT_NODE_COLOR = '#fef3c7'
 
-// Baseline centered, experts arranged around it, so the biggest/most
+// Baseline centered, experts arranged around it, gating at the far end
+// (it consumes every other network's output) - so the biggest/most
 // important network reads as the visual anchor of the whole constellation.
-const NETWORK_ORDER = ['bullish', 'bearish', 'baseline', 'sideways', 'volatility']
+const NETWORK_ORDER = ['bullish', 'bearish', 'baseline', 'sideways', 'volatility', 'gating']
 
 type Vec3 = [number, number, number]
 
 function networkColor(network: NeuralNetworkModel): string {
   if (network.role === 'baseline') return '#38bdf8'
+  if (network.role === 'gating') return '#a78bfa'
   switch (network.quality_status) {
     case 'stable':
       return '#34d399'
@@ -164,7 +166,7 @@ export function NeuralNetworkScene3D({ neuralNetwork }: { neuralNetwork: NeuralN
           </div>
         )}
         <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-white/60">
-          <span>Baseline (sky) centered · experts colored by quality status</span>
+          <span>Baseline (sky) centered · experts colored by quality status · gating (violet) blends them all</span>
           <span>Every network funnels down to one glowing amber output node — the final decision</span>
           <span>Wide layers are sampled to a legible node count — exact totals are in the stats panel</span>
         </div>

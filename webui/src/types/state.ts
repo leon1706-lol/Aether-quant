@@ -247,9 +247,9 @@ export interface NeuralNetworkLayer {
 export interface NeuralNetworkModel {
   name: string
   label: string
-  role: 'baseline' | 'expert' | string
+  role: 'baseline' | 'expert' | 'gating' | string
   status: 'trained' | 'not_trained' | string
-  quality_status?: 'stable' | 'watchlist' | 'disabled_for_gating' | string | null
+  quality_status?: 'stable' | 'watchlist' | 'disabled_for_gating' | 'learned' | string | null
   node_layers: number[]
   layers: NeuralNetworkLayer[]
   total_layers: number

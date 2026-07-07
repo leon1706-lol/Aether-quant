@@ -88,6 +88,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.dataset_manifest_path = self.root_path / "ml" / "dataset_manifest.json"
         self.topology_model_path = self.root_path / "ml" / "topology_model.json"
         self.topology_feature_schema_path = self.root_path / "ml" / "topology_feature_schema.json"
+        self.gating_model_path = self.root_path / "ml" / "gating_model.json"
+        self.gating_feature_schema_path = self.root_path / "ml" / "gating_feature_schema.json"
 
         self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
@@ -201,12 +203,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.max_volatility_multiplier = float(phase_v2_risk.get("max_volatility_multiplier", 1.25))
         self.min_dynamic_position_weight = float(phase_v2_risk.get("min_position_weight", 0.0))
         self.max_leverage = float(phase_v2_risk.get("max_leverage", 1.0))
+        # Learned-topology sizing input (see risk/position_sizing.py::
+        # topology_sizing_multiplier()) - a bounded, continuous, shrink-only
+        # adjustment, never a new trade-blocking gate. Independent kill
+        # switch from phase_v2.topology_learning.enabled, which also gates
+        # the unrelated dashboard/retrain-trigger consumers of the same
+        # overlay.
+        self.topology_sizing_enabled = bool(phase_v2_risk.get("topology_sizing_enabled", True))
+        self.min_topology_multiplier = float(phase_v2_risk.get("min_topology_multiplier", 0.5))
+        self.max_topology_multiplier = float(phase_v2_risk.get("max_topology_multiplier", 1.0))
         self.regime_bullish_threshold = float(phase_v2_regime.get("bullish_threshold", 0.02))
         self.regime_bearish_threshold = float(phase_v2_regime.get("bearish_threshold", -0.02))
         self.regime_risk_off_drawdown_threshold = float(phase_v2_regime.get("risk_off_drawdown_threshold", 0.08))
         self.regime_risk_on_drawdown_threshold = float(phase_v2_regime.get("risk_on_drawdown_threshold", 0.03))
         self.regime_high_correlation_threshold = float(phase_v2_regime.get("high_correlation_threshold", 0.75))
         self.gating_baseline_weight = float(phase_v2_gating.get("baseline_weight", 0.25))
+        self.gating_learned_model_enabled = bool(phase_v2_gating.get("learned_model_enabled", True))
         self.analyzer_retrain_min_regime_confidence = float(phase_v2_analyzer.get("retrain_min_regime_confidence", 0.20))
         self.analyzer_low_regime_confidence_threshold = float(phase_v2_analyzer.get("low_regime_confidence_threshold", 0.35))
         self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
@@ -223,6 +235,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_learning_max_offset_xy = float(phase_v2_topology_learning.get("max_offset_xy", 6.0))
         self.topology_learning_max_offset_z = float(phase_v2_topology_learning.get("max_offset_z", 0.1))
         self.learned_topology_model, self.learned_topology_feature_schema = self._load_learned_topology_model()
+        self.gating_model, self.gating_feature_schema = self._load_gating_model()
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
         self._liquidity_thresholds = {
             "thin_participation_threshold": float(phase_v2_liquidity.get("thin_participation_threshold", 0.002)),
@@ -337,6 +350,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     expert_probabilities=expert_probabilities,
                     baseline_probability_up=baseline_probability_up,
                     baseline_weight=self.gating_baseline_weight,
+                    gating_model=self.gating_model,
+                    gating_feature_schema=self.gating_feature_schema,
                 ).to_dict()
                 probability_up = float(gating_payload["final_probability_up"])
                 signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
@@ -345,6 +360,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     confidence,
                     base_target_weight,
                     feature_payload["base_features"],
+                    topology_payload,
                 )
                 target_weight = float(sizing_payload["target_weight"])
                 asset = self.asset_lookup[str(symbol)]
@@ -502,6 +518,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.Debug(f"Learned topology model load failed: {error}")
             return None, None
 
+    def _load_gating_model(self) -> tuple[dict | None, dict | None]:
+        """Optional artifact pair, identical fallback contract to
+        _load_learned_topology_model(): missing/malformed files mean
+        build_gating_decision() falls back to its hardcoded quality/
+        performance/regime-alignment blend - never a hard failure."""
+        if not self.gating_learned_model_enabled:
+            return None, None
+        if not self.gating_model_path.exists() or not self.gating_feature_schema_path.exists():
+            return None, None
+        try:
+            model = self._load_json(self.gating_model_path)
+            feature_schema = self._load_json(self.gating_feature_schema_path)
+            return model, feature_schema
+        except Exception as error:
+            self.Debug(f"Gating model load failed: {error}")
+            return None, None
+
     def _validate_runtime_artifacts(self) -> None:
         required_paths = [
             self.root_path / "config.json",
@@ -645,10 +678,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         confidence: float,
         base_target_weight: float,
         base_features: dict,
+        topology: dict | None = None,
     ) -> dict:
         if signal_name not in {"buy", "sell"}:
             base_target_weight = 0.0
 
+        topology = topology or {}
         decision = build_dynamic_position_sizing(
             base_target_weight=base_target_weight,
             confidence=confidence,
@@ -661,6 +696,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             min_volatility_multiplier=self.min_volatility_multiplier,
             max_volatility_multiplier=self.max_volatility_multiplier,
             max_leverage=self.max_leverage,
+            topology_source=topology.get("topology_source") if self.topology_sizing_enabled else None,
+            topology_confidence=topology.get("topology_confidence"),
+            topology_disagreement=topology.get("topology_disagreement"),
+            min_topology_multiplier=self.min_topology_multiplier,
+            max_topology_multiplier=self.max_topology_multiplier,
         )
         return decision.to_dict()
 

@@ -55,6 +55,56 @@ def test_train_flags_are_mutually_exclusive():
         pass
 
 
+def test_train_gating_only_invokes_train_gating_py_with_generated_version_id():
+    # --gating-only doesn't funnel through the plain train.py argv-building
+    # path - it shells out to train_gating.py separately (see
+    # aq_cli._train_gating_only), so it's tested on its own rather than via
+    # _parse_and_dispatch's simple argv assertion.
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--gating-only"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli.uuid.uuid4", return_value="fixed-uuid"), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("shutil.copy2") as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    argv = run_mock.call_args.args[0]
+    assert argv[:2] == [sys.executable, "train_gating.py"]
+    assert argv[2:] == ["--version-id", "gating-only-fixed-uuid"]
+    assert copy_mock.call_count == 3
+
+
+def test_train_gating_only_propagates_trainer_failure_without_copying():
+    run_mock = MagicMock(return_value=1)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--gating-only"])
+
+    with patch("aq_cli._run", run_mock), patch("shutil.copy2") as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 1
+    copy_mock.assert_not_called()
+
+
+def test_train_gating_only_leaves_active_ml_unchanged_when_trainer_skips_artifacts():
+    # train_gating.py exits 0 (not an error) when there isn't enough
+    # validation/backtest data yet, and simply doesn't write artifacts -
+    # aq must treat that as a no-op, not copy partial/missing files.
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--gating-only"])
+
+    with patch("aq_cli._run", run_mock), patch("pathlib.Path.exists", return_value=False), patch(
+        "shutil.copy2"
+    ) as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    copy_mock.assert_not_called()
+
+
 def test_test_wraps_pytest_tests_dir():
     # Deliberately NOT using _parse_and_dispatch: cmd_test funnels through
     # _run_captured, not _run - see this file's module docstring. Also mocks

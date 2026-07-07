@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-528%2F528%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="528 of 528 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-583%2F583%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="583 of 583 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -506,7 +506,7 @@ pip install -e .
 Either way, `aq --help` gives the full command list:
 
 ```text
-aq train [--dataset-only|--init-only|--experts-only]
+aq train [--dataset-only|--init-only|--experts-only|--gating-only]
 aq test
 aq backtest
 aq report <backtest-folder> <result-id>
@@ -523,7 +523,7 @@ aq status
 Every command except `aq trade-lock` and `aq fetch` is a thin `subprocess`
 wrapper around a command already documented elsewhere in this README:
 
-- **`aq train`** — runs `train.py`: builds the dataset and trains the baseline + expert models.
+- **`aq train`** — runs `train.py`: builds the dataset and trains the baseline + expert models. `--gating-only` trains just the learned gating blend (`train_gating.py`) and installs it straight into active `ml/`, mirroring what `--experts-only` already does for the expert models — see `moe/README.md`.
 - **`aq test`** — runs the pytest suite and refreshes this README's test badge.
 - **`aq backtest`** — runs `lean backtest .` and refreshes this README's [Backtest Results](#backtest-results) section.
 - **`aq report <backtest-folder> <result-id>`** — generates Lean's own HTML backtest report (trade blotter, standard Lean charts) at `backtests/<backtest-folder>/report.html`.

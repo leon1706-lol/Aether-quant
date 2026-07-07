@@ -933,3 +933,110 @@ drawdown-from-peak calculation can never recover without trading.
   left for the user to run manually, per this session's established
   preference — the exact starting-point threshold values above may need
   one iteration based on that real count.
+
+## Real learned gating weights + learned topology wired into position sizing
+
+Closes two gaps this project's own V3 completeness assessment had flagged
+as deferred, not rejected: `moe/gating.py`'s gating network was still
+hand-tuned arithmetic dressed as a decision layer, and the learned
+probabilistic topology overlay (V2-17.5) computed real per-symbol
+confidence/uncertainty every bar but never reached an actual trade
+decision — only the dashboard and the offline retrain-trigger pipeline.
+
+**Learned topology → position sizing** (`risk/position_sizing.py`): new
+pure function `topology_sizing_multiplier(topology_source,
+topology_confidence, topology_disagreement, min_topology_multiplier=0.5,
+max_topology_multiplier=1.0)` — a strict no-op (`1.0`) unless
+`topology_source == "learned"`, otherwise a bounded, continuous,
+**shrink-only** multiplier (`min + (max-min) * confidence * (1-disagreement)`,
+never above `1.0`). Composes into the existing `volatility_multiplier ×
+confidence_multiplier` chain in `build_dynamic_position_sizing()` as a
+third factor — this changes only *how large* an already-approved trade is,
+never *whether* it happens, so it never touches the analyzer's
+`trade`/`simulate`/`observe`/`reduce_risk` decision itself (see
+`analyzer/README.md`'s documented reason that path stays deterministic).
+Wired through `main.py::_build_dynamic_sizing_payload()`. New config keys:
+`phase_v2.dynamic_risk.topology_sizing_enabled` (default `true`),
+`min_topology_multiplier` (`0.5`), `max_topology_multiplier` (`1.0`).
+
+**Real learned gating weights** (`moe/gating.py`): additive, optional,
+always-falls-back — the existing hand-written
+quality-multiplier×performance-score×regime-alignment blend is still
+computed first and unchanged; a trained model, if present, only
+*overrides* the final probability. New `GATING_MODEL_FEATURE_KEYS`
+(26-dim: each expert's probability/quality/performance/regime-alignment ×4,
+baseline probability, one-hot trend/volatility/risk regime — already
+bounded `[0,1]`/one-hot, so no scaler needed) and
+`build_gating_model_features()`. `build_gating_decision()` gains optional
+`gating_model`/`gating_feature_schema` params; on success `decision_source`
+becomes `"learned_gating"` (new value, confirmed inert everywhere else in
+the repo); any failure/missing model silently falls back to the hardcoded
+blend, mirroring `topology/learned_topology.py`'s per-node fallback
+isolation. Wired via new `main.py::_load_gating_model()`, gated by
+`phase_v2.gating_network.learned_model_enabled` (default `true`).
+
+**New offline trainer, `train_gating.py`** (sibling of `train_topology.py`,
+same never-runs-in-Lean, exits-0-not-1-on-insufficient-data contract).
+Trains the blend on the dataset's `validation` split (avoids
+stacking-circularity: `train` already fit baseline+experts, `validation`
+is the right held-out-from-fitting size to become this model's *own*
+training data) replayed through the exported baseline+expert models via
+the existing `inference/exported_model.py::run_exported_model()`
+interpreter — zero new inference code. Evaluates once, at the end, on the
+`backtest` split (never touched by any fitting anywhere in the pipeline).
+Model is a small `AetherNet(26 → [16] → 1)`, deliberately restricted to
+`relu`/`layernorm` (never `gelu`/`silu`/`batchnorm1d`, which
+`run_exported_model()` cannot interpret). Regime reconstruction uses
+`portfolio_drawdown=0.0`/`average_correlation=0.0` (runtime-only state not
+recoverable offline — an honest, documented simplification; the two most-
+used regime keys, `trend_regime`/`volatility_regime`, are unaffected).
+Smoke-tested end-to-end against the real dataset (1,304 validation rows,
+16,184 backtest rows) — writes a valid, runtime-interpretable model in
+~90s. New config block `phase_v2.retraining.gating_training`.
+
+**Retraining pipeline wiring**: `retraining/artifacts.py` gained
+`OPTIONAL_GATING_FILES` (3 files, same best-effort contract as
+`OPTIONAL_TOPOLOGY_FILES` — never required, never blocks candidate
+promotion) plus `check_gating_artifacts()`; `retraining/orchestrator.py`
+gained `train_gating()` (mirrors `train_topology()` line-for-line) plus a
+`train_gating` CLI subparser; `retraining/worker.py` calls it right after
+`train_topology()` in `run_once()`. `config.json`'s
+`promotion.active_artifact_files` extended with the 3 new files.
+
+**New `aq train --gating-only` flag**: since `train_gating.py` always
+writes to `ml/versions/<id>/` (the versioned-candidate convention every
+trainer here uses), this generates a throwaway version-id, runs the
+trainer, then copies the 3 resulting artifacts straight into active `ml/`
+— the same manual promotion-simulation step already used to verify this
+trainer, mirroring how `train.py --experts-only` already writes directly
+to active paths without a promotion gate.
+
+**Neural-network webui tab now shows the gating network too**
+(`monitoring/neural_network_state.py`): it was previously in the page's
+hardcoded `excluded` list with a "deterministic, no weight matrix" reason
+that this change makes stale. Now reads `ml/gating_model.json` exactly
+like the baseline/experts (same optional, degrades-to-`not_trained`
+contract) and reports a `"learned"` quality-status badge once a model
+exists. `webui/src/components/neuralnet/NeuralNetworkScene3D.tsx`'s
+previously-hardcoded 5-network render order gained `'gating'` (violet),
+since the 3D scene only ever drew networks named in that list regardless
+of what the backend returned.
+
+- New tests: `tests/test_position_sizing.py` (+7), `tests/test_gating_network.py`
+  (+5), `tests/test_train_gating.py` (8, pure-function style mirroring
+  `tests/test_train_topology.py`), `tests/test_retraining_artifacts.py`/
+  `test_retraining_orchestrator.py`/`test_retraining_worker.py` (extended
+  for the new gating stage), `tests/test_aq_cli.py` (+3 for
+  `--gating-only`), `tests/test_neural_network_state.py` (+2 new, 2
+  rewritten to match gating no longer being excluded). Full suite: 581
+  passed.
+- Docs: `development/Problems.md` #14 (Redis push in backtest mode) marked
+  resolved — the project owner confirmed no downstream process reads
+  backtest-mode experience events from Postgres, so the open question this
+  entry tracked is answered; `experience/redis_queue.py::push()` itself is
+  deliberately left unchanged, since performance was never the blocker.
+- Stopping point: `python train_gating.py` / `aq train --gating-only` was
+  smoke-tested against the real dataset but its resulting model was **not**
+  installed into active `ml/` or promoted through the retraining pipeline —
+  per this session's established preference, the user runs the real
+  training/backtest themselves.

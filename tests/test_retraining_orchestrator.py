@@ -238,6 +238,55 @@ def test_train_topology_disabled_returns_early_without_subprocess():
     run_mock.assert_not_called()
 
 
+# -- learned-gating training stage --------------------------------------------
+
+
+def test_train_gating_invokes_script_with_version_id_flag():
+    conn_mock, _ = _make_conn_mock()
+    completed = MagicMock(returncode=0, stdout="ok", stderr="")
+
+    with patch("retraining.orchestrator.subprocess.run", return_value=completed) as run_mock:
+        result = orchestrator.train_gating(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    argv = run_mock.call_args.args[0]
+    assert "train_gating.py" in argv[1]
+    assert "--version-id" in argv
+    assert "v1" in argv
+    assert result["ok"] is True
+
+
+def test_train_gating_subprocess_failure_does_not_reject_model_version():
+    """Unlike train()'s hard failure path, a gating-training subprocess
+    failure must never reject the candidate model_version - gating
+    artifacts are optional (see retraining/artifacts.py's
+    OPTIONAL_GATING_FILES)."""
+    conn_mock, _ = _make_conn_mock()
+    completed = MagicMock(returncode=1, stdout="", stderr="gating boom")
+
+    with patch("retraining.orchestrator.subprocess.run", return_value=completed), patch(
+        "retraining.orchestrator.update_retraining_event_status"
+    ) as update_event_mock, patch("retraining.orchestrator.update_model_version_status") as update_version_mock:
+        result = orchestrator.train_gating(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    assert result["ok"] is False
+    update_version_mock.assert_not_called()
+    update_event_mock.assert_called_once()
+    assert update_event_mock.call_args.kwargs["status"] == "running"
+
+
+def test_train_gating_disabled_returns_early_without_subprocess():
+    conn_mock, _ = _make_conn_mock()
+
+    with patch("retraining.orchestrator.subprocess.run") as run_mock:
+        result = orchestrator.train_gating(
+            conn_mock, retraining_id="r1", version_id="v1", config={"gating_training": {"enabled": False}}
+        )
+
+    assert result["ok"] is False
+    assert result["reason"] == "gating_training_disabled"
+    run_mock.assert_not_called()
+
+
 def test_commit_hashes_and_vault_add_include_topology_files_when_present(tmp_path):
     """Direct test for the spec requirement 'Aether-Vault commit includes
     topology artifacts when present': the candidate's whole version_dir is

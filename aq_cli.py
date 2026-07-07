@@ -32,6 +32,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import uuid
 from datetime import date
 from importlib.metadata import version as installed_version
 from pathlib import Path
@@ -176,6 +177,8 @@ def check_for_update() -> None:
 
 
 def cmd_train(args: argparse.Namespace) -> int:
+    if args.gating_only:
+        return _train_gating_only()
     cmd = [sys.executable, "train.py"]
     if args.dataset_only:
         cmd.append("--dataset-only")
@@ -184,6 +187,41 @@ def cmd_train(args: argparse.Namespace) -> int:
     elif args.experts_only:
         cmd.append("--experts-only")
     return _run(cmd)
+
+
+def _train_gating_only() -> int:
+    """`aq train --gating-only`: trains the learned gating blend
+    (train_gating.py) and installs it straight into active ml/, mirroring
+    what `train.py --experts-only` already does for the expert models.
+
+    train_gating.py always writes to ml/versions/<version_id>/ (same
+    versioned-candidate convention every other trainer in this project
+    uses), so this generates a throwaway version-id, runs the trainer,
+    then copies the 3 resulting artifacts into active ml/ - the same
+    manual promotion-simulation step already documented for verifying this
+    trainer, skipping the full retraining/validate/backtest/commit/promote
+    pipeline since this is an ad-hoc, user-triggered run, not a scheduled
+    candidate."""
+    version_id = f"gating-only-{uuid.uuid4()}"
+    returncode = _run([sys.executable, "train_gating.py", "--version-id", version_id])
+    if returncode != 0:
+        return returncode
+
+    version_dir = ROOT_DIR / "ml" / "versions" / version_id
+    artifact_names = ("gating_model.json", "gating_feature_schema.json", "gating_training_metrics.json")
+    if any(not (version_dir / name).exists() for name in artifact_names):
+        print(
+            "aq train --gating-only: train_gating.py exited 0 but skipped writing artifacts "
+            "(likely insufficient validation/backtest rows) - active ml/ left unchanged.",
+            file=sys.stderr,
+        )
+        return 0
+
+    ml_dir = ROOT_DIR / "ml"
+    for name in artifact_names:
+        shutil.copy2(version_dir / name, ml_dir / name)
+    print(f"aq train --gating-only: copied {', '.join(artifact_names)} into active ml/.")
+    return 0
 
 
 def _update_readme_test_badge(passed: int, failed: int) -> None:
@@ -392,6 +430,9 @@ def build_parser() -> argparse.ArgumentParser:
     train_group.add_argument("--dataset-only", action="store_true", help="Build dataset/scaler/manifest only")
     train_group.add_argument("--init-only", action="store_true", help="Refresh the data inventory only")
     train_group.add_argument("--experts-only", action="store_true", help="Train the 4 expert models only")
+    train_group.add_argument(
+        "--gating-only", action="store_true", help="Train the learned gating blend only (wraps python train_gating.py)"
+    )
     train_parser.set_defaults(func=cmd_train)
 
     test_parser = subparsers.add_parser("test", help="Run the test suite (wraps pytest tests/)")

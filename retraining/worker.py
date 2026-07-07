@@ -39,6 +39,7 @@ from retraining.orchestrator import (
     promote,
     status,
     train,
+    train_gating,
     train_topology,
     validate,
 )
@@ -108,6 +109,11 @@ class RetrainingWorker:
         # logged inside train_topology() itself and never blocks the
         # primary candidate's own validate/backtest/commit/promote path.
         train_topology(self._conn, retraining_id, version_id, self.config)
+
+        # Best-effort learned-gating training - same contract, failure is
+        # logged inside train_gating() itself and never blocks the primary
+        # candidate's own validate/backtest/commit/promote path.
+        train_gating(self._conn, retraining_id, version_id, self.config)
 
         validate_result = validate(self._conn, retraining_id, version_id, self.config)
         if not validate_result["ok"]:
