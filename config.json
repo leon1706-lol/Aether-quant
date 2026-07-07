@@ -1,0 +1,543 @@
+{
+    "name": "Aether Quant",
+    "projectId": null,
+    "organizationId": null,
+    "environment": "local",
+    "notes": [
+        "Populate projectId and organizationId after the Lean cloud project exists.",
+        "This file stores local project metadata and does not replace lean.json."
+    ],
+    "runtime": {
+        "initial_cash": 100000,
+        "warmup_bars": 30
+    },
+    "phase1": {
+        "status": "defined",
+        "objective": "Define a compact V1 universe with shared Lean data coverage for training and backtesting.",
+        "universe": {
+            "name": "v2_daily_multi_asset",
+            "resolution": "Daily",
+            "assets": [
+                {
+                    "ticker": "AAPL",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/aapl.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "SPY",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/spy.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "QQQ",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/qqq.zip",
+                    "available_from": "1999-03-10",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "IWM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/iwm.zip",
+                    "available_from": "2000-05-26",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EEM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/eem.zip",
+                    "available_from": "2003-04-14",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "BAC",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/bac.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "IBM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/ibm.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "AIG",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/aig.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "BNO",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/bno.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "FB",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/fb.zip",
+                    "available_from": "1999-09-29",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "GOOG",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/goog.zip",
+                    "available_from": "2004-08-19",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/googl.zip",
+                    "available_from": "2014-04-03",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "USO",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/uso.zip",
+                    "available_from": "1998-01-02",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "WM",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/wm.zip",
+                    "available_from": "1998-12-09",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "AAA",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/aaa.zip",
+                    "available_from": "2002-05-22",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "BTCUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/btcusd_trade.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31",
+                    "backfill": {
+                        "source": "yfinance",
+                        "symbol": "BTC-USD",
+                        "backfill_from": "2018-08-14",
+                        "backfill_to": "2021-04-01"
+                    }
+                },
+                {
+                    "ticker": "ETHUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/ethusd_trade.zip",
+                    "derived_from": "data/crypto/coinbase/minute/ethusd",
+                    "aggregation": "daily_from_minute_trade",
+                    "available_from": "2017-09-03",
+                    "available_to": "2021-03-31",
+                    "backfill": {
+                        "source": "yfinance",
+                        "symbol": "ETH-USD",
+                        "backfill_from": "2017-11-09",
+                        "backfill_to": "2021-04-01"
+                    }
+                },
+                {
+                    "ticker": "LTCUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/ltcusd_trade.zip",
+                    "derived_from": "data/crypto/coinbase/minute/ltcusd",
+                    "aggregation": "daily_from_minute_trade",
+                    "available_from": "2016-01-01",
+                    "available_to": "2021-03-31",
+                    "backfill": {
+                        "source": "yfinance",
+                        "symbol": "LTC-USD",
+                        "backfill_from": "2016-01-01",
+                        "backfill_to": "2021-04-01"
+                    }
+                },
+                {
+                    "ticker": "XRPUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/xrpusd_trade.zip",
+                    "available_from": "2017-11-09",
+                    "available_to": "2021-03-31",
+                    "backfill": {
+                        "source": "yfinance",
+                        "symbol": "XRP-USD",
+                        "backfill_from": "2017-11-09",
+                        "backfill_to": "2021-04-01"
+                    }
+                },
+                {
+                    "ticker": "ADAUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/adausd_trade.zip",
+                    "available_from": "2017-11-09",
+                    "available_to": "2021-03-31",
+                    "backfill": {
+                        "source": "yfinance",
+                        "symbol": "ADA-USD",
+                        "backfill_from": "2017-11-09",
+                        "backfill_to": "2021-04-01"
+                    }
+                }
+            ],
+            "common_window": {
+                "start": "2014-12-01",
+                "end": "2021-03-31"
+            }
+        },
+        "windows": {
+            "training": {
+                "start": "2014-12-01",
+                "end": "2017-12-31"
+            },
+            "validation": {
+                "start": "2018-01-01",
+                "end": "2018-03-31"
+            },
+            "backtest": {
+                "start": "2018-04-01",
+                "end": "2021-03-31"
+            }
+        },
+        "features": {
+            "input_set": [
+                "close_to_close_return_1d",
+                "close_to_close_return_5d",
+                "close_to_close_return_20d",
+                "rolling_volatility_5d",
+                "rolling_volatility_20d",
+                "momentum_5d",
+                "momentum_20d",
+                "high_low_range_pct",
+                "open_close_range_pct",
+                "volume_change_1d"
+            ],
+            "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference."
+        },
+        "target": {
+            "type": "directional_return",
+            "horizon": "1 trading day ahead",
+            "label_rule": "1 if next close return is positive, otherwise 0"
+        }
+    },
+    "phase3": {
+        "model": {
+            "type": "robust_mlp_classifier",
+            "hidden_layers": [
+                64,
+                32
+            ],
+            "dropout": 0.15,
+            "activation": "relu",
+            "normalization": "layernorm",
+            "output_activation": "sigmoid",
+            "use_asset_context": true
+        },
+        "training": {
+            "seed": 42,
+            "epochs": 120,
+            "batch_size": 64,
+            "learning_rate": 0.0007,
+            "weight_decay": 0.0001,
+            "patience": 18,
+            "decision_threshold": 0.5,
+            "optimize_threshold_metric": "mcc",
+            "threshold_search_min": 0.35,
+            "threshold_search_max": 0.65,
+            "threshold_search_steps": 61
+        }
+    },
+    "phase5": {
+        "backtest": {
+            "trading_days_per_year": 252,
+            "strategy_mode": "long_flat",
+            "buy_threshold_offset": 0.04,
+            "sell_threshold_offset": 0.04
+        }
+    },
+    "phase6": {
+        "risk": {
+            "max_position_weight": 0.2,
+            "min_confidence_to_trade": 0.05,
+            "trade_cooldown_bars": 1,
+            "max_daily_drawdown_pct": 0.03,
+            "max_total_drawdown_pct": 0.12,
+            "liquidate_on_risk_breach": true
+        }
+    },
+    "phase9": {
+        "status": "multi_asset_v2_active",
+        "objective": "Expand the universe while keeping thin-history assets visible but safely observation-only.",
+        "asset_quality": {
+            "min_total_feature_rows": 50,
+            "min_training_rows": 50,
+            "min_backtest_rows": 20,
+            "observation_only_kept_in_universe": true
+        },
+        "portfolio": {
+            "max_active_positions": 10,
+            "max_equity_exposure": 0.65,
+            "max_crypto_exposure": 0.35,
+            "observation_only_assets_can_trade": false
+        }
+    },
+    "phase_v2": {
+        "dynamic_risk": {
+            "target_daily_volatility": 0.015,
+            "low_volatility_threshold": 0.01,
+            "high_volatility_threshold": 0.03,
+            "min_volatility_multiplier": 0.35,
+            "max_volatility_multiplier": 1.25,
+            "min_position_weight": 0.0,
+            "max_leverage": 1.0,
+            "topology_sizing_enabled": true,
+            "min_topology_multiplier": 0.5,
+            "max_topology_multiplier": 1.0
+        },
+        "risk": {},
+        "regime_detection": {
+            "bullish_threshold": 0.02,
+            "bearish_threshold": -0.02,
+            "risk_off_drawdown_threshold": 0.08,
+            "risk_on_drawdown_threshold": 0.03,
+            "high_correlation_threshold": 0.75
+        },
+        "gating_network": {
+            "baseline_weight": 0.25,
+            "learned_model_enabled": true
+        },
+        "market_analyzer": {
+            "retrain_min_regime_confidence": 0.2,
+            "low_regime_confidence_threshold": 0.35,
+            "use_composite_signal_score": false
+        },
+        "topology": {
+            "correlation_threshold": 0.6,
+            "link_threshold": 0.5,
+            "min_observations": 5,
+            "embedding_iterations": 100,
+            "warm_start_enabled": true,
+            "convergence_tolerance": 0.01
+        },
+        "topology_learning": {
+            "enabled": true,
+            "temperature": 0.35,
+            "top_n_neighbors": 3,
+            "min_confidence_for_learned": 0.2,
+            "max_offset_xy": 6.0,
+            "max_offset_z": 0.1,
+            "training": {
+                "lookback_days": 90,
+                "min_training_events": 500,
+                "num_prototypes": 6,
+                "distance_scale_percentile": 90
+            }
+        },
+        "liquidity": {
+            "thin_participation_threshold": 0.01,
+            "high_impact_participation_threshold": 0.01,
+            "blocked_participation_threshold": 0.1,
+            "min_daily_dollar_volume": 100000,
+            "high_impact_size_factor": 0.5,
+            "slippage_factor": 0.1,
+            "spread_estimation": {
+                "enabled": true,
+                "min_bars": 2
+            }
+        },
+        "experience": {
+            "enabled": true,
+            "redis_stream": "aether:experience",
+            "maxlen": 100000,
+            "worker": {
+                "group": "aether-workers",
+                "consumer": "worker-1",
+                "batch_size": 100,
+                "deadletter_stream": "aether:experience:deadletter",
+                "backoff_max": 60
+            }
+        },
+        "performance_triggers": {
+            "enabled": true,
+            "observation_interval": 100,
+            "trade_count_interval": 100,
+            "max_drawdown_threshold": -0.1,
+            "sustained_drawdown_days": 2,
+            "min_sharpe": 0.3,
+            "min_win_rate": 0.45,
+            "max_liquidity_rejection_rate": 0.25,
+            "regime_shift_sensitivity": 0.6,
+            "confidence_decay_ratio_threshold": 0.5,
+            "confidence_instability_std_threshold": 0.25,
+            "max_consecutive_locked_events": 20,
+            "rolling_window": 100,
+            "suppression_minutes": 60,
+            "topology_uncertainty_threshold": 0.6,
+            "topology_uncertainty_persistent_fraction": 0.6,
+            "topology_regime_mismatch_threshold": 0.5,
+            "cluster_drift_threshold": 0.5,
+            "cluster_drift_persistent_fraction": 0.6,
+            "model_topology_disagreement_threshold": 0.5,
+            "model_topology_disagreement_persistent_fraction": 0.6,
+            "trigger_frequency_spike_multiplier": 3.0,
+            "trigger_frequency_spike_window_minutes": 60,
+            "trigger_frequency_spike_baseline_minutes": 1440,
+            "trigger_frequency_spike_min_recent_count": 3,
+            "rolling_window_events": 500,
+            "rolling_window_days": 30
+        },
+        "runtime": {
+            "mode": "backtest",
+            "allow_live_orders": false
+        },
+        "backtest": {
+            "bypass_safety_gates": false
+        },
+        "paper_trading": {
+            "brokerage": "lean_paper_brokerage",
+            "live_data_provider_configured": false,
+            "manual_review_confirmed": false,
+            "readiness_thresholds": {
+                "min_observations": 500,
+                "min_simulated_sharpe": 0.3,
+                "max_simulated_drawdown_floor": -0.15,
+                "max_single_rejection_reason_share": 0.5
+            }
+        },
+        "live": {
+            "max_allowed_daily_drawdown_pct": 0.05,
+            "max_allowed_total_drawdown_pct": 0.15
+        },
+        "retraining": {
+            "enabled": true,
+            "min_observations": 500,
+            "cooldown_minutes": 720,
+            "max_retrainings_per_day": 2,
+            "eligible_severities": [
+                "warning",
+                "critical"
+            ],
+            "validation_gate": {
+                "min_sharpe": 0.3,
+                "max_validation_loss_increase_ratio": 0.1,
+                "max_train_backtest_balanced_accuracy_gap": 0.2,
+                "min_trade_count": 30,
+                "min_exposure_rate": 0.05,
+                "watchlist_margin": 0.03
+            },
+            "backtest_gate": {
+                "min_excess_return_vs_active": -0.02,
+                "benchmark_ticker": null,
+                "run_lean_backtest": true,
+                "lean_binary": "lean",
+                "lean_timeout_seconds": 1800
+            },
+            "vault": {
+                "av_binary": "av",
+                "repo_path": ".",
+                "add_paths": [
+                    "train.py",
+                    "main.py",
+                    "config.json"
+                ],
+                "commit_message_template": "candidate model {version_id}",
+                "tag": "candidate",
+                "push": true,
+                "timeout_seconds": 120
+            },
+            "promotion": {
+                "require_vault_commit": true,
+                "active_artifact_files": [
+                    "model_weights.json",
+                    "scaler.pkl",
+                    "scaler_stats.json",
+                    "training_metrics.json",
+                    "feature_schema.json",
+                    "topology_model.json",
+                    "topology_training_metrics.json",
+                    "topology_feature_schema.json",
+                    "gating_model.json",
+                    "gating_feature_schema.json",
+                    "gating_training_metrics.json"
+                ],
+                "auto_clear_trade_lock": true
+            },
+            "worker": {
+                "auto_promote": true,
+                "auto_promote_blocked_in_live_mode": true,
+                "poll_interval_seconds": 300,
+                "batch_limit": 1000
+            },
+            "topology_training": {
+                "enabled": true,
+                "timeout_seconds": 900
+            },
+            "gating_training": {
+                "enabled": true,
+                "timeout_seconds": 300,
+                "min_train_rows": 100,
+                "min_backtest_rows": 20,
+                "early_stop_holdout_fraction": 0.15,
+                "hidden_layers": [
+                    16
+                ],
+                "dropout": 0.2,
+                "learning_rate": 0.001,
+                "weight_decay": 0.001,
+                "batch_size": 64,
+                "epochs": 60,
+                "patience": 8,
+                "decision_threshold": 0.5,
+                "optimize_threshold_metric": "mcc",
+                "threshold_search_min": 0.35,
+                "threshold_search_max": 0.65,
+                "threshold_search_steps": 61,
+                "seed": 42
+            }
+        },
+        "telegram": {
+            "enabled": true,
+            "min_severity_for_trigger_alert": "warning",
+            "session_summary_enabled": true,
+            "worker": {
+                "poll_interval_seconds": 30,
+                "batch_size": 200,
+                "backoff_max": 60
+            }
+        }
+    },
+    "local-id": 694224972
+}

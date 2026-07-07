@@ -53,3 +53,29 @@ risk engine, and before action categorization / Lean order placement.
   actions are written into the per-asset `signal_payload` for
   dashboard/Grafana visibility regardless of whether a real order is
   placed.
+- **Real composite scoring (additive, config-gated).** Until now, every
+  priority tier here checked exactly one raw field in isolation against a
+  fixed threshold (confidence alone, `topology_risk` alone,
+  `liquidity_action` alone) — pure if/elif routing, no aggregation. New
+  `compute_signal_quality_score(confidence, regime_confidence, topology,
+  liquidity)` computes a real bounded `[0,1]` composite — a small,
+  hand-tuned weighted blend of raw model confidence (0.45), regime
+  confidence (0.20), topology peer-support (0.20, penalized when
+  `topology_risk` is `isolated`/`elevated`), and liquidity friction (0.15,
+  penalized by `participation_rate`) — mirroring `moe/gating.py`'s
+  `_quality_multiplier`/`_performance_score` style: real math over
+  already-available fields, not a trained model. `MarketAnalysisDecision`
+  gains `signal_quality_score`/`signal_quality_breakdown` fields that are
+  **always** computed and populated on every decision, regardless of any
+  flag — visible in `visualization/state.json` immediately for dashboard
+  use. It only ever changes routing when
+  `phase_v2.market_analyzer.use_composite_signal_score` is explicitly
+  `true` (default `false`) — in that case it replaces raw `confidence`
+  with the composite score in the `trade` gate (priority 7) and the
+  `simulate`-vs-`observe` split (priority 8) only. The hard safety-override
+  tiers (trade-lock, `risk_off` regime, elevated topology, liquidity
+  blocked — priorities 1-6) are **never** affected by this flag, regardless
+  of its value — they stay simple categorical gates on purpose, same
+  reasoning as the topology-elevated/isolated rules above. Default `false`
+  means output is byte-identical to pre-this-change behavior everywhere
+  the flag isn't explicitly turned on.

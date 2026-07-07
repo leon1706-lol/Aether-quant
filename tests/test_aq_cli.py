@@ -19,6 +19,7 @@ real, full recursive `pytest tests/` subprocess run instead, which is
 exactly the bug this comment exists to prevent from being reintroduced.
 """
 
+import json
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -614,3 +615,236 @@ def test_cmd_test_treats_errors_as_failures_for_the_badge():
         args.func(args)
 
     badge_mock.assert_called_once_with(3, 1)
+
+
+# ---------------------------------------------------------------------------
+# aq config
+# ---------------------------------------------------------------------------
+
+
+def _config_fixture(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "phase_v2": {
+                    "gating_network": {"baseline_weight": 0.25, "learned_model_enabled": True},
+                    "retraining": {"eligible_severities": ["warning", "critical"]},
+                }
+            },
+            indent=4,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def _run_config(config_path, argv, capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["config", *argv])
+    with patch("aq_cli.CONFIG_PATH", config_path):
+        exit_code = args.func(args)
+    return exit_code, capsys.readouterr()
+
+
+def test_config_bare_dumps_entire_file(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, [], capsys)
+
+    assert exit_code == 0
+    assert json.loads(captured.out) == json.loads(config_path.read_text(encoding="utf-8"))
+
+
+def test_config_get_existing_nested_scalar(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.gating_network.baseline_weight"], capsys)
+
+    assert exit_code == 0
+    assert captured.out.strip() == "0.25"
+
+
+def test_config_get_nested_dict_returns_json(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.gating_network"], capsys)
+
+    assert exit_code == 0
+    assert json.loads(captured.out) == {"baseline_weight": 0.25, "learned_model_enabled": True}
+
+
+def test_config_get_missing_key_errors(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.does_not_exist"], capsys)
+
+    assert exit_code == 1
+    assert "no such config key" in captured.err
+
+
+def test_config_set_flips_bool_and_round_trips(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.gating_network.learned_model_enabled", "false"], capsys
+    )
+    assert exit_code == 0
+    assert "True -> False" in captured.out
+
+    _, captured = _run_config(config_path, ["get", "phase_v2.gating_network.learned_model_enabled"], capsys)
+    assert captured.out.strip() == "false"
+
+
+def test_config_set_list_with_json_array(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, _ = _run_config(
+        config_path, ["set", "phase_v2.retraining.eligible_severities", '["critical"]'], capsys
+    )
+
+    assert exit_code == 0
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["retraining"]["eligible_severities"] == ["critical"]
+
+
+def test_config_set_non_json_bare_word_falls_back_to_string(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, _ = _run_config(config_path, ["set", "phase_v2.gating_network.baseline_weight", "learned"], capsys)
+
+    assert exit_code == 0
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["gating_network"]["baseline_weight"] == "learned"
+
+
+def test_config_set_missing_key_errors_and_leaves_file_untouched(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+    original = config_path.read_text(encoding="utf-8")
+
+    exit_code, captured = _run_config(config_path, ["set", "phase_v2.does_not_exist", "1"], capsys)
+
+    assert exit_code == 1
+    assert "no such config key" in captured.err
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_config_set_writes_backup_matching_pre_set_content(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+    original = config_path.read_text(encoding="utf-8")
+
+    _run_config(config_path, ["set", "phase_v2.gating_network.baseline_weight", "0.5"], capsys)
+
+    backup_path = config_path.with_suffix(".json.bak")
+    assert backup_path.exists()
+    assert backup_path.read_text(encoding="utf-8") == original
+
+
+def test_config_set_type_change_prints_warning_but_still_writes(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["set", "phase_v2.gating_network.baseline_weight", "hello"], capsys)
+
+    assert exit_code == 0
+    assert "WARNING: type changed from float to str" in captured.err
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["gating_network"]["baseline_weight"] == "hello"
+
+
+def test_config_keys_lists_every_leaf(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["keys"], capsys)
+
+    assert exit_code == 0
+    keys = captured.out.strip().splitlines()
+    assert "phase_v2.gating_network.baseline_weight" in keys
+    assert "phase_v2.gating_network.learned_model_enabled" in keys
+    assert "phase_v2.retraining.eligible_severities" in keys
+
+
+def test_config_keys_scoped_to_prefix(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["keys", "phase_v2.gating_network"], capsys)
+
+    assert exit_code == 0
+    keys = captured.out.strip().splitlines()
+    assert set(keys) == {"phase_v2.gating_network.baseline_weight", "phase_v2.gating_network.learned_model_enabled"}
+
+
+# ---------------------------------------------------------------------------
+# aq lean — same _dispatch_json_config_command as aq config, just pointed at
+# lean.json; the shared dispatch logic's edge cases (missing key, type
+# warning, JSON coercion, ...) are already covered above, so this block only
+# confirms the wiring (LEAN_JSON_PATH used, lean_command attr used).
+# ---------------------------------------------------------------------------
+
+
+def _lean_fixture(tmp_path):
+    lean_path = tmp_path / "lean.json"
+    lean_path.write_text(
+        json.dumps({"ib-trading-mode": "paper", "symbol-minute-limit": 10000}, indent=4) + "\n",
+        encoding="utf-8",
+    )
+    return lean_path
+
+
+def _run_lean(lean_path, argv, capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["lean", *argv])
+    with patch("aq_cli.LEAN_JSON_PATH", lean_path):
+        exit_code = args.func(args)
+    return exit_code, capsys.readouterr()
+
+
+def test_lean_bare_dumps_entire_file(tmp_path, capsys):
+    lean_path = _lean_fixture(tmp_path)
+
+    exit_code, captured = _run_lean(lean_path, [], capsys)
+
+    assert exit_code == 0
+    assert json.loads(captured.out) == json.loads(lean_path.read_text(encoding="utf-8"))
+
+
+def test_lean_get_existing_key(tmp_path, capsys):
+    lean_path = _lean_fixture(tmp_path)
+
+    exit_code, captured = _run_lean(lean_path, ["get", "ib-trading-mode"], capsys)
+
+    assert exit_code == 0
+    assert captured.out.strip() == "paper"
+
+
+def test_lean_set_writes_value_and_backup(tmp_path, capsys):
+    lean_path = _lean_fixture(tmp_path)
+    original = lean_path.read_text(encoding="utf-8")
+
+    exit_code, captured = _run_lean(lean_path, ["set", "ib-trading-mode", "live"], capsys)
+
+    assert exit_code == 0
+    assert "paper -> 'live'" in captured.out or "'paper' -> 'live'" in captured.out
+    assert json.loads(lean_path.read_text(encoding="utf-8"))["ib-trading-mode"] == "live"
+    backup_path = lean_path.with_suffix(".json.bak")
+    assert backup_path.exists()
+    assert backup_path.read_text(encoding="utf-8") == original
+
+
+def test_lean_keys_lists_leaves(tmp_path, capsys):
+    lean_path = _lean_fixture(tmp_path)
+
+    exit_code, captured = _run_lean(lean_path, ["keys"], capsys)
+
+    assert exit_code == 0
+    keys = captured.out.strip().splitlines()
+    assert set(keys) == {"ib-trading-mode", "symbol-minute-limit"}
+
+
+def test_lean_get_missing_key_errors(tmp_path, capsys):
+    lean_path = _lean_fixture(tmp_path)
+
+    exit_code, captured = _run_lean(lean_path, ["get", "does-not-exist"], capsys)
+
+    assert exit_code == 1
+    assert "no such config key" in captured.err

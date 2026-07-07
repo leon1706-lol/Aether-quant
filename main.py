@@ -221,6 +221,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.gating_learned_model_enabled = bool(phase_v2_gating.get("learned_model_enabled", True))
         self.analyzer_retrain_min_regime_confidence = float(phase_v2_analyzer.get("retrain_min_regime_confidence", 0.20))
         self.analyzer_low_regime_confidence_threshold = float(phase_v2_analyzer.get("low_regime_confidence_threshold", 0.35))
+        self.analyzer_use_composite_signal_score = bool(phase_v2_analyzer.get("use_composite_signal_score", False))
         self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
@@ -400,6 +401,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     min_confidence_to_trade=self.min_confidence_to_trade,
                     retrain_min_regime_confidence=self.analyzer_retrain_min_regime_confidence,
                     low_regime_confidence_threshold=self.analyzer_low_regime_confidence_threshold,
+                    use_composite_signal_score=self.analyzer_use_composite_signal_score,
                 ).to_dict()
 
                 signal_name = decision["signal"]

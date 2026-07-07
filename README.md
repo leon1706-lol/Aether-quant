@@ -10,9 +10,21 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-583%2F583%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="583 of 583 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-611%2F611%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="611 of 611 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/PyTorch-4B5563?style=flat-square&labelColor=1A1A1A&logo=pytorch&logoColor=white" alt="PyTorch">
+  <img src="https://img.shields.io/badge/scikit--learn-4B5563?style=flat-square&labelColor=1A1A1A&logo=scikitlearn&logoColor=white" alt="scikit-learn">
+  <img src="https://img.shields.io/badge/QuantConnect%20Lean-4B5563?style=flat-square&labelColor=1A1A1A" alt="QuantConnect Lean">
+  <img src="https://img.shields.io/badge/FastAPI-4B5563?style=flat-square&labelColor=1A1A1A&logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/React-4B5563?style=flat-square&labelColor=1A1A1A&logo=react&logoColor=white" alt="React">
+  <img src="https://img.shields.io/badge/TypeScript-4B5563?style=flat-square&labelColor=1A1A1A&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Redis-4B5563?style=flat-square&labelColor=1A1A1A&logo=redis&logoColor=white" alt="Redis">
+  <img src="https://img.shields.io/badge/PostgreSQL-4B5563?style=flat-square&labelColor=1A1A1A&logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/GitHub%20Actions-4B5563?style=flat-square&labelColor=1A1A1A&logo=githubactions&logoColor=white" alt="GitHub Actions">
 </p>
 
 Aether Quant is not a single static strategy — it's a **dynamic system**: a
@@ -514,6 +526,8 @@ aq api
 aq webui
 aq docker up [--lean|--all]
 aq docker build
+aq config [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
+aq lean [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
 aq retrain <plan|train|validate|backtest|commit|promote|rollback|status> [...]
 aq trade-lock --on|--off|--auto|--status
 aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]
@@ -531,6 +545,8 @@ wrapper around a command already documented elsewhere in this README:
 - **`aq webui`** — starts the webui dev server (`npm run dev`).
 - **`aq docker up [--lean|--all]`** — starts local infrastructure (default: Redis + PostgreSQL only).
 - **`aq docker build`** — rebuilds the `aether-quant` app image.
+- **`aq config`** — reads or edits `config.json` directly, no manual file editing needed. Bare `aq config` pretty-prints the whole file; `aq config keys [<dotted.prefix>]` lists every leaf key path (handy for finding the right key in a deeply nested file); `aq config get <dotted.key>` prints one value (scalar, or a whole nested section as JSON); `aq config set <dotted.key> <value>` writes it — the value is parsed as JSON first (so `true`/`123`/`0.5`/`["a","b"]` become their real types automatically), falling back to a plain string otherwise. Every `set` backs up the previous file to `config.json.bak` first and prints old → new so a mistake is immediately visible; changing a value's type (e.g. bool → string) prints a warning but still writes it, since this command intentionally gives full access to every key, not just a safe subset.
+- **`aq lean`** — the exact same `get`/`set`/`keys` tool as `aq config`, just pointed at `lean.json` (the QuantConnect Lean CLI's own config file — broker credentials, environments, data providers) instead. `aq lean set ib-trading-mode live`, `aq lean keys environments.live-paper`, etc.
 - **`aq retrain <stage>`** — dispatches to `python -m retraining.orchestrator <stage> ...` for a single manual pipeline stage.
 - **`aq trade-lock --on|--off|--auto|--status`** — manually overrides `main.py`'s sticky total-drawdown trade lock (see `development/v2_architecture.md`'s Manual Trade-Lock Override Contract). `--off` deliberately clears an otherwise-permanent lock; `--auto` returns to fully automatic behavior.
 - **`aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]`** — fetches historical OHLCV from Yahoo Finance for a ticker that isn't in `config.json` yet, formats it into Lean's zip/CSV convention, and writes it to the right spot under `data/` (`data/crypto/coinbase/daily/<ticker>_trade.zip` or `data/equity/usa/daily/<ticker>.zip`). On `--apply`, it also appends a new asset block to `config.json`'s `phase1.universe.assets[]` — no manual editing needed. Dry run by default (no `--apply`): reports what would happen, writes nothing. Never runs `train.py` itself — once applied, run `python train.py --dataset-only` (then `python train.py` when ready) yourself to actually train on the new ticker. `crypto`/`stock` today; a `derivative` asset class is planned for V3.
@@ -706,5 +722,5 @@ architecture docs already identify:
 ---
 
 <div align="center">
-  <sub>Built with Python · PyTorch · QuantConnect Lean · FastAPI · React · Redis · PostgreSQL · Docker</sub>
+  <sub>Aether Quant</sub>
 </div>

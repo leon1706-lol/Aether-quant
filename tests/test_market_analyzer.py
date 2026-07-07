@@ -1,4 +1,4 @@
-from analyzer import build_market_analysis_decision
+from analyzer import build_market_analysis_decision, compute_signal_quality_score
 
 
 def _regime(confidence=0.6, risk_regime="risk_neutral"):
@@ -225,3 +225,120 @@ def test_liquidity_absent_degrades_gracefully():
     )
     assert decision.liquidity_considered is False
     assert decision.action == "trade"
+
+
+# --- compute_signal_quality_score() pure-function tests ---
+
+
+def test_signal_quality_score_always_bounded_01():
+    score, _ = compute_signal_quality_score(
+        confidence=5.0, regime_confidence=-3.0, topology={"correlation_strength": 10.0}, liquidity={"participation_rate": -2.0}
+    )
+    assert 0.0 <= score <= 1.0
+
+
+def test_signal_quality_score_increases_monotonically_with_confidence():
+    low, _ = compute_signal_quality_score(0.1, 0.5, {"topology_risk": "normal", "correlation_strength": 0.5}, {"participation_rate": 0.2})
+    high, _ = compute_signal_quality_score(0.9, 0.5, {"topology_risk": "normal", "correlation_strength": 0.5}, {"participation_rate": 0.2})
+    assert high > low
+
+
+def test_signal_quality_score_penalizes_isolated_and_elevated_topology():
+    normal, _ = compute_signal_quality_score(0.5, 0.5, {"topology_risk": "normal", "correlation_strength": 0.8}, {})
+    isolated, _ = compute_signal_quality_score(0.5, 0.5, {"topology_risk": "isolated", "correlation_strength": 0.8}, {})
+    elevated, _ = compute_signal_quality_score(0.5, 0.5, {"topology_risk": "elevated", "correlation_strength": 0.8}, {})
+    assert isolated < normal
+    assert elevated < normal
+    assert isolated < elevated
+
+
+def test_signal_quality_score_decreases_with_higher_participation_rate():
+    thin, _ = compute_signal_quality_score(0.5, 0.5, {}, {"participation_rate": 0.05})
+    thick, _ = compute_signal_quality_score(0.5, 0.5, {}, {"participation_rate": 0.9})
+    assert thick < thin
+
+
+def test_signal_quality_score_empty_topology_falls_back_to_regime_component():
+    score, breakdown = compute_signal_quality_score(0.5, 0.7, {}, {})
+    assert breakdown["topology_component"] == breakdown["regime_component"] == 0.7
+
+
+def test_signal_quality_score_empty_liquidity_defaults_to_full_liquidity_component():
+    _, breakdown = compute_signal_quality_score(0.5, 0.5, {}, {})
+    assert breakdown["liquidity_component"] == 1.0
+
+
+def test_signal_quality_score_breakdown_includes_weights():
+    _, breakdown = compute_signal_quality_score(0.5, 0.5, {}, {})
+    assert set(breakdown["weights"].keys()) == {"confidence", "regime", "topology", "liquidity"}
+    assert sum(breakdown["weights"].values()) == 1.0
+
+
+# --- signal_quality_score is always populated on the decision itself ---
+
+
+def test_decision_always_carries_signal_quality_score_even_when_flag_is_off():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+    )
+    assert 0.0 <= decision.signal_quality_score <= 1.0
+    assert "weights" in decision.signal_quality_breakdown
+
+
+# --- use_composite_signal_score: additive, off by default, byte-identical
+# routing until explicitly enabled ---
+
+
+def test_composite_score_flag_off_by_default_uses_raw_confidence():
+    kwargs = dict(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(confidence=0.5), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.4,
+        topology={"topology_risk": "normal", "correlation_strength": 0.0},
+        liquidity={"recommended_action": "allow", "participation_rate": 1.0},
+    )
+    without_flag = build_market_analysis_decision(**kwargs)
+    with_flag_explicitly_false = build_market_analysis_decision(**kwargs, use_composite_signal_score=False)
+
+    assert without_flag.action == "trade"  # raw confidence 0.5 >= 0.4
+    assert without_flag.action == with_flag_explicitly_false.action == "trade"
+
+
+def test_composite_score_enabled_can_downgrade_trade_to_simulate():
+    # Raw confidence alone clears the threshold, but weak topology/liquidity
+    # support drags the composite score below it - only the flag-enabled
+    # run should downgrade trade -> simulate.
+    kwargs = dict(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(confidence=0.5), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.4,
+        topology={"topology_risk": "normal", "correlation_strength": 0.0},
+        liquidity={"recommended_action": "allow", "participation_rate": 1.0},
+    )
+    off = build_market_analysis_decision(**kwargs, use_composite_signal_score=False)
+    on = build_market_analysis_decision(**kwargs, use_composite_signal_score=True)
+
+    assert off.action == "trade"
+    assert on.action == "simulate"
+    assert on.signal_quality_score < 0.4 <= off.confidence
+
+
+def test_composite_score_enabled_can_upgrade_simulate_to_trade():
+    # Raw confidence alone misses the threshold, but strong regime/topology/
+    # liquidity support lifts the composite score above it - only the
+    # flag-enabled run should upgrade simulate -> trade.
+    kwargs = dict(
+        signal_name="buy", confidence=0.2, probability_up=0.6, target_weight=0.1,
+        regime=_regime(confidence=1.0), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.3,
+        topology={"topology_risk": "normal", "correlation_strength": 1.0},
+        liquidity={"recommended_action": "allow", "participation_rate": 0.0},
+    )
+    off = build_market_analysis_decision(**kwargs, use_composite_signal_score=False)
+    on = build_market_analysis_decision(**kwargs, use_composite_signal_score=True)
+
+    assert off.action == "simulate"
+    assert on.action == "trade"
+    assert on.signal_quality_score >= 0.3 > off.confidence

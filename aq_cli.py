@@ -33,6 +33,7 @@ import sys
 import time
 import urllib.request
 import uuid
+from collections.abc import Iterator
 from datetime import date
 from importlib.metadata import version as installed_version
 from pathlib import Path
@@ -42,6 +43,7 @@ from risk.manual_override import read_manual_trade_lock_override, write_manual_t
 
 ROOT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT_DIR / "config.json"
+LEAN_JSON_PATH = ROOT_DIR / "lean.json"
 WEBUI_DIR = ROOT_DIR / "webui"
 README_PATH = ROOT_DIR / "README.md"
 
@@ -393,6 +395,115 @@ def cmd_trade_lock(args: argparse.Namespace) -> int:
     return 0
 
 
+class ConfigPathError(Exception):
+    """Raised by _get_config_value/_set_config_value for a bad dotted path."""
+
+
+def _get_config_value(config: dict, dotted_path: str) -> object:
+    node = config
+    walked: list[str] = []
+    for segment in dotted_path.split("."):
+        walked.append(segment)
+        if not isinstance(node, dict) or segment not in node:
+            raise ConfigPathError(f"no such config key: {'.'.join(walked)!r}")
+        node = node[segment]
+    return node
+
+
+def _coerce_config_value(raw: str) -> object:
+    """JSON-first parsing so true/false/123/0.5/[...]/{...} all become their
+    real type automatically; anything that isn't valid JSON on its own
+    (e.g. a bare word) is kept as a plain string."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+
+def _set_config_value(config: dict, dotted_path: str, raw_value: str) -> tuple[object, object, bool]:
+    """Mutates `config` in place. Returns (old_value, new_value, type_changed) -
+    deliberately does not refuse to overwrite a list/dict: the caller wants
+    full read/write access to every key, not just scalars. Safety instead
+    comes from always reporting old -> new (and a type-change warning) to
+    the caller, plus the automatic config.json.bak snapshot cmd_config()
+    writes before every set."""
+    *parents, leaf = dotted_path.split(".")
+    node = config
+    for segment in parents:
+        if not isinstance(node, dict) or segment not in node:
+            raise ConfigPathError(f"no such config key: {dotted_path!r}")
+        node = node[segment]
+    if not isinstance(node, dict) or leaf not in node:
+        raise ConfigPathError(f"no such config key: {dotted_path!r}")
+    old_value = node[leaf]
+    new_value = _coerce_config_value(raw_value)
+    node[leaf] = new_value
+    return old_value, new_value, type(old_value) is not type(new_value)
+
+
+def _iter_leaf_paths(node: object, prefix: str = "") -> Iterator[str]:
+    """Recursively yields every dot-joined leaf path under `node`. A "leaf"
+    is any non-dict value (or an empty dict) - list-valued keys show up as
+    one leaf, never expanded per-element."""
+    if isinstance(node, dict) and node:
+        for key, value in node.items():
+            yield from _iter_leaf_paths(value, f"{prefix}.{key}" if prefix else key)
+    else:
+        yield prefix
+
+
+def _dispatch_json_config_command(args: argparse.Namespace, json_path: Path, command_attr: str) -> int:
+    """Shared dispatch for `aq config`/`aq lean` - both are the same
+    dump/get/set/keys tool over a single flat JSON file, just pointed at a
+    different path. See cmd_config()/cmd_lean()."""
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+    command = getattr(args, command_attr, None)
+
+    try:
+        if command is None:
+            print(json.dumps(data, indent=2))
+            return 0
+
+        if command == "get":
+            value = _get_config_value(data, args.dotted_path)
+            print(value if isinstance(value, str) else json.dumps(value, indent=2))
+            return 0
+
+        if command == "keys":
+            root = _get_config_value(data, args.dotted_prefix) if args.dotted_prefix else data
+            for path in _iter_leaf_paths(root, args.dotted_prefix or ""):
+                print(path)
+            return 0
+
+        if command == "set":
+            shutil.copy2(json_path, json_path.with_suffix(".json.bak"))
+            old_value, new_value, type_changed = _set_config_value(data, args.dotted_path, args.value)
+            json_path.write_text(json.dumps(data, indent=4) + "\n", encoding="utf-8")
+            print(f"{args.dotted_path}: {old_value!r} -> {new_value!r}")
+            if type_changed:
+                print(
+                    f"WARNING: type changed from {type(old_value).__name__} to {type(new_value).__name__} "
+                    f"for {args.dotted_path}",
+                    file=sys.stderr,
+                )
+            return 0
+    except ConfigPathError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+    return 1
+
+
+def cmd_config(args: argparse.Namespace) -> int:
+    return _dispatch_json_config_command(args, CONFIG_PATH, "config_command")
+
+
+def cmd_lean(args: argparse.Namespace) -> int:
+    return _dispatch_json_config_command(args, LEAN_JSON_PATH, "lean_command")
+
+    return 1
+
+
 def cmd_fetch(args: argparse.Namespace) -> int:
     report = fetch_adhoc_asset(args.asset_class, args.ticker, args.start, args.end, apply=args.apply)
     label = "APPLY" if args.apply else "DRY RUN"
@@ -464,12 +575,51 @@ def build_parser() -> argparse.ArgumentParser:
     docker_build_parser = docker_subparsers.add_parser("build", help="Rebuild the aether-quant app image")
     docker_build_parser.set_defaults(func=cmd_docker_build)
 
+    config_parser = subparsers.add_parser("config", help="Show or edit config.json")
+    config_parser.set_defaults(func=cmd_config)
+    config_subparsers = config_parser.add_subparsers(dest="config_command")
+
+    config_get_parser = config_subparsers.add_parser("get", help="Print a config.json value")
+    config_get_parser.add_argument("dotted_path")
+
+    config_keys_parser = config_subparsers.add_parser("keys", help="List leaf key paths (optionally scoped to a prefix)")
+    config_keys_parser.add_argument("dotted_prefix", nargs="?", default=None)
+
+    config_set_parser = config_subparsers.add_parser("set", help="Set a config.json value (JSON-parsed, string fallback)")
+    config_set_parser.add_argument("dotted_path")
+    config_set_parser.add_argument("value")
+
+    lean_parser = subparsers.add_parser("lean", help="Show or edit lean.json (same shape as `aq config`)")
+    lean_parser.set_defaults(func=cmd_lean)
+    lean_subparsers = lean_parser.add_subparsers(dest="lean_command")
+
+    lean_get_parser = lean_subparsers.add_parser("get", help="Print a lean.json value")
+    lean_get_parser.add_argument("dotted_path")
+
+    lean_keys_parser = lean_subparsers.add_parser("keys", help="List leaf key paths (optionally scoped to a prefix)")
+    lean_keys_parser.add_argument("dotted_prefix", nargs="?", default=None)
+
+    lean_set_parser = lean_subparsers.add_parser("set", help="Set a lean.json value (JSON-parsed, string fallback)")
+    lean_set_parser.add_argument("dotted_path")
+    lean_set_parser.add_argument("value")
+
     retrain_parser = subparsers.add_parser(
         "retrain", help="Thin dispatcher to python -m retraining.orchestrator <stage> ..."
     )
     retrain_parser.add_argument(
         "stage",
-        choices=["plan", "train", "train_topology", "validate", "backtest", "commit", "promote", "rollback", "status"],
+        choices=[
+            "plan",
+            "train",
+            "train_topology",
+            "train_gating",
+            "validate",
+            "backtest",
+            "commit",
+            "promote",
+            "rollback",
+            "status",
+        ],
     )
     retrain_parser.add_argument("retrain_args", nargs=argparse.REMAINDER, help="Passed through verbatim, e.g. --version-id <uuid>")
     retrain_parser.set_defaults(func=cmd_retrain)

@@ -1040,3 +1040,79 @@ of what the backend returned.
   installed into active `ml/` or promoted through the retraining pipeline —
   per this session's established preference, the user runs the real
   training/backtest themselves.
+
+## `aq config`/`aq lean` full read/write CLI + `analyzer/market_analyzer.py` real composite scoring
+
+**`aq config`/`aq lean` — full read/write access to `config.json`/`lean.json`
+from the CLI**, replacing hand-editing either file. Both share one
+generic dispatcher, `aq_cli.py::_dispatch_json_config_command()`, pointed
+at `CONFIG_PATH`/`LEAN_JSON_PATH` respectively — genuinely universal, no
+hardcoded key list: any key either file already has, or gains later, is
+immediately reachable with zero code changes, since the dotted-path
+walker/setter (`_get_config_value`/`_set_config_value`/`_iter_leaf_paths`)
+operates on whatever JSON structure is actually on disk at call time.
+
+- `aq config` (bare) pretty-prints the whole file; `aq config get
+  <dotted.key>` prints one value (scalar, or a nested section as JSON);
+  `aq config set <dotted.key> <value>` writes it; `aq config keys
+  [<dotted.prefix>]` lists every leaf key path for discoverability in a
+  file this deeply nested. `aq lean` is the identical tool for `lean.json`.
+- **Deliberately unrestricted** — `set` can target list/dict paths too
+  (e.g. `phase_v2.retraining.eligible_severities`), not just scalars; the
+  value is parsed as JSON first (`true`/`123`/`0.5`/`["a","b"]`/`{...}`
+  become their real types automatically), falling back to a plain string
+  only when it isn't valid JSON on its own.
+- **Safety via transparency, not restriction:** every `set` backs up the
+  pre-write file to `<file>.json.bak` first (`config.json.bak`/
+  `lean.json.bak`, both added to `.gitignore`) and always prints old → new
+  so a mistake is immediately visible; a type change (e.g. bool → string)
+  prints a warning to stderr but still writes the value — full access was
+  the explicit requirement, not a safe subset with guardrails.
+- Small fix found while wiring this in: `aq retrain`'s stage `choices`
+  list had `train_topology` but not `train_gating`, even though
+  `retraining/orchestrator.py`'s own CLI subparser for it already existed
+  from the previous session's work — `aq retrain train_gating ...` was
+  unreachable. Added.
+- New tests: `tests/test_aq_cli.py` (+18: 12 for `aq config`'s full
+  behavior matrix, 6 for `aq lean`'s wiring — the shared dispatch logic's
+  edge cases are already covered by the `config` tests, so `lean`'s tests
+  only confirm it's pointed at the right file/attribute).
+
+**`analyzer/market_analyzer.py` gains real composite scoring (additive,
+config-gated).** Previously pure if/elif routing — every priority tier
+checked exactly one raw field in isolation against a fixed threshold, no
+aggregation anywhere. New `compute_signal_quality_score(confidence,
+regime_confidence, topology, liquidity)` computes a real bounded `[0,1]`
+weighted composite (confidence 0.45, regime confidence 0.20, topology
+peer-support 0.20 — penalized when `topology_risk` is
+`isolated`/`elevated` — liquidity friction 0.15 — penalized by
+`participation_rate`), mirroring `moe/gating.py`'s
+`_quality_multiplier`/`_performance_score` style: real math over
+already-available fields, not a trained model.
+
+- `MarketAnalysisDecision` gains `signal_quality_score`/
+  `signal_quality_breakdown` fields, **always** computed and populated on
+  every decision regardless of any flag — visible in
+  `visualization/state.json` immediately.
+- Only changes routing when the new
+  `phase_v2.market_analyzer.use_composite_signal_score` flag is explicitly
+  `true` (default `false`) — in that case the composite score replaces raw
+  `confidence` in the `trade` gate (priority 7) and the
+  `simulate`-vs-`observe` split (priority 8) only. The hard safety-override
+  tiers (trade-lock, `risk_off` regime, elevated topology, liquidity
+  blocked — priorities 1-6) are **never** affected, regardless of the
+  flag — same reasoning as the pre-existing topology-elevated/isolated
+  rules staying deterministic.
+- Default `false` means output is byte-identical to pre-this-change
+  behavior everywhere the flag isn't explicitly turned on — confirmed by
+  every one of the 21 pre-existing tests in `tests/test_market_analyzer.py`
+  passing completely unchanged, with zero edits to any of them.
+- New tests: `tests/test_market_analyzer.py` (+11: 7 pure-function tests
+  for `compute_signal_quality_score()`, 1 confirming the score is always
+  populated even with the flag off, 3 confirming the flag can both
+  downgrade a `trade` to `simulate` and upgrade a `simulate` to `trade` —
+  only when explicitly enabled, never by default).
+- Docs: `analyzer/README.md` new section explaining the composite score
+  and its config gate; `moe/gating.py`'s `_quality_multiplier`/
+  `_performance_score` style is the explicit precedent cited, not a novel
+  pattern.
