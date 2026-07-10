@@ -155,6 +155,52 @@ def test_train_multitask_only_leaves_active_ml_unchanged_when_trainer_skips_arti
     copy_mock.assert_not_called()
 
 
+def test_train_sequence_only_invokes_train_sequence_py_with_generated_version_id():
+    # --sequence-only mirrors --multitask-only/--gating-only exactly (see
+    # aq_cli._train_sequence_only) - shells out to train_sequence.py
+    # separately, tested on its own rather than via _parse_and_dispatch.
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--sequence-only"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli.uuid.uuid4", return_value="fixed-uuid"), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("shutil.copy2") as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    argv = run_mock.call_args.args[0]
+    assert argv[:2] == [sys.executable, "train_sequence.py"]
+    assert argv[2:] == ["--version-id", "sequence-only-fixed-uuid"]
+    assert copy_mock.call_count == 3
+
+
+def test_train_sequence_only_propagates_trainer_failure_without_copying():
+    run_mock = MagicMock(return_value=1)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--sequence-only"])
+
+    with patch("aq_cli._run", run_mock), patch("shutil.copy2") as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 1
+    copy_mock.assert_not_called()
+
+
+def test_train_sequence_only_leaves_active_ml_unchanged_when_trainer_skips_artifacts():
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--sequence-only"])
+
+    with patch("aq_cli._run", run_mock), patch("pathlib.Path.exists", return_value=False), patch(
+        "shutil.copy2"
+    ) as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    copy_mock.assert_not_called()
+
+
 def test_test_wraps_pytest_tests_dir():
     # Deliberately NOT using _parse_and_dispatch: cmd_test funnels through
     # _run_captured, not _run - see this file's module docstring. Also mocks

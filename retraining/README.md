@@ -49,9 +49,11 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
   included in `ACTIVE_ARTIFACT_FILES`/`ALL_TRACKED_FILES` but deliberately
   **not** `REQUIRED_CANDIDATE_FILES`, so a candidate is never rejected for
   missing topology artifacts. `OPTIONAL_GATING_FILES` (`gating_model.json`
-  + 2 more) and `OPTIONAL_MULTITASK_FILES` (`multitask_model.json`,
-  `multitask_feature_schema.json`, `multitask_training_metrics.json`)
-  follow the identical optional/best-effort contract.
+  + 2 more), `OPTIONAL_MULTITASK_FILES` (`multitask_model.json`,
+  `multitask_feature_schema.json`, `multitask_training_metrics.json`) and
+  `OPTIONAL_SEQUENCE_FILES` (`sequence_model.json`,
+  `sequence_feature_schema.json`, `sequence_training_metrics.json`, Phase
+  2) all follow the identical optional/best-effort contract.
 - `status_export.py` (IO) — the sole writer of
   `visualization/grafana/retraining_status.json`.
 - `orchestrator.py` — `plan`/`train`/`validate`/`backtest`/`commit`/
@@ -61,14 +63,16 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
   `train_topology`, a second, independently-failable subprocess
   (`../train_topology.py --version-id <id>`) run between `train` and
   `validate` — its failure is logged as a note and never rejects the
-  candidate. `train_gating` (`../train_gating.py`) and `train_multitask`
+  candidate. `train_gating` (`../train_gating.py`), `train_multitask`
   (`../train_multitask.py`, the joint direction+magnitude+volatility
-  trainer — see `inference/README.md`/`moe/README.md`/`risk/README.md`)
-  are two more independently-failable subprocess stages with the exact
-  same best-effort contract, run right after `train_topology`.
+  trainer) and `train_sequence` (`../train_sequence.py`, the Phase 2
+  causal-TCN sequence encoder — see `inference/README.md`/`moe/README.md`/
+  `risk/README.md`) are three more independently-failable subprocess
+  stages with the exact same best-effort contract, run right after
+  `train_topology` in that order.
 - `worker.py` — `RetrainingWorker`, a continuous loop through the same
-  stages (now including `train_topology`, `train_gating` and
-  `train_multitask`), toggled by `phase_v2.retraining.enabled`.
+  stages (now including `train_topology`, `train_gating`, `train_multitask`
+  and `train_sequence`), toggled by `phase_v2.retraining.enabled`.
 
 ## Running it
 

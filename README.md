@@ -219,15 +219,43 @@ change for this to become a genuinely low-latency/HFT system — see
 multi-task model (`train.py::AetherNetMultiTask`, trained by
 `train_multitask.py`) predicts next-day direction, return magnitude and
 volatility jointly from one shared trunk — the direction-only baseline and
-experts are unchanged and still ship independently. When present,
-`main.py` runs it alongside the baseline/expert models and threads
-`predicted_return_magnitude`/`predicted_volatility` through the market
-analyzer (informational only, never changes routing) and, opt-in via
+experts are unchanged and still ship independently. All 4 experts also
+have their own optional multitask heads (`train.py::_train_expert_multitask()`),
+so `moe/gating.py` blends per-expert magnitude/volatility with a
+baseline-scale anchor the same weighted-average way it already blends
+direction. `main.py` threads the resulting `predicted_return_magnitude`/
+`predicted_volatility` through the market analyzer (informational only,
+never changes routing) and, opt-in via
 `phase_v2.dynamic_risk.use_predicted_volatility`, into position sizing —
 replacing the backward-looking `rolling_volatility_20d` average with an
-actual forward-looking forecast for that one calculation. See
-`inference/README.md`, `moe/README.md` and `risk/README.md` for the full
-contract.
+actual forward-looking forecast for that one calculation.
+
+**Regime, liquidity and topology are now genuine model input features,
+not just downstream consumers of its output.** Model input dimensionality
+grew from 30 to 48: regime one-hot/confidence/trend/risk score, an
+asset-intrinsic liquidity spread/dollar-volume estimate, and cross-asset
+topology correlation/risk state are all computed offline
+(`train.py::add_regime_features()`/`add_liquidity_features()`/
+`build_topology_features_by_date()`) and at runtime
+(`main.py::_build_model_input()`, reordered so regime is computed
+*before* the model runs) with verified train/runtime parity.
+
+**A causal-TCN sequence encoder (Phase 2) now exists alongside the
+flat-MLP trunk**, replacing the "zero temporal structure" limitation the
+original root-cause investigation flagged — `train.py::AetherNetSequenceMultiTask`,
+trained by `train_sequence.py`, over a rolling 30-bar window of
+already-computed model inputs. Informational only this pass
+(`main.py::_run_sequence_model()` — not yet wired into any trading
+decision); see `inference/README.md`'s Phase 2 section for the new
+`_conv1d_causal`/`_multihead_attention`/`_softmax`/`_layernorm_axis`
+interpreter primitives (each independently verified against real PyTorch
+modules).
+
+See `inference/README.md`, `moe/README.md`, `risk/README.md`,
+`regime/README.md`, `liquidity/README.md` and `topology/README.md` for
+the full contracts, and `development/Changelog.md`'s "Multi-task
+prediction" and "Phase 1 remainder + Phase 2" entries for the complete
+writeup.
 
 ## Universe Size
 
@@ -363,6 +391,7 @@ aether-quant/
 ├── train_topology.py            # Offline trainer for the learned topology overlay
 ├── train_gating.py              # Offline trainer for the learned gating blend
 ├── train_multitask.py           # Offline trainer for the joint direction+magnitude+volatility model
+├── train_sequence.py            # Offline trainer for the Phase 2 causal-TCN sequence encoder
 ├── generate_backtest_report.py  # Regenerates this README's Backtest Results section
 ├── aq_cli.py                    # `aq` convenience CLI
 ├── config.json                  # Runtime configuration (phase1 / phase_v2 blocks)
@@ -531,42 +560,125 @@ instead, without waiting on a PyPI release:
 pip install -e .
 ```
 
-Either way, `aq --help` gives the full command list:
+Either way, `aq --help` gives the full command list. Every command except
+`aq trade-lock` and `aq fetch` is a thin `subprocess` wrapper around a
+command already documented elsewhere in this README:
 
+#### `aq train`
 ```text
-aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only]
+aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only]
+```
+Runs `train.py`: builds the dataset and trains the baseline + expert
+models. `--gating-only` trains just the learned gating blend
+(`train_gating.py`) and installs it straight into active `ml/`,
+mirroring what `--experts-only` already does for the expert models — see
+`moe/README.md`. `--multitask-only` does the same for the joint
+direction+magnitude+volatility model (`train_multitask.py`) — see
+`inference/README.md`/`risk/README.md`. `--sequence-only` does the same
+for the Phase 2 causal-TCN sequence encoder (`train_sequence.py`) — see
+`inference/README.md`.
+
+#### `aq test`
+```text
 aq test
+```
+Runs the pytest suite and refreshes this README's test badge.
+
+#### `aq backtest`
+```text
 aq backtest
+```
+Runs `lean backtest .` and refreshes this README's [Backtest Results](#backtest-results) section.
+
+#### `aq report`
+```text
 aq report <backtest-folder> <result-id>
+```
+Generates Lean's own HTML backtest report (trade blotter, standard Lean
+charts) at `backtests/<backtest-folder>/report.html`.
+
+#### `aq api`
+```text
 aq api
+```
+Starts the FastAPI monitoring server on `:8001`.
+
+#### `aq webui`
+```text
 aq webui
+```
+Starts the webui dev server (`npm run dev`).
+
+#### `aq docker`
+```text
 aq docker up [--lean|--all]
 aq docker build
+```
+`up` starts local infrastructure (default: Redis + PostgreSQL only).
+`build` rebuilds the `aether-quant` app image.
+
+#### `aq config`
+```text
 aq config [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
+```
+Reads or edits `config.json` directly, no manual file editing needed.
+Bare `aq config` pretty-prints the whole file; `aq config keys
+[<dotted.prefix>]` lists every leaf key path (handy for finding the right
+key in a deeply nested file); `aq config get <dotted.key>` prints one
+value (scalar, or a whole nested section as JSON); `aq config set
+<dotted.key> <value>` writes it — the value is parsed as JSON first (so
+`true`/`123`/`0.5`/`["a","b"]` become their real types automatically),
+falling back to a plain string otherwise. Every `set` backs up the
+previous file to `config.json.bak` first and prints old → new so a
+mistake is immediately visible; changing a value's type (e.g. bool →
+string) prints a warning but still writes it, since this command
+intentionally gives full access to every key, not just a safe subset.
+
+#### `aq lean`
+```text
 aq lean [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
+```
+The exact same `get`/`set`/`keys` tool as `aq config`, just pointed at
+`lean.json` (the QuantConnect Lean CLI's own config file — broker
+credentials, environments, data providers) instead. `aq lean set
+ib-trading-mode live`, `aq lean keys environments.live-paper`, etc.
+
+#### `aq retrain`
+```text
 aq retrain <plan|train|validate|backtest|commit|promote|rollback|status> [...]
+```
+Dispatches to `python -m retraining.orchestrator <stage> ...` for a
+single manual pipeline stage.
+
+#### `aq trade-lock`
+```text
 aq trade-lock --on|--off|--auto|--status
+```
+Manually overrides `main.py`'s sticky total-drawdown trade lock (see
+`development/v2_architecture.md`'s Manual Trade-Lock Override Contract).
+`--off` deliberately clears an otherwise-permanent lock; `--auto` returns
+to fully automatic behavior.
+
+#### `aq fetch`
+```text
 aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]
+```
+Fetches historical OHLCV from Yahoo Finance for a ticker that isn't in
+`config.json` yet, formats it into Lean's zip/CSV convention, and writes
+it to the right spot under `data/` (`data/crypto/coinbase/daily/<ticker>_trade.zip`
+or `data/equity/usa/daily/<ticker>.zip`). On `--apply`, it also appends a
+new asset block to `config.json`'s `phase1.universe.assets[]` — no manual
+editing needed. Dry run by default (no `--apply`): reports what would
+happen, writes nothing. Never runs `train.py` itself — once applied, run
+`python train.py --dataset-only` (then `python train.py` when ready)
+yourself to actually train on the new ticker. `crypto`/`stock` today; a
+`derivative` asset class is planned for V3.
+
+#### `aq status`
+```text
 aq status
 ```
-
-Every command except `aq trade-lock` and `aq fetch` is a thin `subprocess`
-wrapper around a command already documented elsewhere in this README:
-
-- **`aq train`** — runs `train.py`: builds the dataset and trains the baseline + expert models. `--gating-only` trains just the learned gating blend (`train_gating.py`) and installs it straight into active `ml/`, mirroring what `--experts-only` already does for the expert models — see `moe/README.md`. `--multitask-only` does the same for the joint direction+magnitude+volatility model (`train_multitask.py`) — see `inference/README.md`/`risk/README.md`.
-- **`aq test`** — runs the pytest suite and refreshes this README's test badge.
-- **`aq backtest`** — runs `lean backtest .` and refreshes this README's [Backtest Results](#backtest-results) section.
-- **`aq report <backtest-folder> <result-id>`** — generates Lean's own HTML backtest report (trade blotter, standard Lean charts) at `backtests/<backtest-folder>/report.html`.
-- **`aq api`** — starts the FastAPI monitoring server on `:8001`.
-- **`aq webui`** — starts the webui dev server (`npm run dev`).
-- **`aq docker up [--lean|--all]`** — starts local infrastructure (default: Redis + PostgreSQL only).
-- **`aq docker build`** — rebuilds the `aether-quant` app image.
-- **`aq config`** — reads or edits `config.json` directly, no manual file editing needed. Bare `aq config` pretty-prints the whole file; `aq config keys [<dotted.prefix>]` lists every leaf key path (handy for finding the right key in a deeply nested file); `aq config get <dotted.key>` prints one value (scalar, or a whole nested section as JSON); `aq config set <dotted.key> <value>` writes it — the value is parsed as JSON first (so `true`/`123`/`0.5`/`["a","b"]` become their real types automatically), falling back to a plain string otherwise. Every `set` backs up the previous file to `config.json.bak` first and prints old → new so a mistake is immediately visible; changing a value's type (e.g. bool → string) prints a warning but still writes it, since this command intentionally gives full access to every key, not just a safe subset.
-- **`aq lean`** — the exact same `get`/`set`/`keys` tool as `aq config`, just pointed at `lean.json` (the QuantConnect Lean CLI's own config file — broker credentials, environments, data providers) instead. `aq lean set ib-trading-mode live`, `aq lean keys environments.live-paper`, etc.
-- **`aq retrain <stage>`** — dispatches to `python -m retraining.orchestrator <stage> ...` for a single manual pipeline stage.
-- **`aq trade-lock --on|--off|--auto|--status`** — manually overrides `main.py`'s sticky total-drawdown trade lock (see `development/v2_architecture.md`'s Manual Trade-Lock Override Contract). `--off` deliberately clears an otherwise-permanent lock; `--auto` returns to fully automatic behavior.
-- **`aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]`** — fetches historical OHLCV from Yahoo Finance for a ticker that isn't in `config.json` yet, formats it into Lean's zip/CSV convention, and writes it to the right spot under `data/` (`data/crypto/coinbase/daily/<ticker>_trade.zip` or `data/equity/usa/daily/<ticker>.zip`). On `--apply`, it also appends a new asset block to `config.json`'s `phase1.universe.assets[]` — no manual editing needed. Dry run by default (no `--apply`): reports what would happen, writes nothing. Never runs `train.py` itself — once applied, run `python train.py --dataset-only` (then `python train.py` when ready) yourself to actually train on the new ticker. `crypto`/`stock` today; a `derivative` asset class is planned for V3.
-- **`aq status`** — shows `git status`.
+Shows `git status`.
 
 ## Release Process
 

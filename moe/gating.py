@@ -36,6 +36,8 @@ class ExpertGateWeight:
     regime_alignment: float
     performance_score: float
     reason: str
+    magnitude: float | None = None
+    volatility: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -50,6 +52,8 @@ class GatingDecision:
     disabled_experts: list[str]
     weights: list[ExpertGateWeight]
     decision_source: str
+    final_magnitude: float | None = None
+    final_volatility: float | None = None
 
     def to_dict(self) -> dict:
         payload = asdict(self)
@@ -159,6 +163,25 @@ def build_gating_model_features(
     return features
 
 
+def _weighted_blend(weights: list[ExpertGateWeight], attribute: str) -> float | None:
+    """Same weighted-average pattern expert_probability already uses
+    (weight.weight * value, summed over experts with a non-None value) -
+    generalized here for magnitude/volatility so per-expert multitask
+    heads (train.py::_train_expert_multitask(), optional/best-effort) can
+    blend the same way per-expert direction probabilities already do.
+    Returns None (not 0.0) when no expert has a value at all - a
+    spurious 0.0 would misrepresent "no data" as "predicted zero
+    magnitude/volatility"."""
+    contributions = [
+        (weight.weight, getattr(weight, attribute))
+        for weight in weights
+        if getattr(weight, attribute) is not None
+    ]
+    if not contributions:
+        return None
+    return sum(w * v for w, v in contributions)
+
+
 def build_gating_decision(
     regime: dict,
     expert_training_metrics: dict,
@@ -167,7 +190,13 @@ def build_gating_decision(
     baseline_weight: float = 0.25,
     gating_model: dict | None = None,
     gating_feature_schema: dict | None = None,
+    expert_magnitudes: dict[str, float | None] | None = None,
+    expert_volatilities: dict[str, float | None] | None = None,
+    baseline_magnitude: float | None = None,
+    baseline_volatility: float | None = None,
 ) -> GatingDecision:
+    expert_magnitudes = expert_magnitudes or {}
+    expert_volatilities = expert_volatilities or {}
     weights: list[ExpertGateWeight] = []
     disabled_experts = []
 
@@ -203,6 +232,8 @@ def build_gating_decision(
                 regime_alignment=alignment,
                 performance_score=performance_score,
                 reason=reason,
+                magnitude=expert_magnitudes.get(expert_name),
+                volatility=expert_volatilities.get(expert_name),
             )
         )
 
@@ -211,6 +242,8 @@ def build_gating_decision(
         normalized_weights = weights
         expert_probability = None
         final_probability = baseline_probability_up if baseline_probability_up is not None else 0.5
+        final_magnitude = baseline_magnitude
+        final_volatility = baseline_volatility
         decision_source = "baseline_fallback"
     else:
         normalized_weights = [
@@ -225,6 +258,8 @@ def build_gating_decision(
                 regime_alignment=weight.regime_alignment,
                 performance_score=weight.performance_score,
                 reason=weight.reason,
+                magnitude=weight.magnitude,
+                volatility=weight.volatility,
             )
             for weight in weights
         ]
@@ -233,17 +268,39 @@ def build_gating_decision(
             for weight in normalized_weights
             if weight.probability_up is not None
         )
+        expert_magnitude = _weighted_blend(normalized_weights, "magnitude")
+        expert_volatility = _weighted_blend(normalized_weights, "volatility")
 
+        clamped_baseline_weight = _clamp(baseline_weight, 0.0, 0.90)
         if baseline_probability_up is None:
             final_probability = expert_probability
             decision_source = "experts_only"
         else:
-            clamped_baseline_weight = _clamp(baseline_weight, 0.0, 0.90)
             final_probability = (
                 clamped_baseline_weight * _clamp(baseline_probability_up)
                 + (1.0 - clamped_baseline_weight) * expert_probability
             )
             decision_source = "baseline_and_experts"
+
+        # Magnitude/volatility blend mirrors the probability blend above -
+        # same baseline_weight, same "baseline anchor + expert average"
+        # shape - but falls back to whichever single side actually has a
+        # value instead of a hardcoded default (0.5 makes sense as a
+        # "no-signal" probability; it does not for a return magnitude or a
+        # volatility estimate).
+        if baseline_magnitude is None:
+            final_magnitude = expert_magnitude
+        elif expert_magnitude is None:
+            final_magnitude = baseline_magnitude
+        else:
+            final_magnitude = clamped_baseline_weight * baseline_magnitude + (1.0 - clamped_baseline_weight) * expert_magnitude
+
+        if baseline_volatility is None:
+            final_volatility = expert_volatility
+        elif expert_volatility is None:
+            final_volatility = baseline_volatility
+        else:
+            final_volatility = clamped_baseline_weight * baseline_volatility + (1.0 - clamped_baseline_weight) * expert_volatility
 
     # Optional, additive, always-falls-back learned override - see
     # development/Problems.md and moe/README.md. The hardcoded blend above
@@ -252,6 +309,10 @@ def build_gating_decision(
     # topology/learned_topology.py's per-node fallback isolation: a
     # degraded/missing learned model must never crash a bar or block a
     # decision, only silently forfeit the improvement it would have added).
+    # Deliberately direction-only: the learned gating model
+    # (train_gating.py) predicts a single probability, not
+    # magnitude/volatility, so final_magnitude/final_volatility are
+    # unaffected by this override regardless of decision_source.
     if gating_model and gating_feature_schema:
         try:
             feature_vector = build_gating_model_features(regime, baseline_probability_up, normalized_weights)
@@ -268,4 +329,6 @@ def build_gating_decision(
         disabled_experts=disabled_experts,
         weights=normalized_weights,
         decision_source=decision_source,
+        final_magnitude=final_magnitude,
+        final_volatility=final_volatility,
     )

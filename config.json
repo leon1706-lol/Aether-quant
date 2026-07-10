@@ -243,7 +243,13 @@
                 "momentum_20d",
                 "high_low_range_pct",
                 "open_close_range_pct",
-                "volume_change_1d"
+                "volume_change_1d",
+                "regime_signal_confidence",
+                "regime_signal_trend_score",
+                "regime_signal_risk_score",
+                "liquidity_log_dollar_volume",
+                "liquidity_spread_proxy",
+                "topology_correlation_strength"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference."
         },
@@ -342,6 +348,10 @@
         },
         "multitask_model": {
             "enabled": true
+        },
+        "sequence_model": {
+            "enabled": true,
+            "window_size": 30
         },
         "market_analyzer": {
             "retrain_min_regime_confidence": 0.2,
@@ -498,7 +508,10 @@
                     "gating_training_metrics.json",
                     "multitask_model.json",
                     "multitask_feature_schema.json",
-                    "multitask_training_metrics.json"
+                    "multitask_training_metrics.json",
+                    "sequence_model.json",
+                    "sequence_feature_schema.json",
+                    "sequence_training_metrics.json"
                 ],
                 "auto_clear_trade_lock": true
             },
@@ -552,6 +565,33 @@
                 "batch_size": 64,
                 "epochs": 120,
                 "patience": 18,
+                "decision_threshold": 0.5,
+                "optimize_threshold_metric": "mcc",
+                "threshold_search_min": 0.35,
+                "threshold_search_max": 0.65,
+                "threshold_search_steps": 61,
+                "magnitude_loss_weight": 1.0,
+                "volatility_loss_weight": 1.0,
+                "seed": 42
+            },
+            "sequence_training": {
+                "enabled": true,
+                "timeout_seconds": 1800,
+                "min_train_rows": 200,
+                "min_validation_rows": 30,
+                "min_backtest_rows": 30,
+                "window_size": 30,
+                "channels": [
+                    32,
+                    32
+                ],
+                "kernel_size": 3,
+                "dropout": 0.15,
+                "learning_rate": 0.0007,
+                "weight_decay": 0.0001,
+                "batch_size": 64,
+                "epochs": 60,
+                "patience": 10,
                 "decision_threshold": 0.5,
                 "optimize_threshold_metric": "mcc",
                 "threshold_search_min": 0.35,

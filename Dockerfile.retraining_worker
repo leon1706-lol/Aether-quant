@@ -16,4 +16,5 @@ COPY train.py .
 COPY train_topology.py .
 COPY train_gating.py .
 COPY train_multitask.py .
+COPY train_sequence.py .
 CMD ["python", "-m", "retraining.worker"]

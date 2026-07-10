@@ -41,6 +41,40 @@ rate over a rolling window (explicitly excluding `simulate_instead`, which
 is observation-mode routing, not a liquidity problem) and can flag
 `retrain_candidate=true` for V2-17 to pick up.
 
+## Genuine model input feature (Phase 1 remainder)
+
+Two asset-intrinsic liquidity quantities are now genuine model *inputs*,
+not just downstream consumers of the model's own prediction — see
+`regime/README.md`/`topology/README.md` for the matching story on those
+two subsystems.
+
+- `train.py::add_liquidity_features()` adds `liquidity_log_dollar_volume`
+  (log1p of `close × volume`) and `liquidity_spread_proxy` (this module's
+  own `estimate_high_low_spread()`, over a trailing 25-bar window, static
+  fallback for the first bar) as new scaled continuous model inputs.
+  **Deliberately excludes `participation_rate`/`estimated_slippage`** —
+  both need an assumed order size (`target_weight × portfolio_value`),
+  which has no principled offline value before any sizing decision
+  exists; feeding a made-up order size in as a training feature would be
+  circular. A documented adaptation of the original plan text, not an
+  oversight.
+- **Must run on the raw per-asset frame, before `train.py::engineer_features()`** —
+  a real off-by-one bug was found and fixed here during development:
+  `engineer_features()` always drops each asset's first raw row (no
+  previous close to compute a return from), so calling
+  `add_liquidity_features()` *after* it meant `spread_proxy`'s trailing
+  window was silently missing the true first bar for roughly each asset's
+  first 25 rows — a real discrepancy from `main.py`'s live
+  `self.symbol_windows`, which does include that bar (high/low pairs,
+  unlike returns, are legitimately usable from the very first raw bar).
+  Confirmed via a standalone train/runtime parity script before and after
+  the fix (mismatch → exact match). See `development/Changelog.md`'s
+  "Phase 1 remainder + Phase 2" entry for the full writeup.
+- `main.py::_build_model_input()` computes the same spread estimate once,
+  before running any model, and the later `build_liquidity_decision()`
+  call (the real sizing/liquidity decision) reuses that exact value
+  instead of recomputing it a second time.
+
 **V2-23.1, closed.** The original plan was to calibrate the spread proxy
 from real historical fill/slippage data once the experience pipeline
 (V2-13/14) accumulated enough history. A deeper look found that premise had

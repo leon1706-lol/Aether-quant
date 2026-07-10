@@ -314,6 +314,54 @@ def train_multitask(conn, retraining_id: str, version_id: str, config: dict, tim
     return {"ok": True, "version_id": version_id, "stdout": result.stdout}
 
 
+def train_sequence(conn, retraining_id: str, version_id: str, config: dict, timeout_seconds: int | None = None) -> dict:
+    """Runs `python train_sequence.py --version-id <id>` as a fifth,
+    independently-failable subprocess (Phase 2), right after
+    train_multitask(). Same best-effort contract as the other optional
+    stages: a failure here is logged and swallowed - it never rejects the
+    primary candidate model_version. sequence_model.json etc. are optional
+    artifacts (see retraining/artifacts.py's OPTIONAL_SEQUENCE_FILES)
+    precisely so this stage can fail without blocking the primary model.
+    """
+    sequence_config = config.get("sequence_training", {})
+    if not sequence_config.get("enabled", True):
+        return {"ok": False, "version_id": version_id, "reason": "sequence_training_disabled"}
+
+    timeout_seconds = timeout_seconds or int(sequence_config.get("timeout_seconds", 1800))
+    train_sequence_script = ROOT_DIR / "train_sequence.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(train_sequence_script), "--version-id", version_id],
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
+        logger.warning("train_sequence: subprocess failed to launch for %s - %s", version_id, exc)
+        update_retraining_event_status(
+            conn, retraining_id, status="running", notes=[{"stage": "train_sequence", "error": str(exc)}]
+        )
+        return {"ok": False, "version_id": version_id, "error": str(exc)}
+
+    if result.returncode != 0:
+        logger.warning(
+            "train_sequence: candidate %s sequence training failed (rc=%d) - continuing without it.",
+            version_id,
+            result.returncode,
+        )
+        update_retraining_event_status(
+            conn,
+            retraining_id,
+            status="running",
+            notes=[{"stage": "train_sequence", "returncode": result.returncode, "stderr": result.stderr[-2000:]}],
+        )
+        return {"ok": False, "version_id": version_id, "error": result.stderr}
+
+    logger.info("train_sequence: candidate %s sequence model trained (or skipped for insufficient data).", version_id)
+    return {"ok": True, "version_id": version_id, "stdout": result.stdout}
+
+
 def validate(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     version_dir = candidate_dir(version_id)
     present, missing = check_required_artifacts(version_dir)
@@ -542,6 +590,10 @@ def main() -> None:
     train_multitask_parser.add_argument("--retraining-id", required=True)
     train_multitask_parser.add_argument("--version-id", required=True)
 
+    train_sequence_parser = subparsers.add_parser("train_sequence")
+    train_sequence_parser.add_argument("--retraining-id", required=True)
+    train_sequence_parser.add_argument("--version-id", required=True)
+
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--retraining-id", required=True)
     validate_parser.add_argument("--version-id", required=True)
@@ -577,6 +629,8 @@ def main() -> None:
             print(json.dumps(train_gating(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "train_multitask":
             print(json.dumps(train_multitask(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
+        elif args.stage == "train_sequence":
+            print(json.dumps(train_sequence(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "validate":
             print(json.dumps(validate(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "backtest":

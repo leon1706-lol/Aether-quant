@@ -39,7 +39,7 @@ from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
-from liquidity import build_liquidity_decision, estimate_high_low_spread
+from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 from experience import (
     ExperienceQueue,
@@ -51,7 +51,7 @@ from experience import (
 from execution import credentials_present, evaluate_broker_config, resolve_order_permission, resolve_runtime_mode
 from execution.live_credentials_io import load_live_credentials
 from execution.paper_readiness_io import read_paper_trading_config
-from inference import run_exported_model, run_exported_multitask_model
+from inference import run_exported_model, run_exported_multitask_model, run_exported_sequence_multitask_model
 from performance import evaluate_all_triggers
 
 
@@ -92,6 +92,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.gating_feature_schema_path = self.root_path / "ml" / "gating_feature_schema.json"
         self.multitask_model_path = self.root_path / "ml" / "multitask_model.json"
         self.multitask_feature_schema_path = self.root_path / "ml" / "multitask_feature_schema.json"
+        self.sequence_model_path = self.root_path / "ml" / "sequence_model.json"
+        self.sequence_feature_schema_path = self.root_path / "ml" / "sequence_feature_schema.json"
 
         self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
@@ -153,6 +155,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         self.base_feature_names = list(self.feature_schema["feature_names"])
         self.scaled_feature_names = list(self.feature_schema["scaled_feature_names"])
+        self.categorical_feature_names = list(self.feature_schema.get("categorical_feature_names", []))
         self.context_feature_names = list(self.feature_schema.get("context_feature_names", []))
         self.model_input_names = list(self.feature_schema.get("model_input_names", self.scaled_feature_names))
 
@@ -243,6 +246,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.learned_topology_model, self.learned_topology_feature_schema = self._load_learned_topology_model()
         self.gating_model, self.gating_feature_schema = self._load_gating_model()
         self.multitask_model, self.multitask_feature_schema = self._load_multitask_model()
+        self.expert_multitask_model_exports = self._load_expert_multitask_exports()
+
+        # Phase 2 (sequence encoder, additive/informational-only this
+        # pass): a per-symbol rolling buffer of already-computed flat
+        # model_inputs vectors (see _build_model_input()) - reusing that
+        # vector directly, not recomputing regime/liquidity/topology per
+        # historical bar, matches train.py::build_sequence_tensor_dataset()'s
+        # exact offline windowing (see train_sequence.py). Deliberately a
+        # SEPARATE buffer from self.symbol_windows (raw OHLCV, sized to
+        # match train.py's CROSS_SECTIONAL_WINDOW_BARS for Stage 1-3
+        # feature parity) rather than reusing/resizing it - changing
+        # symbol_windows' length would silently break that parity.
+        phase_v2_sequence = self.phase_v2.get("sequence_model", {})
+        self.sequence_model_enabled = bool(phase_v2_sequence.get("enabled", True))
+        self.sequence_window_size = int(phase_v2_sequence.get("window_size", 30))
+        self.sequence_model, self.sequence_feature_schema = self._load_sequence_model()
+        self.symbol_feature_history = {symbol: deque(maxlen=self.sequence_window_size) for symbol in self.symbols}
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
         self._liquidity_thresholds = {
             "thin_participation_threshold": float(phase_v2_liquidity.get("thin_participation_threshold", 0.002)),
@@ -324,7 +344,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 }
             )
 
-            feature_payload = self._build_model_input(symbol)
+            topology_payload = topology_by_symbol.get(str(symbol))
+            feature_payload = self._build_model_input(symbol, topology_payload)
             signal_payload = {
                 "ticker": self.asset_lookup[str(symbol)]["ticker"],
                 "security_type": self.asset_lookup[str(symbol)]["security_type"],
@@ -345,15 +366,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             if feature_payload["ready"] and not self.is_warming_up:
                 baseline_probability_up = self._run_model(feature_payload["model_inputs"])
-                topology_payload = topology_by_symbol.get(str(symbol))
-                regime_payload = self._build_regime_payload(
-                    feature_payload["base_features"],
-                    average_correlation=float((topology_payload or {}).get("correlation_strength", 0.0)),
-                )
+                # Computed inside _build_model_input(), before this model
+                # even ran, since regime is now a genuine model input, not
+                # just a downstream consumer of its output - reused here
+                # rather than recomputed, so the value gating/analyzer/
+                # dashboard see always matches what the model actually saw.
+                regime_payload = feature_payload["regime_payload"]
+                # Phase 2 (informational only - never feeds sizing/gating
+                # this pass, see _run_sequence_model()'s docstring):
+                # append this bar's flat model_inputs to the rolling
+                # per-symbol buffer BEFORE reading it, so the sequence
+                # model's most-recent timestep is always the current bar,
+                # matching train.py::build_sequence_tensor_dataset()'s
+                # row-includes-itself windowing.
+                if self.sequence_model_enabled:
+                    self.symbol_feature_history.setdefault(
+                        symbol, deque(maxlen=self.sequence_window_size)
+                    ).append(feature_payload["model_inputs"])
+                sequence_prediction = self._run_sequence_model(symbol)
                 expert_probabilities = self._run_expert_models(feature_payload["model_inputs"])
                 multitask_payload = self._run_multitask_model(feature_payload["model_inputs"])
-                predicted_return_magnitude = multitask_payload.get("magnitude") if multitask_payload else None
-                predicted_volatility = multitask_payload.get("volatility") if multitask_payload else None
+                baseline_magnitude = multitask_payload.get("magnitude") if multitask_payload else None
+                baseline_volatility = multitask_payload.get("volatility") if multitask_payload else None
+                expert_magnitudes, expert_volatilities = self._run_expert_multitask_models(feature_payload["model_inputs"])
                 gating_payload = build_gating_decision(
                     regime=regime_payload,
                     expert_training_metrics=self.expert_training_metrics,
@@ -362,8 +397,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     baseline_weight=self.gating_baseline_weight,
                     gating_model=self.gating_model,
                     gating_feature_schema=self.gating_feature_schema,
+                    expert_magnitudes=expert_magnitudes,
+                    expert_volatilities=expert_volatilities,
+                    baseline_magnitude=baseline_magnitude,
+                    baseline_volatility=baseline_volatility,
                 ).to_dict()
                 probability_up = float(gating_payload["final_probability_up"])
+                # Same gating-blended treatment probability_up already gets
+                # (baseline anchor + per-expert weighted average, not just
+                # the raw single-model prediction) - see
+                # moe/gating.py::_weighted_blend()/moe/README.md.
+                predicted_return_magnitude = gating_payload.get("final_magnitude")
+                predicted_volatility = gating_payload.get("final_volatility")
                 signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
                 sizing_payload = self._build_dynamic_sizing_payload(
                     signal_name,
@@ -375,14 +420,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
                 target_weight = float(sizing_payload["target_weight"])
                 asset = self.asset_lookup[str(symbol)]
-                dynamic_spread = None
-                if self._spread_estimation_enabled:
-                    symbol_bars = list(self.symbol_windows[symbol])
-                    if len(symbol_bars) >= self._spread_estimation_min_bars:
-                        dynamic_spread = estimate_high_low_spread(
-                            [bar_data["high"] for bar_data in symbol_bars],
-                            [bar_data["low"] for bar_data in symbol_bars],
-                        )
+                # Reuses the exact same spread estimate _build_model_input()
+                # already computed and fed to the model as
+                # liquidity_spread_proxy, rather than recomputing it here -
+                # one estimate per bar, consistently used everywhere.
                 liquidity_payload = build_liquidity_decision(
                     close=float(bar.close),
                     volume=float(bar.volume),
@@ -390,7 +431,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     portfolio_value=float(self.Portfolio.TotalPortfolioValue),
                     annualized_volatility=float(sizing_payload.get("annualized_volatility", 0.0)),
                     security_type=str(asset.get("security_type", "equity")),
-                    dynamic_spread=dynamic_spread,
+                    dynamic_spread=feature_payload.get("liquidity_spread_proxy"),
                     **self._liquidity_thresholds,
                 ).to_dict()
                 if liquidity_payload["recommended_action"] == "reduce_size":
@@ -440,6 +481,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "expert_probabilities": expert_probabilities,
                         "predicted_return_magnitude": predicted_return_magnitude,
                         "predicted_volatility": predicted_volatility,
+                        # Phase 2 sequence-encoder signal - informational
+                        "sequence_model": sequence_prediction,
                         "moe_gating": gating_payload,
                         "base_target_weight": base_target_weight,
                         "target_weight": target_weight,
@@ -517,6 +560,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Debug(f"Expert export load failed for {expert_name}: {error}")
         return exports
 
+    def _load_expert_multitask_exports(self) -> dict:
+        """Optional per-expert multitask (direction+magnitude+volatility)
+        exports (train.py::_train_expert_multitask(), best-effort - not
+        every expert necessarily has enough rows to train one). Same
+        graceful-degrade contract as _load_expert_model_exports(): a
+        missing or malformed multitask_model.json for one expert just
+        means that expert contributes no magnitude/volatility to
+        moe/gating.py's blend, never a hard failure."""
+        exports = {}
+        if not self.expert_model_dir.exists() or not self.multitask_model_enabled:
+            return exports
+
+        for expert_name in EXPERT_NAMES:
+            weights_path = self.expert_model_dir / expert_name / "multitask_model.json"
+            if weights_path.exists():
+                try:
+                    exports[expert_name] = self._load_json(weights_path)
+                except Exception as error:
+                    self.Debug(f"Expert multitask export load failed for {expert_name}: {error}")
+        return exports
+
     def _load_learned_topology_model(self) -> tuple[dict | None, dict | None]:
         """Optional artifact pair (V2-17.5) - graceful/best-effort like
         _load_expert_model_exports(), never like _validate_runtime_artifacts()'s
@@ -570,6 +634,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.Debug(f"Multitask model load failed: {error}")
             return None, None
 
+    def _load_sequence_model(self) -> tuple[dict | None, dict | None]:
+        """Optional artifact pair (train_sequence.py, Phase 2), identical
+        fallback contract to _load_multitask_model(): missing/malformed
+        files just mean the sequence-model signal stays absent from
+        signal_payload - informational only this pass (see on_data()'s
+        sequence_prediction threading), never a hard failure and never a
+        trading-decision input yet."""
+        if not self.sequence_model_enabled:
+            return None, None
+        if not self.sequence_model_path.exists() or not self.sequence_feature_schema_path.exists():
+            return None, None
+        try:
+            model = self._load_json(self.sequence_model_path)
+            feature_schema = self._load_json(self.sequence_feature_schema_path)
+            return model, feature_schema
+        except Exception as error:
+            self.Debug(f"Sequence model load failed: {error}")
+            return None, None
+
     def _validate_runtime_artifacts(self) -> None:
         required_paths = [
             self.root_path / "config.json",
@@ -610,13 +693,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.debug(f"{ticker} subscription skipped: {error}")
             return None
 
-    def _build_model_input(self, symbol) -> dict:
+    def _build_model_input(self, symbol, topology_payload: dict | None = None) -> dict:
+        """Builds the full model input vector - the original 10 price/
+        volume-derived features, plus regime/liquidity/topology as genuine
+        input features (Phase 1 remainder, not just downstream consumers of
+        the model's own output - see train.py::build_feature_dataset()'s
+        matching offline reconstruction and development/Changelog.md).
+
+        topology_payload must be this bar's already-computed node (from
+        self.latest_topology_payload, built once per bar before the symbol
+        loop in on_data()) - topology needs no reordering, it was already
+        available before model inference. Regime is computed here, inside
+        this method, specifically so it exists *before* the model runs -
+        previously it was only computed after, purely for gating/analyzer/
+        dashboard consumption.
+        """
         bars = list(self.symbol_windows[symbol])
         if len(bars) < 2:
             return {"ready": False, "reason": f"Need 2 bars, have {len(bars)}"}
 
         closes = [bar["close"] for bar in bars]
         volumes = [bar["volume"] for bar in bars]
+        highs = [bar["high"] for bar in bars]
+        lows = [bar["low"] for bar in bars]
         current = bars[-1]
 
         daily_returns = []
@@ -647,12 +746,72 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "volume_change_1d": 0.0 if previous_volume == 0 else current["volume"] / previous_volume - 1.0,
         }
 
+        topology_payload = topology_payload or {}
+        regime_payload = self._build_regime_payload(
+            base_features,
+            average_correlation=float(topology_payload.get("correlation_strength", 0.0) or 0.0),
+        )
+
+        # Same asset-intrinsic spread estimate build_liquidity_decision()
+        # will use later for the real sizing/liquidity decision (reused
+        # verbatim via feature_payload["liquidity_spread_proxy"] below, not
+        # recomputed) - no order-size assumption needed, unlike
+        # participation_rate/estimated_slippage, which is why only this
+        # piece of liquidity/market_liquidity.py's output becomes a model
+        # input (see train.py::add_liquidity_features()'s docstring).
+        dynamic_spread = None
+        if self._spread_estimation_enabled and len(bars) >= self._spread_estimation_min_bars:
+            dynamic_spread = estimate_high_low_spread(highs, lows)
+        if dynamic_spread is None:
+            asset_for_spread = self.asset_lookup[str(symbol)]
+            dynamic_spread = TYPICAL_SPREAD_BY_TYPE.get(str(asset_for_spread.get("security_type", "equity")), 0.001)
+
+        base_features["regime_signal_confidence"] = float(regime_payload.get("confidence", 0.0) or 0.0)
+        base_features["regime_signal_trend_score"] = float(regime_payload.get("trend_score", 0.0) or 0.0)
+        base_features["regime_signal_risk_score"] = float(regime_payload.get("risk_score", 0.0) or 0.0)
+        base_features["liquidity_log_dollar_volume"] = math.log1p(max(current["close"] * current["volume"], 0.0))
+        base_features["liquidity_spread_proxy"] = float(dynamic_spread)
+        base_features["topology_correlation_strength"] = float(topology_payload.get("correlation_strength", 0.0) or 0.0)
+
         scaled_features = {}
         for index, base_name in enumerate(self.base_feature_names):
             scaled_name = self.scaled_feature_names[index]
             mean_value = float(self.scaler_stats["mean"][index])
             scale_value = float(self.scaler_stats["scale"][index]) if float(self.scaler_stats["scale"][index]) != 0 else 1.0
             scaled_features[scaled_name] = (base_features[base_name] - mean_value) / scale_value
+
+        # Regime/topology one-hots - unscaled, same treatment as the asset
+        # context flags below (already-bounded [0,1], no StandardScaler
+        # needed). Matches train.py::_categorical_feature_names() exactly.
+        categorical_values = {feature_name: 0.0 for feature_name in self.categorical_feature_names}
+        for label, key in (
+            ("bullish", "regime_trend_bullish"),
+            ("bearish", "regime_trend_bearish"),
+            ("sideways", "regime_trend_sideways"),
+        ):
+            if key in categorical_values and regime_payload.get("trend_regime") == label:
+                categorical_values[key] = 1.0
+        for label, key in (
+            ("low_volatility", "regime_volatility_low"),
+            ("normal_volatility", "regime_volatility_normal"),
+            ("high_volatility", "regime_volatility_high"),
+        ):
+            if key in categorical_values and regime_payload.get("volatility_regime") == label:
+                categorical_values[key] = 1.0
+        for label, key in (
+            ("risk_on", "regime_risk_on"),
+            ("risk_off", "regime_risk_off"),
+            ("risk_neutral", "regime_risk_neutral"),
+        ):
+            if key in categorical_values and regime_payload.get("risk_regime") == label:
+                categorical_values[key] = 1.0
+        for label, key in (
+            ("normal", "topology_risk_normal"),
+            ("elevated", "topology_risk_elevated"),
+            ("isolated", "topology_risk_isolated"),
+        ):
+            if key in categorical_values and topology_payload.get("topology_risk") == label:
+                categorical_values[key] = 1.0
 
         context_values = {feature_name: 0.0 for feature_name in self.context_feature_names}
         asset = self.asset_lookup[str(symbol)]
@@ -664,6 +823,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         for feature_name in self.model_input_names:
             if feature_name in scaled_features:
                 model_inputs.append(float(scaled_features[feature_name]))
+            elif feature_name in categorical_values:
+                model_inputs.append(float(categorical_values[feature_name]))
             else:
                 model_inputs.append(float(context_values.get(feature_name, 0.0)))
 
@@ -672,8 +833,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "reason": "ok",
             "base_features": base_features,
             "scaled_features": scaled_features,
+            "categorical_features": categorical_values,
             "context_features": context_values,
             "model_inputs": model_inputs,
+            "regime_payload": regime_payload,
+            "liquidity_spread_proxy": float(dynamic_spread),
         }
 
     def _run_model(self, inputs: list[float]) -> float:
@@ -704,6 +868,58 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return run_exported_multitask_model(self.multitask_model, inputs)
         except Exception as error:
             self.Debug(f"Multitask inference failed: {error}")
+            return None
+
+    def _run_expert_multitask_models(self, inputs: list[float]) -> tuple[dict, dict]:
+        """Per-expert magnitude/volatility, parallel to _run_expert_models()'s
+        per-expert probability_up dict - feeds moe/gating.py's
+        final_magnitude/final_volatility weighted blend (see
+        moe/README.md). A missing or failed expert just contributes None
+        to both dicts, same per-expert graceful-degradation contract as
+        _run_expert_models()."""
+        magnitudes: dict[str, float | None] = {}
+        volatilities: dict[str, float | None] = {}
+        for expert_name in EXPERT_NAMES:
+            model_export = self.expert_multitask_model_exports.get(expert_name)
+            if not model_export:
+                magnitudes[expert_name] = None
+                volatilities[expert_name] = None
+                continue
+            try:
+                result = run_exported_multitask_model(model_export, inputs)
+                magnitudes[expert_name] = result.get("magnitude")
+                volatilities[expert_name] = result.get("volatility")
+            except Exception as error:
+                magnitudes[expert_name] = None
+                volatilities[expert_name] = None
+                self.Debug(f"Expert multitask inference failed for {expert_name}: {error}")
+        return magnitudes, volatilities
+
+    def _run_sequence_model(self, symbol) -> dict | None:
+        """Phase 2: runs the optional causal-TCN sequence encoder
+        (train_sequence.py/AetherNetSequenceMultiTask) over this symbol's
+        rolling buffer of already-computed flat model_inputs vectors
+        (self.symbol_feature_history, appended once per bar right after
+        _build_model_input() - see on_data()). Left-pads with zero vectors
+        when fewer than self.sequence_window_size bars of history exist
+        yet, matching train.py::build_sequence_tensor_dataset()'s exact
+        offline zero-padding convention.
+
+        Informational only this pass, same graceful-degradation contract
+        as _run_multitask_model(): returns None on any failure or when no
+        model is loaded, never raises, never blocks a bar."""
+        if not self.sequence_model:
+            return None
+        history = self.symbol_feature_history.get(symbol)
+        if not history:
+            return None
+        try:
+            input_width = len(history[0])
+            padding_needed = self.sequence_window_size - len(history)
+            sequence = [[0.0] * input_width for _ in range(max(0, padding_needed))] + list(history)
+            return run_exported_sequence_multitask_model(self.sequence_model, sequence)
+        except Exception as error:
+            self.Debug(f"Sequence model inference failed for {symbol}: {error}")
             return None
 
     def _derive_signal(self, probability_up: float) -> tuple[str, float, float]:
@@ -1106,6 +1322,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "multitask": {
                     "model_loaded": bool(self.multitask_model),
                     "use_predicted_volatility": self.use_predicted_volatility,
+                },
+                "sequence": {
+                    "model_loaded": bool(self.sequence_model),
+                    "window_size": self.sequence_window_size,
+                    "informational_only": True,
                 },
             },
             "paper_trading": {

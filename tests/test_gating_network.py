@@ -233,3 +233,130 @@ def test_gating_never_raises_on_malformed_learned_model():
 
     assert decision.decision_source == "baseline_and_experts"
     assert 0.0 <= decision.final_probability_up <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# final_magnitude / final_volatility (per-expert multitask blend)
+# ---------------------------------------------------------------------------
+
+
+def test_final_magnitude_and_volatility_default_to_none_when_never_supplied():
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+    )
+
+    assert decision.final_magnitude is None
+    assert decision.final_volatility is None
+    assert all(weight.magnitude is None and weight.volatility is None for weight in decision.weights)
+
+
+def test_final_magnitude_blends_baseline_and_expert_average_with_baseline_weight():
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        baseline_weight=0.25,
+        expert_magnitudes={"bullish": 0.02, "bearish": -0.01, "sideways": 0.0, "volatility": 0.03},
+        expert_volatilities={"bullish": 0.01, "bearish": 0.015, "sideways": 0.005, "volatility": 0.04},
+        baseline_magnitude=0.01,
+        baseline_volatility=0.012,
+    )
+
+    weights_by_expert = {weight.expert: weight.weight for weight in decision.weights}
+    expected_expert_magnitude = sum(
+        weights_by_expert[expert] * value
+        for expert, value in {"bullish": 0.02, "bearish": -0.01, "sideways": 0.0, "volatility": 0.03}.items()
+    )
+    expected_expert_volatility = sum(
+        weights_by_expert[expert] * value
+        for expert, value in {"bullish": 0.01, "bearish": 0.015, "sideways": 0.005, "volatility": 0.04}.items()
+    )
+    expected_magnitude = 0.25 * 0.01 + 0.75 * expected_expert_magnitude
+    expected_volatility = 0.25 * 0.012 + 0.75 * expected_expert_volatility
+
+    assert decision.final_magnitude == pytest.approx(expected_magnitude, abs=1e-9)
+    assert decision.final_volatility == pytest.approx(expected_volatility, abs=1e-9)
+
+
+def test_final_magnitude_falls_back_to_baseline_only_when_no_expert_has_a_value():
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        baseline_magnitude=0.015,
+        baseline_volatility=0.02,
+        # expert_magnitudes/expert_volatilities omitted entirely -> every
+        # ExpertGateWeight.magnitude/volatility stays None.
+    )
+
+    assert decision.final_magnitude == 0.015
+    assert decision.final_volatility == 0.02
+
+
+def test_final_magnitude_falls_back_to_expert_average_when_baseline_missing():
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        expert_magnitudes={"bullish": 0.02, "bearish": -0.01, "sideways": 0.0, "volatility": 0.03},
+        expert_volatilities={"bullish": 0.01, "bearish": 0.015, "sideways": 0.005, "volatility": 0.04},
+        # baseline_probability_up omitted -> decision_source == "experts_only",
+        # baseline_magnitude/baseline_volatility also both None.
+    )
+
+    weights_by_expert = {weight.expert: weight.weight for weight in decision.weights}
+    expected_magnitude = sum(
+        weights_by_expert[expert] * value
+        for expert, value in {"bullish": 0.02, "bearish": -0.01, "sideways": 0.0, "volatility": 0.03}.items()
+    )
+    assert decision.final_magnitude == pytest.approx(expected_magnitude, abs=1e-9)
+
+
+def test_final_magnitude_uses_baseline_when_gate_falls_back_with_no_eligible_experts():
+    metrics = {
+        "experts": {
+            expert: {"quality_gate": {"quality_status": "disabled_for_gating", "gating_eligible": False}}
+            for expert in ("bullish", "bearish", "sideways", "volatility")
+        }
+    }
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish"},
+        expert_training_metrics=metrics,
+        expert_probabilities={"bullish": 0.80},
+        baseline_probability_up=0.61,
+        baseline_magnitude=0.03,
+        baseline_volatility=0.05,
+        expert_magnitudes={"bullish": 0.10},
+        expert_volatilities={"bullish": 0.20},
+    )
+
+    # baseline_fallback: no expert contributed any raw_score, so the
+    # magnitude/volatility blend must ignore expert_magnitudes/
+    # expert_volatilities entirely too, same as it ignores expert
+    # probabilities in this branch.
+    assert decision.decision_source == "baseline_fallback"
+    assert decision.final_magnitude == 0.03
+    assert decision.final_volatility == 0.05
+
+
+def test_expert_gate_weight_carries_magnitude_and_volatility_through():
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        expert_magnitudes={"bullish": 0.02},
+        expert_volatilities={"bullish": 0.01},
+    )
+
+    bullish_weight = next(weight for weight in decision.weights if weight.expert == "bullish")
+    bearish_weight = next(weight for weight in decision.weights if weight.expert == "bearish")
+    assert bullish_weight.magnitude == 0.02
+    assert bullish_weight.volatility == 0.01
+    assert bearish_weight.magnitude is None
+    assert bearish_weight.volatility is None

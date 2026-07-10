@@ -75,4 +75,8 @@ statistic.
   never decide whether it happens" boundary the topology multiplier above
   already established.
 - Wired via `main.py::_build_dynamic_sizing_payload(..., predicted_volatility=...)`,
-  fed by `main.py::_run_multitask_model()`.
+  fed by `gating_payload["final_volatility"]` — the full baseline-anchor-
+  plus-per-expert-weighted-average blend (`moe/gating.py`'s
+  `_weighted_blend()`), not directly from the single baseline-scale
+  multitask model. See `moe/README.md`'s "now routes through gating"
+  section.

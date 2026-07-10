@@ -109,3 +109,37 @@ The goal is to make market structure useful for analysis, not only visual.
   after the analyzer has already decided to trade, so the safety rule
   above still holds: the analyzer's action categorization stays fully
   deterministic, only the size of an already-approved trade can shrink.
+
+## Genuine model input feature (Phase 1 remainder)
+
+`correlation_strength` and `topology_risk` are now genuine model *inputs*
+too, not just downstream consumers of the model's own prediction — the
+highest-effort of the three subsystems made into inputs this pass (see
+`regime/README.md`/`liquidity/README.md` for the other two), because it's
+the only one needing a genuinely new cross-sectional computation offline.
+
+- `train.py::build_topology_features_by_date()` is new code — no prior
+  function computed a cross-asset relationship at dataset-build time
+  (only `main.py`'s runtime path did, once per live bar). For each unique
+  historical date across the whole universe, it gathers every asset's
+  trailing 24-return window ending at that date and calls this module's
+  own `build_market_topology()` — the exact same function the runtime
+  path uses, not a reimplementation.
+- **`embedding_iterations=1` at dataset-build time, deliberately.**
+  `correlation_strength`/`topology_risk` (the only two fields the new
+  input features consume) are computed in `build_market_topology()`'s
+  Pass 1/Pass 3 and do not depend on the SMACOF x/y embedding at all —
+  only the visualization coordinates do. Running the expensive iterative
+  embedding step for every historical date would have been wasted work
+  with zero effect on either output value, so it's skipped for speed.
+- Adds `topology_correlation_strength` (scaled continuous) plus 3 one-hot
+  columns, `topology_risk_normal/elevated/isolated` (unscaled, same
+  treatment as the asset-context one-hots) as new model inputs. Dates
+  with fewer than `min_observations` trailing returns for a given asset
+  default to the same "isolated, zero correlation" signal
+  `_isolated_node()`'s own runtime fallback already produces — never a
+  NaN needing a separate dropna pass.
+- Topology itself needed **no reordering** in `main.py` — it was already
+  computed once per bar, before the per-symbol loop, so it was already
+  available before `_build_model_input()` runs (unlike regime, which
+  previously ran only *after* the model — see `regime/README.md`).

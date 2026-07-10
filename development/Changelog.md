@@ -1273,4 +1273,299 @@ first, which it now is.
   `use_predicted_volatility: true` was run — per this session's
   established preference, the user runs the real training/backtest
   themselves.
-  pattern.
+
+**Update, same session:** the two scope decisions above (regime/liquidity/
+topology as genuine input features, and per-expert multitask blending) and
+Phase 2 (the sequence encoder) were all subsequently implemented later in
+this same session, after this entry was originally written — see "Phase 1
+remainder + Phase 2: regime/liquidity/topology as inputs, per-expert
+multitask, sequence encoder" below. This entry is left as-written (not
+rewritten in place) so the plan-vs-actual scoping history stays visible.
+
+## Phase 1 remainder + Phase 2: regime/liquidity/topology as inputs, per-expert multitask, sequence encoder
+
+Continuation of the multi-task prediction entry above, same session: the
+two pieces explicitly scoped out there, plus Phase 2 (the sequence
+encoder), all implemented and verified against the real dataset.
+
+### Regime/liquidity/topology as genuine model input features
+
+`train.py::build_feature_dataset()` gains three new per-row/per-date
+feature builders, all reusing the exact runtime functions each subsystem
+already ships (no parallel reimplementation):
+
+- **`add_regime_features()`** — row-wise, calls `regime.build_market_regime_vector()`
+  on each row's own already-engineered momentum/volatility columns
+  (`portfolio_drawdown=0.0`/`average_correlation=0.0`, the same honest
+  offline simplification `train_gating.py` already established). Adds 9
+  one-hot columns (`regime_trend_bullish/bearish/sideways`,
+  `regime_volatility_low/normal/high`, `regime_risk_on/off/neutral`) plus
+  3 continuous columns, renamed `regime_signal_confidence`/
+  `regime_signal_trend_score`/`regime_signal_risk_score` (see "naming
+  collision" below).
+- **`add_liquidity_features()`** — asset-intrinsic only:
+  `liquidity_log_dollar_volume` (log1p of close×volume) and
+  `liquidity_spread_proxy` (`liquidity.estimate_high_low_spread()` over a
+  trailing `CROSS_SECTIONAL_WINDOW_BARS`-bar window, static fallback for
+  the first bar). Deliberately excludes `participation_rate`/
+  `estimated_slippage` — those need an assumed order size
+  (`target_weight × portfolio_value`), which has no principled value
+  before any sizing decision exists; a documented adaptation of the
+  original plan text, not an oversight.
+- **`build_topology_features_by_date()`** — genuinely new code (confirmed
+  during planning: no prior function computed a cross-asset relationship
+  at dataset-build time). For each unique historical date across the
+  whole universe, gathers every asset's trailing `CROSS_SECTIONAL_RETURNS_WINDOW`-return
+  window ending at that date and calls the real
+  `topology.build_market_topology()` — `embedding_iterations=1`
+  deliberately, since `correlation_strength`/`topology_risk` (the only two
+  fields consumed) don't depend on the SMACOF x/y embedding at all, so the
+  expensive iterative step is skipped for speed with zero effect on either
+  output value. Adds `topology_correlation_strength` plus 3 one-hot
+  `topology_risk_normal/elevated/isolated` columns. Missing/insufficient
+  data defaults to the same "isolated, zero correlation" signal
+  `build_market_topology()`'s own fallback already produces — never a
+  NaN needing an extra dropna pass.
+
+New `_categorical_feature_names()` treats the 12 one-hot columns above
+like `add_asset_context_features()`'s existing asset one-hots: appended
+directly to `model_input_names` unscaled (already-bounded `[0,1]` flags),
+never run through `StandardScaler`. `config.json`'s
+`phase1.features.input_set` gains the 6 new *continuous* names only (the
+one-hots stay out of it, by design). `feature_schema.json` gains a new
+`categorical_feature_names` field. **Model input dimensionality grows from
+30 to 48** (10 original + 6 new continuous, scaled, + 12 new categorical +
+20 asset one-hot) — this is a real, coordinated breaking change to the
+shared input schema: baseline, all 4 experts, gating, and the multitask
+model all needed retraining together (done — see below).
+
+**Runtime integration (main.py) required reordering, not just extending.**
+Topology was already computed once per bar before the symbol loop, so no
+reordering was needed there. Regime, however, used to be computed *after*
+the baseline model ran (purely for downstream gating/analyzer
+consumption) — now that it's a genuine model *input*, `_build_model_input()`
+computes `regime_payload` itself, before assembling `model_inputs`, and
+`on_data()` reuses that same value later (`feature_payload["regime_payload"]`)
+instead of recomputing it — one regime computation per bar, not two, and
+gating/analyzer/dashboard now see exactly what the model saw. Liquidity's
+`spread_proxy` is computed once in `_build_model_input()` too and reused
+verbatim by the later `build_liquidity_decision()` call (previously
+recomputed a second time).
+
+**A real off-by-one bug was found and fixed via train/runtime parity
+checking**, the same rigor applied to the multitask export in the entry
+above: `add_liquidity_features()`, originally called *after*
+`engineer_features()`, was operating on the post-dropna frame — since
+`engineer_features()` always drops each asset's first raw row (its
+`close_to_close_return_1d` etc. are undefined, no previous close), that
+frame's own row 0 already corresponds to the asset's *second* raw bar, so
+`spread_proxy`'s trailing window was silently missing the true first bar
+for roughly each asset's first `CROSS_SECTIONAL_WINDOW_BARS` rows — a real
+discrepancy from `main.py`'s live `self.symbol_windows`, which does
+include that first bar. High/low pairs (unlike returns) are legitimately
+usable from the very first raw bar, so this wasn't a fundamental
+limitation, just a call-order bug. **Fix:** `add_liquidity_features()` now
+runs on the *raw* per-asset frame, before `engineer_features()` — its
+output columns ride along through the dropna step unaffected (they're
+never in `required_columns`) with correct values. Verified via a
+standalone parity script comparing `ml/datasets/full_dataset.csv`'s
+offline values against an independent re-simulation of `main.py`'s
+windowing logic, across several (ticker, date) pairs including this exact
+early-history edge case (`ETHUSD`, its 6th ever row) both before (mismatch
+confirmed) and after (exact match) the fix.
+
+**Naming collision found and fixed.** `regime_confidence`/`regime_trend_score`/
+`regime_risk_score` (the names `add_regime_features()` originally used)
+collide with columns `experts/expert_datasets.py::annotate_dataset_with_regimes()`
+already writes under those exact names (a separate, pre-existing
+regime-annotation pass used only for expert dataset *filtering*, called
+later in the pipeline inside `train_expert_models()`). The collision was
+functionally harmless to already-trained models (expert training reads
+the `_scaled` columns, computed and frozen *before* the collision, and the
+two computations happen to produce numerically identical values under
+default thresholds) but a real landmine for anyone changing
+`phase_v2.regime_detection.*` thresholds later, since only one of the two
+computations reads them from config. **Fix:** renamed to
+`regime_signal_confidence`/`regime_signal_trend_score`/`regime_signal_risk_score`
+throughout (`train.py`, `config.json`, `main.py`, tests) - the one-hot
+names had no collision and are unchanged.
+
+### Per-expert multitask heads + gating blend
+
+`train.py` gains `_train_expert_multitask()`/`_write_expert_multitask_export()`,
+mirroring `_train_expert_classifier()`'s exact shape but training
+`AetherNetMultiTask` (not the direction-only classifier) per expert, over
+the same regime-filtered dataset slice, with the same combined
+BCE+MSE+MSE loss `train_multitask.py` uses. Wired into `train_expert_models()`'s
+existing per-expert loop as a best-effort second step, right after the
+classifier — writes `ml/expert_models/<name>/multitask_model.json` as a
+sibling file. Gracefully skips (never crashes) when a dataset lacks the
+multitask target columns (e.g. older synthetic test fixtures) — found via
+a real pre-existing unit test failure (`tests/test_expert_models.py`)
+during the full-suite run, fixed with an explicit column-presence guard.
+
+`moe/gating.py::build_gating_decision()` gains `expert_magnitudes`/
+`expert_volatilities`/`baseline_magnitude`/`baseline_volatility` params
+and `final_magnitude`/`final_volatility` on `GatingDecision` (plus
+`magnitude`/`volatility` on `ExpertGateWeight`). New `_weighted_blend()`
+helper generalizes the exact weighted-average pattern `expert_probability`
+already uses, with one deliberate difference: it returns `None` (not
+`0.0`) when no expert has a value at all, since a spurious `0.0` would
+misrepresent "no data" as "predicted zero magnitude/volatility". The
+`baseline_fallback` branch (no experts eligible) uses `baseline_magnitude`/
+`baseline_volatility` directly, matching how it already uses
+`baseline_probability_up` directly in that branch. The learned-gating
+override (when present) stays direction-only, as before —
+`final_magnitude`/`final_volatility` are unaffected by `decision_source`
+switching to `"learned_gating"`.
+
+`main.py` gains `_load_expert_multitask_exports()`/`_run_expert_multitask_models()`
+(same optional, per-expert graceful-degradation contract as the direction
+experts), and `predicted_return_magnitude`/`predicted_volatility` (already
+threaded through signal_payload/analyzer/position-sizing in the entry
+above) now come from `gating_payload["final_magnitude"/"final_volatility"]`
+— the full baseline-anchor-plus-per-expert-weighted-average blend — instead
+of directly from the single baseline-scale multitask model. Same treatment
+`probability_up` itself already got from gating, now extended to
+magnitude/volatility too.
+
+### Phase 2: causal-TCN sequence encoder
+
+The root-cause investigation's other structural finding — "AetherNet is a
+plain feedforward MLP with zero temporal structure" — addressed via a new
+sequence-encoder trunk, additive and informational-only this pass (not
+wired into any trading decision yet).
+
+**`inference/exported_model.py` gains 4 new primitives**, each
+independently cross-checked against real PyTorch modules during
+development (not merely hand-computed) to well under float32 tolerance:
+`_softmax` (numerically stable, arbitrary axis), `_layernorm_axis`
+(generalizes `_layernorm` to normalize along a chosen axis of a
+multi-dimensional array — needed for per-timestep normalization over a
+`(window, features)` sequence, where the original `_layernorm` normalizes
+a flat vector as one whole), `_conv1d_causal` (causal dilated 1D
+convolution matching `torch.nn.Conv1d` under left-zero-padding — verified
+to `9.1e-8` max abs diff against a real `nn.Conv1d`), and
+`_multihead_attention` (scaled dot-product multi-head self-attention with
+an optional causal mask — verified to `5.6e-8` against real
+`nn.MultiheadAttention`). New `run_exported_sequence_multitask_model()`
+walks a `{"trunk": [...], "heads": {...}}` export whose trunk is
+`conv1d_causal`/`relu`/`dropout` layers instead of `linear`, pools to the
+trunk's most-recent (causal) timestep, then the same 3-head shape
+`run_exported_multitask_model()` already uses. `run_exported_model()`/
+`run_exported_multitask_model()` are completely untouched — new functions
+alongside them, zero regression risk.
+
+**`train.py` gains `AetherNetSequenceMultiTask`** — a causal TCN trunk
+(dilation doubling per layer: 1, 2, 4, ..., the standard WaveNet/TCN
+receptive-field-growth idiom; each conv left-padded by
+`(kernel_size-1)×dilation` timesteps so `output[t]` never depends on
+`input[>t]`) over a rolling window of already-computed flat
+`model_inputs` vectors, pooled to the most-recent timestep, then the same
+3 heads `AetherNetMultiTask` uses. **Chosen over a Transformer encoder
+block for this first real Phase 2 model specifically because a causal
+conv stack is simpler to verify bit-for-bit end-to-end** —
+`_multihead_attention()` above is implemented and independently tested as
+interpreter infrastructure for a future attention-based model, not wired
+to a trained export in this pass. `export_sequence_multitask_architecture()`
+is the matching exporter. New `build_sequence_tensor_dataset()` needs no
+new feature engineering — it only windows over each ticker's own trailing
+history of the *same* 48-dim `model_input_names` columns Phase 1 already
+computes per row, zero-padding rows with less than a full window of
+history (mirrors `main.py`'s runtime buffer starting empty and filling up
+bar by bar).
+
+**`train_sequence.py`** (new, mirrors `train_multitask.py`'s structure):
+builds `(rows, window=30, features=48)` tensors from the active dataset,
+trains with the same combined BCE+MSE+MSE loss, writes
+`ml/versions/<id>/sequence_model.json`/`sequence_feature_schema.json`/
+`sequence_training_metrics.json`. Smoke-tested end-to-end against the real
+dataset (30,193 eligible rows) — training completed in ~3.5 minutes
+(building the sequence tensor: seconds; training: the rest), backtest
+direction MCC 0.0219 (same noisy range as every other model in this
+system — Phase 2's goal this pass was proving the temporal-structure
+pipeline works end-to-end, not fixing the underlying noise, which the
+original root-cause investigation never claimed a single architecture
+change would do). **Interpreter parity independently verified** against
+the real trained export, and separately against a synthetic model with a
+hand-computed reference in `tests/test_exported_model.py`.
+
+**`main.py` runtime integration is additive and informational-only, by
+deliberate design.** A new per-symbol rolling buffer,
+`self.symbol_feature_history` (`deque(maxlen=phase_v2.sequence_model.window_size)`,
+default 30) — **deliberately a separate buffer from `self.symbol_windows`**
+(raw OHLCV, sized to match `train.py`'s `CROSS_SECTIONAL_WINDOW_BARS` for
+the Stage-1-3 feature parity established above), not a resize of it;
+changing `symbol_windows`' length would have silently broken that
+already-verified parity. Each bar, right after `_build_model_input()`
+computes the flat 48-dim vector, it's appended to the buffer (before
+running the sequence model, so the most-recent timestep is always the
+current bar) — reusing the already-computed vector directly, never
+recomputing regime/liquidity/topology per historical bar. `_run_sequence_model()`
+left-pads with zero vectors when less than a full window of history
+exists yet, matching `build_sequence_tensor_dataset()`'s exact offline
+convention. Output threads into `signal_payload["sequence_model"]` and
+`state["model"]["sequence"]` for dashboard/diagnostic visibility only —
+**it does not feed gating, the analyzer, or position sizing this pass**.
+Wiring it into an actual trading decision is a deliberate follow-up, not
+an oversight: it needs its own validation pass (real backtest comparison
+against the flat multitask model) before it should influence money,
+mirroring how the flat multitask model itself was smoke-tested
+extensively before Phase 1 wired it into sizing.
+
+### Retraining pipeline (both pieces)
+
+`retraining/artifacts.py` gains `OPTIONAL_SEQUENCE_FILES` (3 filenames,
+same optional/best-effort contract as the other `OPTIONAL_*_FILES`
+tuples) plus `check_sequence_artifacts()`. `retraining/orchestrator.py`
+gains `train_sequence()` (mirrors `train_multitask()` line-for-line) plus
+a CLI subparser, run right after `train_multitask()` in
+`retraining/worker.py`'s `run_once()`. New `aq train --sequence-only`
+flag (mirrors `--multitask-only`/`--gating-only` exactly).
+`config.json`'s `promotion.active_artifact_files` extended with the 3 new
+files. `Dockerfile.retraining_worker` gains `COPY train_sequence.py .`.
+
+### Verification
+
+Full suite green after every stage, with one real regression found and
+fixed along the way (the `tests/test_expert_models.py` failure above —
+not a stale test, a genuine gap in the new per-expert multitask call's
+column-presence assumption). Real end-to-end runs, not just unit tests:
+full dataset rebuild (~1m47s, up from ~28s pre-session — the topology
+per-date cross-sectional loop is the added cost, acceptable for an
+occasional offline build step), baseline+expert retraining, gating/
+multitask/sequence retraining, and a full interpreter smoke test chaining
+every model (baseline → experts → gating blend, including per-expert
+magnitude/volatility) end-to-end against the real retrained artifacts.
+
+- New tests: `tests/test_train_cross_sectional_features.py` (new, 13
+  tests: `add_regime_features()` against an independent
+  `build_market_regime_vector()` call, `add_liquidity_features()`
+  including the fixed windowing behavior, `build_topology_features_by_date()`
+  including the highly-correlated/single-asset/early-history edge cases,
+  `_categorical_feature_names()`), `tests/test_gating_network.py` (+7 for
+  the magnitude/volatility blend: default-None, full blend arithmetic,
+  baseline-only fallback, expert-only fallback, `baseline_fallback`
+  ignoring expert values, `ExpertGateWeight` carrying magnitude/volatility
+  through), `tests/test_exported_model.py` (+11 for the 4 Phase 2
+  primitives plus `run_exported_sequence_multitask_model()`'s full-stack
+  parity/causality/error-handling), `tests/test_train_sequence_architecture.py`
+  (new, 13 tests: `AetherNetSequenceMultiTask` shapes/dilation/determinism,
+  `export_sequence_multitask_architecture()`'s structure, and
+  `build_sequence_tensor_dataset()`'s row-alignment/zero-padding/
+  ticker-boundary/full-window behavior), `tests/test_retraining_artifacts.py`/
+  `test_retraining_orchestrator.py`/`test_aq_cli.py` (+~20 for the
+  `train_sequence` stage, mirroring the existing multitask stage tests).
+- Docker: `Dockerfile.retraining_worker` needs a rebuild
+  (`docker compose build retraining-worker`) to pick up `train_sequence.py`
+  in addition to the `risk/`/`train_multitask.py` fix from the entry
+  above.
+- Stopping point: no real Lean backtest was run (per this session's
+  established preference, the user runs it). The baseline, all 4 experts,
+  gating, multitask, and sequence models were all retrained on the final
+  48-dim feature set and installed into active `ml/` so the artifacts on
+  disk are internally consistent (no stale narrower-dimension exports
+  left behind); the sequence model's runtime integration remains
+  informational-only regardless (see above) — it does not need a
+  validated backtest before it can ship, since it cannot influence any
+  trading decision yet.

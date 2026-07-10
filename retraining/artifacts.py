@@ -58,11 +58,22 @@ OPTIONAL_MULTITASK_FILES = (
     "multitask_training_metrics.json",
 )
 
+# Phase 2 sequence-encoder artifacts (train_sequence.py). Same optional,
+# best-effort, independently-failable contract as OPTIONAL_MULTITASK_FILES -
+# never part of REQUIRED_CANDIDATE_FILES, never a validation gate.
+OPTIONAL_SEQUENCE_FILES = (
+    "sequence_model.json",
+    "sequence_feature_schema.json",
+    "sequence_training_metrics.json",
+)
+
 # Every filename this package will hash/copy when present - used by
-# commit()'s artifact-hashing so topology/gating/multitask files (when their
-# trainers succeeded) get sha256'd and swept into the Aether-Vault commit
-# alongside the required candidate files.
-ALL_TRACKED_FILES = REQUIRED_CANDIDATE_FILES + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES
+# commit()'s artifact-hashing so topology/gating/multitask/sequence files
+# (when their trainers succeeded) get sha256'd and swept into the
+# Aether-Vault commit alongside the required candidate files.
+ALL_TRACKED_FILES = (
+    REQUIRED_CANDIDATE_FILES + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES
+)
 
 # Files copied into the active ml/ directory on promotion/rollback. Extended
 # beyond model_weights.json/scaler.pkl/training_metrics.json (the user's
@@ -79,7 +90,7 @@ ACTIVE_ARTIFACT_FILES = (
     "scaler_stats.json",
     "training_metrics.json",
     "feature_schema.json",
-) + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES
+) + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES
 
 
 def candidate_dir(version_id: str, ml_dir: Path = ML_DIR) -> Path:
@@ -113,6 +124,13 @@ def check_multitask_artifacts(version_dir: Path) -> tuple[bool, list[str]]:
     optional multitask artifacts exist for a candidate, same
     (all_present, missing_filenames) shape as check_topology_artifacts()."""
     return check_required_artifacts(version_dir, OPTIONAL_MULTITASK_FILES)
+
+
+def check_sequence_artifacts(version_dir: Path) -> tuple[bool, list[str]]:
+    """Status/logging only - never a validation gate. Reports whether the
+    optional Phase 2 sequence-encoder artifacts exist for a candidate,
+    same (all_present, missing_filenames) shape as check_topology_artifacts()."""
+    return check_required_artifacts(version_dir, OPTIONAL_SEQUENCE_FILES)
 
 
 def _sha256_file(path: Path) -> str:

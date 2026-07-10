@@ -60,13 +60,66 @@ scalar output.
   See `moe/README.md` and `risk/README.md` for how `magnitude`/
   `volatility` are threaded downstream.
 
+## Phase 2: sequence-encoder interpreter (causal TCN)
+
+`exported_model.py::run_exported_sequence_multitask_model(model_export,
+sequence) -> dict[str, float]` is a third entry point, for the optional
+Phase 2 sequence-encoder model (`train.py::AetherNetSequenceMultiTask`/
+`export_sequence_multitask_architecture()`, `train_sequence.py`,
+`ml/sequence_model.json`) that replaces the flat-MLP trunk with genuine
+temporal structure — a causal TCN over a rolling window of bars, instead
+of one flat row. Takes a `(window, features)` matrix (`sequence[-1]` is
+the current bar) instead of `run_exported_multitask_model()`'s flat
+vector; consumes the same branching `{"trunk", "heads"}` shape, but trunk
+entries are `"conv1d_causal"`/`"relu"`/`"dropout"` instead of `"linear"`/
+`"layernorm"`, and the trunk's most-recent (causal) timestep is pooled
+before running the same 3-head shape every multitask export already uses.
+
+Four new primitives back it, each independently cross-checked against
+real PyTorch modules during development (not merely hand-computed) to
+well under float32 tolerance:
+
+- `_softmax(values, axis=-1)` — numerically stable, arbitrary axis.
+- `_layernorm_axis(values, weights, bias, eps, axis=-1)` — generalizes
+  `_layernorm()` to normalize along a chosen axis of a multi-dimensional
+  array (needed for per-timestep normalization over a `(window,
+  features)` sequence — PyTorch's `nn.LayerNorm(features)` applied to
+  that shape normalizes each row independently, unlike `_layernorm()`,
+  which normalizes a flat vector as one whole). A new function, not a
+  modification of `_layernorm()` — `run_exported_model()`/
+  `run_exported_multitask_model()` both call the original with no axis
+  concept, and changing its signature would be a needless behavior risk
+  to code already shipped.
+- `_conv1d_causal(sequence, weights, bias, dilation=1)` — causal dilated
+  1D convolution matching `torch.nn.Conv1d` under left-zero-padding
+  `(kernel_size-1)×dilation` timesteps, so `output[t]` never depends on
+  `input[>t]` — verified to `9.1e-8` max abs diff against a real
+  `nn.Conv1d`.
+- `_multihead_attention(...)` — scaled dot-product multi-head
+  self-attention with an optional causal mask — verified to `5.6e-8`
+  against real `nn.MultiheadAttention`. **Implemented and tested as
+  interpreter infrastructure for a future attention-based sequence model,
+  not wired to a trained export in this pass** — the first real Phase 2
+  model (`AetherNetSequenceMultiTask`) uses a causal TCN trunk instead,
+  chosen specifically because it's simpler to verify bit-for-bit
+  end-to-end than a full attention block. See `train.py`'s docstring for
+  that scope decision.
+
+`run_exported_model()`/`run_exported_multitask_model()` are completely
+untouched by any of this — new functions alongside them, zero regression
+risk. `main.py::_run_sequence_model()` is the runtime call site:
+optional, additive, graceful-fallback, and **informational only this
+pass** — it does not feed gating, the analyzer, or position sizing (see
+`moe/README.md`'s scope note and `development/Changelog.md`).
+
 ## Testing
 
 `tests/test_exported_model.py` is the parity net for the numpy
 vectorization: hand-computed `_linear`/`_layernorm`/`_sigmoid`/`_softplus`
-assertions at tight tolerance, plus full-stack forward-pass tests (both
-`run_exported_model()` and `run_exported_multitask_model()`) checked
-against independently hand-transcribed reference implementations. See
+assertions at tight tolerance, plus full-stack forward-pass tests
+(`run_exported_model()`, `run_exported_multitask_model()`, and
+`run_exported_sequence_multitask_model()`) checked against independently
+hand-transcribed reference implementations. See
 `development/Changelog.md`'s latency-optimization entry and
 `development/v2_architecture.md`'s per-bar hot-path table for the fuller
 extraction story.

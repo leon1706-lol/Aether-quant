@@ -12,6 +12,7 @@ Phase 3 extends the dataset pipeline with a first PyTorch model:
 from __future__ import annotations
 
 import argparse
+import bisect
 import copy
 import json
 import logging
@@ -27,7 +28,11 @@ import numpy as np
 import pandas as pd
 import torch
 from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
+from liquidity import estimate_high_low_spread
+from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
+from regime import build_market_regime_vector
 from sklearn.preprocessing import StandardScaler
+from topology import build_market_topology
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -506,10 +511,235 @@ def engineer_features(frame: pd.DataFrame, feature_names: list[str], windows: di
     return result
 
 
+# ---------------------------------------------------------------------------
+# Cross-subsystem input features (Phase 1 remainder): regime/liquidity/
+# topology become genuine model *inputs*, not just downstream consumers of
+# the model's own output. Mirrors main.py's own runtime computation of each
+# subsystem exactly (same functions, same config keys) so train/runtime
+# feature parity holds - see build_feature_dataset()'s orchestration below
+# and main.py's matching _build_model_input() changes.
+# ---------------------------------------------------------------------------
+
+# Matches main.py's self.symbol_windows (deque(maxlen=25), so up to 24
+# daily returns) - both the topology returns window and the liquidity
+# high/low spread-estimation window below reuse this exact size so offline
+# reconstruction sees the same trailing history depth the live loop does.
+CROSS_SECTIONAL_WINDOW_BARS = 25
+CROSS_SECTIONAL_RETURNS_WINDOW = CROSS_SECTIONAL_WINDOW_BARS - 1
+
+REGIME_ONEHOT_FEATURE_NAMES = [
+    "regime_trend_bullish", "regime_trend_bearish", "regime_trend_sideways",
+    "regime_volatility_low", "regime_volatility_normal", "regime_volatility_high",
+    "regime_risk_on", "regime_risk_off", "regime_risk_neutral",
+]
+REGIME_CONTINUOUS_FEATURE_NAMES = ["regime_signal_confidence", "regime_signal_trend_score", "regime_signal_risk_score"]
+REGIME_FEATURE_NAMES = REGIME_ONEHOT_FEATURE_NAMES + REGIME_CONTINUOUS_FEATURE_NAMES
+
+LIQUIDITY_FEATURE_NAMES = ["liquidity_log_dollar_volume", "liquidity_spread_proxy"]
+
+TOPOLOGY_ONEHOT_FEATURE_NAMES = ["topology_risk_normal", "topology_risk_elevated", "topology_risk_isolated"]
+TOPOLOGY_CONTINUOUS_FEATURE_NAMES = ["topology_correlation_strength"]
+TOPOLOGY_FEATURE_NAMES = TOPOLOGY_ONEHOT_FEATURE_NAMES + TOPOLOGY_CONTINUOUS_FEATURE_NAMES
+
+
+def _encode_regime_row(row: pd.Series) -> dict:
+    """Reconstructs the same MarketRegimeVector main.py's
+    _build_regime_payload() computes at runtime, from this row's own
+    already-engineered momentum/volatility features. portfolio_drawdown=0.0
+    and average_correlation=0.0 are an honest, documented offline
+    simplification (no live portfolio/topology state exists at dataset-
+    build time) - the exact same simplification train_gating.py's
+    build_gating_training_rows() already established for the identical
+    reason; trend_regime/volatility_regime (the two most-used regime keys)
+    are unaffected by either default."""
+    features = {
+        "momentum_5d": row["momentum_5d"],
+        "momentum_20d": row["momentum_20d"],
+        "rolling_volatility_5d": row["rolling_volatility_5d"],
+        "rolling_volatility_20d": row["rolling_volatility_20d"],
+    }
+    vector = build_market_regime_vector(features, portfolio_drawdown=0.0, average_correlation=0.0)
+    return {
+        "regime_trend_bullish": 1.0 if vector.trend_regime == "bullish" else 0.0,
+        "regime_trend_bearish": 1.0 if vector.trend_regime == "bearish" else 0.0,
+        "regime_trend_sideways": 1.0 if vector.trend_regime == "sideways" else 0.0,
+        "regime_volatility_low": 1.0 if vector.volatility_regime == "low_volatility" else 0.0,
+        "regime_volatility_normal": 1.0 if vector.volatility_regime == "normal_volatility" else 0.0,
+        "regime_volatility_high": 1.0 if vector.volatility_regime == "high_volatility" else 0.0,
+        "regime_risk_on": 1.0 if vector.risk_regime == "risk_on" else 0.0,
+        "regime_risk_off": 1.0 if vector.risk_regime == "risk_off" else 0.0,
+        "regime_risk_neutral": 1.0 if vector.risk_regime == "risk_neutral" else 0.0,
+        "regime_signal_confidence": vector.confidence,
+        "regime_signal_trend_score": vector.trend_score,
+        "regime_signal_risk_score": vector.risk_score,
+    }
+
+
+def add_regime_features(frame: pd.DataFrame) -> pd.DataFrame:
+    """Row-wise: every surviving row already has the momentum/volatility
+    features build_market_regime_vector() needs, so this never drops rows."""
+    encoded = frame.apply(_encode_regime_row, axis=1, result_type="expand")
+    return pd.concat([frame.reset_index(drop=True), encoded.reset_index(drop=True)], axis=1)
+
+
+def add_liquidity_features(frame: pd.DataFrame, security_type: str) -> pd.DataFrame:
+    """Asset-intrinsic liquidity features only: daily_dollar_volume (log1p-
+    scaled, since raw values span orders of magnitude) and the Corwin-
+    Schultz spread_proxy over a trailing CROSS_SECTIONAL_WINDOW_BARS window,
+    both reusing liquidity/market_liquidity.py's exact runtime functions.
+    Deliberately excludes participation_rate/estimated_slippage/
+    adjusted_target_weight from build_liquidity_decision() - those need an
+    assumed order size (target_weight * portfolio_value), which has no
+    principled offline value before any sizing decision exists; feeding a
+    made-up order size in as a "feature" would be circular. This is a
+    documented adaptation of the original plan text, not an oversight.
+
+    Must be called on the RAW per-asset frame, before engineer_features()
+    drops that asset's first row (its close_to_close_return_1d etc. are
+    NaN, no previous close to compute from) - main.py's real
+    self.symbol_windows starts accumulating from that same first raw bar,
+    so spread_proxy's trailing window must see it too, or the first
+    ~CROSS_SECTIONAL_WINDOW_BARS rows of every asset's history would be
+    silently short one bar offline versus what the live loop actually
+    sees (confirmed via a real train/runtime parity check on ETHUSD's
+    earliest rows - high/low pairs, unlike returns, are legitimately
+    available for that first row even though its own return isn't)."""
+    closes = frame["close"].tolist()
+    volumes = frame["volume"].tolist()
+    highs = frame["high"].tolist()
+    lows = frame["low"].tolist()
+    fallback_spread = TYPICAL_SPREAD_BY_TYPE.get(str(security_type), 0.001)
+
+    log_dollar_volume: list[float] = []
+    spread_proxy: list[float] = []
+    for index in range(len(frame)):
+        log_dollar_volume.append(float(np.log1p(max(closes[index] * volumes[index], 0.0))))
+
+        window_start = max(0, index + 1 - CROSS_SECTIONAL_WINDOW_BARS)
+        window_highs = highs[window_start : index + 1]
+        window_lows = lows[window_start : index + 1]
+        estimated = estimate_high_low_spread(window_highs, window_lows) if len(window_highs) >= 2 else None
+        spread_proxy.append(float(estimated) if estimated is not None else fallback_spread)
+
+    result = frame.copy()
+    result["liquidity_log_dollar_volume"] = log_dollar_volume
+    result["liquidity_spread_proxy"] = spread_proxy
+    return result
+
+
+def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
+    """Cross-sectional per-date topology reconstruction - genuinely new
+    code, no existing pattern in train.py computed a cross-asset
+    relationship at dataset-build time before this (only main.py's runtime
+    _build_topology_payload() did, once per bar before the symbol loop).
+
+    For each unique historical date across the whole universe, gathers each
+    asset's trailing CROSS_SECTIONAL_RETURNS_WINDOW-return window ending at
+    that date and calls the exact same build_market_topology() the runtime
+    path uses. `embedding_iterations=1` is deliberate: correlation_strength/
+    topology_risk (the only two fields consumed here) are computed in
+    build_market_topology()'s Pass 1/Pass 3 and do not depend on the SMACOF
+    x/y embedding at all, so the expensive iterative embedding step is
+    skipped for speed without changing either output value.
+
+    `asset_frames` values must each have 'date' (pandas Timestamp, not yet
+    stringified) and 'close_to_close_return_1d' columns - i.e. called after
+    engineer_features() but before build_feature_dataset()'s final
+    concat/strftime. regime_labels_by_symbol is intentionally omitted
+    (passed as {}): it only affects TopologyCluster.dominant_regime_label
+    and TopologyNode.regime_label, neither of which this function reads.
+    """
+    topology_config = config.get("phase_v2", {}).get("topology", {})
+    correlation_threshold = float(topology_config.get("correlation_threshold", 0.6))
+    link_threshold = float(topology_config.get("link_threshold", 0.5))
+    min_observations = int(topology_config.get("min_observations", 5))
+
+    dates_by_ticker = {ticker: frame["date"].tolist() for ticker, frame in asset_frames.items()}
+    returns_by_ticker = {ticker: frame["close_to_close_return_1d"].tolist() for ticker, frame in asset_frames.items()}
+    all_dates = sorted({date for dates in dates_by_ticker.values() for date in dates})
+
+    correlation_strength_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
+    topology_risk_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
+
+    for current_date in all_dates:
+        returns_by_symbol: dict[str, list[float]] = {}
+        for ticker in asset_frames:
+            dates = dates_by_ticker[ticker]
+            position = bisect.bisect_right(dates, current_date)
+            if position == 0:
+                continue
+            window = returns_by_ticker[ticker][max(0, position - CROSS_SECTIONAL_RETURNS_WINDOW) : position]
+            if len(window) >= 2:
+                returns_by_symbol[ticker] = window
+
+        if len(returns_by_symbol) < 2:
+            continue
+
+        topology = build_market_topology(
+            returns_by_symbol=returns_by_symbol,
+            correlation_threshold=correlation_threshold,
+            link_threshold=link_threshold,
+            min_observations=min_observations,
+            embedding_iterations=1,
+        )
+        for node in topology.nodes:
+            correlation_strength_by_ticker_date[node.symbol][current_date] = node.correlation_strength
+            topology_risk_by_ticker_date[node.symbol][current_date] = node.topology_risk
+
+    updated_frames: dict[str, pd.DataFrame] = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        correlation_lookup = correlation_strength_by_ticker_date[ticker]
+        risk_lookup = topology_risk_by_ticker_date[ticker]
+        # Rows where topology couldn't be computed (fewer than min_observations
+        # trailing returns exist yet, or no other asset qualified that date)
+        # default to the same "isolated, zero correlation" signal
+        # build_market_topology()'s own _isolated_node() fallback produces -
+        # a real, meaningful value, never a NaN needing an extra dropna pass.
+        result["topology_correlation_strength"] = [correlation_lookup.get(date, 0.0) for date in result["date"]]
+        risk_values = [risk_lookup.get(date, "isolated") for date in result["date"]]
+        result["topology_risk_normal"] = [1.0 if value == "normal" else 0.0 for value in risk_values]
+        result["topology_risk_elevated"] = [1.0 if value == "elevated" else 0.0 for value in risk_values]
+        result["topology_risk_isolated"] = [1.0 if value == "isolated" else 0.0 for value in risk_values]
+        updated_frames[ticker] = result
+    return updated_frames
+
+
+# The original phase1.features.input_set - always required for
+# engineer_features()'s own dropna, computed per-asset before any
+# cross-sectional (topology) or regime/liquidity feature exists. Kept as an
+# explicit constant (not read from config) since regime/liquidity features
+# below are computed from these same names via row-wise .get() lookups -
+# renaming one of these 10 without updating _encode_regime_row() would be a
+# silent mismatch, so keeping them fixed here is deliberate.
+BASE_FEATURE_NAMES = [
+    "close_to_close_return_1d",
+    "close_to_close_return_5d",
+    "close_to_close_return_20d",
+    "rolling_volatility_5d",
+    "rolling_volatility_20d",
+    "momentum_5d",
+    "momentum_20d",
+    "high_low_range_pct",
+    "open_close_range_pct",
+    "volume_change_1d",
+]
+
+
+def _categorical_feature_names(dataset: pd.DataFrame) -> list[str]:
+    """Regime/topology one-hot flags present in `dataset` - unscaled model
+    inputs, same treatment as the asset-context one-hots
+    add_asset_context_features() produces (already-bounded [0,1] flags, no
+    StandardScaler needed). Filtered against `dataset.columns` rather than
+    returned unconditionally so a --candidate/--dataset-only run against an
+    older dataset without these columns degrades gracefully instead of
+    KeyError-ing downstream."""
+    return [name for name in (REGIME_ONEHOT_FEATURE_NAMES + TOPOLOGY_ONEHOT_FEATURE_NAMES) if name in dataset.columns]
+
+
 def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     phase1 = config["phase1"]
     assets = phase1["universe"]["assets"]
-    feature_names = phase1["features"]["input_set"]
     windows = phase1["windows"]
 
     asset_frames = {
@@ -522,13 +752,20 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
         date_set = set(frame["date"].tolist())
         intersection_dates = date_set if intersection_dates is None else intersection_dates & date_set
 
-    dataset_frames = []
+    engineered_frames: dict[str, pd.DataFrame] = {}
     asset_summaries = []
     for asset in assets:
         ticker = asset["ticker"]
         asset_frame = asset_frames[ticker].sort_values("date").reset_index(drop=True)
-        engineered = engineer_features(asset_frame, feature_names, windows)
-        dataset_frames.append(engineered)
+        # add_liquidity_features() runs on the RAW frame (before
+        # engineer_features() drops the first row) so its trailing spread
+        # window sees the true, undropped bar sequence - see that
+        # function's docstring for why this ordering is load-bearing, not
+        # cosmetic.
+        asset_frame = add_liquidity_features(asset_frame, asset["security_type"])
+        engineered = engineer_features(asset_frame, BASE_FEATURE_NAMES, windows)
+        engineered = add_regime_features(engineered)
+        engineered_frames[ticker] = engineered
         asset_summaries.append(
             {
                 "ticker": ticker,
@@ -541,7 +778,11 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
             }
         )
 
-    dataset = pd.concat(dataset_frames, ignore_index=True)
+    # Cross-sectional (needs every asset's engineered frame simultaneously) -
+    # must run after the per-asset loop above, before the final concat.
+    engineered_frames = build_topology_features_by_date(engineered_frames, config)
+
+    dataset = pd.concat(list(engineered_frames.values()), ignore_index=True)
     dataset = dataset.sort_values(["date", "ticker"]).reset_index(drop=True)
     dataset["date"] = dataset["date"].dt.strftime("%Y-%m-%d")
 
@@ -670,8 +911,9 @@ def build_dataset_manifest(
 ) -> dict:
     base_feature_names = config["phase1"]["features"]["input_set"]
     context_feature_names = [column for column in dataset.columns if column.startswith("asset_")]
+    categorical_feature_names = _categorical_feature_names(dataset)
     scaled_feature_names = [f"{feature_name}_scaled" for feature_name in base_feature_names]
-    model_input_names = scaled_feature_names + context_feature_names
+    model_input_names = scaled_feature_names + categorical_feature_names + context_feature_names
 
     split_counts = {split: int(count) for split, count in dataset["split"].value_counts().sort_index().items()}
     per_asset_split = {}
@@ -689,6 +931,7 @@ def build_dataset_manifest(
         "feature_count": len(base_feature_names),
         "feature_names": base_feature_names,
         "scaled_feature_names": scaled_feature_names,
+        "categorical_feature_names": categorical_feature_names,
         "context_feature_names": context_feature_names,
         "model_input_names": model_input_names,
         "model_input_count": len(model_input_names),
@@ -766,6 +1009,7 @@ def write_dataset_artifacts(
                 "phase": 2,
                 "feature_names": manifest["feature_names"],
                 "scaled_feature_names": manifest["scaled_feature_names"],
+                "categorical_feature_names": manifest["categorical_feature_names"],
                 "context_feature_names": manifest["context_feature_names"],
                 "model_input_names": manifest["model_input_names"],
                 "target_column": manifest["target_column"],
@@ -882,6 +1126,141 @@ class AetherNetMultiTask(nn.Module):
         magnitude = self.head_magnitude(trunk_output).squeeze(-1)
         volatility = nn.functional.softplus(self.head_volatility(trunk_output).squeeze(-1))
         return direction_logit, magnitude, volatility
+
+
+class AetherNetSequenceMultiTask(nn.Module):
+    """Phase 2: a causal TCN (temporal convolutional network) trunk over a
+    rolling window of already-computed flat model_input vectors, replacing
+    AetherNetMultiTask's flat-MLP trunk with genuine temporal structure -
+    the root limitation the original root-cause investigation flagged
+    ("AetherNet is a plain feedforward MLP with zero temporal structure").
+
+    A stack of causal, dilated Conv1d layers (dilation doubling each layer:
+    1, 2, 4, ... - the standard WaveNet/TCN receptive-field-growth idiom),
+    each left-padded by (kernel_size-1)*dilation timesteps before the conv
+    so output[t] never depends on input[>t] (no lookahead, same invariant
+    every other feature in this codebase already respects) - matching
+    inference/exported_model.py::_conv1d_causal()'s exact convention.
+    Pools to the trunk's most-recent (causal) timestep, then the same
+    three direction/magnitude/volatility heads AetherNetMultiTask already
+    uses.
+
+    Chosen over a Transformer encoder block for this first real Phase 2
+    model specifically because a causal conv stack is simpler to verify
+    bit-for-bit end-to-end (see
+    inference/exported_model.py::run_exported_sequence_multitask_model()) -
+    _multihead_attention() is implemented and independently tested as
+    interpreter infrastructure for a future attention-based model, not
+    wired to a trained model in this pass; see train_sequence.py's module
+    docstring for the fuller scope note.
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        channels: list[int],
+        kernel_size: int,
+        dropout: float,
+    ) -> None:
+        super().__init__()
+        if not channels:
+            raise ValueError("AetherNetSequenceMultiTask requires at least one trunk channel size.")
+        self.kernel_size = int(kernel_size)
+        self.conv_layers = nn.ModuleList()
+        current_channels = input_dim
+        for layer_index, out_channels in enumerate(channels):
+            dilation = 2**layer_index
+            self.conv_layers.append(nn.Conv1d(current_channels, out_channels, self.kernel_size, dilation=dilation))
+            current_channels = out_channels
+        self.activation = nn.ReLU()
+        self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+        self.head_direction = nn.Linear(current_channels, 1)
+        self.head_magnitude = nn.Linear(current_channels, 1)
+        self.head_volatility = nn.Linear(current_channels, 1)
+
+    def forward(self, sequence: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # sequence: (batch, window, input_dim) -> Conv1d wants channels-first.
+        current = sequence.transpose(1, 2)  # (batch, input_dim, window)
+        for layer_index, conv in enumerate(self.conv_layers):
+            dilation = conv.dilation[0]
+            pad_left = (self.kernel_size - 1) * dilation
+            current = nn.functional.pad(current, (pad_left, 0))
+            current = conv(current)
+            current = self.dropout(self.activation(current))
+
+        pooled = current[:, :, -1]  # (batch, channels[-1]) - most-recent timestep
+        direction_logit = self.head_direction(pooled).squeeze(-1)
+        magnitude = self.head_magnitude(pooled).squeeze(-1)
+        volatility = nn.functional.softplus(self.head_volatility(pooled).squeeze(-1))
+        return direction_logit, magnitude, volatility
+
+
+def export_sequence_multitask_architecture(model: AetherNetSequenceMultiTask) -> dict:
+    """Branching export for AetherNetSequenceMultiTask - same {"trunk":
+    [...], "heads": {...}} shape export_multitask_architecture() produces,
+    but trunk entries are "conv1d_causal" layers (each carrying its own
+    dilation, doubling per layer to match __init__'s dilation=2**layer_index)
+    instead of "linear". Consumed by
+    inference/exported_model.py::run_exported_sequence_multitask_model()."""
+    trunk: list[dict] = []
+    for layer_index, conv in enumerate(model.conv_layers):
+        trunk.append(
+            {
+                "type": "conv1d_causal",
+                "weight_key": f"conv_layers.{layer_index}.weight",
+                "bias_key": f"conv_layers.{layer_index}.bias",
+                "dilation": conv.dilation[0],
+                "in_channels": conv.in_channels,
+                "out_channels": conv.out_channels,
+                "kernel_size": conv.kernel_size[0],
+            }
+        )
+        trunk.append({"type": "relu"})
+        trunk.append({"type": "dropout", "p": model.dropout.p if isinstance(model.dropout, nn.Dropout) else 0.0})
+    return {
+        "trunk": trunk,
+        "heads": {
+            "direction": _export_head(model.head_direction, "head_direction", "sigmoid"),
+            "magnitude": _export_head(model.head_magnitude, "head_magnitude", None),
+            "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
+        },
+    }
+
+
+def build_sequence_tensor_dataset(
+    dataset: pd.DataFrame, model_input_names: list[str], window_size: int
+) -> np.ndarray:
+    """Builds a (rows, window_size, features) tensor, row-order-aligned
+    with `dataset` itself (sequences[i] corresponds to dataset.iloc[i]),
+    using each ticker's own trailing window of already-computed
+    model_input columns - the exact same 48-dim vector AetherNetMultiTask's
+    flat trunk already consumes per row. Phase 2 needs no new feature
+    engineering, only windowing over what Phase 1 already computes per bar
+    - `dataset` must already be sorted the way build_feature_dataset()
+    leaves it (by date within each ticker's own rows, in chronological
+    order).
+
+    Rows with fewer than `window_size` preceding rows (including itself)
+    for their ticker are LEFT-PADDED with zeros - main.py's runtime
+    rolling buffer (main.py::_build_sequence_model_input()) starts empty
+    and fills up bar by bar the same way, so this is the correct offline
+    mirror of that behavior, not an approximation."""
+    feature_matrix = dataset[model_input_names].to_numpy(dtype=np.float32)
+    tickers = dataset["ticker"].to_numpy()
+
+    sequences = np.zeros((len(dataset), window_size, len(model_input_names)), dtype=np.float32)
+    positions_by_ticker: dict[str, list[int]] = {}
+    for position, ticker in enumerate(tickers):
+        positions_by_ticker.setdefault(ticker, []).append(position)
+
+    for positions in positions_by_ticker.values():
+        for index_within_ticker, position in enumerate(positions):
+            window_start = max(0, index_within_ticker + 1 - window_size)
+            window_positions = positions[window_start : index_within_ticker + 1]
+            window_values = feature_matrix[window_positions]
+            sequences[position, -len(window_values):, :] = window_values
+
+    return sequences
 
 
 def set_seed(seed: int) -> None:
@@ -1338,6 +1717,7 @@ def train_model(
     training_config = phase3["training"]
     model_config = phase3["model"]
     feature_names = [f"{name}_scaled" for name in config["phase1"]["features"]["input_set"]]
+    feature_names += _categorical_feature_names(dataset)
     if bool(model_config.get("use_asset_context", False)):
         feature_names += [column for column in dataset.columns if column.startswith("asset_")]
 
@@ -1522,6 +1902,7 @@ def train_model(
 def _feature_names_for_model(config: dict, dataset: pd.DataFrame) -> list[str]:
     model_config = config["phase3"]["model"]
     feature_names = [f"{name}_scaled" for name in config["phase1"]["features"]["input_set"]]
+    feature_names += _categorical_feature_names(dataset)
     if bool(model_config.get("use_asset_context", False)):
         feature_names += [column for column in dataset.columns if column.startswith("asset_")]
     return feature_names
@@ -1864,6 +2245,287 @@ def _write_expert_model_export(
     }
 
 
+def _expert_multitask_tensors(
+    frame: pd.DataFrame, feature_names: list[str]
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    features = torch.tensor(frame[feature_names].to_numpy(dtype=np.float32), dtype=torch.float32)
+    direction = torch.tensor(frame["target_direction"].to_numpy(dtype=np.float32), dtype=torch.float32)
+    magnitude = torch.tensor(frame["target_return_1d"].to_numpy(dtype=np.float32), dtype=torch.float32)
+    volatility = torch.tensor(frame["target_volatility_next_day"].to_numpy(dtype=np.float32), dtype=torch.float32)
+    return features, direction, magnitude, volatility
+
+
+def _train_expert_multitask(
+    expert_name: str,
+    expert_frame: pd.DataFrame,
+    feature_names: list[str],
+    model_config: dict,
+    training_config: dict,
+    device: torch.device,
+) -> dict:
+    """Per-expert multitask (direction+magnitude+volatility) trainer -
+    mirrors _train_expert_classifier()'s exact shape (split -> loader ->
+    model -> Adam -> epoch loop with early stopping on validation loss ->
+    best-state reload -> threshold tuning) but trains AetherNetMultiTask
+    with the same combined BCE+MSE+MSE loss train_multitask.py's main()
+    uses, over the SAME regime-filtered per-expert dataset slice
+    _train_expert_classifier() already trains its direction-only
+    classifier on. This is what lets moe/gating.py blend per-expert
+    magnitude/volatility the same weighted-average way it already blends
+    expert_probability_up (see moe/README.md's scope note on this)."""
+    required_target_columns = {"target_return_1d", "target_volatility_next_day"}
+    if not required_target_columns.issubset(expert_frame.columns):
+        # Older/synthetic datasets (e.g. built before the multitask targets
+        # existed, or hand-constructed test fixtures) simply don't have
+        # these columns - best-effort skip, never a hard failure, matching
+        # every other optional stage in this pipeline.
+        return {
+            "expert": expert_name,
+            "status": "skipped",
+            "reason": "dataset_missing_multitask_target_columns",
+        }
+
+    train_frame = split_frame(expert_frame, "train")
+    validation_frame = split_frame(expert_frame, "validation")
+    backtest_frame = split_frame(expert_frame, "backtest")
+
+    min_train_rows = int(training_config.get("min_train_rows", 50))
+    min_validation_rows = int(training_config.get("min_validation_rows", 10))
+    min_backtest_rows = int(training_config.get("min_backtest_rows", 10))
+    if len(train_frame) < min_train_rows or len(validation_frame) < min_validation_rows or len(backtest_frame) < min_backtest_rows:
+        return {
+            "expert": expert_name,
+            "status": "skipped",
+            "reason": "not_enough_rows_for_expert_multitask_training",
+        }
+
+    # +1 vs _train_expert_classifier()'s own seed formula, so the two
+    # models' random initialization/batch shuffling are decorrelated
+    # rather than accidentally identical.
+    seed = int(training_config["seed"]) + sum(ord(character) for character in expert_name) + 1
+    set_seed(seed)
+
+    magnitude_loss_weight = float(training_config.get("magnitude_loss_weight", 1.0))
+    volatility_loss_weight = float(training_config.get("volatility_loss_weight", 1.0))
+
+    train_features, train_direction, train_magnitude, train_volatility = _expert_multitask_tensors(train_frame, feature_names)
+    validation_features, validation_direction, validation_magnitude, validation_volatility = _expert_multitask_tensors(
+        validation_frame, feature_names
+    )
+    validation_features = validation_features.to(device)
+    validation_direction = validation_direction.to(device)
+    validation_magnitude = validation_magnitude.to(device)
+    validation_volatility = validation_volatility.to(device)
+
+    train_loader = DataLoader(
+        TensorDataset(train_features, train_direction, train_magnitude, train_volatility),
+        batch_size=int(training_config["batch_size"]),
+        shuffle=True,
+    )
+
+    model = AetherNetMultiTask(
+        input_dim=len(feature_names),
+        hidden_layers=list(model_config["hidden_layers"]),
+        dropout=float(model_config["dropout"]),
+        activation=str(model_config.get("activation", "relu")),
+        normalization=str(model_config.get("normalization", "none")),
+    ).to(device)
+
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=float(training_config["learning_rate"]),
+        weight_decay=float(training_config["weight_decay"]),
+    )
+    positive_count = max(float(train_frame["target_direction"].sum()), 1.0)
+    negative_count = max(float(len(train_frame) - train_frame["target_direction"].sum()), 1.0)
+    pos_weight = torch.tensor(negative_count / positive_count, dtype=torch.float32, device=device)
+    direction_criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    magnitude_criterion = nn.MSELoss()
+    volatility_criterion = nn.MSELoss()
+
+    threshold = float(training_config["decision_threshold"])
+    threshold_metric = str(training_config.get("optimize_threshold_metric", "f1"))
+    threshold_min = float(training_config.get("threshold_search_min", 0.35))
+    threshold_max = float(training_config.get("threshold_search_max", 0.65))
+    threshold_steps = int(training_config.get("threshold_search_steps", 61))
+    max_epochs = int(training_config["epochs"])
+    patience = int(training_config["patience"])
+
+    best_state = None
+    best_epoch = 0
+    best_validation_loss = float("inf")
+    epochs_without_improvement = 0
+    history: list[dict] = []
+
+    for epoch in range(1, max_epochs + 1):
+        model.train()
+        running_loss = 0.0
+        sample_count = 0
+
+        for batch_features, batch_direction, batch_magnitude, batch_volatility in train_loader:
+            batch_features = batch_features.to(device)
+            batch_direction = batch_direction.to(device)
+            batch_magnitude = batch_magnitude.to(device)
+            batch_volatility = batch_volatility.to(device)
+
+            optimizer.zero_grad()
+            direction_logits, magnitude_predictions, volatility_predictions = model(batch_features)
+            loss = (
+                direction_criterion(direction_logits, batch_direction)
+                + magnitude_loss_weight * magnitude_criterion(magnitude_predictions, batch_magnitude)
+                + volatility_loss_weight * volatility_criterion(volatility_predictions, batch_volatility)
+            )
+            loss.backward()
+            optimizer.step()
+
+            running_loss += float(loss.item()) * len(batch_direction)
+            sample_count += len(batch_direction)
+
+        model.eval()
+        with torch.no_grad():
+            validation_direction_logits, validation_magnitude_predictions, validation_volatility_predictions = model(
+                validation_features
+            )
+            validation_loss = (
+                direction_criterion(validation_direction_logits, validation_direction)
+                + magnitude_loss_weight * magnitude_criterion(validation_magnitude_predictions, validation_magnitude)
+                + volatility_loss_weight * volatility_criterion(validation_volatility_predictions, validation_volatility)
+            )
+        history.append(
+            {
+                "epoch": epoch,
+                "train_loss": running_loss / max(sample_count, 1),
+                "validation_loss": float(validation_loss.item()),
+            }
+        )
+
+        if float(validation_loss.item()) < best_validation_loss:
+            best_validation_loss = float(validation_loss.item())
+            best_epoch = epoch
+            best_state = copy.deepcopy(model.state_dict())
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
+        if epochs_without_improvement >= patience:
+            break
+
+    if best_state is None:
+        best_state = copy.deepcopy(model.state_dict())
+        best_epoch = len(history)
+
+    model.load_state_dict(best_state)
+    model.eval()
+    with torch.no_grad():
+        validation_direction_logits, _, _ = model(validation_features)
+    tuned_threshold, tuned_validation_metrics = find_optimal_threshold(
+        validation_direction_logits,
+        validation_direction,
+        direction_criterion,
+        threshold_metric,
+        threshold_min,
+        threshold_max,
+        threshold_steps,
+    )
+
+    def compute_split_metrics(features, direction, magnitude, volatility) -> dict:
+        model.eval()
+        with torch.no_grad():
+            direction_logits, magnitude_predictions, volatility_predictions = model(features)
+        return {
+            "direction": compute_binary_metrics(direction_logits, direction, direction_criterion, tuned_threshold),
+            "magnitude": compute_regression_metrics(magnitude_predictions, magnitude),
+            "volatility": compute_regression_metrics(volatility_predictions, volatility),
+        }
+
+    backtest_features, backtest_direction, backtest_magnitude, backtest_volatility = _expert_multitask_tensors(
+        backtest_frame, feature_names
+    )
+    backtest_features = backtest_features.to(device)
+    backtest_direction = backtest_direction.to(device)
+    backtest_magnitude = backtest_magnitude.to(device)
+    backtest_volatility = backtest_volatility.to(device)
+
+    metrics = {
+        "expert": expert_name,
+        "status": "trained",
+        "rows": int(len(expert_frame)),
+        "split_rows": {
+            "train": int(len(train_frame)),
+            "validation": int(len(validation_frame)),
+            "backtest": int(len(backtest_frame)),
+        },
+        "best_epoch": best_epoch,
+        "epochs_ran": len(history),
+        "loss_weights": {
+            "magnitude_loss_weight": magnitude_loss_weight,
+            "volatility_loss_weight": volatility_loss_weight,
+        },
+        "threshold_optimization": {
+            "metric": threshold_metric,
+            "default_threshold": threshold,
+            "selected_threshold": tuned_threshold,
+            "selected_validation_metrics": tuned_validation_metrics,
+        },
+        "train": compute_split_metrics(
+            train_features.to(device), train_direction.to(device), train_magnitude.to(device), train_volatility.to(device)
+        ),
+        "validation": compute_split_metrics(validation_features, validation_direction, validation_magnitude, validation_volatility),
+        "backtest": compute_split_metrics(backtest_features, backtest_direction, backtest_magnitude, backtest_volatility),
+        "history": history,
+    }
+    return {
+        "expert": expert_name,
+        "status": "trained",
+        "model": model,
+        "threshold": tuned_threshold,
+        "metrics": metrics,
+    }
+
+
+def _write_expert_multitask_export(
+    expert_name: str,
+    result: dict,
+    model_config: dict,
+    feature_names: list[str],
+    output_dir: Path,
+) -> dict:
+    def artifact_path(path: Path) -> str:
+        try:
+            return str(path.relative_to(ROOT))
+        except ValueError:
+            return str(path)
+
+    expert_dir = output_dir / expert_name
+    expert_dir.mkdir(parents=True, exist_ok=True)
+    weights_path = expert_dir / "multitask_model.json"
+    metrics_path = expert_dir / "multitask_training_metrics.json"
+
+    metrics_path.write_text(json.dumps(result["metrics"], indent=2), encoding="utf-8")
+    payload = {
+        "project": "Aether Quant",
+        "phase": "v2_expert_multitask_model",
+        "expert": expert_name,
+        "status": "trained",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "model": {
+            "type": "multitask_direction_magnitude_volatility",
+            "model_input_features": feature_names,
+            "hidden_layers": model_config["hidden_layers"],
+            "dropout": model_config["dropout"],
+            "activation": model_config.get("activation", "relu"),
+            "normalization": model_config.get("normalization", "none"),
+            "decision_threshold": result["threshold"],
+        },
+        "export": export_multitask_architecture(result["model"]) | {"state_dict": export_state_dict(result["model"])},
+    }
+    weights_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return {
+        "weights_path": artifact_path(weights_path),
+        "metrics_path": artifact_path(metrics_path),
+    }
+
+
 def train_expert_models(
     config: dict,
     dataset: pd.DataFrame,
@@ -1879,6 +2541,16 @@ def train_expert_models(
     model_config, training_config = _expert_training_config(config)
     feature_names = _feature_names_for_model(config, annotated_dataset)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Per-expert multitask (direction+magnitude+volatility) training config -
+    # reuses phase_v2.retraining.multitask_training's magnitude_loss_weight/
+    # volatility_loss_weight (train_multitask.py's own config block) layered
+    # onto the expert classifier's own training_config, so both loss weights
+    # and the classifier's regularization/epoch/patience settings apply.
+    multitask_overrides = config.get("phase_v2", {}).get("retraining", {}).get("multitask_training", {})
+    expert_multitask_training_config = dict(training_config)
+    expert_multitask_training_config["magnitude_loss_weight"] = float(multitask_overrides.get("magnitude_loss_weight", 1.0))
+    expert_multitask_training_config["volatility_loss_weight"] = float(multitask_overrides.get("volatility_loss_weight", 1.0))
 
     summary = {
         "project": config["name"],
@@ -1920,10 +2592,37 @@ def train_expert_models(
                 feature_names,
                 output_dir,
             )
+
+            # Best-effort per-expert multitask head - a failure/skip here
+            # never affects the classifier's own "trained" status above;
+            # this only adds an optional multitask_model.json sibling file
+            # moe/gating.py's per-expert magnitude/volatility blend
+            # consumes when present (see moe/README.md).
+            multitask_result = _train_expert_multitask(
+                expert_name,
+                expert_frame,
+                feature_names,
+                model_config,
+                expert_multitask_training_config,
+                device,
+            )
+            multitask_summary: dict = dict(multitask_result)
+            multitask_summary.pop("model", None)
+            if multitask_result["status"] == "trained":
+                multitask_artifacts = _write_expert_multitask_export(
+                    expert_name,
+                    multitask_result,
+                    model_config,
+                    feature_names,
+                    output_dir,
+                )
+                multitask_summary["artifacts"] = multitask_artifacts
+
             summary["experts"][expert_name] = {
                 **result["metrics"],
                 "description": expert_summary["description"],
                 "artifacts": artifacts,
+                "multitask": multitask_summary,
             }
         else:
             summary["experts"][expert_name] = {
@@ -2383,6 +3082,7 @@ def main() -> int:
                     "phase": 2,
                     "feature_names": dataset_manifest["feature_names"],
                     "scaled_feature_names": dataset_manifest["scaled_feature_names"],
+                    "categorical_feature_names": dataset_manifest["categorical_feature_names"],
                     "context_feature_names": dataset_manifest["context_feature_names"],
                     "model_input_names": dataset_manifest["model_input_names"],
                     "target_column": dataset_manifest["target_column"],

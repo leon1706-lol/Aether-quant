@@ -60,20 +60,45 @@ trained model instead, without changing anything about the fallback path:
   separate, also-optional layer; see `risk/README.md`'s learned-topology
   sizing section.
 
-## Multi-task model (direction + magnitude + volatility) is deliberately not routed through gating
+## Multi-task model (direction + magnitude + volatility) now routes through gating
 
-The optional multi-task model (`train_multitask.py`/`AetherNetMultiTask`,
-see `inference/README.md`) predicts direction jointly with return magnitude
-and volatility from one shared trunk — but it is trained as a single
-baseline-scale model, not one instance per expert. `GatingDecision` is
-therefore **not** extended with `final_magnitude`/`final_volatility`
-fields: there is no per-expert magnitude/volatility to weighted-average the
-way `expert_probability_up` already is. Instead, `main.py::on_data()` calls
-`_run_multitask_model()` directly (alongside, not through,
-`build_gating_decision()`) and threads `predicted_return_magnitude`/
-`predicted_volatility` straight into `signal_payload`, the market analyzer,
-and position sizing — see `analyzer/README.md` and `risk/README.md`. This
-is a deliberate, documented scope decision for this pass, not an oversight;
-extending the expert-training pipeline to produce per-expert multi-task
-heads (which would let gating genuinely blend magnitude/volatility the same
-way it blends direction) is a natural next step, not implemented here.
+**Follow-up, same session as the note below's original writing:** per-expert
+multitask heads now exist (`train.py::_train_expert_multitask()`, writing
+`ml/expert_models/<name>/multitask_model.json` as a sibling to each
+expert's direction-only `model_weights.json`), so `GatingDecision` gains
+`final_magnitude`/`final_volatility` after all — the scope decision this
+section originally documented was resolved, not abandoned.
+
+- `build_gating_decision(..., expert_magnitudes=None, expert_volatilities=None,
+  baseline_magnitude=None, baseline_volatility=None)` gains four optional
+  params (parallel to `expert_probabilities`/`baseline_probability_up`).
+  New `_weighted_blend()` generalizes the exact weighted-average pattern
+  `expert_probability` already uses (`weight.weight × value`, summed over
+  experts with a non-`None` value), with one deliberate difference: it
+  returns `None` (not `0.0`) when no expert has a value at all — a
+  spurious `0.0` would misrepresent "no data" as "predicted zero
+  magnitude/volatility".
+- Same baseline-anchor blend shape `final_probability_up` already uses:
+  `baseline_weight × baseline_value + (1 − baseline_weight) × expert_average`
+  when both sides have a value, falling back to whichever single side
+  does when the other is `None`. The `baseline_fallback` branch (no
+  experts eligible at all) uses `baseline_magnitude`/`baseline_volatility`
+  directly, matching how it already uses `baseline_probability_up`
+  directly there.
+- The learned-gating override (`gating_model`/`gating_feature_schema`,
+  above) stays **direction-only** — it predicts a single probability, not
+  magnitude/volatility, so `final_magnitude`/`final_volatility` are
+  unaffected by `decision_source` switching to `"learned_gating"`.
+- `main.py::_run_expert_multitask_models()` loads and runs each expert's
+  optional multitask export (same per-expert graceful-degradation
+  contract as `_run_expert_models()` — a missing/failed expert
+  contributes `None` to both dicts, never blocks the bar).
+  `predicted_return_magnitude`/`predicted_volatility` (threaded into
+  `signal_payload`, the market analyzer and position sizing — see
+  `analyzer/README.md`/`risk/README.md`) now come from
+  `gating_payload["final_magnitude"/"final_volatility"]` — the full blend
+  — instead of directly from the single baseline-scale multitask model,
+  the same treatment `probability_up` itself already got from gating.
+
+See `development/Changelog.md`'s "Phase 1 remainder + Phase 2" entry for
+the full writeup.

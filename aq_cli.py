@@ -183,6 +183,8 @@ def cmd_train(args: argparse.Namespace) -> int:
         return _train_gating_only()
     if args.multitask_only:
         return _train_multitask_only()
+    if args.sequence_only:
+        return _train_sequence_only()
     cmd = [sys.executable, "train.py"]
     if args.dataset_only:
         cmd.append("--dataset-only")
@@ -253,6 +255,32 @@ def _train_multitask_only() -> int:
     for name in artifact_names:
         shutil.copy2(version_dir / name, ml_dir / name)
     print(f"aq train --multitask-only: copied {', '.join(artifact_names)} into active ml/.")
+    return 0
+
+
+def _train_sequence_only() -> int:
+    """`aq train --sequence-only`: trains the Phase 2 causal-TCN sequence
+    encoder (train_sequence.py) and installs it straight into active ml/ -
+    identical shape to _train_multitask_only()/_train_gating_only() above."""
+    version_id = f"sequence-only-{uuid.uuid4()}"
+    returncode = _run([sys.executable, "train_sequence.py", "--version-id", version_id])
+    if returncode != 0:
+        return returncode
+
+    version_dir = ROOT_DIR / "ml" / "versions" / version_id
+    artifact_names = ("sequence_model.json", "sequence_feature_schema.json", "sequence_training_metrics.json")
+    if any(not (version_dir / name).exists() for name in artifact_names):
+        print(
+            "aq train --sequence-only: train_sequence.py exited 0 but skipped writing artifacts "
+            "(likely insufficient train/validation/backtest rows) - active ml/ left unchanged.",
+            file=sys.stderr,
+        )
+        return 0
+
+    ml_dir = ROOT_DIR / "ml"
+    for name in artifact_names:
+        shutil.copy2(version_dir / name, ml_dir / name)
+    print(f"aq train --sequence-only: copied {', '.join(artifact_names)} into active ml/.")
     return 0
 
 
@@ -579,6 +607,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Train the joint direction+magnitude+volatility model only (wraps python train_multitask.py)",
     )
+    train_group.add_argument(
+        "--sequence-only",
+        action="store_true",
+        help="Train the Phase 2 causal-TCN sequence encoder only (wraps python train_sequence.py)",
+    )
     train_parser.set_defaults(func=cmd_train)
 
     test_parser = subparsers.add_parser("test", help="Run the test suite (wraps pytest tests/)")
@@ -649,6 +682,7 @@ def build_parser() -> argparse.ArgumentParser:
             "train_topology",
             "train_gating",
             "train_multitask",
+            "train_sequence",
             "validate",
             "backtest",
             "commit",

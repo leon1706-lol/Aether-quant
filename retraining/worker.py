@@ -41,6 +41,7 @@ from retraining.orchestrator import (
     train,
     train_gating,
     train_multitask,
+    train_sequence,
     train_topology,
     validate,
 )
@@ -121,6 +122,12 @@ class RetrainingWorker:
         # and never blocks the primary candidate's own validate/backtest/
         # commit/promote path.
         train_multitask(self._conn, retraining_id, version_id, self.config)
+
+        # Best-effort Phase 2 sequence-encoder training - same contract,
+        # failure is logged inside train_sequence() itself and never
+        # blocks the primary candidate's own validate/backtest/commit/
+        # promote path.
+        train_sequence(self._conn, retraining_id, version_id, self.config)
 
         validate_result = validate(self._conn, retraining_id, version_id, self.config)
         if not validate_result["ok"]:
