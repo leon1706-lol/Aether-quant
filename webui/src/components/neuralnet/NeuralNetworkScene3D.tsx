@@ -13,15 +13,40 @@ const OUTPUT_NODE_RADIUS = 0.32
 const OUTPUT_NODE_COLOR = '#fef3c7'
 
 // Baseline centered, experts arranged around it, gating at the far end
-// (it consumes every other network's output) - so the biggest/most
-// important network reads as the visual anchor of the whole constellation.
-const NETWORK_ORDER = ['bullish', 'bearish', 'baseline', 'sideways', 'volatility', 'gating']
+// (it consumes every other network's output), then the multitask family
+// (baseline + each expert's magnitude/volatility head) and finally the
+// Phase 2 sequence encoder - so the biggest/most important network still
+// reads as the visual anchor, with the newer additions trailing it in the
+// order they were introduced.
+const NETWORK_ORDER = [
+  'bullish',
+  'bearish',
+  'baseline',
+  'sideways',
+  'volatility',
+  'gating',
+  'baseline_multitask',
+  'bullish_multitask',
+  'bearish_multitask',
+  'sideways_multitask',
+  'volatility_multitask',
+  'sequence',
+]
+
+// Multitask/sequence exports use a branching {"trunk", "heads"} shape
+// instead of one flat layer list - heads are rendered as separate labeled
+// mini-network columns (see headColumnsFor()) rather than a single merged
+// diagram, so this fixes the display order of the 3 heads regardless of
+// the backend dict's iteration order.
+const HEAD_DISPLAY_ORDER = ['direction', 'magnitude', 'volatility']
 
 type Vec3 = [number, number, number]
 
 function networkColor(network: NeuralNetworkModel): string {
   if (network.role === 'baseline') return '#38bdf8'
   if (network.role === 'gating') return '#a78bfa'
+  if (network.role === 'multitask' || network.role === 'expert_multitask') return '#2dd4bf'
+  if (network.role === 'sequence') return '#818cf8'
   switch (network.quality_status) {
     case 'stable':
       return '#34d399'
@@ -32,6 +57,31 @@ function networkColor(network: NeuralNetworkModel): string {
     default:
       return '#cbd5e1'
   }
+}
+
+// Expands one multitask/sequence network into one synthetic diagram column
+// per head - each column is `network.node_layers` (the shared trunk) with
+// that head's own tail appended, so the trunk is genuinely rendered once
+// per head via the exact same NetworkDiagram/layerNodePositions primitives
+// the flat baseline/expert/gating networks already use, no new 3D layout
+// code required. A network with no `heads` (flat networks, or a
+// not-yet-trained multitask/sequence network - heads is always {} on the
+// not_trained path) renders as a single column, unchanged from before.
+function headColumnsFor(network: NeuralNetworkModel): NeuralNetworkModel[] {
+  const heads = network.heads
+  if (!heads || Object.keys(heads).length === 0) {
+    return [network]
+  }
+  const orderedHeadNames = [
+    ...HEAD_DISPLAY_ORDER.filter((name) => heads[name]),
+    ...Object.keys(heads).filter((name) => !HEAD_DISPLAY_ORDER.includes(name)),
+  ]
+  return orderedHeadNames.map((headName) => ({
+    ...network,
+    name: `${network.name}::${headName}`,
+    label: `${network.label} · ${headName}`,
+    node_layers: [...network.node_layers, ...heads[headName].slice(1)],
+  }))
 }
 
 function sampledIndexCount(width: number): number {
@@ -142,16 +192,17 @@ export function NeuralNetworkScene3D({ neuralNetwork }: { neuralNetwork: NeuralN
   const orderedNetworks = NETWORK_ORDER.map((name) => networks.find((network) => network.name === name)).filter(
     (network): network is NeuralNetworkModel => Boolean(network),
   )
-  const slotCount = orderedNetworks.length || 1
+  const diagramColumns = orderedNetworks.flatMap(headColumnsFor)
+  const slotCount = diagramColumns.length || 1
 
   return (
     <Panel title="Neural Networks">
       <div className="relative h-[460px] overflow-hidden rounded-2xl bg-black/20">
-        {orderedNetworks.length > 0 ? (
+        {diagramColumns.length > 0 ? (
           <Canvas camera={{ position: [2, 5, 26], fov: 50 }}>
             <ambientLight intensity={0.6} />
             <pointLight position={[10, 10, 10]} intensity={0.8} />
-            {orderedNetworks.map((network, slotIndex) => (
+            {diagramColumns.map((network, slotIndex) => (
               <NetworkDiagram
                 key={network.name}
                 network={network}
@@ -167,7 +218,9 @@ export function NeuralNetworkScene3D({ neuralNetwork }: { neuralNetwork: NeuralN
         )}
         <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-white/60">
           <span>Baseline (sky) centered · experts colored by quality status · gating (violet) blends them all</span>
-          <span>Every network funnels down to one glowing amber output node — the final decision</span>
+          <span>Multitask family (teal) and the Phase 2 sequence encoder (indigo) each render one column per
+            output head — direction / magnitude / volatility — sharing the same trunk shape</span>
+          <span>Every column funnels down to one glowing amber output node — the final decision for that head</span>
           <span>Wide layers are sampled to a legible node count — exact totals are in the stats panel</span>
         </div>
       </div>

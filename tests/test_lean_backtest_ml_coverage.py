@@ -146,3 +146,49 @@ def test_liquidity_engine_ran(state_after_backtest):
 def test_topology_ran(state_after_backtest):
     topology = state_after_backtest.get("topology") or {}
     assert len(topology.get("nodes") or []) > 0
+
+
+def test_model_input_dimensionality_is_48(state_after_backtest):
+    """Proves the 48-dim regime/liquidity/topology-as-input feature pipeline
+    (train.py::build_feature_dataset() / main.py::_build_model_input())
+    was actually exercised in a real backtest, not just unit-tested."""
+    model_config = state_after_backtest.get("config", {}).get("model", {})
+    assert model_config.get("input_count") == 48
+
+
+def test_baseline_multitask_model_ran(state_after_backtest):
+    """Proves train.py::AetherNetMultiTask (train_multitask.py,
+    ml/multitask_model.json) actually loaded and produced magnitude/
+    volatility predictions during a real backtest."""
+    model_config = state_after_backtest.get("config", {}).get("model", {})
+    assert model_config.get("multitask", {}).get("model_loaded") is True
+    for signal in _signals_with_full_payload(state_after_backtest):
+        assert signal.get("predicted_return_magnitude") is not None
+        assert signal.get("predicted_volatility") is not None
+        return
+    pytest.fail("no evaluated signal found")
+
+
+def test_expert_multitask_heads_ran(state_after_backtest):
+    """Proves per-expert multitask heads (ml/expert_models/<name>/
+    multitask_model.json) actually fed moe/gating.py's _weighted_blend()
+    into GatingDecision.final_magnitude during a real backtest."""
+    for signal in _signals_with_full_payload(state_after_backtest):
+        gating = signal.get("moe_gating") or {}
+        assert gating.get("final_magnitude") is not None
+        return
+    pytest.fail("no evaluated signal found")
+
+
+def test_sequence_model_ran(state_after_backtest):
+    """Proves the Phase 2 causal-TCN sequence encoder
+    (train.py::AetherNetSequenceMultiTask, ml/sequence_model.json) actually
+    loaded and ran during a real backtest. Informational-only - this does
+    not assert it fed any trading decision, only that it executed."""
+    model_config = state_after_backtest.get("config", {}).get("model", {})
+    assert model_config.get("sequence", {}).get("model_loaded") is True
+    for signal in _signals_with_full_payload(state_after_backtest):
+        sequence_model = signal.get("sequence_model") or {}
+        assert set(sequence_model.keys()) >= {"direction", "magnitude", "volatility"}
+        return
+    pytest.fail("no evaluated signal found")

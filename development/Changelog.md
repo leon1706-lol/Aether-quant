@@ -1569,3 +1569,83 @@ magnitude/volatility) end-to-end against the real retrained artifacts.
   informational-only regardless (see above) — it does not need a
   validated backtest before it can ship, since it cannot influence any
   trading decision yet.
+
+## Multitask/sequence pipeline integration — closing the 7 remaining gaps
+
+Follow-up pass to the two entries above: the multitask/sequence models
+themselves were fully built and verified, but 7 integration points between
+that new model layer and the rest of the stack were still open. All 7 are
+closed now (one, `requirements-retraining-worker.txt` already covering
+`train_sequence.py`'s deps, needed no action — confirmed, not fixed).
+
+- **Real-backtest coverage.** `tests/test_lean_backtest_ml_coverage.py`
+  gains 4 tests exercising a real `lean backtest .` run against the 48-dim
+  input pipeline, the baseline multitask model, the per-expert multitask
+  heads' contribution to `moe_gating.final_magnitude`, and the sequence
+  model — the established mechanism this repo uses for real-backtest
+  proof, rather than a manual one-off run.
+- **`sequence_model` now reaches the experience/Postgres pipeline.**
+  `experience/redis_queue.py::build_experience_event()` gains an optional
+  `sequence_model` field (defaults `None`); `main.py`'s call site now
+  passes the already-computed `sequence_prediction` through. No Postgres
+  migration — the whole event dict already serializes into the catch-all
+  `payload JSONB` column.
+- **Neural-network webui page extended to all 11 real networks.**
+  `monitoring/neural_network_state.py::_parse_network_export()` now
+  dispatches between the original flat `architecture` shape and the new
+  branching `{"trunk", "heads"}` shape (`_parse_branching_network_export()`),
+  tagging every layer with its owning head; `_weight_stats()`'s flatten
+  was made recursive (`_flatten()`) to handle `conv1d_causal`'s 3D weight
+  matrix. `build_neural_network_state()` now also reads
+  `ml/multitask_model.json`, each expert's `multitask_model.json`, and
+  `ml/sequence_model.json`. On the webui side, `NeuralNetworkScene3D.tsx`'s
+  new `headColumnsFor()` expands each multitask/sequence network into one
+  diagram column per head (direction/magnitude/volatility), reusing the
+  existing `NetworkDiagram` primitives unchanged rather than building a
+  new 3D branching-tree renderer; `NETWORK_ORDER` extended with the 6 new
+  names (previously a silent filter — see Problems.md #19 on why this
+  matters). Also fixed a stale claim in `v2_architecture.md`'s Neural
+  Network Visualization Contract: the "gating has no learned weight
+  matrix, excluded" paragraph predated the learned-gating model and no
+  longer matched the code (gating has been rendered as a real network,
+  not excluded, since that work shipped).
+- **`development/v2_architecture.md` updated**: the Neural Network
+  Visualization Contract section now documents all 11 networks and the
+  branching export shape; a new "Model input dimensionality is 48, not
+  30" sub-block on the Expert Model Contract; a new Follow-up paragraph on
+  the Gating Network Contract for the magnitude/volatility blend; a new
+  "Phase 2 Sequence Encoder Contract" section; and the Redis Experience
+  Queue section's schema/Follow-up now include `sequence_model`.
+- **Retraining promotion-cycle test coverage + runbook doc.** New tests
+  confirm `OPTIONAL_MULTITASK_FILES`/`OPTIONAL_SEQUENCE_FILES` stay
+  present in `ALL_TRACKED_FILES`/`ACTIVE_ARTIFACT_FILES`, and that a
+  candidate's `multitask_model.json`/`sequence_model.json` survive
+  `commit()`'s hashing step (mocked subprocess/vault, no live Postgres
+  needed — matching this file's own established test-coverage
+  convention). `development/infrastructure.md`'s retraining runbook now
+  lists the full `train_topology`/`train_gating`/`train_multitask`/
+  `train_sequence` stage order (a pre-existing gap in that doc, unrelated
+  to this session, fixed while already touching the exact list it lives
+  in) and notes per-expert multitask artifacts are **not** tracked by
+  `retraining/artifacts.py` — they follow a separate promotion path.
+- **Per-bar inference cost documented, not benchmarked.** Problems.md
+  #21: the forward-pass count went from 5 to 11 per symbol per bar.
+  Explicitly not measured this pass — both new model families are either
+  informational-only or gated behind an off-by-default config flag, so
+  nothing trades on them yet, and this repo's only enforced latency
+  constraint (Lean's 90s `initialize()` isolator timeout) is unrelated to
+  per-bar cost. If it ever becomes a real problem, entries #16/#17
+  already establish the diagnose-via-real-backtest-run method to use.
+- **README architecture diagrams updated** to visually match the prose
+  already added in the entry above — see the "System Flow"/"Tech Stack"
+  Mermaid diagrams.
+
+### Verification
+
+`pytest tests/` — full suite green (see the test badge at the top of this
+repo's README, refreshed via `aq test`).
+`tests/test_lean_backtest_ml_coverage.py`'s new assertions are exercised
+only when the Lean CLI is available locally (self-skips otherwise, same
+as the rest of that file). `npx tsc -b --noEmit` in `webui/` — clean, no
+type errors from the `NeuralNetworkModel`/`NeuralNetworkLayer` type
+extensions or `NeuralNetworkScene3D.tsx`'s head-column expansion.

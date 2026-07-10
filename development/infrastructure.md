@@ -241,11 +241,19 @@ docker compose run --rm retraining-worker python -m retraining.worker --once
 
 **3. Run individual stages manually/staged** — independent of whether the
 worker is running (carry `retraining_id`/`version_id` over from the
-previous step):
+previous step). `train_topology`/`train_gating`/`train_multitask`/
+`train_sequence` are each independently best-effort — a failure in any one
+of them is logged and swallowed, never rejects the primary candidate — and
+individually toggle-able via `config.json`'s
+`phase_v2.retraining.{topology_training,gating_training,multitask_training,sequence_training}.enabled`:
 
 ```powershell
 python -m retraining.orchestrator plan
 python -m retraining.orchestrator train --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator train_topology --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator train_gating --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator train_multitask --retraining-id <id> --version-id <uuid>
+python -m retraining.orchestrator train_sequence --retraining-id <id> --version-id <uuid>
 python -m retraining.orchestrator validate --retraining-id <id> --version-id <uuid>
 python -m retraining.orchestrator backtest --retraining-id <id> --version-id <uuid>
 python -m retraining.orchestrator commit --retraining-id <id> --version-id <uuid>
@@ -253,6 +261,21 @@ python -m retraining.orchestrator promote --version-id <uuid>
 python -m retraining.orchestrator rollback --to-version-id <uuid>
 python -m retraining.orchestrator status
 ```
+
+Note: `ml/expert_models/<name>/multitask_model.json` (the per-expert
+multitask heads) is not part of this candidate/rollback system —
+`retraining/artifacts.py` doesn't track it, so expert model promotion
+follows its own separate, pre-existing path. Only the baseline-scale
+`multitask_model.json`/`sequence_model.json` are versioned/rolled-back
+through `commit`/`promote`/`rollback` here (`OPTIONAL_MULTITASK_FILES`/
+`OPTIONAL_SEQUENCE_FILES` in `retraining/artifacts.py`).
+
+A real end-to-end cycle exercising all of the above against live
+PostgreSQL/Aether-Vault is something you run yourself in your own
+environment (step 1 above gets the stack up) — `tests/test_retraining_orchestrator.py`
+covers each stage (including `train_multitask`/`train_sequence` and their
+artifacts surviving `commit()`'s hashing) against a mocked subprocess/DB,
+which is the level of verification this repo keeps in its own test suite.
 
 **4. Turn retraining off entirely** (without touching the container) — in
 `config.json`:

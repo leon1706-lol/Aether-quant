@@ -36,11 +36,19 @@ def build_experience_event(
     liquidity: dict,
     market_analysis: dict,
     portfolio: dict,
+    sequence_model: dict | None = None,
 ) -> dict[str, Any]:
     """Construct a standardised experience event dict.
 
     Pure function — no side effects, no I/O. Directly testable without
     any Redis dependency.
+
+    `sequence_model` is the optional Phase 2 causal-TCN sequence-encoder
+    prediction (`main.py::_run_sequence_model()`, `{"direction",
+    "magnitude", "volatility"}` or None when the model isn't loaded/failed
+    for this bar) — informational only, same as everywhere else it's
+    threaded, but now persisted for offline analysis instead of only
+    reaching the live dashboard.
     """
     return {
         "event_id": str(uuid.uuid4()),
@@ -61,6 +69,7 @@ def build_experience_event(
         "liquidity": liquidity,
         "market_analysis": market_analysis,
         "portfolio": portfolio,
+        "sequence_model": sequence_model,
     }
 
 

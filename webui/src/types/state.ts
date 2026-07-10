@@ -242,12 +242,16 @@ export interface NeuralNetworkLayer {
   out_features?: number | null
   weight_abs_mean?: number | null
   weight_abs_max?: number | null
+  // Which multitask/sequence head this layer belongs to (e.g. "direction",
+  // "magnitude", "volatility"), or null/absent for a trunk layer (or for
+  // any layer of a flat, non-branching network like baseline/expert/gating).
+  head?: string | null
 }
 
 export interface NeuralNetworkModel {
   name: string
   label: string
-  role: 'baseline' | 'expert' | 'gating' | string
+  role: 'baseline' | 'expert' | 'gating' | 'multitask' | 'expert_multitask' | 'sequence' | string
   status: 'trained' | 'not_trained' | string
   quality_status?: 'stable' | 'watchlist' | 'disabled_for_gating' | 'learned' | string | null
   node_layers: number[]
@@ -256,6 +260,10 @@ export interface NeuralNetworkModel {
   total_nodes: number
   total_edges: number
   last_modified?: string | null
+  // Present (non-empty) only for multitask/sequence networks: each output
+  // head's own node_layers, branching off node_layers' final width. Empty
+  // object for flat networks (baseline/expert/gating).
+  heads?: Record<string, number[]>
 }
 
 export interface NeuralNetworkExcluded {

@@ -420,3 +420,54 @@ def test_commit_hashes_and_vault_add_include_topology_files_when_present(tmp_pat
     hashes = update_version_mock.call_args.kwargs["artifact_hashes"]
     for filename in OPTIONAL_TOPOLOGY_FILES:
         assert filename in hashes
+
+
+def test_all_tracked_files_includes_multitask_and_sequence_artifacts():
+    """Cheap, deterministic guard against accidentally dropping the
+    multitask/sequence artifacts from either tracked-file tuple - both
+    commit()'s hashing (ALL_TRACKED_FILES) and promote()'s copy-to-active
+    (ACTIVE_ARTIFACT_FILES) depend on these including the new filenames."""
+    from retraining.artifacts import (
+        ACTIVE_ARTIFACT_FILES,
+        ALL_TRACKED_FILES,
+        OPTIONAL_MULTITASK_FILES,
+        OPTIONAL_SEQUENCE_FILES,
+    )
+
+    for filename in OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES:
+        assert filename in ALL_TRACKED_FILES
+        assert filename in ACTIVE_ARTIFACT_FILES
+
+
+def test_commit_hashes_include_multitask_and_sequence_files_when_present(tmp_path):
+    """Mirrors test_commit_hashes_and_vault_add_include_topology_files_when_present
+    for the multitask/sequence artifacts: proves a candidate's
+    multitask_model.json/sequence_model.json (produced by the best-effort
+    train_multitask()/train_sequence() stages) survive commit()'s hashing
+    step - i.e. a real promotion cycle would carry them forward - without
+    needing a live Postgres/Aether-Vault to prove it."""
+    from retraining.artifacts import ALL_TRACKED_FILES, OPTIONAL_MULTITASK_FILES, OPTIONAL_SEQUENCE_FILES
+
+    conn_mock, _ = _make_conn_mock()
+    root_dir = tmp_path
+    version_dir = root_dir / "ml" / "versions" / "v1"
+    version_dir.mkdir(parents=True)
+    for filename in ALL_TRACKED_FILES:
+        content = "{}" if filename.endswith(".json") else "data"
+        (version_dir / filename).write_text(content, encoding="utf-8")
+
+    vault_result = {"ok": True, "vault_commit": "abc123", "stage": "done", "steps": {}}
+
+    with patch("retraining.orchestrator.ROOT_DIR", root_dir), patch(
+        "retraining.orchestrator.candidate_dir", return_value=version_dir
+    ), patch(
+        "retraining.orchestrator.commit_candidate_to_vault", return_value=vault_result
+    ), patch(
+        "retraining.orchestrator.update_model_version_status"
+    ) as update_version_mock, patch("retraining.orchestrator.update_retraining_event_status"):
+        result = orchestrator.commit(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    assert result["ok"] is True
+    hashes = update_version_mock.call_args.kwargs["artifact_hashes"]
+    for filename in OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES:
+        assert filename in hashes

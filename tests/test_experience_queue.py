@@ -52,15 +52,32 @@ def _fake_queue(stream_name: str = "aether:experience", maxlen: int = 100_000):
 
 
 def test_event_contains_required_fields():
-    """build_experience_event returns all 18 required schema keys."""
+    """build_experience_event returns all 19 required schema keys."""
     event = _minimal_event()
     required = {
         "event_id", "event_type", "created_at", "mode", "symbol", "ticker",
         "signal", "action", "execution_note", "probability_up", "confidence",
         "target_weight", "regime", "moe_gating", "topology", "liquidity",
-        "market_analysis", "portfolio",
+        "market_analysis", "portfolio", "sequence_model",
     }
     assert required.issubset(event.keys())
+
+
+def test_event_includes_sequence_model_when_provided():
+    """sequence_model (Phase 2 causal-TCN prediction) round-trips through
+    build_experience_event unchanged, same as every other optional model
+    output dict."""
+    prediction = {"direction": 0.55, "magnitude": 0.012, "volatility": 0.021}
+    event = _minimal_event(sequence_model=prediction)
+    assert event["sequence_model"] == prediction
+
+
+def test_event_sequence_model_defaults_to_none():
+    """Every call site that doesn't pass sequence_model (or a bar where
+    _run_sequence_model() returned None) must still produce a valid event
+    with the key present but null, never a missing key or a crash."""
+    event = _minimal_event()
+    assert event["sequence_model"] is None
 
 
 def test_disabled_queue_does_nothing_safely():

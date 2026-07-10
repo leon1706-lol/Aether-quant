@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from monitoring.neural_network_state import EXCLUDED_NON_NETWORKS, EXPERT_NAMES, build_neural_network_state
 
 
@@ -25,6 +27,71 @@ def _write_model_export(path: Path, node_layers: list[int]) -> None:
     architecture.append({"type": "sigmoid"})
 
     path.write_text(json.dumps({"export": {"architecture": architecture, "state_dict": state_dict}}), encoding="utf-8")
+
+
+def _write_branching_model_export(
+    path: Path,
+    trunk_node_layers: list[int],
+    heads: dict[str, list[int]],
+    trunk_conv: bool = False,
+) -> None:
+    """Writes a {"trunk": [...], "heads": {...}} export - the shape
+    train.py::export_multitask_architecture()/export_sequence_multitask_architecture()
+    produce for the baseline/expert multitask heads and the Phase 2
+    sequence encoder, as opposed to _write_model_export()'s flat
+    `architecture` shape. `trunk_conv=True` writes the trunk's first layer
+    as a conv1d_causal layer (3D weight matrix, in_channels/out_channels)
+    instead of linear, to exercise the sequence-model parsing path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state_dict: dict = {}
+
+    def _layer_specs(node_layers: list[int], prefix: str, use_conv_first: bool) -> list[dict]:
+        specs = []
+        for index, (in_features, out_features) in enumerate(zip(node_layers, node_layers[1:])):
+            weight_key = f"{prefix}.{index}.weight"
+            bias_key = f"{prefix}.{index}.bias"
+            if use_conv_first and index == 0:
+                kernel_size = 3
+                specs.append(
+                    {
+                        "type": "conv1d_causal",
+                        "weight_key": weight_key,
+                        "bias_key": bias_key,
+                        "in_channels": in_features,
+                        "out_channels": out_features,
+                        "kernel_size": kernel_size,
+                        "dilation": 1,
+                    }
+                )
+                state_dict[weight_key] = [
+                    [[0.1 * (o + i + k) for k in range(kernel_size)] for i in range(in_features)]
+                    for o in range(out_features)
+                ]
+            else:
+                specs.append(
+                    {
+                        "type": "linear",
+                        "weight_key": weight_key,
+                        "bias_key": bias_key,
+                        "in_features": in_features,
+                        "out_features": out_features,
+                    }
+                )
+                state_dict[weight_key] = [[0.1 * (i + j) for j in range(in_features)] for i in range(out_features)]
+            state_dict[bias_key] = [0.0] * out_features
+        return specs
+
+    trunk_specs = _layer_specs(trunk_node_layers, "trunk", use_conv_first=trunk_conv)
+    heads_specs = {}
+    for head_name, head_node_layers in heads.items():
+        full_head_layers = [trunk_node_layers[-1]] + head_node_layers
+        heads_specs[head_name] = _layer_specs(full_head_layers, f"heads.{head_name}", use_conv_first=False)
+        heads_specs[head_name].append({"type": "sigmoid" if head_name == "direction" else "softplus"})
+
+    path.write_text(
+        json.dumps({"export": {"trunk": trunk_specs, "heads": heads_specs, "state_dict": state_dict}}),
+        encoding="utf-8",
+    )
 
 
 def _write_expert_metrics(ml_dir: Path, quality_by_expert: dict[str, str]) -> None:
@@ -87,11 +154,13 @@ def test_totals_sum_across_all_present_networks(tmp_path):
     for expert_name in EXPERT_NAMES:
         _write_model_export(tmp_path / "expert_models" / expert_name / "model_weights.json", [20, 24, 1])
     _write_model_export(tmp_path / "gating_model.json", [26, 16, 1])
+    # No multitask/sequence exports written - those 6 networks degrade to
+    # not_trained, still counted in total_networks (12) but not trained_count.
 
     state = build_neural_network_state(ml_dir=tmp_path)
 
     networks = state["networks"]
-    assert state["totals"]["total_networks"] == 6
+    assert state["totals"]["total_networks"] == 12
     assert state["totals"]["trained_count"] == 6
     assert state["totals"]["total_layers"] == sum(n["total_layers"] for n in networks)
     assert state["totals"]["total_nodes"] == sum(n["total_nodes"] for n in networks)
@@ -146,3 +215,97 @@ def test_missing_baseline_also_degrades_gracefully(tmp_path):
     baseline = next(n for n in state["networks"] if n["name"] == "baseline")
     assert baseline["status"] == "not_trained"
     assert state["totals"]["trained_count"] == 0
+
+
+def test_baseline_multitask_network_parses_branching_shape(tmp_path):
+    _write_model_export(tmp_path / "model_weights.json", [20, 64, 32, 1])
+    _write_branching_model_export(
+        tmp_path / "multitask_model.json",
+        trunk_node_layers=[20, 64, 32],
+        heads={"direction": [1], "magnitude": [1], "volatility": [1]},
+    )
+
+    state = build_neural_network_state(ml_dir=tmp_path)
+
+    multitask = next(n for n in state["networks"] if n["name"] == "baseline_multitask")
+    assert multitask["status"] == "trained"
+    assert multitask["role"] == "multitask"
+    assert multitask["node_layers"] == [20, 64, 32]
+    assert set(multitask["heads"].keys()) == {"direction", "magnitude", "volatility"}
+    for head_layers in multitask["heads"].values():
+        assert head_layers == [32, 1]
+    # Every linear layer (trunk + all 3 heads) got real weight stats.
+    weighted_layers = [layer for layer in multitask["layers"] if layer["weight_abs_mean"] is not None]
+    assert len(weighted_layers) == 2 + 3  # 2 trunk linears + 1 linear per head
+    # Head labels correctly distinguish trunk layers (head=None) from head layers.
+    trunk_layers = [layer for layer in multitask["layers"] if layer["head"] is None]
+    assert len(trunk_layers) == 2
+    direction_layers = [layer for layer in multitask["layers"] if layer["head"] == "direction"]
+    assert len(direction_layers) == 2  # 1 linear + 1 sigmoid
+
+
+def test_expert_multitask_networks_reuse_expert_quality_status(tmp_path):
+    _write_model_export(tmp_path / "model_weights.json", [20, 64, 32, 1])
+    for expert_name in EXPERT_NAMES:
+        _write_branching_model_export(
+            tmp_path / "expert_models" / expert_name / "multitask_model.json",
+            trunk_node_layers=[20, 24],
+            heads={"direction": [1], "magnitude": [1], "volatility": [1]},
+        )
+    _write_expert_metrics(
+        tmp_path,
+        {"bullish": "watchlist", "bearish": "stable", "sideways": "stable", "volatility": "disabled_for_gating"},
+    )
+
+    state = build_neural_network_state(ml_dir=tmp_path)
+
+    quality_by_name = {n["name"]: n["quality_status"] for n in state["networks"]}
+    assert quality_by_name["bullish_multitask"] == "watchlist"
+    assert quality_by_name["volatility_multitask"] == "disabled_for_gating"
+    expert_multitask_names = {f"{expert_name}_multitask" for expert_name in EXPERT_NAMES}
+    roles = {n["name"]: n["role"] for n in state["networks"] if n["name"] in expert_multitask_names}
+    assert all(role == "expert_multitask" for role in roles.values())
+
+
+def test_sequence_network_conv1d_weight_flattening_does_not_crash(tmp_path):
+    _write_model_export(tmp_path / "model_weights.json", [20, 64, 32, 1])
+    _write_branching_model_export(
+        tmp_path / "sequence_model.json",
+        trunk_node_layers=[8, 4],
+        heads={"direction": [1], "magnitude": [1], "volatility": [1]},
+        trunk_conv=True,
+    )
+
+    state = build_neural_network_state(ml_dir=tmp_path)
+
+    sequence = next(n for n in state["networks"] if n["name"] == "sequence")
+    assert sequence["status"] == "trained"
+    assert sequence["role"] == "sequence"
+    conv_layer = next(layer for layer in sequence["layers"] if layer["type"] == "conv1d_causal")
+    assert conv_layer["in_features"] == 8
+    assert conv_layer["out_features"] == 4
+    # Independently hand-computed against _write_branching_model_export's
+    # own conv1d_causal weight formula (0.1 * (o + i + k), o in range(4),
+    # i in range(8), k in range(3)) - proves the recursive 3D-list flatten
+    # in _weight_stats()/_flatten() produces the correct mean/max, not just
+    # "doesn't crash".
+    expected_values = [0.1 * (o + i + k) for o in range(4) for i in range(8) for k in range(3)]
+    expected_mean = sum(expected_values) / len(expected_values)
+    expected_max = max(expected_values)
+    assert conv_layer["weight_abs_mean"] == pytest.approx(expected_mean)
+    assert conv_layer["weight_abs_max"] == pytest.approx(expected_max)
+
+
+def test_missing_new_networks_degrade_to_not_trained(tmp_path):
+    _write_model_export(tmp_path / "model_weights.json", [20, 64, 32, 1])
+    # No multitask/sequence exports written anywhere.
+
+    state = build_neural_network_state(ml_dir=tmp_path)
+
+    new_roles = {"multitask", "expert_multitask", "sequence"}
+    new_networks = [n for n in state["networks"] if n["role"] in new_roles]
+    assert len(new_networks) == 6  # baseline_multitask + 4 expert_multitask + sequence
+    for network in new_networks:
+        assert network["status"] == "not_trained"
+        assert network["total_layers"] == 0
+        assert network["heads"] == {}

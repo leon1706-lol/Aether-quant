@@ -523,6 +523,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     liquidity=liquidity_payload,
                     market_analysis=decision,
                     portfolio=portfolio_snapshot,
+                    sequence_model=sequence_prediction,
                 )
                 self._experience_queue.push(experience_event)
                 self._observation_event_log.append(experience_event)

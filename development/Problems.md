@@ -699,3 +699,38 @@ so no requirements changes were needed for that half of the fix.
 retraining-worker`) before this fix or the new multitask stage take effect
 — not run in this session, since the user runs Docker builds/backtests
 themselves.
+
+---
+
+### 21. Per-bar model forward-pass count doubled (5 → 11) — not yet a measured problem
+**Severity:** 2/10 · **Status:** 🟡 `documented, not measured`
+
+The multitask/sequence pass added 6 more optional model forward passes per
+symbol per bar on top of the original 5 (baseline + 4 experts):
+`baseline_multitask`, 4 `expert_multitask` heads, and the Phase 2
+`sequence` encoder — all still `inference/exported_model.py`'s plain-numpy
+interpreters (`run_exported_multitask_model()`/
+`run_exported_sequence_multitask_model()`), no batching across the 11
+calls, no shared computation between a flat model and its multitask
+sibling (e.g. `baseline` and `baseline_multitask` each run their own
+independent forward pass over the same 48-dim input, rather than one
+model with two exit points).
+
+**Not independently measured this pass** — no `lean backtest .` timing run
+was taken, deliberately, for two reasons: (1) both new model families are
+either informational-only (`sequence`, per the Phase 2 Sequence Encoder
+Contract) or feed only a config-gated, off-by-default optional path
+(`predicted_volatility` → `risk/position_sizing.py`,
+`phase_v2.dynamic_risk.use_predicted_volatility`) — nothing yet trades on
+their output by default, so there is no live-decision urgency to profile
+them; (2) the only hard, actually-enforced latency constraint anywhere in
+this codebase is Lean's 90-second `initialize()` isolator timeout
+(entry #16), which is unrelated to per-bar `on_data()` cost — there is no
+established per-bar time budget to compare against.
+
+**If this ever becomes a real observed problem** (e.g. `initialize()`
+timing regresses, or a full backtest's wall-clock time becomes a practical
+obstacle to iteration speed), the method this codebase already uses is a
+real `lean backtest .` run plus temporary side-channel disk logging (never
+a persisted timer/profiler class) — see entries #16 and #17 for the exact
+pattern and precedent before building anything new.

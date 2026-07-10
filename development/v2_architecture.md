@@ -150,9 +150,20 @@ Event schema (key fields):
   "topology": {},
   "liquidity": {},
   "market_analysis": {},
-  "portfolio": {"total_value": 105000.0, "cash": 50000.0, "current_drawdown": -0.01}
+  "portfolio": {"total_value": 105000.0, "cash": 50000.0, "current_drawdown": -0.01},
+  "sequence_model": {"direction": 0.55, "magnitude": 0.012, "volatility": 0.021}
 }
 ```
+
+**Follow-up: `sequence_model` (multitask/sequence pass).** The optional
+Phase 2 causal-TCN sequence-encoder prediction (see Phase 2 Sequence
+Encoder Contract) — `null` when the model isn't loaded or failed for that
+bar, same graceful-degrade contract as every other optional field here.
+Informational only, same as everywhere else it's threaded — persisting it
+just means it's available for offline analysis instead of only reaching
+the live dashboard. `experience/postgres_worker.py` needs no migration:
+the entire event dict is already serialized into the catch-all `payload
+JSONB` column.
 
 **Failure policy:** Redis unavailable = WARNING log, push returns `False`, trading continues.
 The queue is configured via `config.json phase_v2.experience` and overridden by the
@@ -562,6 +573,23 @@ The expert artifacts are:
 
 These artifacts stay local. The later gating network reads their metrics and exported JSON weights, then decides how strongly each expert should influence the final signal.
 
+**Model input dimensionality is 48, not 30 (multitask/sequence pass).**
+Regime (`regime_signal_confidence`/`regime_signal_trend_score`/
+`regime_signal_risk_score` plus the existing one-hot trend/volatility/risk
+flags), liquidity (`liquidity_log_dollar_volume`,
+`liquidity_spread_proxy`) and topology (2 continuous
+correlation-strength/topology-risk features) are genuine model **inputs**
+now, not just downstream consumers of the baseline/expert models' output.
+Computed identically offline (`train.py::add_regime_features()`/
+`add_liquidity_features()`/`build_topology_features_by_date()`, folded
+into `build_feature_dataset()`) and at runtime
+(`main.py::_build_model_input()`, reordered so regime/topology are
+computed *before* the model runs, not just consumed after) — see
+`regime/README.md`, `liquidity/README.md` and `topology/README.md` for
+each subsystem's own contract, and
+`tests/test_lean_backtest_ml_coverage.py::test_model_input_dimensionality_is_48`
+for the real-backtest parity proof.
+
 ## Expert Stabilization Contract
 
 Before the gating network is allowed to combine experts, each expert receives a quality status.
@@ -600,6 +628,26 @@ other exported model uses. Any failure (missing file, malformed export,
 disabled config) silently falls back to the hardcoded blend above — see
 `moe/README.md` for the full contract, `GATING_MODEL_FEATURE_KEYS`, and
 the new `"learned_gating"` `decision_source` value.
+
+**Follow-up: the gating network also blends predicted magnitude and
+volatility.** Alongside `final_probability_up`, `build_gating_decision()`
+now accepts optional `expert_magnitudes`/`expert_volatilities`/
+`baseline_magnitude`/`baseline_volatility` and produces
+`final_magnitude`/`final_volatility` via the same weighted-blend logic
+(`moe/gating.py::_weighted_blend()`), fed by
+`main.py::_run_multitask_model()`/`_run_expert_multitask_models()` — the
+baseline-scale multitask model (`train.py::AetherNetMultiTask`,
+`train_multitask.py`) and each expert's own optional multitask head
+(`train.py::_train_expert_multitask()`, `ml/expert_models/<name>/multitask_model.json`).
+The learned-gating override above stays direction-only — it never affects
+`final_magnitude`/`final_volatility`. `analyzer/market_analyzer.py`
+receives these as informational fields only (never changes routing);
+`risk/position_sizing.py::build_dynamic_position_sizing()` can optionally
+consume `final_volatility` in place of the backward-looking
+`rolling_volatility_20d` average via
+`phase_v2.dynamic_risk.use_predicted_volatility` (default `false`). See
+`moe/README.md`'s "now routes through gating" section and
+`risk/README.md`.
 
 ## Market Analyzer Contract
 
@@ -828,13 +876,14 @@ The FastAPI server (`monitoring/api_server.py`) exposes:
 
 ## Neural Network Visualization Contract (V2-20)
 
-A new webui page renders every real neural network in the project — the
-baseline model plus all 4 experts — as an interactive, orbitable 3D
-layer/node/edge diagram, alongside a live stats box.
+A webui page renders every real neural network in the project as an
+interactive, orbitable 3D layer/node/edge diagram, alongside a live stats
+box.
 
-**Data source, no training changes needed:** all 5 networks share one export
-schema (`train.py`'s `AetherNet`, `export_architecture()`/`export_state_dict()`):
-baseline is `Linear(20→64)→LayerNorm→ReLU→Dropout→Linear(64→32)→LayerNorm→ReLU→Dropout→Linear(32→1)→Sigmoid`;
+**Data source, no training changes needed:** the baseline model and all 4
+experts share one flat export schema (`train.py`'s `AetherNet`,
+`export_architecture()`/`export_state_dict()`): baseline is
+`Linear(20→64)→LayerNorm→ReLU→Dropout→Linear(64→32)→LayerNorm→ReLU→Dropout→Linear(32→1)→Sigmoid`;
 each expert is the same template at a smaller, more regularized width —
 `Linear(20→24)→LayerNorm→ReLU→Dropout→Linear(24→1)→Sigmoid` (see Expert
 Stabilization Contract). `monitoring/neural_network_state.py::build_neural_network_state()`
@@ -848,27 +897,99 @@ network to `status: "not_trained"`, never a crash. `weight_abs_mean`/
 numpy needed) drive edge color/opacity by weight magnitude.
 
 **Explicitly excluded, with a stated reason in the API payload's `excluded`
-list:** the MoE gating network (`moe/gating.py`) is a deterministic
-quality/performance/regime-alignment rule engine with no learned weight
-matrix of its own (`development/v2_architecture.md`'s Gating Network Contract
-already documents this); the learned-topology overlay
-(`topology/learned_topology.py`) scores nodes against KMeans cluster
-prototype centroids, not a layered network — neither has layers/nodes/edges
-to draw.
+list:** only the learned-topology overlay (`topology/learned_topology.py`)
+— it scores nodes against KMeans cluster prototype centroids, not a layered
+network, so there is nothing to lay out as layers/nodes/edges. The MoE
+gating network (`moe/gating.py`) is **not** excluded: its deterministic
+hardcoded blend has no weight matrix of its own, but the optional learned
+gating model (`ml/gating_model.json`, see Gating Network Contract's
+Follow-up above) does, so `gating` is always rendered here — `not_trained`
+until a learned gating model actually exists, `trained` once one does,
+same graceful-degrade contract as every other network.
+
+**Extended to 11 networks total (multitask/sequence pass).** In addition
+to the original 6 (baseline, 4 experts, gating), `build_neural_network_state()`
+now also reads `ml/multitask_model.json` (`baseline_multitask`),
+`ml/expert_models/{bullish,bearish,sideways,volatility}/multitask_model.json`
+(`{expert}_multitask`) and `ml/sequence_model.json` (`sequence`) — each a
+`{"trunk": [...], "heads": {"direction": [...], "magnitude": [...],
+"volatility": [...]}}` **branching** export (`train.py::export_multitask_architecture()`/
+`export_sequence_multitask_architecture()`, the same `AetherNetMultiTask`/
+`AetherNetSequenceMultiTask` models `inference/exported_model.py::run_exported_multitask_model()`/
+`run_exported_sequence_multitask_model()` interpret at runtime) instead of
+the original flat `architecture` list. `_parse_network_export()` dispatches
+between the two shapes; `_parse_branching_network_export()` walks the
+trunk then each head, tagging every resulting layer with its owning
+`head` (`None` for trunk layers). `sequence`'s trunk uses `conv1d_causal`
+layers — `in_channels`/`out_channels` instead of `linear`'s
+`in_features`/`out_features`, and a 3D `(out_channels, in_channels,
+kernel_size)` weight matrix — so `_weight_stats()`'s flatten was made
+recursive (`_flatten()`; the original one-level-deep flatten only worked
+for 2D `linear` weights and would `TypeError` on a 3D one).
+`NetworkSummary` gains a `heads: dict[str, list[int]]` field (trunk stays
+in the existing `node_layers`, kept separate since a head is a branch off
+the trunk's output, not a continuation of it) — empty for every flat
+network. The webui deliberately does **not** attempt a full 3D
+branching-tree renderer: `NeuralNetworkScene3D.tsx`'s `headColumnsFor()`
+expands each multitask/sequence network into one diagram column per head
+(`network.node_layers` + that head's own tail), rendered via the exact
+same `NetworkDiagram`/`layerNodePositions` primitives the flat networks
+already use — the trunk is genuinely shown once per head, with zero new
+3D layout code. `NETWORK_ORDER` was extended with the 6 new names (a
+network absent from this list silently never renders, regardless of
+backend data). `tests/test_neural_network_state.py` is the parity net for
+the new branching-export parsing.
 
 **Webui:** `webui/src/pages/NeuralNetworkPage.tsx` (same two-column
 `grid lg:grid-cols-[1.6fr_1fr]` layout as `TopologyPage.tsx`) —
-`NeuralNetworkScene3D.tsx` renders all 5 networks simultaneously as
-side-by-side layer-column diagrams sharing one `Canvas`/`OrbitControls`,
-built on the exact same skeleton as `TopologyScene3D.tsx` for visual
-coherence (ambient + point light, `Html` billboard labels, dark
-Panel-wrapped canvas); `NeuralNetworkStatsPanel.tsx` is the live stats box —
-one row per network (layers/nodes/edges/quality status/last modified) plus a
-totals row, polled every 5s via `useNeuralNetwork()` (same `REFRESH_MS`
-cadence as `useTopology()`), so a retraining promotion's new weights are
-picked up automatically without a page reload.
+`NeuralNetworkScene3D.tsx` renders every present network simultaneously as
+side-by-side layer-column diagrams (one per head for multitask/sequence
+networks, per above) sharing one `Canvas`/`OrbitControls`, built on the
+exact same skeleton as `TopologyScene3D.tsx` for visual coherence (ambient
++ point light, `Html` billboard labels, dark Panel-wrapped canvas);
+`NeuralNetworkStatsPanel.tsx` is the live stats box — one row per network
+(layers/nodes/edges/quality status/last modified) plus a totals row,
+polled every 5s via `useNeuralNetwork()` (same `REFRESH_MS` cadence as
+`useTopology()`), so a retraining promotion's new weights are picked up
+automatically without a page reload.
 
 Liquidity data flows through `state.signals[symbol].liquidity` — no dedicated endpoint needed.
+
+## Phase 2 Sequence Encoder Contract
+
+`train.py::AetherNetSequenceMultiTask`, trained by `train_sequence.py`,
+replaces the flat-MLP trunk with genuine temporal structure — a causal
+TCN (dilated causal 1D convolutions) over a rolling 30-bar window of
+already-computed model inputs, instead of one flat row. Chosen over a
+Transformer/attention-based encoder specifically because it's simpler to
+verify bit-for-bit end-to-end.
+
+- Exported as `ml/sequence_model.json`, the same branching
+  `{"trunk", "heads"}` shape every multitask export uses (see Neural
+  Network Visualization Contract above), but trunk entries are
+  `conv1d_causal`/`relu`/`dropout` instead of `linear`/`layernorm`.
+- `inference/exported_model.py::run_exported_sequence_multitask_model()`
+  is the interpreter, backed by 4 new primitives — `_softmax`,
+  `_layernorm_axis`, `_conv1d_causal`, `_multihead_attention` — each
+  independently cross-checked against real PyTorch modules to
+  ~1e-7/1e-8 max abs diff (`tests/test_exported_model.py`).
+  `_multihead_attention` is implemented and tested as interpreter
+  infrastructure for a possible future attention-based sequence model but
+  is **not wired to any trained export in this pass** — the shipped model
+  uses the causal-TCN trunk only.
+- `main.py::_run_sequence_model()` is the runtime call site: optional,
+  additive, graceful-fallback (missing/malformed export → `None`), reading
+  a per-symbol rolling `deque` (`self.symbol_feature_history`, independent
+  of `self.symbol_windows`) of this bar's `model_inputs`.
+  **Informational only this pass** — it does not feed gating, the
+  analyzer, or position sizing; the prediction is threaded into
+  `signal_payload["sequence_model"]` (dashboard) and the experience event
+  (`sequence_model` field, see the Redis Experience Queue section) but
+  never a trading decision.
+
+See `inference/README.md`'s Phase 2 section for the fuller interpreter
+writeup and `development/Changelog.md`'s "Phase 1 remainder + Phase 2"
+entry.
 
 ## Docker App Container
 

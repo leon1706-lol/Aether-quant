@@ -158,11 +158,14 @@ that a controlled retraining loop reads from to evolve the model over time.
 
 ```mermaid
 flowchart LR
-    A["Lean data folder<br/>stocks, ETFs, crypto"] --> B["Feature pipeline<br/>train.py"]
+    A["Lean data folder<br/>stocks, ETFs, crypto"] --> B["Feature pipeline<br/>train.py<br/>48-dim: price/volume +<br/>regime + liquidity + topology"]
     B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
     B --> D["3D topology modeling<br/>market structure and clusters"]
-    C --> E["Gating network<br/>the manager"]
+    B -.-> U["Sequence encoder (Phase 2)<br/>causal-TCN, 30-bar window<br/>informational only"]
+    B --> V["Multitask heads<br/>baseline + 4 experts<br/>direction + magnitude + volatility"]
+    C --> E["Gating network<br/>the manager<br/>blends probability + magnitude/volatility"]
     D --> E
+    V --> E
     E --> F["Expert modules"]
     F --> G["Bullish expert"]
     F --> H["Bearish expert"]
@@ -180,12 +183,18 @@ flowchart LR
     M --> O["Observation / simulation record"]
     N --> P["Redis event stream<br/>temporary low-latency buffer"]
     O --> P
+    U -.-> P
     P --> Q["Experience worker<br/>async batch persistence"]
     Q --> R["PostgreSQL experience database<br/>single source of truth"]
     R --> S["Performance triggers<br/>100 observations, drawdown, Sharpe, regime shift"]
     S --> T["Controlled retraining<br/>versioned weights and rollback"]
     T --> E
 ```
+
+Dashed edges mark the Phase 2 sequence encoder's **informational-only**
+path — it's computed every bar and reaches the experience log, but never
+the gating network, market analyzer, or position sizing (see
+`inference/README.md`'s Phase 2 section).
 
 #### Tech Stack
 
@@ -203,6 +212,7 @@ flowchart TB
     D --> D2["scikit-learn"]
     D --> D3["NumPy / Pandas"]
     D --> D4["MoE experts and gating network"]
+    D --> D5["Multitask heads (direction/magnitude/<br/>volatility) + causal-TCN sequence encoder"]
     E["Monitoring and UI"] --> E1["React/Vite webui — Tracing dashboard (port 3002 dev / 8001 Docker)"]
     E --> E2["FastAPI JSON API (port 8000)"]
     E --> E3["Telegram alerts (V2-19)<br/>notifications/telegram_worker.py"]
