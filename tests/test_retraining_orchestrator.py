@@ -287,6 +287,55 @@ def test_train_gating_disabled_returns_early_without_subprocess():
     run_mock.assert_not_called()
 
 
+# -- multitask (direction+magnitude+volatility) training stage ----------------
+
+
+def test_train_multitask_invokes_script_with_version_id_flag():
+    conn_mock, _ = _make_conn_mock()
+    completed = MagicMock(returncode=0, stdout="ok", stderr="")
+
+    with patch("retraining.orchestrator.subprocess.run", return_value=completed) as run_mock:
+        result = orchestrator.train_multitask(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    argv = run_mock.call_args.args[0]
+    assert "train_multitask.py" in argv[1]
+    assert "--version-id" in argv
+    assert "v1" in argv
+    assert result["ok"] is True
+
+
+def test_train_multitask_subprocess_failure_does_not_reject_model_version():
+    """Unlike train()'s hard failure path, a multitask-training subprocess
+    failure must never reject the candidate model_version - multitask
+    artifacts are optional (see retraining/artifacts.py's
+    OPTIONAL_MULTITASK_FILES)."""
+    conn_mock, _ = _make_conn_mock()
+    completed = MagicMock(returncode=1, stdout="", stderr="multitask boom")
+
+    with patch("retraining.orchestrator.subprocess.run", return_value=completed), patch(
+        "retraining.orchestrator.update_retraining_event_status"
+    ) as update_event_mock, patch("retraining.orchestrator.update_model_version_status") as update_version_mock:
+        result = orchestrator.train_multitask(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    assert result["ok"] is False
+    update_version_mock.assert_not_called()
+    update_event_mock.assert_called_once()
+    assert update_event_mock.call_args.kwargs["status"] == "running"
+
+
+def test_train_multitask_disabled_returns_early_without_subprocess():
+    conn_mock, _ = _make_conn_mock()
+
+    with patch("retraining.orchestrator.subprocess.run") as run_mock:
+        result = orchestrator.train_multitask(
+            conn_mock, retraining_id="r1", version_id="v1", config={"multitask_training": {"enabled": False}}
+        )
+
+    assert result["ok"] is False
+    assert result["reason"] == "multitask_training_disabled"
+    run_mock.assert_not_called()
+
+
 def test_commit_hashes_and_vault_add_include_topology_files_when_present(tmp_path):
     """Direct test for the spec requirement 'Aether-Vault commit includes
     topology artifacts when present': the candidate's whole version_dir is

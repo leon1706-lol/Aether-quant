@@ -23,6 +23,7 @@ class PositionSizingDecision:
     max_leverage: float
     sizing_reason: str
     topology_sizing_reason: str
+    volatility_source: str = "rolling"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -74,6 +75,23 @@ def topology_sizing_multiplier(
     return multiplier, "topology_confidence_scaled_sizing"
 
 
+def _resolve_effective_volatility(
+    rolling_volatility: float,
+    predicted_volatility: float | None,
+    use_predicted_volatility: bool,
+) -> tuple[float, str]:
+    """Picks which volatility number actually drives sizing this bar.
+    predicted_volatility (the multitask model's forward-looking volatility
+    head, see train_multitask.py) only ever swaps in when both the config
+    flag is on AND a real prediction is available - any other case falls
+    back to the existing backward-looking rolling_volatility_20d average,
+    byte-identical to pre-flag behavior. Config-gated, additive, default
+    off - see phase_v2.dynamic_risk.use_predicted_volatility."""
+    if use_predicted_volatility and predicted_volatility is not None:
+        return abs(float(predicted_volatility)), "predicted"
+    return abs(float(rolling_volatility)), "rolling"
+
+
 def build_dynamic_position_sizing(
     base_target_weight: float,
     confidence: float,
@@ -91,12 +109,16 @@ def build_dynamic_position_sizing(
     topology_disagreement: float | None = None,
     min_topology_multiplier: float = 0.5,
     max_topology_multiplier: float = 1.0,
+    predicted_volatility: float | None = None,
+    use_predicted_volatility: bool = False,
 ) -> PositionSizingDecision:
     base_target_weight = float(base_target_weight)
     confidence = max(0.0, min(float(confidence), 1.0))
     max_position_weight = max(float(max_position_weight), 0.0)
     abs_base_target = abs(base_target_weight)
-    volatility = abs(float(rolling_volatility))
+    volatility, volatility_source = _resolve_effective_volatility(
+        rolling_volatility, predicted_volatility, use_predicted_volatility
+    )
     annualized_volatility = volatility * math.sqrt(TRADING_DAYS_PER_YEAR)
     volatility_regime = classify_volatility_regime(
         volatility,
@@ -125,6 +147,7 @@ def build_dynamic_position_sizing(
             max_leverage=float(max_leverage),
             sizing_reason="no_active_signal",
             topology_sizing_reason=topology_sizing_reason,
+            volatility_source=volatility_source,
         )
 
     safe_volatility = max(volatility, 1e-6)
@@ -161,4 +184,5 @@ def build_dynamic_position_sizing(
         max_leverage=float(max_leverage),
         sizing_reason=reason,
         topology_sizing_reason=topology_sizing_reason,
+        volatility_source=volatility_source,
     )

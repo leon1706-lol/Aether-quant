@@ -485,9 +485,22 @@ def engineer_features(frame: pd.DataFrame, feature_names: list[str], windows: di
         (result["target_return_1d"] > 0).astype(int),
         np.nan,
     )
+    # Next-day realized-volatility proxy for the multitask model's volatility
+    # head (train_multitask.py): next day's own high_low_range_pct, already
+    # computed above from that day's high/low/close - a genuine one-day-ahead
+    # realized-range measure, NaN only on the same last-per-asset row
+    # target_return_1d is already NaN on (both are shift(-1) of price data),
+    # so it never introduces additional dropped rows beyond what
+    # target_return_1d already drops.
+    result["target_volatility_next_day"] = result["high_low_range_pct"].shift(-1)
     result["split"] = result["date"].apply(lambda value: assign_split(value, windows))
 
-    required_columns = feature_names + ["target_return_1d", "target_direction", "split"]
+    required_columns = feature_names + [
+        "target_return_1d",
+        "target_direction",
+        "target_volatility_next_day",
+        "split",
+    ]
     result = result.dropna(subset=required_columns).reset_index(drop=True)
     result["target_direction"] = result["target_direction"].astype(int)
     return result
@@ -827,6 +840,50 @@ def build_normalization(name: str, hidden_dim: int) -> nn.Module | None:
     raise ValueError(f"Unsupported normalization: {name}")
 
 
+class AetherNetMultiTask(nn.Module):
+    """Shared-trunk, three-head variant of AetherNet: direction (binary
+    logit), magnitude (raw regression) and volatility (Softplus, always
+    non-negative). The trunk is identical in shape to AetherNet's own
+    hidden-layer stack (same build_activation/build_normalization reuse) -
+    only the single output Linear(., 1) is replaced with three independent
+    small heads sharing the trunk's representation. See
+    inference/exported_model.py::run_exported_multitask_model() for the
+    matching interpreter and export_multitask_architecture() below for the
+    matching exporter."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_layers: list[int],
+        dropout: float,
+        activation: str = "relu",
+        normalization: str = "none",
+    ) -> None:
+        super().__init__()
+        layers: list[nn.Module] = []
+        current_dim = input_dim
+        for hidden_dim in hidden_layers:
+            layers.append(nn.Linear(current_dim, hidden_dim))
+            norm_layer = build_normalization(normalization, hidden_dim)
+            if norm_layer is not None:
+                layers.append(norm_layer)
+            layers.append(build_activation(activation))
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            current_dim = hidden_dim
+        self.trunk = nn.Sequential(*layers)
+        self.head_direction = nn.Linear(current_dim, 1)
+        self.head_magnitude = nn.Linear(current_dim, 1)
+        self.head_volatility = nn.Linear(current_dim, 1)
+
+    def forward(self, features: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        trunk_output = self.trunk(features)
+        direction_logit = self.head_direction(trunk_output).squeeze(-1)
+        magnitude = self.head_magnitude(trunk_output).squeeze(-1)
+        volatility = nn.functional.softplus(self.head_volatility(trunk_output).squeeze(-1))
+        return direction_logit, magnitude, volatility
+
+
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -892,6 +949,25 @@ def compute_binary_metrics(
             "fp": fp,
             "fn": fn,
         },
+    }
+
+
+def compute_regression_metrics(predictions: torch.Tensor, targets: torch.Tensor) -> dict:
+    """Plain regression metrics (MAE/RMSE + bias) for the magnitude/volatility
+    heads - compute_binary_metrics() above stays direction-only, since MCC/
+    F1/precision-recall are meaningless for a continuous target."""
+    predictions_np = predictions.detach().cpu().numpy()
+    targets_np = targets.detach().cpu().numpy()
+    errors = predictions_np - targets_np
+    mae = float(np.abs(errors).mean()) if len(errors) else 0.0
+    rmse = float(np.sqrt((errors ** 2).mean())) if len(errors) else 0.0
+    bias = float(errors.mean()) if len(errors) else 0.0
+    return {
+        "mae": mae,
+        "rmse": rmse,
+        "bias": bias,
+        "mean_prediction": float(predictions_np.mean()) if len(predictions_np) else 0.0,
+        "mean_target": float(targets_np.mean()) if len(targets_np) else 0.0,
     }
 
 
@@ -1147,15 +1223,19 @@ def export_state_dict(model: nn.Module) -> dict:
     return exported
 
 
-def export_architecture(model: AetherNet) -> list[dict]:
+def _export_sequential_layers(sequential_module: nn.Sequential, key_prefix: str) -> list[dict]:
+    """Per-layer export walk shared by export_architecture() (prefix
+    "network") and export_multitask_architecture()'s trunk (prefix "trunk")
+    below - extracted verbatim from the original export_architecture() body,
+    a behavior-preserving refactor (same dict shapes, same key naming)."""
     architecture: list[dict] = []
-    for index, module in enumerate(model.network):
+    for index, module in enumerate(sequential_module):
         if isinstance(module, nn.Linear):
             architecture.append(
                 {
                     "type": "linear",
-                    "weight_key": f"network.{index}.weight",
-                    "bias_key": f"network.{index}.bias",
+                    "weight_key": f"{key_prefix}.{index}.weight",
+                    "bias_key": f"{key_prefix}.{index}.bias",
                     "in_features": module.in_features,
                     "out_features": module.out_features,
                 }
@@ -1164,8 +1244,8 @@ def export_architecture(model: AetherNet) -> list[dict]:
             architecture.append(
                 {
                     "type": "layernorm",
-                    "weight_key": f"network.{index}.weight",
-                    "bias_key": f"network.{index}.bias",
+                    "weight_key": f"{key_prefix}.{index}.weight",
+                    "bias_key": f"{key_prefix}.{index}.bias",
                     "normalized_shape": list(module.normalized_shape),
                     "eps": module.eps,
                 }
@@ -1174,10 +1254,10 @@ def export_architecture(model: AetherNet) -> list[dict]:
             architecture.append(
                 {
                     "type": "batchnorm1d",
-                    "weight_key": f"network.{index}.weight",
-                    "bias_key": f"network.{index}.bias",
-                    "running_mean_key": f"network.{index}.running_mean",
-                    "running_var_key": f"network.{index}.running_var",
+                    "weight_key": f"{key_prefix}.{index}.weight",
+                    "bias_key": f"{key_prefix}.{index}.bias",
+                    "running_mean_key": f"{key_prefix}.{index}.running_mean",
+                    "running_var_key": f"{key_prefix}.{index}.running_var",
                     "num_features": module.num_features,
                     "eps": module.eps,
                 }
@@ -1192,8 +1272,51 @@ def export_architecture(model: AetherNet) -> list[dict]:
             architecture.append({"type": "dropout", "p": module.p})
         else:
             architecture.append({"type": module.__class__.__name__.lower()})
+    return architecture
+
+
+def export_architecture(model: AetherNet) -> list[dict]:
+    architecture = _export_sequential_layers(model.network, "network")
     architecture.append({"type": "sigmoid"})
     return architecture
+
+
+def _export_head(module: nn.Linear, key_prefix: str, final_activation: str | None) -> list[dict]:
+    """A single head's export: one Linear layer plus its final activation
+    (or none, for the raw-regression magnitude head). Heads are
+    deliberately restricted to a single Linear - inference/exported_model.py::
+    run_exported_multitask_model() and AetherNetMultiTask both assume this
+    shape; a deeper head would need matching changes in both places."""
+    head: list[dict] = [
+        {
+            "type": "linear",
+            "weight_key": f"{key_prefix}.weight",
+            "bias_key": f"{key_prefix}.bias",
+            "in_features": module.in_features,
+            "out_features": module.out_features,
+        }
+    ]
+    if final_activation is not None:
+        head.append({"type": final_activation})
+    return head
+
+
+def export_multitask_architecture(model: AetherNetMultiTask) -> dict:
+    """Branching export for AetherNetMultiTask - a {"trunk": [...], "heads":
+    {"direction": [...], "magnitude": [...], "volatility": [...]}} structure
+    instead of export_architecture()'s single flat list. Consumed by
+    inference/exported_model.py::run_exported_multitask_model(), never by
+    run_exported_model() (which only understands a flat "architecture" list
+    and would KeyError on this shape - the two exports are not
+    interchangeable, matching the two different interpreter entry points)."""
+    return {
+        "trunk": _export_sequential_layers(model.trunk, "trunk"),
+        "heads": {
+            "direction": _export_head(model.head_direction, "head_direction", "sigmoid"),
+            "magnitude": _export_head(model.head_magnitude, "head_magnitude", None),
+            "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
+        },
+    }
 
 
 def train_model(

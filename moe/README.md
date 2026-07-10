@@ -59,3 +59,21 @@ trained model instead, without changing anything about the fallback path:
   probability wins, not how large the resulting trade is — that's a
   separate, also-optional layer; see `risk/README.md`'s learned-topology
   sizing section.
+
+## Multi-task model (direction + magnitude + volatility) is deliberately not routed through gating
+
+The optional multi-task model (`train_multitask.py`/`AetherNetMultiTask`,
+see `inference/README.md`) predicts direction jointly with return magnitude
+and volatility from one shared trunk — but it is trained as a single
+baseline-scale model, not one instance per expert. `GatingDecision` is
+therefore **not** extended with `final_magnitude`/`final_volatility`
+fields: there is no per-expert magnitude/volatility to weighted-average the
+way `expert_probability_up` already is. Instead, `main.py::on_data()` calls
+`_run_multitask_model()` directly (alongside, not through,
+`build_gating_decision()`) and threads `predicted_return_magnitude`/
+`predicted_volatility` straight into `signal_payload`, the market analyzer,
+and position sizing — see `analyzer/README.md` and `risk/README.md`. This
+is a deliberate, documented scope decision for this pass, not an oversight;
+extending the expert-training pipeline to produce per-expert multi-task
+heads (which would let gating genuinely blend magnitude/volatility the same
+way it blends direction) is a natural next step, not implemented here.

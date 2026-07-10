@@ -48,3 +48,31 @@ dashboard and the offline retrain-trigger pipeline, never a trade.
   `phase_v2.topology_learning.enabled` (which also gates the unrelated
   dashboard/retrain-trigger consumers).
 - Wired via `main.py::_build_dynamic_sizing_payload(..., topology=...)`.
+
+## Predicted volatility → position sizing (optional, config-gated swap)
+
+`position_sizing.py::build_dynamic_position_sizing(..., predicted_volatility=None,
+use_predicted_volatility=False)` can swap the volatility number that drives
+`volatility_regime` classification, `annualized_volatility`, and the
+`volatility_multiplier` itself, from the existing backward-looking
+`rolling_volatility_20d` average to the forward-looking `volatility` head
+of the optional multi-task model (`train_multitask.py`/`AetherNetMultiTask`,
+see `inference/README.md`) — the root problem this closes: position sizing
+previously had no actual volatility *forecast* to work with, only a trailing
+statistic.
+
+- Off by default (`phase_v2.dynamic_risk.use_predicted_volatility: false`):
+  `_resolve_effective_volatility()` falls back to `rolling_volatility`
+  whenever the flag is off, `predicted_volatility` is `None` (model not
+  loaded, or inference failed for this bar), or both — byte-identical to
+  pre-this-change behavior in every case.
+- `PositionSizingDecision` gains `volatility_source` (`"rolling"` or
+  `"predicted"`, defaults to `"rolling"`) so the dashboard/CSV export can
+  always show which volatility number actually drove a given bar's sizing.
+- This changes sizing only, never routing: `analyzer/market_analyzer.py`'s
+  action categorization never reads `predicted_volatility` (see
+  `analyzer/README.md`) — same "shrink/resize an already-approved trade,
+  never decide whether it happens" boundary the topology multiplier above
+  already established.
+- Wired via `main.py::_build_dynamic_sizing_payload(..., predicted_volatility=...)`,
+  fed by `main.py::_run_multitask_model()`.

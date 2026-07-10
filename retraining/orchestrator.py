@@ -266,6 +266,54 @@ def train_gating(conn, retraining_id: str, version_id: str, config: dict, timeou
     return {"ok": True, "version_id": version_id, "stdout": result.stdout}
 
 
+def train_multitask(conn, retraining_id: str, version_id: str, config: dict, timeout_seconds: int | None = None) -> dict:
+    """Runs `python train_multitask.py --version-id <id>` as a fourth,
+    independently-failable subprocess, right after train_gating(). Same
+    best-effort contract as train_topology()/train_gating(): a failure here
+    is logged and swallowed - it never rejects the primary candidate model_
+    version. multitask_model.json etc. are optional artifacts (see
+    retraining/artifacts.py's OPTIONAL_MULTITASK_FILES) precisely so this
+    stage can fail without blocking the primary model.
+    """
+    multitask_config = config.get("multitask_training", {})
+    if not multitask_config.get("enabled", True):
+        return {"ok": False, "version_id": version_id, "reason": "multitask_training_disabled"}
+
+    timeout_seconds = timeout_seconds or int(multitask_config.get("timeout_seconds", 900))
+    train_multitask_script = ROOT_DIR / "train_multitask.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(train_multitask_script), "--version-id", version_id],
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
+        logger.warning("train_multitask: subprocess failed to launch for %s - %s", version_id, exc)
+        update_retraining_event_status(
+            conn, retraining_id, status="running", notes=[{"stage": "train_multitask", "error": str(exc)}]
+        )
+        return {"ok": False, "version_id": version_id, "error": str(exc)}
+
+    if result.returncode != 0:
+        logger.warning(
+            "train_multitask: candidate %s multitask training failed (rc=%d) - continuing without it.",
+            version_id,
+            result.returncode,
+        )
+        update_retraining_event_status(
+            conn,
+            retraining_id,
+            status="running",
+            notes=[{"stage": "train_multitask", "returncode": result.returncode, "stderr": result.stderr[-2000:]}],
+        )
+        return {"ok": False, "version_id": version_id, "error": result.stderr}
+
+    logger.info("train_multitask: candidate %s multitask model trained (or skipped for insufficient data).", version_id)
+    return {"ok": True, "version_id": version_id, "stdout": result.stdout}
+
+
 def validate(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     version_dir = candidate_dir(version_id)
     present, missing = check_required_artifacts(version_dir)
@@ -490,6 +538,10 @@ def main() -> None:
     train_gating_parser.add_argument("--retraining-id", required=True)
     train_gating_parser.add_argument("--version-id", required=True)
 
+    train_multitask_parser = subparsers.add_parser("train_multitask")
+    train_multitask_parser.add_argument("--retraining-id", required=True)
+    train_multitask_parser.add_argument("--version-id", required=True)
+
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--retraining-id", required=True)
     validate_parser.add_argument("--version-id", required=True)
@@ -523,6 +575,8 @@ def main() -> None:
             print(json.dumps(train_topology(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "train_gating":
             print(json.dumps(train_gating(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
+        elif args.stage == "train_multitask":
+            print(json.dumps(train_multitask(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "validate":
             print(json.dumps(validate(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "backtest":

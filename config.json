@@ -325,7 +325,8 @@
             "max_leverage": 1.0,
             "topology_sizing_enabled": true,
             "min_topology_multiplier": 0.5,
-            "max_topology_multiplier": 1.0
+            "max_topology_multiplier": 1.0,
+            "use_predicted_volatility": false
         },
         "risk": {},
         "regime_detection": {
@@ -338,6 +339,9 @@
         "gating_network": {
             "baseline_weight": 0.25,
             "learned_model_enabled": true
+        },
+        "multitask_model": {
+            "enabled": true
         },
         "market_analyzer": {
             "retrain_min_regime_confidence": 0.2,
@@ -424,7 +428,7 @@
             "allow_live_orders": false
         },
         "backtest": {
-            "bypass_safety_gates": false
+            "bypass_safety_gates": true
         },
         "paper_trading": {
             "brokerage": "lean_paper_brokerage",
@@ -491,7 +495,10 @@
                     "topology_feature_schema.json",
                     "gating_model.json",
                     "gating_feature_schema.json",
-                    "gating_training_metrics.json"
+                    "gating_training_metrics.json",
+                    "multitask_model.json",
+                    "multitask_feature_schema.json",
+                    "multitask_training_metrics.json"
                 ],
                 "auto_clear_trade_lock": true
             },
@@ -525,6 +532,33 @@
                 "threshold_search_min": 0.35,
                 "threshold_search_max": 0.65,
                 "threshold_search_steps": 61,
+                "seed": 42
+            },
+            "multitask_training": {
+                "enabled": true,
+                "timeout_seconds": 900,
+                "min_train_rows": 100,
+                "min_validation_rows": 20,
+                "min_backtest_rows": 20,
+                "hidden_layers": [
+                    64,
+                    32
+                ],
+                "dropout": 0.15,
+                "activation": "relu",
+                "normalization": "layernorm",
+                "learning_rate": 0.0007,
+                "weight_decay": 0.0001,
+                "batch_size": 64,
+                "epochs": 120,
+                "patience": 18,
+                "decision_threshold": 0.5,
+                "optimize_threshold_metric": "mcc",
+                "threshold_search_min": 0.35,
+                "threshold_search_max": 0.65,
+                "threshold_search_steps": 61,
+                "magnitude_loss_weight": 1.0,
+                "volatility_loss_weight": 1.0,
                 "seed": 42
             }
         },

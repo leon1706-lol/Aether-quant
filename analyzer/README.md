@@ -79,3 +79,18 @@ risk engine, and before action categorization / Lean order placement.
   reasoning as the topology-elevated/isolated rules above. Default `false`
   means output is byte-identical to pre-this-change behavior everywhere
   the flag isn't explicitly turned on.
+- **Multi-task prediction fields (additive, never change routing).**
+  `MarketAnalysisDecision` gains `predicted_return_magnitude`/
+  `predicted_volatility` (both `float | None`, default `None`), threaded
+  straight through from `main.py`'s optional multi-task model call
+  (`train_multitask.py`/`AetherNetMultiTask`, see `inference/README.md`)
+  into every one of this module's 8 return statements via two new
+  `build_market_analysis_decision(..., predicted_return_magnitude=None,
+  predicted_volatility=None)` parameters. Purely informational here — this
+  module's `trade`/`simulate`/`observe`/`reduce_risk` categorization does
+  not read either field; `predicted_volatility` only ever changes anything
+  downstream in `risk/position_sizing.py` (see `risk/README.md`), and only
+  when `phase_v2.dynamic_risk.use_predicted_volatility` is explicitly
+  enabled. Always `None` when no multitask model is loaded (or the model
+  call failed), matching every other optional-model fallback contract in
+  this codebase.

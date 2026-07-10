@@ -10,8 +10,10 @@ COPY experts/ ./experts/
 COPY topology/ ./topology/
 COPY moe/ ./moe/
 COPY inference/ ./inference/
+COPY risk/ ./risk/
 COPY retraining/ ./retraining/
 COPY train.py .
 COPY train_topology.py .
 COPY train_gating.py .
+COPY train_multitask.py .
 CMD ["python", "-m", "retraining.worker"]

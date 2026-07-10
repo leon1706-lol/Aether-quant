@@ -66,3 +66,67 @@ def _layernorm(values, weights: list[float], bias: list[float], eps: float) -> n
 def _sigmoid(value):
     clipped = np.clip(value, -60.0, 60.0)
     return 1.0 / (1.0 + np.exp(-clipped))
+
+
+def _softplus(value):
+    """Numerically stable softplus: log(1+e^x) = log1p(e^-|x|) + max(x, 0).
+    Used only by the volatility head below - guarantees a strictly
+    non-negative volatility prediction without the overflow risk of a
+    naive log(1 + exp(x)) for large positive x."""
+    array = np.asarray(value, dtype=np.float64)
+    return np.log1p(np.exp(-np.abs(array))) + np.maximum(array, 0.0)
+
+
+def _run_layer_stack(layers: list[dict], state_dict: dict, current: np.ndarray) -> np.ndarray:
+    """Shared per-layer forward pass, used only by run_exported_multitask_model()
+    below - run_exported_model() above stays untouched (same layer-loop shape,
+    duplicated rather than shared, so the original interpreter carries zero
+    risk from this addition). Supports the same layer set as run_exported_model()
+    plus "softplus" for the volatility head; trunks/heads are deliberately
+    restricted to relu/layernorm/dropout/sigmoid/softplus (never gelu/silu/
+    batchnorm1d), mirroring train_gating.py's existing restriction for the
+    same reason - this interpreter cannot run those layer types."""
+    for layer in layers:
+        layer_type = layer["type"]
+        if layer_type == "linear":
+            weights = state_dict[layer["weight_key"]]
+            bias = state_dict[layer["bias_key"]]
+            current = _linear(current, weights, bias)
+        elif layer_type == "layernorm":
+            weights = state_dict[layer["weight_key"]]
+            bias = state_dict[layer["bias_key"]]
+            current = _layernorm(current, weights, bias, float(layer.get("eps", 1e-5)))
+        elif layer_type == "relu":
+            current = np.maximum(current, 0.0)
+        elif layer_type == "dropout":
+            continue
+        elif layer_type == "sigmoid":
+            current = _sigmoid(current)
+        elif layer_type == "softplus":
+            current = _softplus(current)
+        else:
+            raise ValueError(f"Unsupported layer type in export: {layer_type}")
+    return current
+
+
+def run_exported_multitask_model(model_export: dict, inputs: list[float]) -> dict[str, float]:
+    """Forward pass over a branching {"trunk": [...], "heads": {name: [...]}}
+    export (train.py::export_multitask_architecture()/AetherNetMultiTask) -
+    the shared trunk runs once, then each head runs independently starting
+    from the trunk's output. Returns one scalar per head, e.g.
+    {"direction": <sigmoid prob>, "magnitude": <raw regression>,
+    "volatility": <softplus, always >= 0>}.
+
+    Deliberately a new function alongside run_exported_model(), not a
+    generalization of it - the existing flat-architecture interpreter and
+    its 5 call sites (main.py, moe/gating.py, train_gating.py) are untouched,
+    zero regression risk to anything already shipped."""
+    export = model_export["export"]
+    state_dict = export["state_dict"]
+    trunk_output = _run_layer_stack(export["trunk"], state_dict, np.asarray(inputs, dtype=np.float64))
+
+    outputs: dict[str, float] = {}
+    for head_name, head_layers in export["heads"].items():
+        head_output = _run_layer_stack(head_layers, state_dict, trunk_output.copy())
+        outputs[head_name] = float(head_output[0])
+    return outputs

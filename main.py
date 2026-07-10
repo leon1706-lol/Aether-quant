@@ -51,7 +51,7 @@ from experience import (
 from execution import credentials_present, evaluate_broker_config, resolve_order_permission, resolve_runtime_mode
 from execution.live_credentials_io import load_live_credentials
 from execution.paper_readiness_io import read_paper_trading_config
-from inference import run_exported_model
+from inference import run_exported_model, run_exported_multitask_model
 from performance import evaluate_all_triggers
 
 
@@ -90,6 +90,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_feature_schema_path = self.root_path / "ml" / "topology_feature_schema.json"
         self.gating_model_path = self.root_path / "ml" / "gating_model.json"
         self.gating_feature_schema_path = self.root_path / "ml" / "gating_feature_schema.json"
+        self.multitask_model_path = self.root_path / "ml" / "multitask_model.json"
+        self.multitask_feature_schema_path = self.root_path / "ml" / "multitask_feature_schema.json"
 
         self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
@@ -219,6 +221,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.regime_high_correlation_threshold = float(phase_v2_regime.get("high_correlation_threshold", 0.75))
         self.gating_baseline_weight = float(phase_v2_gating.get("baseline_weight", 0.25))
         self.gating_learned_model_enabled = bool(phase_v2_gating.get("learned_model_enabled", True))
+        phase_v2_multitask = self.phase_v2.get("multitask_model", {})
+        self.multitask_model_enabled = bool(phase_v2_multitask.get("enabled", True))
+        self.use_predicted_volatility = bool(phase_v2_risk.get("use_predicted_volatility", False))
         self.analyzer_retrain_min_regime_confidence = float(phase_v2_analyzer.get("retrain_min_regime_confidence", 0.20))
         self.analyzer_low_regime_confidence_threshold = float(phase_v2_analyzer.get("low_regime_confidence_threshold", 0.35))
         self.analyzer_use_composite_signal_score = bool(phase_v2_analyzer.get("use_composite_signal_score", False))
@@ -237,6 +242,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_learning_max_offset_z = float(phase_v2_topology_learning.get("max_offset_z", 0.1))
         self.learned_topology_model, self.learned_topology_feature_schema = self._load_learned_topology_model()
         self.gating_model, self.gating_feature_schema = self._load_gating_model()
+        self.multitask_model, self.multitask_feature_schema = self._load_multitask_model()
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
         self._liquidity_thresholds = {
             "thin_participation_threshold": float(phase_v2_liquidity.get("thin_participation_threshold", 0.002)),
@@ -345,6 +351,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     average_correlation=float((topology_payload or {}).get("correlation_strength", 0.0)),
                 )
                 expert_probabilities = self._run_expert_models(feature_payload["model_inputs"])
+                multitask_payload = self._run_multitask_model(feature_payload["model_inputs"])
+                predicted_return_magnitude = multitask_payload.get("magnitude") if multitask_payload else None
+                predicted_volatility = multitask_payload.get("volatility") if multitask_payload else None
                 gating_payload = build_gating_decision(
                     regime=regime_payload,
                     expert_training_metrics=self.expert_training_metrics,
@@ -362,6 +371,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     base_target_weight,
                     feature_payload["base_features"],
                     topology_payload,
+                    predicted_volatility=predicted_volatility,
                 )
                 target_weight = float(sizing_payload["target_weight"])
                 asset = self.asset_lookup[str(symbol)]
@@ -402,6 +412,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     retrain_min_regime_confidence=self.analyzer_retrain_min_regime_confidence,
                     low_regime_confidence_threshold=self.analyzer_low_regime_confidence_threshold,
                     use_composite_signal_score=self.analyzer_use_composite_signal_score,
+                    predicted_return_magnitude=predicted_return_magnitude,
+                    predicted_volatility=predicted_volatility,
                 ).to_dict()
 
                 signal_name = decision["signal"]
@@ -426,6 +438,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "probability_up": probability_up,
                         "baseline_probability_up": baseline_probability_up,
                         "expert_probabilities": expert_probabilities,
+                        "predicted_return_magnitude": predicted_return_magnitude,
+                        "predicted_volatility": predicted_volatility,
                         "moe_gating": gating_payload,
                         "base_target_weight": base_target_weight,
                         "target_weight": target_weight,
@@ -535,6 +549,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return model, feature_schema
         except Exception as error:
             self.Debug(f"Gating model load failed: {error}")
+            return None, None
+
+    def _load_multitask_model(self) -> tuple[dict | None, dict | None]:
+        """Optional artifact pair (train_multitask.py), identical fallback
+        contract to _load_gating_model()/_load_learned_topology_model():
+        missing/malformed files just mean predicted_return_magnitude/
+        predicted_volatility stay None everywhere downstream (position
+        sizing keeps using rolling_volatility_20d, exactly today's
+        behavior) - never a hard failure."""
+        if not self.multitask_model_enabled:
+            return None, None
+        if not self.multitask_model_path.exists() or not self.multitask_feature_schema_path.exists():
+            return None, None
+        try:
+            model = self._load_json(self.multitask_model_path)
+            feature_schema = self._load_json(self.multitask_feature_schema_path)
+            return model, feature_schema
+        except Exception as error:
+            self.Debug(f"Multitask model load failed: {error}")
             return None, None
 
     def _validate_runtime_artifacts(self) -> None:
@@ -660,6 +693,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.Debug(f"Expert inference failed for {expert_name}: {error}")
         return probabilities
 
+    def _run_multitask_model(self, inputs: list[float]) -> dict | None:
+        """Runs the optional joint direction+magnitude+volatility model
+        (train_multitask.py) alongside _run_model()/_run_expert_models() -
+        never replacing either. Returns None (not a crash) on any failure,
+        same graceful-degradation contract as _run_expert_models()."""
+        if not self.multitask_model:
+            return None
+        try:
+            return run_exported_multitask_model(self.multitask_model, inputs)
+        except Exception as error:
+            self.Debug(f"Multitask inference failed: {error}")
+            return None
+
     def _derive_signal(self, probability_up: float) -> tuple[str, float, float]:
         confidence = abs(probability_up - self.decision_threshold) / max(1.0 - self.decision_threshold, self.decision_threshold)
         confidence = max(0.0, min(confidence, 1.0))
@@ -681,6 +727,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         base_target_weight: float,
         base_features: dict,
         topology: dict | None = None,
+        predicted_volatility: float | None = None,
     ) -> dict:
         if signal_name not in {"buy", "sell"}:
             base_target_weight = 0.0
@@ -703,6 +750,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             topology_disagreement=topology.get("topology_disagreement"),
             min_topology_multiplier=self.min_topology_multiplier,
             max_topology_multiplier=self.max_topology_multiplier,
+            predicted_volatility=predicted_volatility,
+            use_predicted_volatility=self.use_predicted_volatility,
         )
         return decision.to_dict()
 
@@ -1054,6 +1103,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "gating_metrics_loaded": bool(self.expert_training_metrics),
                     "baseline_weight": self.gating_baseline_weight,
                 },
+                "multitask": {
+                    "model_loaded": bool(self.multitask_model),
+                    "use_predicted_volatility": self.use_predicted_volatility,
+                },
             },
             "paper_trading": {
                 "brokerage": self.phase_v2_paper_trading.get("brokerage", ""),
@@ -1295,6 +1348,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "probability_up": probability_up,
                     "baseline_probability_up": payload.get("baseline_probability_up"),
                     "expert_probability_up": gating.get("expert_probability_up"),
+                    "predicted_return_magnitude": payload.get("predicted_return_magnitude"),
+                    "predicted_volatility": payload.get("predicted_volatility"),
                     "gating_source": gating.get("decision_source", "baseline"),
                     "active_experts": "|".join(gating.get("active_experts", [])),
                     "daily_return": daily_return,
@@ -1471,7 +1526,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _build_runtime_asset_csv(self, state: dict) -> str:
         rows = [
-            "symbol,ticker,quality_tier,role,trading_eligible,signal,confidence,probability_up,baseline_probability_up,expert_probability_up,gating_source,active_experts,base_target_weight,target_weight,rolling_volatility,annualized_volatility,volatility_regime,primary_regime,trend_regime,risk_regime,regime_confidence,leverage_factor,close,daily_return,position_weight,execution_note"
+            "symbol,ticker,quality_tier,role,trading_eligible,signal,confidence,probability_up,baseline_probability_up,expert_probability_up,predicted_return_magnitude,predicted_volatility,gating_source,active_experts,base_target_weight,target_weight,rolling_volatility,annualized_volatility,volatility_regime,volatility_source,primary_regime,trend_regime,risk_regime,regime_confidence,leverage_factor,close,daily_return,position_weight,execution_note"
         ]
         positions_by_symbol = {position["symbol"]: position for position in state["positions"]}
         for symbol, payload in sorted(state["signals"].items()):
@@ -1492,6 +1547,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         f"{float(payload.get('probability_up', 0.0) or 0.0):.6f}",
                         f"{float(payload.get('baseline_probability_up', 0.0) or 0.0):.6f}",
                         f"{float(gating.get('expert_probability_up', 0.0) or 0.0):.6f}",
+                        f"{float(payload.get('predicted_return_magnitude', 0.0) or 0.0):.6f}",
+                        f"{float(payload.get('predicted_volatility', 0.0) or 0.0):.6f}",
                         str(gating.get("decision_source", "baseline")),
                         "|".join(gating.get("active_experts", [])),
                         f"{float(payload.get('base_target_weight', 0.0) or 0.0):.6f}",
@@ -1499,6 +1556,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         f"{float(dynamic_sizing.get('rolling_volatility', 0.0) or 0.0):.6f}",
                         f"{float(dynamic_sizing.get('annualized_volatility', 0.0) or 0.0):.6f}",
                         str(dynamic_sizing.get("volatility_regime", "unknown")),
+                        str(dynamic_sizing.get("volatility_source", "rolling")),
                         str(regime.get("primary_regime", "unknown")),
                         str(regime.get("trend_regime", "unknown")),
                         str(regime.get("risk_regime", "unknown")),

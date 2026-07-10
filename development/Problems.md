@@ -662,3 +662,40 @@ its name here too. Left as-is rather than making it dynamic, since the
 3D layout intentionally controls left-to-right ordering for readability;
 noted here so the next network added to `build_neural_network_state()`
 doesn't quietly repeat this gap.
+
+---
+
+### 20. `Dockerfile.retraining_worker` never copied `risk/`, so `retraining.worker` could not have started
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+Found while auditing `Dockerfile.retraining_worker`'s `COPY` list against
+this session's changes (the standing "does any Docker image need
+rebuilding" checklist step). `retraining/orchestrator.py` has imported
+`from risk.manual_override import write_manual_trade_lock_override` since
+the Manual Trade-Lock Override Contract shipped (`promote()` calls it to
+auto-clear the trade lock on a successful promotion) — but
+`Dockerfile.retraining_worker`'s `COPY` list never included `risk/`, only
+`execution/`, `experience/`, `performance/`, `regime/`, `experts/`,
+`topology/`, `moe/`, `inference/` and `retraining/`. Since the import is a
+top-level `from risk.manual_override import ...` (evaluated at import time,
+not lazily), and the image's `CMD` is `python -m retraining.worker` (which
+imports `retraining.orchestrator` directly), the container should have
+failed immediately with `ModuleNotFoundError: No module named 'risk'` on
+every single startup — not a code-path-dependent bug, an always-fires one.
+Not independently confirmed against a live container in this session (no
+Docker rebuild was run); flagged from static inspection of the `COPY` list
+against the actual import graph, same rigor as Problems.md #2's original
+`execution/` finding.
+
+**Fix:** added `COPY risk/ ./risk/` to `Dockerfile.retraining_worker`
+(confirmed safe and lightweight — `risk/__init__.py` only imports
+`.manual_override` and `.position_sizing`, both pure-Python/stdlib, no
+torch/pandas/sklearn). Same commit also added `COPY train_multitask.py .`
+for this session's new `train_multitask()` retraining stage (see
+Changelog's "Multi-task prediction" entry) — `requirements-retraining-worker.txt`
+already had every dependency `train_multitask.py` needs (torch/pandas/numpy),
+so no requirements changes were needed for that half of the fix.
+**The `retraining-worker` image needs a rebuild** (`docker compose build
+retraining-worker`) before this fix or the new multitask stage take effect
+— not run in this session, since the user runs Docker builds/backtests
+themselves.

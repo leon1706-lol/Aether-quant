@@ -1115,4 +1115,162 @@ already-available fields, not a trained model.
 - Docs: `analyzer/README.md` new section explaining the composite score
   and its config gate; `moe/gating.py`'s `_quality_multiplier`/
   `_performance_score` style is the explicit precedent cited, not a novel
+  approach.
+
+## Multi-task prediction (direction + magnitude + volatility) — Phase 1
+
+**Context.** A root-cause investigation this session found every model in
+the system — baseline and all 4 experts — sits at backtest MCC 0.02-0.07
+(essentially noise) and Sharpe -0.758 on a real backtest, and that
+`AetherNet` predicts only direction (`target_direction`, binary): no
+magnitude, no volatility, so position sizing had no actual forecast to
+work with and fell back to a backward-looking `rolling_volatility_20d`
+average. This entry closes the "no magnitude/volatility prediction" half
+of that gap. The other structural fact the investigation found —
+`AetherNet` is a plain feedforward MLP with zero temporal structure — is
+explicitly **not** addressed here; it is scoped as Phase 2 (a real
+sequence encoder over `main.py`'s existing `self.symbol_windows`), not
+implemented in this pass.
+
+**New export schema + interpreter (foundation).** `train.py` gains
+`export_multitask_architecture(model) -> dict`, a branching
+`{"trunk": [...], "heads": {"direction": [...], "magnitude": [...],
+"volatility": [...]}}` export alongside the existing flat
+`export_architecture()` (refactored internally to share a new
+`_export_sequential_layers()` helper — a behavior-preserving extraction,
+`export_architecture()`'s own output is unchanged). `export_state_dict()`
+needed no changes (already architecture-agnostic).
+`inference/exported_model.py` gains `run_exported_multitask_model(model_export,
+inputs) -> dict[str, float]` (runs the shared trunk once, then each head
+independently) and a new `_softplus(x)` helper (numerically stable
+`log1p(exp(-|x|)) + max(x, 0)`) guaranteeing the volatility head is always
+`>= 0`. `run_exported_model()` itself is completely untouched — new
+function alongside it, zero regression risk to its 5 existing call sites.
+
+**New model + training loop.** `train.py` gains `AetherNetMultiTask`: a
+shared trunk (identical shape to `AetherNet`'s hidden-layer stack) feeding
+three small heads — `head_direction` (raw logit), `head_magnitude` (raw
+regression) and `head_volatility` (`Softplus`). New engineered column
+`target_volatility_next_day` in `engineer_features()` — next day's own
+`high_low_range_pct` shifted back one row, a genuine one-day-ahead
+realized-range label; NaN only on the same last-per-asset row
+`target_return_1d` already is, so it never drops additional rows.
+`compute_regression_metrics()` (MAE/RMSE/bias) is the magnitude/volatility
+equivalent of `compute_binary_metrics()` — MCC/F1/precision-recall are
+meaningless for a continuous target.
+
+**`train_multitask.py`** (repo root, sibling of `train_gating.py`/
+`train_topology.py`): reads the already-built active dataset
+(`ml/datasets/full_dataset.csv`) and `feature_schema.json`'s
+`model_input_names` directly — same input feature set as the baseline
+model (scaled features + asset context); this pass does not change *what*
+the input feature set is, only what the model predicts from it (regime/
+liquidity/topology as genuine new input features, per the original plan,
+is scoped out of this pass — see "Scope decisions" below). Loss is
+`BCEWithLogitsLoss(direction) + magnitude_loss_weight * MSE(magnitude) +
+volatility_loss_weight * MSE(volatility)` (both weights default `1.0`,
+`phase_v2.retraining.multitask_training`); early stopping and
+`find_optimal_threshold()` both operate on direction only. Writes
+`ml/versions/<id>/multitask_model.json`/`multitask_feature_schema.json`/
+`multitask_training_metrics.json`; exits 0 (not an error) when there isn't
+enough train/validation/backtest data yet, matching every other trainer's
+"skipped must never look like failed" contract.
+
+**Smoke-tested end-to-end against the real dataset** (30,332 rows, 20
+assets, `ml/datasets/full_dataset.csv` rebuilt via `python train.py
+--dataset-only` to pick up the new `target_volatility_next_day` column
+first): `python train_multitask.py --version-id <id>` completed and wrote
+real artifacts (backtest direction MCC 0.0174 — in the same noisy range as
+today's baseline/experts, magnitude MAE 0.0259, volatility MAE 0.0236).
+**Interpreter parity independently verified**: `run_exported_multitask_model()`
+against a from-scratch PyTorch forward pass loaded from the same exported
+`state_dict` matched to ~1e-7 (float32 precision) on all three heads.
+
+**Runtime integration (main.py, additive).** New optional artifact pair
+`ml/multitask_model.json`/`ml/multitask_feature_schema.json`, loaded by
+`_load_multitask_model()` (identical graceful-fallback contract to
+`_load_gating_model()`/`_load_learned_topology_model()`: missing/malformed
+→ `None`, never a hard failure), gated by
+`phase_v2.multitask_model.enabled` (default `true`). `_run_multitask_model()`
+calls it alongside (never replacing) `_run_model()`/`_run_expert_models()`.
+`predicted_return_magnitude`/`predicted_volatility` are threaded into
+`signal_payload`, `MarketAnalysisDecision` (2 new fields, always populated,
+`None` when unavailable — informational only, never changes the analyzer's
+`trade`/`simulate`/`observe`/`reduce_risk` categorization), the dashboard
+asset heatmap, and the runtime asset CSV export (2 new columns).
+
+**Position sizing can now use a real forecast (opt-in).**
+`risk/position_sizing.py::build_dynamic_position_sizing()` gains
+`predicted_volatility`/`use_predicted_volatility` params and a new
+`_resolve_effective_volatility()` helper; when
+`phase_v2.dynamic_risk.use_predicted_volatility` is `true` (default
+`false`) and a prediction is available, it replaces the backward-looking
+`rolling_volatility_20d` average everywhere volatility drives sizing
+(`volatility_regime` classification, `annualized_volatility`, the
+`volatility_multiplier` itself). New `volatility_source` field
+(`"rolling"`/`"predicted"`, default `"rolling"`) reports which one
+actually drove a given bar. Default `false` means byte-identical output
+everywhere the flag isn't explicitly enabled — same pattern as this
+session's `use_composite_signal_score`.
+
+**Retraining pipeline.** `retraining/artifacts.py` gains
+`OPTIONAL_MULTITASK_FILES` (3 filenames, same optional/best-effort
+contract as `OPTIONAL_TOPOLOGY_FILES`/`OPTIONAL_GATING_FILES`) plus
+`check_multitask_artifacts()`. `retraining/orchestrator.py` gains
+`train_multitask()` (mirrors `train_gating()` line-for-line) plus a CLI
+subparser; `retraining/worker.py` calls it right after `train_gating()` in
+`run_once()`. New `aq train --multitask-only` flag (mirrors
+`--gating-only` exactly). `config.json`'s `promotion.active_artifact_files`
+extended with the 3 new files. `Dockerfile.retraining_worker` gains `COPY
+train_multitask.py .` (needed for the new stage's subprocess call) and,
+found during that same audit, `COPY risk/ ./risk/` — a pre-existing gap
+that should have broken `retraining.worker`'s container startup entirely
+(see `development/Problems.md` #20); **the `retraining-worker` Docker
+image needs a rebuild** for either fix to take effect.
+
+**Scope decisions (this pass vs. the original plan).** Two pieces of the
+original plan were deliberately not implemented this session, documented
+rather than silently dropped:
+- **Regime/liquidity/topology as genuine model *input* features** (not
+  just downstream consumers) — the plan's own text flagged topology as
+  the highest-effort piece requiring a new per-historical-date
+  cross-asset loop, and extending `feature_schema.json`'s
+  `model_input_names` would force retraining the baseline/experts/gating
+  together with a new input dimensionality (correct per the plan, but a
+  materially larger blast radius than fit this pass). Not started.
+- **Gating does not blend per-expert magnitude/volatility** — the
+  multi-task model is trained once, at baseline scale, not once per
+  expert, so there is no per-expert magnitude/volatility for
+  `moe/gating.py` to weighted-average the way `expert_probability_up`
+  already is. `main.py` calls the multitask model directly instead of
+  routing it through `build_gating_decision()`. See `moe/README.md`.
+
+Phase 2 (a real sequence encoder replacing the flat-MLP trunk) remains
+unimplemented, exactly as scoped in the original plan — it depends on this
+phase's branching export/interpreter pattern existing and being validated
+first, which it now is.
+
+- New tests: `tests/test_exported_model.py` (+7: `_softplus` hand-computed
+  values, a full-stack `run_exported_multitask_model()` parity test
+  against an independently hand-transcribed reference, a nonnegative-
+  volatility check, an unsupported-layer-type check),
+  `tests/test_train_multitask_architecture.py` (new, 8 tests: the
+  `target_volatility_next_day` column against an independent hand
+  computation, `AetherNetMultiTask` forward shapes and the volatility
+  head's nonnegativity, `export_multitask_architecture()`'s shape and
+  disjoint weight keys, `compute_regression_metrics()`),
+  `tests/test_train_multitask.py` (new, 8 tests, pure-function style
+  mirroring `tests/test_train_gating.py`), `tests/test_position_sizing.py`
+  (existing 11 unchanged, confirming the new params are additive),
+  `tests/test_market_analyzer.py` (existing 32 unchanged, confirming the 2
+  new fields are additive), `tests/test_retraining_artifacts.py`/
+  `test_retraining_orchestrator.py` (+13 for the new multitask stage,
+  mirroring the existing topology/gating stage tests), `tests/test_aq_cli.py`
+  (+3 for `--multitask-only`).
+- Stopping point: `python train_multitask.py` was smoke-tested against the
+  real dataset (see above) but its resulting model was **not** installed
+  into active `ml/`, and no real Lean backtest with
+  `use_predicted_volatility: true` was run — per this session's
+  established preference, the user runs the real training/backtest
+  themselves.
   pattern.

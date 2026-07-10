@@ -181,6 +181,8 @@ def check_for_update() -> None:
 def cmd_train(args: argparse.Namespace) -> int:
     if args.gating_only:
         return _train_gating_only()
+    if args.multitask_only:
+        return _train_multitask_only()
     cmd = [sys.executable, "train.py"]
     if args.dataset_only:
         cmd.append("--dataset-only")
@@ -223,6 +225,34 @@ def _train_gating_only() -> int:
     for name in artifact_names:
         shutil.copy2(version_dir / name, ml_dir / name)
     print(f"aq train --gating-only: copied {', '.join(artifact_names)} into active ml/.")
+    return 0
+
+
+def _train_multitask_only() -> int:
+    """`aq train --multitask-only`: trains the joint direction+magnitude+
+    volatility model (train_multitask.py) and installs it straight into
+    active ml/ - identical shape to _train_gating_only() above, including
+    the throwaway version-id / manual promotion-simulation / "skipped must
+    never look like failed" handling."""
+    version_id = f"multitask-only-{uuid.uuid4()}"
+    returncode = _run([sys.executable, "train_multitask.py", "--version-id", version_id])
+    if returncode != 0:
+        return returncode
+
+    version_dir = ROOT_DIR / "ml" / "versions" / version_id
+    artifact_names = ("multitask_model.json", "multitask_feature_schema.json", "multitask_training_metrics.json")
+    if any(not (version_dir / name).exists() for name in artifact_names):
+        print(
+            "aq train --multitask-only: train_multitask.py exited 0 but skipped writing artifacts "
+            "(likely insufficient train/validation/backtest rows) - active ml/ left unchanged.",
+            file=sys.stderr,
+        )
+        return 0
+
+    ml_dir = ROOT_DIR / "ml"
+    for name in artifact_names:
+        shutil.copy2(version_dir / name, ml_dir / name)
+    print(f"aq train --multitask-only: copied {', '.join(artifact_names)} into active ml/.")
     return 0
 
 
@@ -544,6 +574,11 @@ def build_parser() -> argparse.ArgumentParser:
     train_group.add_argument(
         "--gating-only", action="store_true", help="Train the learned gating blend only (wraps python train_gating.py)"
     )
+    train_group.add_argument(
+        "--multitask-only",
+        action="store_true",
+        help="Train the joint direction+magnitude+volatility model only (wraps python train_multitask.py)",
+    )
     train_parser.set_defaults(func=cmd_train)
 
     test_parser = subparsers.add_parser("test", help="Run the test suite (wraps pytest tests/)")
@@ -613,6 +648,7 @@ def build_parser() -> argparse.ArgumentParser:
             "train",
             "train_topology",
             "train_gating",
+            "train_multitask",
             "validate",
             "backtest",
             "commit",

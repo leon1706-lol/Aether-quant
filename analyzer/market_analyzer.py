@@ -23,6 +23,8 @@ class MarketAnalysisDecision:
     reasons: list[str]
     signal_quality_score: float = 0.0
     signal_quality_breakdown: dict = field(default_factory=dict)
+    predicted_return_magnitude: float | None = None
+    predicted_volatility: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -88,6 +90,8 @@ def build_market_analysis_decision(
     retrain_min_regime_confidence: float = 0.20,
     low_regime_confidence_threshold: float = 0.35,
     use_composite_signal_score: bool = False,
+    predicted_return_magnitude: float | None = None,
+    predicted_volatility: float | None = None,
 ) -> MarketAnalysisDecision:
     reasons: list[str] = []
     decision_source = str(gating.get("decision_source", "unknown"))
@@ -130,6 +134,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     # Priority 2: reduce_risk - asset-level risk regime override even
@@ -148,6 +154,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     # Priority 3: reduce_risk - elevated cross-sectional volatility pressure
@@ -170,6 +178,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     # Priority 4: retrain_candidate - zero experts contributing AND the
@@ -191,6 +201,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     # Priority 5: simulate - liquidity blocked (zero volume or DDV below
@@ -210,6 +222,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     # Priority 6: simulate - thin market; participation rate would be
@@ -228,6 +242,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     # Priority 7: trade - only for trading-eligible assets with an actionable
@@ -256,6 +272,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     # Priority 8: simulate vs observe.
@@ -278,6 +296,8 @@ def build_market_analysis_decision(
             reasons=reasons,
             signal_quality_score=signal_quality_score,
             signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
         )
 
     reasons.append("no_actionable_edge")
