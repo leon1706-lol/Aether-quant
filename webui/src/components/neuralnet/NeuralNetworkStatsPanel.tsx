@@ -29,6 +29,46 @@ function NetworkRow({ network }: { network: NeuralNetworkState['networks'][numbe
       ) : (
         <div className="mt-2 text-xs text-white/40">Not trained yet</div>
       )}
+      {network.horizon_mcc || network.rank_ic || network.regression_quality ? (
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-white/5 pt-2 text-[0.7rem] text-white/60">
+          {network.horizon_mcc ? (
+            <>
+              <span>
+                5d MCC: <span className="text-white/80">{network.horizon_mcc.direction_5d?.toFixed(3) ?? '—'}</span>
+              </span>
+              <span>
+                20d MCC: <span className="text-white/80">{network.horizon_mcc.direction_20d?.toFixed(3) ?? '—'}</span>
+              </span>
+            </>
+          ) : null}
+          {network.rank_ic ? (
+            <>
+              <span>
+                5d rank-IC:{' '}
+                <span className="text-white/80">
+                  {network.rank_ic.rank_5d
+                    ? `${network.rank_ic.rank_5d.mean_ic.toFixed(3)} (t=${network.rank_ic.rank_5d.t_stat.toFixed(2)})`
+                    : '—'}
+                </span>
+              </span>
+              <span>
+                20d rank-IC:{' '}
+                <span className="text-white/80">
+                  {network.rank_ic.rank_20d
+                    ? `${network.rank_ic.rank_20d.mean_ic.toFixed(3)} (t=${network.rank_ic.rank_20d.t_stat.toFixed(2)})`
+                    : '—'}
+                </span>
+              </span>
+            </>
+          ) : null}
+          {network.regression_quality ? (
+            <span className="col-span-2">
+              Regression quality: mag={network.regression_quality.magnitude ?? '—'}, vol=
+              {network.regression_quality.volatility ?? '—'}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[0.7rem] text-white/40">
         <span>{network.node_layers.length > 0 ? network.node_layers.join(' → ') : '—'}</span>
         <span>{network.last_modified ? new Date(network.last_modified).toLocaleString() : 'no file yet'}</span>

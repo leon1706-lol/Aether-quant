@@ -28,6 +28,15 @@ import numpy as np
 import pandas as pd
 import torch
 from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
+from features import (
+    CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
+    average_true_range_pct,
+    bollinger_pctb,
+    distance_from_52w_high,
+    macd_histogram_normalized,
+    relative_strength_index,
+    volume_zscore,
+)
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
 from regime import build_market_regime_vector
@@ -40,6 +49,7 @@ from torch.utils.data import DataLoader, TensorDataset
 LOGGER = logging.getLogger("aether_quant.train")
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
+FACTOR_FILES_DIR = DATA_DIR / "equity" / "usa" / "factor_files"
 ML_DIR = ROOT / "ml"
 DATASET_DIR = ML_DIR / "datasets"
 EXPERT_DATASET_DIR = ML_DIR / "expert_datasets"
@@ -363,6 +373,73 @@ def build_phase_inventory(config: dict, data_summary: dict) -> dict:
     }
 
 
+def load_factor_file(ticker: str) -> pd.DataFrame | None:
+    """Reads a Lean-format equity factor file (date, price_factor,
+    split_factor, reference_price - no header), the exact file Lean's own
+    engine consults to apply DataNormalizationMode.Adjusted (the default
+    main.py's runtime self.add_equity(ticker, self.resolution) subscription
+    already gets - see apply_split_adjustments()'s docstring). Returns None
+    when the file doesn't exist (e.g. AAA's thin history) - callers must
+    degrade to an identity/no-adjustment fallback, never raise."""
+    path = FACTOR_FILES_DIR / f"{ticker.lower()}.csv"
+    if not path.exists():
+        return None
+
+    factors = pd.read_csv(path, header=None, names=["factor_date", "price_factor", "split_factor", "reference_price"])
+    factors["factor_date"] = pd.to_datetime(factors["factor_date"], format="%Y%m%d", errors="coerce")
+    factors = factors.dropna(subset=["factor_date"]).sort_values("factor_date").reset_index(drop=True)
+    return factors if not factors.empty else None
+
+
+def apply_split_adjustments(frame: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """Backward-adjusts a raw per-asset OHLCV frame for splits/dividends
+    using Lean's own factor files - the same adjustment
+    DataNormalizationMode.Adjusted already applies to main.py's live/
+    backtest data feed at runtime (Lean's default for AddEquity()), which
+    load_lean_bars() never applied until now since it reads the raw daily
+    zip directly, bypassing Lean's data engine entirely.
+
+    Without this, a raw stock split (e.g. AAPL's 2020-08-31 4-for-1 split,
+    or USO's 2020-04-28 1-for-8 reverse split) shows up as an impossible
+    single-day return in every offline trainer's dataset even though
+    main.py's real backtest never sees it - a genuine train/runtime
+    feature-parity gap, not merely a label-outlier nuisance (see
+    development/Problems.md's full incident writeup). No main.py mirror is
+    needed for this fix, unlike the volume_change_1d clamp above - Lean's
+    engine already does this adjustment for main.py, only train.py's
+    from-scratch zip reader was missing it.
+
+    For each row dated D, finds the factor-file row with the smallest
+    factor_date >= D (pd.merge_asof(direction="forward"), Lean's own
+    lookup convention) and multiplies open/high/low/close by that row's
+    price_factor * split_factor, dividing volume by split_factor alone (a
+    cash dividend doesn't change share count, only a split does). Rows
+    dated after every factor-file entry (none in this dataset's window,
+    but a safe fallback matching Lean's own far-future sentinel row) get
+    factor 1.0 - i.e. no adjustment.
+    """
+    factors = load_factor_file(ticker)
+    if factors is None:
+        return frame
+
+    result = frame.sort_values("date").reset_index(drop=True)
+    merged = pd.merge_asof(
+        result[["date"]],
+        factors.rename(columns={"factor_date": "date"}),
+        on="date",
+        direction="forward",
+    )
+    price_factor = merged["price_factor"].fillna(1.0).to_numpy()
+    split_factor = merged["split_factor"].fillna(1.0).to_numpy()
+    combined_factor = price_factor * split_factor
+
+    result = result.copy()
+    for column in ("open", "high", "low", "close"):
+        result[column] = result[column].to_numpy() * combined_factor
+    result["volume"] = result["volume"].to_numpy() / split_factor
+    return result
+
+
 def load_lean_bars(asset: dict, common_window: dict) -> pd.DataFrame:
     path = ROOT / asset["data_path"]
     with ZipFile(path) as archive:
@@ -380,6 +457,9 @@ def load_lean_bars(asset: dict, common_window: dict) -> pd.DataFrame:
     frame = frame.dropna(subset=["timestamp", "open", "high", "low", "close", "volume"]).copy()
     frame["date"] = frame["timestamp"].dt.normalize()
     frame = frame.sort_values("date").drop_duplicates(subset="date", keep="last")
+
+    if asset["security_type"] == "equity":
+        frame = apply_split_adjustments(frame, asset["ticker"])
 
     start = pd.Timestamp(common_window["start"])
     end = pd.Timestamp(common_window["end"])
@@ -424,7 +504,42 @@ def assign_split(date_value: pd.Timestamp, windows: dict) -> str | None:
     return None
 
 
-def engineer_features(frame: pd.DataFrame, feature_names: list[str], windows: dict) -> pd.DataFrame:
+# volume_change_1d clamp bounds - see the comment at its append() call
+# below for why. Duplicated (not imported) in main.py::_build_model_input()
+# since main.py never imports train.py (heavy training-only deps).
+VOLUME_CHANGE_FLOOR = -1.0
+VOLUME_CHANGE_CEILING = 20.0
+
+# Matches main.py's self.symbol_long_windows (deque(maxlen=260)) - the
+# long-lookback indicators (macd_histogram_normalized/distance_from_52w_high)
+# recompute fresh from whatever window they're given (see
+# features/technical_indicators.py's docstring), so offline must slice to
+# this SAME bounded window for train/runtime parity, not pass unbounded
+# full history (which would make the offline EMA/high-water-mark reflect a
+# different, longer lookback than the live buffer ever sees).
+LONG_LOOKBACK_WINDOW_BARS = 260
+
+
+# Fallback per-security-type bounds for the label-outlier guards below,
+# used when config.json's phase1.target.max_abs_* keys are absent (older
+# configs / test fixtures) - real config values should be preferred, these
+# are only safety-net defaults. Horizon bounds widen with the window since
+# more trading days give more room for genuine cumulative moves.
+DEFAULT_MAX_ABS_DAILY_RETURN = {"equity": 0.5, "crypto": 1.5}
+DEFAULT_MAX_ABS_RETURN_5D = {"equity": 0.9, "crypto": 2.5}
+DEFAULT_MAX_ABS_RETURN_20D = {"equity": 1.5, "crypto": 4.0}
+
+
+def engineer_features(
+    frame: pd.DataFrame,
+    feature_names: list[str],
+    windows: dict,
+    *,
+    security_type: str = "equity",
+    max_abs_daily_return: dict | None = None,
+    max_abs_return_5d: dict | None = None,
+    max_abs_return_20d: dict | None = None,
+) -> pd.DataFrame:
     result = frame.copy()
     closes = result["close"].tolist()
     opens = result["open"].tolist()
@@ -442,6 +557,25 @@ def engineer_features(frame: pd.DataFrame, feature_names: list[str], windows: di
     high_low_range_pct: list[float] = [np.nan]
     open_close_range_pct: list[float] = [np.nan]
     volume_change_1d: list[float] = [np.nan]
+    # Phase 6 technical indicators - shared pure implementations
+    # (features/technical_indicators.py) imported at module level above, so
+    # this loop and main.py::_build_model_input() compute every one
+    # identically by construction. rsi_14/atr_pct_14/bollinger_pctb_20/
+    # volume_zscore_20 only ever look at their own trailing period (<=20
+    # bars), so passing this loop's full growing `closes[:index+1]` slice
+    # produces the same result as main.py's bounded 25-bar
+    # self.symbol_windows buffer once enough history exists - no explicit
+    # truncation needed. macd_histogram_normalized/distance_from_52w_high
+    # DO care about how much history they're given (fresh EMA/rolling-max
+    # each call), so those two are explicitly capped to
+    # LONG_LOOKBACK_WINDOW_BARS to match main.py's self.symbol_long_windows
+    # buffer size.
+    rsi_14: list[float] = [np.nan]
+    atr_pct_14: list[float] = [np.nan]
+    bollinger_pctb_20: list[float] = [np.nan]
+    volume_zscore_20: list[float] = [np.nan]
+    macd_histogram_norm: list[float] = [np.nan]
+    dist_52w_high: list[float] = [np.nan]
 
     for index in range(1, len(result)):
         previous_close = closes[index - 1]
@@ -471,7 +605,24 @@ def engineer_features(frame: pd.DataFrame, feature_names: list[str], windows: di
         momentum_20d.append(current_close / close_20 - 1.0 if close_20 else 0.0)
         high_low_range_pct.append((highs[index] - lows[index]) / current_close if current_close else 0.0)
         open_close_range_pct.append((current_close - current_open) / current_open if current_open else 0.0)
-        volume_change_1d.append(0.0 if previous_volume == 0 else volumes[index] / previous_volume - 1.0)
+        raw_volume_change = 0.0 if previous_volume == 0 else volumes[index] / previous_volume - 1.0
+        # Clamped to [-1.0, 20.0] (volume can't fall more than 100%, and a
+        # >2000% single-day jump is a data-feed unit discontinuity, not a
+        # real signal - see BTCUSD 2018-08-14's raw volume jumping ~520,000x
+        # in one day, traced in development/Problems.md). Mirrored exactly
+        # in main.py::_build_model_input() for train/runtime parity.
+        volume_change_1d.append(max(VOLUME_CHANGE_FLOOR, min(VOLUME_CHANGE_CEILING, raw_volume_change)))
+
+        trailing_closes = closes[: index + 1]
+        rsi_14.append(relative_strength_index(trailing_closes, period=14))
+        atr_pct_14.append(average_true_range_pct(highs[: index + 1], lows[: index + 1], trailing_closes, period=14))
+        bollinger_pctb_20.append(bollinger_pctb(trailing_closes, period=20))
+        volume_zscore_20.append(volume_zscore(volumes[: index + 1], period=20))
+
+        long_window_start = max(0, index + 1 - LONG_LOOKBACK_WINDOW_BARS)
+        long_trailing_closes = closes[long_window_start : index + 1]
+        macd_histogram_norm.append(macd_histogram_normalized(long_trailing_closes))
+        dist_52w_high.append(distance_from_52w_high(long_trailing_closes, window=LONG_LOOKBACK_WINDOW_BARS))
 
     result["close_to_close_return_1d"] = close_to_close_return_1d
     result["close_to_close_return_5d"] = close_to_close_return_5d
@@ -483,13 +634,69 @@ def engineer_features(frame: pd.DataFrame, feature_names: list[str], windows: di
     result["high_low_range_pct"] = high_low_range_pct
     result["open_close_range_pct"] = open_close_range_pct
     result["volume_change_1d"] = volume_change_1d
+    result["rsi_14"] = rsi_14
+    result["atr_pct_14"] = atr_pct_14
+    result["bollinger_pctb_20"] = bollinger_pctb_20
+    result["volume_zscore_20"] = volume_zscore_20
+    result["macd_histogram_norm"] = macd_histogram_norm
+    result["dist_52w_high"] = dist_52w_high
 
     result["target_return_1d"] = result["close"].shift(-1) / result["close"] - 1.0
+
+    # Label-outlier guard: an unadjusted stock split (AAPL's 2020-08-28
+    # 4-for-1 split shows as a fake -74% "return") or unadjusted reverse
+    # split (USO's 2020-04-28 1-for-8 shows as +745%) produces an
+    # impossible single-day return that corrupts target_direction/
+    # target_return_1d for every trainer reading this column. Bounds are
+    # per security-type since real crypto moves (e.g. XRP's 2021-01-29
+    # +56%) can legitimately exceed any equity-sane threshold. NaN'd out
+    # here so the existing dropna(required_columns) below removes the row
+    # exactly like any other missing-label row - not winsorized, since a
+    # clipped fake -74% is still a fake "down" label, not a smaller real
+    # one. See development/Problems.md for the full incident writeup.
+    return_bounds = max_abs_daily_return or DEFAULT_MAX_ABS_DAILY_RETURN
+    return_bound = float(return_bounds.get(security_type, return_bounds.get("equity", 0.5)))
+    impossible_return = result["target_return_1d"].abs() > return_bound
+    result.loc[impossible_return, "target_return_1d"] = np.nan
+
     result["target_direction"] = np.where(
         result["target_return_1d"].notna(),
         (result["target_return_1d"] > 0).astype(int),
         np.nan,
     )
+
+    # Multi-horizon targets (5d/20d) - the highest-leverage change this
+    # codebase's root-cause investigation identified: next-day binary
+    # direction on liquid daily bars is close to efficient-market noise;
+    # longer horizons give momentum/mean-reversion more room to show up.
+    # Deliberately NOT added to required_columns below - the trailing
+    # ~5/~20 rows of each asset's history that lack a future close far
+    # enough out stay in the dataset with NaN targets here, handled by
+    # train_multitask.py's/train_sequence.py's masked loss instead of
+    # being dropped outright (dropping would also shrink every per-expert
+    # dataset slice downstream, which only ever needs the 1d target).
+    result["target_return_5d"] = result["close"].shift(-5) / result["close"] - 1.0
+    result["target_return_20d"] = result["close"].shift(-20) / result["close"] - 1.0
+
+    return_bounds_5d = max_abs_return_5d or DEFAULT_MAX_ABS_RETURN_5D
+    return_bound_5d = float(return_bounds_5d.get(security_type, return_bounds_5d.get("equity", 0.9)))
+    impossible_5d = result["target_return_5d"].abs() > return_bound_5d
+    result.loc[impossible_5d, "target_return_5d"] = np.nan
+
+    return_bounds_20d = max_abs_return_20d or DEFAULT_MAX_ABS_RETURN_20D
+    return_bound_20d = float(return_bounds_20d.get(security_type, return_bounds_20d.get("equity", 1.5)))
+    impossible_20d = result["target_return_20d"].abs() > return_bound_20d
+    result.loc[impossible_20d, "target_return_20d"] = np.nan
+
+    # Stays float (NaN-able) - unlike target_direction above, this is never
+    # forced to int since it's not in required_columns's dropna.
+    result["target_direction_5d"] = np.where(
+        result["target_return_5d"].notna(), (result["target_return_5d"] > 0).astype(float), np.nan
+    )
+    result["target_direction_20d"] = np.where(
+        result["target_return_20d"].notna(), (result["target_return_20d"] > 0).astype(float), np.nan
+    )
+
     # Next-day realized-volatility proxy for the multitask model's volatility
     # head (train_multitask.py): next day's own high_low_range_pct, already
     # computed above from that day's high/low/close - a genuine one-day-ahead
@@ -627,20 +834,39 @@ def add_liquidity_features(frame: pd.DataFrame, security_type: str) -> pd.DataFr
     return result
 
 
+def peer_return_feature_names(top_peers_n: int) -> list[str]:
+    """Schema-stable peer-return feature names - never ticker-named (peer
+    identity changes bar to bar and asset to asset), always rank-based:
+    peer_rank1_return_1d is "this asset's single most-correlated peer's
+    latest 1-day return", down to peer_rankN_return_1d, plus
+    peer_mean_return_1d (mean across whichever peers exist). Shared by
+    build_topology_features_by_date() (offline) and
+    main.py::_build_model_input() (runtime) so both sides register the
+    exact same column/feature names."""
+    return [f"peer_rank{rank}_return_1d" for rank in range(1, top_peers_n + 1)] + ["peer_mean_return_1d"]
+
+
 def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
-    """Cross-sectional per-date topology reconstruction - genuinely new
-    code, no existing pattern in train.py computed a cross-asset
-    relationship at dataset-build time before this (only main.py's runtime
-    _build_topology_payload() did, once per bar before the symbol loop).
+    """Cross-sectional per-date topology + peer-return reconstruction -
+    genuinely new code, no existing pattern in train.py computed a
+    cross-asset relationship at dataset-build time before this (only
+    main.py's runtime _build_topology_payload() did, once per bar before
+    the symbol loop).
 
     For each unique historical date across the whole universe, gathers each
     asset's trailing CROSS_SECTIONAL_RETURNS_WINDOW-return window ending at
     that date and calls the exact same build_market_topology() the runtime
     path uses. `embedding_iterations=1` is deliberate: correlation_strength/
-    topology_risk (the only two fields consumed here) are computed in
-    build_market_topology()'s Pass 1/Pass 3 and do not depend on the SMACOF
-    x/y embedding at all, so the expensive iterative embedding step is
-    skipped for speed without changing either output value.
+    topology_risk/top_peers/top_peer_returns (the only fields consumed
+    here) are computed in build_market_topology()'s Pass 1/Pass 3 and do
+    not depend on the SMACOF x/y embedding at all, so the expensive
+    iterative embedding step is skipped for speed without changing any of
+    those output values. Peer-return features are folded into this SAME
+    per-date loop (not a separate function re-running build_market_topology()
+    a second time) since they come from the exact same per-date topology
+    call - a real, already-documented cost (see development/Changelog.md's
+    "topology per-date cross-sectional loop" dataset-rebuild timing note),
+    not worth doubling.
 
     `asset_frames` values must each have 'date' (pandas Timestamp, not yet
     stringified) and 'close_to_close_return_1d' columns - i.e. called after
@@ -648,11 +874,21 @@ def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], confi
     concat/strftime. regime_labels_by_symbol is intentionally omitted
     (passed as {}): it only affects TopologyCluster.dominant_regime_label
     and TopologyNode.regime_label, neither of which this function reads.
+
+    Peer-return features (peer_rank1_return_1d, ..., peer_mean_return_1d -
+    see peer_return_feature_names()) are schema-stable, never ticker-named
+    (a peer's identity changes bar to bar and asset to asset). A missing
+    peer (universe smaller than top_peers_n) gets 0.0, identically on both
+    the offline (here) and runtime (main.py::_build_model_input()) sides -
+    no lookahead, since each peer's latest 1d return is already known as
+    of the current row's own date.
     """
     topology_config = config.get("phase_v2", {}).get("topology", {})
     correlation_threshold = float(topology_config.get("correlation_threshold", 0.6))
     link_threshold = float(topology_config.get("link_threshold", 0.5))
     min_observations = int(topology_config.get("min_observations", 5))
+    top_peers_n = int(topology_config.get("top_peers_n", 3))
+    peer_feature_names = peer_return_feature_names(top_peers_n)
 
     dates_by_ticker = {ticker: frame["date"].tolist() for ticker, frame in asset_frames.items()}
     returns_by_ticker = {ticker: frame["close_to_close_return_1d"].tolist() for ticker, frame in asset_frames.items()}
@@ -660,6 +896,7 @@ def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], confi
 
     correlation_strength_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
     topology_risk_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
+    peer_features_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
 
     for current_date in all_dates:
         returns_by_symbol: dict[str, list[float]] = {}
@@ -681,26 +918,149 @@ def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], confi
             link_threshold=link_threshold,
             min_observations=min_observations,
             embedding_iterations=1,
+            top_peers_n=top_peers_n,
         )
         for node in topology.nodes:
             correlation_strength_by_ticker_date[node.symbol][current_date] = node.correlation_strength
             topology_risk_by_ticker_date[node.symbol][current_date] = node.topology_risk
+            padded_returns = list(node.top_peer_returns) + [0.0] * (top_peers_n - len(node.top_peer_returns))
+            mean_peer_return = float(np.mean(node.top_peer_returns)) if node.top_peer_returns else 0.0
+            peer_features_by_ticker_date[node.symbol][current_date] = padded_returns + [mean_peer_return]
 
     updated_frames: dict[str, pd.DataFrame] = {}
     for ticker, frame in asset_frames.items():
         result = frame.copy()
         correlation_lookup = correlation_strength_by_ticker_date[ticker]
         risk_lookup = topology_risk_by_ticker_date[ticker]
+        peer_lookup = peer_features_by_ticker_date[ticker]
         # Rows where topology couldn't be computed (fewer than min_observations
         # trailing returns exist yet, or no other asset qualified that date)
         # default to the same "isolated, zero correlation" signal
         # build_market_topology()'s own _isolated_node() fallback produces -
         # a real, meaningful value, never a NaN needing an extra dropna pass.
+        # Peer features default to all-zero for the same rows, matching the
+        # missing-peer convention above.
         result["topology_correlation_strength"] = [correlation_lookup.get(date, 0.0) for date in result["date"]]
         risk_values = [risk_lookup.get(date, "isolated") for date in result["date"]]
         result["topology_risk_normal"] = [1.0 if value == "normal" else 0.0 for value in risk_values]
         result["topology_risk_elevated"] = [1.0 if value == "elevated" else 0.0 for value in risk_values]
         result["topology_risk_isolated"] = [1.0 if value == "isolated" else 0.0 for value in risk_values]
+
+        zero_peer_features = [0.0] * (top_peers_n + 1)
+        peer_values = [peer_lookup.get(date, zero_peer_features) for date in result["date"]]
+        for index, feature_name in enumerate(peer_feature_names):
+            result[feature_name] = [row[index] for row in peer_values]
+
+        updated_frames[ticker] = result
+    return updated_frames
+
+
+DEFAULT_RANKING_MIN_UNIVERSE_SIZE = 10
+
+
+def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
+    """Cross-sectional per-date percentile-rank targets (Phase 4) - the
+    highest-leverage change this codebase's root-cause investigation
+    identified: which asset outperforms its peers this period is typically
+    far more learnable than absolute next-day direction, and maps directly
+    onto a long/short portfolio (rank the universe, go long the top,
+    short the bottom), unlike a per-asset direction call.
+
+    For each historical date across the whole universe, ranks every
+    asset's forward target_return_5d/target_return_20d (already computed
+    by engineer_features(), including that function's own per-horizon
+    label-outlier guard) into a [0, 1] percentile (ties averaged) among all
+    assets with a valid forward return on that date - pandas'
+    `.rank(pct=True)`, the same convention every other rank-based metric in
+    this codebase would expect.
+
+    Must be called after the per-asset engineer_features() loop (needs
+    target_return_5d/20d already computed) but before build_feature_dataset()'s
+    final concat/strftime - same ordering constraint as
+    build_topology_features_by_date(), and deliberately a separate function
+    from it (no pairwise correlation computation needed here, so none of
+    that function's O(N^2) machinery applies).
+
+    `min_universe_size` (config phase1.target.ranking.min_universe_size,
+    default 10) guards against thin dates (e.g. weekends, when only crypto
+    trades) - below that threshold the rank is NaN, not a near-meaningless
+    percentile over a handful of assets. This is free: the masked loss
+    (masked_mse_loss()) used by the rank_5d/20d training heads already
+    treats NaN as "no target this row", the same convention the
+    direction_5d/20d targets above already established.
+    """
+    ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
+    min_universe_size = int(ranking_config.get("min_universe_size", DEFAULT_RANKING_MIN_UNIVERSE_SIZE))
+
+    updated_frames: dict[str, pd.DataFrame] = dict(asset_frames)
+    for horizon_days in (5, 20):
+        return_column = f"target_return_{horizon_days}d"
+        rank_column = f"target_rank_{horizon_days}d"
+
+        long_frame = pd.concat(
+            [
+                pd.DataFrame({"ticker": ticker, "date": frame["date"], return_column: frame[return_column]})
+                for ticker, frame in updated_frames.items()
+            ],
+            ignore_index=True,
+        )
+        eligible = long_frame.dropna(subset=[return_column]).copy()
+        universe_size_by_date = eligible.groupby("date")[return_column].transform("size")
+        eligible = eligible[universe_size_by_date >= min_universe_size].copy()
+        eligible["rank_value"] = eligible.groupby("date")[return_column].rank(pct=True)
+        rank_lookup = eligible.set_index(["ticker", "date"])["rank_value"].to_dict()
+
+        for ticker, frame in updated_frames.items():
+            result = frame.copy()
+            result[rank_column] = [rank_lookup.get((ticker, date), np.nan) for date in result["date"]]
+            updated_frames[ticker] = result
+
+    return updated_frames
+
+
+def build_cross_sectional_momentum_rank_features(asset_frames: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Cross-sectional per-date percentile rank of each asset's own
+    momentum_20d (Phase 6) - the best-documented daily cross-sectional
+    anomaly (12-1 month momentum). Unlike build_cross_sectional_rank_targets()'s
+    forward-looking targets, today's momentum_20d is already fully known as
+    of today - no lookahead concern, no min_universe_size guard needed
+    beyond the plain "need >= 2 assets to rank" rule
+    features.cross_sectional_momentum_rank() already encodes (thin dates
+    default to 0.5, the exact middle, via that same neutral-default
+    convention).
+
+    Computed here via pandas .rank(pct=True) directly (mathematically
+    identical to features.cross_sectional_momentum_rank()'s own
+    average-tie-rank formula - both are the standard percentile-rank-with-
+    averaged-ties convention) since a full per-date DataFrame already
+    exists offline, unlike main.py's runtime per-bar dict.
+
+    Must be called after the per-asset engineer_features() loop (needs
+    momentum_20d already computed) but before build_feature_dataset()'s
+    final concat/strftime - same ordering constraint as
+    build_topology_features_by_date()/build_cross_sectional_rank_targets().
+    """
+    long_frame = pd.concat(
+        [
+            pd.DataFrame({"ticker": ticker, "date": frame["date"], "momentum_20d": frame["momentum_20d"]})
+            for ticker, frame in asset_frames.items()
+        ],
+        ignore_index=True,
+    )
+    universe_size_by_date = long_frame.groupby("date")["momentum_20d"].transform("size")
+    long_frame["cs_momentum_rank_20"] = np.where(
+        universe_size_by_date >= 2,
+        long_frame.groupby("date")["momentum_20d"].rank(pct=True),
+        CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
+    )
+    rank_lookup = long_frame.set_index(["ticker", "date"])["cs_momentum_rank_20"].to_dict()
+
+    updated_frames: dict[str, pd.DataFrame] = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        result["cs_momentum_rank_20"] = [
+            rank_lookup.get((ticker, date), CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL) for date in result["date"]
+        ]
         updated_frames[ticker] = result
     return updated_frames
 
@@ -723,6 +1083,17 @@ BASE_FEATURE_NAMES = [
     "high_low_range_pct",
     "open_close_range_pct",
     "volume_change_1d",
+    # Phase 6 technical indicators - appended, not inserted among the
+    # original 10 (the docstring above's "renaming one of these 10" warning
+    # is about renaming, not appending; _encode_regime_row() looks up its
+    # own specific names by key via .get(), unaffected by new keys existing
+    # alongside them).
+    "rsi_14",
+    "atr_pct_14",
+    "bollinger_pctb_20",
+    "volume_zscore_20",
+    "macd_histogram_norm",
+    "dist_52w_high",
 ]
 
 
@@ -741,6 +1112,10 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     phase1 = config["phase1"]
     assets = phase1["universe"]["assets"]
     windows = phase1["windows"]
+    target_config = phase1.get("target", {})
+    max_abs_daily_return = target_config.get("max_abs_daily_return", DEFAULT_MAX_ABS_DAILY_RETURN)
+    max_abs_return_5d = target_config.get("max_abs_return_5d", DEFAULT_MAX_ABS_RETURN_5D)
+    max_abs_return_20d = target_config.get("max_abs_return_20d", DEFAULT_MAX_ABS_RETURN_20D)
 
     asset_frames = {
         asset["ticker"]: load_lean_bars(asset, phase1["universe"]["common_window"])
@@ -763,7 +1138,15 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
         # function's docstring for why this ordering is load-bearing, not
         # cosmetic.
         asset_frame = add_liquidity_features(asset_frame, asset["security_type"])
-        engineered = engineer_features(asset_frame, BASE_FEATURE_NAMES, windows)
+        engineered = engineer_features(
+            asset_frame,
+            BASE_FEATURE_NAMES,
+            windows,
+            security_type=asset["security_type"],
+            max_abs_daily_return=max_abs_daily_return,
+            max_abs_return_5d=max_abs_return_5d,
+            max_abs_return_20d=max_abs_return_20d,
+        )
         engineered = add_regime_features(engineered)
         engineered_frames[ticker] = engineered
         asset_summaries.append(
@@ -781,6 +1164,8 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     # Cross-sectional (needs every asset's engineered frame simultaneously) -
     # must run after the per-asset loop above, before the final concat.
     engineered_frames = build_topology_features_by_date(engineered_frames, config)
+    engineered_frames = build_cross_sectional_rank_targets(engineered_frames, config)
+    engineered_frames = build_cross_sectional_momentum_rank_features(engineered_frames)
 
     dataset = pd.concat(list(engineered_frames.values()), ignore_index=True)
     dataset = dataset.sort_values(["date", "ticker"]).reset_index(drop=True)
@@ -876,21 +1261,44 @@ def apply_asset_quality_flags(dataset: pd.DataFrame, asset_quality: dict) -> pd.
     return result
 
 
-def fit_and_apply_scaler(dataset: pd.DataFrame, feature_names: list[str]) -> tuple[pd.DataFrame, StandardScaler]:
+def fit_and_apply_scaler(
+    dataset: pd.DataFrame,
+    feature_names: list[str],
+    *,
+    winsorize_quantiles: tuple[float, float] = (0.001, 0.999),
+    clip_sigma: float = 10.0,
+) -> tuple[pd.DataFrame, StandardScaler, float]:
     train_mask = dataset["split"] == "train"
     if "training_eligible" in dataset.columns:
         train_mask = train_mask & dataset["training_eligible"]
     if int(train_mask.sum()) == 0:
         raise ValueError("No training-eligible rows available to fit scaler.")
 
+    train_features = dataset.loc[train_mask, feature_names]
+    # Winsorize a COPY of the train-only slice before fitting so a single
+    # extreme outlier (e.g. BTCUSD's 2018-08-14 volume-feed discontinuity,
+    # see development/Problems.md) can't distort the scaler's mean/std
+    # estimate - only the fit is robustified, every row's real,
+    # unwinsorized value is still what gets transformed below.
+    lower_quantile, upper_quantile = winsorize_quantiles
+    lower_bounds = train_features.quantile(lower_quantile)
+    upper_bounds = train_features.quantile(upper_quantile)
+    winsorized_train_features = train_features.clip(lower=lower_bounds, upper=upper_bounds, axis=1)
+
     scaler = StandardScaler()
-    scaler.fit(dataset.loc[train_mask, feature_names])
+    scaler.fit(winsorized_train_features)
 
     scaled_values = scaler.transform(dataset[feature_names])
+    # Clip in scaled (sigma) space too - this is the layer that actually
+    # protects downstream models (especially the sequence encoder, whose
+    # sliding window replicates a single poisoned row into every subsequent
+    # window) from a validation/backtest-split outlier the train-only
+    # winsorized fit above can't see or bound on its own.
+    scaled_values = np.clip(scaled_values, -clip_sigma, clip_sigma)
     for index, feature_name in enumerate(feature_names):
         dataset[f"{feature_name}_scaled"] = scaled_values[:, index]
 
-    return dataset, scaler
+    return dataset, scaler, float(clip_sigma)
 
 
 def add_asset_context_features(dataset: pd.DataFrame, tickers: list[str]) -> tuple[pd.DataFrame, list[str]]:
@@ -937,6 +1345,20 @@ def build_dataset_manifest(
         "model_input_count": len(model_input_names),
         "target_column": "target_direction",
         "aux_target_column": "target_return_1d",
+        # Additive head->column map for the multi-horizon/ranking heads
+        # (train_multitask.py/train_sequence.py) - never replaces
+        # target_column/aux_target_column above, which every existing
+        # consumer (experts/expert_datasets.py, feature_schema.json)
+        # still reads unchanged.
+        "target_columns": {
+            "direction": "target_direction",
+            "magnitude": "target_return_1d",
+            "volatility": "target_volatility_next_day",
+            "direction_5d": "target_direction_5d",
+            "direction_20d": "target_direction_20d",
+            "rank_5d": "target_rank_5d",
+            "rank_20d": "target_rank_20d",
+        },
         "split_counts": split_counts,
         "per_asset_split_counts": per_asset_split,
         "asset_quality": asset_quality,
@@ -968,9 +1390,15 @@ def write_scaler_artifacts(
     *,
     scaler_path: Path = SCALER_PATH,
     scaler_stats_path: Path = SCALER_STATS_PATH,
+    clip_sigma: float = 10.0,
 ) -> None:
     """Persists the fitted scaler as both the joblib pickle (training-only)
     and the JSON mean/scale arrays main.py actually loads for inference.
+    `clip_sigma` (the scaled-value clip bound fit_and_apply_scaler() already
+    applied offline) is carried along so main.py can apply the identical
+    bound at runtime - see main.py::_build_model_input()'s matching clamp,
+    with a safe default of 10.0 for scaler_stats.json files written before
+    this field existed.
 
     Extracted out of write_dataset_artifacts() so candidate training (V2-17)
     can write into ml/versions/<id>/ without touching the active scaler.
@@ -983,6 +1411,7 @@ def write_scaler_artifacts(
                 "feature_names": manifest["feature_names"],
                 "mean": [float(value) for value in scaler.mean_.tolist()],
                 "scale": [float(value) for value in scaler.scale_.tolist()],
+                "clip_sigma": float(clip_sigma),
             },
             indent=2,
         ),
@@ -995,6 +1424,7 @@ def write_dataset_artifacts(
     manifest: dict,
     scaler: StandardScaler,
     config: dict | None = None,
+    clip_sigma: float = 10.0,
 ) -> None:
     dataset.to_csv(FULL_DATASET_PATH, index=False)
     dataset[dataset["split"] == "train"].to_csv(TRAIN_DATASET_PATH, index=False)
@@ -1023,7 +1453,7 @@ def write_dataset_artifacts(
         ),
         encoding="utf-8",
     )
-    write_scaler_artifacts(scaler, manifest)
+    write_scaler_artifacts(scaler, manifest, clip_sigma=clip_sigma)
 
     expert_dataset, expert_manifest = build_expert_dataset_manifest(dataset, manifest, config)
     write_expert_dataset_artifacts(
@@ -1128,6 +1558,75 @@ class AetherNetMultiTask(nn.Module):
         return direction_logit, magnitude, volatility
 
 
+class AetherNetMultiTaskHorizons(nn.Module):
+    """Extends AetherNetMultiTask with 4 additional heads: direction_5d/
+    direction_20d (longer-horizon direction - the highest-leverage change
+    this codebase's root-cause investigation identified, since next-day
+    binary direction on liquid daily bars is close to efficient-market
+    noise, and longer horizons give momentum/mean-reversion more room to
+    show up) and rank_5d/rank_20d (cross-sectional percentile-rank of
+    forward return across the universe on the same date - typically far
+    more learnable than absolute direction, and maps directly onto a
+    long/short portfolio).
+
+    A NEW sibling class, not a modification of AetherNetMultiTask -
+    train.py::_train_expert_multitask() (the 4 regime experts' own
+    multitask heads) keeps using the original 3-head class completely
+    unchanged, by design (experts/baseline/gating stay 1d-direction-only,
+    see development/Changelog.md). Same trunk-building logic as
+    AetherNetMultiTask; all 7 heads share it.
+
+    forward() returns a dict, not AetherNetMultiTask's fixed 3-tuple - one
+    raw (pre-activation, except volatility which applies softplus
+    internally same as AetherNetMultiTask) tensor per head. This naming
+    maps 1:1 onto the export's "heads" dict keys (see
+    export_multitask_horizons_architecture()), which
+    inference/exported_model.py::run_exported_multitask_model() already
+    iterates generically - no interpreter changes needed for the new
+    heads."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_layers: list[int],
+        dropout: float,
+        activation: str = "relu",
+        normalization: str = "none",
+    ) -> None:
+        super().__init__()
+        layers: list[nn.Module] = []
+        current_dim = input_dim
+        for hidden_dim in hidden_layers:
+            layers.append(nn.Linear(current_dim, hidden_dim))
+            norm_layer = build_normalization(normalization, hidden_dim)
+            if norm_layer is not None:
+                layers.append(norm_layer)
+            layers.append(build_activation(activation))
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            current_dim = hidden_dim
+        self.trunk = nn.Sequential(*layers)
+        self.head_direction = nn.Linear(current_dim, 1)
+        self.head_magnitude = nn.Linear(current_dim, 1)
+        self.head_volatility = nn.Linear(current_dim, 1)
+        self.head_direction_5d = nn.Linear(current_dim, 1)
+        self.head_direction_20d = nn.Linear(current_dim, 1)
+        self.head_rank_5d = nn.Linear(current_dim, 1)
+        self.head_rank_20d = nn.Linear(current_dim, 1)
+
+    def forward(self, features: torch.Tensor) -> dict[str, torch.Tensor]:
+        trunk_output = self.trunk(features)
+        return {
+            "direction": self.head_direction(trunk_output).squeeze(-1),
+            "magnitude": self.head_magnitude(trunk_output).squeeze(-1),
+            "volatility": nn.functional.softplus(self.head_volatility(trunk_output).squeeze(-1)),
+            "direction_5d": self.head_direction_5d(trunk_output).squeeze(-1),
+            "direction_20d": self.head_direction_20d(trunk_output).squeeze(-1),
+            "rank_5d": self.head_rank_5d(trunk_output).squeeze(-1),
+            "rank_20d": self.head_rank_20d(trunk_output).squeeze(-1),
+        }
+
+
 class AetherNetSequenceMultiTask(nn.Module):
     """Phase 2: a causal TCN (temporal convolutional network) trunk over a
     rolling window of already-computed flat model_input vectors, replacing
@@ -1195,13 +1694,71 @@ class AetherNetSequenceMultiTask(nn.Module):
         return direction_logit, magnitude, volatility
 
 
-def export_sequence_multitask_architecture(model: AetherNetSequenceMultiTask) -> dict:
-    """Branching export for AetherNetSequenceMultiTask - same {"trunk":
-    [...], "heads": {...}} shape export_multitask_architecture() produces,
-    but trunk entries are "conv1d_causal" layers (each carrying its own
-    dilation, doubling per layer to match __init__'s dilation=2**layer_index)
-    instead of "linear". Consumed by
-    inference/exported_model.py::run_exported_sequence_multitask_model()."""
+class AetherNetSequenceMultiTaskHorizons(nn.Module):
+    """Sequence-encoder sibling of AetherNetMultiTaskHorizons: the same
+    causal TCN trunk as AetherNetSequenceMultiTask, extended with the same
+    4 additional heads (direction_5d/20d, rank_5d/20d). A NEW class, not a
+    modification of AetherNetSequenceMultiTask - same reasoning as
+    AetherNetMultiTaskHorizons above (experts never use the sequence
+    model at all, so there is no shared-code risk here, but the
+    new-sibling-class convention stays consistent across both trainers).
+    forward() returns a dict, matching AetherNetMultiTaskHorizons and the
+    export's "heads" dict shape."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        channels: list[int],
+        kernel_size: int,
+        dropout: float,
+    ) -> None:
+        super().__init__()
+        if not channels:
+            raise ValueError("AetherNetSequenceMultiTaskHorizons requires at least one trunk channel size.")
+        self.kernel_size = int(kernel_size)
+        self.conv_layers = nn.ModuleList()
+        current_channels = input_dim
+        for layer_index, out_channels in enumerate(channels):
+            dilation = 2**layer_index
+            self.conv_layers.append(nn.Conv1d(current_channels, out_channels, self.kernel_size, dilation=dilation))
+            current_channels = out_channels
+        self.activation = nn.ReLU()
+        self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+        self.head_direction = nn.Linear(current_channels, 1)
+        self.head_magnitude = nn.Linear(current_channels, 1)
+        self.head_volatility = nn.Linear(current_channels, 1)
+        self.head_direction_5d = nn.Linear(current_channels, 1)
+        self.head_direction_20d = nn.Linear(current_channels, 1)
+        self.head_rank_5d = nn.Linear(current_channels, 1)
+        self.head_rank_20d = nn.Linear(current_channels, 1)
+
+    def forward(self, sequence: torch.Tensor) -> dict[str, torch.Tensor]:
+        current = sequence.transpose(1, 2)  # (batch, input_dim, window)
+        for conv in self.conv_layers:
+            dilation = conv.dilation[0]
+            pad_left = (self.kernel_size - 1) * dilation
+            current = nn.functional.pad(current, (pad_left, 0))
+            current = conv(current)
+            current = self.dropout(self.activation(current))
+
+        pooled = current[:, :, -1]  # (batch, channels[-1]) - most-recent timestep
+        return {
+            "direction": self.head_direction(pooled).squeeze(-1),
+            "magnitude": self.head_magnitude(pooled).squeeze(-1),
+            "volatility": nn.functional.softplus(self.head_volatility(pooled).squeeze(-1)),
+            "direction_5d": self.head_direction_5d(pooled).squeeze(-1),
+            "direction_20d": self.head_direction_20d(pooled).squeeze(-1),
+            "rank_5d": self.head_rank_5d(pooled).squeeze(-1),
+            "rank_20d": self.head_rank_20d(pooled).squeeze(-1),
+        }
+
+
+def _export_conv1d_trunk(model) -> list[dict]:
+    """Shared by export_sequence_multitask_architecture() and
+    export_sequence_multitask_horizons_architecture() - both models build
+    their causal TCN trunk identically (AetherNetSequenceMultiTask/
+    AetherNetSequenceMultiTaskHorizons.__init__ are the same conv-stack
+    loop), only their heads differ."""
     trunk: list[dict] = []
     for layer_index, conv in enumerate(model.conv_layers):
         trunk.append(
@@ -1217,12 +1774,44 @@ def export_sequence_multitask_architecture(model: AetherNetSequenceMultiTask) ->
         )
         trunk.append({"type": "relu"})
         trunk.append({"type": "dropout", "p": model.dropout.p if isinstance(model.dropout, nn.Dropout) else 0.0})
+    return trunk
+
+
+def export_sequence_multitask_architecture(model: AetherNetSequenceMultiTask) -> dict:
+    """Branching export for AetherNetSequenceMultiTask - same {"trunk":
+    [...], "heads": {...}} shape export_multitask_architecture() produces,
+    but trunk entries are "conv1d_causal" layers (each carrying its own
+    dilation, doubling per layer to match __init__'s dilation=2**layer_index)
+    instead of "linear". Consumed by
+    inference/exported_model.py::run_exported_sequence_multitask_model()."""
     return {
-        "trunk": trunk,
+        "trunk": _export_conv1d_trunk(model),
         "heads": {
             "direction": _export_head(model.head_direction, "head_direction", "sigmoid"),
             "magnitude": _export_head(model.head_magnitude, "head_magnitude", None),
             "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
+        },
+    }
+
+
+def export_sequence_multitask_horizons_architecture(model: AetherNetSequenceMultiTaskHorizons) -> dict:
+    """Branching export for AetherNetSequenceMultiTaskHorizons - same
+    {"trunk", "heads"} shape export_sequence_multitask_architecture()
+    produces for the original 3-head sequence model, extended with 4 more
+    head entries (direction_5d/20d, rank_5d/20d).
+    inference/exported_model.py::run_exported_sequence_multitask_model()
+    already iterates export["heads"] generically, so no interpreter change
+    is needed to support the extra heads."""
+    return {
+        "trunk": _export_conv1d_trunk(model),
+        "heads": {
+            "direction": _export_head(model.head_direction, "head_direction", "sigmoid"),
+            "magnitude": _export_head(model.head_magnitude, "head_magnitude", None),
+            "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
+            "direction_5d": _export_head(model.head_direction_5d, "head_direction_5d", "sigmoid"),
+            "direction_20d": _export_head(model.head_direction_20d, "head_direction_20d", "sigmoid"),
+            "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", "sigmoid"),
+            "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", "sigmoid"),
         },
     }
 
@@ -1348,6 +1937,125 @@ def compute_regression_metrics(predictions: torch.Tensor, targets: torch.Tensor)
         "mean_prediction": float(predictions_np.mean()) if len(predictions_np) else 0.0,
         "mean_target": float(targets_np.mean()) if len(targets_np) else 0.0,
     }
+
+
+def masked_bce_with_logits_loss(logits: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Binary cross-entropy over only the rows where `mask` is True - used
+    for the horizon-direction heads (direction_5d/20d), whose targets are
+    NaN for the trailing few rows of each asset's history that don't yet
+    have a full 5/20-day-forward close, rather than dropped from the
+    dataset entirely (see engineer_features()'s docstring on why - dropping
+    would also shrink every per-expert dataset slice downstream). Returns
+    a true zero (no gradient contribution) rather than NaN/erroring when no
+    row in this batch has a valid target for this head."""
+    if not torch.any(mask):
+        return torch.zeros((), device=logits.device)
+    return nn.functional.binary_cross_entropy_with_logits(logits[mask], targets[mask])
+
+
+def masked_mse_loss(predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Same masking convention as masked_bce_with_logits_loss() above, for
+    regression targets - used by the cross-sectional rank_5d/20d heads
+    (masked MSE against each row's percentile-rank target)."""
+    if not torch.any(mask):
+        return torch.zeros((), device=predictions.device)
+    return nn.functional.mse_loss(predictions[mask], targets[mask])
+
+
+def compute_masked_binary_metrics(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    criterion: nn.Module,
+    threshold: float,
+) -> dict | None:
+    """compute_binary_metrics(), restricted to rows where `targets` is not
+    NaN - compute_binary_metrics() itself has no NaN-awareness (a NaN
+    target would silently miscount as a negative in its ==1/==0
+    comparisons), so this must filter first. Returns None when a split has
+    zero valid rows for this head (e.g. an unrealistically short backtest
+    window shorter than the horizon itself) rather than reporting
+    meaningless all-zero metrics."""
+    mask = ~torch.isnan(targets)
+    if not torch.any(mask):
+        return None
+    return compute_binary_metrics(logits[mask], targets[mask], criterion, threshold)
+
+
+def compute_masked_regression_metrics(predictions: torch.Tensor, targets: torch.Tensor) -> dict | None:
+    """compute_regression_metrics(), restricted to rows where `targets` is
+    not NaN - same masking convention as compute_masked_binary_metrics()
+    above, for the rank_5d/20d heads."""
+    mask = ~torch.isnan(targets)
+    if not torch.any(mask):
+        return None
+    return compute_regression_metrics(predictions[mask], targets[mask])
+
+
+def compute_rank_ic(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    dates,
+    *,
+    non_overlapping_stride: int = 1,
+) -> dict:
+    """Per-date Spearman rank correlation ("rank-IC") between a model's
+    raw rank_5d/20d prediction score and the realized cross-sectional rank
+    target (target_rank_5d/20d - already a per-date percentile rank of
+    forward return, see build_cross_sectional_rank_targets()). This is the
+    standard evaluation metric for a cross-sectional/long-short signal,
+    replacing "win condition" from absolute-direction MCC now that Phase 4
+    exists: a mean rank-IC of 0.02-0.05 with a real t-stat is a genuine,
+    monetizable edge in this literature, unlike 1d-direction MCC's noise
+    band.
+
+    Spearman(A, B) = Pearson(rank(A), rank(B)); target_rank is already
+    rank(realized return) rescaled to [0, 1] (a positive affine transform,
+    which Pearson is invariant to), so only the model's own raw prediction
+    needs an explicit per-date rank transform before a plain Pearson
+    correlation against target_rank directly reproduces the true Spearman
+    correlation between prediction and realized return.
+
+    `non_overlapping_stride` (e.g. 5 for the 5d horizon, 20 for the 20d
+    horizon) subsamples to every Nth unique date before computing -
+    consecutive daily rows share most of their forward-return window, so
+    the naive daily IC series is autocorrelated and its plain t-stat
+    overstates significance; the non-overlapping subsample gives a more
+    honest (if noisier, fewer-observation) significance check. Pass 1
+    (default) for the full, autocorrelated series.
+
+    Dates with fewer than 2 eligible (non-NaN target) assets, or zero
+    variance on either side (e.g. every asset tied), contribute no IC
+    value for that date (skipped, not a spurious 0.0 - which would
+    misrepresent "undefined" as "no correlation")."""
+    predictions_np = predictions.detach().cpu().numpy()
+    targets_np = targets.detach().cpu().numpy()
+    frame = pd.DataFrame({"date": np.asarray(dates), "prediction": predictions_np, "target_rank": targets_np})
+    frame = frame.dropna(subset=["target_rank"])
+
+    if non_overlapping_stride > 1:
+        unique_dates = sorted(frame["date"].unique())
+        keep_dates = set(unique_dates[::non_overlapping_stride])
+        frame = frame[frame["date"].isin(keep_dates)]
+
+    ic_values = []
+    for _, group in frame.groupby("date"):
+        if len(group) < 2:
+            continue
+        prediction_rank = group["prediction"].rank(pct=True)
+        if prediction_rank.nunique() < 2 or group["target_rank"].nunique() < 2:
+            continue
+        correlation = float(np.corrcoef(prediction_rank, group["target_rank"])[0, 1])
+        if not np.isnan(correlation):
+            ic_values.append(correlation)
+
+    if not ic_values:
+        return {"mean_ic": 0.0, "std_ic": 0.0, "t_stat": 0.0, "num_dates": 0}
+
+    ic_array = np.asarray(ic_values)
+    mean_ic = float(ic_array.mean())
+    std_ic = float(ic_array.std(ddof=1)) if len(ic_array) >= 2 else 0.0
+    t_stat = float(mean_ic / (std_ic / np.sqrt(len(ic_array)))) if std_ic > 0 else 0.0
+    return {"mean_ic": mean_ic, "std_ic": std_ic, "t_stat": t_stat, "num_dates": int(len(ic_array))}
 
 
 def evaluate_split(
@@ -1595,6 +2303,99 @@ def find_optimal_threshold(
     return best_threshold, best_metrics
 
 
+def find_optimal_masked_threshold(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    criterion: nn.Module,
+    metric_name: str,
+    threshold_min: float,
+    threshold_max: float,
+    threshold_steps: int,
+) -> tuple[float, dict] | tuple[None, None]:
+    """find_optimal_threshold(), restricted to non-NaN rows first - a
+    horizon-direction head's own probability distribution is unrelated to
+    the primary "direction" head's, so it needs its own tuned threshold
+    (reusing the primary head's threshold verbatim was observed to
+    silently collapse a horizon head to always-predict-positive, since a
+    threshold tuned for one head's logit distribution is meaningless
+    applied to another's - see development/Problems.md). Shared by
+    train_multitask.py/train_sequence.py, both of which train
+    AetherNetMultiTaskHorizons/AetherNetSequenceMultiTaskHorizons's
+    identically-named horizon heads."""
+    mask = ~torch.isnan(targets)
+    if not torch.any(mask):
+        return None, None
+    return find_optimal_threshold(logits[mask], targets[mask], criterion, metric_name, threshold_min, threshold_max, threshold_steps)
+
+
+# Head name -> (target column, "binary"/"rank", non_overlapping_stride for
+# rank-IC's non-overlapping subsample - unused by binary heads). Shared by
+# train_multitask.py/train_sequence.py - both trainers' Horizons model
+# variants expose identically-named heads (see
+# AetherNetMultiTaskHorizons/AetherNetSequenceMultiTaskHorizons docstrings).
+HORIZON_HEAD_SPECS = {
+    "direction_5d": ("target_direction_5d", "binary", None),
+    "direction_20d": ("target_direction_20d", "binary", None),
+    "rank_5d": ("target_rank_5d", "rank", 5),
+    "rank_20d": ("target_rank_20d", "rank", 20),
+}
+DEFAULT_HORIZON_HEAD_CONFIG = {
+    "direction_5d": {"enabled": True, "loss_weight": 1.0},
+    "direction_20d": {"enabled": True, "loss_weight": 0.5},
+    "rank_5d": {"enabled": True, "loss_weight": 1.0},
+    "rank_20d": {"enabled": True, "loss_weight": 0.5},
+}
+
+
+def resolve_horizon_head_config(training_config: dict) -> dict:
+    """Merges a trainer's own config.json horizon_heads block (e.g.
+    phase_v2.retraining.multitask_training.horizon_heads or
+    ...sequence_training.horizon_heads) over DEFAULT_HORIZON_HEAD_CONFIG -
+    an older config missing this key entirely (or missing one head's
+    entry) still gets sane defaults for every head, rather than silently
+    treating an absent head as disabled."""
+    configured = training_config.get("horizon_heads", {})
+    resolved = {}
+    for head_name, defaults in DEFAULT_HORIZON_HEAD_CONFIG.items():
+        head_config = {**defaults, **configured.get(head_name, {})}
+        resolved[head_name] = head_config
+    return resolved
+
+
+def compute_combined_multitask_loss(
+    outputs: dict[str, torch.Tensor],
+    targets: dict[str, torch.Tensor],
+    direction_criterion: nn.Module,
+    magnitude_loss_weight: float,
+    volatility_loss_weight: float,
+    horizon_head_config: dict,
+) -> torch.Tensor:
+    """Combined loss for both AetherNetMultiTaskHorizons and
+    AetherNetSequenceMultiTaskHorizons (identical head-name dict shape,
+    see each class's forward()) - BCEWithLogitsLoss(direction) + weighted
+    MSE(magnitude)/MSE(volatility) + a masked BCE/MSE term per enabled
+    horizon head (masked since direction_5d/20d/rank_5d/20d are NaN for
+    the trailing few rows of an asset's history that lack a full forward
+    window, see engineer_features()'s docstring)."""
+    loss = (
+        direction_criterion(outputs["direction"], targets["direction"])
+        + magnitude_loss_weight * nn.functional.mse_loss(outputs["magnitude"], targets["magnitude"])
+        + volatility_loss_weight * nn.functional.mse_loss(outputs["volatility"], targets["volatility"])
+    )
+    for head_name, (_column, kind, _stride) in HORIZON_HEAD_SPECS.items():
+        head_config = horizon_head_config[head_name]
+        if not head_config.get("enabled", True):
+            continue
+        mask = ~torch.isnan(targets[head_name])
+        head_loss = (
+            masked_bce_with_logits_loss(outputs[head_name], targets[head_name], mask)
+            if kind == "binary"
+            else masked_mse_loss(outputs[head_name], targets[head_name], mask)
+        )
+        loss = loss + float(head_config.get("loss_weight", 1.0)) * head_loss
+    return loss
+
+
 def export_state_dict(model: nn.Module) -> dict:
     exported = {}
     for key, value in model.state_dict().items():
@@ -1694,6 +2495,27 @@ def export_multitask_architecture(model: AetherNetMultiTask) -> dict:
             "direction": _export_head(model.head_direction, "head_direction", "sigmoid"),
             "magnitude": _export_head(model.head_magnitude, "head_magnitude", None),
             "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
+        },
+    }
+
+
+def export_multitask_horizons_architecture(model: AetherNetMultiTaskHorizons) -> dict:
+    """Branching export for AetherNetMultiTaskHorizons - same {"trunk",
+    "heads"} shape export_multitask_architecture() produces for the
+    original 3-head model, extended with 4 more head entries (direction_5d/
+    20d, rank_5d/20d). inference/exported_model.py::run_exported_multitask_model()
+    already iterates export["heads"] generically, so no interpreter change
+    is needed to support the extra heads."""
+    return {
+        "trunk": _export_sequential_layers(model.trunk, "trunk"),
+        "heads": {
+            "direction": _export_head(model.head_direction, "head_direction", "sigmoid"),
+            "magnitude": _export_head(model.head_magnitude, "head_magnitude", None),
+            "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
+            "direction_5d": _export_head(model.head_direction_5d, "head_direction_5d", "sigmoid"),
+            "direction_20d": _export_head(model.head_direction_20d, "head_direction_20d", "sigmoid"),
+            "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", "sigmoid"),
+            "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", "sigmoid"),
         },
     }
 
@@ -2001,6 +2823,77 @@ def assess_expert_quality(metrics: dict, training_config: dict) -> dict:
             "backtest_balanced_accuracy": backtest_balanced_accuracy,
             "backtest_mcc": backtest_mcc,
             "train_backtest_balanced_accuracy_gap": train_backtest_gap,
+        },
+    }
+
+
+def assess_regression_quality(regression_metrics_by_split: dict, training_config: dict) -> dict:
+    """Direction models get assess_expert_quality()'s MCC/balanced-accuracy
+    gate above; magnitude/volatility regression heads (train_multitask.py,
+    train_sequence.py) had no equivalent gate at all until now - the
+    sequence encoder's real backtest RMSE 2.09 vs MAE 0.068 (~31x, every
+    other model's ratio is ~1.5-3x) shipped silently because nothing ever
+    inspected it (root cause: a single poisoned feature row replicated
+    into 30 consecutive sliding-window predictions - see
+    development/Problems.md). Mirrors assess_expert_quality()'s
+    failures/near_misses/quality_status shape so callers can treat both
+    gates the same way.
+
+    regression_metrics_by_split must be {"train": {...}, "validation":
+    {...}, "backtest": {...}}, each a compute_regression_metrics() output
+    (mae/rmse/bias/...) for ONE head (magnitude or volatility) - callers
+    with multiple heads call this once per head.
+    """
+    gate = training_config.get("quality_gate", {})
+    max_rmse_mae_ratio = float(gate.get("max_rmse_mae_ratio", 4.0))
+    max_backtest_train_rmse_ratio = float(gate.get("max_backtest_train_rmse_ratio", 3.0))
+    watchlist_margin = float(gate.get("regression_watchlist_margin", 0.5))
+
+    train_rmse = float(regression_metrics_by_split.get("train", {}).get("rmse", 0.0) or 0.0)
+    backtest_rmse = float(regression_metrics_by_split.get("backtest", {}).get("rmse", 0.0) or 0.0)
+    backtest_mae = float(regression_metrics_by_split.get("backtest", {}).get("mae", 0.0) or 0.0)
+
+    # A zero-valued denominator means "can't compute" (e.g. an empty
+    # split), not "infinitely bad" - ratio stays 0.0 so it's never
+    # spuriously flagged as a gate failure.
+    rmse_mae_ratio = backtest_rmse / backtest_mae if backtest_mae > 0 else 0.0
+    backtest_train_rmse_ratio = backtest_rmse / train_rmse if train_rmse > 0 else 0.0
+
+    failures = []
+    near_misses = []
+    if rmse_mae_ratio > max_rmse_mae_ratio:
+        failures.append("rmse_mae_ratio_above_gate")
+    elif rmse_mae_ratio > max_rmse_mae_ratio - watchlist_margin:
+        near_misses.append("rmse_mae_ratio_near_gate")
+
+    if backtest_train_rmse_ratio > max_backtest_train_rmse_ratio:
+        failures.append("backtest_train_rmse_ratio_above_gate")
+    elif backtest_train_rmse_ratio > max_backtest_train_rmse_ratio - watchlist_margin:
+        near_misses.append("backtest_train_rmse_ratio_near_gate")
+
+    if failures:
+        quality_status = "disabled_for_gating"
+    elif near_misses:
+        quality_status = "watchlist"
+    else:
+        quality_status = "stable"
+
+    return {
+        "quality_status": quality_status,
+        "gating_eligible": quality_status in {"stable", "watchlist"},
+        "failures": failures,
+        "near_misses": near_misses,
+        "thresholds": {
+            "max_rmse_mae_ratio": max_rmse_mae_ratio,
+            "max_backtest_train_rmse_ratio": max_backtest_train_rmse_ratio,
+            "watchlist_margin": watchlist_margin,
+        },
+        "observed": {
+            "backtest_rmse_mae_ratio": rmse_mae_ratio,
+            "backtest_train_rmse_ratio": backtest_train_rmse_ratio,
+            "train_rmse": train_rmse,
+            "backtest_rmse": backtest_rmse,
+            "backtest_mae": backtest_mae,
         },
     }
 
@@ -3063,7 +3956,15 @@ def main() -> int:
     if observation_only:
         LOGGER.info("Observation-only assets: %s", ", ".join(observation_only))
 
-    dataset, scaler = fit_and_apply_scaler(dataset, feature_names)
+    feature_config = config["phase1"]["features"]
+    winsorize_quantiles = tuple(feature_config.get("winsorize_quantiles", (0.001, 0.999)))
+    clip_sigma = float(feature_config.get("scaled_feature_clip_sigma", 10.0))
+    dataset, scaler, clip_sigma = fit_and_apply_scaler(
+        dataset,
+        feature_names,
+        winsorize_quantiles=winsorize_quantiles,
+        clip_sigma=clip_sigma,
+    )
     dataset, _ = add_asset_context_features(
         dataset,
         [asset["ticker"] for asset in config["phase1"]["universe"]["assets"]],
@@ -3074,7 +3975,13 @@ def main() -> int:
         paths = candidate_output_paths(args.version_id)
         paths["version_dir"].mkdir(parents=True, exist_ok=True)
 
-        write_scaler_artifacts(scaler, dataset_manifest, scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"])
+        write_scaler_artifacts(
+            scaler,
+            dataset_manifest,
+            scaler_path=paths["scaler"],
+            scaler_stats_path=paths["scaler_stats"],
+            clip_sigma=clip_sigma,
+        )
         paths["feature_schema"].write_text(
             json.dumps(
                 {
@@ -3128,7 +4035,7 @@ def main() -> int:
         LOGGER.info("Candidate training finished — active ml/ artifacts untouched.")
         return 0
 
-    write_dataset_artifacts(dataset, dataset_manifest, scaler, config=config)
+    write_dataset_artifacts(dataset, dataset_manifest, scaler, config=config, clip_sigma=clip_sigma)
 
     if args.dataset_only:
         existing_context = load_existing_training_context()

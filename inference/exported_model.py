@@ -304,3 +304,18 @@ def run_exported_sequence_multitask_model(model_export: dict, sequence: list[lis
         head_output = _run_layer_stack(head_layers, state_dict, pooled.copy())
         outputs[head_name] = float(head_output[0])
     return outputs
+
+
+def resolve_sequence_window_size(sequence_feature_schema: dict | None, configured_window_size: int) -> int:
+    """The trained model's OWN window_size (sequence_feature_schema.json,
+    written by train_sequence.py) wins over config.json's - a retrained
+    candidate with a different window_size used to silently disable the
+    sequence signal (main.py built a rolling buffer sized for the old/
+    configured window, then fed it into run_exported_sequence_multitask_model()'s
+    Conv1d stack sized for the new one - a shape mismatch caught by
+    main.py::_run_sequence_model()'s blanket except, never surfaced).
+    Falls back to configured_window_size only when no schema loaded at all
+    (missing/malformed model file - see main.py::_load_sequence_model()'s
+    graceful-fallback contract). Lives here (not main.py) so it's
+    unit-testable without a Lean QCAlgorithm environment."""
+    return int((sequence_feature_schema or {}).get("window_size", configured_window_size))

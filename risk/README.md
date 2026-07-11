@@ -89,3 +89,51 @@ statistic.
   parallel input here) was chosen as the integration point: this module
   already has exactly one volatility-forecast input, and adding a second
   one directly would risk the two silently disagreeing.
+
+## Cross-sectional rank_20d → position sizing (optional, bounded, direction-preserving)
+
+`position_sizing.py::rank_sizing_multiplier(rank_prediction,
+rank_sizing_enabled, min_rank_multiplier=0.75, max_rank_multiplier=1.25)`
+adds a fourth, optional factor to the
+`volatility_multiplier × confidence_multiplier × topology_multiplier`
+chain, sourced from the multitask/sequence models' `rank_20d` head — the
+predicted cross-sectional percentile rank ([0, 1]) of this asset's
+20-day forward return against the rest of the trading universe on that
+date (see `train.py::compute_rank_ic()`, `development/Changelog.md`'s
+"frontier-model edge investigation" entry). This is the first of the
+Phase 4 ranking-signal outputs to be wired into an actual trading
+decision — previously `rank_5d`/`rank_20d` were computed and logged
+(`signal_payload["sequence_model"]`/`multitask_payload`) for monitoring
+only, with zero influence on `target_weight`.
+
+- `multiplier = min + (max-min) * rank_prediction`: a predicted rank near
+  `1.0` (top of the universe) scales the position UP toward
+  `max_rank_multiplier`; a rank near `0.0` (predicted bottom) scales it
+  DOWN toward `min_rank_multiplier`; a rank of exactly `0.5` (predicted
+  median) is a no-op (`1.0`). It only ever scales the magnitude of the
+  direction the existing 1d-direction gating decision already picked —
+  same "never flips sign, never decides whether a trade happens" boundary
+  as `topology_sizing_multiplier()` above, except this factor can also
+  amplify (not just shrink), bounded by `max_rank_multiplier`.
+- A strict no-op (`1.0`) whenever `rank_sizing_enabled` is `false` or the
+  rank prediction is `None` (model not loaded, inference failed, or
+  universe too small that day for a rank to be defined — see
+  `train.py`'s `min_universe_size` gate).
+- **Off by default**
+  (`phase_v2.dynamic_risk.rank_sizing_enabled: false`): the full backtest
+  series for this signal is statistically significant (sequence model,
+  mean rank-IC `0.073`, t-stat `4.40`), but the non-overlapping-date
+  subsample (28 independent 20-day windows) was not yet independently
+  significant on its own (t-stat `1.20`) — it ships available, tested,
+  and wired end-to-end, but not defaulted on until validated further on
+  more out-of-sample data. `min_rank_multiplier`/`max_rank_multiplier`
+  default to `0.75`/`1.25`.
+- Wired via `main.py::_build_dynamic_sizing_payload(...,
+  predicted_rank_20d=...)`, fed by the sequence model's `rank_20d` head
+  when available (strongest result), falling back to the multitask
+  model's own `rank_20d` head otherwise. `predicted_rank_20d` is also
+  surfaced directly on `signal_payload` for dashboard/CSV visibility,
+  alongside the existing `predicted_return_magnitude`/`predicted_volatility`.
+- `PositionSizingDecision` gains `rank_multiplier` (default `1.0`) and
+  `rank_sizing_reason` (default `"rank_sizing_disabled_or_absent"`, or
+  `"rank_prediction_scaled_sizing"` when actively engaged).

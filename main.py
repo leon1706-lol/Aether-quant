@@ -51,8 +51,29 @@ from experience import (
 from execution import credentials_present, evaluate_broker_config, resolve_order_permission, resolve_runtime_mode
 from execution.live_credentials_io import load_live_credentials
 from execution.paper_readiness_io import read_paper_trading_config
-from inference import run_exported_model, run_exported_multitask_model, run_exported_sequence_multitask_model
+from inference import (
+    resolve_sequence_window_size,
+    run_exported_model,
+    run_exported_multitask_model,
+    run_exported_sequence_multitask_model,
+)
+from features import (
+    average_true_range_pct,
+    bollinger_pctb,
+    cross_sectional_momentum_rank,
+    distance_from_52w_high,
+    macd_histogram_normalized,
+    relative_strength_index,
+    volume_zscore,
+)
 from performance import evaluate_all_triggers
+
+# volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/
+# VOLUME_CHANGE_CEILING exactly for train/runtime feature parity. Duplicated
+# (not imported) since main.py never imports train.py (heavy training-only
+# deps like torch/sklearn have no place in the Lean runtime).
+VOLUME_CHANGE_FLOOR = -1.0
+VOLUME_CHANGE_CEILING = 20.0
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -113,6 +134,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.asset_lookup = {}
         self.ticker_to_symbol = {}
         self.symbol_windows = {}
+        # Phase 6 long-lookback indicators (macd_histogram_norm/
+        # dist_52w_high) need more history than self.symbol_windows'
+        # deliberately-fixed 25-bar size (main.py:264-268 explains why that
+        # one is never resized) - a SEPARATE, longer buffer, matching
+        # train.py::LONG_LOOKBACK_WINDOW_BARS exactly for train/runtime
+        # parity (features/technical_indicators.py's long indicators
+        # recompute fresh from whatever window they're given, so the
+        # window size itself must match, not just the formula).
+        self.symbol_long_windows = {}
+        self.long_bar_history_size = 260
+        self.latest_momentum_by_symbol = {}
         self.latest_signal_state = {}
         self.last_trade_bar_by_symbol = {}
         self.bar_history_size = 25
@@ -127,6 +159,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.asset_lookup[str(symbol)] = asset
             self.ticker_to_symbol[ticker] = symbol
             self.symbol_windows[symbol] = deque(maxlen=self.bar_history_size)
+            self.symbol_long_windows[symbol] = deque(maxlen=self.long_bar_history_size)
             self.latest_signal_state[str(symbol)] = "hold"
             self.last_trade_bar_by_symbol[symbol] = -1000000
             self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
@@ -217,6 +250,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_sizing_enabled = bool(phase_v2_risk.get("topology_sizing_enabled", True))
         self.min_topology_multiplier = float(phase_v2_risk.get("min_topology_multiplier", 0.5))
         self.max_topology_multiplier = float(phase_v2_risk.get("max_topology_multiplier", 1.0))
+        # Cross-sectional rank_20d sizing input (see risk/position_sizing.py::
+        # rank_sizing_multiplier()) - a bounded, continuous, direction-
+        # preserving adjustment, never a new trade-blocking gate. Default
+        # OFF: the rank_20d signal's full backtest series is significant
+        # (IC 0.073, t=4.40) but its non-overlapping-date subsample is not
+        # yet independently significant (t=1.20) - see development/
+        # Changelog.md's "frontier-model edge investigation" entry.
+        self.rank_sizing_enabled = bool(phase_v2_risk.get("rank_sizing_enabled", False))
+        self.min_rank_multiplier = float(phase_v2_risk.get("min_rank_multiplier", 0.75))
+        self.max_rank_multiplier = float(phase_v2_risk.get("max_rank_multiplier", 1.25))
         self.regime_bullish_threshold = float(phase_v2_regime.get("bullish_threshold", 0.02))
         self.regime_bearish_threshold = float(phase_v2_regime.get("bearish_threshold", -0.02))
         self.regime_risk_off_drawdown_threshold = float(phase_v2_regime.get("risk_off_drawdown_threshold", 0.08))
@@ -243,6 +286,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_embedding_iterations = int(phase_v2_topology.get("embedding_iterations", 100))
         self.topology_warm_start_enabled = bool(phase_v2_topology.get("warm_start_enabled", True))
         self.topology_convergence_tolerance = float(phase_v2_topology.get("convergence_tolerance", 0.01))
+        self.topology_top_peers_n = int(phase_v2_topology.get("top_peers_n", 3))
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -268,8 +312,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # symbol_windows' length would silently break that parity.
         phase_v2_sequence = self.phase_v2.get("sequence_model", {})
         self.sequence_model_enabled = bool(phase_v2_sequence.get("enabled", True))
-        self.sequence_window_size = int(phase_v2_sequence.get("window_size", 30))
         self.sequence_model, self.sequence_feature_schema = self._load_sequence_model()
+        self.sequence_window_size = resolve_sequence_window_size(
+            self.sequence_feature_schema, int(phase_v2_sequence.get("window_size", 30))
+        )
         self.symbol_feature_history = {symbol: deque(maxlen=self.sequence_window_size) for symbol in self.symbols}
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
         self._liquidity_thresholds = {
@@ -342,6 +388,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if bar is None:
                 continue
 
+            self.symbol_long_windows[symbol].append(float(bar.close))
             self.symbol_windows[symbol].append(
                 {
                     "open": float(bar.open),
@@ -420,6 +467,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # moe/gating.py::_weighted_blend()/moe/README.md.
                 predicted_return_magnitude = gating_payload.get("final_magnitude")
                 predicted_volatility = gating_payload.get("final_volatility")
+                # Prefer the sequence model's rank_20d head (strongest
+                # backtest rank-IC, 0.073/t=4.40) and fall back to the
+                # multitask model's own rank_20d head when the sequence
+                # model is unavailable/disabled - see risk/position_sizing.py::
+                # rank_sizing_multiplier(). Off by default (rank_sizing_enabled).
+                predicted_rank_20d = None
+                if sequence_prediction:
+                    predicted_rank_20d = sequence_prediction.get("rank_20d")
+                if predicted_rank_20d is None and multitask_payload:
+                    predicted_rank_20d = multitask_payload.get("rank_20d")
                 signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
                 sizing_payload = self._build_dynamic_sizing_payload(
                     signal_name,
@@ -428,6 +485,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     feature_payload["base_features"],
                     topology_payload,
                     predicted_volatility=predicted_volatility,
+                    predicted_rank_20d=predicted_rank_20d,
                 )
                 target_weight = float(sizing_payload["target_weight"])
                 asset = self.asset_lookup[str(symbol)]
@@ -492,6 +550,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "expert_probabilities": expert_probabilities,
                         "predicted_return_magnitude": predicted_return_magnitude,
                         "predicted_volatility": predicted_volatility,
+                        "predicted_rank_20d": predicted_rank_20d,
                         # Phase 2 sequence-encoder signal - informational
                         "sequence_model": sequence_prediction,
                         "moe_gating": gating_payload,
@@ -754,8 +813,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "momentum_20d": closes[-1] / close_20 - 1.0,
             "high_low_range_pct": (current["high"] - current["low"]) / current["close"],
             "open_close_range_pct": (current["close"] - current["open"]) / current["open"],
-            "volume_change_1d": 0.0 if previous_volume == 0 else current["volume"] / previous_volume - 1.0,
+            "volume_change_1d": self._clamp_volume_change(
+                0.0 if previous_volume == 0 else current["volume"] / previous_volume - 1.0
+            ),
         }
+
+        # Phase 6 technical indicators - shared pure implementations
+        # (features/technical_indicators.py), same functions
+        # train.py::engineer_features() calls, so both sides compute every
+        # one identically by construction. rsi_14/atr_pct_14/
+        # bollinger_pctb_20/volume_zscore_20 only look at their own trailing
+        # period (<=20 bars), well within this 25-bar `closes`/`highs`/
+        # `lows`/`volumes` window. macd_histogram_norm/dist_52w_high need
+        # the separate, longer self.symbol_long_windows buffer (deque(maxlen=260),
+        # matching train.py::LONG_LOOKBACK_WINDOW_BARS) instead.
+        base_features["rsi_14"] = relative_strength_index(closes, period=14)
+        base_features["atr_pct_14"] = average_true_range_pct(highs, lows, closes, period=14)
+        base_features["bollinger_pctb_20"] = bollinger_pctb(closes, period=20)
+        base_features["volume_zscore_20"] = volume_zscore(volumes, period=20)
+        long_closes = list(self.symbol_long_windows.get(symbol, []))
+        base_features["macd_histogram_norm"] = macd_histogram_normalized(long_closes)
+        base_features["dist_52w_high"] = distance_from_52w_high(long_closes, window=self.long_bar_history_size)
 
         topology_payload = topology_payload or {}
         regime_payload = self._build_regime_payload(
@@ -784,12 +862,45 @@ class AetherQuantAlgorithm(QCAlgorithm):
         base_features["liquidity_spread_proxy"] = float(dynamic_spread)
         base_features["topology_correlation_strength"] = float(topology_payload.get("correlation_strength", 0.0) or 0.0)
 
+        # Peer-return features (Phase 5) - top_peer_returns is already each
+        # top-N correlated peer's own latest 1d return, computed by
+        # build_market_topology() itself (topology/market_topology.py) from
+        # the exact same per-bar returns_by_symbol used for correlation, no
+        # separate lookup needed here. Missing peer (thin universe) -> 0.0,
+        # identically padded to train.py::build_topology_features_by_date()'s
+        # offline convention (peer_return_feature_names()).
+        peer_returns = list(topology_payload.get("top_peer_returns") or [])
+        padded_peer_returns = peer_returns + [0.0] * (self.topology_top_peers_n - len(peer_returns))
+        for rank, peer_return in enumerate(padded_peer_returns, start=1):
+            base_features[f"peer_rank{rank}_return_1d"] = float(peer_return)
+        base_features["peer_mean_return_1d"] = float(sum(peer_returns) / len(peer_returns)) if peer_returns else 0.0
+
+        # cs_momentum_rank_20 (Phase 6) - self.latest_momentum_by_symbol is
+        # computed once per bar in _build_topology_payload() (before the
+        # per-symbol loop, same as returns_by_symbol/topology itself), so
+        # it reflects every symbol's momentum_20d through the PREVIOUS bar
+        # - the same one-bar-lag limitation this codebase's regime/topology
+        # inputs already have (see _build_topology_payload()'s docstring),
+        # not a new one. Ties/thin-universe handling matches
+        # build_cross_sectional_momentum_rank_features()'s offline default.
+        base_features["cs_momentum_rank_20"] = cross_sectional_momentum_rank(
+            self.latest_momentum_by_symbol, str(symbol)
+        )
+
+        # Safe default (10.0) for scaler_stats.json files written before
+        # clip_sigma existed - see train.py::write_scaler_artifacts().
+        clip_sigma = float(self.scaler_stats.get("clip_sigma", 10.0))
         scaled_features = {}
         for index, base_name in enumerate(self.base_feature_names):
             scaled_name = self.scaled_feature_names[index]
             mean_value = float(self.scaler_stats["mean"][index])
             scale_value = float(self.scaler_stats["scale"][index]) if float(self.scaler_stats["scale"][index]) != 0 else 1.0
-            scaled_features[scaled_name] = (base_features[base_name] - mean_value) / scale_value
+            scaled_value = (base_features[base_name] - mean_value) / scale_value
+            # Mirrors train.py::fit_and_apply_scaler()'s scaled-space clip -
+            # the layer that actually protects the sequence model's sliding
+            # window from a single poisoned bar replicating into every
+            # subsequent window (see development/Problems.md).
+            scaled_features[scaled_name] = max(-clip_sigma, min(clip_sigma, scaled_value))
 
         # Regime/topology one-hots - unscaled, same treatment as the asset
         # context flags below (already-bounded [0,1], no StandardScaler
@@ -958,6 +1069,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         base_features: dict,
         topology: dict | None = None,
         predicted_volatility: float | None = None,
+        predicted_rank_20d: float | None = None,
     ) -> dict:
         if signal_name not in {"buy", "sell"}:
             base_target_weight = 0.0
@@ -982,11 +1094,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
             max_topology_multiplier=self.max_topology_multiplier,
             predicted_volatility=predicted_volatility,
             use_predicted_volatility=self.use_predicted_volatility,
+            predicted_rank_20d=predicted_rank_20d,
+            rank_sizing_enabled=self.rank_sizing_enabled,
+            min_rank_multiplier=self.min_rank_multiplier,
+            max_rank_multiplier=self.max_rank_multiplier,
         )
         return decision.to_dict()
 
     def _build_topology_payload(self) -> dict:
         returns_by_symbol = {}
+        # cs_momentum_rank_20 (Phase 6) needs every symbol's own momentum_20d
+        # for the SAME bar before any of them can rank against the others -
+        # computed here (this function already runs once per bar before the
+        # per-symbol loop, exactly like returns_by_symbol above) using the
+        # identical formula _build_model_input() itself uses for its own
+        # momentum_20d base feature, so a symbol's rank always reflects its
+        # own current-bar momentum, not a stale one-bar-lagged value.
+        momentum_by_symbol: dict[str, float] = {}
         for symbol in self.symbols:
             closes = [bar["close"] for bar in self.symbol_windows.get(symbol, [])]
             returns = []
@@ -997,6 +1121,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 returns.append(closes[index] / previous - 1.0)
             if returns:
                 returns_by_symbol[str(symbol)] = returns
+            if len(closes) >= 2:
+                close_20 = closes[max(0, len(closes) - 21)]
+                if close_20:
+                    momentum_by_symbol[str(symbol)] = closes[-1] / close_20 - 1.0
+        self.latest_momentum_by_symbol = momentum_by_symbol
 
         deterministic_topology = build_market_topology(
             returns_by_symbol=returns_by_symbol,
@@ -1007,6 +1136,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             embedding_iterations=self.topology_embedding_iterations,
             previous_positions=self._previous_topology_positions if self.topology_warm_start_enabled else None,
             convergence_tolerance=self.topology_convergence_tolerance,
+            top_peers_n=self.topology_top_peers_n,
         ).to_dict()
         self._previous_topology_positions = {
             node["symbol"]: (node["x"], node["y"]) for node in deterministic_topology["nodes"]
@@ -1819,3 +1949,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         mean_value = sum(values) / len(values)
         variance = sum((value - mean_value) ** 2 for value in values) / (len(values) - 1)
         return math.sqrt(max(variance, 0.0))
+
+    def _clamp_volume_change(self, raw_volume_change: float) -> float:
+        """Mirrors train.py::engineer_features()'s identical clamp - a
+        >2000% single-day volume jump (e.g. BTCUSD's 2018-08-14 data-feed
+        unit discontinuity, see development/Problems.md) is a data-source
+        artifact, not a real signal, and left unclamped it turns into a
+        tens-of-thousands-of-sigma scaled feature."""
+        return max(VOLUME_CHANGE_FLOOR, min(VOLUME_CHANGE_CEILING, raw_volume_change))

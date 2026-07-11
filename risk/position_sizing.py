@@ -24,6 +24,8 @@ class PositionSizingDecision:
     sizing_reason: str
     topology_sizing_reason: str
     volatility_source: str = "rolling"
+    rank_multiplier: float = 1.0
+    rank_sizing_reason: str = "rank_sizing_disabled_or_absent"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -75,6 +77,43 @@ def topology_sizing_multiplier(
     return multiplier, "topology_confidence_scaled_sizing"
 
 
+def rank_sizing_multiplier(
+    rank_prediction: float | None,
+    rank_sizing_enabled: bool,
+    min_rank_multiplier: float = 0.75,
+    max_rank_multiplier: float = 1.25,
+) -> tuple[float, str]:
+    """Bounded, continuous, direction-preserving size adjustment driven by
+    the sequence/multitask model's rank_20d head (predicted cross-
+    sectional percentile rank of 20-day forward return, [0, 1] - see
+    train.py::compute_rank_ic()/development/Changelog.md's "frontier-model
+    edge investigation" entry: the one signal in the whole system with a
+    statistically significant backtest rank-IC, 0.073 mean IC / t-stat 4.40
+    on the sequence model's full backtest series).
+
+    A predicted rank near 1.0 (top of the universe) scales size UP toward
+    max_rank_multiplier; a rank near 0.0 (predicted bottom) scales it DOWN
+    toward min_rank_multiplier; a rank of exactly 0.5 (predicted median) is
+    a no-op (multiplier 1.0). Never flips direction/sign - this only ever
+    scales the SAME direction the existing 1d-direction gating decision
+    already picked, matching topology_sizing_multiplier()'s "probabilistic
+    scoring may only ever produce a bounded, continuous adjustment, never
+    a randomized or amplified decision" convention.
+
+    Config-gated, additive, default OFF
+    (phase_v2.dynamic_risk.rank_sizing_enabled) - this signal's own
+    non-overlapping-date backtest subsample was not yet independently
+    significant (t-stat 1.20 on 28 independent 20-day windows, vs. 4.40 on
+    the full autocorrelated series), so it ships available, tested, and
+    wired end-to-end, but not defaulted on until validated further."""
+    if not rank_sizing_enabled or rank_prediction is None:
+        return 1.0, "rank_sizing_disabled_or_absent"
+
+    rank = _clamp01(rank_prediction)
+    multiplier = min_rank_multiplier + (max_rank_multiplier - min_rank_multiplier) * rank
+    return multiplier, "rank_prediction_scaled_sizing"
+
+
 def _resolve_effective_volatility(
     rolling_volatility: float,
     predicted_volatility: float | None,
@@ -111,6 +150,10 @@ def build_dynamic_position_sizing(
     max_topology_multiplier: float = 1.0,
     predicted_volatility: float | None = None,
     use_predicted_volatility: bool = False,
+    predicted_rank_20d: float | None = None,
+    rank_sizing_enabled: bool = False,
+    min_rank_multiplier: float = 0.75,
+    max_rank_multiplier: float = 1.25,
 ) -> PositionSizingDecision:
     base_target_weight = float(base_target_weight)
     confidence = max(0.0, min(float(confidence), 1.0))
@@ -132,6 +175,12 @@ def build_dynamic_position_sizing(
         min_topology_multiplier,
         max_topology_multiplier,
     )
+    rank_multiplier, rank_sizing_reason = rank_sizing_multiplier(
+        predicted_rank_20d,
+        rank_sizing_enabled,
+        min_rank_multiplier,
+        max_rank_multiplier,
+    )
 
     if abs_base_target == 0.0 or confidence == 0.0 or max_position_weight == 0.0:
         return PositionSizingDecision(
@@ -148,6 +197,8 @@ def build_dynamic_position_sizing(
             sizing_reason="no_active_signal",
             topology_sizing_reason=topology_sizing_reason,
             volatility_source=volatility_source,
+            rank_multiplier=rank_multiplier,
+            rank_sizing_reason=rank_sizing_reason,
         )
 
     safe_volatility = max(volatility, 1e-6)
@@ -155,7 +206,7 @@ def build_dynamic_position_sizing(
     volatility_multiplier = max(min_volatility_multiplier, min(volatility_multiplier, max_volatility_multiplier))
     confidence_multiplier = 0.5 + 0.5 * confidence
 
-    sized_weight = abs_base_target * volatility_multiplier * confidence_multiplier * topology_multiplier
+    sized_weight = abs_base_target * volatility_multiplier * confidence_multiplier * topology_multiplier * rank_multiplier
     sized_weight = min(sized_weight, max_position_weight)
     if sized_weight > 0.0 and min_position_weight > 0.0:
         sized_weight = max(sized_weight, min_position_weight)
@@ -185,4 +236,6 @@ def build_dynamic_position_sizing(
         sizing_reason=reason,
         topology_sizing_reason=topology_sizing_reason,
         volatility_source=volatility_source,
+        rank_multiplier=rank_multiplier,
+        rank_sizing_reason=rank_sizing_reason,
     )

@@ -2,7 +2,7 @@
   "project": "aether_quant",
   "phase": "multitask_direction_magnitude_volatility",
   "version_id": "v1",
-  "trained_at": "2026-07-11T10:30:59.242303+00:00",
+  "trained_at": "2026-07-11T18:48:55.982562+00:00",
   "row_counts": {
     "train": 12844,
     "validation": 1304,
@@ -244,5 +244,41 @@
       "train_loss": 0.654699963095477,
       "validation_loss": 0.7132803797721863
     }
-  ]
+  ],
+  "magnitude_quality": {
+    "quality_status": "stable",
+    "gating_eligible": true,
+    "failures": [],
+    "near_misses": [],
+    "thresholds": {
+      "max_rmse_mae_ratio": 4.0,
+      "max_backtest_train_rmse_ratio": 3.0,
+      "watchlist_margin": 0.5
+    },
+    "observed": {
+      "backtest_rmse_mae_ratio": 2.7322621649553156,
+      "backtest_train_rmse_ratio": 2.093464350452308,
+      "train_rmse": 0.03385647386312485,
+      "backtest_rmse": 0.0708773210644722,
+      "backtest_mae": 0.025940893217921257
+    }
+  },
+  "volatility_quality": {
+    "quality_status": "stable",
+    "gating_eligible": true,
+    "failures": [],
+    "near_misses": [],
+    "thresholds": {
+      "max_rmse_mae_ratio": 4.0,
+      "max_backtest_train_rmse_ratio": 3.0,
+      "watchlist_margin": 0.5
+    },
+    "observed": {
+      "backtest_rmse_mae_ratio": 1.3173825246858524,
+      "backtest_train_rmse_ratio": 0.9328659450778336,
+      "train_rmse": 0.040662530809640884,
+      "backtest_rmse": 0.03793269023299217,
+      "backtest_mae": 0.028793983161449432
+    }
+  }
 }

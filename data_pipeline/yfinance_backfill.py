@@ -196,7 +196,15 @@ def fetch_yahoo_ohlcv(symbol: str, start: str, end: str) -> list[dict]:
     try:
         import yfinance as yf  # deferred — dev-only dependency, never in requirements.txt
 
-        frame = yf.download(symbol, start=start, end=end, auto_adjust=False, progress=False)
+        # auto_adjust=True: Yahoo applies its own split/dividend adjustment
+        # before this ever reaches a Lean zip. This module today only ever
+        # backfills crypto gaps (no splits/dividends), but train.py reading
+        # its own equity Lean zips unadjusted was a real, separate bug (see
+        # train.py::apply_split_adjustments()/development/Problems.md) -
+        # this flag stays correct here so a future equity backfill (this
+        # module's docstring already anticipates non-crypto assets) doesn't
+        # reintroduce the same class of unadjusted-price corruption.
+        frame = yf.download(symbol, start=start, end=end, auto_adjust=True, progress=False)
     except Exception as exc:
         logger.warning("fetch_yahoo_ohlcv(%s): fetch failed — %s", symbol, exc)
         return []

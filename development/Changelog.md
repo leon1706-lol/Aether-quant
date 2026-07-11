@@ -1704,3 +1704,364 @@ avoiding two volatility forecasts that could silently disagree).
 
 `pytest tests/test_gating_network.py` — 23 passed (18 pre-existing + 5
 new). Full-suite `aq test` run pending (see the test badge).
+
+## Frontier-model edge investigation — target redesign, real bug fixes, cross-sectional ranking (model input 48 → 59)
+
+**Context.** Every model in the system — baseline, all 4 experts, the
+multitask heads, the Phase 2 sequence encoder — sat at backtest MCC
+0.017-0.07 (statistical noise) on next-day binary direction, across
+architectures different enough (flat MLP, causal TCN) that the ceiling was
+almost certainly the *target*, not model capacity. This session's premise,
+in priority order: (1) fix confirmed data/pipeline bugs confounding every
+existing result, (2) change what the models predict (5d/20d horizons,
+cross-sectional percentile-rank) rather than only how, (3) add a genuine
+new information channel (correlated-peer returns), (4) add technical
+indicators, (5) make the new success metric (rank-IC) visible end-to-end.
+Full details behind each fix are in `development/Problems.md` entries
+#22-26; this entry is the build narrative.
+
+### Phase 1 — bug fixes (de-confounds everything before touching targets)
+
+- **Feature-outlier hardening** (Problems.md #23): `volume_change_1d`
+  clamped to `[-1.0, 20.0]` in both `train.py::engineer_features()` and
+  `main.py::_build_model_input()`; `train.py::fit_and_apply_scaler()` now
+  winsorizes the train-split columns before fitting (`phase1.features.
+  winsorize_quantiles`, default `[0.001, 0.999]`) and clips every scaled
+  value to `±scaled_feature_clip_sigma` (default `10.0`, persisted into
+  `ml/scaler_stats.json`'s new `clip_sigma` field so `main.py` applies the
+  identical bound at runtime).
+- **Split/dividend adjustment** (Problems.md #24): new
+  `train.py::load_factor_file()`/`apply_split_adjustments()` reads each
+  equity's real Lean factor file (`data/equity/usa/factor_files/<ticker>.csv`
+  — the same file Lean's own `DataNormalizationMode.Adjusted` already
+  reads for `main.py`'s live/backtest data feed) and backward-adjusts
+  `load_lean_bars()`'s raw OHLCV for every equity. No `main.py` mirror
+  needed — this closes a train-only gap, Lean's engine was never affected.
+  `data_pipeline/yfinance_backfill.py` flipped to `auto_adjust=True` for
+  future-proofing. New per-security-type label-outlier guard in
+  `engineer_features()` (`max_abs_daily_return`, extended to
+  `max_abs_return_5d`/`_20d` below) as defense-in-depth.
+- **Regression quality gate** (Problems.md #25): new
+  `train.py::assess_regression_quality()` (RMSE/MAE ratio + backtest/train
+  RMSE ratio gate, mirroring `assess_expert_quality()`'s shape), wired into
+  `train_multitask.py`/`train_sequence.py`.
+- **Sequence `window_size` compat gap** (Problems.md #26): new
+  `inference/exported_model.py::resolve_sequence_window_size()` (a pure
+  function, extracted there — not `main.py` — so it's unit-testable
+  without a Lean `QCAlgorithm` environment). The trained model's own
+  `sequence_feature_schema.json` `window_size` now wins over
+  `config.json`'s.
+- **Found and fixed along the way, unrelated to the above**: 7 of
+  `tests/test_retraining_worker.py`'s 10 tests never mocked
+  `retraining.worker.train_multitask`/`train_sequence` after those stages
+  were added to `run_once()`, so a bare `pytest tests/` run silently sat
+  for up to ~30 minutes per test running real training subprocesses
+  (Problems.md #22). Fixed by adding the missing mocks.
+- **R1 retrain**: full `python train.py` + `train_gating.py`/
+  `train_multitask.py`/`train_sequence.py` on the cleaned data. Backtest
+  MCC stayed in the same noise band (expected — this phase removes
+  confounds, it doesn't create edge) but the sequence model's magnitude
+  RMSE/MAE ratio dropped from the pre-fix ~31x to ~1.5-2x, matching every
+  other model.
+
+### Phase 2 — validation/backtest window widened
+
+`config.json`'s `phase1.windows`: validation `2018-01-01 -> 2018-12-31`
+(was `2018-01-01 -> 2018-03-31`), backtest `2019-01-01 -> 2021-03-31` (was
+`2018-04-01 -> 2021-03-31`). The old 3-month validation window gave only
+~12 non-overlapping 5-day observations and ~3 non-overlapping 20-day
+observations — too thin to select/threshold the new multi-horizon/ranking
+heads below. Backtest results from before this change are not directly
+comparable to results after it (a deliberate, documented trade-off, not an
+oversight) — see the README's Backtest Results section for the refreshed
+numbers once the user next runs `aq backtest`.
+
+### Phase 3 — multi-horizon targets (5d/20d direction)
+
+The highest-leverage change this investigation identified: next-day binary
+direction on liquid daily bars is close to efficient-market noise; longer
+horizons give momentum/mean-reversion more room to show up.
+
+- `train.py::engineer_features()` gains `target_return_5d`/`target_return_20d`
+  (`.shift(-5)`/`.shift(-20)`) and `target_direction_5d`/`target_direction_20d`
+  — each per-horizon guarded the same label-outlier way as `target_return_1d`
+  (config `max_abs_return_5d`/`_20d`, default `{"equity": 0.9/1.5, "crypto":
+  2.5/4.0}`). **Deliberately not added to `required_columns`*'s dropna** -
+  the trailing ~5/~20 rows of each asset's history that lack a far-enough
+  future close stay in the dataset with NaN targets, handled by masked
+  loss/metrics in the trainers instead of being dropped outright (dropping
+  would also shrink every per-expert dataset slice downstream).
+- New shared library functions in `train.py`, used by both
+  `train_multitask.py` and `train_sequence.py` (not duplicated — both
+  trainers' Horizons model variants expose identically-named heads):
+  `masked_bce_with_logits_loss()`/`masked_mse_loss()` (loss over only
+  non-NaN rows, true zero contribution otherwise),
+  `compute_masked_binary_metrics()`/`compute_masked_regression_metrics()`
+  (same masking for evaluation), `HORIZON_HEAD_SPECS`/
+  `DEFAULT_HORIZON_HEAD_CONFIG`/`resolve_horizon_head_config()` (per-head
+  enabled/loss_weight, config `phase_v2.retraining.{multitask,sequence}_
+  training.horizon_heads`), `compute_combined_multitask_loss()`,
+  `find_optimal_masked_threshold()` (a horizon-direction head's own
+  probability distribution is unrelated to the primary "direction" head's
+  — reusing the primary head's tuned threshold verbatim was observed to
+  silently collapse a horizon head to always-predict-positive; each binary
+  head now gets its own tuned threshold from its own validation logits).
+- New models: `train.py::AetherNetMultiTaskHorizons`/
+  `AetherNetSequenceMultiTaskHorizons` — **new sibling classes, not
+  modifications of `AetherNetMultiTask`/`AetherNetSequenceMultiTask`** (the
+  4 regime experts' own per-expert multitask heads, `train.py::
+  _train_expert_multitask()`, keep using the original 3-head classes
+  completely unchanged — experts/baseline/gating stay 1d-direction-only by
+  design). `forward()` returns a dict keyed by head name (not the original
+  classes' fixed 3-tuple), mapping 1:1 onto the export's `"heads"` dict
+  keys. New matching exporters `export_multitask_horizons_architecture()`/
+  `export_sequence_multitask_horizons_architecture()` — **no interpreter
+  changes needed at all**: `inference/exported_model.py::
+  run_exported_multitask_model()`/`run_exported_sequence_multitask_model()`
+  already iterate `export["heads"].items()` generically. Verified
+  bit-for-bit (~1e-8, float32 precision) against a real PyTorch forward
+  pass for both variants before wiring into the trainers.
+- `train_multitask.py`/`train_sequence.py` rewritten to use the Horizons
+  models, the shared masked-loss machinery, and per-head tuned thresholds;
+  `frame_to_multitask_tensors()`/`_split_sequence_tensors()` now return a
+  `dict[str, Tensor]` of all 7 targets instead of a fixed tuple. Both
+  gracefully degrade (disable the new heads, log, keep training the
+  original 3) when a dataset predates these target columns.
+
+### Phase 4 — cross-sectional ranking targets (5d/20d) + rank-IC
+
+The most learnable target this investigation identified: which asset
+outperforms its peers this period, rather than absolute direction — maps
+directly onto a long/short portfolio.
+
+- New `train.py::build_cross_sectional_rank_targets()`: per-date
+  percentile rank (`pandas .rank(pct=True)`, ties averaged) of each
+  asset's `target_return_5d`/`_20d` among all assets with a valid forward
+  return that date, guarded by `phase1.target.ranking.min_universe_size`
+  (default 10 — thin dates, e.g. weekends when only crypto trades, get NaN
+  rather than a near-meaningless percentile over a handful of assets).
+  `target_rank_5d`/`target_rank_20d` join the same masked-loss/metrics
+  treatment as the Phase 3 horizon targets.
+- Both Horizons model variants gain `rank_5d`/`rank_20d` heads (sigmoid,
+  masked MSE against the percentile target).
+- New `train.py::compute_rank_ic()`: per-date Spearman rank correlation
+  between a model's raw prediction and the realized `target_rank` (only
+  the prediction needs an explicit per-date rank transform — `target_rank`
+  is already a rank, and Pearson correlation of ranks-vs-ranks is exactly
+  Spearman). Reports `mean_ic`/`std_ic`/`t_stat`/`num_dates`, plus a
+  `non_overlapping_stride`-subsampled variant (every Nth unique date) since
+  the naive daily IC series is autocorrelated — overlapping 5d/20d forward
+  windows share most of their return, inflating the naive series' t-stat.
+- **Trading wiring: informational-only in this pass, by design** — rank
+  outputs reach `*_training_metrics.json`/the webui (Phase 7 below) but do
+  not feed gating/the analyzer/position sizing, matching this codebase's
+  established convention for any new signal that could change a real
+  trading decision (`sequence_weight`/`use_predicted_volatility`'s
+  off-by-default precedent). A promotion criterion is documented (not
+  built): backtest mean rank-IC > 0.02, t-stat > 2, on non-overlapping
+  dates, stable across reruns.
+- **Real result** (final R2 retrain, see below): sequence model backtest
+  `rank_20d` mean IC `0.073`, t-stat `4.40` (561/546 dates,
+  statistically significant on the full series); multitask `rank_20d`
+  mean IC `0.037`, t-stat `2.10`. Non-overlapping subsamples are noisier
+  (t-stats drop below 2, as expected with 4x fewer independent 20-day
+  observations) but directionally consistent. 1d-direction MCC stayed
+  ≈ noise throughout, exactly as this investigation's premise predicted —
+  the edge, such as it is, lives in the ranking signal, not absolute
+  direction.
+
+### Phase 5 — peer-return features (topology channel)
+
+`topology/market_topology.py::build_market_topology()`'s pairwise
+correlations previously lived in a function-local dict, never reaching any
+caller — only the compressed `correlation_strength` scalar did. New
+`TopologyNode.top_peers`/`top_peer_returns` fields (each top-N correlated
+peer's own latest 1d return — computed from the exact same per-bar
+`returns_by_symbol` already used for correlation, so no lookahead) and
+`rank_correlated_peers()` (ranks by descending correlation across the
+*whole* eligible universe, not just the node's own cluster — a
+`correlation_threshold`-defined cluster can be much smaller than
+`top_peers_n`). New config `phase_v2.topology.top_peers_n` (default 3).
+
+- Offline: `train.py::build_topology_features_by_date()` extended (not a
+  second function re-running `build_market_topology()` — peer features
+  come from the exact same per-date topology call already made there) to
+  emit schema-stable `peer_rank1_return_1d`/`peer_rank2_return_1d`/
+  `peer_rank3_return_1d`/`peer_mean_return_1d` (never ticker-named — a
+  peer's identity changes bar to bar and asset to asset). Missing peer
+  (thin universe) → `0.0`, matching `main.py`'s runtime default.
+- Runtime: `main.py::_build_topology_payload()`'s existing per-symbol node
+  already carries `top_peer_returns` through unchanged
+  (`topology/learned_topology.py::apply_learned_topology()`'s `node =
+  dict(node)` copy preserves any field it doesn't explicitly touch) —
+  `_build_model_input()` just reads it directly, pads to `top_peers_n`
+  with `0.0`, and computes the mean, identically to the offline side.
+- Model input: 48 → 52 (4 new scaled features).
+
+### Phase 6 — technical indicators (shared, pure implementations)
+
+New `features/` package (`features/technical_indicators.py`) — pure
+functions imported by *both* `train.py::engineer_features()` (offline,
+full history via a Python loop) and `main.py::_build_model_input()`
+(runtime, one bar at a time), so both sides compute every indicator
+identically by construction rather than by hand-matched duplicated
+formulas. Each function returns a documented neutral default (e.g. RSI
+50.0, Bollinger %B 0.5) when there isn't enough history yet, so no
+function ever raises and no extra dropna is needed.
+
+- **Short-lookback** (fit the existing 25-bar `self.symbol_windows`
+  buffer): `rsi_14` (Wilder's RSI), `atr_pct_14` (Wilder's ATR as a % of
+  close — gap-aware, unlike `rolling_volatility_20d`'s close-to-close-only
+  stddev), `bollinger_pctb_20` (%B, bounded [0,1] price-extension measure),
+  `volume_zscore_20` (self-normalizing participation measure, robust to
+  the exact class of raw-volume-unit discontinuity behind Problems.md
+  #23).
+- **Long-lookback** (need more history than the 25-bar buffer allows —
+  `main.py:264-268` explicitly forbids resizing it): `macd_histogram_norm`
+  (MACD histogram normalized by price) and `dist_52w_high` (close vs.
+  trailing high — a genuine anchoring-effect measure, distinct from every
+  existing return/momentum feature, which are all relative to a bar N
+  periods ago rather than to a rolling extreme). Both recompute fresh from
+  a bounded window each call (an approximation of a true "since inception"
+  EMA/high-water-mark) rather than maintain persistent state, so they're
+  exactly reproducible from a bounded window on both sides. New
+  `main.py::self.symbol_long_windows` (`deque(maxlen=260)`, a *separate*
+  buffer from `self.symbol_windows`, matching `train.py::
+  LONG_LOOKBACK_WINDOW_BARS`), populated in `on_data()` alongside the
+  existing buffer.
+- **Cross-sectional**: `cs_momentum_rank_20` (per-date percentile rank of
+  each asset's own `momentum_20d` — the best-documented daily
+  cross-sectional anomaly, 12-1 month momentum; no lookahead concern,
+  unlike the Phase 4 targets, since today's momentum is already known
+  today). Offline: new `train.py::build_cross_sectional_momentum_rank_features()`.
+  Runtime: `main.py::_build_topology_payload()`'s existing per-bar first
+  pass (before the per-symbol loop, same place `returns_by_symbol` is
+  built) now also computes every symbol's `momentum_20d` into
+  `self.latest_momentum_by_symbol` — one bar behind what
+  `_build_model_input()`'s own same-bar `momentum_20d` shows, the same
+  documented one-bar-lag limitation this codebase's regime/topology inputs
+  already have.
+- Model input: 52 → 59 (6 per-asset indicators + 1 cross-sectional rank).
+  `Dockerfile.retraining_worker` gains `COPY features/ ./features/`.
+
+### Phase 7 — webui/monitoring reporting
+
+`monitoring/neural_network_state.py::NetworkSummary` gains
+`horizon_mcc`/`rank_ic`/`regression_quality` (all `None` by default) and a
+new `_extract_horizon_evaluation_summary()` reads them from
+`multitask_training_metrics.json`/`sequence_training_metrics.json` for the
+`baseline_multitask`/`sequence` networks specifically — experts/
+expert_multitask never get these fields, matching their 1d-direction-only
+design. Gracefully returns all-`None` for an older metrics file that
+predates Phase 3/4 (no `direction_5d`/`rank_5d` keys at all). Webui:
+`webui/src/types/state.ts`'s `NeuralNetworkModel` gains the same 3
+optional fields (+ new `RankIcSummary` type); `NeuralNetworkStatsPanel.tsx`
+renders a compact 5d/20d MCC + rank-IC (mean + t-stat) + regression-quality
+block under any network that has them.
+
+### Phase 8 — R2 retrain, final verification
+
+Full retrain of every active `ml/` artifact on the final 59-dim feature
+set: `python train.py` (baseline + 4 experts), then `train_gating.py`/
+`train_multitask.py`/`train_sequence.py` (each via a throwaway
+`--version-id`, artifacts copied into active `ml/` the same way `aq train
+--gating-only`/`--multitask-only`/`--sequence-only` already do). Full
+suite green throughout (817 passed; the 11 errors are
+`tests/test_lean_backtest_ml_coverage.py`'s pre-existing Docker-unavailable
+failures in this environment, unrelated to any change here — same 11 that
+were failing before this session started).
+`tests/test_lean_backtest_ml_coverage.py::test_model_input_dimensionality_is_48`
+renamed to `_is_59` with the input count updated.
+
+**Honest impact assessment.** 1d-direction MCC stayed in the same noise
+band across every model, exactly as predicted going in — this was never
+going to be "fixed" by better data hygiene or more features, because the
+target itself is close to efficient-market noise at that horizon. The
+real, validated result is the cross-sectional ranking signal: sequence
+model `rank_20d` mean IC `0.073` (t=4.40) and multitask `rank_20d` mean IC
+`0.037` (t=2.10), both on the full (autocorrelated) series — a genuine,
+if modest, monetizable edge if it holds up out of sample, not yet wired
+into any trading decision (Phase 4's documented Stage-2 promotion
+criterion gates that). The 20-asset universe structurally limits how much
+cross-sectional signal is extractable; the honest next frontier beyond
+this session is a larger universe and walk-forward (not fixed-window)
+retraining.
+
+### New tests
+
+`tests/test_train_pipeline.py` (+~25: volume clamp, label-outlier guard,
+winsorization, clip_sigma, split-adjustment/factor-file parsing, regression
+quality gate, masked loss/metrics, rank-IC), `tests/test_train_cross_sectional_features.py`
+(+~10: peer-return features, ranking targets), `tests/test_market_topology.py`
+(+6: peer ranking), `tests/test_train_multitask.py` (rewritten for the
+Horizons model + shared library functions), `tests/test_train_sequence.py`
+(new), `tests/test_train_sequence_architecture.py` (+4: Horizons
+sequence variant), `tests/test_technical_indicators.py` (new, 27 tests),
+`tests/test_train_indicators.py` (new, 7 tests), `tests/test_exported_model.py`
+(+3: `resolve_sequence_window_size()`), `tests/test_neural_network_state.py`
+(+6: horizon/rank-IC reporting), `tests/test_retraining_worker.py` (fixed,
+not new — see Problems.md #22).
+
+### Verification
+
+`pytest tests/` — 817 passed, 11 pre-existing environment errors (Docker
+unavailable for the real Lean backtest integration tests — unrelated to
+this session). `npx tsc -b --noEmit` in `webui/` — clean. Real end-to-end
+runs, not just unit tests: full dataset rebuild, baseline+expert+gating+
+multitask+sequence retraining on the final feature set, real rank-IC
+numbers reported above computed from the real backtest split, `full_dataset.csv`
+manually inspected (scaled-value clip bound holds at exactly `10.0`,
+label bounds hold, weekend rank-NaN pattern confirmed, peer feature values
+spot-checked). No real `lean backtest .` run performed this session (per
+this repo's established preference — the user runs backtests themselves,
+see the Runbook); `ml/` is fully retrained and internally consistent
+either way.
+
+## Follow-up — rank_20d wired into position sizing
+
+Phase 4 shipped `rank_5d`/`rank_20d` as informational-only outputs (logged
+on `signal_payload`, zero influence on `target_weight`). This follow-up
+closes that gap for the one signal with a statistically significant full-
+series result: `rank_20d` now drives a fourth, optional, bounded position-
+sizing factor.
+
+- New `risk/position_sizing.py::rank_sizing_multiplier()`: same shape as
+  the existing `topology_sizing_multiplier()` — bounded, continuous,
+  direction-preserving. `multiplier = min_rank_multiplier +
+  (max_rank_multiplier - min_rank_multiplier) * rank_prediction`, so a
+  predicted top-of-universe rank (`1.0`) scales size up toward
+  `max_rank_multiplier` (default `1.25`), a predicted bottom-of-universe
+  rank (`0.0`) scales it down toward `min_rank_multiplier` (default
+  `0.75`), and the median rank (`0.5`) is a no-op. Never flips sign; only
+  scales the magnitude of the direction the existing 1d-direction gating
+  decision already picked. `PositionSizingDecision` gains `rank_multiplier`
+  (default `1.0`) and `rank_sizing_reason`.
+- `main.py`: extracts `predicted_rank_20d` preferring the sequence
+  model's `rank_20d` head (IC `0.073`, t=4.40) with fallback to the
+  multitask model's own `rank_20d` head (IC `0.037`, t=2.10) when the
+  sequence model is unavailable; threads it into
+  `_build_dynamic_sizing_payload()`/`build_dynamic_position_sizing()`;
+  surfaces `predicted_rank_20d` on `signal_payload` alongside the existing
+  `predicted_return_magnitude`/`predicted_volatility` fields.
+- **Off by default**: `phase_v2.dynamic_risk.rank_sizing_enabled: false`.
+  Per Phase 4's own promotion criterion, the non-overlapping-date
+  subsample (28 independent 20-day windows) was not yet independently
+  significant on its own (t-stat `1.20`, vs. `4.40` on the full
+  autocorrelated series) — this ships available, tested, and wired
+  end-to-end, but not defaulted on until validated on more out-of-sample
+  data. New config keys: `rank_sizing_enabled` (`false`),
+  `min_rank_multiplier` (`0.75`), `max_rank_multiplier` (`1.25`).
+- See `risk/README.md`'s new "Cross-sectional rank_20d → position sizing"
+  section for full design rationale.
+
+### New tests
+
+`tests/test_position_sizing.py` (+9): `rank_sizing_multiplier()` disabled/
+absent/median/top/bottom-of-universe cases, `build_dynamic_position_sizing()`
+scaling up with a high rank prediction while respecting `max_position_weight`,
+short-direction sign preservation with an active rank multiplier, and
+off-by-default behavior when `rank_sizing_enabled` is omitted.
+
+### Verification
+
+`pytest tests/test_position_sizing.py` — 19 passed.

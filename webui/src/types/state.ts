@@ -248,6 +248,13 @@ export interface NeuralNetworkLayer {
   head?: string | null
 }
 
+export interface RankIcSummary {
+  mean_ic: number
+  std_ic: number
+  t_stat: number
+  num_dates: number
+}
+
 export interface NeuralNetworkModel {
   name: string
   label: string
@@ -264,6 +271,14 @@ export interface NeuralNetworkModel {
   // head's own node_layers, branching off node_layers' final width. Empty
   // object for flat networks (baseline/expert/gating).
   heads?: Record<string, number[]>
+  // Multi-horizon/ranking evaluation (Phase 3/4/6) - only populated for
+  // baseline_multitask/sequence (the two networks with horizon_5d/20d and
+  // rank_5d/20d heads; experts/expert_multitask stay 1d-direction-only by
+  // design). null when the network has no such heads, or hasn't been
+  // retrained since these metrics existed.
+  horizon_mcc?: { direction_5d: number | null; direction_20d: number | null } | null
+  rank_ic?: { rank_5d: RankIcSummary | null; rank_20d: RankIcSummary | null } | null
+  regression_quality?: { magnitude: string | null; volatility: string | null } | null
 }
 
 export interface NeuralNetworkExcluded {

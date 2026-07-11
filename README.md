@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-642%2F642%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="642 of 642 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-825%2F836%20passing-red?style=flat-square&labelColor=1A1A1A" alt="825 of 836 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -32,14 +32,16 @@ Mixture-of-Experts ensemble (bullish/bearish/sideways/volatility specialists)
 routed by a learned gating network, a market-regime detector, a 3D market
 topology layer that combines a deterministic correlation embedding with a
 learned probabilistic overlay, a liquidity/market-impact engine that adjusts
-position sizing to real trading conditions, and a controlled retraining loop
-that lets the model itself evolve as markets do — all wired together and
-validated end-to-end inside QuantConnect's Lean engine. The thesis this
-project exists to test is simple to state and hard to prove: **markets are
-non-stationary, so a trading model should be too.** Every subsystem here
-exists to make the model adapt — to regime shifts, to changing correlation
-structure, to liquidity conditions — rather than to fit one historical
-window and hope it generalizes.
+position sizing to real trading conditions, a cross-sectional ranking signal
+that sizes each position by its predicted relative strength against the rest
+of the trading universe, and a controlled retraining loop that lets the
+model itself evolve as markets do — all wired together and validated
+end-to-end inside QuantConnect's Lean engine. The thesis this project exists
+to test is simple to state and hard to prove: **markets are non-stationary,
+so a trading model should be too.** Every subsystem here exists to make the
+model adapt — to regime shifts, to changing correlation structure, to
+liquidity conditions — rather than to fit one historical window and hope it
+generalizes.
 
 ## Table of Contents
 
@@ -158,7 +160,7 @@ that a controlled retraining loop reads from to evolve the model over time.
 
 ```mermaid
 flowchart LR
-    A["Lean data folder<br/>stocks, ETFs, crypto"] --> B["Feature pipeline<br/>train.py<br/>48-dim: price/volume +<br/>regime + liquidity + topology"]
+    A["Lean data folder<br/>stocks, ETFs, crypto"] --> B["Feature pipeline<br/>train.py<br/>59-dim: price/volume + indicators +<br/>regime + liquidity + topology + peer returns"]
     B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
     B --> D["3D topology modeling<br/>market structure and clusters"]
     B -.-> U["Sequence encoder (Phase 2)<br/>causal-TCN, 30-bar window<br/>informational only"]
@@ -249,6 +251,52 @@ topology correlation/risk state are all computed offline
 `build_topology_features_by_date()`) and at runtime
 (`main.py::_build_model_input()`, reordered so regime is computed
 *before* the model runs) with verified train/runtime parity.
+
+**Multi-horizon direction, cross-sectional ranking, correlated-peer
+returns and technical indicators (model input 48 → 59).** A root-cause
+investigation found every model — baseline, all 4 experts, the multitask
+heads, the sequence encoder — sitting at backtest MCC 0.02-0.07 (noise) on
+next-day binary direction, and traced (and fixed) real data bugs
+confounding those numbers: an unadjusted-split bug in `train.py`'s own
+Lean-zip reader (Lean's live/backtest engine was never affected — see
+`development/Problems.md` #24) and a data-feed volume-unit discontinuity
+that blew up the sequence model's RMSE 31x (#23). Beyond the fixes,
+`AetherNetMultiTaskHorizons`/`AetherNetSequenceMultiTaskHorizons` (new
+sibling classes to the originals — experts/baseline/gating stay
+1d-direction-only by design) add 4 heads: `direction_5d`/`direction_20d`
+(longer-horizon direction) and `rank_5d`/`rank_20d` (per-date
+cross-sectional percentile rank of forward return — the most learnable
+target this investigation found, maps directly onto a long/short
+portfolio, evaluated via rank-IC, `train.py::compute_rank_ic()`, not MCC).
+11 new scaled input features: 4 correlated-peer lagged-return features
+(`topology/market_topology.py`'s `top_peers`/`top_peer_returns`, a genuine
+new information channel from correlation data the model previously only
+saw as a compressed scalar) and 7 technical indicators (`features/`
+package — RSI, ATR%, Bollinger %B, volume z-score, MACD histogram,
+distance-from-52-week-high, cross-sectional momentum rank), all computed
+identically offline and at runtime by construction (shared pure
+functions, not hand-matched duplicated formulas). All new signals are
+visible on `/neural-network` and in `*_training_metrics.json`; see
+`development/Changelog.md`'s "Frontier-model edge investigation" entry
+for the full build and the real rank-IC results.
+
+**`rank_20d` now sizes positions (opt-in).** A follow-up pass wired the
+one Phase-4 signal with a statistically significant full-series result —
+`rank_20d`, sequence model mean IC `0.073`/t-stat `4.40` — into an actual
+trading decision: `risk/position_sizing.py::rank_sizing_multiplier()`
+adds a fourth, bounded, direction-preserving factor to the sizing chain,
+scaling an already-approved trade UP toward `max_rank_multiplier` (default
+`1.25`) when the model predicts this asset near the top of the universe's
+20-day forward-return ranking, and DOWN toward `min_rank_multiplier`
+(default `0.75`) near the bottom — never flipping direction, same
+convention as the existing `topology_sizing_multiplier()`. **Off by
+default** (`phase_v2.dynamic_risk.rank_sizing_enabled: false`): the
+signal's non-overlapping-date subsample (28 independent 20-day windows)
+was not yet independently significant on its own (t-stat `1.20`), so it
+ships wired end-to-end but not promoted to on-by-default until validated
+on more out-of-sample data. `direction_5d`/`direction_20d`/`rank_5d`
+remain informational-only. See `risk/README.md`'s "Cross-sectional
+rank_20d → position sizing" section.
 
 **A causal-TCN sequence encoder (Phase 2) now exists alongside the
 flat-MLP trunk**, replacing the "zero temporal structure" limitation the
@@ -393,7 +441,7 @@ aether-quant/
 ├── ml/                          # Model weights, datasets, versioned retraining candidates
 ├── storage/                     # Reserved for future persistent artifact storage
 ├── requirements/                # All requirements*.txt variants
-├── tests/                       # Full pytest suite (507 tests)
+├── tests/                       # Full pytest suite (828 tests)
 ├── backtests/                   # Lean backtest run outputs (gitignored)
 ├── Aether-quant-Obsidian-Vault/ # Auto-generated code-graph / architecture vault
 ├── main.py                      # Lean algorithm: inference, signal engine, risk controls
@@ -435,7 +483,7 @@ and how it's wired in — this table is the index.
 | `retraining/` | Controlled retraining — plan/train/validate/backtest/commit/promote/rollback | [README](retraining/README.md) |
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (507 tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (828 tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -543,7 +591,7 @@ genuinely halted trading exactly as designed.
 
 ## Test Suite
 
-507 tests, one file per source module, run via:
+828 tests, one file per source module, run via:
 
 ```powershell
 aq test

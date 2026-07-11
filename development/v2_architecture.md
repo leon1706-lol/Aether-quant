@@ -573,7 +573,9 @@ The expert artifacts are:
 
 These artifacts stay local. The later gating network reads their metrics and exported JSON weights, then decides how strongly each expert should influence the final signal.
 
-**Model input dimensionality is 48, not 30 (multitask/sequence pass).**
+**Model input dimensionality is 59, not 30 (grew to 48 in the multitask/
+sequence pass, then to 59 in the frontier-model edge investigation pass -
+see `development/Changelog.md`).**
 Regime (`regime_signal_confidence`/`regime_signal_trend_score`/
 `regime_signal_risk_score` plus the existing one-hot trend/volatility/risk
 flags), liquidity (`liquidity_log_dollar_volume`,
@@ -586,8 +588,25 @@ into `build_feature_dataset()`) and at runtime
 (`main.py::_build_model_input()`, reordered so regime/topology are
 computed *before* the model runs, not just consumed after) — see
 `regime/README.md`, `liquidity/README.md` and `topology/README.md` for
-each subsystem's own contract, and
-`tests/test_lean_backtest_ml_coverage.py::test_model_input_dimensionality_is_48`
+each subsystem's own contract.
+
+The later frontier-model pass added 11 more scaled features the same
+way: 4 correlated-peer lagged-return features (`peer_rank1_return_1d`/
+`peer_rank2_return_1d`/`peer_rank3_return_1d`/`peer_mean_return_1d` -
+`topology/market_topology.py`'s `TopologyNode.top_peers`/`top_peer_returns`,
+ranked by descending correlation across the whole eligible universe, a
+genuine new information channel from correlation data the model
+previously only saw as a compressed scalar) and 7 technical indicators
+(`features/technical_indicators.py` - `rsi_14`, `atr_pct_14`,
+`bollinger_pctb_20`, `volume_zscore_20`, `macd_histogram_norm`,
+`dist_52w_high`, `cs_momentum_rank_20`), computed identically offline
+(`train.py::build_topology_features_by_date()`/`engineer_features()`/
+`build_cross_sectional_momentum_rank_features()`) and at runtime
+(`main.py::_build_model_input()`/`_build_topology_payload()`) by
+construction (shared pure functions for the indicators, the exact same
+per-bar `build_market_topology()` call for the peer returns) rather than
+hand-matched duplicated formulas. See
+`tests/test_lean_backtest_ml_coverage.py::test_model_input_dimensionality_is_59`
 for the real-backtest parity proof.
 
 ## Expert Stabilization Contract
@@ -1010,6 +1029,35 @@ verify bit-for-bit end-to-end.
   above zero. The market analyzer and position sizing were deliberately
   **not** given a second, direct sequence-model input of their own — see
   `analyzer/README.md` and `risk/README.md` for why.
+- **Follow-up: `AetherNetSequenceMultiTaskHorizons` (frontier-model edge
+  investigation pass, see `development/Changelog.md`).** A new sibling
+  class (not a modification of `AetherNetSequenceMultiTask` above) adding
+  4 heads: `direction_5d`/`direction_20d` (longer-horizon direction) and
+  `rank_5d`/`rank_20d` (per-date cross-sectional percentile rank of
+  forward return, evaluated via rank-IC —
+  `train.py::compute_rank_ic()` — not MCC). `forward()` returns a dict
+  keyed by head name instead of the original's fixed 3-tuple, mapping 1:1
+  onto the export's `"heads"` dict keys — `run_exported_sequence_multitask_model()`
+  needed **no interpreter changes** at all, since it already iterates
+  `export["heads"].items()` generically. Real backtest result: `rank_20d`
+  mean IC `0.073`, t-stat `4.40` (statistically significant on the full
+  series) — the most learnable signal this codebase has produced so far.
+- **Follow-up: `rank_20d` wired into position sizing
+  (`risk/position_sizing.py::rank_sizing_multiplier()`, see
+  `risk/README.md`).** The first Phase 4 output to move beyond
+  informational-only: a fourth, optional, bounded, direction-preserving
+  factor in the sizing chain (`predicted rank → multiplier ∈
+  [min_rank_multiplier, max_rank_multiplier]`, default `[0.75, 1.25]`),
+  fed by the sequence model's `rank_20d` head (preferred) with fallback
+  to the multitask model's own `rank_20d` head. Same "never flips
+  direction, only scales magnitude" boundary as
+  `topology_sizing_multiplier()`. **Off by default**
+  (`phase_v2.dynamic_risk.rank_sizing_enabled: false`) — the signal's
+  non-overlapping-date subsample was not yet independently significant
+  (t-stat `1.20` on 28 independent windows, vs. `4.40` on the full
+  autocorrelated series), so it ships wired end-to-end but not promoted
+  to on-by-default until validated on more out-of-sample data, per Phase
+  4's own documented promotion criterion.
 
 See `inference/README.md`'s Phase 2 section for the fuller interpreter
 writeup and `development/Changelog.md`'s "Phase 1 remainder + Phase 2"

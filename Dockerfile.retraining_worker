@@ -7,6 +7,7 @@ COPY experience/ ./experience/
 COPY performance/ ./performance/
 COPY regime/ ./regime/
 COPY experts/ ./experts/
+COPY features/ ./features/
 COPY topology/ ./topology/
 COPY moe/ ./moe/
 COPY inference/ ./inference/

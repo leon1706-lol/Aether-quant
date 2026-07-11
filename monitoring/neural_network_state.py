@@ -87,6 +87,15 @@ class NetworkSummary:
     total_edges: int
     last_modified: str | None
     heads: dict[str, list[int]] = field(default_factory=dict)
+    # Multi-horizon/ranking evaluation (Phase 3/4/6) - only populated for
+    # baseline_multitask/sequence (the two networks with horizon_5d/20d and
+    # rank_5d/20d heads; experts/expert_multitask stay 1d-direction-only by
+    # design, see development/Changelog.md). None when the network has no
+    # such heads or hasn't been retrained since these metrics existed -
+    # graceful degradation, same contract as quality_status above.
+    horizon_mcc: dict | None = None
+    rank_ic: dict | None = None
+    regression_quality: dict | None = None
 
     def to_dict(self) -> dict:
         payload = asdict(self)
@@ -223,13 +232,46 @@ def _last_modified(path: Path) -> str | None:
     return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
 
 
+def _extract_horizon_evaluation_summary(training_metrics: dict | None) -> dict:
+    """Extracts horizon_mcc/rank_ic/regression_quality from a
+    *_training_metrics.json payload (train_multitask.py/train_sequence.py's
+    output shape) for NetworkSummary. Returns a dict of all-None values
+    when `training_metrics` is None or predates Phase 3/4 (an older
+    artifact with no horizon/rank heads at all) - the webui already treats
+    None as "not available" the same way it already does for
+    quality_status, no separate "unsupported" state needed."""
+    backtest_metrics = (training_metrics or {}).get("backtest", {})
+
+    horizon_mcc = {}
+    for head_name in ("direction_5d", "direction_20d"):
+        head_metrics = backtest_metrics.get(head_name)
+        horizon_mcc[head_name] = head_metrics.get("mcc") if head_metrics else None
+
+    rank_ic = {}
+    for head_name in ("rank_5d", "rank_20d"):
+        ic_metrics = backtest_metrics.get(f"{head_name}_ic")
+        rank_ic[head_name] = ic_metrics if ic_metrics else None
+
+    regression_quality = {}
+    for quality_name in ("magnitude_quality", "volatility_quality"):
+        quality = (training_metrics or {}).get(quality_name)
+        regression_quality[quality_name.removesuffix("_quality")] = quality.get("quality_status") if quality else None
+
+    has_any_value = any(horizon_mcc.values()) or any(rank_ic.values()) or any(regression_quality.values())
+    if not has_any_value:
+        return {"horizon_mcc": None, "rank_ic": None, "regression_quality": None}
+    return {"horizon_mcc": horizon_mcc, "rank_ic": rank_ic, "regression_quality": regression_quality}
+
+
 def _build_network_summary(
     name: str,
     label: str,
     role: str,
     weights_path: Path,
     quality_status: str | None,
+    training_metrics: dict | None = None,
 ) -> NetworkSummary:
+    evaluation_summary = _extract_horizon_evaluation_summary(training_metrics)
     payload = _load_json(weights_path)
     if payload is None or "export" not in payload:
         return NetworkSummary(
@@ -245,6 +287,7 @@ def _build_network_summary(
             total_edges=0,
             last_modified=None,
             heads={},
+            **evaluation_summary,
         )
 
     layers, node_layers, heads_node_layers = _parse_network_export(payload["export"])
@@ -266,6 +309,7 @@ def _build_network_summary(
         total_edges=total_edges,
         last_modified=_last_modified(weights_path),
         heads=heads_node_layers,
+        **evaluation_summary,
     )
 
 
@@ -329,6 +373,7 @@ def build_neural_network_state(ml_dir: Path | None = None) -> dict:
             role="multitask",
             weights_path=ml_dir / "multitask_model.json",
             quality_status=None,
+            training_metrics=_load_json(ml_dir / "multitask_training_metrics.json"),
         )
     )
 
@@ -355,6 +400,7 @@ def build_neural_network_state(ml_dir: Path | None = None) -> dict:
             role="sequence",
             weights_path=ml_dir / "sequence_model.json",
             quality_status=None,
+            training_metrics=_load_json(ml_dir / "sequence_training_metrics.json"),
         )
     )
 

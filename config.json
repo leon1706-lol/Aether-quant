@@ -225,10 +225,10 @@
             },
             "validation": {
                 "start": "2018-01-01",
-                "end": "2018-03-31"
+                "end": "2018-12-31"
             },
             "backtest": {
-                "start": "2018-04-01",
+                "start": "2019-01-01",
                 "end": "2021-03-31"
             }
         },
@@ -244,19 +244,48 @@
                 "high_low_range_pct",
                 "open_close_range_pct",
                 "volume_change_1d",
+                "rsi_14",
+                "atr_pct_14",
+                "bollinger_pctb_20",
+                "volume_zscore_20",
+                "macd_histogram_norm",
+                "dist_52w_high",
                 "regime_signal_confidence",
                 "regime_signal_trend_score",
                 "regime_signal_risk_score",
                 "liquidity_log_dollar_volume",
                 "liquidity_spread_proxy",
-                "topology_correlation_strength"
+                "topology_correlation_strength",
+                "peer_rank1_return_1d",
+                "peer_rank2_return_1d",
+                "peer_rank3_return_1d",
+                "peer_mean_return_1d",
+                "cs_momentum_rank_20"
             ],
-            "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference."
+            "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
+            "winsorize_quantiles": [0.001, 0.999],
+            "scaled_feature_clip_sigma": 10.0
         },
         "target": {
             "type": "directional_return",
             "horizon": "1 trading day ahead",
-            "label_rule": "1 if next close return is positive, otherwise 0"
+            "label_rule": "1 if next close return is positive, otherwise 0",
+            "max_abs_daily_return": {
+                "equity": 0.5,
+                "crypto": 1.5
+            },
+            "max_abs_return_5d": {
+                "equity": 0.9,
+                "crypto": 2.5
+            },
+            "max_abs_return_20d": {
+                "equity": 1.5,
+                "crypto": 4.0
+            },
+            "ranking": {
+                "horizon_days": [5, 20],
+                "min_universe_size": 10
+            }
         }
     },
     "phase3": {
@@ -332,7 +361,10 @@
             "topology_sizing_enabled": true,
             "min_topology_multiplier": 0.5,
             "max_topology_multiplier": 1.0,
-            "use_predicted_volatility": false
+            "use_predicted_volatility": false,
+            "rank_sizing_enabled": false,
+            "min_rank_multiplier": 0.75,
+            "max_rank_multiplier": 1.25
         },
         "risk": {},
         "regime_detection": {
@@ -365,7 +397,8 @@
             "min_observations": 5,
             "embedding_iterations": 100,
             "warm_start_enabled": true,
-            "convergence_tolerance": 0.01
+            "convergence_tolerance": 0.01,
+            "top_peers_n": 3
         },
         "topology_learning": {
             "enabled": true,
@@ -573,6 +606,12 @@
                 "threshold_search_steps": 61,
                 "magnitude_loss_weight": 1.0,
                 "volatility_loss_weight": 1.0,
+                "horizon_heads": {
+                    "direction_5d": {"enabled": true, "loss_weight": 1.0},
+                    "direction_20d": {"enabled": true, "loss_weight": 0.5},
+                    "rank_5d": {"enabled": true, "loss_weight": 1.0},
+                    "rank_20d": {"enabled": true, "loss_weight": 0.5}
+                },
                 "seed": 42
             },
             "sequence_training": {
@@ -600,6 +639,12 @@
                 "threshold_search_steps": 61,
                 "magnitude_loss_weight": 1.0,
                 "volatility_loss_weight": 1.0,
+                "horizon_heads": {
+                    "direction_5d": {"enabled": true, "loss_weight": 1.0},
+                    "direction_20d": {"enabled": true, "loss_weight": 0.5},
+                    "rank_5d": {"enabled": true, "loss_weight": 1.0},
+                    "rank_20d": {"enabled": true, "loss_weight": 0.5}
+                },
                 "seed": 42
             }
         },

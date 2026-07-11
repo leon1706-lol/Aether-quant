@@ -30,6 +30,17 @@ class TopologyNode:
     volatility_pressure: float
     topology_risk: str
     regime_label: str
+    # Ranked (descending correlation) top-N peer symbols across the WHOLE
+    # eligible universe (not just this node's own cluster - a
+    # correlation_threshold-defined cluster can be much smaller than
+    # top_peers_n) and each peer's own latest available return - a genuine
+    # new information channel for the prediction model (see
+    # train.py::build_peer_return_features_by_date()), distinct from
+    # correlation_strength above (a single mean scalar). Empty for an
+    # isolated node (no peers). No lookahead: each peer's latest return is
+    # already known as of this node's own current bar.
+    top_peers: list[str]
+    top_peer_returns: list[float]
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -241,7 +252,26 @@ def _isolated_node(symbol: str, returns: list[float], cluster_id: str, regime_la
         volatility_pressure=_annualized_volatility(returns),
         topology_risk="isolated",
         regime_label=regime_label,
+        top_peers=[],
+        top_peer_returns=[],
     )
+
+
+def rank_correlated_peers(
+    symbol: str,
+    eligible_symbols: list[str],
+    correlation_fn: Callable[[str, str], float],
+    top_n: int,
+) -> list[str]:
+    """Ranks every OTHER eligible symbol by descending correlation to
+    `symbol` across the WHOLE eligible universe (not just `symbol`'s own
+    cluster - a correlation_threshold-defined cluster can be much smaller
+    than top_n), returning up to `top_n` symbols. Ties broken
+    alphabetically for determinism (matches this module's existing
+    tie-breaking convention, e.g. sorted_roots/nodes.sort() below)."""
+    others = [other for other in eligible_symbols if other != symbol]
+    ranked = sorted(others, key=lambda other: (-correlation_fn(symbol, other), other))
+    return ranked[:top_n]
 
 
 def build_market_topology(
@@ -253,6 +283,7 @@ def build_market_topology(
     embedding_iterations: int = 100,
     previous_positions: dict[str, tuple[float, float]] | None = None,
     convergence_tolerance: float | None = None,
+    top_peers_n: int = 3,
 ) -> MarketTopology:
     regime_labels_by_symbol = regime_labels_by_symbol or {}
     reasons: list[str] = []
@@ -407,6 +438,9 @@ def build_market_topology(
         else:
             topology_risk = "normal"
 
+        top_peer_symbols = rank_correlated_peers(symbol, eligible_symbols, correlation_between, top_peers_n)
+        top_peer_returns = [returns_by_symbol[peer][-1] for peer in top_peer_symbols]
+
         nodes.append(
             TopologyNode(
                 symbol=symbol,
@@ -419,6 +453,8 @@ def build_market_topology(
                 volatility_pressure=volatility_pressure,
                 topology_risk=topology_risk,
                 regime_label=regime_labels_by_symbol.get(symbol, "unknown"),
+                top_peers=top_peer_symbols,
+                top_peer_returns=top_peer_returns,
             )
         )
 

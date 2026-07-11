@@ -19,8 +19,10 @@ import torch
 
 from train import (
     AetherNetSequenceMultiTask,
+    AetherNetSequenceMultiTaskHorizons,
     build_sequence_tensor_dataset,
     export_sequence_multitask_architecture,
+    export_sequence_multitask_horizons_architecture,
 )
 
 
@@ -123,6 +125,54 @@ def test_export_sequence_multitask_architecture_weight_keys_are_disjoint():
     all_keys = conv_weight_keys + head_weight_keys
     assert len(all_keys) == len(set(all_keys))
     assert conv_weight_keys == ["conv_layers.0.weight", "conv_layers.1.weight"]
+
+
+# ---------------------------------------------------------------------------
+# AetherNetSequenceMultiTaskHorizons / export_sequence_multitask_horizons_architecture
+# ---------------------------------------------------------------------------
+
+
+def test_aether_net_sequence_multitask_horizons_forward_returns_seven_heads():
+    model = AetherNetSequenceMultiTaskHorizons(input_dim=4, channels=[6, 6], kernel_size=3, dropout=0.0)
+    model.eval()
+
+    with torch.no_grad():
+        outputs = model(torch.randn(3, 10, 4))
+
+    expected_heads = {"direction", "magnitude", "volatility", "direction_5d", "direction_20d", "rank_5d", "rank_20d"}
+    assert set(outputs.keys()) == expected_heads
+    for tensor in outputs.values():
+        assert tensor.shape == (3,)
+    assert torch.all(outputs["volatility"] >= 0.0)
+
+
+def test_aether_net_sequence_multitask_horizons_raises_with_no_channels():
+    with pytest.raises(ValueError):
+        AetherNetSequenceMultiTaskHorizons(input_dim=2, channels=[], kernel_size=2, dropout=0.0)
+
+
+def test_export_sequence_multitask_horizons_architecture_shape():
+    model = AetherNetSequenceMultiTaskHorizons(input_dim=4, channels=[6, 6], kernel_size=3, dropout=0.1)
+
+    export = export_sequence_multitask_horizons_architecture(model)
+
+    assert set(export.keys()) == {"trunk", "heads"}
+    assert set(export["heads"].keys()) == {
+        "direction", "magnitude", "volatility", "direction_5d", "direction_20d", "rank_5d", "rank_20d",
+    }
+    trunk_types = [layer["type"] for layer in export["trunk"]]
+    assert trunk_types == ["conv1d_causal", "relu", "dropout", "conv1d_causal", "relu", "dropout"]
+
+
+def test_export_sequence_multitask_horizons_architecture_weight_keys_are_disjoint():
+    model = AetherNetSequenceMultiTaskHorizons(input_dim=2, channels=[3, 3], kernel_size=2, dropout=0.0)
+
+    export = export_sequence_multitask_horizons_architecture(model)
+
+    conv_weight_keys = [layer["weight_key"] for layer in export["trunk"] if layer["type"] == "conv1d_causal"]
+    head_weight_keys = [head[0]["weight_key"] for head in export["heads"].values()]
+    all_keys = conv_weight_keys + head_weight_keys
+    assert len(all_keys) == len(set(all_keys))
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ from inference.exported_model import (
     _sigmoid,
     _softmax,
     _softplus,
+    resolve_sequence_window_size,
     run_exported_model,
     run_exported_multitask_model,
     run_exported_sequence_multitask_model,
@@ -462,3 +463,21 @@ def test_run_exported_sequence_multitask_model_raises_on_unsupported_layer_type(
 
     with pytest.raises(ValueError):
         run_exported_sequence_multitask_model(model_export, [[1.0]])
+
+
+def test_resolve_sequence_window_size_prefers_trained_schema_over_config():
+    # Regression guard: a retrained candidate with a different window_size
+    # used to be silently ignored - main.py built its rolling buffer from
+    # config.json's value alone, never the trained model's own
+    # sequence_feature_schema.json, causing a shape mismatch inside
+    # run_exported_sequence_multitask_model() that a blanket except then
+    # swallowed (see development/Problems.md).
+    assert resolve_sequence_window_size({"window_size": 45}, 30) == 45
+
+
+def test_resolve_sequence_window_size_falls_back_to_config_when_schema_missing():
+    assert resolve_sequence_window_size(None, 30) == 30
+
+
+def test_resolve_sequence_window_size_falls_back_to_config_when_schema_lacks_key():
+    assert resolve_sequence_window_size({"model_input_names": []}, 30) == 30

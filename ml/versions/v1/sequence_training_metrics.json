@@ -2,7 +2,7 @@
   "project": "aether_quant",
   "phase": "sequence_multitask_phase2",
   "version_id": "v1",
-  "trained_at": "2026-07-11T10:33:06.649785+00:00",
+  "trained_at": "2026-07-11T18:01:04.575132+00:00",
   "window_size": 30,
   "channels": [
     32,
@@ -205,5 +205,44 @@
       "train_loss": 0.6550941657737868,
       "validation_loss": 0.688330888748169
     }
-  ]
+  ],
+  "magnitude_quality": {
+    "quality_status": "disabled_for_gating",
+    "gating_eligible": false,
+    "failures": [
+      "rmse_mae_ratio_above_gate",
+      "backtest_train_rmse_ratio_above_gate"
+    ],
+    "near_misses": [],
+    "thresholds": {
+      "max_rmse_mae_ratio": 4.0,
+      "max_backtest_train_rmse_ratio": 3.0,
+      "watchlist_margin": 0.5
+    },
+    "observed": {
+      "backtest_rmse_mae_ratio": 30.515704172643073,
+      "backtest_train_rmse_ratio": 55.916806558571366,
+      "train_rmse": 0.03734826296567917,
+      "backtest_rmse": 2.088395595550537,
+      "backtest_mae": 0.06843674927949905
+    }
+  },
+  "volatility_quality": {
+    "quality_status": "stable",
+    "gating_eligible": true,
+    "failures": [],
+    "near_misses": [],
+    "thresholds": {
+      "max_rmse_mae_ratio": 4.0,
+      "max_backtest_train_rmse_ratio": 3.0,
+      "watchlist_margin": 0.5
+    },
+    "observed": {
+      "backtest_rmse_mae_ratio": 1.2284828526135863,
+      "backtest_train_rmse_ratio": 1.116474586337344,
+      "train_rmse": 0.048373933881521225,
+      "backtest_rmse": 0.05400826781988144,
+      "backtest_mae": 0.04396338760852814
+    }
+  }
 }

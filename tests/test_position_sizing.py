@@ -1,6 +1,7 @@
 from risk.position_sizing import (
     build_dynamic_position_sizing,
     classify_volatility_regime,
+    rank_sizing_multiplier,
     topology_sizing_multiplier,
 )
 
@@ -121,3 +122,89 @@ def test_dynamic_position_sizing_topology_omitted_matches_no_adjustment():
 
     assert baseline.topology_multiplier == 1.0
     assert baseline.topology_sizing_reason == "topology_absent_or_fallback_no_adjustment"
+
+
+# ---------------------------------------------------------------------------
+# rank_sizing_multiplier
+# ---------------------------------------------------------------------------
+
+
+def test_rank_multiplier_no_adjustment_when_disabled():
+    multiplier, reason = rank_sizing_multiplier(0.95, rank_sizing_enabled=False)
+    assert multiplier == 1.0
+    assert reason == "rank_sizing_disabled_or_absent"
+
+
+def test_rank_multiplier_no_adjustment_when_prediction_missing():
+    multiplier, reason = rank_sizing_multiplier(None, rank_sizing_enabled=True)
+    assert multiplier == 1.0
+    assert reason == "rank_sizing_disabled_or_absent"
+
+
+def test_rank_multiplier_scales_up_for_top_of_universe_rank():
+    multiplier, reason = rank_sizing_multiplier(
+        1.0, rank_sizing_enabled=True, min_rank_multiplier=0.75, max_rank_multiplier=1.25
+    )
+    assert multiplier == 1.25
+    assert reason == "rank_prediction_scaled_sizing"
+
+
+def test_rank_multiplier_scales_down_for_bottom_of_universe_rank():
+    multiplier, _ = rank_sizing_multiplier(
+        0.0, rank_sizing_enabled=True, min_rank_multiplier=0.75, max_rank_multiplier=1.25
+    )
+    assert multiplier == 0.75
+
+
+def test_rank_multiplier_is_no_op_at_median_rank():
+    multiplier, _ = rank_sizing_multiplier(
+        0.5, rank_sizing_enabled=True, min_rank_multiplier=0.75, max_rank_multiplier=1.25
+    )
+    assert multiplier == 1.0
+
+
+def test_dynamic_position_sizing_scales_up_with_high_rank_prediction():
+    baseline = build_dynamic_position_sizing(
+        base_target_weight=0.20,
+        confidence=1.0,
+        rolling_volatility=0.015,
+        max_position_weight=0.20,
+    )
+    with_rank = build_dynamic_position_sizing(
+        base_target_weight=0.20,
+        confidence=1.0,
+        rolling_volatility=0.015,
+        max_position_weight=0.20,
+        predicted_rank_20d=1.0,
+        rank_sizing_enabled=True,
+    )
+
+    assert with_rank.rank_multiplier > 1.0
+    assert with_rank.target_weight >= baseline.target_weight
+    assert with_rank.rank_sizing_reason == "rank_prediction_scaled_sizing"
+
+
+def test_dynamic_position_sizing_preserves_short_direction_with_rank_multiplier():
+    with_rank = build_dynamic_position_sizing(
+        base_target_weight=-0.20,
+        confidence=1.0,
+        rolling_volatility=0.015,
+        max_position_weight=0.20,
+        predicted_rank_20d=0.9,
+        rank_sizing_enabled=True,
+    )
+
+    assert with_rank.target_weight < 0.0
+
+
+def test_dynamic_position_sizing_rank_disabled_by_default():
+    decision = build_dynamic_position_sizing(
+        base_target_weight=0.20,
+        confidence=1.0,
+        rolling_volatility=0.015,
+        max_position_weight=0.20,
+        predicted_rank_20d=1.0,
+    )
+
+    assert decision.rank_multiplier == 1.0
+    assert decision.rank_sizing_reason == "rank_sizing_disabled_or_absent"

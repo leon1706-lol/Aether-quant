@@ -70,7 +70,9 @@ def test_run_once_auto_promote_false_stops_after_commit():
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
     ), patch("retraining.worker.train_topology") as train_topology_mock, patch(
         "retraining.worker.train_gating"
-    ) as train_gating_mock, patch(
+    ) as train_gating_mock, patch("retraining.worker.train_multitask"), patch(
+        "retraining.worker.train_sequence"
+    ), patch(
         "retraining.worker.validate", return_value={"ok": True}
     ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
         "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
@@ -89,6 +91,8 @@ def test_run_once_auto_promote_true_calls_promote():
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
     ), patch("retraining.worker.train_topology"), patch("retraining.worker.train_gating"), patch(
+        "retraining.worker.train_multitask"
+    ), patch("retraining.worker.train_sequence"), patch(
         "retraining.worker.validate", return_value={"ok": True}
     ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
         "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
@@ -110,6 +114,8 @@ def test_run_once_auto_promote_forced_off_when_runtime_mode_is_live():
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
     ), patch("retraining.worker.train_topology"), patch("retraining.worker.train_gating"), patch(
+        "retraining.worker.train_multitask"
+    ), patch("retraining.worker.train_sequence"), patch(
         "retraining.worker.validate", return_value={"ok": True}
     ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
         "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
@@ -128,6 +134,8 @@ def test_run_once_auto_promote_proceeds_when_runtime_mode_is_not_live():
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
     ), patch("retraining.worker.train_topology"), patch("retraining.worker.train_gating"), patch(
+        "retraining.worker.train_multitask"
+    ), patch("retraining.worker.train_sequence"), patch(
         "retraining.worker.validate", return_value={"ok": True}
     ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
         "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
@@ -146,6 +154,8 @@ def test_run_once_auto_promote_ignores_live_mode_when_guard_disabled():
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
     ), patch("retraining.worker.train_topology"), patch("retraining.worker.train_gating"), patch(
+        "retraining.worker.train_multitask"
+    ), patch("retraining.worker.train_sequence"), patch(
         "retraining.worker.validate", return_value={"ok": True}
     ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(
         "retraining.worker.commit", return_value={"ok": True, "vault_commit": "abc"}
@@ -164,6 +174,8 @@ def test_run_once_stops_when_validation_fails():
     with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
         "retraining.worker.train", return_value={"ok": True, "version_id": "v1"}
     ), patch("retraining.worker.train_topology"), patch("retraining.worker.train_gating"), patch(
+        "retraining.worker.train_multitask"
+    ), patch("retraining.worker.train_sequence"), patch(
         "retraining.worker.validate", return_value={"ok": False}
     ), patch("retraining.worker.backtest") as backtest_mock:
         result = worker.run_once()
@@ -189,7 +201,9 @@ def test_run_once_calls_train_topology_then_train_gating_between_train_and_valid
     ) as train_topology_mock, patch(
         "retraining.worker.train_gating",
         side_effect=lambda *a, **k: call_order.append("train_gating") or {"ok": False, "error": "no data yet"},
-    ) as train_gating_mock, patch(
+    ) as train_gating_mock, patch("retraining.worker.train_multitask"), patch(
+        "retraining.worker.train_sequence"
+    ), patch(
         "retraining.worker.validate",
         side_effect=lambda *a, **k: call_order.append("validate") or {"ok": True},
     ), patch("retraining.worker.backtest", return_value={"ok": True}), patch(

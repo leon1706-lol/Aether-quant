@@ -309,3 +309,101 @@ def test_missing_new_networks_degrade_to_not_trained(tmp_path):
         assert network["status"] == "not_trained"
         assert network["total_layers"] == 0
         assert network["heads"] == {}
+
+
+def _write_horizon_training_metrics(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "backtest": {
+            "direction_5d": {"mcc": 0.02},
+            "direction_20d": {"mcc": -0.01},
+            "rank_5d": {"mae": 0.25},
+            "rank_5d_ic": {"mean_ic": 0.035, "std_ic": 0.33, "t_stat": 2.5, "num_dates": 561},
+            "rank_20d": {"mae": 0.24},
+            "rank_20d_ic": {"mean_ic": 0.066, "std_ic": 0.32, "t_stat": 4.85, "num_dates": 546},
+        },
+        "magnitude_quality": {"quality_status": "stable"},
+        "volatility_quality": {"quality_status": "stable"},
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_baseline_multitask_network_reports_horizon_mcc_and_rank_ic(tmp_path):
+    _write_model_export(tmp_path / "model_weights.json", [20, 64, 32, 1])
+    _write_branching_model_export(
+        tmp_path / "multitask_model.json",
+        trunk_node_layers=[20, 64, 32],
+        heads={"direction": [1], "magnitude": [1], "volatility": [1]},
+    )
+    _write_horizon_training_metrics(tmp_path / "multitask_training_metrics.json")
+
+    state = build_neural_network_state(ml_dir=tmp_path)
+
+    multitask = next(n for n in state["networks"] if n["name"] == "baseline_multitask")
+    assert multitask["horizon_mcc"] == {"direction_5d": 0.02, "direction_20d": -0.01}
+    assert multitask["rank_ic"]["rank_5d"]["mean_ic"] == pytest.approx(0.035)
+    assert multitask["rank_ic"]["rank_20d"]["t_stat"] == pytest.approx(4.85)
+    assert multitask["regression_quality"] == {"magnitude": "stable", "volatility": "stable"}
+
+
+def test_sequence_network_reports_horizon_mcc_and_rank_ic(tmp_path):
+    _write_model_export(tmp_path / "model_weights.json", [20, 64, 32, 1])
+    _write_branching_model_export(
+        tmp_path / "sequence_model.json",
+        trunk_node_layers=[8, 4],
+        heads={"direction": [1], "magnitude": [1], "volatility": [1]},
+        trunk_conv=True,
+    )
+    _write_horizon_training_metrics(tmp_path / "sequence_training_metrics.json")
+
+    state = build_neural_network_state(ml_dir=tmp_path)
+
+    sequence = next(n for n in state["networks"] if n["name"] == "sequence")
+    assert sequence["horizon_mcc"] == {"direction_5d": 0.02, "direction_20d": -0.01}
+    assert sequence["rank_ic"]["rank_5d"]["num_dates"] == 561
+
+
+def test_horizon_evaluation_fields_are_none_when_metrics_file_missing():
+    from monitoring.neural_network_state import _extract_horizon_evaluation_summary
+
+    result = _extract_horizon_evaluation_summary(None)
+
+    assert result == {"horizon_mcc": None, "rank_ic": None, "regression_quality": None}
+
+
+def test_horizon_evaluation_fields_are_none_for_pre_phase3_metrics_shape():
+    # An older metrics file (before Phase 3/4 heads existed) has a
+    # "backtest" block but no direction_5d/rank_5d keys at all - must
+    # degrade to None, not KeyError or a dict of Nones treated as "present".
+    from monitoring.neural_network_state import _extract_horizon_evaluation_summary
+
+    old_shape_metrics = {
+        "backtest": {"direction": {"mcc": 0.03}, "magnitude": {"mae": 0.03}, "volatility": {"mae": 0.02}},
+    }
+
+    result = _extract_horizon_evaluation_summary(old_shape_metrics)
+
+    assert result == {"horizon_mcc": None, "rank_ic": None, "regression_quality": None}
+
+
+def test_expert_multitask_networks_never_get_horizon_evaluation_fields(tmp_path):
+    # Experts stay 1d-direction-only by design (see development/Changelog.md) -
+    # even if a stray multitask_training_metrics.json-shaped file existed
+    # for an expert (it never does in practice), build_neural_network_state()
+    # never passes training_metrics for expert_multitask networks.
+    _write_model_export(tmp_path / "model_weights.json", [20, 64, 32, 1])
+    for expert_name in EXPERT_NAMES:
+        _write_branching_model_export(
+            tmp_path / "expert_models" / expert_name / "multitask_model.json",
+            trunk_node_layers=[20, 24],
+            heads={"direction": [1], "magnitude": [1], "volatility": [1]},
+        )
+
+    state = build_neural_network_state(ml_dir=tmp_path)
+
+    expert_multitask_networks = [n for n in state["networks"] if n["role"] == "expert_multitask"]
+    assert len(expert_multitask_networks) == 4
+    for network in expert_multitask_networks:
+        assert network["horizon_mcc"] is None
+        assert network["rank_ic"] is None
+        assert network["regression_quality"] is None

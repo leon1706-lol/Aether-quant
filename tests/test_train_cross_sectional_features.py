@@ -12,7 +12,9 @@ real Lean data folder, not just synthetic fixtures.
 
 import math
 
+import numpy as np
 import pandas as pd
+import pytest
 
 from train import (
     LIQUIDITY_FEATURE_NAMES,
@@ -22,7 +24,9 @@ from train import (
     _categorical_feature_names,
     add_liquidity_features,
     add_regime_features,
+    build_cross_sectional_rank_targets,
     build_topology_features_by_date,
+    peer_return_feature_names,
 )
 from regime import build_market_regime_vector
 
@@ -220,6 +224,160 @@ def test_build_topology_features_by_date_early_rows_before_min_observations_defa
     assert first_row["topology_correlation_strength"] == 0.0
     assert first_row["topology_risk_isolated"] == 1.0
     assert result["A"]["topology_correlation_strength"].isna().sum() == 0
+
+
+# ---------------------------------------------------------------------------
+# build_topology_features_by_date's peer-return features (Phase 5)
+# ---------------------------------------------------------------------------
+
+
+def test_peer_return_feature_names_is_schema_stable_never_ticker_named():
+    names = peer_return_feature_names(3)
+
+    assert names == ["peer_rank1_return_1d", "peer_rank2_return_1d", "peer_rank3_return_1d", "peer_mean_return_1d"]
+
+
+def test_build_topology_features_by_date_adds_peer_return_columns():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 11)]
+    asset_frames = {
+        "A": _returns_frame(dates, [0.01, 0.02, -0.01, 0.015, 0.005, 0.01, -0.02, 0.03, 0.0, 0.01]),
+        "B": _returns_frame(dates, [0.011, 0.019, -0.009, 0.016, 0.004, 0.009, -0.021, 0.029, 0.001, 0.011]),
+    }
+    config = {"phase_v2": {"topology": {"correlation_threshold": 0.6, "link_threshold": 0.5, "min_observations": 3, "top_peers_n": 2}}}
+
+    result = build_topology_features_by_date(asset_frames, config)
+
+    for name in peer_return_feature_names(2):
+        assert name in result["A"].columns
+        assert result["A"][name].isna().sum() == 0  # never NaN, missing peer -> 0.0
+
+
+def test_build_topology_features_by_date_peer_return_matches_peers_own_latest_return():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 11)]
+    b_returns = [0.011, 0.019, -0.009, 0.016, 0.004, 0.009, -0.021, 0.029, 0.001, 0.011]
+    asset_frames = {
+        "A": _returns_frame(dates, [0.01, 0.02, -0.01, 0.015, 0.005, 0.01, -0.02, 0.03, 0.0, 0.01]),
+        "B": _returns_frame(dates, b_returns),
+    }
+    config = {"phase_v2": {"topology": {"correlation_threshold": 0.6, "link_threshold": 0.5, "min_observations": 3, "top_peers_n": 1}}}
+
+    result = build_topology_features_by_date(asset_frames, config)
+
+    # A's only possible peer is B - peer_rank1_return_1d on the last row
+    # must equal B's own latest (last-row) return, no lookahead.
+    last_row = result["A"].iloc[-1]
+    assert last_row["peer_rank1_return_1d"] == pytest.approx(b_returns[-1])
+    assert last_row["peer_mean_return_1d"] == pytest.approx(b_returns[-1])
+
+
+def test_build_topology_features_by_date_single_asset_peer_features_are_zero():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 11)]
+    asset_frames = {"A": _returns_frame(dates, [0.01] * 10)}
+    config = {"phase_v2": {"topology": {"correlation_threshold": 0.6, "link_threshold": 0.5, "min_observations": 3}}}
+
+    result = build_topology_features_by_date(asset_frames, config)
+
+    for name in peer_return_feature_names(3):
+        assert (result["A"][name] == 0.0).all()
+
+
+# ---------------------------------------------------------------------------
+# build_cross_sectional_rank_targets
+# ---------------------------------------------------------------------------
+
+
+def _rank_target_frame(dates: list[str], returns_5d: list[float], returns_20d: float = 0.0) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(dates),
+            "target_return_5d": returns_5d,
+            "target_return_20d": [returns_20d] * len(dates),
+        }
+    )
+
+
+def test_build_cross_sectional_rank_targets_best_performer_gets_top_rank():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 6)]
+    asset_frames = {
+        "BEST": _rank_target_frame(dates, [0.05] * 5),
+        "MID": _rank_target_frame(dates, [0.01] * 5),
+        "WORST": _rank_target_frame(dates, [-0.05] * 5),
+    }
+    config = {"phase1": {"target": {"ranking": {"min_universe_size": 2}}}}
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    assert (result["BEST"]["target_rank_5d"] == 1.0).all()
+    assert np.allclose(result["WORST"]["target_rank_5d"].to_numpy(), 1 / 3)
+    assert np.allclose(result["MID"]["target_rank_5d"].to_numpy(), 2 / 3)
+
+
+def test_build_cross_sectional_rank_targets_propagates_nan_return_as_nan_rank():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 6)]
+    asset_frames = {
+        "A": _rank_target_frame(dates, [0.05, 0.03, np.nan, 0.02, 0.04]),
+        "B": _rank_target_frame(dates, [0.01] * 5),
+        "C": _rank_target_frame(dates, [-0.05, -0.03, -0.02, np.nan, -0.04]),
+    }
+    config = {"phase1": {"target": {"ranking": {"min_universe_size": 2}}}}
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    assert pd.isna(result["A"]["target_rank_5d"].iloc[2])
+    assert pd.isna(result["C"]["target_rank_5d"].iloc[3])
+    # every other row still has a real rank
+    assert result["A"]["target_rank_5d"].notna().sum() == 4
+
+
+def test_build_cross_sectional_rank_targets_below_min_universe_size_is_nan():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "A": _rank_target_frame(dates, [0.05, 0.03, 0.02]),
+        "B": _rank_target_frame(dates, [0.01, 0.01, 0.01]),
+    }
+    # Only 2 assets ever have data - a min_universe_size of 3 excludes every date.
+    config = {"phase1": {"target": {"ranking": {"min_universe_size": 3}}}}
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    assert result["A"]["target_rank_5d"].isna().all()
+    assert result["B"]["target_rank_5d"].isna().all()
+
+
+def test_build_cross_sectional_rank_targets_uses_config_default_when_ranking_config_absent():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 6)]
+    asset_frames = {
+        "A": _rank_target_frame(dates, [0.05] * 5),
+        "B": _rank_target_frame(dates, [0.01] * 5),
+    }
+
+    # No phase1.target.ranking key at all - must fall back to
+    # DEFAULT_RANKING_MIN_UNIVERSE_SIZE (10), so a 2-asset universe never
+    # meets the bar and every rank is NaN (not an error).
+    result = build_cross_sectional_rank_targets(asset_frames, {"phase1": {"target": {}}})
+
+    assert result["A"]["target_rank_5d"].isna().all()
+
+
+def test_build_cross_sectional_rank_targets_computes_both_horizons_independently():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "A": pd.DataFrame(
+            {"date": pd.to_datetime(dates), "target_return_5d": [0.05] * 3, "target_return_20d": [-0.05] * 3}
+        ),
+        "B": pd.DataFrame(
+            {"date": pd.to_datetime(dates), "target_return_5d": [0.01] * 3, "target_return_20d": [0.09] * 3}
+        ),
+    }
+    config = {"phase1": {"target": {"ranking": {"min_universe_size": 2}}}}
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    # A ranks top on the 5d horizon but bottom on the 20d horizon - the two
+    # rank columns must be computed independently, not one derived from
+    # the other.
+    assert (result["A"]["target_rank_5d"] == 1.0).all()
+    assert (result["A"]["target_rank_20d"] == 0.5).all()
 
 
 # ---------------------------------------------------------------------------

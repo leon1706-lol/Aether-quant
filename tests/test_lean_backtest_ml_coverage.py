@@ -28,9 +28,11 @@ STATE_PATH = REPO_ROOT / "visualization" / "state.json"
 # observed taking over an hour wall-clock on this project's Docker Lean
 # runtime - main.py's per-bar model/expert inference (_run_exported_model) is
 # plain Python with no vectorization, run once per asset per bar. The current
-# backtest window (2018-04-01 to 2021-03-31, 20 assets) roughly doubles the
-# per-bar cost from the asset count alone, so the timeout is generous on
-# purpose. This test is meant for a deliberate, occasional run - not a fast
+# backtest window (2019-01-01 to 2021-03-31, 20 assets - widened from
+# 2018-04-01 for a statistically meaningful validation split on multi-horizon
+# targets, see development/Changelog.md) still roughly doubles the per-bar
+# cost from the asset count alone, so the timeout is generous on purpose.
+# This test is meant for a deliberate, occasional run - not a fast
 # per-commit check.
 LEAN_BACKTEST_TIMEOUT_SECONDS = 14400
 
@@ -148,12 +150,16 @@ def test_topology_ran(state_after_backtest):
     assert len(topology.get("nodes") or []) > 0
 
 
-def test_model_input_dimensionality_is_48(state_after_backtest):
-    """Proves the 48-dim regime/liquidity/topology-as-input feature pipeline
-    (train.py::build_feature_dataset() / main.py::_build_model_input())
-    was actually exercised in a real backtest, not just unit-tested."""
+def test_model_input_dimensionality_is_59(state_after_backtest):
+    """Proves the full regime/liquidity/topology/peer-return/technical-
+    indicator-as-input feature pipeline (train.py::build_feature_dataset() /
+    main.py::_build_model_input()) was actually exercised in a real
+    backtest, not just unit-tested. Grew from the original 48 (regime +
+    liquidity + topology) to 59: +4 peer-return features (Phase 5) + 6
+    technical indicators + 1 cross-sectional momentum rank (Phase 6) - see
+    development/Changelog.md."""
     model_config = state_after_backtest.get("config", {}).get("model", {})
-    assert model_config.get("input_count") == 48
+    assert model_config.get("input_count") == 59
 
 
 def test_baseline_multitask_model_ran(state_after_backtest):

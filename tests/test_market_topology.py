@@ -3,7 +3,7 @@ import math
 import pytest
 
 from topology import build_market_topology
-from topology.market_topology import _stress_majorize_2d
+from topology.market_topology import _stress_majorize_2d, rank_correlated_peers
 
 
 def _series(values: list[float], length: int = 8) -> list[float]:
@@ -282,3 +282,79 @@ def test_warm_start_disabled_matches_omitting_previous_positions():
     )
 
     assert without_param.to_dict() == with_explicit_none.to_dict()
+
+
+# ---------------------------------------------------------------------------
+# rank_correlated_peers / TopologyNode.top_peers/top_peer_returns
+# ---------------------------------------------------------------------------
+
+
+def test_rank_correlated_peers_orders_by_descending_correlation():
+    correlations = {("A", "B"): 0.9, ("A", "C"): 0.2, ("A", "D"): 0.5}
+
+    def correlation_fn(symbol_a, symbol_b):
+        if symbol_a == symbol_b:
+            return 1.0
+        key = (symbol_a, symbol_b) if (symbol_a, symbol_b) in correlations else (symbol_b, symbol_a)
+        return correlations.get(key, 0.0)
+
+    result = rank_correlated_peers("A", ["A", "B", "C", "D"], correlation_fn, top_n=2)
+
+    assert result == ["B", "D"]
+
+
+def test_rank_correlated_peers_excludes_self():
+    correlations = {}
+
+    def correlation_fn(symbol_a, symbol_b):
+        return 1.0 if symbol_a == symbol_b else correlations.get((symbol_a, symbol_b), 0.0)
+
+    result = rank_correlated_peers("A", ["A", "B"], correlation_fn, top_n=5)
+
+    assert "A" not in result
+
+
+def test_rank_correlated_peers_breaks_ties_alphabetically():
+    def correlation_fn(symbol_a, symbol_b):
+        return 0.5  # every pair tied
+
+    result = rank_correlated_peers("A", ["A", "C", "B", "D"], correlation_fn, top_n=2)
+
+    assert result == ["B", "C"]
+
+
+def test_build_market_topology_nodes_carry_ranked_peers_and_returns():
+    base = _series([0.01, -0.02, 0.015, 0.005, -0.01, 0.02, 0.03, -0.025])
+    returns = {
+        "AAA": base,
+        "BBB": [value * 1.05 for value in base],  # near-perfectly correlated with AAA
+        "CCC": _series([-0.04, 0.05, -0.06, 0.07, -0.03, 0.02, -0.05, 0.04]),
+    }
+
+    topology = build_market_topology(returns, min_observations=5, top_peers_n=2)
+
+    aaa_node = next(node for node in topology.nodes if node.symbol == "AAA")
+    assert aaa_node.top_peers[0] == "BBB"  # most correlated peer ranked first
+    assert len(aaa_node.top_peers) == 2
+    assert len(aaa_node.top_peer_returns) == 2
+    assert aaa_node.top_peer_returns[0] == returns["BBB"][-1]  # peer's own latest return, no lookahead
+
+
+def test_build_market_topology_isolated_node_has_no_peers():
+    topology = build_market_topology({"AAA": _series([0.01, -0.02, 0.015])}, min_observations=5)
+
+    aaa_node = next(node for node in topology.nodes if node.symbol == "AAA")
+    assert aaa_node.top_peers == []
+    assert aaa_node.top_peer_returns == []
+
+
+def test_build_market_topology_pads_fewer_peers_than_top_peers_n():
+    base = _series([0.01, -0.02, 0.015, 0.005, -0.01, 0.02])
+    returns = {"AAA": base, "BBB": [value * 1.05 for value in base]}
+
+    topology = build_market_topology(returns, min_observations=5, top_peers_n=5)
+
+    aaa_node = next(node for node in topology.nodes if node.symbol == "AAA")
+    # Only 1 possible peer (BBB) exists, even though top_peers_n=5 was requested.
+    assert aaa_node.top_peers == ["BBB"]
+    assert len(aaa_node.top_peer_returns) == 1

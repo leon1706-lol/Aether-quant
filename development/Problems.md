@@ -734,3 +734,197 @@ obstacle to iteration speed), the method this codebase already uses is a
 real `lean backtest .` run plus temporary side-channel disk logging (never
 a persisted timer/profiler class) — see entries #16 and #17 for the exact
 pattern and precedent before building anything new.
+
+---
+
+### 22. `tests/test_retraining_worker.py` silently ran real training (subprocess-level hang, up to ~30 minutes per test)
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+`retraining/worker.py::run_once()` calls `train_multitask(...)` and
+`train_sequence(...)` (added when the multitask/sequence trainers were
+wired into the retraining pipeline) right after `train_topology(...)`/
+`train_gating(...)`. 7 of `tests/test_retraining_worker.py`'s 10 tests
+patch `plan`/`train`/`train_topology`/`train_gating`/`validate`/
+`backtest`/`commit`/`promote`/`status` but were never updated to also
+patch `train_multitask`/`train_sequence` when those two stages were added
+— so in any environment where the real dataset/scaler artifacts exist
+(true here, and true for any real dev checkout), `worker.run_once()` fell
+through to the genuine `retraining.orchestrator.train_multitask()`/
+`train_sequence()` functions, which shell out to real
+`train_multitask.py`/`train_sequence.py` subprocesses with
+`timeout_seconds` of 900/1800 (`config.json`'s
+`phase_v2.retraining.multitask_training`/`sequence_training`). A bare
+`pytest tests/` run would silently sit for up to ~30 minutes on a single
+test with no output, easily misread as a hang/crash rather than a missing
+mock — found while running the full suite for the first time after this
+session's other changes (unrelated to those changes; this gap predates
+them).
+
+**Fixed**: added `patch("retraining.worker.train_multitask")` and
+`patch("retraining.worker.train_sequence")` to all 7 affected tests
+(`test_run_once_auto_promote_false_stops_after_commit`,
+`_true_calls_promote`, `_forced_off_when_runtime_mode_is_live`,
+`_proceeds_when_runtime_mode_is_not_live`,
+`_ignores_live_mode_when_guard_disabled`,
+`test_run_once_stops_when_validation_fails`,
+`test_run_once_calls_train_topology_then_train_gating_between_train_and_validate`),
+matching the file's own existing `train_topology`/`train_gating` mock
+pattern. Verified: the previously-hanging test now completes in ~1.2s;
+the full file (10 tests) now runs in ~1.2s total, down from an unbounded
+hang.
+
+---
+
+### 23. BTCUSD volume-feed unit discontinuity blew up the sequence model's RMSE 31x
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+A root-cause investigation into why the Phase 2 sequence-encoder's
+backtest magnitude RMSE (2.09) was ~31x its own MAE (0.068) — every other
+model's ratio sits at ~1.5-3x — found `ml/datasets/full_dataset.csv`'s
+raw BTCUSD `volume` column jumping from 1.018e4 to 5.302e9 (~520,000x) on
+2018-08-14, a data-feed unit discontinuity (the underlying Coinbase feed
+almost certainly switches from raw-BTC-denominated to aggregated
+USD-denominated volume right at that date, coincidentally also this
+asset's `yfinance` backfill start date — see entry below). The `== 0`-only
+guard in `train.py::engineer_features()`'s `volume_change_1d` computation
+let the resulting `520874.93` (5.2 million percent) pass straight through
+`fit_and_apply_scaler()`'s plain `StandardScaler` (no clipping anywhere),
+producing a `28,038`-standard-deviation scaled feature value.
+`build_sequence_tensor_dataset()`'s sliding window then replicated that
+single poisoned row into the input window of the next 30 rows for that
+ticker, so the causal-TCN's unbounded `head_magnitude` output predicted a
+"-15,247% return" on those rows — reproduced bit-for-bit; 7 consecutive
+BTCUSD rows accounted for 66%+ of the entire backtest sum-of-squared-error.
+The flat (non-sequence) multitask model only ever saw the poisoned row
+once, diluting its effect across ~16,000 backtest rows (ratio ~2.7x,
+"normal"), which is why this bug was invisible in every model except the
+sequence encoder specifically.
+
+**Fixed** with three layered defenses (all in `train.py`, mirrored in
+`main.py::_build_model_input()` for train/runtime parity): (1)
+`volume_change_1d` clamped to `[-1.0, 20.0]` before scaling; (2)
+`fit_and_apply_scaler()` winsorizes the train-split columns (quantiles
+configurable, default `[0.001, 0.999]`) before fitting the scaler, so a
+single extreme value can't distort the fitted mean/std; (3) scaled values
+are clipped to `±scaled_feature_clip_sigma` (default 10.0, persisted into
+`ml/scaler_stats.json` so `main.py` applies the identical bound at
+runtime) — this is the layer that actually kills the poisoned row's
+downstream effect, since layer (2) alone can't help a value that lives in
+the *backtest* split (which the scaler never fits on). Also added a
+regression-quality gate (`assess_regression_quality()`, entry-adjacent)
+so a future RMSE/MAE blowup like this is caught automatically instead of
+requiring a manual investigation. Verified on the real dataset after the
+fix: max absolute scaled value across every column is exactly `10.0`
+(the clip firing correctly), and the retrained sequence model's backtest
+RMSE/MAE ratio is `1.59x`.
+
+---
+
+### 24. `train.py` never applied Lean's own split/dividend factor files — offline dataset had fake ±74%/+745% "returns" Lean's live/backtest engine never sees
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+`train.py::load_lean_bars()` reads each asset's raw daily Lean zip
+directly (a from-scratch CSV/zip reader, bypassing Lean's own data engine
+entirely), so it never applied the split/dividend adjustment Lean's
+`DataNormalizationMode.Adjusted` (the implicit default for
+`main.py`'s runtime `self.add_equity(ticker, self.resolution)`
+subscription, since no explicit mode is passed) already applies live. The
+raw zips store genuinely unadjusted prices — confirmed directly:
+AAPL's real 2020-08-31 4-for-1 split shows as close `499.23 -> 129.04`
+in the raw data (a real, undivided price on each day, not a bug in the
+zip itself), which `engineer_features()`'s `target_return_1d` then turned
+into a fake `-74.15%` "next-day return" purely because the offline
+pipeline never rescaled pre-split history. Same root cause produced
+USO's `+745%` "return" around its real 2020-04-28 1-for-8 reverse split.
+This corrupted `target_return_1d`/`target_direction` labels — and every
+base return/momentum/volatility *feature* spanning the split boundary —
+for every trainer reading `ml/datasets/full_dataset.csv`, for every
+equity that ever had a split or meaningful dividend (confirmed: every
+configured equity except thin-history `AAA` has a non-trivial Lean
+factor file). Lean's own backtest engine was **not** affected by this bug
+(it already reads the correct adjusted prices independently via its own
+factor-file-aware data reader) — this was purely a train/runtime feature-
+parity gap between `train.py`'s offline reconstruction and what
+`main.py`'s real backtest already saw correctly.
+
+**Fixed**: new `train.py::apply_split_adjustments()` reads each equity's
+Lean factor file (`data/equity/usa/factor_files/<ticker>.csv`, the exact
+file Lean's engine itself already reads) and, for each raw bar dated `D`,
+finds the factor-file row with the smallest date `>= D`
+(`pd.merge_asof(direction="forward")`, Lean's own lookup convention),
+multiplying `open/high/low/close` by that row's `price_factor *
+split_factor` and dividing `volume` by `split_factor` alone. Called from
+`load_lean_bars()` for every equity asset (crypto has no factor-file
+concept, skipped). No `main.py` mirror needed — Lean's engine already did
+this correctly at runtime; only `train.py`'s independent reader was
+missing it. Verified on the real dataset: AAPL's close now goes smoothly
+`124.41 -> 128.63` across the split boundary (a normal ~3.4% day, not
+-74%), USO goes `17.04 -> 18.00` (~5.6%, not +745%), and
+`full_dataset.csv`'s backtest-split `target_return_1d` range is now
+`[-0.50, 1.37]` (all real, mostly-crypto moves within the configured
+per-security-type bounds) instead of containing `7.45`/`-0.74`.
+
+Also fixed for consistency/future-proofing (not the actual source of the
+AAPL/USO corruption, which predates any code touching splits at all):
+`data_pipeline/yfinance_backfill.py`'s `fetch_yahoo_ohlcv()` used
+`yf.download(..., auto_adjust=False)` — harmless today since only crypto
+assets (no splits) use this backfill path, but would reintroduce the same
+class of bug if this module or its `aq fetch` sibling is ever pointed at
+an equity with an upcoming split. Flipped to `auto_adjust=True`.
+
+Defense-in-depth also added directly in `engineer_features()`: a
+per-security-type label-outlier guard (`max_abs_daily_return`, default
+`{"equity": 0.5, "crypto": 1.5}`, extended to `max_abs_return_5d`/`_20d`
+for the Phase 3 multi-horizon targets) NaNs out any single-day return
+outside the configured bound regardless of cause, dropped by the existing
+dropna — a safety net for any *future* unadjusted-price scenario this
+factor-file fix doesn't anticipate (e.g. a brand-new ticker added via `aq
+fetch` before its factor file exists locally).
+
+---
+
+### 25. No quality gate ever existed for regression heads (magnitude/volatility/rank) — only direction MCC was gated
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+`train.py::assess_expert_quality()` gates direction models on MCC/balanced-
+accuracy/train-backtest-gap, but nothing gated the magnitude/volatility
+regression heads (`train_multitask.py`/`train_sequence.py`) at all — which
+is exactly how entry #23's 31x RMSE/MAE blowup shipped into the active
+`ml/` artifacts silently for an entire session before being noticed.
+
+**Fixed**: new `train.py::assess_regression_quality()`, mirroring
+`assess_expert_quality()`'s `failures`/`near_misses`/`quality_status`
+shape, gating on `backtest_rmse/backtest_mae` ratio (default max `4.0`)
+and `backtest_rmse/train_rmse` ratio (default max `3.0`). Wired into both
+`train_multitask.py` and `train_sequence.py`, writing
+`magnitude_quality`/`volatility_quality` blocks into each trainer's
+`*_training_metrics.json` and now surfaced on the `/neural-network` webui
+page (`monitoring/neural_network_state.py`'s `regression_quality` field).
+
+---
+
+### 26. `main.py`'s sequence-model runtime buffer size never read the trained model's own `window_size`
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+`main.py` set `self.sequence_window_size` from `config.json`'s
+`phase_v2.sequence_model.window_size` alone, never from the already-loaded
+`sequence_feature_schema.json`'s own `window_size` field (written by
+`train_sequence.py`, read into `self.sequence_feature_schema` but never
+consulted for this). A retrained candidate sequence model with a
+different `window_size` than `config.json` currently specifies would
+silently disable the sequence signal entirely: `main.py` would build its
+rolling `symbol_feature_history` buffer at the *old/configured* length,
+then feed it into `run_exported_sequence_multitask_model()`'s Conv1d
+stack sized for the *new* window — a shape mismatch caught by
+`_run_sequence_model()`'s blanket `except Exception`, which silently
+returns "no sequence prediction this bar" rather than failing loudly or
+auto-adopting the new window size. No version/compat field exists in
+`sequence_model.json` to detect this proactively.
+
+**Fixed**: new `inference/exported_model.py::resolve_sequence_window_size()`
+(a pure function, extracted there specifically so it's unit-testable
+without a Lean `QCAlgorithm` environment, which `main.py` itself can't be
+instantiated in for testing) — the trained model's own
+`sequence_feature_schema.json` `window_size` now wins over
+`config.json`'s value whenever a schema is loaded at all, falling back to
+config only when no sequence model is loaded (missing/malformed file).
