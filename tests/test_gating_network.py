@@ -360,3 +360,117 @@ def test_expert_gate_weight_carries_magnitude_and_volatility_through():
     assert bullish_weight.volatility == 0.01
     assert bearish_weight.magnitude is None
     assert bearish_weight.volatility is None
+
+
+def test_sequence_prediction_is_ignored_when_weight_is_zero():
+    """Default sequence_weight=0.0 must be byte-identical to omitting
+    sequence_prediction entirely - the off-by-default, no-op contract
+    every other new-signal integration in this codebase follows."""
+    kwargs = dict(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        baseline_magnitude=0.01,
+        baseline_volatility=0.012,
+        expert_magnitudes={"bullish": 0.02, "bearish": -0.01, "sideways": 0.0, "volatility": 0.03},
+        expert_volatilities={"bullish": 0.01, "bearish": 0.015, "sideways": 0.005, "volatility": 0.04},
+    )
+    without_sequence = build_gating_decision(**kwargs)
+    with_zero_weight = build_gating_decision(
+        **kwargs, sequence_prediction={"direction": 0.9, "magnitude": 0.5, "volatility": 0.5}, sequence_weight=0.0
+    )
+
+    assert with_zero_weight.final_probability_up == without_sequence.final_probability_up
+    assert with_zero_weight.final_magnitude == without_sequence.final_magnitude
+    assert with_zero_weight.final_volatility == without_sequence.final_volatility
+    assert with_zero_weight.sequence_blended is False
+    assert without_sequence.sequence_blended is False
+
+
+def test_sequence_prediction_is_ignored_when_none_even_with_positive_weight():
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        sequence_prediction=None,
+        sequence_weight=0.3,
+    )
+
+    assert decision.sequence_blended is False
+
+
+def test_sequence_prediction_blends_probability_magnitude_and_volatility():
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        baseline_magnitude=0.01,
+        baseline_volatility=0.012,
+        expert_magnitudes={"bullish": 0.02, "bearish": -0.01, "sideways": 0.0, "volatility": 0.03},
+        expert_volatilities={"bullish": 0.01, "bearish": 0.015, "sideways": 0.005, "volatility": 0.04},
+        sequence_prediction={"direction": 0.9, "magnitude": 0.05, "volatility": 0.08},
+        sequence_weight=0.2,
+    )
+    pre_sequence = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        baseline_magnitude=0.01,
+        baseline_volatility=0.012,
+        expert_magnitudes={"bullish": 0.02, "bearish": -0.01, "sideways": 0.0, "volatility": 0.03},
+        expert_volatilities={"bullish": 0.01, "bearish": 0.015, "sideways": 0.005, "volatility": 0.04},
+    )
+
+    expected_probability = 0.2 * 0.9 + 0.8 * pre_sequence.final_probability_up
+    expected_magnitude = 0.2 * 0.05 + 0.8 * pre_sequence.final_magnitude
+    expected_volatility = 0.2 * 0.08 + 0.8 * pre_sequence.final_volatility
+
+    assert decision.final_probability_up == pytest.approx(expected_probability, abs=1e-9)
+    assert decision.final_magnitude == pytest.approx(expected_magnitude, abs=1e-9)
+    assert decision.final_volatility == pytest.approx(expected_volatility, abs=1e-9)
+    assert decision.sequence_blended is True
+
+
+def test_sequence_prediction_applies_on_top_of_learned_gating_override():
+    """The sequence blend must apply after decision_source has already
+    been resolved to "learned_gating", not just the hardcoded blend -
+    it's a final layered adjustment regardless of which path produced
+    final_probability first."""
+    gating_model = {
+        "export": {
+            "architecture": [
+                {
+                    "type": "linear",
+                    "weight_key": "w",
+                    "bias_key": "b",
+                    "in_features": len(GATING_MODEL_FEATURE_KEYS),
+                    "out_features": 1,
+                },
+                {"type": "sigmoid"},
+            ],
+            "state_dict": {
+                "w": [[0.0] * len(GATING_MODEL_FEATURE_KEYS)],
+                "b": [2.0],  # sigmoid(2.0) ~= 0.8808, independent of input
+            },
+        }
+    }
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=_metrics(),
+        expert_probabilities={"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20},
+        baseline_probability_up=0.55,
+        gating_model=gating_model,
+        gating_feature_schema={"input_order": list(GATING_MODEL_FEATURE_KEYS)},
+        sequence_prediction={"direction": 0.1, "magnitude": None, "volatility": None},
+        sequence_weight=0.5,
+    )
+
+    assert decision.decision_source == "learned_gating"
+    learned_probability = 1.0 / (1.0 + math.exp(-2.0))
+    expected_probability = 0.5 * 0.1 + 0.5 * learned_probability
+    assert decision.final_probability_up == pytest.approx(expected_probability, abs=1e-9)
+    assert decision.sequence_blended is True

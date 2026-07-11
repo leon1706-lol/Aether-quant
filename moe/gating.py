@@ -54,6 +54,7 @@ class GatingDecision:
     decision_source: str
     final_magnitude: float | None = None
     final_volatility: float | None = None
+    sequence_blended: bool = False
 
     def to_dict(self) -> dict:
         payload = asdict(self)
@@ -194,6 +195,8 @@ def build_gating_decision(
     expert_volatilities: dict[str, float | None] | None = None,
     baseline_magnitude: float | None = None,
     baseline_volatility: float | None = None,
+    sequence_prediction: dict | None = None,
+    sequence_weight: float = 0.0,
 ) -> GatingDecision:
     expert_magnitudes = expert_magnitudes or {}
     expert_volatilities = expert_volatilities or {}
@@ -321,6 +324,46 @@ def build_gating_decision(
         except Exception:
             pass
 
+    # Optional Phase 2 sequence-encoder blend (causal TCN, see
+    # inference/README.md) - applied last, on top of whichever
+    # final_probability/final_magnitude/final_volatility the blend above
+    # (hardcoded or learned_gating) already produced, so it works
+    # regardless of decision_source. Same "anchor blend" shape
+    # baseline_weight already uses (weight * new_value + (1 - weight) *
+    # existing_value), clamped to [0, 1] so it can only interpolate toward
+    # the sequence model's prediction, never overshoot past it. Off by
+    # default (sequence_weight=0.0) - byte-identical to pre-existing
+    # behavior until phase_v2.gating_network.sequence_weight is set above
+    # zero, matching risk/position_sizing.py's use_predicted_volatility
+    # convention for a new signal that changes a real trading decision
+    # (final_probability_up), not just a shrink-only sizing multiplier.
+    sequence_blended = False
+    if sequence_prediction and sequence_weight > 0.0:
+        clamped_sequence_weight = _clamp(sequence_weight, 0.0, 1.0)
+        sequence_direction = sequence_prediction.get("direction")
+        if sequence_direction is not None:
+            final_probability = (
+                clamped_sequence_weight * _clamp(sequence_direction)
+                + (1.0 - clamped_sequence_weight) * final_probability
+            )
+            sequence_blended = True
+        sequence_magnitude = sequence_prediction.get("magnitude")
+        if sequence_magnitude is not None:
+            final_magnitude = (
+                sequence_magnitude
+                if final_magnitude is None
+                else clamped_sequence_weight * sequence_magnitude + (1.0 - clamped_sequence_weight) * final_magnitude
+            )
+            sequence_blended = True
+        sequence_volatility = sequence_prediction.get("volatility")
+        if sequence_volatility is not None:
+            final_volatility = (
+                sequence_volatility
+                if final_volatility is None
+                else clamped_sequence_weight * sequence_volatility + (1.0 - clamped_sequence_weight) * final_volatility
+            )
+            sequence_blended = True
+
     return GatingDecision(
         final_probability_up=_clamp(final_probability),
         baseline_probability_up=None if baseline_probability_up is None else _clamp(baseline_probability_up),
@@ -331,4 +374,5 @@ def build_gating_decision(
         decision_source=decision_source,
         final_magnitude=final_magnitude,
         final_volatility=final_volatility,
+        sequence_blended=sequence_blended,
     )

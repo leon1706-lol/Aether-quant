@@ -224,6 +224,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.regime_high_correlation_threshold = float(phase_v2_regime.get("high_correlation_threshold", 0.75))
         self.gating_baseline_weight = float(phase_v2_gating.get("baseline_weight", 0.25))
         self.gating_learned_model_enabled = bool(phase_v2_gating.get("learned_model_enabled", True))
+        # Optional Phase 2 sequence-encoder blend into the gating decision
+        # (moe/gating.py::build_gating_decision()'s sequence_prediction/
+        # sequence_weight params) - off by default (0.0), matching
+        # use_predicted_volatility's convention for any new signal that
+        # changes final_probability_up itself, not just a sizing
+        # multiplier. See moe/README.md.
+        self.gating_sequence_weight = float(phase_v2_gating.get("sequence_weight", 0.0))
         phase_v2_multitask = self.phase_v2.get("multitask_model", {})
         self.multitask_model_enabled = bool(phase_v2_multitask.get("enabled", True))
         self.use_predicted_volatility = bool(phase_v2_risk.get("use_predicted_volatility", False))
@@ -248,8 +255,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.multitask_model, self.multitask_feature_schema = self._load_multitask_model()
         self.expert_multitask_model_exports = self._load_expert_multitask_exports()
 
-        # Phase 2 (sequence encoder, additive/informational-only this
-        # pass): a per-symbol rolling buffer of already-computed flat
+        # Phase 2 (sequence encoder, additive/graceful-fallback; can
+        # optionally blend into gating - see gating_sequence_weight above):
+        # a per-symbol rolling buffer of already-computed flat
         # model_inputs vectors (see _build_model_input()) - reusing that
         # vector directly, not recomputing regime/liquidity/topology per
         # historical bar, matches train.py::build_sequence_tensor_dataset()'s
@@ -372,8 +380,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # rather than recomputed, so the value gating/analyzer/
                 # dashboard see always matches what the model actually saw.
                 regime_payload = feature_payload["regime_payload"]
-                # Phase 2 (informational only - never feeds sizing/gating
-                # this pass, see _run_sequence_model()'s docstring):
+                # Phase 2 (see _run_sequence_model()'s docstring; the
+                # resulting prediction can optionally blend into gating
+                # below via gating_sequence_weight, off by default):
                 # append this bar's flat model_inputs to the rolling
                 # per-symbol buffer BEFORE reading it, so the sequence
                 # model's most-recent timestep is always the current bar,
@@ -401,6 +410,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     expert_volatilities=expert_volatilities,
                     baseline_magnitude=baseline_magnitude,
                     baseline_volatility=baseline_volatility,
+                    sequence_prediction=sequence_prediction,
+                    sequence_weight=self.gating_sequence_weight,
                 ).to_dict()
                 probability_up = float(gating_payload["final_probability_up"])
                 # Same gating-blended treatment probability_up already gets
@@ -639,9 +650,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         """Optional artifact pair (train_sequence.py, Phase 2), identical
         fallback contract to _load_multitask_model(): missing/malformed
         files just mean the sequence-model signal stays absent from
-        signal_payload - informational only this pass (see on_data()'s
-        sequence_prediction threading), never a hard failure and never a
-        trading-decision input yet."""
+        signal_payload and gating (see on_data()'s sequence_prediction
+        threading, gating_sequence_weight), never a hard failure."""
         if not self.sequence_model_enabled:
             return None, None
         if not self.sequence_model_path.exists() or not self.sequence_feature_schema_path.exists():
@@ -906,9 +916,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         yet, matching train.py::build_sequence_tensor_dataset()'s exact
         offline zero-padding convention.
 
-        Informational only this pass, same graceful-degradation contract
-        as _run_multitask_model(): returns None on any failure or when no
-        model is loaded, never raises, never blocks a bar."""
+        Same graceful-degradation contract as _run_multitask_model():
+        returns None on any failure or when no model is loaded, never
+        raises, never blocks a bar. The result can optionally blend into
+        the gating decision (build_gating_decision(sequence_prediction=...,
+        sequence_weight=self.gating_sequence_weight)) - off by default,
+        see moe/README.md."""
         if not self.sequence_model:
             return None
         history = self.symbol_feature_history.get(symbol)
@@ -1319,6 +1332,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "expert_exports_loaded": sorted(self.expert_model_exports.keys()),
                     "gating_metrics_loaded": bool(self.expert_training_metrics),
                     "baseline_weight": self.gating_baseline_weight,
+                    "sequence_weight": self.gating_sequence_weight,
                 },
                 "multitask": {
                     "model_loaded": bool(self.multitask_model),
@@ -1327,7 +1341,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "sequence": {
                     "model_loaded": bool(self.sequence_model),
                     "window_size": self.sequence_window_size,
-                    "informational_only": True,
+                    # False once phase_v2.gating_network.sequence_weight > 0
+                    # actually blends the sequence model into
+                    # final_probability_up/final_magnitude/final_volatility
+                    # (moe/gating.py) - True (the pre-existing, still-default
+                    # behavior) whenever that weight is 0.
+                    "informational_only": self.gating_sequence_weight <= 0.0,
                 },
             },
             "paper_trading": {

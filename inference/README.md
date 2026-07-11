@@ -107,10 +107,14 @@ well under float32 tolerance:
 
 `run_exported_model()`/`run_exported_multitask_model()` are completely
 untouched by any of this — new functions alongside them, zero regression
-risk. `main.py::_run_sequence_model()` is the runtime call site:
-optional, additive, graceful-fallback, and **informational only this
-pass** — it does not feed gating, the analyzer, or position sizing (see
-`moe/README.md`'s scope note and `development/Changelog.md`).
+risk. `main.py::_run_sequence_model()` is the runtime call site: optional,
+additive, graceful-fallback. Its prediction can now optionally blend into
+`moe/gating.py::build_gating_decision()`'s `final_probability_up`/
+`final_magnitude`/`final_volatility` (`phase_v2.gating_network.sequence_weight`,
+default `0.0` — off, byte-identical fallback) — see `moe/README.md`'s
+"Phase 2 sequence encoder now optionally blends into the gating decision"
+section for why gating was chosen over a direct market-analyzer or
+position-sizing wire, and `development/Changelog.md`.
 
 ## Testing
 

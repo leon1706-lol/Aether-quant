@@ -102,3 +102,65 @@ section originally documented was resolved, not abandoned.
 
 See `development/Changelog.md`'s "Phase 1 remainder + Phase 2" entry for
 the full writeup.
+
+## Phase 2 sequence encoder now optionally blends into the gating decision
+
+**Evaluated all three candidate integration points — gating, market
+analyzer, position sizing — and chose gating.** The sequence encoder
+(`train.py::AetherNetSequenceMultiTask`, see `inference/README.md`'s
+Phase 2 section) was, until this pass, informational-only: computed every
+bar but never reached a trading decision. Gating is the natural fit
+because it is already the single funnel every other prediction source
+(baseline, experts, multitask heads) passes through before
+`final_probability_up`/`final_magnitude`/`final_volatility` reach the
+market analyzer and position sizing — adding the sequence model here
+means analyzer and sizing benefit automatically, with no separate wiring
+and no risk of the two paths disagreeing. The market analyzer was
+deliberately **not** given its own direct sequence-model input — it stays
+the one fully deterministic decision layer in the system (see
+`analyzer/README.md`), the same reasoning that already kept
+`topology_confidence`/`topology_disagreement` and the multitask
+magnitude/volatility fields out of its routing logic. Position sizing was
+not given a second, parallel sequence-model input either — it already
+optionally consumes `final_volatility` (`risk/README.md`'s "Predicted
+volatility" section), so once the sequence model contributes to that same
+`final_volatility` via gating, sizing benefits transitively without a
+duplicate code path that could drift out of sync.
+
+- `build_gating_decision(..., sequence_prediction=None, sequence_weight=0.0)`
+  gains two new optional params. `sequence_prediction` is the exact
+  `{"direction", "magnitude", "volatility"}` dict
+  `main.py::_run_sequence_model()` already produces (or `None`). The
+  blend is applied **last**, after the hardcoded blend or the learned-
+  gating override has already produced `final_probability_up`/
+  `final_magnitude`/`final_volatility` — same "anchor blend" shape
+  `baseline_weight` already uses (`sequence_weight × sequence_value + (1 −
+  sequence_weight) × existing_value`), so it works identically regardless
+  of `decision_source`. Each of the 3 fields blends independently — a
+  partial `sequence_prediction` (e.g. only `direction` present) still
+  blends whichever fields are non-`None`.
+- New `GatingDecision.sequence_blended: bool` (default `False`) flags
+  whether the sequence model actually contributed to this bar's decision
+  — `True` only when `sequence_prediction` was present and
+  `sequence_weight > 0`. Kept as its own orthogonal field rather than a
+  new `decision_source` value, matching how `final_magnitude`/
+  `final_volatility` already don't have their own `decision_source`
+  variants either.
+- **Off by default** (`phase_v2.gating_network.sequence_weight: 0.0`) —
+  byte-identical to pre-this-change behavior whenever it's `0.0` or
+  `sequence_prediction` is `None` (model not loaded, or the per-symbol
+  30-bar history buffer isn't full yet). This mirrors
+  `phase_v2.dynamic_risk.use_predicted_volatility`'s convention for any
+  new signal that changes a real trading decision
+  (`final_probability_up` itself, not just a shrink-only sizing
+  multiplier) — deliberately more conservative than
+  `topology_sizing_multiplier()`'s default-`true` shrink-only factor,
+  since this can move the probability in either direction. Set a nonzero
+  weight (e.g. `0.2`, the same order of magnitude as `baseline_weight`'s
+  default `0.25`) to actually exercise it in a backtest.
+- Wired via `main.py`: `self.gating_sequence_weight` (config-parsed
+  alongside `self.gating_baseline_weight`) and the already-computed
+  `sequence_prediction` (from `self._run_sequence_model()`) are both
+  passed into `build_gating_decision(...)`. The runtime state's
+  `config.model.sequence.informational_only` flag now reflects this —
+  `True` only while `sequence_weight` stays at its default `0.0`.

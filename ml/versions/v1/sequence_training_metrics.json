@@ -2,7 +2,7 @@
   "project": "aether_quant",
   "phase": "sequence_multitask_phase2",
   "version_id": "v1",
-  "trained_at": "2026-07-10T23:12:58.382370+00:00",
+  "trained_at": "2026-07-11T10:33:06.649785+00:00",
   "window_size": 30,
   "channels": [
     32,

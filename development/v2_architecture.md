@@ -649,6 +649,21 @@ consume `final_volatility` in place of the backward-looking
 `moe/README.md`'s "now routes through gating" section and
 `risk/README.md`.
 
+**Follow-up: the Phase 2 sequence encoder can also optionally blend in.**
+`build_gating_decision(..., sequence_prediction=None, sequence_weight=0.0)`
+applies a final anchor-blend (`sequence_weight × sequence_value + (1 −
+sequence_weight) × existing_value`, same shape `baseline_weight` uses) to
+`final_probability_up`/`final_magnitude`/`final_volatility` after
+everything above — including the learned-gating override, unlike the
+magnitude/volatility blend which the learned override never touches. Off
+by default (`phase_v2.gating_network.sequence_weight: 0.0`); new
+`GatingDecision.sequence_blended: bool` flags whether it actually fired
+this bar. Chosen over a direct market-analyzer or position-sizing wire
+specifically because gating is the one point every other prediction
+source already funnels through — see `moe/README.md`'s "Phase 2 sequence
+encoder now optionally blends into the gating decision" section for the
+full reasoning, and the Phase 2 Sequence Encoder Contract above.
+
 ## Market Analyzer Contract
 
 `analyzer/market_analyzer.py` is the single deterministic decision layer. It receives the outputs of all upstream modules (MoE gating, regime, topology, liquidity, risk) and emits exactly one action category per asset per bar.
@@ -907,7 +922,7 @@ Follow-up above) does, so `gating` is always rendered here — `not_trained`
 until a learned gating model actually exists, `trained` once one does,
 same graceful-degrade contract as every other network.
 
-**Extended to 11 networks total (multitask/sequence pass).** In addition
+**Extended to 12 networks total (multitask/sequence pass).** In addition
 to the original 6 (baseline, 4 experts, gating), `build_neural_network_state()`
 now also reads `ml/multitask_model.json` (`baseline_multitask`),
 `ml/expert_models/{bullish,bearish,sideways,volatility}/multitask_model.json`
@@ -980,12 +995,21 @@ verify bit-for-bit end-to-end.
 - `main.py::_run_sequence_model()` is the runtime call site: optional,
   additive, graceful-fallback (missing/malformed export → `None`), reading
   a per-symbol rolling `deque` (`self.symbol_feature_history`, independent
-  of `self.symbol_windows`) of this bar's `model_inputs`.
-  **Informational only this pass** — it does not feed gating, the
-  analyzer, or position sizing; the prediction is threaded into
-  `signal_payload["sequence_model"]` (dashboard) and the experience event
-  (`sequence_model` field, see the Redis Experience Queue section) but
-  never a trading decision.
+  of `self.symbol_windows`) of this bar's `model_inputs`. The prediction
+  is always threaded into `signal_payload["sequence_model"]` (dashboard)
+  and the experience event (`sequence_model` field, see the Redis
+  Experience Queue section).
+- **Follow-up: can optionally blend into the gating decision
+  (multitask/sequence integration pass).** Evaluated as a candidate
+  direct input to gating, the market analyzer, and position sizing —
+  gating was chosen (see Gating Network Contract's Follow-up below and
+  `moe/README.md`) since it is the one funnel every other prediction
+  source already passes through before reaching the analyzer/sizing.
+  **Off by default** (`phase_v2.gating_network.sequence_weight: 0.0`) —
+  byte-identical to the original informational-only behavior until set
+  above zero. The market analyzer and position sizing were deliberately
+  **not** given a second, direct sequence-model input of their own — see
+  `analyzer/README.md` and `risk/README.md` for why.
 
 See `inference/README.md`'s Phase 2 section for the fuller interpreter
 writeup and `development/Changelog.md`'s "Phase 1 remainder + Phase 2"

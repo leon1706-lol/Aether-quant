@@ -3,7 +3,7 @@
   "phase": "v2_sequence_multitask_model",
   "version_id": "v1",
   "status": "trained",
-  "trained_at": "2026-07-10T23:12:58.382370+00:00",
+  "trained_at": "2026-07-11T10:33:06.649785+00:00",
   "model": {
     "type": "sequence_multitask_direction_magnitude_volatility",
     "model_input_features": [

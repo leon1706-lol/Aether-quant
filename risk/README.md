@@ -80,3 +80,12 @@ statistic.
   `_weighted_blend()`), not directly from the single baseline-scale
   multitask model. See `moe/README.md`'s "now routes through gating"
   section.
+- **Follow-up:** `final_volatility` (and therefore `predicted_volatility`
+  here, when `use_predicted_volatility` is on) now also transitively
+  includes the Phase 2 sequence encoder's contribution whenever
+  `phase_v2.gating_network.sequence_weight` is enabled — see
+  `moe/README.md`'s "Phase 2 sequence encoder now optionally blends into
+  the gating decision" section, which explains why gating (not a second,
+  parallel input here) was chosen as the integration point: this module
+  already has exactly one volatility-forecast input, and adding a second
+  one directly would risk the two silently disagreeing.

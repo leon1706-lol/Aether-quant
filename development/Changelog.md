@@ -1590,7 +1590,7 @@ closed now (one, `requirements-retraining-worker.txt` already covering
   passes the already-computed `sequence_prediction` through. No Postgres
   migration — the whole event dict already serializes into the catch-all
   `payload JSONB` column.
-- **Neural-network webui page extended to all 11 real networks.**
+- **Neural-network webui page extended to all 12 real networks.**
   `monitoring/neural_network_state.py::_parse_network_export()` now
   dispatches between the original flat `architecture` shape and the new
   branching `{"trunk", "heads"}` shape (`_parse_branching_network_export()`),
@@ -1610,7 +1610,7 @@ closed now (one, `requirements-retraining-worker.txt` already covering
   longer matched the code (gating has been rendered as a real network,
   not excluded, since that work shipped).
 - **`development/v2_architecture.md` updated**: the Neural Network
-  Visualization Contract section now documents all 11 networks and the
+  Visualization Contract section now documents all 12 networks and the
   branching export shape; a new "Model input dimensionality is 48, not
   30" sub-block on the Expert Model Contract; a new Follow-up paragraph on
   the Gating Network Contract for the magnitude/volatility blend; a new
@@ -1649,3 +1649,58 @@ only when the Lean CLI is available locally (self-skips otherwise, same
 as the rest of that file). `npx tsc -b --noEmit` in `webui/` — clean, no
 type errors from the `NeuralNetworkModel`/`NeuralNetworkLayer` type
 extensions or `NeuralNetworkScene3D.tsx`'s head-column expansion.
+
+## Phase 2 sequence encoder wired into the gating decision (optional, off by default)
+
+Closes the one deliberate scope boundary every prior entry above kept
+restating: the sequence encoder was informational-only, computed every
+bar but never reaching a trading decision. This pass evaluates all three
+candidate integration points — gating, the market analyzer, position
+sizing — and wires it into gating specifically, since gating is the one
+funnel every other prediction source (baseline, experts, multitask heads)
+already passes through before the analyzer/sizing ever see a number. The
+market analyzer and position sizing were deliberately **not** given a
+second, direct sequence-model input — see `analyzer/README.md`/
+`risk/README.md`'s new Follow-up notes for why (staying deterministic;
+avoiding two volatility forecasts that could silently disagree).
+
+- `moe/gating.py::build_gating_decision()` gains `sequence_prediction`
+  (the `{"direction", "magnitude", "volatility"}` dict
+  `main.py::_run_sequence_model()` already produces) and `sequence_weight`
+  (default `0.0`). Applied last — after the hardcoded blend or the
+  learned-gating override has already produced `final_probability_up`/
+  `final_magnitude`/`final_volatility` — as the same anchor-blend shape
+  `baseline_weight` already uses. New `GatingDecision.sequence_blended: bool`
+  flags whether it actually fired this bar.
+- **Off by default**, matching `phase_v2.dynamic_risk.use_predicted_volatility`'s
+  convention for any new signal that changes a real trading decision
+  (here, `final_probability_up` itself) rather than
+  `topology_sizing_multiplier()`'s default-on shrink-only convention —
+  byte-identical to the prior informational-only behavior until
+  `phase_v2.gating_network.sequence_weight` is set above `0.0`. Set it
+  (e.g. `0.2`, the same order of magnitude as `baseline_weight`'s default
+  `0.25`) to actually exercise the sequence model in a backtest.
+- `main.py`: new `self.gating_sequence_weight` (config-parsed alongside
+  `self.gating_baseline_weight`), passed into `build_gating_decision()`
+  alongside the already-computed `sequence_prediction`. The runtime
+  state's `config.model.sequence.informational_only` flag is now dynamic
+  (`self.gating_sequence_weight <= 0.0`) instead of a hardcoded `True`, so
+  the dashboard/API reflects reality once the weight is enabled.
+- `config.json`: `phase_v2.gating_network.sequence_weight: 0.0` (new key).
+- New tests in `tests/test_gating_network.py`: zero-weight no-op
+  (byte-identical to omitting `sequence_prediction` entirely), `None`
+  prediction with positive weight (still a no-op), full blend arithmetic
+  across all 3 fields, and blending on top of an already-`"learned_gating"`
+  `decision_source` (proves it layers on regardless of which path produced
+  the pre-blend values).
+- Docs: `moe/README.md` gets the full design writeup (why gating, not
+  analyzer/sizing); `inference/README.md`, `analyzer/README.md`,
+  `risk/README.md` and `development/v2_architecture.md`'s Gating Network
+  Contract and Phase 2 Sequence Encoder Contract all get Follow-up notes
+  correcting the now-stale "informational only, never a trading decision"
+  claims each had made.
+
+### Verification
+
+`pytest tests/test_gating_network.py` — 23 passed (18 pre-existing + 5
+new). Full-suite `aq test` run pending (see the test badge).

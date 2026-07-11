@@ -2,7 +2,7 @@
   "project": "aether_quant",
   "phase": "multitask_direction_magnitude_volatility",
   "version_id": "v1",
-  "trained_at": "2026-07-10T23:10:24.769503+00:00",
+  "trained_at": "2026-07-11T10:30:59.242303+00:00",
   "row_counts": {
     "train": 12844,
     "validation": 1304,

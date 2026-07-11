@@ -344,7 +344,8 @@
         },
         "gating_network": {
             "baseline_weight": 0.25,
-            "learned_model_enabled": true
+            "learned_model_enabled": true,
+            "sequence_weight": 0.0
         },
         "multitask_model": {
             "enabled": true

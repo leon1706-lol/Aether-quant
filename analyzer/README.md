@@ -94,3 +94,14 @@ risk engine, and before action categorization / Lean order placement.
   enabled. Always `None` when no multitask model is loaded (or the model
   call failed), matching every other optional-model fallback contract in
   this codebase.
+  - **Follow-up:** these two fields now transitively reflect the Phase 2
+    sequence encoder too, whenever `phase_v2.gating_network.sequence_weight`
+    is enabled (`moe/README.md`'s "Phase 2 sequence encoder now optionally
+    blends into the gating decision" section) — `main.py` reads them from
+    `gating_payload["final_magnitude"/"final_volatility"]`, which the
+    sequence blend adjusts before this module ever sees them. No change
+    to this module was needed or made: it was evaluated as a candidate
+    direct-integration point for the sequence model and deliberately
+    passed over in favor of gating, for the same "stay fully
+    deterministic" reason the topology-elevated/isolated rules and the
+    composite signal score above already establish.
