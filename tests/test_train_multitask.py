@@ -21,6 +21,7 @@ from train import (
     AetherNetMultiTask,
     AetherNetMultiTaskHorizons,
     compute_combined_multitask_loss,
+    export_multitask_horizons_architecture,
     find_optimal_masked_threshold,
     resolve_horizon_head_config,
 )
@@ -37,17 +38,17 @@ def _sample_frame() -> pd.DataFrame:
             {
                 "f1": 0.1, "f2": -0.2, "target_direction": 1, "target_return_1d": 0.01,
                 "target_volatility_next_day": 0.02, "target_direction_5d": 1.0, "target_direction_20d": 0.0,
-                "target_rank_5d": 0.8, "target_rank_20d": np.nan,
+                "target_rank_5d": 0.8, "target_rank_20d": np.nan, "target_sector_neutral_rank_20d": 0.7,
             },
             {
                 "f1": -0.1, "f2": 0.2, "target_direction": 0, "target_return_1d": -0.01,
                 "target_volatility_next_day": 0.03, "target_direction_5d": 0.0, "target_direction_20d": np.nan,
-                "target_rank_5d": 0.2, "target_rank_20d": 0.5,
+                "target_rank_5d": 0.2, "target_rank_20d": 0.5, "target_sector_neutral_rank_20d": np.nan,
             },
             {
                 "f1": 0.0, "f2": 0.0, "target_direction": 1, "target_return_1d": 0.0,
                 "target_volatility_next_day": 0.01, "target_direction_5d": np.nan, "target_direction_20d": 1.0,
-                "target_rank_5d": 0.5, "target_rank_20d": 0.9,
+                "target_rank_5d": 0.5, "target_rank_20d": 0.9, "target_sector_neutral_rank_20d": 0.4,
             },
         ]
     )
@@ -117,18 +118,44 @@ def test_aether_net_multitask_forward_returns_three_scalars_per_row():
 # ---------------------------------------------------------------------------
 
 
-def test_aether_net_multitask_horizons_forward_returns_seven_heads():
+def test_aether_net_multitask_horizons_forward_returns_eight_heads():
     model = AetherNetMultiTaskHorizons(input_dim=2, hidden_layers=[4], dropout=0.0, activation="relu", normalization="none")
     model.eval()
 
     with torch.no_grad():
         outputs = model(torch.zeros((3, 2), dtype=torch.float32))
 
-    expected_heads = {"direction", "magnitude", "volatility", "direction_5d", "direction_20d", "rank_5d", "rank_20d"}
+    expected_heads = {
+        "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
+        "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+    }
     assert set(outputs.keys()) == expected_heads
     for head_name, tensor in outputs.items():
         assert tensor.shape == (3,)
     assert torch.all(outputs["volatility"] >= 0.0)
+
+
+def test_export_multitask_horizons_architecture_shape():
+    model = AetherNetMultiTaskHorizons(input_dim=4, hidden_layers=[6, 6], dropout=0.1, activation="relu", normalization="none")
+
+    export = export_multitask_horizons_architecture(model)
+
+    assert set(export.keys()) == {"trunk", "heads"}
+    assert set(export["heads"].keys()) == {
+        "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
+        "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+    }
+
+
+def test_export_multitask_horizons_architecture_weight_keys_are_disjoint_per_head():
+    model = AetherNetMultiTaskHorizons(input_dim=3, hidden_layers=[4], dropout=0.0, activation="relu", normalization="none")
+
+    export = export_multitask_horizons_architecture(model)
+
+    trunk_weight_keys = [layer["weight_key"] for layer in export["trunk"] if "weight_key" in layer]
+    head_weight_keys = [head[0]["weight_key"] for head in export["heads"].values()]
+    all_keys = trunk_weight_keys + head_weight_keys
+    assert len(all_keys) == len(set(all_keys))
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +170,7 @@ def test_resolve_horizon_head_config_uses_defaults_when_absent():
     assert resolved["direction_20d"] == {"enabled": True, "loss_weight": 0.5}
     assert resolved["rank_5d"] == {"enabled": True, "loss_weight": 1.0}
     assert resolved["rank_20d"] == {"enabled": True, "loss_weight": 0.5}
+    assert resolved["sector_neutral_rank_20d"] == {"enabled": True, "loss_weight": 0.3}
 
 
 def test_resolve_horizon_head_config_merges_partial_override():
@@ -190,12 +218,13 @@ def test_compute_combined_loss_is_zero_contribution_from_disabled_heads():
     outputs = {
         "direction": torch.zeros(4), "magnitude": torch.zeros(4), "volatility": torch.zeros(4).abs(),
         "direction_5d": torch.randn(4), "direction_20d": torch.randn(4),
-        "rank_5d": torch.rand(4), "rank_20d": torch.rand(4),
+        "rank_5d": torch.rand(4), "rank_20d": torch.rand(4), "sector_neutral_rank_20d": torch.rand(4),
     }
     targets = {
         "direction": torch.zeros(4), "magnitude": torch.zeros(4), "volatility": torch.zeros(4),
         "direction_5d": torch.full((4,), float("nan")), "direction_20d": torch.full((4,), float("nan")),
         "rank_5d": torch.full((4,), float("nan")), "rank_20d": torch.full((4,), float("nan")),
+        "sector_neutral_rank_20d": torch.full((4,), float("nan")),
     }
     criterion = nn.BCEWithLogitsLoss()
     horizon_head_config = {name: {"enabled": False, "loss_weight": 1.0} for name in HORIZON_HEAD_SPECS}

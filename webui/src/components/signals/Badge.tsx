@@ -18,6 +18,11 @@ const TONES: Record<string, string> = {
   watchlist: 'bg-amber-400/15 text-amber-300',
   disabled_for_gating: 'bg-rose-400/15 text-rose-300',
   baseline: 'bg-sky-400/15 text-sky-300',
+  promotable: 'bg-emerald-400/15 text-emerald-300',
+  not_promotable: 'bg-rose-400/15 text-rose-300',
+  long: 'bg-emerald-400/15 text-emerald-300',
+  short: 'bg-rose-400/15 text-rose-300',
+  flat: 'bg-white/10 text-white/80',
 }
 
 export function Badge({ tone, children }: { tone?: string; children: React.ReactNode }) {

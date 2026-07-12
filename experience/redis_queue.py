@@ -37,6 +37,8 @@ def build_experience_event(
     market_analysis: dict,
     portfolio: dict,
     sequence_model: dict | None = None,
+    resolved_predicted_rank_20d: float | None = None,
+    close_price: float | None = None,
 ) -> dict[str, Any]:
     """Construct a standardised experience event dict.
 
@@ -49,6 +51,18 @@ def build_experience_event(
     for this bar) — informational only, same as everywhere else it's
     threaded, but now persisted for offline analysis instead of only
     reaching the live dashboard.
+
+    `resolved_predicted_rank_20d`/`close_price` (Phase 6 of the 5/10 -> 9/10
+    roadmap): the SAME resolved rank_20d value main.py already computes
+    (preferring the sequence model's head, falling back to multitask's —
+    see risk/position_sizing.py::rank_sizing_multiplier()'s docstring),
+    plus this bar's close, persisted specifically so
+    performance/rank_ic_monitor.py's outcome-resolution job can self-join
+    experience events on (ticker, date + 20 trading days) with no separate
+    live price feed dependency. Without this, a multitask-fallback rank
+    prediction (sequence model disabled) never reached the experience
+    store at all — `sequence_model` above only carries the sequence
+    model's own prediction, not the resolved value main.py actually used.
     """
     return {
         "event_id": str(uuid.uuid4()),
@@ -70,6 +84,8 @@ def build_experience_event(
         "market_analysis": market_analysis,
         "portfolio": portfolio,
         "sequence_model": sequence_model,
+        "resolved_predicted_rank_20d": resolved_predicted_rank_20d,
+        "close_price": close_price,
     }
 
 

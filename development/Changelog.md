@@ -2065,3 +2065,300 @@ off-by-default behavior when `rank_sizing_enabled` is omitted.
 ### Verification
 
 `pytest tests/test_position_sizing.py` — 19 passed.
+
+---
+
+## 5/10 → 9/10 frontier-readiness roadmap (Phases 1–7)
+
+Follow-up to the "Follow-up — rank_20d wired into position sizing" entry
+above. That pass rated the system 5/10: the rank_20d signal was wired into
+position sizing but shipped off by default, since its non-overlapping-date
+subsample wasn't independently significant (t=1.20 vs. 4.40 on the full
+autocorrelated series) on the then-20-asset universe. This pass closes
+that gap and the system's other structural weaknesses across seven phases.
+
+### Phase 1 — Bond ETF sleeve + explicit cross-asset macro features
+
+Universe grew from 20 to 30 assets: `SHY`/`IEF`/`TLT` (short/intermediate/
+long Treasury), `AGG` (aggregate benchmark), `LQD`/`HYG` (investment-grade/
+high-yield corporate), `TIP` (inflation-protected), `MBB` (mortgage-backed),
+`EMB` (emerging-market sovereign), `MUB` (municipal) — registered as
+`security_type: "equity"` (bond ETFs trade through Lean's ordinary equity
+path, no new security type needed), fetched via `data_pipeline/fetch.py`'s
+existing `aq fetch` machinery (`ASSET_CLASS_CONFIG["stock"]`, unmodified).
+New `data/equity/usa/map_files/<ticker>.csv` per ticker (Lean's
+local-disk security-resolution convention); confirmed via
+`tests/test_train_pipeline.py::test_apply_split_adjustments_noop_is_the_intended_contract_for_aq_fetch_tickers`
+that `aq fetch`-sourced tickers are correctly pre-adjusted
+(`yfinance`'s `auto_adjust=True`) and deliberately have no factor file.
+
+New `features/macro_features.py` — three deliberate, explicit cross-asset
+signals (distinct from, and additive to, the existing generic
+correlation-based peer mechanism, which already lets any asset surface as
+any other asset's `top_peer` with zero code changes — locked in by a new
+regression test, `test_build_market_topology_peers_are_not_filtered_by_asset_class`):
+
+- `macro_yield_curve_slope_proxy` — 20-day momentum spread, `TLT` minus `SHY`.
+- `macro_credit_spread_proxy` — 20-day momentum spread, `HYG` minus `LQD`.
+- `macro_crypto_risk_appetite_proxy` — `BTCUSD` 20-day momentum.
+
+Computed once per date/bar (`train.py::build_macro_features_by_date()`
+offline, `main.py::_build_macro_payload()` at runtime, mirroring the
+regime-state "compute once, every symbol reads it" pattern), broadcast
+identically to every asset. Neutral-defaults to `0.0` on any missing
+reference ticker — never raises. Model input: 59 → 62 scaled features.
+
+### Phase 2 — Validation rigor
+
+The whole roadmap's premise was "rank_20d isn't proven yet" — this phase
+builds the code-enforced version of the promotion criterion that was
+previously only prose in this changelog:
+
+- `train.py::purged_embargoed_folds()` — Lopez de Prado-style purged/
+  embargoed K-fold split, layered *inside* the existing fixed
+  `phase1.windows` train split as an additive diagnostic (does not replace
+  the top-level train/validation/backtest wall).
+- `train.py::split_into_non_overlapping_eras()` — chops a backtest window
+  into non-overlapping eras (e.g. quarterly), turning the single
+  "N independent windows" IC number into a distribution across eras.
+- `train.py::bootstrap_ic_confidence_interval()` — resample-with-replacement
+  bootstrap CI over a rank-IC series; `compute_rank_ic()` now additionally
+  returns its raw per-date `ic_values` (additive key) so this doesn't need
+  to recompute anything.
+- `train.py::assess_ranking_quality()` — the actual code-enforced gate:
+  `quality_status` of `"promotable"`/`"watchlist"`/`"not_promotable"`,
+  failing on non-overlapping t-stat below threshold (default `2.0`),
+  bootstrap CI lower bound below `0.0`, or **any single era whose sign
+  contradicts the aggregate** (even one such era disqualifies promotion —
+  a real edge shouldn't require throwing away an inconvenient era).
+  Mirrors `assess_regression_quality()`'s exact shape.
+- `train.py::assess_ranking_quality_from_predictions()` — orchestrates all
+  of the above into one call; wired into `train_multitask.py`/
+  `train_sequence.py`'s BACKTEST-split metrics computation only (never
+  train/validation), writing a `<head>_ranking_quality` block per rank
+  head into each trainer's `*_training_metrics.json`.
+
+**Real bug found and fixed during the retrain** (see
+`development/Problems.md` #27): both new era/fold functions assumed
+datetime-typed input, but every real caller passes `frame["date"]`, which
+`build_feature_dataset()` stringifies before any trainer reads it —
+`np.asarray()` on that column produces a plain `object` array of Python
+`str`, not `datetime64`, causing `TypeError: can only concatenate str (not
+"Timedelta") to str`. All of this phase's own unit tests passed because
+they were built with `datetime64`-typed synthetic fixtures, which never
+exercised the real, string-typed shape — a gap between "unit-tested" and
+"exercised against the real pipeline." Fixed via explicit
+`pd.to_datetime()` coercion in both functions and their caller; new
+regression tests added using real `np.asarray(pd.Series([...]))` object
+arrays, not just `datetime64` fixtures.
+
+### Phase 5 — Sector-neutral ranking
+
+New `data/reference/sector_mapping.json` — GICS-like buckets for the
+core equities, `"Fixed Income"` for the whole bond sleeve, `"Crypto"` for
+the crypto sleeve (neither has enough same-duration/same-coin members for
+a meaningful within-bucket rank; duration/credit distinctions are captured
+by Phase 1's macro proxies instead). `train.py::load_sector_mapping()` —
+graceful `"Unknown"` fallback for any unmapped ticker, never raises.
+
+`build_cross_sectional_rank_targets()` gained sibling
+`target_sector_neutral_rank_5d/20d` columns — the SAME per-date percentile
+rank, computed WITHIN each asset's sector instead of across the whole
+universe ("is this asset beating its sector peers," not "beating the
+whole universe," cleaner when the universe's variance is dominated by a
+systematic tech/market factor). Purely additive: `target_rank_5d/20d` and
+every existing consumer (`rank_sizing_multiplier()`, the `rank_5d/20d`
+heads) are untouched. New `sector_neutral_rank_20d` head (a new sibling
+head, not a modification of `rank_20d`) on both Horizons model variants —
+`HORIZON_HEAD_SPECS` already fully generalizes
+`compute_combined_multitask_loss()`/metrics/ranking-quality-assessment
+over any registered head, so this needed zero changes beyond the registry
+entry itself.
+
+### Phase 3 — Stage-2 long/short book (the one direction-setting departure)
+
+New `portfolio/` package — `book_construction.py::build_rank_based_book()`,
+a pure, whole-universe-aware function (top-N long / bottom-N short by
+`predicted_rank_20d`, `min_rank_confidence_spread` floor before engaging
+at all). See `portfolio/README.md` for the full design rationale,
+including why this needed its own package rather than living in `risk/`
+or `analyzer/`.
+
+`main.py::on_data()` restructured into two passes — Pass 1 collects every
+symbol's `rank_20d`/eligibility before Pass 2 (the existing sizing/
+liquidity/analyzer/order chain) runs, since a cross-sectional book needs
+the whole universe's ranks before it can decide any one symbol's role.
+Provably byte-identical when `phase_v2.portfolio_book.enabled=false` (the
+default): `signals[symbol]` dict objects are inserted once, in
+`self.symbols` order, during Pass 1; Pass 2 only ever mutates them in
+place. Real short-selling didn't exist anywhere in this codebase before
+this phase (`main.py::_apply_signal()`'s `"sell"` branch only ever
+liquidates to flat) — a new `"short"` signal branch was added
+(`SetHoldings()`/`experience/simulated_portfolio.py::enter_long()` were
+both already sign-generic and needed no changes; only the missing
+signal-routing branch itself was the gap), bounded by a new
+`max_short_exposure` cap (default `0.30`).
+
+**Real gap found and fixed during implementation**:
+`analyzer/market_analyzer.py::build_market_analysis_decision()`'s six
+safety-tier checks (`trade-lock`, `risk-off`, elevated topology, liquidity
+block/thin-market, confidence threshold) all gated on
+`signal_name in {"buy", "sell"}` — a book-selected `"short"` would have
+silently bypassed every one of them. Fixed by extending all six checks to
+`{"buy", "sell", "short"}`; new tests confirm a `"short"` signal is
+overridden by risk-off/trade-lock/liquidity-block exactly like `"buy"`/
+`"sell"` already are.
+
+Off by default (`phase_v2.portfolio_book.enabled: false`).
+
+### Phase 4 — Walk-forward / rolling retraining
+
+New `train.py::generate_walk_forward_windows()` — produces a sequence of
+`{training, validation, backtest}` window dicts (rolling: fixed-length
+training window slides forward; expanding: training start stays fixed,
+end grows) spanning `phase1.universe.common_window`. Every window has the
+EXACT shape of today's single `phase1.windows`, so `assign_split()`/
+`build_feature_dataset()`/`build_dataset_manifest()` need zero changes —
+walk-forward is achieved by calling the existing pipeline once per
+generated window, not by changing what "a window" means. New
+`train.py::summarize_walk_forward_run()` — cross-window stability summary,
+reusing `bootstrap_ic_confidence_interval()` (despite the name, a plain
+bootstrap-mean-CI over any float series) rather than reinventing it.
+
+New `python train.py --walk-forward --step-days N --mode
+{rolling,expanding}` CLI, orchestrating `_run_walk_forward()` — a
+purely-additive loop that duplicates the same handful of calls the
+existing `--candidate` branch already makes (never touches or refactors
+that already-tested branch), writing each window to
+`ml/versions/<run-id>/window_<i>/`. New config block
+`phase_v2.retraining.walk_forward` (`enabled: false`, `mode: expanding`,
+`step_days: 90`, etc.) — deliberately separate from
+`retraining/worker.py`'s reactive trigger-driven poll loop, which has a
+different cadence/responsibility.
+
+**Scope note**: infrastructure is built, tested (window-generation logic:
+9 tests), and wired into a working CLI, verified against the real
+`common_window` (produces 6 sensible expanding windows). A full multi-window
+walk-forward run was NOT executed this pass — each window requires the
+full dataset-build + baseline-train cycle (~45 minutes per this session's
+own single-window timing), so N windows would be a multi-hour undertaking;
+this matches the roadmap's own scope acknowledgment that Phase 4 is the
+most architecturally invasive phase.
+
+### Phase 6 — Production rank-IC decay monitoring
+
+Every existing trigger in `performance/triggers.py` operates on
+already-resolved experience events; rank-IC can't be scored until the
+prediction's realized 20-trading-day forward return is known — a
+structurally different "wait for the future, then join back" shape.
+
+- `experience/redis_queue.py::build_experience_event()` gained
+  `resolved_predicted_rank_20d`/`close_price` (additive, optional) — closes
+  a real data gap: the resolved rank prediction `main.py` actually acts on
+  (sequence-preferred, multitask-fallback) was never persisted when the
+  sequence model was disabled, only its own raw prediction was.
+- `train.py::compute_rank_ic()` split into a torch-free core
+  (`_rank_ic_from_arrays()`, plain numpy) plus a thin tensor-converting
+  wrapper — both training-time (tensors) and production (Postgres query
+  results) callers now share the identical, tested logic.
+- New `performance/rank_ic_monitor.py::compute_realized_rank_ic_observations()`
+  — self-joins experience events against the same ticker's close ~20
+  TRADING days later (positional within that ticker's own event sequence,
+  not calendar days — correctly respects each ticker's own trading
+  calendar), then cross-sectionally ranks realized returns per origin
+  date. `compute_production_rank_ic()` — thin wrapper over
+  `_rank_ic_from_arrays()`.
+- New `performance/triggers.py::rank_ic_decay_trigger()` — same shape as
+  every sibling trigger, fires when EITHER the rolling mean rank-IC or its
+  t-stat falls below its own floor. Registered in `_MODEL_QUALITY_TRIGGERS`/
+  `_RECOMMENDED_ACTIONS`. Wired into `retraining/planning.py`'s
+  `_TYPE_BASE_SCORE` at weight `3` (comparable to `sharpe_degradation_trigger`).
+
+### Phase 7 — Live-loop closure groundwork (manual activation excluded, per explicit scope)
+
+Confirmed `execution/paper_readiness_report.py`'s evaluation logic and
+dashboard wiring (`monitoring/api_server.py` already merges
+`paper_readiness_report.json` into `/api/state`) were already correct and
+already dashboard-visible before this pass — the one real gap was
+cadence: the report only regenerated on a manual `aq paper-readiness` run.
+New `execution/paper_readiness_scheduler.py::PaperReadinessScheduler` —
+periodic loop around the same evaluation calls, mirroring
+`performance/trigger_worker.py::TriggerWorker`'s shape exactly. New
+`docker-compose.yml` service `paper-readiness-scheduler` (profile-gated,
+not started by `docker compose up` alone). New `execution/README.md`
+section documents that the "distinct, clearly-marked manual step" for
+ever activating real fills already exists — it's the existing
+`phase_v2.paper_trading.live_data_provider_configured`/
+`manual_review_confirmed` config flags, untouched by anything in this
+roadmap.
+
+### Real retrain results (combined Phase 1/2/5 dataset: 30 assets, 62 input
+features, 46,242 rows)
+
+`rank_20d` (multitask model) now **clears its own promotion gate for the
+first time**: non-overlapping-date t-stat `2.52` (vs. `2.0` threshold),
+bootstrap 95% CI `[0.035, 0.308]` (entirely positive), zero opposite-sign
+eras across 9 eras — `quality_status: "promotable"`. Full-series mean IC
+`0.173`, t-stat `10.40` (546 dates). This is the strongest independent
+evidence yet that the cross-sectional ranking signal survives out-of-sample,
+non-overlapping-date scrutiny, not just the original session's
+autocorrelated full-series number.
+
+`rank_5d` remains close but not promotable (non-overlapping t-stat `2.81`,
+clears the t-stat bar, but 1 of 10 eras flips sign). The new
+`sector_neutral_rank_20d` head is also strong but not promotable (t-stat
+`3.40`, but 2 of 9 eras flip sign) — sector-neutral demeaning may be
+introducing enough extra noise per-era to occasionally flip sign even
+though the aggregate is comfortably positive; worth revisiting once more
+data/a larger universe is available.
+
+**Sequence model retrain incomplete this session** — `train_sequence.py`
+failed three times (twice concurrent with another job, once fully alone)
+with `numpy.core._exceptions._ArrayMemoryError` while allocating the
+(rows, 30, 72) windowed tensor `build_sequence_tensor_dataset()` builds,
+even at as little as ~170 MiB for the smallest (backtest-split) array —
+consistent with a memory ceiling specific to this session's execution
+environment, not a logic bug (the identical construction succeeded for the
+pre-roadmap 20-asset/59-feature dataset in the prior session). The active
+`ml/sequence_model.json` is therefore still the OLD, 59-input-dimension
+model from before this pass — confirmed safe to leave in place:
+`main.py::_run_sequence_model()`'s existing blanket exception handler
+(see `development/Problems.md` #26's identical graceful-degradation
+contract) already catches the resulting shape mismatch and returns "no
+prediction" every bar, and `predicted_rank_20d`'s existing
+sequence-preferred/multitask-fallback logic already correctly falls back
+to the multitask model's (now-promotable) `rank_20d` in the meantime — no
+crash risk, no silent wrong-number risk, just one optional informational
+signal temporarily unavailable. Completing this retrain (ideally in an
+environment with more available memory) is a direct, mechanical follow-up:
+`python train_sequence.py --version-id <uuid>`, then copy
+`sequence_model.json`/`sequence_feature_schema.json`/
+`sequence_training_metrics.json` from `ml/versions/<uuid>/` into active
+`ml/`, same as this session's `train_gating.py`/`train_multitask.py` runs.
+
+### New tests
+
+`tests/test_macro_features.py` (12), `tests/test_train_macro_features.py`
+(9), `tests/test_train_ranking_validation.py` (27, incl. 2 new datetime
+regression tests), `tests/test_train_walk_forward_windows.py` (9),
+`tests/test_portfolio_book_construction.py` (12), new short-signal tests
+in `tests/test_market_analyzer.py` (+4), `tests/test_simulated_portfolio.py`
+(+2), `tests/test_rank_ic_monitor.py` (9), `tests/test_triggers.py` (+5),
+`tests/test_retraining_planning.py` (+1), `tests/test_paper_readiness_scheduler.py`
+(4), plus fixture/assertion updates across `tests/test_train_multitask.py`,
+`tests/test_train_sequence.py`, `tests/test_train_sequence_architecture.py`,
+`tests/test_train_cross_sectional_features.py`, `tests/test_market_topology.py`
+(+1, cross-asset-class peer lock-in), `tests/test_train_pipeline.py`,
+`tests/test_neural_network_state.py`, `tests/test_experience_queue.py` for
+the new head/features/fields.
+
+### Verification
+
+`pytest tests/` — 928 passed, 11 pre-existing Docker-unavailable skips
+(unrelated to this pass), 0 failures. Full atomic retrain on the real
+30-asset/62-feature dataset (46,242 rows): `python train.py` (baseline +
+4 experts + topology, dataset rebuild), `train_gating.py`,
+`train_multitask.py` all ran to completion and were copied into active
+`ml/`; `train_sequence.py` did not complete this session (see above) —
+active `ml/sequence_model.json` is the prior, pre-roadmap artifact,
+confirmed to degrade safely. `npx tsc -b --noEmit` in `webui/` — clean.

@@ -192,6 +192,12 @@ def cmd_train(args: argparse.Namespace) -> int:
         cmd.append("--init-only")
     elif args.experts_only:
         cmd.append("--experts-only")
+    elif args.walk_forward:
+        cmd.append("--walk-forward")
+        if args.step_days is not None:
+            cmd += ["--step-days", str(args.step_days)]
+        if args.mode is not None:
+            cmd += ["--mode", args.mode]
     return _run(cmd)
 
 
@@ -611,6 +617,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--sequence-only",
         action="store_true",
         help="Train the Phase 2 causal-TCN sequence encoder only (wraps python train_sequence.py)",
+    )
+    train_group.add_argument(
+        "--walk-forward",
+        action="store_true",
+        help=(
+            "Phase 4 of the 5/10 -> 9/10 roadmap: run the dataset-build + training pipeline once per "
+            "walk-forward window (wraps python train.py --walk-forward). Never touches active ml/ - "
+            "diagnostic only, writes to ml/versions/<run-id>/window_<i>/."
+        ),
+    )
+    train_parser.add_argument(
+        "--step-days", type=int, default=None, help="Walk-forward step size in days (only with --walk-forward)."
+    )
+    train_parser.add_argument(
+        "--mode",
+        type=str,
+        choices=("rolling", "expanding"),
+        default=None,
+        help="Walk-forward mode: rolling or expanding (only with --walk-forward).",
     )
     train_parser.set_defaults(func=cmd_train)
 

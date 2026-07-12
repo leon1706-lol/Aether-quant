@@ -56,3 +56,54 @@ reader's cached value leak into another's result, caught only by the real
 
 See the Paper Trading Readiness Contract (V2-21) and Live Deployment
 Contract (V2-22) in `development/v2_architecture.md` for the full picture.
+
+## Scheduled readiness reporting (Phase 7 of the 5/10 -> 9/10 roadmap)
+
+`paper_readiness_report.py`'s evaluation logic and dashboard wiring were
+already correct and already dashboard-visible before this pass —
+`monitoring/api_server.py` already merges
+`visualization/grafana/paper_readiness_report.json` into `/api/state`,
+with a dedicated `get_paper_readiness()` endpoint. The one real gap: the
+report only ever regenerated when a human ran `aq paper-readiness` by
+hand, so the dashboard tile could silently go stale between manual runs.
+
+`paper_readiness_scheduler.py::PaperReadinessScheduler` closes that gap —
+a periodic loop around the exact same `build_paper_readiness_view()`/
+`write_paper_readiness_file()` calls, mirroring
+`performance/trigger_worker.py::TriggerWorker`'s shape (sync-only, DSN via
+`AETHER_POSTGRES_DSN`, `--once` CLI flag, `_pg_conn` injection for tests).
+Run it as its own small process/Docker service
+(`python -m execution.paper_readiness_scheduler --poll-interval 3600`) —
+deliberately **not** folded into `retraining/worker.py`'s poll loop, which
+has a different cadence and responsibility. Purely additive reporting: it
+never touches `phase_v2.paper_trading`'s config flags or changes
+`main.py`'s order-routing behavior in any way.
+
+## Activating real paper-trading fills — manual step
+
+Everything in this package today (`experience/simulated_portfolio.py`'s
+`enter_long()`/`exit()`/`liquidate_all()`, called from ~15 sites in
+`main.py` — order application, exposure/position-count accounting, PnL
+snapshots) is a **synthetic** fill model (`execution/order_gate.py::simulate_fill()`),
+never a real Lean `PaperBrokerage` fill event. Switching the fill *source*
+from simulated to real is a distinct, deliberately unbuilt follow-up
+("Phase 7b") — not attempted by this roadmap pass, per the user's explicit
+scope boundary. The rest of the pipeline (experience store, triggers,
+retraining, `performance/rank_ic_monitor.py`) is designed to need no
+change when that happens — only the fill *source* changes, the schema
+that receives it stays the same.
+
+**The "distinct, clearly-marked manual step" this requires already
+exists — it is the existing config flags, not new code.**
+`execution/paper_readiness.py::evaluate_paper_broker_config()` already
+blocks activation until a human deliberately sets, in `config.json`:
+
+- `phase_v2.paper_trading.live_data_provider_configured: true`
+- `phase_v2.paper_trading.manual_review_confirmed: true`
+
+Neither flag is touched by anything in this roadmap — both stay `false`
+until a human flips them outside of any automated process, and
+`aq paper-readiness`/`PaperReadinessScheduler` will keep reporting
+`ready: false` (via `blocking_reasons`) until they do. When "Phase 7b"
+(real fills) is eventually built, it will introduce its own additional
+flag with the same manual-flip contract — never auto-enabled.

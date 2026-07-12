@@ -54,6 +54,7 @@ import torch.nn as nn
 from train import (
     HORIZON_HEAD_SPECS,
     AetherNetSequenceMultiTaskHorizons,
+    assess_ranking_quality_from_predictions,
     assess_regression_quality,
     build_sequence_tensor_dataset,
     compute_binary_metrics,
@@ -137,6 +138,7 @@ def compute_sequence_multitask_metrics(
     threshold: float,
     head_thresholds: dict[str, float],
     horizon_head_config: dict,
+    ranking_promotion_config: dict | None = None,
 ) -> dict:
     model.eval()
     with torch.no_grad():
@@ -160,6 +162,23 @@ def compute_sequence_multitask_metrics(
             metrics[f"{head_name}_ic_non_overlapping"] = compute_rank_ic(
                 outputs[head_name], targets[head_name], dates, non_overlapping_stride=stride
             )
+            # Phase 2 of the 5/10 -> 9/10 roadmap: the code-enforced
+            # promotion-gate verdict (purged/embargoed CV validation rigor,
+            # bootstrap CI, cross-era stability), only computed for the
+            # BACKTEST split (ranking_promotion_config passed only by that
+            # call site below) - never on train/validation, matching how
+            # assess_regression_quality() above only ever gates on backtest
+            # RMSE/MAE.
+            if ranking_promotion_config is not None:
+                mask = ~torch.isnan(targets[head_name])
+                dates_masked = np.asarray(dates)[mask.detach().cpu().numpy()]
+                metrics[f"{head_name}_ranking_quality"] = assess_ranking_quality_from_predictions(
+                    outputs[head_name][mask],
+                    targets[head_name][mask],
+                    dates_masked,
+                    non_overlapping_stride=stride,
+                    config=ranking_promotion_config,
+                )
     return metrics
 
 
@@ -169,6 +188,13 @@ def main() -> int:
 
     try:
         training_config = load_sequence_training_config(Path(args.config_path))
+        # Phase 2 of the 5/10 -> 9/10 roadmap: assess_ranking_quality_from_predictions()
+        # needs phase1.target.ranking.promotion_gate, which lives in the
+        # FULL config.json, not the narrow sequence_training sub-dict
+        # load_sequence_training_config() returns - see that function's
+        # docstring for why the promotion gate deliberately isn't
+        # duplicated per-model.
+        full_config = json.loads(Path(args.config_path).read_text(encoding="utf-8"))
         if not bool(training_config.get("enabled", True)):
             LOGGER.info("train_sequence: disabled via config - skipping.")
             return 0
@@ -417,6 +443,7 @@ def main() -> int:
             "backtest": compute_sequence_multitask_metrics(
                 model, backtest_features, backtest_targets, backtest_dates,
                 direction_criterion, tuned_threshold, head_thresholds, horizon_head_config,
+                ranking_promotion_config=full_config,
             ),
             "history": history,
         }

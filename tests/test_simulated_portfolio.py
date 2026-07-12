@@ -34,6 +34,35 @@ def test_enter_long_updates_cash_and_holdings():
     assert portfolio.cumulative_turnover == 2_500.0
 
 
+def test_enter_long_with_negative_target_weight_opens_a_short():
+    # Phase 3 of the 5/10 -> 9/10 roadmap (portfolio/book_construction.py):
+    # enter_long() despite its name is already sign-generic
+    # (simulate_fill()'s notional = target_weight * equity), so main.py's
+    # new "short" signal branch reuses it directly for the simulated-mode
+    # path rather than adding a redundant enter_short() method. Locks in
+    # that this pre-existing genericity is real, not assumed.
+    portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
+
+    portfolio.enter_long("AAPL", close_price=100.0, target_weight=-0.25, bar_index=1)
+
+    assert portfolio.holdings["AAPL"]["quantity"] == -25.0
+    # Shorting credits cash (selling borrowed shares), not debits it.
+    assert portfolio.cash == 10_000.0 + 2_500.0
+    assert portfolio.cumulative_turnover == 2_500.0
+
+
+def test_short_position_realizes_correct_pnl_sign_on_exit():
+    portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
+    portfolio.enter_long("AAPL", close_price=100.0, target_weight=-0.25, bar_index=1)
+
+    # Price fell after shorting - a short position should PROFIT.
+    portfolio.exit("AAPL", close_price=90.0, bar_index=2)
+
+    snapshot = portfolio.snapshot()
+    assert snapshot["last_realized_pnl"] == -25.0 * (90.0 - 100.0)
+    assert snapshot["last_realized_pnl"] == 250.0
+
+
 def test_exit_realizes_pnl_and_flattens_position():
     portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
     portfolio.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1)

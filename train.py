@@ -18,6 +18,7 @@ import json
 import logging
 import math
 import random
+import uuid
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,13 +30,19 @@ import pandas as pd
 import torch
 from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
 from features import (
+    CREDIT_SPREAD_NEUTRAL,
     CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
+    CRYPTO_RISK_APPETITE_NEUTRAL,
+    YIELD_CURVE_SLOPE_NEUTRAL,
     average_true_range_pct,
     bollinger_pctb,
+    credit_spread_proxy,
+    crypto_risk_appetite_proxy,
     distance_from_52w_high,
     macd_histogram_normalized,
     relative_strength_index,
     volume_zscore,
+    yield_curve_slope_proxy,
 )
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
@@ -50,6 +57,7 @@ LOGGER = logging.getLogger("aether_quant.train")
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 FACTOR_FILES_DIR = DATA_DIR / "equity" / "usa" / "factor_files"
+SECTOR_MAPPING_PATH = DATA_DIR / "reference" / "sector_mapping.json"
 ML_DIR = ROOT / "ml"
 DATASET_DIR = ML_DIR / "datasets"
 EXPERT_DATASET_DIR = ML_DIR / "expert_datasets"
@@ -112,6 +120,29 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Candidate model_version_id (UUID). Required with --candidate."
+    )
+    parser.add_argument(
+        "--walk-forward",
+        action="store_true",
+        help=(
+            "Phase 4 of the 5/10 -> 9/10 roadmap: run the baseline model's dataset-build + "
+            "training pipeline once per walk-forward window (see generate_walk_forward_windows()) "
+            "instead of once on the fixed phase1.windows. Never touches active ml/ - each window "
+            "writes to ml/versions/<run-id>/window_<i>/, same as --candidate."
+        ),
+    )
+    parser.add_argument(
+        "--step-days",
+        type=int,
+        default=None,
+        help="Walk-forward step size in days. Defaults to phase_v2.retraining.walk_forward.step_days.",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=("rolling", "expanding"),
+        default=None,
+        help="Walk-forward mode. Defaults to phase_v2.retraining.walk_forward.mode.",
     )
     return parser.parse_args()
 
@@ -955,7 +986,128 @@ def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], confi
     return updated_frames
 
 
+DEFAULT_MACRO_REFERENCE_TICKERS = {
+    "long_duration": "TLT",
+    "short_duration": "SHY",
+    "high_yield": "HYG",
+    "investment_grade": "LQD",
+    "crypto": "BTCUSD",
+}
+MACRO_FEATURE_NAMES = [
+    "macro_yield_curve_slope_proxy",
+    "macro_credit_spread_proxy",
+    "macro_crypto_risk_appetite_proxy",
+]
+
+
+def build_macro_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
+    """Phase 1b of the 5/10 -> 9/10 roadmap: deliberate, explicit
+    cross-asset-class "macro" features (features/macro_features.py),
+    computed once per date from a small fixed set of reference tickers
+    (the Phase 1a bond ETF sleeve + the existing crypto sleeve) and
+    broadcast identically to every asset's row for that date - additive to,
+    not a replacement for, the existing generic correlation-based peer
+    mechanism (build_topology_features_by_date() above).
+
+    Reuses each reference ticker's own already-computed momentum_20d
+    column (engineer_features()) rather than re-deriving returns from
+    scratch - no new buffer/window logic needed, unlike
+    features/technical_indicators.py's long-lookback indicators.
+    `asset_frames` values must each have 'date' and 'momentum_20d' columns,
+    i.e. called after engineer_features() but before build_feature_dataset()'s
+    final concat/strftime - same calling convention as
+    build_topology_features_by_date().
+
+    A reference ticker absent from this particular `asset_frames` (e.g. a
+    universe subset without the bond sleeve, or a reference ticker not yet
+    trading as of a given date) neutral-defaults its proxy to 0.0 for every
+    date - never raises, matching features/macro_features.py's own
+    "missing reference -> 0.0" convention.
+    """
+    reference_tickers = {
+        **DEFAULT_MACRO_REFERENCE_TICKERS,
+        **config.get("phase1", {}).get("features", {}).get("macro_reference_tickers", {}),
+    }
+
+    def _dates_and_momentum(ticker: str) -> tuple[list, list]:
+        frame = asset_frames.get(ticker)
+        if frame is None:
+            return [], []
+        return frame["date"].tolist(), frame["momentum_20d"].tolist()
+
+    long_dates, long_momentum = _dates_and_momentum(reference_tickers["long_duration"])
+    short_dates, short_momentum = _dates_and_momentum(reference_tickers["short_duration"])
+    high_yield_dates, high_yield_momentum = _dates_and_momentum(reference_tickers["high_yield"])
+    investment_grade_dates, investment_grade_momentum = _dates_and_momentum(reference_tickers["investment_grade"])
+    crypto_dates, crypto_momentum = _dates_and_momentum(reference_tickers["crypto"])
+
+    def _momentum_asof(dates: list, values: list, current_date) -> float | None:
+        if not dates:
+            return None
+        position = bisect.bisect_right(dates, current_date)
+        if position == 0:
+            return None
+        value = values[position - 1]
+        return None if pd.isna(value) else float(value)
+
+    all_dates = sorted({date for frame in asset_frames.values() for date in frame["date"]})
+
+    slope_by_date: dict = {}
+    spread_by_date: dict = {}
+    crypto_appetite_by_date: dict = {}
+    for current_date in all_dates:
+        long_value = _momentum_asof(long_dates, long_momentum, current_date)
+        short_value = _momentum_asof(short_dates, short_momentum, current_date)
+        high_yield_value = _momentum_asof(high_yield_dates, high_yield_momentum, current_date)
+        investment_grade_value = _momentum_asof(investment_grade_dates, investment_grade_momentum, current_date)
+        crypto_value = _momentum_asof(crypto_dates, crypto_momentum, current_date)
+        slope_by_date[current_date] = yield_curve_slope_proxy(long_value, short_value)
+        spread_by_date[current_date] = credit_spread_proxy(high_yield_value, investment_grade_value)
+        crypto_appetite_by_date[current_date] = crypto_risk_appetite_proxy(crypto_value)
+
+    updated_frames: dict[str, pd.DataFrame] = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        result["macro_yield_curve_slope_proxy"] = [
+            slope_by_date.get(date, YIELD_CURVE_SLOPE_NEUTRAL) for date in result["date"]
+        ]
+        result["macro_credit_spread_proxy"] = [
+            spread_by_date.get(date, CREDIT_SPREAD_NEUTRAL) for date in result["date"]
+        ]
+        result["macro_crypto_risk_appetite_proxy"] = [
+            crypto_appetite_by_date.get(date, CRYPTO_RISK_APPETITE_NEUTRAL) for date in result["date"]
+        ]
+        updated_frames[ticker] = result
+    return updated_frames
+
+
 DEFAULT_RANKING_MIN_UNIVERSE_SIZE = 10
+DEFAULT_SECTOR_NEUTRAL_MIN_SECTOR_SIZE = 3
+UNKNOWN_SECTOR_LABEL = "Unknown"
+
+
+def load_sector_mapping(config: dict) -> dict[str, str]:
+    """Phase 5 of the 5/10 -> 9/10 roadmap: ticker -> sector-neutral-ranking
+    bucket, from the checked-in data/reference/sector_mapping.json (or an
+    override path via config phase1.target.ranking.sector_neutral.mapping_path).
+    Same defensive posture as load_factor_file(): returns {} (never raises)
+    when the file is missing or unparseable, so a caller degrades to every
+    ticker resolving to UNKNOWN_SECTOR_LABEL rather than crashing the whole
+    dataset build over a missing reference file.
+    """
+    mapping_path_str = (
+        config.get("phase1", {}).get("target", {}).get("ranking", {}).get("sector_neutral", {}).get("mapping_path")
+    )
+    mapping_path = Path(mapping_path_str) if mapping_path_str else SECTOR_MAPPING_PATH
+    if not mapping_path.exists():
+        return {}
+
+    try:
+        raw = json.loads(mapping_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+    return {ticker: sector for ticker, sector in raw.items() if not ticker.startswith("_")}
 
 
 def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
@@ -988,14 +1140,33 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     (masked_mse_loss()) used by the rank_5d/20d training heads already
     treats NaN as "no target this row", the same convention the
     direction_5d/20d targets above already established.
+
+    Also adds sibling `target_sector_neutral_rank_5d/20d` columns (Phase 5) -
+    the SAME per-date percentile rank, but computed WITHIN each asset's
+    sector bucket (load_sector_mapping()) instead of across the whole
+    universe: "is this asset outperforming its sector peers," a cleaner
+    signal than "is this asset outperforming the whole universe" when the
+    universe's variance is dominated by a systematic tech/market factor.
+    Purely additive - target_rank_5d/20d and every existing consumer
+    (rank_sizing_multiplier(), the rank_5d/20d heads) are untouched.
+    `min_sector_size` (config phase1.target.ranking.sector_neutral.min_sector_size,
+    default 3) is the same "too few members -> NaN, not a near-meaningless
+    rank" guard as min_universe_size, applied per (date, sector) instead of
+    per date. Assets whose sector can't be resolved (load_sector_mapping()
+    has no entry) get UNKNOWN_SECTOR_LABEL, which naturally NaNs out unless
+    enough OTHER unmapped assets exist that day to clear min_sector_size.
     """
     ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
     min_universe_size = int(ranking_config.get("min_universe_size", DEFAULT_RANKING_MIN_UNIVERSE_SIZE))
+    sector_neutral_config = ranking_config.get("sector_neutral", {})
+    min_sector_size = int(sector_neutral_config.get("min_sector_size", DEFAULT_SECTOR_NEUTRAL_MIN_SECTOR_SIZE))
+    sector_by_ticker = load_sector_mapping(config)
 
     updated_frames: dict[str, pd.DataFrame] = dict(asset_frames)
     for horizon_days in (5, 20):
         return_column = f"target_return_{horizon_days}d"
         rank_column = f"target_rank_{horizon_days}d"
+        sector_neutral_rank_column = f"target_sector_neutral_rank_{horizon_days}d"
 
         long_frame = pd.concat(
             [
@@ -1010,9 +1181,21 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
         eligible["rank_value"] = eligible.groupby("date")[return_column].rank(pct=True)
         rank_lookup = eligible.set_index(["ticker", "date"])["rank_value"].to_dict()
 
+        sector_eligible = long_frame.dropna(subset=[return_column]).copy()
+        sector_eligible["sector"] = sector_eligible["ticker"].map(sector_by_ticker).fillna(UNKNOWN_SECTOR_LABEL)
+        sector_size = sector_eligible.groupby(["date", "sector"])[return_column].transform("size")
+        sector_eligible = sector_eligible[sector_size >= min_sector_size].copy()
+        sector_eligible["sector_rank_value"] = sector_eligible.groupby(["date", "sector"])[return_column].rank(
+            pct=True
+        )
+        sector_rank_lookup = sector_eligible.set_index(["ticker", "date"])["sector_rank_value"].to_dict()
+
         for ticker, frame in updated_frames.items():
             result = frame.copy()
             result[rank_column] = [rank_lookup.get((ticker, date), np.nan) for date in result["date"]]
+            result[sector_neutral_rank_column] = [
+                sector_rank_lookup.get((ticker, date), np.nan) for date in result["date"]
+            ]
             updated_frames[ticker] = result
 
     return updated_frames
@@ -1164,6 +1347,7 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     # Cross-sectional (needs every asset's engineered frame simultaneously) -
     # must run after the per-asset loop above, before the final concat.
     engineered_frames = build_topology_features_by_date(engineered_frames, config)
+    engineered_frames = build_macro_features_by_date(engineered_frames, config)
     engineered_frames = build_cross_sectional_rank_targets(engineered_frames, config)
     engineered_frames = build_cross_sectional_momentum_rank_features(engineered_frames)
 
@@ -1358,6 +1542,7 @@ def build_dataset_manifest(
             "direction_20d": "target_direction_20d",
             "rank_5d": "target_rank_5d",
             "rank_20d": "target_rank_20d",
+            "sector_neutral_rank_20d": "target_sector_neutral_rank_20d",
         },
         "split_counts": split_counts,
         "per_asset_split_counts": per_asset_split,
@@ -1613,6 +1798,12 @@ class AetherNetMultiTaskHorizons(nn.Module):
         self.head_direction_20d = nn.Linear(current_dim, 1)
         self.head_rank_5d = nn.Linear(current_dim, 1)
         self.head_rank_20d = nn.Linear(current_dim, 1)
+        # Phase 5 of the 5/10 -> 9/10 roadmap: a NEW sibling head, not a
+        # modification of head_rank_20d - every existing consumer of
+        # rank_20d (rank_sizing_multiplier(), etc.) is unaffected until/
+        # unless someone deliberately switches to this sector-demeaned
+        # variant. See build_cross_sectional_rank_targets()'s docstring.
+        self.head_sector_neutral_rank_20d = nn.Linear(current_dim, 1)
 
     def forward(self, features: torch.Tensor) -> dict[str, torch.Tensor]:
         trunk_output = self.trunk(features)
@@ -1624,6 +1815,7 @@ class AetherNetMultiTaskHorizons(nn.Module):
             "direction_20d": self.head_direction_20d(trunk_output).squeeze(-1),
             "rank_5d": self.head_rank_5d(trunk_output).squeeze(-1),
             "rank_20d": self.head_rank_20d(trunk_output).squeeze(-1),
+            "sector_neutral_rank_20d": self.head_sector_neutral_rank_20d(trunk_output).squeeze(-1),
         }
 
 
@@ -1731,6 +1923,10 @@ class AetherNetSequenceMultiTaskHorizons(nn.Module):
         self.head_direction_20d = nn.Linear(current_channels, 1)
         self.head_rank_5d = nn.Linear(current_channels, 1)
         self.head_rank_20d = nn.Linear(current_channels, 1)
+        # Phase 5 of the 5/10 -> 9/10 roadmap - see
+        # AetherNetMultiTaskHorizons.head_sector_neutral_rank_20d's
+        # identical docstring.
+        self.head_sector_neutral_rank_20d = nn.Linear(current_channels, 1)
 
     def forward(self, sequence: torch.Tensor) -> dict[str, torch.Tensor]:
         current = sequence.transpose(1, 2)  # (batch, input_dim, window)
@@ -1750,6 +1946,7 @@ class AetherNetSequenceMultiTaskHorizons(nn.Module):
             "direction_20d": self.head_direction_20d(pooled).squeeze(-1),
             "rank_5d": self.head_rank_5d(pooled).squeeze(-1),
             "rank_20d": self.head_rank_20d(pooled).squeeze(-1),
+            "sector_neutral_rank_20d": self.head_sector_neutral_rank_20d(pooled).squeeze(-1),
         }
 
 
@@ -1812,6 +2009,9 @@ def export_sequence_multitask_horizons_architecture(model: AetherNetSequenceMult
             "direction_20d": _export_head(model.head_direction_20d, "head_direction_20d", "sigmoid"),
             "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", "sigmoid"),
             "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", "sigmoid"),
+            "sector_neutral_rank_20d": _export_head(
+                model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", "sigmoid"
+            ),
         },
     }
 
@@ -1991,15 +2191,22 @@ def compute_masked_regression_metrics(predictions: torch.Tensor, targets: torch.
     return compute_regression_metrics(predictions[mask], targets[mask])
 
 
-def compute_rank_ic(
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
-    dates,
-    *,
+def _rank_ic_from_arrays(
+    predictions: np.ndarray,
+    targets: np.ndarray,
+    dates: np.ndarray,
     non_overlapping_stride: int = 1,
 ) -> dict:
-    """Per-date Spearman rank correlation ("rank-IC") between a model's
-    raw rank_5d/20d prediction score and the realized cross-sectional rank
+    """Torch-free core of compute_rank_ic() (Phase 6 of the 5/10 -> 9/10
+    roadmap) - plain numpy arrays in, so this is usable from a lightweight
+    production monitoring job (performance/rank_ic_monitor.py, fed rows
+    from a Postgres query) without a torch dependency, not just from
+    training-time tensors. compute_rank_ic() below is now a thin wrapper
+    that converts tensors to numpy and calls this - both callers share the
+    identical, tested logic, zero duplication.
+
+    Per-date Spearman rank correlation ("rank-IC") between a model's raw
+    rank_5d/20d prediction score and the realized cross-sectional rank
     target (target_rank_5d/20d - already a per-date percentile rank of
     forward return, see build_cross_sectional_rank_targets()). This is the
     standard evaluation metric for a cross-sectional/long-short signal,
@@ -2027,9 +2234,7 @@ def compute_rank_ic(
     variance on either side (e.g. every asset tied), contribute no IC
     value for that date (skipped, not a spurious 0.0 - which would
     misrepresent "undefined" as "no correlation")."""
-    predictions_np = predictions.detach().cpu().numpy()
-    targets_np = targets.detach().cpu().numpy()
-    frame = pd.DataFrame({"date": np.asarray(dates), "prediction": predictions_np, "target_rank": targets_np})
+    frame = pd.DataFrame({"date": np.asarray(dates), "prediction": predictions, "target_rank": targets})
     frame = frame.dropna(subset=["target_rank"])
 
     if non_overlapping_stride > 1:
@@ -2049,13 +2254,228 @@ def compute_rank_ic(
             ic_values.append(correlation)
 
     if not ic_values:
-        return {"mean_ic": 0.0, "std_ic": 0.0, "t_stat": 0.0, "num_dates": 0}
+        return {"mean_ic": 0.0, "std_ic": 0.0, "t_stat": 0.0, "num_dates": 0, "ic_values": []}
 
     ic_array = np.asarray(ic_values)
     mean_ic = float(ic_array.mean())
     std_ic = float(ic_array.std(ddof=1)) if len(ic_array) >= 2 else 0.0
     t_stat = float(mean_ic / (std_ic / np.sqrt(len(ic_array)))) if std_ic > 0 else 0.0
-    return {"mean_ic": mean_ic, "std_ic": std_ic, "t_stat": t_stat, "num_dates": int(len(ic_array))}
+    # ic_values (Phase 2 of the 5/10 -> 9/10 roadmap): the raw per-date
+    # series, previously discarded once the aggregate stats above were
+    # computed - callers now need it for bootstrap_ic_confidence_interval()
+    # rather than recomputing this whole function from scratch. Additive
+    # dict key, backward-compatible with every existing caller that only
+    # reads mean_ic/std_ic/t_stat/num_dates.
+    return {
+        "mean_ic": mean_ic,
+        "std_ic": std_ic,
+        "t_stat": t_stat,
+        "num_dates": int(len(ic_array)),
+        "ic_values": [float(value) for value in ic_values],
+    }
+
+
+def compute_rank_ic(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    dates,
+    *,
+    non_overlapping_stride: int = 1,
+) -> dict:
+    """Training-time wrapper over _rank_ic_from_arrays() - converts torch
+    tensors to numpy, then defers entirely to the shared core. See
+    _rank_ic_from_arrays()'s docstring for the actual algorithm."""
+    predictions_np = predictions.detach().cpu().numpy()
+    targets_np = targets.detach().cpu().numpy()
+    return _rank_ic_from_arrays(predictions_np, targets_np, np.asarray(dates), non_overlapping_stride)
+
+
+def bootstrap_ic_confidence_interval(
+    ic_values: list[float],
+    n_resamples: int = 2000,
+    confidence: float = 0.95,
+    seed: int = 42,
+) -> dict:
+    """Phase 2 of the 5/10 -> 9/10 roadmap: a resample-with-replacement
+    bootstrap confidence interval over compute_rank_ic()'s raw per-date IC
+    series, the most direct way to answer this codebase's own promotion
+    question ("mean rank-IC > 0.02, t-stat > 2, non-overlapping dates,
+    stable across reruns" - see development/Changelog.md's "frontier-model
+    edge investigation" entry) with an actual interval instead of a single
+    point estimate that a single unlucky/lucky rerun could shift.
+
+    Deterministic (fixed `seed`) so repeated calls on the same ic_values
+    reproduce the exact same interval - this codebase's other
+    randomness-touching code (e.g. topology warm-start) is deliberately
+    seeded the same way. Returns a degenerate all-zero interval (never
+    raises) when fewer than 2 IC values are available - a bootstrap over 0
+    or 1 observations is undefined, not "wide," and callers (e.g.
+    assess_ranking_quality() below) must treat that as a failure to
+    demonstrate significance, not a passing near-zero interval."""
+    if len(ic_values) < 2:
+        return {
+            "lower_bound": 0.0,
+            "upper_bound": 0.0,
+            "mean_ic": 0.0,
+            "confidence": confidence,
+            "n_resamples": 0,
+            "num_observations": len(ic_values),
+        }
+
+    rng = np.random.default_rng(seed)
+    ic_array = np.asarray(ic_values, dtype=float)
+    resample_means = np.empty(n_resamples, dtype=float)
+    for index in range(n_resamples):
+        sample = rng.choice(ic_array, size=len(ic_array), replace=True)
+        resample_means[index] = sample.mean()
+
+    alpha = 1.0 - confidence
+    lower_bound = float(np.quantile(resample_means, alpha / 2.0))
+    upper_bound = float(np.quantile(resample_means, 1.0 - alpha / 2.0))
+    return {
+        "lower_bound": lower_bound,
+        "upper_bound": upper_bound,
+        "mean_ic": float(ic_array.mean()),
+        "confidence": confidence,
+        "n_resamples": n_resamples,
+        "num_observations": len(ic_values),
+    }
+
+
+def purged_embargoed_folds(
+    dates,
+    n_folds: int,
+    horizon_days: int,
+    embargo_days: int = 0,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Phase 2 of the 5/10 -> 9/10 roadmap: a standard purged/embargoed
+    K-fold split (Lopez de Prado-style) over `dates` (any array-like of
+    orderable date values, one entry per dataset row - duplicates expected,
+    since every asset shares each date). Layered *inside* the existing
+    fixed phase1.windows train split as an additional diagnostic for
+    hyperparameter/early-stopping robustness and a more honest in-sample IC
+    distribution - it does NOT replace the top-level train/validation/backtest
+    wall (that stays the single no-lookahead-across-the-wall boundary; see
+    assign_split()), nor does it change which rows actually get promoted.
+
+    For each of `n_folds` contiguous, equal-width date-range folds (assigned
+    by unique date, not by row, so every asset's same-date rows always fall
+    in the same fold together): the *validation* fold is exactly that
+    date-range; the *training* rows are every row from the OTHER folds,
+    minus (a) any row whose own forward-return window (horizon_days ahead)
+    would overlap the validation fold's date range at all ("purge" - a
+    training row labeled using information that reaches into the validation
+    window leaks), and (b) any row falling within `embargo_days` immediately
+    AFTER the validation fold's end date ("embargo" - guards against
+    lookback-feature leakage, e.g. rolling_volatility_20d/momentum_20d
+    computed just after the validation window still partially "sees" it).
+
+    Returns a list of (train_row_indices, validation_row_indices) index
+    arrays into `dates` itself (positional, 0-based) - same shape
+    convention as sklearn's KFold.split(), so this composes with any
+    existing sklearn-based tooling without adapting a different interface.
+    Returns [] (never raises) when there are fewer unique dates than
+    `n_folds`, matching this codebase's "guard against thin data" convention
+    throughout train.py (e.g. build_cross_sectional_rank_targets()'s
+    min_universe_size gate)."""
+    # pd.to_datetime(), not np.asarray(): `dates` in real callers (e.g.
+    # assess_ranking_quality_from_predictions(), fed train_multitask.py/
+    # train_sequence.py's `frame["date"]`) is a plain string array -
+    # build_feature_dataset() stringifies the date column
+    # (dataset["date"].dt.strftime(...)) before any trainer ever reads it.
+    # A raw np.asarray() on strings stays strings, and `era_start + Timedelta`
+    # below would then raise "can only concatenate str to str" - explicit
+    # datetime coercion here makes this function robust to string,
+    # Timestamp, or datetime64 input alike, matching every other
+    # date-accepting function in this file (e.g. assign_split()'s own
+    # pd.Timestamp(date_value) coercion).
+    #
+    # np.unique(), not sorted(set(dates_array.tolist())): for a raw
+    # datetime64[ns] numpy array (as opposed to a pandas Series, whose
+    # .tolist() preserves Timestamp objects), .tolist() silently degrades
+    # to plain nanosecond ints - Python's stdlib datetime can't represent
+    # nanosecond precision - which would then compare incompatibly against
+    # the still-datetime64 dates_array below. np.unique() preserves dtype
+    # natively and needs no such workaround.
+    dates_array = pd.to_datetime(np.asarray(dates))
+    unique_dates = np.unique(dates_array)
+    if len(unique_dates) < n_folds:
+        return []
+
+    fold_boundaries = np.array_split(unique_dates, n_folds)
+    folds: list[tuple[np.ndarray, np.ndarray]] = []
+    horizon = pd.Timedelta(days=horizon_days)
+    embargo = pd.Timedelta(days=embargo_days)
+
+    for fold_dates in fold_boundaries:
+        if len(fold_dates) == 0:
+            continue
+        validation_start = fold_dates[0]
+        validation_end = fold_dates[-1]
+        validation_mask = (dates_array >= validation_start) & (dates_array <= validation_end)
+
+        # Purge: a training row's own forward-return window (up to
+        # horizon_days ahead of its own date) must not reach into the
+        # validation date range - equivalently, exclude any row whose date
+        # falls within horizon_days BEFORE the validation window starts.
+        purge_start = validation_start - horizon
+        purged_mask = (dates_array >= purge_start) & (dates_array < validation_start)
+
+        # Embargo: exclude rows in the embargo_days immediately after the
+        # validation window ends.
+        embargo_end = validation_end + embargo
+        embargoed_mask = (dates_array > validation_end) & (dates_array <= embargo_end)
+
+        excluded_mask = validation_mask | purged_mask | embargoed_mask
+        train_indices = np.where(~excluded_mask)[0]
+        validation_indices = np.where(validation_mask)[0]
+        if len(train_indices) == 0 or len(validation_indices) == 0:
+            continue
+        folds.append((train_indices, validation_indices))
+
+    return folds
+
+
+def split_into_non_overlapping_eras(dates, era_length_days: int) -> list[tuple]:
+    """Phase 2 of the 5/10 -> 9/10 roadmap: chops the date range covered by
+    `dates` (any array-like of orderable date values) into consecutive,
+    non-overlapping eras of `era_length_days` each - e.g. quarterly eras
+    over the existing 2019-2021 backtest window - so
+    compute_rank_ic()/assess_ranking_quality() can be run independently per
+    era instead of only ever producing one aggregate number. Turns the
+    single "28 independent 20-day windows" analysis
+    (development/Changelog.md) into a distribution across eras: was the
+    edge concentrated in one regime (e.g. 2020 volatility), or stable?
+
+    Returns a list of (era_start, era_end) date tuples spanning the full
+    range of `dates` (inclusive on both ends, last era may be shorter than
+    `era_length_days` if the range doesn't divide evenly - never dropped,
+    since silently discarding the tail would bias eras away from the most
+    recent data). Returns [] (never raises) when `dates` is empty."""
+    # pd.to_datetime(), not np.asarray(): see purged_embargoed_folds()'s
+    # identical comment - `dates` in every real caller is a plain string
+    # array (build_feature_dataset() stringifies the date column), and
+    # `era_start + era_length` below would raise on raw strings.
+    dates_array = pd.to_datetime(np.asarray(dates))
+    if len(dates_array) == 0:
+        return []
+
+    # np.unique(), not sorted(set(dates_array.tolist())) - see
+    # purged_embargoed_folds()'s identical comment on why raw datetime64[ns]
+    # numpy arrays need this, unlike a pandas Series.
+    unique_dates = np.unique(dates_array)
+    range_start = unique_dates[0]
+    range_end = unique_dates[-1]
+    era_length = pd.Timedelta(days=era_length_days)
+
+    eras: list[tuple] = []
+    era_start = range_start
+    while era_start <= range_end:
+        era_end = min(era_start + era_length - pd.Timedelta(days=1), range_end)
+        eras.append((era_start, era_end))
+        era_start = era_end + pd.Timedelta(days=1)
+
+    return eras
 
 
 def evaluate_split(
@@ -2338,12 +2758,23 @@ HORIZON_HEAD_SPECS = {
     "direction_20d": ("target_direction_20d", "binary", None),
     "rank_5d": ("target_rank_5d", "rank", 5),
     "rank_20d": ("target_rank_20d", "rank", 20),
+    # Phase 5 of the 5/10 -> 9/10 roadmap - a "rank"-kind head like rank_20d,
+    # so it automatically gets the exact same masked-MSE loss, rank-IC
+    # metrics, AND assess_ranking_quality_from_predictions() promotion-gate
+    # assessment as rank_20d, with zero extra wiring beyond this entry -
+    # every consumer of HORIZON_HEAD_SPECS (compute_combined_multitask_loss(),
+    # compute_multitask_metrics()/compute_sequence_multitask_metrics()) is
+    # already fully generic over this dict.
+    "sector_neutral_rank_20d": ("target_sector_neutral_rank_20d", "rank", 20),
 }
 DEFAULT_HORIZON_HEAD_CONFIG = {
     "direction_5d": {"enabled": True, "loss_weight": 1.0},
     "direction_20d": {"enabled": True, "loss_weight": 0.5},
     "rank_5d": {"enabled": True, "loss_weight": 1.0},
     "rank_20d": {"enabled": True, "loss_weight": 0.5},
+    # Lighter weight than rank_20d - the newest, least-validated head;
+    # doesn't dominate training until its own promotion criteria clear.
+    "sector_neutral_rank_20d": {"enabled": True, "loss_weight": 0.3},
 }
 
 
@@ -2516,6 +2947,9 @@ def export_multitask_horizons_architecture(model: AetherNetMultiTaskHorizons) ->
             "direction_20d": _export_head(model.head_direction_20d, "head_direction_20d", "sigmoid"),
             "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", "sigmoid"),
             "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", "sigmoid"),
+            "sector_neutral_rank_20d": _export_head(
+                model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", "sigmoid"
+            ),
         },
     }
 
@@ -2895,6 +3329,256 @@ def assess_regression_quality(regression_metrics_by_split: dict, training_config
             "backtest_rmse": backtest_rmse,
             "backtest_mae": backtest_mae,
         },
+    }
+
+
+def assess_ranking_quality(
+    non_overlapping_rank_ic: dict,
+    bootstrap_result: dict,
+    per_era_mean_ics: list[float],
+    training_config: dict,
+) -> dict:
+    """Phase 2 of the 5/10 -> 9/10 roadmap: the code-enforced version of
+    the promotion criterion this codebase's own prior investigation
+    documented but never actually implemented in code (see
+    development/Changelog.md's "frontier-model edge investigation" entry:
+    "promote when backtest mean rank-IC > 0.02, t-stat > 2, on
+    non-overlapping dates" - and risk/README.md's rank_sizing_multiplier()
+    docstring, which explains why rank_sizing_enabled shipped off by
+    default: the non-overlapping subsample's t-stat was only 1.20, not the
+    4.40 the full autocorrelated series showed). Mirrors
+    assess_regression_quality()'s failures/near_misses/quality_status shape
+    so callers can treat every quality gate in this codebase the same way.
+
+    Callers compute each input via the already-existing building blocks
+    rather than this function re-deriving them:
+    - `non_overlapping_rank_ic`: a compute_rank_ic() result computed WITH
+      non_overlapping_stride > 1 (the honest, non-autocorrelated series -
+      never pass the full daily series here, that's exactly the inflated
+      number this gate exists to not be fooled by).
+    - `bootstrap_result`: bootstrap_ic_confidence_interval() run over that
+      SAME non-overlapping series' "ic_values".
+    - `per_era_mean_ics`: one compute_rank_ic()["mean_ic"] per era from
+      split_into_non_overlapping_eras() - was the edge concentrated in one
+      regime, or stable? Even a single era whose sign contradicts the
+      overall aggregate disqualifies promotion, regardless of how strong
+      the aggregate looks - a real edge should not require throwing away
+      an inconvenient era.
+    """
+    gate = training_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("promotion_gate", {})
+    min_non_overlapping_t_stat = float(gate.get("min_non_overlapping_t_stat", 2.0))
+    min_bootstrap_ci_lower = float(gate.get("min_bootstrap_ci_lower", 0.0))
+    watchlist_margin = float(gate.get("ranking_watchlist_margin", 0.3))
+
+    non_overlapping_t_stat = float(non_overlapping_rank_ic.get("t_stat", 0.0) or 0.0)
+    non_overlapping_mean_ic = float(non_overlapping_rank_ic.get("mean_ic", 0.0) or 0.0)
+    bootstrap_lower_bound = float(bootstrap_result.get("lower_bound", 0.0) or 0.0)
+
+    opposite_sign_eras = [
+        era_ic
+        for era_ic in per_era_mean_ics
+        if (non_overlapping_mean_ic > 0 and era_ic < 0) or (non_overlapping_mean_ic < 0 and era_ic > 0)
+    ]
+
+    failures = []
+    near_misses = []
+    if non_overlapping_t_stat < min_non_overlapping_t_stat:
+        failures.append("non_overlapping_t_stat_below_gate")
+    elif non_overlapping_t_stat < min_non_overlapping_t_stat + watchlist_margin:
+        near_misses.append("non_overlapping_t_stat_near_gate")
+
+    if bootstrap_lower_bound < min_bootstrap_ci_lower:
+        failures.append("bootstrap_ci_lower_bound_below_gate")
+
+    if opposite_sign_eras:
+        failures.append("era_sign_instability")
+
+    if failures:
+        quality_status = "not_promotable"
+    elif near_misses:
+        quality_status = "watchlist"
+    else:
+        quality_status = "promotable"
+
+    return {
+        "quality_status": quality_status,
+        # Matches assess_regression_quality()'s "gating_eligible" convention:
+        # "watchlist" (a near-miss, not an outright failure) still counts as
+        # eligible, same treatment every other quality gate in this codebase
+        # gives a near-gate-but-passing result.
+        "promotion_eligible": quality_status in {"promotable", "watchlist"},
+        "failures": failures,
+        "near_misses": near_misses,
+        "thresholds": {
+            "min_non_overlapping_t_stat": min_non_overlapping_t_stat,
+            "min_bootstrap_ci_lower": min_bootstrap_ci_lower,
+            "watchlist_margin": watchlist_margin,
+        },
+        "observed": {
+            "non_overlapping_t_stat": non_overlapping_t_stat,
+            "non_overlapping_mean_ic": non_overlapping_mean_ic,
+            "bootstrap_ci_lower_bound": bootstrap_lower_bound,
+            "bootstrap_ci_upper_bound": float(bootstrap_result.get("upper_bound", 0.0) or 0.0),
+            "num_eras": len(per_era_mean_ics),
+            "num_opposite_sign_eras": len(opposite_sign_eras),
+        },
+    }
+
+
+def assess_ranking_quality_from_predictions(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    dates,
+    non_overlapping_stride: int,
+    config: dict,
+) -> dict:
+    """Phase 2 of the 5/10 -> 9/10 roadmap: orchestrates
+    compute_rank_ic()/bootstrap_ic_confidence_interval()/
+    split_into_non_overlapping_eras()/assess_ranking_quality() into one
+    call, so train_multitask.py/train_sequence.py's main() gets the full
+    promotion-gate verdict for one rank head's BACKTEST split from a single
+    call, the same way assess_regression_quality() is already called
+    directly on an already-assembled metrics dict.
+
+    Unlike assess_regression_quality() (which reads a narrow, per-model
+    training_config), this reads `config` as the FULL config.json (same
+    convention as build_cross_sectional_rank_targets()/
+    build_macro_features_by_date() above) - the ranking promotion gate
+    (phase1.target.ranking.promotion_gate) is a property of the ranking
+    TARGET itself, not a per-model training hyperparameter, so it lives in
+    one place shared by every model with a rank head, not duplicated under
+    each model's own training config block.
+    """
+    non_overlapping_ic = compute_rank_ic(predictions, targets, dates, non_overlapping_stride=non_overlapping_stride)
+    bootstrap_result = bootstrap_ic_confidence_interval(non_overlapping_ic["ic_values"])
+
+    promotion_gate_config = config.get("phase1", {}).get("target", {}).get("ranking", {}).get("promotion_gate", {})
+    era_length_days = int(promotion_gate_config.get("era_length_days", 90))
+
+    # pd.to_datetime(), not np.asarray(): `dates` here is a plain string
+    # array in every real caller (train_multitask.py/train_sequence.py
+    # pass frame["date"], stringified by build_feature_dataset() before
+    # any trainer reads it) - comparing raw strings against
+    # split_into_non_overlapping_eras()'s Timestamp era boundaries below
+    # would raise. See that function's own identical fix/comment.
+    dates_array = pd.to_datetime(np.asarray(dates))
+    per_era_mean_ics: list[float] = []
+    for era_start, era_end in split_into_non_overlapping_eras(dates_array, era_length_days):
+        era_mask = (dates_array >= era_start) & (dates_array <= era_end)
+        if not era_mask.any():
+            continue
+        era_mask_tensor = torch.as_tensor(era_mask)
+        era_result = compute_rank_ic(
+            predictions[era_mask_tensor],
+            targets[era_mask_tensor],
+            dates_array[era_mask],
+            non_overlapping_stride=non_overlapping_stride,
+        )
+        if era_result["num_dates"] > 0:
+            per_era_mean_ics.append(era_result["mean_ic"])
+
+    return assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era_mean_ics, config)
+
+
+def generate_walk_forward_windows(
+    common_window: dict,
+    train_span_days: int,
+    validation_span_days: int,
+    backtest_span_days: int,
+    step_days: int,
+    mode: str = "rolling",
+) -> list[dict]:
+    """Phase 4 of the 5/10 -> 9/10 roadmap: generates a sequence of
+    {"training": {...}, "validation": {...}, "backtest": {...}} window
+    dicts spanning `common_window` - each one has the EXACT shape of
+    today's single phase1.windows, so every existing consumer
+    (assign_split(), build_feature_dataset(), build_dataset_manifest())
+    needs zero changes to accept a walk-forward window instead of the
+    fixed one. Walk-forward is achieved by calling the existing pipeline
+    once per generated window, not by changing what "a window" means.
+
+    `mode="rolling"`: a fixed-length training window slides forward by
+    `step_days` each iteration (window i's train_start = common_window's
+    start + i*step_days). `mode="expanding"`: the training window's start
+    stays fixed at common_window's start and only its END grows by
+    step_days each iteration (train_end = start + train_span_days - 1 +
+    i*step_days) - each window sees strictly more history than the last,
+    never less.
+
+    Validation and backtest immediately follow training with no gap
+    (validation_start = train_end + 1 day, etc.) and never overlap between
+    consecutive windows' training data and a later window's backtest data
+    within the SAME window - each window's own three sub-ranges are
+    contiguous and disjoint by construction.
+
+    Returns [] (never raises) once a window's backtest_end would exceed
+    common_window's end - including immediately, on the very first
+    iteration, if `common_window` is too short for even one full window to
+    fit. This is the same "guard against thin data" convention
+    build_cross_sectional_rank_targets()'s min_universe_size gate and
+    every other thin-data guard in this file already follow.
+    """
+    range_start = pd.Timestamp(common_window["start"])
+    range_end = pd.Timestamp(common_window["end"])
+
+    windows: list[dict] = []
+    index = 0
+    while True:
+        if mode == "expanding":
+            train_start = range_start
+            train_end = range_start + pd.Timedelta(days=train_span_days - 1 + step_days * index)
+        else:
+            train_start = range_start + pd.Timedelta(days=step_days * index)
+            train_end = train_start + pd.Timedelta(days=train_span_days - 1)
+
+        validation_start = train_end + pd.Timedelta(days=1)
+        validation_end = validation_start + pd.Timedelta(days=validation_span_days - 1)
+        backtest_start = validation_end + pd.Timedelta(days=1)
+        backtest_end = backtest_start + pd.Timedelta(days=backtest_span_days - 1)
+
+        if backtest_end > range_end:
+            break
+
+        windows.append(
+            {
+                "training": {"start": train_start.strftime("%Y-%m-%d"), "end": train_end.strftime("%Y-%m-%d")},
+                "validation": {
+                    "start": validation_start.strftime("%Y-%m-%d"),
+                    "end": validation_end.strftime("%Y-%m-%d"),
+                },
+                "backtest": {"start": backtest_start.strftime("%Y-%m-%d"), "end": backtest_end.strftime("%Y-%m-%d")},
+            }
+        )
+        index += 1
+
+    return windows
+
+
+def summarize_walk_forward_run(per_window_metric_values: list[float]) -> dict:
+    """Phase 4 of the 5/10 -> 9/10 roadmap: cross-window stability summary
+    for a walk-forward run - turns a single "trained once on one fixed
+    window" number into a distribution across windows (was performance
+    concentrated in one window, or stable across the whole walk-forward
+    run?), the direct generalization of Phase 2's "single non-overlapping
+    IC number" -> "distribution across eras" upgrade
+    (split_into_non_overlapping_eras()/assess_ranking_quality()) applied
+    one level up, across whole retrain windows instead of within one.
+
+    Deliberately takes a plain `list[float]` (whatever numeric metric the
+    caller cares about per window - rank-IC mean, MCC, Sharpe - already
+    extracted from that window's own training_metrics.json) rather than
+    assuming any particular metrics-JSON shape, so this composes with any
+    current or future trainer's own metrics without modification. Reuses
+    bootstrap_ic_confidence_interval() for the cross-window confidence
+    interval rather than reimplementing the same bootstrap logic - despite
+    the "_ic" in that function's name, it is a plain bootstrap-mean-CI over
+    any float series, not IC-specific in what it actually computes.
+    """
+    bootstrap_result = bootstrap_ic_confidence_interval(per_window_metric_values)
+    return {
+        "num_windows": len(per_window_metric_values),
+        "per_window_metric_values": list(per_window_metric_values),
+        "cross_window_bootstrap": bootstrap_result,
     }
 
 
@@ -3916,6 +4600,108 @@ def write_visualization_state(
     write_phase8_exports(config, training_context, scene_payload, scorecards, asset_heatmap)
 
 
+def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: str) -> dict:
+    """Phase 4 of the 5/10 -> 9/10 roadmap: `python train.py --walk-forward`'s
+    implementation - runs the baseline model's existing dataset-build +
+    training pipeline once per generate_walk_forward_windows() window,
+    writing each window to ml/versions/<run_id>/window_<i>/ (extends
+    candidate_output_paths()'s directory convention: this deliberately
+    duplicates the same handful of calls the `--candidate` branch below
+    already makes, in a loop, rather than refactoring that already-tested
+    branch to share code - zero regression risk to it as a result).
+
+    Never touches active ml/ - same as --candidate. Returns a summary dict
+    with per-window results and a summarize_walk_forward_run() cross-window
+    stability readout over each window's backtest MCC (the baseline
+    model's own headline metric - see train_model()/compute_binary_metrics()).
+    """
+    walk_forward_config = config.get("phase_v2", {}).get("retraining", {}).get("walk_forward", {})
+    train_span_days = int(walk_forward_config.get("train_span_days", 1095))
+    validation_span_days = int(walk_forward_config.get("validation_span_days", 365))
+    backtest_span_days = int(walk_forward_config.get("backtest_span_days", 365))
+
+    windows = generate_walk_forward_windows(
+        config["phase1"]["universe"]["common_window"],
+        train_span_days=train_span_days,
+        validation_span_days=validation_span_days,
+        backtest_span_days=backtest_span_days,
+        step_days=step_days,
+        mode=mode,
+    )
+    if not windows:
+        LOGGER.warning(
+            "walk-forward: no windows fit inside common_window with train=%s/validation=%s/backtest=%s/step=%s days.",
+            train_span_days, validation_span_days, backtest_span_days, step_days,
+        )
+        return {"run_id": None, "num_windows": 0, "window_results": [], "summary": summarize_walk_forward_run([])}
+
+    run_id = f"walk-forward-{uuid.uuid4()}"
+    feature_names = config["phase1"]["features"]["input_set"]
+    window_results: list[dict] = []
+    backtest_mcc_by_window: list[float] = []
+
+    for window_index, window in enumerate(windows):
+        window_config = copy.deepcopy(config)
+        window_config["phase1"]["windows"] = window
+        LOGGER.info(
+            "walk-forward window %s/%s: train=%s..%s validation=%s..%s backtest=%s..%s",
+            window_index + 1, len(windows),
+            window["training"]["start"], window["training"]["end"],
+            window["validation"]["start"], window["validation"]["end"],
+            window["backtest"]["start"], window["backtest"]["end"],
+        )
+
+        dataset, metadata = build_feature_dataset(window_config)
+        asset_quality = build_asset_quality(window_config, dataset, metadata)
+        dataset = apply_asset_quality_flags(dataset, asset_quality)
+
+        feature_config = window_config["phase1"]["features"]
+        winsorize_quantiles = tuple(feature_config.get("winsorize_quantiles", (0.001, 0.999)))
+        clip_sigma = float(feature_config.get("scaled_feature_clip_sigma", 10.0))
+        dataset, scaler, clip_sigma = fit_and_apply_scaler(
+            dataset, feature_names, winsorize_quantiles=winsorize_quantiles, clip_sigma=clip_sigma,
+        )
+        dataset, _ = add_asset_context_features(
+            dataset, [asset["ticker"] for asset in window_config["phase1"]["universe"]["assets"]],
+        )
+        dataset_manifest = build_dataset_manifest(window_config, dataset, {}, metadata, asset_quality)
+
+        version_id = f"{run_id}/window_{window_index}"
+        paths = candidate_output_paths(version_id)
+        paths["version_dir"].mkdir(parents=True, exist_ok=True)
+        write_scaler_artifacts(
+            scaler, dataset_manifest, scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"],
+            clip_sigma=clip_sigma,
+        )
+        paths["dataset_manifest"].write_text(json.dumps(dataset_manifest, indent=2), encoding="utf-8")
+
+        training_result = train_model(
+            window_config, dataset,
+            checkpoint_path=paths["model_checkpoint"], metrics_path=paths["training_metrics"],
+            strategy_report_path=paths["strategy_report"], equity_curves_path=paths["equity_curves"],
+        )
+        write_model_export(
+            window_config, data_summary, dataset_manifest=dataset_manifest, training_result=training_result,
+            weights_path=paths["model_weights"], dataset_manifest_path=paths["dataset_manifest"],
+            scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"],
+            checkpoint_path=paths["model_checkpoint"], metrics_path=paths["training_metrics"],
+            strategy_report_path=paths["strategy_report"],
+        )
+
+        backtest_mcc = float(training_result["metrics"]["backtest"].get("mcc", 0.0) or 0.0)
+        backtest_mcc_by_window.append(backtest_mcc)
+        window_results.append({"window": window, "version_id": version_id, "backtest_mcc": backtest_mcc})
+        LOGGER.info("walk-forward window %s/%s backtest MCC: %.4f", window_index + 1, len(windows), backtest_mcc)
+
+    summary = summarize_walk_forward_run(backtest_mcc_by_window)
+    run_summary = {"run_id": run_id, "num_windows": len(windows), "window_results": window_results, "summary": summary}
+    (ML_DIR / "versions" / run_id / "walk_forward_summary.json").parent.mkdir(parents=True, exist_ok=True)
+    (ML_DIR / "versions" / run_id / "walk_forward_summary.json").write_text(
+        json.dumps(run_summary, indent=2), encoding="utf-8"
+    )
+    return run_summary
+
+
 def main() -> int:
     setup_logging()
     args = parse_args()
@@ -3937,6 +4723,24 @@ def main() -> int:
         write_visualization_state(config, inventory, data_summary, training_context=existing_context)
         LOGGER.info("Inventory refreshed.")
         print("Phase 5 inventory refreshed.")
+        return 0
+
+    if args.walk_forward:
+        walk_forward_config = config.get("phase_v2", {}).get("retraining", {}).get("walk_forward", {})
+        step_days = args.step_days if args.step_days is not None else int(walk_forward_config.get("step_days", 90))
+        mode = args.mode if args.mode is not None else str(walk_forward_config.get("mode", "expanding"))
+        run_summary = _run_walk_forward(config, data_summary, step_days=step_days, mode=mode)
+        if run_summary["num_windows"] == 0:
+            print("Walk-forward run produced no windows - common_window too short for the configured spans.")
+            return 0
+        print(
+            f"Walk-forward run {run_summary['run_id']}: {run_summary['num_windows']} windows trained into "
+            f"ml/versions/{run_summary['run_id']}/window_*/.",
+            f"Cross-window backtest MCC: mean={run_summary['summary']['cross_window_bootstrap']['mean_ic']:.4f}, "
+            f"95% CI=[{run_summary['summary']['cross_window_bootstrap']['lower_bound']:.4f}, "
+            f"{run_summary['summary']['cross_window_bootstrap']['upper_bound']:.4f}].",
+        )
+        LOGGER.info("Walk-forward run finished — active ml/ artifacts untouched.")
         return 0
 
     dataset, metadata = build_feature_dataset(config)

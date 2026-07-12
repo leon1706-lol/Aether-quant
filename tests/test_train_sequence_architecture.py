@@ -132,14 +132,17 @@ def test_export_sequence_multitask_architecture_weight_keys_are_disjoint():
 # ---------------------------------------------------------------------------
 
 
-def test_aether_net_sequence_multitask_horizons_forward_returns_seven_heads():
+def test_aether_net_sequence_multitask_horizons_forward_returns_eight_heads():
     model = AetherNetSequenceMultiTaskHorizons(input_dim=4, channels=[6, 6], kernel_size=3, dropout=0.0)
     model.eval()
 
     with torch.no_grad():
         outputs = model(torch.randn(3, 10, 4))
 
-    expected_heads = {"direction", "magnitude", "volatility", "direction_5d", "direction_20d", "rank_5d", "rank_20d"}
+    expected_heads = {
+        "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
+        "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+    }
     assert set(outputs.keys()) == expected_heads
     for tensor in outputs.values():
         assert tensor.shape == (3,)
@@ -158,7 +161,8 @@ def test_export_sequence_multitask_horizons_architecture_shape():
 
     assert set(export.keys()) == {"trunk", "heads"}
     assert set(export["heads"].keys()) == {
-        "direction", "magnitude", "volatility", "direction_5d", "direction_20d", "rank_5d", "rank_20d",
+        "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
+        "rank_5d", "rank_20d", "sector_neutral_rank_20d",
     }
     trunk_types = [layer["type"] for layer in export["trunk"]]
     assert trunk_types == ["conv1d_causal", "relu", "dropout", "conv1d_causal", "relu", "dropout"]

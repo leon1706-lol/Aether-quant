@@ -105,3 +105,12 @@ risk engine, and before action categorization / Lean order placement.
     passed over in favor of gating, for the same "stay fully
     deterministic" reason the topology-elevated/isolated rules and the
     composite signal score above already establish.
+  - **Follow-up (Phase 3 of the 5/10 -> 9/10 roadmap):** `signal_name` can
+    now also be `"short"` (`portfolio/book_construction.py`'s Stage-2
+    long/short book) — every safety-tier check in this module that used
+    to test `signal_name in {"buy", "sell"}` now tests
+    `{"buy", "sell", "short"}`, so a book-selected short passes through
+    the exact same deterministic trade-lock/risk-off/topology/liquidity
+    categorization as any other directional signal, never bypassing it.
+    See `portfolio/README.md` for why book construction lives in its own
+    package rather than here.

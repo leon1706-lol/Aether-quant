@@ -80,6 +80,23 @@ def test_event_sequence_model_defaults_to_none():
     assert event["sequence_model"] is None
 
 
+def test_event_includes_resolved_predicted_rank_20d_and_close_price_when_provided():
+    """Phase 6 of the 5/10 -> 9/10 roadmap: main.py's already-resolved
+    rank_20d value (preferring the sequence model, falling back to
+    multitask's) and this bar's close price round-trip through
+    build_experience_event unchanged - performance/rank_ic_monitor.py's
+    outcome-resolution job self-joins on these."""
+    event = _minimal_event(resolved_predicted_rank_20d=0.83, close_price=142.50)
+    assert event["resolved_predicted_rank_20d"] == 0.83
+    assert event["close_price"] == 142.50
+
+
+def test_event_resolved_predicted_rank_20d_and_close_price_default_to_none():
+    event = _minimal_event()
+    assert event["resolved_predicted_rank_20d"] is None
+    assert event["close_price"] is None
+
+
 def test_disabled_queue_does_nothing_safely():
     """ExperienceQueue(enabled=False).push() returns False without crashing."""
     queue = ExperienceQueue(enabled=False)

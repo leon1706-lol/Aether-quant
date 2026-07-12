@@ -69,6 +69,23 @@ def test_select_candidate_trigger_picks_newest_eligible():
     assert selected["trigger_id"] == "trg-new"
 
 
+def test_rank_ic_decay_trigger_is_retrain_eligible_and_scores_like_other_quality_triggers():
+    # Phase 6 of the 5/10 -> 9/10 roadmap: select_candidate_trigger()
+    # already generically handles any retrain_candidate=True trigger type
+    # via _TYPE_BASE_SCORE - confirms rank_ic_decay_trigger is registered
+    # there (not silently falling back to the default weight of 1) and is
+    # actually selectable, same as every other model-quality trigger.
+    rank_ic_trigger = _trigger(trigger_id="trg-rank-ic", trigger_type="rank_ic_decay_trigger", severity="warning")
+
+    selected = select_candidate_trigger([rank_ic_trigger], _CONFIG)
+
+    assert selected["trigger_id"] == "trg-rank-ic"
+    sharpe_trigger = _trigger(trigger_id="trg-sharpe", trigger_type="sharpe_degradation_trigger", severity="warning")
+    rank_ic_score = _trigger_priority_score(rank_ic_trigger, [rank_ic_trigger, sharpe_trigger])
+    sharpe_score = _trigger_priority_score(sharpe_trigger, [rank_ic_trigger, sharpe_trigger])
+    assert rank_ic_score == sharpe_score  # same weight (3), same severity -> same score
+
+
 def test_min_observations_satisfied():
     assert min_observations_satisfied(500, 100) is True
     assert min_observations_satisfied(50, 100) is False

@@ -180,3 +180,32 @@ def test_run_once_passes_recent_triggers_for_frequency_spike_baseline():
         worker.run_once()
 
     assert spy.call_args.kwargs["recent_triggers"] == trigger_rows
+
+
+def test_run_once_passes_rank_ic_observations_resolved_from_window_events():
+    """Phase 6 of the 5/10 -> 9/10 roadmap: run_once() must actually reach
+    rank_ic_decay_trigger() in production, not just leave it unit-tested and
+    unreachable — it should self-join the rolling-window events it already
+    fetched (no separate Postgres query) into rank_ic_observations and pass
+    them through to evaluate_all_triggers()."""
+    base = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    window_events = [
+        _sample_event(
+            ticker="AAPL",
+            created_at=(base + timedelta(days=i)).isoformat(),
+            resolved_predicted_rank_20d=0.5,
+            close_price=100.0 + i,
+        )
+        for i in range(40)
+    ]
+    conn_mock, cur_mock = _make_conn_mock(
+        new_events=[window_events[-1]], window_events=window_events
+    )
+
+    worker = TriggerWorker(config=_CONFIG, _pg_conn=conn_mock)
+    with patch("performance.trigger_worker.evaluate_all_triggers", wraps=evaluate_all_triggers) as spy:
+        worker.run_once()
+
+    rank_ic_observations = spy.call_args.kwargs["rank_ic_observations"]
+    assert rank_ic_observations
+    assert all("realized_rank_20d" in observation for observation in rank_ic_observations)

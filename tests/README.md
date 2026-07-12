@@ -1,7 +1,7 @@
 # tests
 
-Pytest suite for every non-`webui` module. 836 tests as of the rank_20d
-position-sizing follow-up (`aq test` keeps the count badge in the root
+Pytest suite for every non-`webui` module. 939 tests as of the 5/10 -> 9/10
+frontier-readiness roadmap (`aq test` keeps the count badge in the root
 `README.md` in sync automatically — see `aq_cli.py::cmd_test`).
 
 Conventions (established since the first V2 test files and followed

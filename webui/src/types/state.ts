@@ -80,6 +80,11 @@ export interface Signal {
   market_analysis?: MarketAnalysis
   topology?: TopologyContext
   liquidity?: LiquidityInfo
+  // Phase 3 of the 5/10 -> 9/10 roadmap (portfolio/book_construction.py):
+  // the Stage-2 long/short book's role for this symbol, when
+  // phase_v2.portfolio_book.enabled - null/absent for non-book-controlled
+  // symbols or when the book overlay is off.
+  portfolio_book_role?: 'long' | 'short' | 'flat' | string | null
 }
 
 export interface Risk {
@@ -255,6 +260,24 @@ export interface RankIcSummary {
   num_dates: number
 }
 
+// Phase 2 of the 5/10 -> 9/10 roadmap: the code-enforced promotion-gate
+// verdict (train.py::assess_ranking_quality()) - distinct from
+// NeuralNetworkModel.quality_status (the older direction-model gate).
+export interface RankingQualitySummary {
+  quality_status: 'promotable' | 'watchlist' | 'not_promotable' | string
+  promotion_eligible: boolean
+  failures: string[]
+  near_misses: string[]
+  observed: {
+    non_overlapping_t_stat: number
+    non_overlapping_mean_ic: number
+    bootstrap_ci_lower_bound: number
+    bootstrap_ci_upper_bound: number
+    num_eras: number
+    num_opposite_sign_eras: number
+  }
+}
+
 export interface NeuralNetworkModel {
   name: string
   label: string
@@ -277,7 +300,22 @@ export interface NeuralNetworkModel {
   // design). null when the network has no such heads, or hasn't been
   // retrained since these metrics existed.
   horizon_mcc?: { direction_5d: number | null; direction_20d: number | null } | null
-  rank_ic?: { rank_5d: RankIcSummary | null; rank_20d: RankIcSummary | null } | null
+  // sector_neutral_rank_20d (Phase 5 of the 5/10 -> 9/10 roadmap): same
+  // RankIcSummary shape as rank_5d/20d, sector-demeaned instead of
+  // universe-wide - see build_cross_sectional_rank_targets()'s docstring.
+  rank_ic?: {
+    rank_5d: RankIcSummary | null
+    rank_20d: RankIcSummary | null
+    sector_neutral_rank_20d?: RankIcSummary | null
+  } | null
+  // Per-head promotion-gate verdict, same head keys as rank_ic above -
+  // null when the backtest run didn't compute a ranking_promotion_config
+  // (e.g. an older artifact predating Phase 2).
+  ranking_quality?: {
+    rank_5d: RankingQualitySummary | null
+    rank_20d: RankingQualitySummary | null
+    sector_neutral_rank_20d?: RankingQualitySummary | null
+  } | null
   regression_quality?: { magnitude: string | null; volatility: string | null } | null
 }
 

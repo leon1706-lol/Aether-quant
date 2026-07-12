@@ -47,6 +47,37 @@ def test_train_dataset_only_flag():
     assert run_mock.call_args.args[0] == [sys.executable, "train.py", "--dataset-only"]
 
 
+def test_train_walk_forward_flag():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["train", "--walk-forward"], run_mock)
+
+    assert run_mock.call_args.args[0] == [sys.executable, "train.py", "--walk-forward"]
+
+
+def test_train_walk_forward_passes_through_step_days_and_mode():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["train", "--walk-forward", "--step-days", "90", "--mode", "rolling"], run_mock)
+
+    assert run_mock.call_args.args[0] == [
+        sys.executable,
+        "train.py",
+        "--walk-forward",
+        "--step-days",
+        "90",
+        "--mode",
+        "rolling",
+    ]
+
+
+def test_train_walk_forward_is_mutually_exclusive_with_dataset_only():
+    parser = aq_cli.build_parser()
+    try:
+        parser.parse_args(["train", "--walk-forward", "--dataset-only"])
+        assert False, "expected SystemExit from argparse mutual exclusion"
+    except SystemExit:
+        pass
+
+
 def test_train_flags_are_mutually_exclusive():
     parser = aq_cli.build_parser()
     try:

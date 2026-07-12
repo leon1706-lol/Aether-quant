@@ -16,6 +16,7 @@ from performance.triggers import (
     live_order_permission_blocked_trigger,
     model_topology_disagreement_trigger,
     observation_count_trigger,
+    rank_ic_decay_trigger,
     regime_shift_trigger,
     risk_lock_trigger,
     sharpe_degradation_trigger,
@@ -226,6 +227,76 @@ def test_sharpe_degradation_trigger_no_false_fire_on_short_warmup_window():
     events = [_sample_event(portfolio={"total_value": 100_000.0, "simulated": True})]
 
     assert sharpe_degradation_trigger(events, min_sharpe=0.3) == []
+
+
+def _rank_ic_observation(origin_date: str, predicted_rank: float, realized_rank: float, mode: str = "backtest") -> dict:
+    return {
+        "origin_date": origin_date,
+        "resolved_predicted_rank_20d": predicted_rank,
+        "realized_rank_20d": realized_rank,
+        "mode": mode,
+    }
+
+
+def test_rank_ic_decay_trigger_fires_when_mean_ic_below_minimum():
+    # A weak/negative signal: predicted rank is essentially uncorrelated
+    # (mildly inverted) with realized rank across dates.
+    observations = [
+        _rank_ic_observation("2020-01-01", 0.9, 0.1),
+        _rank_ic_observation("2020-01-01", 0.1, 0.9),
+        _rank_ic_observation("2020-01-02", 0.9, 0.2),
+        _rank_ic_observation("2020-01-02", 0.1, 0.8),
+    ]
+
+    triggers = rank_ic_decay_trigger(observations, rolling_window=100, min_mean_ic=0.02, min_t_stat=2.0)
+
+    assert len(triggers) == 1
+    assert triggers[0]["trigger_type"] == "rank_ic_decay_trigger"
+
+
+def test_rank_ic_decay_trigger_does_not_fire_on_strong_stable_signal():
+    # Perfect correlation every date - real edge, should never fire.
+    observations = [
+        _rank_ic_observation("2020-01-01", 0.9, 1.0),
+        _rank_ic_observation("2020-01-01", 0.5, 0.5),
+        _rank_ic_observation("2020-01-01", 0.1, 0.0),
+        _rank_ic_observation("2020-01-02", 0.9, 1.0),
+        _rank_ic_observation("2020-01-02", 0.5, 0.5),
+        _rank_ic_observation("2020-01-02", 0.1, 0.0),
+    ]
+
+    # Perfect per-date correlation gives zero IC variance (t_stat=0), which
+    # itself would fail min_t_stat - use min_t_stat=0 to isolate testing
+    # the mean_ic side of the gate in isolation.
+    triggers = rank_ic_decay_trigger(observations, rolling_window=100, min_mean_ic=0.02, min_t_stat=0.0)
+
+    assert triggers == []
+
+
+def test_rank_ic_decay_trigger_no_false_fire_on_short_warmup_window():
+    observations = [_rank_ic_observation("2020-01-01", 0.9, 1.0)]
+
+    assert rank_ic_decay_trigger(observations, rolling_window=100) == []
+
+
+def test_rank_ic_decay_trigger_empty_observations_returns_empty():
+    assert rank_ic_decay_trigger([], rolling_window=100) == []
+
+
+def test_rank_ic_decay_trigger_respects_rolling_window():
+    # 100 old, weak-signal observations followed by 4 recent, strong ones -
+    # a small rolling_window should only look at the recent, strong tail.
+    old_weak = [_rank_ic_observation(f"2019-{month:02d}-01", 0.9, 0.1) for month in range(1, 13)] * 10
+    recent_strong = [
+        _rank_ic_observation("2020-01-01", 0.9, 1.0),
+        _rank_ic_observation("2020-01-01", 0.1, 0.0),
+        _rank_ic_observation("2020-01-02", 0.9, 1.0),
+        _rank_ic_observation("2020-01-02", 0.1, 0.0),
+    ]
+
+    triggers = rank_ic_decay_trigger(old_weak + recent_strong, rolling_window=4, min_mean_ic=0.02, min_t_stat=0.0)
+
+    assert triggers == []
 
 
 def test_win_rate_trigger_fires_when_win_rate_below_minimum():
@@ -534,6 +605,30 @@ def test_evaluate_all_triggers_backward_compatible_without_recent_triggers():
     report = evaluate_all_triggers(events, _DEFAULT_CONFIG)
 
     assert report["triggers"] == []
+
+
+def test_evaluate_all_triggers_dispatches_rank_ic_decay_trigger_when_observations_supplied():
+    events = _healthy_events(50)
+    observations = [
+        _rank_ic_observation("2020-01-01", 0.9, 0.1),
+        _rank_ic_observation("2020-01-01", 0.1, 0.9),
+        _rank_ic_observation("2020-01-02", 0.9, 0.2),
+        _rank_ic_observation("2020-01-02", 0.1, 0.8),
+    ]
+    config = dict(_DEFAULT_CONFIG, rank_ic_decay_min_mean_ic=0.02, rank_ic_decay_min_t_stat=2.0)
+
+    report = evaluate_all_triggers(events, config, rank_ic_observations=observations)
+
+    assert any(trigger["trigger_type"] == "rank_ic_decay_trigger" for trigger in report["triggers"])
+    assert "rank_ic_decay_trigger" in report["summary"]["trigger_type_counts"]
+
+
+def test_evaluate_all_triggers_backward_compatible_without_rank_ic_observations():
+    events = _healthy_events(50)
+
+    report = evaluate_all_triggers(events, _DEFAULT_CONFIG)
+
+    assert not any(trigger["trigger_type"] == "rank_ic_decay_trigger" for trigger in report["triggers"])
 
 
 def test_evaluate_all_triggers_includes_topology_triggers_when_persistent():

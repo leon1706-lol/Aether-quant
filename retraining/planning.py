@@ -41,6 +41,14 @@ _TYPE_BASE_SCORE = {
     "cluster_drift_trigger": 2,
     "model_topology_disagreement_trigger": 2,
     "trigger_frequency_spike": 2,
+    # Phase 6 of the 5/10 -> 9/10 roadmap - comparable weight to
+    # sharpe_degradation_trigger/win_rate_trigger/confidence_decay_trigger:
+    # a decaying edge in the signal driving rank_sizing_enabled/the
+    # portfolio book is a first-class reason to retrain, same tier as any
+    # other model-quality trigger. select_candidate_trigger() already
+    # generically handles any retrain_candidate=True trigger type - no
+    # other change needed here.
+    "rank_ic_decay_trigger": 3,
 }
 _TOPOLOGY_TRIGGER_TYPES = {
     "topology_uncertainty_trigger",

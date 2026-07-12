@@ -30,6 +30,52 @@ def test_risk_off_regime_overrides_directional_signal():
     assert decision.signal == "hold"
 
 
+def test_short_signal_trades_when_eligible_and_confident():
+    # Phase 3 of the 5/10 -> 9/10 roadmap: "short" (portfolio-book-only,
+    # see portfolio/book_construction.py) must reach "trade" the same way
+    # "buy"/"sell" already do - it is not silently excluded from the
+    # trading tier.
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.5, probability_up=0.3, target_weight=-0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+    )
+    assert decision.action == "trade"
+    assert decision.target_weight == -0.12
+
+
+def test_short_signal_overridden_by_risk_off_regime():
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.9, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(confidence=0.8, risk_regime="risk_off"), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+    )
+    assert decision.action == "reduce_risk"
+    assert decision.signal == "hold"
+
+
+def test_short_signal_overridden_by_trade_lock():
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.8, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=True, trade_lock_reason="total_drawdown_limit_breached",
+    )
+    assert decision.action == "reduce_risk"
+    assert decision.target_weight == 0.0
+
+
+def test_short_signal_downgraded_by_liquidity_block():
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.8, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        liquidity={"recommended_action": "block"},
+    )
+    assert decision.action == "simulate"
+    assert decision.signal == "short"
+    assert decision.target_weight == 0.0
+
+
 def test_baseline_fallback_with_low_regime_confidence_flags_retrain_candidate():
     decision = build_market_analysis_decision(
         signal_name="buy", confidence=0.5, probability_up=0.6, target_weight=0.1,

@@ -5,7 +5,7 @@ warning signs in live/observation/backtest activity — but never retrains
 anything itself. `retrain_candidate` is a flag consumed by `retraining/`
 (V2-17), not an action taken here.
 
-- `triggers.py` (pure) — 14 trigger functions
+- `triggers.py` (pure) — 15 trigger functions
   (`observation_count_trigger`, `drawdown_trigger`,
   `sharpe_degradation_trigger`, `win_rate_trigger`,
   `confidence_decay_trigger`, `regime_shift_trigger`,
@@ -29,6 +29,16 @@ anything itself. `retrain_candidate` is a flag consumed by `retraining/`
   simulated) that's deliberately excluded from `retrain_candidate` via a
   `_NON_RETRAIN_TRIGGERS` set, since a broker misconfiguration is an ops
   problem, not something a new model version fixes.
+- **`rank_ic_decay_trigger()` (Phase 6 of the 5/10 -> 9/10 roadmap)** — the
+  one trigger whose input isn't the standard `events` list.
+  `performance/rank_ic_monitor.py::compute_realized_rank_ic_observations()`
+  self-joins ordinary `experience_events` rows (no new table needed —
+  reuses the same events every other trigger already reads) against each
+  prediction's realized 20-trading-day forward return, producing the
+  `rank_ic_observations` series this trigger actually consumes. Fires when
+  either the rolling mean rank-IC or its t-stat falls below its own floor.
+  Registered in `_MODEL_QUALITY_TRIGGERS`/`_RECOMMENDED_ACTIONS` like any
+  other model-quality trigger.
 - `postgres_triggers.py` (IO) — embedded DDL for the durable
   `performance_triggers` table (the system of record — separate from
   `experience_events` so Grafana/V2-17 can query it cleanly) plus a

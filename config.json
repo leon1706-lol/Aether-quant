@@ -211,6 +211,86 @@
                         "backfill_from": "2017-11-09",
                         "backfill_to": "2021-04-01"
                     }
+                },
+                {
+                    "ticker": "SHY",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/shy.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "IEF",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/ief.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "TLT",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/tlt.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "AGG",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/agg.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "LQD",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/lqd.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "HYG",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/hyg.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "TIP",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/tip.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "MBB",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/mbb.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "EMB",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/emb.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "MUB",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/mub.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
                 }
             ],
             "common_window": {
@@ -260,10 +340,16 @@
                 "peer_rank2_return_1d",
                 "peer_rank3_return_1d",
                 "peer_mean_return_1d",
-                "cs_momentum_rank_20"
+                "cs_momentum_rank_20",
+                "macro_yield_curve_slope_proxy",
+                "macro_credit_spread_proxy",
+                "macro_crypto_risk_appetite_proxy"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
-            "winsorize_quantiles": [0.001, 0.999],
+            "winsorize_quantiles": [
+                0.001,
+                0.999
+            ],
             "scaled_feature_clip_sigma": 10.0
         },
         "target": {
@@ -283,8 +369,25 @@
                 "crypto": 4.0
             },
             "ranking": {
-                "horizon_days": [5, 20],
-                "min_universe_size": 10
+                "horizon_days": [
+                    5,
+                    20
+                ],
+                "min_universe_size": 10,
+                "purged_cv": {
+                    "enabled": false,
+                    "n_folds": 5,
+                    "embargo_days": 5
+                },
+                "promotion_gate": {
+                    "min_non_overlapping_t_stat": 2.0,
+                    "min_bootstrap_ci_lower": 0.0,
+                    "ranking_watchlist_margin": 0.3,
+                    "era_length_days": 90
+                },
+                "sector_neutral": {
+                    "min_sector_size": 3
+                }
             }
         }
     },
@@ -343,9 +446,10 @@
             "observation_only_kept_in_universe": true
         },
         "portfolio": {
-            "max_active_positions": 10,
+            "max_active_positions": 12,
             "max_equity_exposure": 0.65,
             "max_crypto_exposure": 0.35,
+            "max_short_exposure": 0.30,
             "observation_only_assets_can_trade": false
         }
     },
@@ -414,6 +518,12 @@
                 "distance_scale_percentile": 90
             }
         },
+        "portfolio_book": {
+            "enabled": false,
+            "top_n": 3,
+            "bottom_n": 3,
+            "min_rank_confidence_spread": 0.2
+        },
         "liquidity": {
             "thin_participation_threshold": 0.01,
             "high_impact_participation_threshold": 0.01,
@@ -465,7 +575,11 @@
             "trigger_frequency_spike_baseline_minutes": 1440,
             "trigger_frequency_spike_min_recent_count": 3,
             "rolling_window_events": 500,
-            "rolling_window_days": 30
+            "rolling_window_days": 30,
+            "rank_ic_decay_rolling_window": 100,
+            "rank_ic_decay_min_mean_ic": 0.02,
+            "rank_ic_decay_min_t_stat": 2.0,
+            "rank_ic_resolution_horizon_days": 20
         },
         "runtime": {
             "mode": "backtest",
@@ -498,6 +612,15 @@
                 "warning",
                 "critical"
             ],
+            "walk_forward": {
+                "enabled": false,
+                "schedule_days": 30,
+                "mode": "expanding",
+                "train_span_days": 1095,
+                "validation_span_days": 365,
+                "backtest_span_days": 365,
+                "step_days": 90
+            },
             "validation_gate": {
                 "min_sharpe": 0.3,
                 "max_validation_loss_increase_ratio": 0.1,
@@ -607,10 +730,26 @@
                 "magnitude_loss_weight": 1.0,
                 "volatility_loss_weight": 1.0,
                 "horizon_heads": {
-                    "direction_5d": {"enabled": true, "loss_weight": 1.0},
-                    "direction_20d": {"enabled": true, "loss_weight": 0.5},
-                    "rank_5d": {"enabled": true, "loss_weight": 1.0},
-                    "rank_20d": {"enabled": true, "loss_weight": 0.5}
+                    "direction_5d": {
+                        "enabled": true,
+                        "loss_weight": 1.0
+                    },
+                    "direction_20d": {
+                        "enabled": true,
+                        "loss_weight": 0.5
+                    },
+                    "rank_5d": {
+                        "enabled": true,
+                        "loss_weight": 1.0
+                    },
+                    "rank_20d": {
+                        "enabled": true,
+                        "loss_weight": 0.5
+                    },
+                    "sector_neutral_rank_20d": {
+                        "enabled": true,
+                        "loss_weight": 0.3
+                    }
                 },
                 "seed": 42
             },
@@ -640,10 +779,26 @@
                 "magnitude_loss_weight": 1.0,
                 "volatility_loss_weight": 1.0,
                 "horizon_heads": {
-                    "direction_5d": {"enabled": true, "loss_weight": 1.0},
-                    "direction_20d": {"enabled": true, "loss_weight": 0.5},
-                    "rank_5d": {"enabled": true, "loss_weight": 1.0},
-                    "rank_20d": {"enabled": true, "loss_weight": 0.5}
+                    "direction_5d": {
+                        "enabled": true,
+                        "loss_weight": 1.0
+                    },
+                    "direction_20d": {
+                        "enabled": true,
+                        "loss_weight": 0.5
+                    },
+                    "rank_5d": {
+                        "enabled": true,
+                        "loss_weight": 1.0
+                    },
+                    "rank_20d": {
+                        "enabled": true,
+                        "loss_weight": 0.5
+                    },
+                    "sector_neutral_rank_20d": {
+                        "enabled": true,
+                        "loss_weight": 0.3
+                    }
                 },
                 "seed": 42
             }

@@ -56,6 +56,7 @@ export function AssetSizingTable({ signals }: { signals: Record<string, Signal> 
               <tr className="text-left text-[0.7rem] uppercase tracking-wide text-white/60">
                 <th className="border-b border-white/10 px-2.5 py-2.5">Asset</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Signal</th>
+                <th className="border-b border-white/10 px-2.5 py-2.5">Book Role</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Regime</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Volatility</th>
                 <th className="border-b border-white/10 px-2.5 py-2.5">Position Size</th>
@@ -85,6 +86,13 @@ export function AssetSizingTable({ signals }: { signals: Record<string, Signal> 
                     </td>
                     <td className="border-b border-white/5 px-2.5 py-2.5">
                       <Badge tone={signal}>{signal}</Badge>
+                    </td>
+                    <td className="border-b border-white/5 px-2.5 py-2.5">
+                      {asset.portfolio_book_role ? (
+                        <Badge tone={asset.portfolio_book_role}>{asset.portfolio_book_role}</Badge>
+                      ) : (
+                        <span className="text-[0.78rem] text-white/40">—</span>
+                      )}
                     </td>
                     <td className="border-b border-white/5 px-2.5 py-2.5">
                       <Badge tone={regime}>{regime}</Badge>

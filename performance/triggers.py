@@ -22,6 +22,7 @@ from experience.observation_metrics import (
     simulated_sharpe,
     simulated_win_loss,
 )
+from performance.rank_ic_monitor import compute_production_rank_ic
 
 SEVERITIES = ("info", "warning", "critical")
 TRIGGER_TYPES = (
@@ -55,6 +56,11 @@ TRIGGER_TYPES = (
     # believes it's live). See _NON_RETRAIN_TRIGGERS below - retraining a
     # model cannot fix a broker misconfiguration.
     "live_order_permission_blocked_trigger",
+    # Phase 6 of the 5/10 -> 9/10 roadmap - the one trigger whose input is
+    # rank_ic_observations (performance/rank_ic_monitor.py's
+    # outcome-resolution output), not the standard events list. See
+    # rank_ic_decay_trigger()'s own docstring.
+    "rank_ic_decay_trigger",
 )
 
 _MODEL_QUALITY_TRIGGERS = {
@@ -68,6 +74,7 @@ _MODEL_QUALITY_TRIGGERS = {
     "cluster_drift_trigger",
     "model_topology_disagreement_trigger",
     "sustained_drawdown_trigger",
+    "rank_ic_decay_trigger",
 }
 
 # Cadence triggers are always retrain-eligible when they fire at all (they
@@ -102,6 +109,7 @@ _RECOMMENDED_ACTIONS = {
     "executed_trade_count_trigger": "consider_scheduled_retraining",
     "sustained_drawdown_trigger": "reduce_exposure",
     "live_order_permission_blocked_trigger": "escalate_deployment_review",
+    "rank_ic_decay_trigger": "review_model_quality",
 }
 
 _LIQUIDITY_REJECTION_ACTIONS = {"block", "reduce_size"}
@@ -328,6 +336,56 @@ def sharpe_degradation_trigger(
             sharpe,
             min_sharpe,
             f"Rolling Sharpe dropped to {sharpe:.2f} (min {min_sharpe:.2f}).",
+        )
+    ]
+
+
+def rank_ic_decay_trigger(
+    rank_ic_observations: list[dict],
+    rolling_window: int = 100,
+    min_mean_ic: float = 0.02,
+    min_t_stat: float = 2.0,
+) -> list[dict]:
+    """Phase 6 of the 5/10 -> 9/10 roadmap: the one trigger in this module
+    whose input isn't the standard `events` list - `rank_ic_observations`
+    comes from performance/rank_ic_monitor.py::compute_realized_rank_ic_observations(),
+    already resolved against each prediction's realized 20-trading-day
+    forward return (a prediction made today can't be scored until then -
+    see that module's docstring for why this is structurally different
+    from every other trigger here). Fires when EITHER the rolling mean
+    rank-IC or its t-stat falls below its own floor - a real edge needs
+    both a real mean and real statistical confidence in it, not just one.
+
+    Mirrors sharpe_degradation_trigger()'s exact shape (rolling window,
+    _breach_ratio_below()/_severity_for_breach() severity scoring,
+    _make_trigger()) so this composes with every existing trigger-handling
+    code path (evaluate_all_triggers(), retraining/planning.py) without
+    special-casing."""
+    windowed = rank_ic_observations[-rolling_window:] if rolling_window > 0 else rank_ic_observations
+    if len(windowed) < 2:
+        return []
+
+    result = compute_production_rank_ic(windowed)
+    if result["num_dates"] < 2:
+        return []
+
+    mean_ic = result["mean_ic"]
+    t_stat = result["t_stat"]
+    if mean_ic >= min_mean_ic and t_stat >= min_t_stat:
+        return []
+
+    breach_ratio = max(_breach_ratio_below(mean_ic, min_mean_ic), _breach_ratio_below(t_stat, min_t_stat))
+    severity = _severity_for_breach(breach_ratio)
+    mode = next((observation.get("mode") for observation in reversed(windowed) if observation.get("mode")), "unknown")
+    return [
+        _make_trigger(
+            "rank_ic_decay_trigger",
+            severity,
+            mode,
+            "portfolio",
+            mean_ic,
+            min_mean_ic,
+            f"Rank-IC decayed: mean_ic={mean_ic:.4f} (min {min_mean_ic:.4f}), t_stat={t_stat:.2f} (min {min_t_stat:.2f}).",
         )
     ]
 
@@ -776,7 +834,12 @@ def trigger_frequency_spike(
     ]
 
 
-def evaluate_all_triggers(events: list[dict], config: dict, recent_triggers: list[dict] | None = None) -> dict:
+def evaluate_all_triggers(
+    events: list[dict],
+    config: dict,
+    recent_triggers: list[dict] | None = None,
+    rank_ic_observations: list[dict] | None = None,
+) -> dict:
     generated_at = _now_iso()
     enabled = bool(config.get("enabled", True))
 
@@ -854,6 +917,20 @@ def evaluate_all_triggers(events: list[dict], config: dict, recent_triggers: lis
             baseline_window_minutes=int(config.get("trigger_frequency_spike_baseline_minutes", 1440)),
             spike_multiplier=float(config.get("trigger_frequency_spike_multiplier", 3.0)),
             min_recent_count=int(config.get("trigger_frequency_spike_min_recent_count", 3)),
+        )
+    # Phase 6 of the 5/10 -> 9/10 roadmap - same "extra optional series,
+    # different shape than events" pattern as recent_triggers/
+    # trigger_frequency_spike above. rank_ic_observations comes from
+    # performance/rank_ic_monitor.py::compute_realized_rank_ic_observations(),
+    # not the standard events list - only evaluated when the caller
+    # actually supplies it (production callers need Postgres access to
+    # resolve predictions against realized returns first).
+    if rank_ic_observations is not None:
+        triggers += rank_ic_decay_trigger(
+            rank_ic_observations,
+            rolling_window=int(config.get("rank_ic_decay_rolling_window", 100)),
+            min_mean_ic=float(config.get("rank_ic_decay_min_mean_ic", 0.02)),
+            min_t_stat=float(config.get("rank_ic_decay_min_t_stat", 2.0)),
         )
 
     severity_distribution = {severity: 0 for severity in SEVERITIES}

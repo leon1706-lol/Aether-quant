@@ -148,6 +148,32 @@ services:
       - aether-net
     restart: unless-stopped
 
+  paper-readiness-scheduler:
+    # Phase 7 of the 5/10 -> 9/10 roadmap - purely additive reporting
+    # (execution/paper_readiness_scheduler.py), never touches
+    # phase_v2.paper_trading's config flags or order routing. Off by
+    # default: not started by `docker compose up` alone (no depends_on
+    # from another service) - start explicitly with
+    # `docker compose up paper-readiness-scheduler` when wanted.
+    build:
+      context: .
+      dockerfile: Dockerfile.workers
+    container_name: aether-paper-readiness-scheduler
+    command: python -m execution.paper_readiness_scheduler --poll-interval 3600
+    environment:
+      AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./visualization:/app/visualization
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aether-net
+    restart: unless-stopped
+    profiles:
+      - paper-readiness
+
   telegram-worker:
     build:
       context: .

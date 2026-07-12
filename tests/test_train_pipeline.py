@@ -344,6 +344,36 @@ def test_apply_split_adjustments_is_identity_when_no_factor_file(tmp_path, monke
     pd.testing.assert_frame_equal(adjusted, frame)
 
 
+def test_apply_split_adjustments_noop_is_the_intended_contract_for_aq_fetch_tickers(tmp_path, monkeypatch):
+    # Documents (not just incidentally exercises) a second, deliberate
+    # data-provenance contract living alongside the original one:
+    # data_pipeline/fetch.py::fetch_adhoc_asset() (backing `aq fetch`, used
+    # for e.g. bond ETFs like TLT/SHY/LQD) fetches via
+    # yfinance_backfill.py::fetch_yahoo_ohlcv()'s auto_adjust=True, so its
+    # output is already dividend/split-adjusted before it ever reaches a
+    # Lean zip. Unlike the original ~15 equities (raw Lean prices, adjusted
+    # here via a checked-in data/equity/usa/factor_files/<ticker>.csv), any
+    # `aq fetch`-added ticker has no factor file by design and must NOT get
+    # one - a factor file would double-adjust already-adjusted prices. This
+    # test locks in that the no-factor-file path is correct for those
+    # tickers, not an accidental gap.
+    monkeypatch.setattr(train, "FACTOR_FILES_DIR", tmp_path)
+    frame = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2020-08-27", "2020-08-28"]),
+            "open": [89.09, 87.76],
+            "high": [89.19, 87.76],
+            "low": [88.21, 87.36],
+            "close": [88.5, 87.4],
+            "volume": [8_000_000.0, 7_500_000.0],
+        }
+    )
+
+    adjusted = apply_split_adjustments(frame, "TLT")
+
+    pd.testing.assert_frame_equal(adjusted, frame)
+
+
 def test_load_lean_bars_applies_split_adjustment_for_equities(tmp_path, monkeypatch):
     monkeypatch.setattr(train, "ROOT", tmp_path)
     monkeypatch.setattr(train, "FACTOR_FILES_DIR", tmp_path / "data" / "equity" / "usa" / "factor_files")
@@ -841,6 +871,7 @@ def test_compute_rank_ic_perfect_correlation_gives_ic_of_one():
 
     assert result["mean_ic"] == pytest.approx(1.0)
     assert result["num_dates"] == 3
+    assert result["ic_values"] == pytest.approx([1.0, 1.0, 1.0])
 
 
 def test_compute_rank_ic_anti_correlation_gives_ic_of_minus_one():
@@ -897,4 +928,4 @@ def test_compute_rank_ic_returns_zero_when_no_dates_have_enough_assets():
         torch.tensor(predictions, dtype=torch.float32), torch.tensor(target_rank, dtype=torch.float32), dates
     )
 
-    assert result == {"mean_ic": 0.0, "std_ic": 0.0, "t_stat": 0.0, "num_dates": 0}
+    assert result == {"mean_ic": 0.0, "std_ic": 0.0, "t_stat": 0.0, "num_dates": 0, "ic_values": []}

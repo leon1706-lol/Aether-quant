@@ -62,3 +62,38 @@ dry-run-by-default/`--apply` safety convention. Never runs `train.py`
 itself; see the root [`README.md`](../README.md#cli-reference) for the
 full `aq fetch` usage.
 
+### Two data-provenance contracts, by design (`aq fetch` tickers are pre-adjusted)
+
+Every ticker fetched via `fetch_adhoc_asset()` (the bond ETF sleeve added in
+Phase 1 of the 5/10 -> 9/10 roadmap is the first real-universe example) goes
+through `fetch_yahoo_ohlcv()`'s `auto_adjust=True` — Yahoo applies its own
+split/dividend adjustment **before** the data ever reaches a Lean zip. This
+is a second, deliberate data-provenance contract living alongside the
+original one: the original ~15 equities (AAPL, SPY, ...) use **raw** Lean
+prices, adjusted separately at train time via a checked-in
+`data/equity/usa/factor_files/<ticker>.csv`
+(`train.py::apply_split_adjustments()`/`load_factor_file()`). An
+`aq fetch`-added ticker deliberately has **no** factor file — adding one
+would double-adjust already-adjusted prices — and `load_factor_file()`'s
+existing "return `None` when missing" behavior is the correct, intended
+no-op for this path, not an accidental gap (see
+`tests/test_train_pipeline.py::test_apply_split_adjustments_noop_is_the_intended_contract_for_aq_fetch_tickers`).
+This matters more for bond ETFs than most equities, since they distribute
+income frequently (often monthly) — an un-adjusted bond ETF price series
+would show a fake "return" on every distribution date.
+
+`fetch_adhoc_asset()` also does **not** write a Lean
+`data/equity/usa/map_files/<ticker>.csv` — that file is Lean's own
+local-disk security-resolution convention (a two-row identity map,
+`<start_date>,<ticker>,Q` / `20501231,<ticker>,Q`, mirroring e.g.
+`aapl.csv`) and every currently-active equity ticker in this universe
+already has one (bundled with QuantConnect's sample data, since no prior
+`aq fetch`-added ticker had ever been wired into an active universe before
+Phase 1). Since this repo's Lean backtests are run manually by the user
+(see the Runbook), rather than block on an automated `lean backtest` check
+this repo doesn't currently have Docker access to run, map files were
+created proactively for the bond ETF sleeve, following the exact identity
+format above — any future `aq fetch`-added ticker destined for the real
+universe should get one the same way until/unless a real Lean run confirms
+it's unnecessary.
+

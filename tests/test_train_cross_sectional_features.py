@@ -26,6 +26,7 @@ from train import (
     add_regime_features,
     build_cross_sectional_rank_targets,
     build_topology_features_by_date,
+    load_sector_mapping,
     peer_return_feature_names,
 )
 from regime import build_market_regime_vector
@@ -378,6 +379,139 @@ def test_build_cross_sectional_rank_targets_computes_both_horizons_independently
     # the other.
     assert (result["A"]["target_rank_5d"] == 1.0).all()
     assert (result["A"]["target_rank_20d"] == 0.5).all()
+
+
+# ---------------------------------------------------------------------------
+# load_sector_mapping (Phase 5)
+# ---------------------------------------------------------------------------
+
+
+def test_load_sector_mapping_reads_the_checked_in_reference_file():
+    mapping = load_sector_mapping({})
+
+    assert mapping["AAPL"] == "Technology"
+    assert mapping["TLT"] == "Fixed Income"
+    assert mapping["BTCUSD"] == "Crypto"
+    assert "_comment" not in mapping  # metadata key filtered out
+
+
+def test_load_sector_mapping_returns_empty_dict_when_file_missing(tmp_path, monkeypatch):
+    import train
+
+    monkeypatch.setattr(train, "SECTOR_MAPPING_PATH", tmp_path / "nope.json")
+
+    assert load_sector_mapping({}) == {}
+
+
+def test_load_sector_mapping_returns_empty_dict_on_invalid_json(tmp_path, monkeypatch):
+    import train
+
+    bad_path = tmp_path / "bad.json"
+    bad_path.write_text("{not valid json", encoding="utf-8")
+    monkeypatch.setattr(train, "SECTOR_MAPPING_PATH", bad_path)
+
+    assert load_sector_mapping({}) == {}
+
+
+def test_load_sector_mapping_respects_config_override_path(tmp_path):
+    override_path = tmp_path / "custom_sectors.json"
+    override_path.write_text('{"XYZ": "Utilities"}', encoding="utf-8")
+    config = {"phase1": {"target": {"ranking": {"sector_neutral": {"mapping_path": str(override_path)}}}}}
+
+    mapping = load_sector_mapping(config)
+
+    assert mapping == {"XYZ": "Utilities"}
+
+
+# ---------------------------------------------------------------------------
+# build_cross_sectional_rank_targets's sector-neutral columns (Phase 5)
+# ---------------------------------------------------------------------------
+
+
+def test_build_cross_sectional_rank_targets_sector_neutral_ranks_within_sector_only(monkeypatch):
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        # Tech sector: TECH_A outperforms TECH_B/TECH_C within tech...
+        "TECH_A": _rank_target_frame(dates, [0.05] * 3),
+        "TECH_B": _rank_target_frame(dates, [0.02] * 3),
+        "TECH_C": _rank_target_frame(dates, [0.01] * 3),
+        # ...but the whole universe is dominated by a much stronger
+        # Energy sector, so TECH_A would rank near the BOTTOM universe-wide.
+        "ENERGY_A": _rank_target_frame(dates, [0.20] * 3),
+        "ENERGY_B": _rank_target_frame(dates, [0.19] * 3),
+        "ENERGY_C": _rank_target_frame(dates, [0.18] * 3),
+    }
+    config = {
+        "phase1": {
+            "target": {
+                "ranking": {
+                    "min_universe_size": 2,
+                    "sector_neutral": {"min_sector_size": 2},
+                }
+            }
+        }
+    }
+    sector_map = {
+        "TECH_A": "Technology", "TECH_B": "Technology", "TECH_C": "Technology",
+        "ENERGY_A": "Energy", "ENERGY_B": "Energy", "ENERGY_C": "Energy",
+    }
+
+    import train as train_module
+
+    monkeypatch.setattr(train_module, "load_sector_mapping", lambda config: sector_map)
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    # Universe-wide rank: TECH_A is outranked by all 3 stronger energy
+    # names, so it's stuck in the middle (3rd of 6) despite being the best
+    # performer in its own sector - nowhere near the top-of-universe rank
+    # (1.0) it gets below once sector-neutral.
+    assert result["TECH_A"]["target_rank_5d"].iloc[0] == pytest.approx(0.5)
+    # Sector-neutral rank: TECH_A is the TOP performer within Technology.
+    assert result["TECH_A"]["target_sector_neutral_rank_5d"].iloc[0] == 1.0
+    assert result["TECH_C"]["target_sector_neutral_rank_5d"].iloc[0] == pytest.approx(1 / 3)
+    # Existing target_rank_5d/20d columns are untouched by the sector-neutral addition.
+    assert result["ENERGY_A"]["target_rank_5d"].iloc[0] == 1.0
+
+
+def test_build_cross_sectional_rank_targets_sector_neutral_below_min_sector_size_is_nan():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "A": _rank_target_frame(dates, [0.05] * 3),
+        "B": _rank_target_frame(dates, [0.02] * 3),
+    }
+    config = {
+        "phase1": {
+            "target": {"ranking": {"min_universe_size": 2, "sector_neutral": {"min_sector_size": 5}}}
+        }
+    }
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    # Both assets fall back to UNKNOWN_SECTOR_LABEL (no sector_mapping.json
+    # entry for these synthetic tickers) - only 2 members, below
+    # min_sector_size=5, so the sector-neutral rank must be NaN even though
+    # the plain universe-wide rank is real.
+    assert result["A"]["target_sector_neutral_rank_5d"].isna().all()
+    assert result["A"]["target_rank_5d"].notna().all()
+
+
+def test_build_cross_sectional_rank_targets_unmapped_tickers_share_unknown_sector():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "ZZZ1": _rank_target_frame(dates, [0.05] * 3),
+        "ZZZ2": _rank_target_frame(dates, [0.02] * 3),
+        "ZZZ3": _rank_target_frame(dates, [0.01] * 3),
+    }
+    config = {
+        "phase1": {"target": {"ranking": {"min_universe_size": 2, "sector_neutral": {"min_sector_size": 3}}}}
+    }
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    # None of these tickers are in the real sector_mapping.json - they all
+    # share UNKNOWN_SECTOR_LABEL, which has 3 members here, clearing
+    # min_sector_size=3, so a real (non-NaN) sector-neutral rank is produced.
+    assert result["ZZZ1"]["target_sector_neutral_rank_5d"].iloc[0] == 1.0
 
 
 # ---------------------------------------------------------------------------

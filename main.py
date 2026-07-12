@@ -39,6 +39,7 @@ from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
+from portfolio import build_rank_based_book
 from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 from experience import (
@@ -60,11 +61,14 @@ from inference import (
 from features import (
     average_true_range_pct,
     bollinger_pctb,
+    credit_spread_proxy,
     cross_sectional_momentum_rank,
+    crypto_risk_appetite_proxy,
     distance_from_52w_high,
     macd_histogram_normalized,
     relative_strength_index,
     volume_zscore,
+    yield_curve_slope_proxy,
 )
 from performance import evaluate_all_triggers
 
@@ -204,6 +208,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase_v2_analyzer = self.phase_v2.get("market_analyzer", {})
         phase_v2_topology = self.phase_v2.get("topology", {})
         phase_v2_backtest = self.phase_v2.get("backtest", {})
+        phase_v2_portfolio_book = self.phase_v2.get("portfolio_book", {})
 
         self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
         self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
@@ -234,6 +239,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.max_active_positions = int(phase9_portfolio.get("max_active_positions", 5))
         self.max_equity_exposure = float(phase9_portfolio.get("max_equity_exposure", 0.65))
         self.max_crypto_exposure = float(phase9_portfolio.get("max_crypto_exposure", 0.25))
+        # Phase 3 of the 5/10 -> 9/10 roadmap: a portfolio-book-only cap -
+        # short-selling doesn't exist anywhere else in this codebase, so
+        # this is the only exposure cap that bounds it. Independent of the
+        # book's own enabled/off switch below - stays a safety ceiling even
+        # if someone enables the book without touching this default.
+        self.max_short_exposure = float(phase9_portfolio.get("max_short_exposure", 0.30))
+        # Phase 3 of the 5/10 -> 9/10 roadmap: off by default, same
+        # precedent as rank_sizing_enabled - see portfolio/book_construction.py's
+        # module docstring for why this is the one signal in this codebase
+        # allowed to SET direction rather than only scale an already-decided
+        # trade's magnitude.
+        self.portfolio_book_enabled = bool(phase_v2_portfolio_book.get("enabled", False))
+        self.portfolio_book_top_n = int(phase_v2_portfolio_book.get("top_n", 3))
+        self.portfolio_book_bottom_n = int(phase_v2_portfolio_book.get("bottom_n", 3))
+        self.portfolio_book_min_rank_confidence_spread = float(
+            phase_v2_portfolio_book.get("min_rank_confidence_spread", 0.2)
+        )
         self.target_daily_volatility = float(phase_v2_risk.get("target_daily_volatility", 0.015))
         self.low_volatility_threshold = float(phase_v2_risk.get("low_volatility_threshold", 0.01))
         self.high_volatility_threshold = float(phase_v2_risk.get("high_volatility_threshold", 0.03))
@@ -287,6 +309,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_warm_start_enabled = bool(phase_v2_topology.get("warm_start_enabled", True))
         self.topology_convergence_tolerance = float(phase_v2_topology.get("convergence_tolerance", 0.01))
         self.topology_top_peers_n = int(phase_v2_topology.get("top_peers_n", 3))
+        # Phase 1b of the 5/10 -> 9/10 roadmap: deliberate, explicit
+        # cross-asset "macro" features (features/macro_features.py) -
+        # mirrors train.py::DEFAULT_MACRO_REFERENCE_TICKERS exactly for
+        # train/runtime parity, overridable via the same config key.
+        self.macro_reference_tickers = {
+            "long_duration": "TLT",
+            "short_duration": "SHY",
+            "high_yield": "HYG",
+            "investment_grade": "LQD",
+            "crypto": "BTCUSD",
+            **self.phase1.get("features", {}).get("macro_reference_tickers", {}),
+        }
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -364,6 +398,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_liquidity_by_symbol = {}
         self.latest_learned_neighbors_by_symbol = {}
         self.latest_topology_payload = {}
+        self.latest_macro_payload = {}
         self._previous_topology_positions: dict[str, tuple[float, float]] = {}
 
         self._ready = True
@@ -379,10 +414,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.bar_index += 1
         self._refresh_risk_state()
         self.latest_topology_payload = self._build_topology_payload()
+        self.latest_macro_payload = self._build_macro_payload()
         topology_by_symbol = {node["symbol"]: node for node in self.latest_topology_payload.get("nodes", [])}
-        signals = {}
+        signals: dict[str, dict] = {}
         close_prices_by_symbol: dict[str, float] = {}
 
+        # ---- Pass 1 (Phase 3 of the 5/10 -> 9/10 roadmap): per-symbol
+        # feature build + inference, through predicted_rank_20d and the
+        # existing (pre-book) signal derivation - every symbol's rank_20d
+        # for this bar must exist before ANY symbol's book role can be
+        # decided (portfolio/book_construction.py needs the whole-universe
+        # view at once). signal_payload is inserted into `signals` here,
+        # in self.symbols order, for EVERY symbol with a bar - Pass 2 below
+        # only ever mutates these same dict objects in place (never
+        # re-inserts), so key order/content is byte-identical to the
+        # previous single-pass loop whenever the book is disabled.
+        pass1_state: dict[str, dict] = {}
+        book_candidates: dict[str, dict] = {}
         for symbol in self.symbols:
             bar = slice.bars.get(symbol)
             if bar is None:
@@ -418,6 +466,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "trading_eligible": self._is_trading_eligible(symbol),
                 "can_trade": not self.trade_lock_active and self._is_trading_eligible(symbol),
             }
+            signals[str(symbol)] = signal_payload
 
             if feature_payload["ready"] and not self.is_warming_up:
                 baseline_probability_up = self._run_model(feature_payload["model_inputs"])
@@ -478,130 +527,208 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if predicted_rank_20d is None and multitask_payload:
                     predicted_rank_20d = multitask_payload.get("rank_20d")
                 signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
-                sizing_payload = self._build_dynamic_sizing_payload(
-                    signal_name,
-                    confidence,
-                    base_target_weight,
-                    feature_payload["base_features"],
-                    topology_payload,
-                    predicted_volatility=predicted_volatility,
-                    predicted_rank_20d=predicted_rank_20d,
-                )
-                target_weight = float(sizing_payload["target_weight"])
-                asset = self.asset_lookup[str(symbol)]
-                # Reuses the exact same spread estimate _build_model_input()
-                # already computed and fed to the model as
-                # liquidity_spread_proxy, rather than recomputing it here -
-                # one estimate per bar, consistently used everywhere.
-                liquidity_payload = build_liquidity_decision(
-                    close=float(bar.close),
-                    volume=float(bar.volume),
-                    target_weight=target_weight,
-                    portfolio_value=float(self.Portfolio.TotalPortfolioValue),
-                    annualized_volatility=float(sizing_payload.get("annualized_volatility", 0.0)),
-                    security_type=str(asset.get("security_type", "equity")),
-                    dynamic_spread=feature_payload.get("liquidity_spread_proxy"),
-                    **self._liquidity_thresholds,
-                ).to_dict()
-                if liquidity_payload["recommended_action"] == "reduce_size":
-                    target_weight = float(liquidity_payload["adjusted_target_weight"])
 
-                decision = build_market_analysis_decision(
-                    signal_name=signal_name,
-                    confidence=confidence,
-                    probability_up=probability_up,
-                    target_weight=target_weight,
-                    regime=regime_payload,
-                    gating=gating_payload,
-                    trading_eligible=self._is_trading_eligible(symbol),
-                    trade_lock_active=self.trade_lock_active,
-                    trade_lock_reason=self.trade_lock_reason,
-                    topology=topology_payload,
-                    liquidity=liquidity_payload,
-                    min_confidence_to_trade=self.min_confidence_to_trade,
-                    retrain_min_regime_confidence=self.analyzer_retrain_min_regime_confidence,
-                    low_regime_confidence_threshold=self.analyzer_low_regime_confidence_threshold,
-                    use_composite_signal_score=self.analyzer_use_composite_signal_score,
-                    predicted_return_magnitude=predicted_return_magnitude,
-                    predicted_volatility=predicted_volatility,
-                ).to_dict()
-
-                signal_name = decision["signal"]
-                target_weight = decision["target_weight"]
-                close_price = float(bar.close)
-
-                if decision["action"] == "trade":
-                    execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price)
-                else:
-                    execution_note = decision["action"]
-
-                close_prices_by_symbol[str(symbol)] = close_price
-
-                self.latest_regime_by_symbol[str(symbol)] = regime_payload.get("trend_regime", "unknown")
-                self.latest_regime_risk_score_by_symbol[str(symbol)] = float(regime_payload.get("risk_score", 0.0) or 0.0)
-                self.latest_liquidity_by_symbol[str(symbol)] = liquidity_payload
-
-                signal_payload.update(
-                    {
-                        "signal": signal_name,
-                        "confidence": confidence,
-                        "probability_up": probability_up,
-                        "baseline_probability_up": baseline_probability_up,
-                        "expert_probabilities": expert_probabilities,
-                        "predicted_return_magnitude": predicted_return_magnitude,
-                        "predicted_volatility": predicted_volatility,
-                        "predicted_rank_20d": predicted_rank_20d,
-                        # Phase 2 sequence-encoder signal - informational
-                        "sequence_model": sequence_prediction,
-                        "moe_gating": gating_payload,
-                        "base_target_weight": base_target_weight,
-                        "target_weight": target_weight,
-                        "dynamic_sizing": sizing_payload,
-                        "regime": regime_payload,
-                        "features": feature_payload["base_features"],
-                        "execution_note": execution_note,
-                        "market_analysis": decision,
-                        "topology": topology_payload or {},
-                        "liquidity": liquidity_payload,
-                    }
-                )
-                orders_allowed, _ = self._order_permission()
-                portfolio_snapshot = (
-                    {
-                        "total_value": float(self.Portfolio.TotalPortfolioValue),
-                        "cash": float(self.Portfolio.Cash),
-                        "current_drawdown": self.current_total_drawdown,
-                    }
-                    if orders_allowed
-                    else self._simulated_portfolio.snapshot()
-                )
-                portfolio_snapshot["trade_lock_active"] = self.trade_lock_active
-                portfolio_snapshot["trade_lock_reason"] = self.trade_lock_reason
-                experience_event = build_experience_event(
-                    mode=self._experience_mode,
-                    symbol=str(symbol),
-                    ticker=self.asset_lookup[str(symbol)]["ticker"],
-                    signal=signal_name,
-                    action=decision["action"],
-                    execution_note=execution_note,
-                    probability_up=probability_up,
-                    confidence=confidence,
-                    target_weight=target_weight,
-                    regime=regime_payload,
-                    moe_gating=gating_payload,
-                    topology=topology_payload or {},
-                    liquidity=liquidity_payload,
-                    market_analysis=decision,
-                    portfolio=portfolio_snapshot,
-                    sequence_model=sequence_prediction,
-                )
-                self._experience_queue.push(experience_event)
-                self._observation_event_log.append(experience_event)
-                self._session_events.append(experience_event)
+                symbol_key = str(symbol)
+                pass1_state[symbol_key] = {
+                    "symbol": symbol,
+                    "bar": bar,
+                    "feature_payload": feature_payload,
+                    "topology_payload": topology_payload,
+                    "regime_payload": regime_payload,
+                    "sequence_prediction": sequence_prediction,
+                    "expert_probabilities": expert_probabilities,
+                    "baseline_probability_up": baseline_probability_up,
+                    "gating_payload": gating_payload,
+                    "probability_up": probability_up,
+                    "predicted_return_magnitude": predicted_return_magnitude,
+                    "predicted_volatility": predicted_volatility,
+                    "predicted_rank_20d": predicted_rank_20d,
+                    "signal_name": signal_name,
+                    "confidence": confidence,
+                    "base_target_weight": base_target_weight,
+                }
+                book_candidates[symbol_key] = {
+                    "predicted_rank_20d": predicted_rank_20d,
+                    "trading_eligible": self._is_trading_eligible(symbol),
+                }
             else:
                 signal_payload["reason"] = feature_payload["reason"]
 
-            signals[str(symbol)] = signal_payload
+        # `enabled=False` (default) always resolves to {} here - every
+        # symbol in Pass 2 below then finds no book_allocation, taking the
+        # exact same code path as before this restructuring existed.
+        book_allocations = (
+            build_rank_based_book(
+                book_candidates,
+                top_n=self.portfolio_book_top_n,
+                bottom_n=self.portfolio_book_bottom_n,
+                min_rank_confidence_spread=self.portfolio_book_min_rank_confidence_spread,
+            )
+            if self.portfolio_book_enabled
+            else {}
+        )
+
+        # ---- Pass 2: sizing/liquidity/analyzer/order-application, now
+        # that every symbol's book role (if any) is known. Iterates
+        # pass1_state (populated in self.symbols order during Pass 1), so
+        # cross-symbol sequencing (e.g. exposure-cap consumption order in
+        # _apply_signal()) is unchanged from the previous single-pass loop. ----
+        for symbol_key, state in pass1_state.items():
+            symbol = state["symbol"]
+            bar = state["bar"]
+            feature_payload = state["feature_payload"]
+            topology_payload = state["topology_payload"]
+            regime_payload = state["regime_payload"]
+            sequence_prediction = state["sequence_prediction"]
+            expert_probabilities = state["expert_probabilities"]
+            baseline_probability_up = state["baseline_probability_up"]
+            gating_payload = state["gating_payload"]
+            probability_up = state["probability_up"]
+            predicted_return_magnitude = state["predicted_return_magnitude"]
+            predicted_volatility = state["predicted_volatility"]
+            predicted_rank_20d = state["predicted_rank_20d"]
+            signal_name = state["signal_name"]
+            confidence = state["confidence"]
+            base_target_weight = state["base_target_weight"]
+
+            # The one deliberate departure from every other rank_20d
+            # integration's "never flips direction" rule - see
+            # portfolio/book_construction.py's module docstring. A
+            # book-selected role OVERRIDES the model's own buy/sell/hold
+            # call and its target-weight sign, but still flows through the
+            # exact same sizing/liquidity/analyzer pipeline below as any
+            # other signal - never bypasses it.
+            book_allocation = book_allocations.get(symbol_key)
+            if book_allocation is not None:
+                signal_name = "buy" if book_allocation.role == "long" else "short"
+                confidence = min(1.0, abs(book_allocation.predicted_rank_20d - 0.5) * 2.0)
+                base_target_weight = (
+                    min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier
+                )
+
+            sizing_payload = self._build_dynamic_sizing_payload(
+                signal_name,
+                confidence,
+                base_target_weight,
+                feature_payload["base_features"],
+                topology_payload,
+                predicted_volatility=predicted_volatility,
+                predicted_rank_20d=predicted_rank_20d,
+            )
+            target_weight = float(sizing_payload["target_weight"])
+            asset = self.asset_lookup[symbol_key]
+            # Reuses the exact same spread estimate _build_model_input()
+            # already computed and fed to the model as
+            # liquidity_spread_proxy, rather than recomputing it here -
+            # one estimate per bar, consistently used everywhere.
+            liquidity_payload = build_liquidity_decision(
+                close=float(bar.close),
+                volume=float(bar.volume),
+                target_weight=target_weight,
+                portfolio_value=float(self.Portfolio.TotalPortfolioValue),
+                annualized_volatility=float(sizing_payload.get("annualized_volatility", 0.0)),
+                security_type=str(asset.get("security_type", "equity")),
+                dynamic_spread=feature_payload.get("liquidity_spread_proxy"),
+                **self._liquidity_thresholds,
+            ).to_dict()
+            if liquidity_payload["recommended_action"] == "reduce_size":
+                target_weight = float(liquidity_payload["adjusted_target_weight"])
+
+            decision = build_market_analysis_decision(
+                signal_name=signal_name,
+                confidence=confidence,
+                probability_up=probability_up,
+                target_weight=target_weight,
+                regime=regime_payload,
+                gating=gating_payload,
+                trading_eligible=self._is_trading_eligible(symbol),
+                trade_lock_active=self.trade_lock_active,
+                trade_lock_reason=self.trade_lock_reason,
+                topology=topology_payload,
+                liquidity=liquidity_payload,
+                min_confidence_to_trade=self.min_confidence_to_trade,
+                retrain_min_regime_confidence=self.analyzer_retrain_min_regime_confidence,
+                low_regime_confidence_threshold=self.analyzer_low_regime_confidence_threshold,
+                use_composite_signal_score=self.analyzer_use_composite_signal_score,
+                predicted_return_magnitude=predicted_return_magnitude,
+                predicted_volatility=predicted_volatility,
+            ).to_dict()
+
+            signal_name = decision["signal"]
+            target_weight = decision["target_weight"]
+            close_price = float(bar.close)
+
+            if decision["action"] == "trade":
+                execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price)
+            else:
+                execution_note = decision["action"]
+
+            close_prices_by_symbol[symbol_key] = close_price
+
+            self.latest_regime_by_symbol[symbol_key] = regime_payload.get("trend_regime", "unknown")
+            self.latest_regime_risk_score_by_symbol[symbol_key] = float(regime_payload.get("risk_score", 0.0) or 0.0)
+            self.latest_liquidity_by_symbol[symbol_key] = liquidity_payload
+
+            signals[symbol_key].update(
+                {
+                    "signal": signal_name,
+                    "confidence": confidence,
+                    "probability_up": probability_up,
+                    "baseline_probability_up": baseline_probability_up,
+                    "expert_probabilities": expert_probabilities,
+                    "predicted_return_magnitude": predicted_return_magnitude,
+                    "predicted_volatility": predicted_volatility,
+                    "predicted_rank_20d": predicted_rank_20d,
+                    # Phase 2 sequence-encoder signal - informational
+                    "sequence_model": sequence_prediction,
+                    "moe_gating": gating_payload,
+                    "base_target_weight": base_target_weight,
+                    "target_weight": target_weight,
+                    "dynamic_sizing": sizing_payload,
+                    "regime": regime_payload,
+                    "features": feature_payload["base_features"],
+                    "execution_note": execution_note,
+                    "market_analysis": decision,
+                    "topology": topology_payload or {},
+                    "liquidity": liquidity_payload,
+                    "portfolio_book_role": book_allocation.role if book_allocation is not None else None,
+                }
+            )
+            orders_allowed, _ = self._order_permission()
+            portfolio_snapshot = (
+                {
+                    "total_value": float(self.Portfolio.TotalPortfolioValue),
+                    "cash": float(self.Portfolio.Cash),
+                    "current_drawdown": self.current_total_drawdown,
+                }
+                if orders_allowed
+                else self._simulated_portfolio.snapshot()
+            )
+            portfolio_snapshot["trade_lock_active"] = self.trade_lock_active
+            portfolio_snapshot["trade_lock_reason"] = self.trade_lock_reason
+            experience_event = build_experience_event(
+                mode=self._experience_mode,
+                symbol=symbol_key,
+                ticker=self.asset_lookup[symbol_key]["ticker"],
+                signal=signal_name,
+                action=decision["action"],
+                execution_note=execution_note,
+                probability_up=probability_up,
+                confidence=confidence,
+                target_weight=target_weight,
+                regime=regime_payload,
+                moe_gating=gating_payload,
+                topology=topology_payload or {},
+                liquidity=liquidity_payload,
+                market_analysis=decision,
+                portfolio=portfolio_snapshot,
+                sequence_model=sequence_prediction,
+                resolved_predicted_rank_20d=predicted_rank_20d,
+                close_price=float(bar.close),
+            )
+            self._experience_queue.push(experience_event)
+            self._observation_event_log.append(experience_event)
+            self._session_events.append(experience_event)
 
         if close_prices_by_symbol:
             self._simulated_portfolio.mark_to_market(close_prices_by_symbol, bar_index=self.bar_index)
@@ -885,6 +1012,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # build_cross_sectional_momentum_rank_features()'s offline default.
         base_features["cs_momentum_rank_20"] = cross_sectional_momentum_rank(
             self.latest_momentum_by_symbol, str(symbol)
+        )
+
+        # Macro features (Phase 1b) - computed once per bar in
+        # _build_macro_payload() (before the per-symbol loop, same as
+        # topology/cs_momentum_rank_20 above), identical for every symbol
+        # this bar by design (a fixed, global cross-asset-class state, not
+        # a per-symbol value).
+        base_features["macro_yield_curve_slope_proxy"] = float(
+            self.latest_macro_payload.get("yield_curve_slope_proxy", 0.0) or 0.0
+        )
+        base_features["macro_credit_spread_proxy"] = float(
+            self.latest_macro_payload.get("credit_spread_proxy", 0.0) or 0.0
+        )
+        base_features["macro_crypto_risk_appetite_proxy"] = float(
+            self.latest_macro_payload.get("crypto_risk_appetite_proxy", 0.0) or 0.0
         )
 
         # Safe default (10.0) for scaler_stats.json files written before
@@ -1177,6 +1319,47 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_learned_neighbors_by_symbol = learned_topology.get("learned_neighbors_by_symbol", {})
         return learned_topology
 
+    def _build_macro_payload(self) -> dict:
+        """Phase 1b of the 5/10 -> 9/10 roadmap: deliberate, explicit
+        cross-asset-class "macro" features (features/macro_features.py),
+        computed once per bar (mirrors _build_topology_payload()'s
+        "compute once, every symbol reads it" shape - called right after
+        it in on_data(), before the per-symbol loop) from a small fixed
+        set of reference tickers (the Phase 1a bond ETF sleeve + the
+        existing crypto sleeve), broadcast identically to every symbol's
+        model input this bar via _build_model_input().
+
+        Reads self.latest_momentum_by_symbol, already populated by
+        _build_topology_payload() earlier this same bar - same one-bar-lag
+        characteristic that dict already has (see that method's
+        docstring), not a new inconsistency this introduces. No separate
+        computation needed here, unlike features/technical_indicators.py's
+        long-lookback indicators.
+
+        A reference ticker not configured in this universe (e.g. testing a
+        subset without the bond sleeve) has no self.ticker_to_symbol entry
+        -> None momentum -> the corresponding proxy neutral-defaults to
+        0.0, matching features/macro_features.py's own convention.
+        """
+
+        def _momentum_for(ticker: str) -> float | None:
+            symbol = self.ticker_to_symbol.get(ticker)
+            if symbol is None:
+                return None
+            return self.latest_momentum_by_symbol.get(str(symbol))
+
+        long_value = _momentum_for(self.macro_reference_tickers["long_duration"])
+        short_value = _momentum_for(self.macro_reference_tickers["short_duration"])
+        high_yield_value = _momentum_for(self.macro_reference_tickers["high_yield"])
+        investment_grade_value = _momentum_for(self.macro_reference_tickers["investment_grade"])
+        crypto_value = _momentum_for(self.macro_reference_tickers["crypto"])
+
+        return {
+            "yield_curve_slope_proxy": yield_curve_slope_proxy(long_value, short_value),
+            "credit_spread_proxy": credit_spread_proxy(high_yield_value, investment_grade_value),
+            "crypto_risk_appetite_proxy": crypto_risk_appetite_proxy(crypto_value),
+        }
+
     def _build_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
         # Statistical/diagnostic bypass only (see risk_controls.py::
         # is_backtest_safety_bypass_active() and Problems.md): disables
@@ -1281,6 +1464,40 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 return "liquidated_on_sell" if orders_allowed else f"simulated_liquidated_on_sell:{permission_reason}"
             return "already_flat"
 
+        # Phase 3 of the 5/10 -> 9/10 roadmap: the portfolio book's ONLY
+        # signal_name distinct from the existing buy/sell/hold set -
+        # target_weight is genuinely negative here (unlike "sell", which
+        # only ever liquidates to flat and ignores target_weight's sign
+        # entirely). SetHoldings()/enter_long() both already handle a
+        # negative target_weight correctly by construction (Lean's
+        # SetHoldings opens a short for a negative percentage;
+        # experience/simulated_portfolio.py::simulate_fill()'s
+        # notional = target_weight * equity is sign-generic despite the
+        # enter_long() method name) - the real gap closed here is the
+        # signal-routing branch itself, which never existed before.
+        if signal_name == "short":
+            if active_position_limit_reached(
+                self._active_position_count(symbol, orders_allowed),
+                self.max_active_positions,
+                self._is_invested(symbol, orders_allowed),
+            ):
+                return "max_active_positions_reached"
+
+            current_short_exposure = self._short_exposure(orders_allowed, exclude_symbol=symbol)
+            target_weight, cap_reached = cap_target_weight(target_weight, current_short_exposure, self.max_short_exposure)
+            if cap_reached:
+                return "short_exposure_cap_reached"
+
+            if previous_signal != "short" or not self._is_invested(symbol, orders_allowed):
+                if orders_allowed:
+                    self.SetHoldings(symbol, target_weight)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return "entered_short"
+                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+                self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                return f"simulated_entered_short:{permission_reason}"
+            return "kept_short" if orders_allowed else "simulated_kept_short"
+
         if signal_name == "hold" and previous_signal != "hold" and self._is_invested(symbol, orders_allowed):
             if orders_allowed:
                 self.Liquidate(symbol)
@@ -1345,6 +1562,36 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 continue
             asset = self.asset_lookup.get(symbol_key, {})
             if asset.get("security_type") != security_type:
+                continue
+            exposure += abs(self._simulated_portfolio.position_value(symbol_key)) / total_value
+        return exposure
+
+    def _short_exposure(self, orders_allowed: bool = True, exclude_symbol=None) -> float:
+        """Phase 3 of the 5/10 -> 9/10 roadmap: total exposure currently
+        held SHORT (negative quantity), across every asset class - a new
+        concept, since nothing in this codebase could open a short position
+        before the portfolio book (see _apply_signal()'s new "short" branch).
+        Same direction-agnostic-by-quantity-sign shape as
+        _asset_class_exposure() above, filtered by sign instead of asset
+        class."""
+        if orders_allowed:
+            total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
+            exposure = 0.0
+            for holding in self.Portfolio.Values:
+                if exclude_symbol is not None and holding.Symbol == exclude_symbol:
+                    continue
+                if float(holding.Quantity) >= 0:
+                    continue
+                exposure += abs(float(holding.HoldingsValue)) / total_value
+            return exposure
+
+        exclude_key = str(exclude_symbol) if exclude_symbol is not None else None
+        total_value = max(float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"]), 1.0)
+        exposure = 0.0
+        for symbol_key, holding in self._simulated_portfolio.holdings.items():
+            if symbol_key == exclude_key:
+                continue
+            if holding["quantity"] >= 0:
                 continue
             exposure += abs(self._simulated_portfolio.position_value(symbol_key)) / total_value
         return exposure

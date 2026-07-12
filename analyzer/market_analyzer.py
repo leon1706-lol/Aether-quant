@@ -93,6 +93,13 @@ def build_market_analysis_decision(
     predicted_return_magnitude: float | None = None,
     predicted_volatility: float | None = None,
 ) -> MarketAnalysisDecision:
+    # signal_name == "short" (Phase 3 of the 5/10 -> 9/10 roadmap,
+    # portfolio/book_construction.py) is treated identically to "buy"/"sell"
+    # by every safety-tier check below (`in {"buy", "sell", "short"}`) - a
+    # book-selected short position passes through the exact same
+    # deterministic trade-lock/risk-off/topology/liquidity categorization
+    # as any other directional signal, never bypassing it. See
+    # analyzer/README.md for why this categorization stays deterministic.
     reasons: list[str] = []
     decision_source = str(gating.get("decision_source", "unknown"))
     regime_confidence = float(regime.get("confidence", 0.0) or 0.0)
@@ -140,7 +147,7 @@ def build_market_analysis_decision(
 
     # Priority 2: reduce_risk - asset-level risk regime override even
     # without a portfolio-wide lock (e.g. risk_off + would-be trade).
-    if risk_regime == "risk_off" and signal_name in {"buy", "sell"}:
+    if risk_regime == "risk_off" and signal_name in {"buy", "sell", "short"}:
         reasons.append("risk_off_regime_overrides_directional_signal")
         return MarketAnalysisDecision(
             action="reduce_risk",
@@ -164,7 +171,7 @@ def build_market_analysis_decision(
     # feeding the retrain-trigger/retraining pipeline, but deliberately left
     # this rule reading only the deterministic topology_risk - see
     # analyzer/README.md and development/v2_architecture.md's V2-17.5 section.
-    if topology_risk == "elevated" and signal_name in {"buy", "sell"}:
+    if topology_risk == "elevated" and signal_name in {"buy", "sell", "short"}:
         reasons.append("topology_elevated_volatility_pressure_overrides_directional_signal")
         return MarketAnalysisDecision(
             action="reduce_risk",
@@ -208,7 +215,7 @@ def build_market_analysis_decision(
     # Priority 5: simulate - liquidity blocked (zero volume or DDV below
     # the floor). An unexecutable order must not reach the order book.
     # See V2-18 for future data-driven calibration of these thresholds.
-    if liquidity_action == "block" and signal_name in {"buy", "sell"}:
+    if liquidity_action == "block" and signal_name in {"buy", "sell", "short"}:
         reasons.append("liquidity_blocked_insufficient_volume_simulate_instead")
         return MarketAnalysisDecision(
             action="simulate",
@@ -228,7 +235,7 @@ def build_market_analysis_decision(
 
     # Priority 6: simulate - thin market; participation rate would be
     # uncomfortably large relative to daily volume.
-    if liquidity_action == "simulate_instead" and signal_name in {"buy", "sell"}:
+    if liquidity_action == "simulate_instead" and signal_name in {"buy", "sell", "short"}:
         reasons.append("liquidity_thin_market_simulate_instead")
         return MarketAnalysisDecision(
             action="simulate",
@@ -254,7 +261,7 @@ def build_market_analysis_decision(
     # use_composite_signal_score=True).
     if (
         trading_eligible
-        and signal_name in {"buy", "sell"}
+        and signal_name in {"buy", "sell", "short"}
         and trade_metric >= min_confidence_to_trade
         and topology_risk != "isolated"
         and liquidity_action not in {"block", "simulate_instead"}
@@ -277,7 +284,7 @@ def build_market_analysis_decision(
         )
 
     # Priority 8: simulate vs observe.
-    if signal_name in {"buy", "sell"} and regime_confidence >= low_regime_confidence_threshold:
+    if signal_name in {"buy", "sell", "short"} and regime_confidence >= low_regime_confidence_threshold:
         if topology_risk == "isolated":
             reasons.append("topology_isolated_asset_lacks_peer_confirmation_simulate_instead")
         elif trading_eligible:

@@ -1063,6 +1063,87 @@ See `inference/README.md`'s Phase 2 section for the fuller interpreter
 writeup and `development/Changelog.md`'s "Phase 1 remainder + Phase 2"
 entry.
 
+## 5/10 → 9/10 Frontier-Readiness Roadmap Contract
+
+Follow-up to the rank_20d position-sizing entry above (which shipped off
+by default: the non-overlapping-date subsample wasn't yet independently
+significant, t=1.20 vs. 4.40 on the full series, on the then-20-asset
+universe). Seven phases; see `development/Changelog.md`'s full entry for
+complete detail — this section is the contract-level summary.
+
+- **Phase 1 — Bond ETF sleeve + macro features.** Universe 20 → 30 assets
+  (`SHY`/`IEF`/`TLT`/`AGG`/`LQD`/`HYG`/`TIP`/`MBB`/`EMB`/`MUB`, registered
+  as `security_type: "equity"` — bond ETFs trade through Lean's ordinary
+  equity path). New `features/macro_features.py`: three deliberate
+  cross-asset signals (yield-curve slope, credit spread, crypto risk
+  appetite), computed once per bar/date and broadcast to every asset —
+  additive to the existing generic correlation-based peer mechanism
+  (`topology/market_topology.py`), which already lets any asset surface
+  as any other's `top_peer` with zero code changes. Model input 59 → 62.
+- **Phase 2 — Validation rigor.** The code-enforced version of the
+  promotion criterion previously only prose: `purged_embargoed_folds()`,
+  `split_into_non_overlapping_eras()`, `bootstrap_ic_confidence_interval()`,
+  `assess_ranking_quality()` (fails on low non-overlapping t-stat,
+  negative bootstrap CI lower bound, or ANY single era sign-flipping the
+  aggregate). Wired into `train_multitask.py`/`train_sequence.py`'s
+  backtest-split metrics only. A real bug was found and fixed here (see
+  `development/Problems.md` #27): both new era/fold functions assumed
+  datetime-typed input but the real dataset's `date` column is stringified
+  — caught on the first real retrain, not by unit tests (which happened to
+  use `datetime64`-typed fixtures).
+- **Phase 5 — Sector-neutral ranking.** New `data/reference/sector_mapping.json`
+  (GICS-like equity buckets, `"Fixed Income"`/`"Crypto"` pseudo-sectors for
+  the ETF sleeves). New `target_sector_neutral_rank_5d/20d` targets and a
+  new `sector_neutral_rank_20d` head (new sibling head, not a modification
+  of `rank_20d`) — `HORIZON_HEAD_SPECS`'s existing full generality over
+  loss/metrics/ranking-quality-assessment needed zero changes beyond the
+  registry entry.
+- **Phase 3 — Stage-2 long/short book.** New `portfolio/` package
+  (`build_rank_based_book()`, see `portfolio/README.md` for full design
+  rationale) — the one deliberate departure from every prior `rank_20d`
+  integration's "never flips direction" rule; a book-selected role SETS
+  direction. `main.py::on_data()` restructured into two passes (collect
+  every symbol's rank before any symbol's role is decided), provably
+  byte-identical when disabled. Real short-selling introduced for the
+  first time (new `"short"` signal branch in `_apply_signal()`, new
+  `max_short_exposure` cap) — a real gap was found and fixed:
+  `analyzer/market_analyzer.py`'s six safety-tier checks all gated on
+  `signal_name in {"buy", "sell"}`, which would have let a book-selected
+  short silently bypass every one of them; now `{"buy", "sell", "short"}`.
+  Off by default (`phase_v2.portfolio_book.enabled: false`).
+- **Phase 4 — Walk-forward retraining.** New
+  `generate_walk_forward_windows()`/`summarize_walk_forward_run()` (pure,
+  tested) and a `python train.py --walk-forward` CLI, reusing the existing
+  `--candidate` pipeline in a loop, never refactoring it. Infrastructure
+  built and verified against the real `common_window`; a full multi-window
+  run was not executed this pass (multi-hour cost per window × N windows).
+- **Phase 6 — Production rank-IC decay monitoring.** New
+  `performance/rank_ic_monitor.py` (self-joins experience events against
+  realized 20-trading-day-later closes, positional within each ticker's
+  own event sequence) and `rank_ic_decay_trigger()` — structurally
+  different from every other trigger (rank-IC can't be scored until the
+  future is known). `train.py::compute_rank_ic()` split into a torch-free
+  core (`_rank_ic_from_arrays()`) shared by training-time and production
+  callers. `experience/redis_queue.py::build_experience_event()` gained
+  `resolved_predicted_rank_20d`/`close_price` (closes a real gap: the
+  multitask-fallback rank prediction never reached the experience store
+  before this).
+- **Phase 7 — Live-loop groundwork.** Confirmed `execution/paper_readiness_report.py`'s
+  dashboard wiring (`monitoring/api_server.py`'s `/api/state` merge) was
+  already correct before this pass — the real gap was cadence (manual-only
+  regeneration). New `execution/paper_readiness_scheduler.py` closes it,
+  mirroring `performance/trigger_worker.py`'s shape. Hard boundary
+  (user-specified): nothing here touches
+  `phase_v2.paper_trading.live_data_provider_configured`/
+  `manual_review_confirmed` — activating real fills stays a distinct
+  manual step, documented in `execution/README.md`.
+
+**Real retrain result**: on the expanded 30-asset/62-feature dataset,
+`rank_20d` (multitask model) clears its own Phase 2 promotion gate for the
+first time — non-overlapping t-stat `2.52` (vs. `2.0`), bootstrap 95% CI
+`[0.035, 0.308]`, zero opposite-sign eras across 9 eras. See
+`development/Changelog.md` for the full metrics.
+
 ## Docker App Container
 
 The `Dockerfile` is a two-stage build:

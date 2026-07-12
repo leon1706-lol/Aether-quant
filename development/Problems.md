@@ -928,3 +928,38 @@ instantiated in for testing) — the trained model's own
 `sequence_feature_schema.json` `window_size` now wins over
 `config.json`'s value whenever a schema is loaded at all, falling back to
 config only when no sequence model is loaded (missing/malformed file).
+
+---
+
+### 27. Phase 2's new `split_into_non_overlapping_eras()`/`purged_embargoed_folds()` crashed on real training runs — assumed datetime input, but the real dataset's `date` column is plain strings
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+Found during the combined Phase 1/2/5 retrain (5/10 -> 9/10 roadmap):
+`train_multitask.py --version-id ...` failed with `TypeError: can only
+concatenate str (not "Timedelta") to str` inside
+`split_into_non_overlapping_eras()`. Root cause: both new Phase 2
+functions did `dates_array = np.asarray(dates)` and then performed
+Timestamp arithmetic (`era_start + era_length`) directly on the result —
+correct when `dates` is already `datetime64`/`Timestamp`-typed (as every
+unit test for these functions happened to construct it), but every REAL
+caller passes `frame["date"]`, and `build_feature_dataset()` stringifies
+the date column (`dataset["date"].dt.strftime("%Y-%m-%d")`) before any
+trainer ever reads it — so `np.asarray()` on that column produces a plain
+numpy `object` array of Python `str`, not `datetime64`. All of this
+file's unit tests for the new functions passed because they were built
+with `pd.date_range(...).to_numpy()`/`dtype="datetime64[D]"` fixtures,
+which don't reproduce the real, string-typed shape at all — a gap between
+"unit-tested" and "exercised against the real pipeline."
+
+**Fixed**: both `split_into_non_overlapping_eras()` and
+`purged_embargoed_folds()` (plus the caller,
+`assess_ranking_quality_from_predictions()`, which had the identical bug
+in its own separate `dates_array = np.asarray(dates)` line) now coerce via
+`pd.to_datetime(np.asarray(dates))` instead of a bare `np.asarray(dates)`
+— robust to string, `Timestamp`, or `datetime64` input alike, matching
+every other date-accepting function in `train.py` (e.g. `assign_split()`'s
+own `pd.Timestamp(date_value)` coercion). New regression tests added using
+plain string dates and a real `np.asarray(pd.Series([...]))` object array
+(the exact real shape) — not just `datetime64`-typed synthetic fixtures —
+in `tests/test_train_ranking_validation.py`, so this class of "passes
+every unit test, fails on first real run" gap can't silently recur.

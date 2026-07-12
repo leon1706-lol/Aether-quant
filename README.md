@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-825%2F836%20passing-red?style=flat-square&labelColor=1A1A1A" alt="825 of 836 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-928%2F939%20passing-red?style=flat-square&labelColor=1A1A1A" alt="928 of 939 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -160,7 +160,7 @@ that a controlled retraining loop reads from to evolve the model over time.
 
 ```mermaid
 flowchart LR
-    A["Lean data folder<br/>stocks, ETFs, crypto"] --> B["Feature pipeline<br/>train.py<br/>59-dim: price/volume + indicators +<br/>regime + liquidity + topology + peer returns"]
+    A["Lean data folder<br/>stocks, ETFs, bonds, crypto"] --> B["Feature pipeline<br/>train.py<br/>62-dim: price/volume + indicators +<br/>regime + liquidity + topology + peer returns + macro"]
     B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
     B --> D["3D topology modeling<br/>market structure and clusters"]
     B -.-> U["Sequence encoder (Phase 2)<br/>causal-TCN, 30-bar window<br/>informational only"]
@@ -317,10 +317,21 @@ writeup.
 
 ## Universe Size
 
-The trading universe currently spans **20 assets** — 15 equities and 5
-crypto pairs — defined in `config.json`'s `phase1.universe.assets` and
-shared across training, validation, and backtesting
-(`phase1.universe.common_window`: `2014-12-01` to `2021-03-31`).
+The trading universe currently spans **30 assets** — 15 stocks/broad-market
+ETFs, 10 fixed-income (bond) ETFs, and 5 crypto pairs — defined in
+`config.json`'s `phase1.universe.assets` and shared across training,
+validation, and backtesting (`phase1.universe.common_window`: `2014-12-01`
+to `2021-03-31`). The bond ETF sleeve (Phase 1 of the 5/10 -> 9/10 roadmap,
+see [`development/Changelog.md`](development/Changelog.md)) was added
+specifically as a new, genuinely different information channel — not more
+of the same equity cross-section — and deliberately spans the duration
+curve (short/intermediate/long/aggregate) and credit spectrum
+(Treasury/investment-grade/high-yield/municipal/emerging-market) so the
+yield-curve-slope and credit-spread macro proxies computed from it
+(`features/macro_features.py`) are meaningful. Bond ETFs are registered
+with `security_type: "equity"` (they trade through Lean's ordinary equity
+subscription path, like every other ETF already in the universe, e.g.
+SPY/QQQ/IWM/EEM — not a new Lean security type).
 
 | Ticker | Type | Role |
 |---|---|---|
@@ -339,6 +350,16 @@ shared across training, validation, and backtesting
 | USO | Equity | Trading |
 | WM | Equity | Trading |
 | AAA | Equity | Observation-only (thin history) |
+| SHY | Equity (Fixed Income ETF) | Trading — short-duration Treasury (1-3y) |
+| IEF | Equity (Fixed Income ETF) | Trading — intermediate-duration Treasury (7-10y) |
+| TLT | Equity (Fixed Income ETF) | Trading — long-duration Treasury (20y+) |
+| AGG | Equity (Fixed Income ETF) | Trading — broad aggregate bond benchmark |
+| LQD | Equity (Fixed Income ETF) | Trading — investment-grade corporate |
+| HYG | Equity (Fixed Income ETF) | Trading — high-yield corporate |
+| TIP | Equity (Fixed Income ETF) | Trading — inflation-protected (TIPS) |
+| MBB | Equity (Fixed Income ETF) | Trading — mortgage-backed |
+| EMB | Equity (Fixed Income ETF) | Trading — emerging-market sovereign debt |
+| MUB | Equity (Fixed Income ETF) | Trading — municipal |
 | BTCUSD | Crypto | Trading |
 | ETHUSD | Crypto | Observation-only (thin history) |
 | LTCUSD | Crypto | Trading |
@@ -376,6 +397,19 @@ flowchart TD
         AAA["AAA"]
     end
 
+    subgraph FixedIncome["Fixed Income ETFs (10)"]
+        SHY["SHY"]
+        IEF["IEF"]
+        TLT["TLT"]
+        AGG["AGG"]
+        LQD["LQD"]
+        HYG["HYG"]
+        TIP["TIP"]
+        MBB["MBB"]
+        EMB["EMB"]
+        MUB["MUB"]
+    end
+
     subgraph Crypto["Crypto (5)"]
         BTCUSD["BTCUSD"]
         ETHUSD["ETHUSD"]
@@ -399,6 +433,16 @@ flowchart TD
     USO --- DNN
     WM --- DNN
     AAA --- DNN
+    SHY --- DNN
+    IEF --- DNN
+    TLT --- DNN
+    AGG --- DNN
+    LQD --- DNN
+    HYG --- DNN
+    TIP --- DNN
+    MBB --- DNN
+    EMB --- DNN
+    MUB --- DNN
     BTCUSD --- DNN
     ETHUSD --- DNN
     LTCUSD --- DNN
@@ -410,7 +454,7 @@ flowchart TD
     classDef observation fill:#3A3A3A,stroke:#FF8C00,color:#FF8C00,stroke-width:1px,stroke-dasharray: 4 2;
 
     class DNN hub;
-    class AAPL,SPY,QQQ,IWM,EEM,BAC,IBM,AIG,BNO,FB,GOOG,GOOGL,USO,WM,BTCUSD,LTCUSD trading;
+    class AAPL,SPY,QQQ,IWM,EEM,BAC,IBM,AIG,BNO,FB,GOOG,GOOGL,USO,WM,SHY,IEF,TLT,AGG,LQD,HYG,TIP,MBB,EMB,MUB,BTCUSD,LTCUSD trading;
     class AAA,ETHUSD,XRPUSD,ADAUSD observation;
 ```
 

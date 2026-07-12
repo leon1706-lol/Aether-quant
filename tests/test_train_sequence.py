@@ -44,6 +44,7 @@ def _sample_dataset() -> pd.DataFrame:
                     "target_direction_20d": np.nan,
                     "target_rank_5d": 0.5,
                     "target_rank_20d": np.nan,
+                    "target_sector_neutral_rank_20d": 0.5,
                 }
             )
     return pd.DataFrame(rows)
@@ -133,6 +134,7 @@ def test_compute_sequence_multitask_metrics_reports_none_for_disabled_heads():
         "direction_20d": torch.zeros(4),
         "rank_5d": torch.full((4,), 0.5),
         "rank_20d": torch.full((4,), 0.5),
+        "sector_neutral_rank_20d": torch.full((4,), 0.5),
     }
     dates = pd.Series(["2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04"])
     criterion = torch.nn.BCEWithLogitsLoss()
@@ -141,6 +143,7 @@ def test_compute_sequence_multitask_metrics_reports_none_for_disabled_heads():
         "direction_20d": {"enabled": False, "loss_weight": 0.5},
         "rank_5d": {"enabled": False, "loss_weight": 1.0},
         "rank_20d": {"enabled": False, "loss_weight": 0.5},
+        "sector_neutral_rank_20d": {"enabled": False, "loss_weight": 0.3},
     }
 
     metrics = compute_sequence_multitask_metrics(
@@ -165,6 +168,7 @@ def test_compute_sequence_multitask_metrics_includes_rank_ic_for_enabled_rank_he
         "direction_20d": torch.zeros(4),
         "rank_5d": torch.tensor([0.9, 0.1, 0.9, 0.1]),
         "rank_20d": torch.full((4,), float("nan")),
+        "sector_neutral_rank_20d": torch.full((4,), float("nan")),
     }
     dates = pd.Series(["2020-01-01", "2020-01-01", "2020-01-02", "2020-01-02"])
     criterion = torch.nn.BCEWithLogitsLoss()
@@ -173,6 +177,7 @@ def test_compute_sequence_multitask_metrics_includes_rank_ic_for_enabled_rank_he
         "direction_20d": {"enabled": False, "loss_weight": 0.5},
         "rank_5d": {"enabled": True, "loss_weight": 1.0},
         "rank_20d": {"enabled": True, "loss_weight": 0.5},
+        "sector_neutral_rank_20d": {"enabled": False, "loss_weight": 0.3},
     }
 
     metrics = compute_sequence_multitask_metrics(

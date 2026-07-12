@@ -1,0 +1,146 @@
+# portfolio
+
+Owns Stage-2 cross-sectional long/short book construction (Phase 3 of the
+5/10 -> 9/10 roadmap) — the first use of the `rank_20d` signal that decides
+*which direction* a symbol trades, not just how large an already-decided
+trade should be.
+
+## Why this is its own package, not `risk/` or `analyzer/`
+
+Every prior integration of `rank_20d` into a trading decision (see
+`risk/README.md`'s "Cross-sectional rank_20d → position sizing" section)
+was deliberately **direction-preserving**: `rank_sizing_multiplier()` can
+only scale an already-decided position's magnitude, never flip its sign.
+Book construction is structurally different — it needs to decide, from
+scratch, *which direction* each symbol trades, based on how its predicted
+rank compares to the rest of the universe that bar. That doesn't fit
+either existing home:
+
+- **Not `risk/position_sizing.py`**: that module's functions are pure,
+  single-symbol calculations by design — they have no way to see every
+  other symbol's `rank_20d` for the same bar, which book construction
+  fundamentally needs (rank the whole universe, then pick a top-N/bottom-N
+  split).
+- **Not `analyzer/market_analyzer.py`**: that module's per-symbol
+  `trade`/`simulate`/`observe`/`reduce_risk` categorization stays
+  deterministic and per-symbol by design (see `analyzer/README.md`). A
+  book-selected symbol still passes through that exact same
+  categorization afterward, unchanged — this package only decides the
+  symbol's *role* (long/short) before that point, it never bypasses the
+  analyzer's safety tiers.
+
+## `book_construction.py::build_rank_based_book()`
+
+Pure function, no Lean/torch dependency (same convention as
+`risk/position_sizing.py`). Takes `book_candidates: dict[symbol, {...}]` —
+one entry per symbol with `predicted_rank_20d` and `trading_eligible`,
+collected by `main.py::on_data()`'s Pass 1 (see below) — and `top_n`/
+`bottom_n`/`min_rank_confidence_spread`, returning a `dict[symbol,
+BookAllocation]` covering **only** the symbols the book actively wants
+long or short. A symbol absent from the returned dict means "the book has
+no view on this symbol," not "the book says flat" — those symbols simply
+fall through to whatever the existing (non-book) signal pipeline would
+have decided anyway.
+
+- **Discrete top-N/bottom-N selection**, not continuous rank-weighting —
+  shipped first because it's simpler to reason about and test.
+  Rank-weighted continuous sizing is a documented future extension, not
+  built here.
+- **`min_rank_confidence_spread`**: a floor on `(mean long-side rank -
+  mean short-side rank)` before the book engages at all. On a day where
+  the universe's predicted ranks are all clustered near 0.5 (no real
+  cross-sectional dispersion), forcing a long/short split would be noise,
+  not signal — the book disengages entirely (`{}`) rather than trading a
+  meaningless split.
+- **Observation-only exclusion is automatic**: a candidate is eligible
+  only if `trading_eligible` is true, exactly the same
+  `phase9.asset_quality`-gated flag every other trading decision already
+  respects — observation-only assets can never be book candidates.
+- **Graceful degradation**: `top_n`/`bottom_n` exceeding the number of
+  eligible candidates degrades to however many are actually available
+  (never raises), and a book that can't form both a long AND a short side
+  returns `{}` rather than a one-sided book (not attempted in this pass).
+
+## The one deliberate departure from the "never flips direction" convention
+
+`BookAllocation.book_role_multiplier` (+1.0 long, -1.0 short) **sets**
+direction, unlike every existing sizing multiplier
+(`topology_sizing_multiplier()`, `rank_sizing_multiplier()`), which only
+ever scale magnitude. This is intentional and necessary — a cross-sectional
+book's entire purpose is deciding direction from relative rank, not
+confirming a direction some other signal already picked.
+
+Short-selling did not exist anywhere in this codebase before this phase
+(`phase5.backtest.strategy_mode: "long_flat"` was the ceiling everywhere
+else). Making it real required two small, additive changes outside this
+package:
+
+- `main.py::_apply_signal()` gained a new `signal_name == "short"` branch
+  (parallel to the existing `"buy"`/`"sell"` branches), calling
+  `self.SetHoldings(symbol, target_weight)` with a genuinely negative
+  `target_weight` — Lean's `SetHoldings()` already opens a short position
+  for a negative percentage; the branch that actually *did* this never
+  existed before (the existing `"sell"` branch only ever liquidates to
+  flat, ignoring `target_weight`'s sign entirely). A new
+  `max_short_exposure` cap (`phase9.portfolio.max_short_exposure`, default
+  `0.30`) bounds it, since nothing bounded short exposure before.
+  `experience/simulated_portfolio.py::enter_long()` (despite its name)
+  was already sign-generic — `simulate_fill()`'s `notional = target_weight
+  * equity` math works unchanged for a negative weight — so the
+  observation-mode path needed no new method, just reuse.
+- `analyzer/market_analyzer.py::build_market_analysis_decision()`'s six
+  `signal_name in {"buy", "sell"}` safety-tier checks (trade-lock,
+  risk-off, elevated topology, liquidity block/thin-market, confidence
+  threshold) now also include `"short"` — a real gap caught during
+  implementation: without this, a book-selected short would have silently
+  bypassed every one of those safety tiers, since none of them recognized
+  the new signal name. A book-selected symbol now passes through the
+  *exact same* deterministic categorization as any other signal, never
+  bypassing it — see that function's own updated docstring note.
+
+## `main.py::on_data()`'s two-pass restructuring
+
+A cross-sectional book needs every symbol's `rank_20d` prediction for the
+current bar before it can decide *any* single symbol's role — that
+information doesn't exist until every symbol's inference has run once.
+`on_data()` was restructured into two passes to make this possible:
+
+- **Pass 1**: the existing per-symbol feature-build + inference chain
+  (baseline/sequence/experts/multitask/gating), through the existing
+  `predicted_rank_20d` resolution (see `risk/README.md`) and the
+  pre-book `_derive_signal()` call — collected into `book_candidates` and
+  a per-symbol state dict, not acted on yet.
+- **Between passes**: `build_rank_based_book()` runs once, given every
+  symbol's `book_candidates` entry for this bar.
+- **Pass 2**: the existing sizing/liquidity/analyzer/order-application
+  chain, unchanged — except a book-selected symbol's `signal_name`/
+  `base_target_weight` are overridden (direction set by
+  `book_role_multiplier`, magnitude derived from how extreme the
+  symbol's own predicted rank is: `confidence = |rank - 0.5| * 2`) before
+  entering that same existing pipeline.
+
+**Byte-identical when disabled**: `signals[symbol]` dict objects are
+inserted during Pass 1, in `self.symbols` order, for every symbol with a
+bar — Pass 2 only ever `.update()`s those same dict objects in place,
+never re-inserts. With `phase_v2.portfolio_book.enabled=false` (the
+default), `build_rank_based_book()` is never called, `book_allocations` is
+always `{}`, and every symbol's Pass 2 behavior — including exposure-cap
+consumption *order* across symbols, since `pass1_state` preserves
+`self.symbols` iteration order — is identical to the single-pass loop that
+existed before this phase.
+
+## Config (`phase_v2.portfolio_book`)
+
+Off by default, same precedent as `rank_sizing_enabled` — this is a bigger
+structural change (direction-setting, not direction-preserving) than any
+prior `rank_20d` integration, and inherits the same non-overlapping-date
+validation caveat documented in `risk/README.md`.
+
+- `enabled` (default `false`)
+- `top_n` / `bottom_n` (default `3` / `3`)
+- `min_rank_confidence_spread` (default `0.2`)
+
+Also see `phase9.portfolio.max_short_exposure` (default `0.30`) — the
+dedicated short-exposure cap, independent of this block's own on/off
+switch, since it's a portfolio-wide risk ceiling that should stay in
+effect regardless.

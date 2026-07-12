@@ -321,6 +321,20 @@ def _write_horizon_training_metrics(path: Path) -> None:
             "rank_5d_ic": {"mean_ic": 0.035, "std_ic": 0.33, "t_stat": 2.5, "num_dates": 561},
             "rank_20d": {"mae": 0.24},
             "rank_20d_ic": {"mean_ic": 0.066, "std_ic": 0.32, "t_stat": 4.85, "num_dates": 546},
+            "rank_20d_ranking_quality": {
+                "quality_status": "promotable",
+                "promotion_eligible": True,
+                "failures": [],
+                "near_misses": [],
+                "observed": {
+                    "non_overlapping_t_stat": 2.52,
+                    "non_overlapping_mean_ic": 0.066,
+                    "bootstrap_ci_lower_bound": 0.035,
+                    "bootstrap_ci_upper_bound": 0.308,
+                    "num_eras": 12,
+                    "num_opposite_sign_eras": 0,
+                },
+            },
         },
         "magnitude_quality": {"quality_status": "stable"},
         "volatility_quality": {"quality_status": "stable"},
@@ -343,6 +357,9 @@ def test_baseline_multitask_network_reports_horizon_mcc_and_rank_ic(tmp_path):
     assert multitask["horizon_mcc"] == {"direction_5d": 0.02, "direction_20d": -0.01}
     assert multitask["rank_ic"]["rank_5d"]["mean_ic"] == pytest.approx(0.035)
     assert multitask["rank_ic"]["rank_20d"]["t_stat"] == pytest.approx(4.85)
+    assert multitask["ranking_quality"]["rank_20d"]["quality_status"] == "promotable"
+    assert multitask["ranking_quality"]["rank_20d"]["observed"]["num_eras"] == 12
+    assert multitask["ranking_quality"]["rank_5d"] is None
     assert multitask["regression_quality"] == {"magnitude": "stable", "volatility": "stable"}
 
 
@@ -368,7 +385,7 @@ def test_horizon_evaluation_fields_are_none_when_metrics_file_missing():
 
     result = _extract_horizon_evaluation_summary(None)
 
-    assert result == {"horizon_mcc": None, "rank_ic": None, "regression_quality": None}
+    assert result == {"horizon_mcc": None, "rank_ic": None, "ranking_quality": None, "regression_quality": None}
 
 
 def test_horizon_evaluation_fields_are_none_for_pre_phase3_metrics_shape():
@@ -383,7 +400,7 @@ def test_horizon_evaluation_fields_are_none_for_pre_phase3_metrics_shape():
 
     result = _extract_horizon_evaluation_summary(old_shape_metrics)
 
-    assert result == {"horizon_mcc": None, "rank_ic": None, "regression_quality": None}
+    assert result == {"horizon_mcc": None, "rank_ic": None, "ranking_quality": None, "regression_quality": None}
 
 
 def test_expert_multitask_networks_never_get_horizon_evaluation_fields(tmp_path):
@@ -406,4 +423,5 @@ def test_expert_multitask_networks_never_get_horizon_evaluation_fields(tmp_path)
     for network in expert_multitask_networks:
         assert network["horizon_mcc"] is None
         assert network["rank_ic"] is None
+        assert network["ranking_quality"] is None
         assert network["regression_quality"] is None

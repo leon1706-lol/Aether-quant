@@ -29,7 +29,7 @@ function NetworkRow({ network }: { network: NeuralNetworkState['networks'][numbe
       ) : (
         <div className="mt-2 text-xs text-white/40">Not trained yet</div>
       )}
-      {network.horizon_mcc || network.rank_ic || network.regression_quality ? (
+      {network.horizon_mcc || network.rank_ic || network.ranking_quality || network.regression_quality ? (
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-white/5 pt-2 text-[0.7rem] text-white/60">
           {network.horizon_mcc ? (
             <>
@@ -59,7 +59,32 @@ function NetworkRow({ network }: { network: NeuralNetworkState['networks'][numbe
                     : '—'}
                 </span>
               </span>
+              {network.rank_ic.sector_neutral_rank_20d !== undefined ? (
+                <span>
+                  20d sector-neutral rank-IC:{' '}
+                  <span className="text-white/80">
+                    {network.rank_ic.sector_neutral_rank_20d
+                      ? `${network.rank_ic.sector_neutral_rank_20d.mean_ic.toFixed(3)} (t=${network.rank_ic.sector_neutral_rank_20d.t_stat.toFixed(2)})`
+                      : '—'}
+                  </span>
+                </span>
+              ) : null}
             </>
+          ) : null}
+          {network.ranking_quality?.rank_20d ? (
+            <span className="col-span-2 flex flex-wrap items-center gap-1.5">
+              20d promotion gate:{' '}
+              <Badge tone={network.ranking_quality.rank_20d.quality_status}>
+                {network.ranking_quality.rank_20d.quality_status}
+              </Badge>
+              <span className="text-white/80">
+                CI [{network.ranking_quality.rank_20d.observed.bootstrap_ci_lower_bound.toFixed(3)},{' '}
+                {network.ranking_quality.rank_20d.observed.bootstrap_ci_upper_bound.toFixed(3)}], t=
+                {network.ranking_quality.rank_20d.observed.non_overlapping_t_stat.toFixed(2)},{' '}
+                {network.ranking_quality.rank_20d.observed.num_eras} eras (
+                {network.ranking_quality.rank_20d.observed.num_opposite_sign_eras} opposite-sign)
+              </span>
+            </span>
           ) : null}
           {network.regression_quality ? (
             <span className="col-span-2">

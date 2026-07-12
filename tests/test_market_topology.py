@@ -358,3 +358,29 @@ def test_build_market_topology_pads_fewer_peers_than_top_peers_n():
     # Only 1 possible peer (BBB) exists, even though top_peers_n=5 was requested.
     assert aaa_node.top_peers == ["BBB"]
     assert len(aaa_node.top_peer_returns) == 1
+
+
+def test_build_market_topology_peers_are_not_filtered_by_asset_class():
+    # Locks in (documents, doesn't just incidentally exercise) a real
+    # property this function already has: build_market_topology()/
+    # rank_correlated_peers() take plain symbol->returns dicts with no
+    # security_type concept anywhere - a bond ETF or crypto asset's return
+    # series can surface as an equity's top_peers purely on correlation,
+    # the moment it exists in the universe. This is exactly the mechanism
+    # Phase 1b (5/10 -> 9/10 roadmap, see development/Changelog.md) relies
+    # on for "no new engineering needed" cross-asset-class relational
+    # features once the bond ETF sleeve was added - see also
+    # features/macro_features.py for the deliberate, explicit macro
+    # features layered on top of this incidental mechanism.
+    base = _series([0.01, -0.02, 0.015, 0.005, -0.01, 0.02, 0.03, -0.025])
+    returns = {
+        "AAPL": base,  # equity
+        "TLT": [value * 1.05 for value in base],  # bond ETF, near-perfectly correlated with AAPL
+        "BTCUSD": _series([-0.04, 0.05, -0.06, 0.07, -0.03, 0.02, -0.05, 0.04]),  # crypto, uncorrelated
+    }
+
+    topology = build_market_topology(returns, min_observations=5, top_peers_n=2)
+
+    aapl_node = next(node for node in topology.nodes if node.symbol == "AAPL")
+    assert aapl_node.top_peers[0] == "TLT"  # a bond ETF ranked as the equity's top peer
+    assert "BTCUSD" in aapl_node.top_peers  # the crypto asset also eligible, just ranked lower

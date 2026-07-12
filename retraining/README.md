@@ -28,6 +28,11 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
   trigger bonus, ties broken by newest — see
   `development/v2_architecture.md`'s V2-17.5 section), then checks minimum
   observations, cooldown, and a daily retraining cap, in that order.
+  `rank_ic_decay_trigger` (Phase 6 of the 5/10 -> 9/10 roadmap,
+  `performance/rank_ic_monitor.py`) is registered in `_TYPE_BASE_SCORE` at
+  the same weight as `sharpe_degradation_trigger` — no other change
+  needed, this function already generically handles any
+  `retrain_candidate=true` trigger type.
 - `postgres_registry.py` (IO) — embedded DDL for `model_versions` and
   `retraining_events`; a partial unique index enforces exactly one `active`
   model version at the DB level.
@@ -86,3 +91,17 @@ python -m retraining.orchestrator status
 See `development/infrastructure.md`'s "Controlled Retraining Betreiben
 (V2-17)" section for the full command reference, including every
 orchestrator subcommand and the Postgres inspection queries.
+
+## Walk-forward retraining is a separate, scheduled mechanism (Phase 4)
+
+`python train.py --walk-forward --step-days N --mode {rolling,expanding}`
+(see `train.py::generate_walk_forward_windows()`/`_run_walk_forward()`) is
+**not** part of this package's reactive, trigger-driven loop above —
+deliberately kept separate, since it's a proactive, calendar-scheduled
+mechanism ("retrain periodically regardless of triggers"), not a response
+to a detected quality problem. Folding it into `RetrainingWorker`'s
+cooldown/daily-limit logic (designed around reactive trigger bursts, not a
+predictable schedule) would conflate two different concepts. Config lives
+at `phase_v2.retraining.walk_forward` (`enabled: false` by default) —
+intentionally namespaced under `retraining` since it's still a form of
+retraining, just not one this package's worker orchestrates.

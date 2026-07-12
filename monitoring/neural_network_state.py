@@ -95,6 +95,9 @@ class NetworkSummary:
     # graceful degradation, same contract as quality_status above.
     horizon_mcc: dict | None = None
     rank_ic: dict | None = None
+    # Phase 2's per-head promotion-gate verdict (quality_status/
+    # promotion_eligible/observed CI/eras) - see _extract_horizon_evaluation_summary().
+    ranking_quality: dict | None = None
     regression_quality: dict | None = None
 
     def to_dict(self) -> dict:
@@ -248,19 +251,40 @@ def _extract_horizon_evaluation_summary(training_metrics: dict | None) -> dict:
         horizon_mcc[head_name] = head_metrics.get("mcc") if head_metrics else None
 
     rank_ic = {}
-    for head_name in ("rank_5d", "rank_20d"):
+    ranking_quality = {}
+    # sector_neutral_rank_20d (Phase 5 of the 5/10 -> 9/10 roadmap): same
+    # rank-IC shape as rank_5d/20d, appended rather than replacing either.
+    for head_name in ("rank_5d", "rank_20d", "sector_neutral_rank_20d"):
         ic_metrics = backtest_metrics.get(f"{head_name}_ic")
         rank_ic[head_name] = ic_metrics if ic_metrics else None
+        # Phase 2's code-enforced promotion-gate verdict
+        # (train.py::assess_ranking_quality()) - a distinct concept from the
+        # `quality_status` field on NetworkSummary itself (that one is the
+        # older stable/watchlist/disabled_for_gating/learned direction-model
+        # gate). Only present when train_multitask.py/train_sequence.py's
+        # ranking_promotion_config was supplied for this backtest run.
+        quality_metrics = backtest_metrics.get(f"{head_name}_ranking_quality")
+        ranking_quality[head_name] = quality_metrics if quality_metrics else None
 
     regression_quality = {}
     for quality_name in ("magnitude_quality", "volatility_quality"):
         quality = (training_metrics or {}).get(quality_name)
         regression_quality[quality_name.removesuffix("_quality")] = quality.get("quality_status") if quality else None
 
-    has_any_value = any(horizon_mcc.values()) or any(rank_ic.values()) or any(regression_quality.values())
+    has_any_value = (
+        any(horizon_mcc.values())
+        or any(rank_ic.values())
+        or any(ranking_quality.values())
+        or any(regression_quality.values())
+    )
     if not has_any_value:
-        return {"horizon_mcc": None, "rank_ic": None, "regression_quality": None}
-    return {"horizon_mcc": horizon_mcc, "rank_ic": rank_ic, "regression_quality": regression_quality}
+        return {"horizon_mcc": None, "rank_ic": None, "ranking_quality": None, "regression_quality": None}
+    return {
+        "horizon_mcc": horizon_mcc,
+        "rank_ic": rank_ic,
+        "ranking_quality": ranking_quality,
+        "regression_quality": regression_quality,
+    }
 
 
 def _build_network_summary(

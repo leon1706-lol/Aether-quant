@@ -31,6 +31,7 @@ from performance.postgres_triggers import (
     insert_triggers,
     set_watermark,
 )
+from performance.rank_ic_monitor import compute_realized_rank_ic_observations
 from performance.triggers import evaluate_all_triggers
 
 logger = logging.getLogger(__name__)
@@ -112,7 +113,21 @@ class TriggerWorker:
         baseline_minutes = int(self.config.get("trigger_frequency_spike_baseline_minutes", 1440))
         recent_triggers = fetch_triggers_since(self._conn, since=now - timedelta(minutes=baseline_minutes))
 
-        report = evaluate_all_triggers(history_events, self.config, recent_triggers=recent_triggers)
+        # Phase 6 of the 5/10 -> 9/10 roadmap: rank_ic_observations self-joins
+        # the same rolling-window history_events every other trigger reads
+        # (ticker/date/close_price/resolved_predicted_rank_20d fields already
+        # present per experience event) - no separate Postgres fetch needed.
+        rank_ic_observations = compute_realized_rank_ic_observations(
+            history_events,
+            horizon_days=int(self.config.get("rank_ic_resolution_horizon_days", 20)),
+        )
+
+        report = evaluate_all_triggers(
+            history_events,
+            self.config,
+            recent_triggers=recent_triggers,
+            rank_ic_observations=rank_ic_observations,
+        )
         inserted = insert_triggers(
             self._conn,
             report["triggers"],
