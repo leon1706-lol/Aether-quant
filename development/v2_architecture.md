@@ -985,7 +985,14 @@ exact same skeleton as `TopologyScene3D.tsx` for visual coherence (ambient
 (layers/nodes/edges/quality status/last modified) plus a totals row,
 polled every 5s via `useNeuralNetwork()` (same `REFRESH_MS` cadence as
 `useTopology()`), so a retraining promotion's new weights are picked up
-automatically without a page reload.
+automatically without a page reload. For baseline_multitask/sequence it
+also renders a "20d promotion gate" row — the Phase 2 code-enforced
+`quality_status`/bootstrap-CI/era-count verdict
+(`train.py::assess_ranking_quality()`, surfaced via
+`monitoring/neural_network_state.py`'s `ranking_quality` field) — a
+distinct concept from the row's own `quality_status` badge (that one is
+the older stable/watchlist/disabled_for_gating/learned direction-model
+gate).
 
 Liquidity data flows through `state.signals[symbol].liquidity` — no dedicated endpoint needed.
 

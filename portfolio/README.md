@@ -144,3 +144,11 @@ Also see `phase9.portfolio.max_short_exposure` (default `0.30`) — the
 dedicated short-exposure cap, independent of this block's own on/off
 switch, since it's a portfolio-wide risk ceiling that should stay in
 effect regardless.
+
+## Webui visibility
+
+`signal_payload["portfolio_book_role"]` (set in `main.py`, see above) is
+surfaced per-symbol as a "Book Role" column in
+`webui/src/components/risk/AssetSizingTable.tsx` (long/short badge, or
+`—` for non-book-controlled symbols / when the overlay is disabled) —
+typed as `Signal.portfolio_book_role` in `webui/src/types/state.ts`.

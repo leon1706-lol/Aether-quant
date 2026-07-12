@@ -38,7 +38,11 @@ anything itself. `retrain_candidate` is a flag consumed by `retraining/`
   `rank_ic_observations` series this trigger actually consumes. Fires when
   either the rolling mean rank-IC or its t-stat falls below its own floor.
   Registered in `_MODEL_QUALITY_TRIGGERS`/`_RECOMMENDED_ACTIONS` like any
-  other model-quality trigger.
+  other model-quality trigger. `evaluate_all_triggers()` dispatches to it
+  via an optional `rank_ic_observations=` kwarg (same additive-parameter
+  pattern as `recent_triggers=`/`trigger_frequency_spike`) — `trigger_worker.py`
+  below is what actually supplies it in production, so this trigger is
+  reachable from the real running worker, not just direct unit tests.
 - `postgres_triggers.py` (IO) — embedded DDL for the durable
   `performance_triggers` table (the system of record — separate from
   `experience_events` so Grafana/V2-17 can query it cleanly) plus a
@@ -55,7 +59,11 @@ anything itself. `retrain_candidate` is a flag consumed by `retraining/`
   observations bounded to `rolling_window_days` or since the last
   promoted/validated retrain, whichever is more recent — fixing the V2-16
   limitation where evaluation only ever saw whatever arrived since the
-  last poll. Reads `config.json`'s `phase_v2.performance_triggers`
+  last poll. Also resolves that same rolling-window history into
+  `rank_ic_observations` (via `rank_ic_monitor.py::compute_realized_rank_ic_observations()`)
+  and passes them into `evaluate_all_triggers()`, closing the loop so
+  `rank_ic_decay_trigger()` actually runs every cycle instead of sitting
+  unreachable. Reads `config.json`'s `phase_v2.performance_triggers`
   thresholds directly (no Redis dependency — this worker never touches the
   Redis stream).
 - `main.py` additionally keeps a fast, **non-durable**, in-memory-only view

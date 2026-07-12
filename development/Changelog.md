@@ -2362,3 +2362,60 @@ the new head/features/fields.
 `ml/`; `train_sequence.py` did not complete this session (see above) —
 active `ml/sequence_model.json` is the prior, pre-roadmap artifact,
 confirmed to degrade safely. `npx tsc -b --noEmit` in `webui/` — clean.
+
+## Follow-up — closing the roadmap's CLI/webui/backend wiring gaps
+
+A direct audit ("is everything implemented in the CLI, webui, backend?")
+of the 5/10 → 9/10 roadmap above found the backend logic for three phases
+existed but was never actually reachable from a user-facing surface. All
+three fixed this session:
+
+- **`rank_ic_decay_trigger()` was backend-only** — unit-tested but never
+  invoked outside tests. `performance/triggers.py::evaluate_all_triggers()`
+  gained an optional `rank_ic_observations=` kwarg (same additive-parameter
+  shape as `recent_triggers=`); `performance/trigger_worker.py::TriggerWorker.run_once()`
+  now builds `rank_ic_observations` from the SAME rolling-window
+  `history_events` every other trigger already reads (via
+  `rank_ic_monitor.py::compute_realized_rank_ic_observations()` — no new
+  Postgres table/query needed) and passes them through, so the trigger
+  finally runs every real cycle. New `phase_v2.performance_triggers` keys:
+  `rank_ic_decay_rolling_window` (100), `rank_ic_decay_min_mean_ic` (0.02),
+  `rank_ic_decay_min_t_stat` (2.0), `rank_ic_resolution_horizon_days` (20).
+- **`aq train` had no `--walk-forward` flag** even though `train.py` itself
+  already accepted `--walk-forward`/`--step-days`/`--mode` natively (Phase
+  4) — `aq_cli.py` never wrapped it. Fixed: added the 3 flags to `aq
+  train`'s mutually-exclusive group, straight passthrough to `train.py`
+  (no copy-to-active-`ml/` step — walk-forward stays diagnostic-only).
+- **Two Phase 2/3 fields never reached the webui**: the ranking
+  promotion-gate verdict (`{head}_ranking_quality` in
+  `*_training_metrics.json`'s `backtest` block, from
+  `train.py::assess_ranking_quality()`) was written by the trainers but
+  `monitoring/neural_network_state.py::_extract_horizon_evaluation_summary()`
+  only ever read `{head}_ic`, never the quality-gate sibling key; and
+  `portfolio_book_role` (Phase 3's long/short book role, added to
+  `main.py`'s `signal_payload` at the time) was never typed in
+  `webui/src/types/state.ts` or displayed anywhere. Fixed: extended the
+  extractor + `NetworkSummary`/`NeuralNetworkModel` with a `ranking_quality`
+  field, added a "20d promotion gate" badge row to
+  `NeuralNetworkStatsPanel.tsx`; added `portfolio_book_role` to the
+  `Signal` type and a new "Book Role" column to `AssetSizingTable.tsx`.
+  New `Badge` tones: `promotable`/`not_promotable`/`long`/`short`/`flat`.
+
+### New/extended tests
+
+`tests/test_trigger_worker.py` (+1, asserts `rank_ic_observations` is
+resolved from window events and passed through), `tests/test_triggers.py`
+(+2, `evaluate_all_triggers()` dispatch with/without the new kwarg),
+`tests/test_aq_cli.py` (+3, `--walk-forward` argv building + mutual
+exclusion), `tests/test_neural_network_state.py` (extended fixtures +
+assertions for `ranking_quality`).
+
+### Verification
+
+`pytest tests/` — 934 passed, 11 pre-existing Docker-unavailable errors
+(unrelated — `lean backtest .` needs Docker, not running on this machine),
+0 real failures. `npx tsc -b --noEmit` in `webui/` — clean.
+
+Final rating after this pass: **9/10** (up from 7/10) — the roadmap's
+functionality is now genuinely wired end-to-end, not just backend-complete
+with silent CLI/webui gaps.

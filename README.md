@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-928%2F939%20passing-red?style=flat-square&labelColor=1A1A1A" alt="928 of 939 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-934%2F945%20passing-red?style=flat-square&labelColor=1A1A1A" alt="934 of 945 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -668,7 +668,7 @@ command already documented elsewhere in this README:
 
 #### `aq train`
 ```text
-aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only]
+aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--walk-forward] [--step-days N] [--mode rolling|expanding]
 ```
 Runs `train.py`: builds the dataset and trains the baseline + expert
 models. `--gating-only` trains just the learned gating blend
@@ -678,7 +678,15 @@ mirroring what `--experts-only` already does for the expert models — see
 direction+magnitude+volatility model (`train_multitask.py`) — see
 `inference/README.md`/`risk/README.md`. `--sequence-only` does the same
 for the Phase 2 causal-TCN sequence encoder (`train_sequence.py`) — see
-`inference/README.md`.
+`inference/README.md`. `--walk-forward` (Phase 4 of the 5/10 -> 9/10
+roadmap) wraps `python train.py --walk-forward`, running the dataset-build
++ training pipeline once per rolling/expanding window instead of once on
+the fixed `phase1.windows` — diagnostic only, never touches active `ml/`
+(each window writes to `ml/versions/<run-id>/window_<i>/`, same as
+`--candidate`); `--step-days`/`--mode` override
+`phase_v2.retraining.walk_forward`'s `step_days`/`mode` defaults — see
+`retraining/README.md`'s "Walk-forward retraining is a separate, scheduled
+mechanism" section.
 
 #### `aq test`
 ```text
