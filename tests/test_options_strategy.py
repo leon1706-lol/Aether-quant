@@ -1,4 +1,8 @@
-from portfolio.options_strategy import build_options_position_sizing, select_single_leg_contract
+from portfolio.options_strategy import (
+    OptionsPositionDecision,
+    build_options_position_sizing,
+    select_single_leg_contract,
+)
 
 
 def _sample_chain() -> list[dict]:
@@ -118,3 +122,80 @@ def test_build_options_position_sizing_non_positive_portfolio_value_returns_none
 def test_build_options_position_sizing_zero_vega_contract_returns_none():
     chain = [{"strike": 500, "expiry": "2026-08-21", "right": "call", "delta": 0.5, "vega": 0.0}]
     assert build_options_position_sizing("buy", confidence=1.0, available_chain=chain, portfolio_value=1_000_000) is None
+
+
+# ---------------------------------------------------------------------------
+# contract_symbol / to_dict() JSON-safety (main.py needs the real Symbol to
+# place an order; the dashboard state writer needs a JSON-safe string - see
+# portfolio/options_strategy.py::OptionsPositionDecision.to_dict()).
+# ---------------------------------------------------------------------------
+
+
+def test_build_options_position_sizing_populates_contract_symbol_from_chain_row():
+    chain = [{"strike": 500, "expiry": "2026-08-21", "right": "call", "delta": 0.5, "vega": 45.0, "symbol": "SPY 260821C00500000"}]
+    decision = build_options_position_sizing("buy", confidence=1.0, available_chain=chain, portfolio_value=1_000_000, target_delta_at_full_confidence=0.5)
+    assert decision.contract_symbol == "SPY 260821C00500000"
+
+
+def test_build_options_position_sizing_contract_symbol_none_when_chain_row_has_no_symbol():
+    decision = build_options_position_sizing(
+        "buy", confidence=1.0, available_chain=_sample_chain(), portfolio_value=1_000_000, target_delta_at_full_confidence=0.5
+    )
+    assert decision.contract_symbol is None
+
+
+def test_options_position_decision_to_dict_stringifies_non_none_contract_symbol():
+    class _FakeLeanSymbol:
+        def __str__(self) -> str:
+            return "SPY 260821C00500000"
+
+    decision = OptionsPositionDecision(
+        contracts=3,
+        right="call",
+        strike=500.0,
+        expiry="2026-08-21",
+        target_delta=0.5,
+        actual_delta=0.5,
+        vega_budget_used=0.01,
+        sizing_reason="delta_targeted_vega_budgeted_sizing",
+        contract_symbol=_FakeLeanSymbol(),
+    )
+    result = decision.to_dict()
+    assert result["contract_symbol"] == "SPY 260821C00500000"
+    assert isinstance(result["contract_symbol"], str)
+
+
+def test_options_position_decision_to_dict_emits_none_when_contract_symbol_absent():
+    decision = OptionsPositionDecision(
+        contracts=3,
+        right="call",
+        strike=500.0,
+        expiry="2026-08-21",
+        target_delta=0.5,
+        actual_delta=0.5,
+        vega_budget_used=0.01,
+        sizing_reason="delta_targeted_vega_budgeted_sizing",
+    )
+    result = decision.to_dict()
+    assert result["contract_symbol"] is None
+
+
+def test_options_position_decision_to_dict_is_json_serializable():
+    import json
+
+    class _FakeLeanSymbol:
+        def __str__(self) -> str:
+            return "SPY 260821C00500000"
+
+    decision = OptionsPositionDecision(
+        contracts=3,
+        right="call",
+        strike=500.0,
+        expiry="2026-08-21",
+        target_delta=0.5,
+        actual_delta=0.5,
+        vega_budget_used=0.01,
+        sizing_reason="delta_targeted_vega_budgeted_sizing",
+        contract_symbol=_FakeLeanSymbol(),
+    )
+    json.dumps(decision.to_dict())  # must not raise

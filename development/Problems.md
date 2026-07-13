@@ -990,27 +990,44 @@ the book enabled).
 
 ---
 
-### 29. Multi-asset-class support (bonds/futures/options + IB) — explicit non-goals for this pass
-**Severity:** n/a (scope note, not a bug) · **Status:** 🟡 `deferred`
+### 29. Multi-asset-class support (bonds/futures/options + IB) — explicit non-goals
+**Severity:** n/a (scope note, not a bug) · **Status:** 🟡 `deferred` (narrowed — see resolved items below)
 
-Full session summary is in `development/Changelog.md`. Deliberately out of
-scope for this pass, tracked here so they aren't lost:
+Full session summaries are in `development/Changelog.md`. A first pass added
+bonds/futures/options architecturally; a second pass closed the gaps that
+blocked futures/options from actually trading. **Resolved in the second
+pass** (previously listed here as deferred):
+
+- ~~Options order placement against a specific resolved contract~~ — now
+  implemented. `main.py::_build_options_chains_payload()` resolves
+  `slice.option_chains` into a real `available_chain` every bar (preferring
+  Lean/IB's own greeks, falling back to `features/options_greeks.py`'s
+  Black-Scholes solver), and `_apply_signal()`'s `"option"` branch places a
+  real `MarketOrder()` against the selected contract's own `Symbol` — plus
+  contract-symbol tracking so the position can be found again and correctly
+  closed / counted toward exposure caps.
+- ~~Real futures term-structure / options put-call-ratio / IV-skew data~~ —
+  now computed for real, both live (`main.py::_build_derivatives_macro_payload()`)
+  and offline (`train.py::build_derivatives_macro_features_by_date()`),
+  whenever the configured universe has the matching future/option assets
+  (`family_ticker`-grouped futures, `strike`/`expiry`/`right`-tagged
+  options — see `aq fetch futures --contract-month`/`aq fetch options
+  --family-ticker`). Still resolves to the neutral default (0.0) when no
+  such assets are configured — the honest "no data" case, not a bug.
+
+Still deliberately out of scope:
 
 - **Automatic multi-leg options spread selection via ML** (verticals,
   straddles, iron condors). `portfolio/options_strategy.py` is single-leg
   only (long calls or long puts, greeks-sized via a target delta scaled by
   the existing direction+confidence prediction) — a genuinely new spread-
   selection model architecture is future work.
-- **Options order PLACEMENT against a specific resolved contract.**
-  `main.py::_apply_signal()`'s `"option"` branch computes sizing/exposure-
-  cap accounting but deliberately does not call `SetHoldings()`/`MarketOrder()`
-  — Lean's `add_option()` canonical chain `Symbol` is not itself a tradable
-  contract, and resolving a live tradable contract Symbol from
-  `slice.OptionChains` was out of scope this pass. Returns
-  `"options_order_placement_not_yet_implemented"`.
 - **IBC-based headless/automated TWS/Gateway login.** IB's API requires an
   already-logged-in TWS/Gateway session; `data_pipeline/ib_backfill.py`
-  connects to that session but does not manage its login lifecycle.
+  connects to that session but does not manage its login lifecycle. The
+  live connection itself has also never been tested against a real
+  Gateway — everything is verified via unit tests and Lean's own type
+  stubs only.
 - **Per-asset-class top-N/bottom-N book-slot caps.**
   `portfolio/book_construction.py::build_rank_based_book()` ships with one
   combined-universe ranking across all enabled asset classes, not a slot
@@ -1019,16 +1036,12 @@ scope for this pass, tracked here so they aren't lost:
   static reference numbers. The static file is the sizing source of truth
   even when IB is connected; live margin queries are a documented future
   enhancement.
-- **Real futures term-structure / options put-call-ratio / IV-skew data.**
-  `features/derivatives_macro_features.py`'s three cross-asset features are
-  fully wired into the training/runtime pipelines but always resolve to
-  their neutral default (0.0) — a genuine futures term structure needs two
-  distinct front/next-month tickers and a real put/call ratio needs
-  aggregated chain volume, neither of which this offline training pipeline
-  ingests yet (see `train.py::build_derivatives_macro_features_by_date()`'s
-  docstring). Will start producing real values once `aq fetch
-  futures`/`aq fetch options` (IB-backed) populate config.json with assets
-  shaped that way.
+- **Real historical derivatives training data acquisition is manual.** IB's
+  historical API is per-contract and rate-limited, so building a rich
+  training-window dataset means repeated `aq fetch futures --contract-month
+  <YYYYMM> --apply` / `aq fetch options --strike ... --expiry ... --right
+  ... --apply` calls, one contract at a time — not a single bulk-fetch
+  button. Inherent to IB's API shape, not a shortcut taken here.
 
 ---
 

@@ -165,16 +165,32 @@ def fetch_future_historical_bars(
     contract_spec: dict,
     start: str,
     end: str,
+    contract_month: str | None = None,
 ) -> list[dict]:
-    """Historical daily bars for ticker's continuous front-month future via
-    ib_insync's ContFuture + reqHistoricalData. Returns [] (never raises)
-    on any IB-side failure or empty response, matching
-    fetch_yahoo_ohlcv()'s "one bad symbol never aborts a multi-asset run"
-    convention."""
-    from ib_insync import ContFuture, util
+    """Historical daily bars for `ticker`'s future via ib_insync +
+    reqHistoricalData. contract_month=None (default): the continuous
+    front-month contract (ContFuture) - correct for live/current sizing,
+    but each call only ever sees "whatever is currently front-month," not
+    a stable historical series. contract_month="YYYYMM": a SPECIFIC dated
+    Future(...) contract instead - lets a caller fetch e.g. both an
+    "ES_FRONT" and "ES_NEXT" ticker (aq_cli.py's --contract-month,
+    grouped via --family-ticker) for a real historical front/next-month
+    term-structure pair (train.py::build_derivatives_macro_features_by_date()),
+    which a single continuous series can't provide on its own.
+
+    Returns [] (never raises) on any IB-side failure or empty response,
+    matching fetch_yahoo_ohlcv()'s "one bad symbol never aborts a multi-
+    asset run" convention."""
+    from ib_insync import ContFuture, Future, util
 
     try:
-        contract = ContFuture(ticker, exchange=contract_spec.get("exchange", "CME"), currency="USD")
+        if contract_month:
+            contract = Future(
+                ticker, lastTradeDateOrContractMonth=contract_month,
+                exchange=contract_spec.get("exchange", "CME"), currency="USD",
+            )
+        else:
+            contract = ContFuture(ticker, exchange=contract_spec.get("exchange", "CME"), currency="USD")
         ib.qualifyContracts(contract)
         duration_days = max((util.parseIBDatetime(end) - util.parseIBDatetime(start)).days, 1)
         bars = ib.reqHistoricalData(

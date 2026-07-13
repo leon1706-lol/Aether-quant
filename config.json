@@ -426,6 +426,10 @@
                 "treasury_10yr": "DGS10",
                 "treasury_30yr": "DGS30",
                 "credit_spread_baa10y": "BAA10Y"
+            },
+            "derivatives_reference_tickers": {
+                "futures_term_structure": "ES",
+                "options_sentiment": "SPY"
             }
         },
         "target": {

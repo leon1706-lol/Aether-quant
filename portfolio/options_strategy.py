@@ -25,7 +25,7 @@ for this codebase's newest decision-layer additions.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -38,9 +38,33 @@ class OptionsPositionDecision:
     actual_delta: float
     vega_budget_used: float
     sizing_reason: str
+    # The actual Lean contract Symbol (from the selected chain row's
+    # "symbol" key, see main.py::_build_options_chains_payload()) - needed
+    # by main.py::_apply_signal() to place an order on the SPECIFIC
+    # contract, not the canonical option chain Symbol. None whenever the
+    # chain row didn't carry one (e.g. a synthetic test fixture) - callers
+    # must treat that as "no order can be placed", never a crash.
+    contract_symbol: object = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        """Deliberately NOT dataclasses.asdict(self) - asdict() deep-copies
+        every field, and a raw Lean Symbol (a C#/.NET interop object) isn't
+        guaranteed deepcopy-safe. Manual field access avoids that risk
+        entirely and stringifies contract_symbol so the result is always
+        JSON-serializable - required for main.py's dashboard state writer
+        (see main.py::on_data()'s "dynamic_sizing_for_state" sanitization,
+        which calls this before signals[...] ever reaches json.dumps())."""
+        return {
+            "contracts": self.contracts,
+            "right": self.right,
+            "strike": self.strike,
+            "expiry": self.expiry,
+            "target_delta": self.target_delta,
+            "actual_delta": self.actual_delta,
+            "vega_budget_used": self.vega_budget_used,
+            "sizing_reason": self.sizing_reason,
+            "contract_symbol": str(self.contract_symbol) if self.contract_symbol is not None else None,
+        }
 
 
 def select_single_leg_contract(available_chain: list[dict], target_delta: float, right: str) -> dict | None:
@@ -129,4 +153,5 @@ def build_options_position_sizing(
         actual_delta=float(contract["delta"]),
         vega_budget_used=(contracts * contract_vega) / portfolio_value,
         sizing_reason="delta_targeted_vega_budgeted_sizing",
+        contract_symbol=contract.get("symbol"),
     )

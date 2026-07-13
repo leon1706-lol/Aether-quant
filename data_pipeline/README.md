@@ -163,3 +163,41 @@ Usage: `aq fetch futures --ticker ES --start ... --end ... --expiry ... [--apply
 `aq fetch options --ticker SPY --start ... --end ... --expiry ... --strike ... --right call [--apply]`
 — see root `README.md`'s CLI Reference.
 
+### Building a real training-time derivatives dataset (manual, per-contract)
+
+`train.py::build_derivatives_macro_features_by_date()` computes real
+futures term structure / options put-call-ratio / IV-skew features from
+whatever future/option assets are configured in `config.json` — but IB's
+historical API is per-contract and rate-limited, so there is no single
+bulk-fetch command for this. Building a useful training window means
+repeating `aq fetch futures`/`aq fetch options` once per contract:
+
+- **Futures term structure** needs at least two same-root contracts tagged
+  with the same `--family-ticker` and *different* `--contract-month`
+  (`YYYYMM`), e.g.:
+  ```text
+  aq fetch futures --ticker ES_FRONT --family-ticker ES --contract-month 202603 --start ... --end ... --expiry ... --apply
+  aq fetch futures --ticker ES_NEXT  --family-ticker ES --contract-month 202606 --start ... --end ... --expiry ... --apply
+  ```
+  Without `--contract-month`, `aq fetch futures` fetches Lean's default
+  *continuous* contract — fine for price/return features, but a single
+  continuous series can't produce a term-structure slope; you need two
+  distinct dated contracts for that.
+- **Options sentiment (put/call ratio, IV skew)** needs option assets
+  tagged with `--family-ticker <underlying>` (matching
+  `phase1.features.derivatives_reference_tickers.options_sentiment` in
+  `config.json`, default `"SPY"`) plus their own `--strike`/`--expiry`/
+  `--right`, e.g.:
+  ```text
+  aq fetch options --ticker SPY_500C --family-ticker SPY --strike 500 --expiry 2026-08-21 --right call --start ... --end ... --apply
+  aq fetch options --ticker SPY_490P --family-ticker SPY --strike 490 --expiry 2026-08-21 --right put  --start ... --end ... --apply
+  ```
+- Any family/underlying with too few tagged contracts (or missing
+  `strike`/`expiry`/`right` metadata) resolves to the neutral default
+  (0.0) for that feature, silently — never a crash. This is the honest
+  "no data configured" case, not a bug; run `aq assets status` to see
+  what's currently configured.
+- After fetching, run `python train.py --dataset-only` (then `python
+  train.py` when ready) to actually train on the new data — `aq fetch`
+  never trains anything itself.
+

@@ -39,6 +39,7 @@ from importlib.metadata import version as installed_version
 from pathlib import Path
 
 from data_pipeline.fetch import ASSET_CLASSES, fetch_adhoc_asset
+from data_pipeline.fred_backfill import load_cached_fred_series
 from data_pipeline.ib_backfill import (
     IBNotConfiguredError,
     attempt_connection,
@@ -583,6 +584,7 @@ def cmd_lean(args: argparse.Namespace) -> int:
 def cmd_fetch(args: argparse.Namespace) -> int:
     ib = None
     fetch_fn = None
+    extra_metadata = None
     if args.asset_class in IB_ASSET_CLASSES:
         if args.expiry is None:
             print(f"error: --expiry is required for asset_class={args.asset_class!r}", file=sys.stderr)
@@ -599,17 +601,32 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             print(f"error: {error}", file=sys.stderr)
             return 1
 
+        family_ticker = args.family_ticker or args.ticker.upper()
         if args.asset_class == "futures":
             contract_spec = load_futures_contract_specs().get(args.ticker.upper(), {})
-            fetch_fn = lambda symbol, start, end: fetch_future_historical_bars(ib, symbol, contract_spec, start, end)  # noqa: E731
+            fetch_fn = lambda symbol, start, end: fetch_future_historical_bars(  # noqa: E731
+                ib, symbol, contract_spec, start, end, contract_month=args.contract_month
+            )
+            extra_metadata = {"family_ticker": family_ticker}
+            if args.contract_month:
+                extra_metadata["contract_month"] = args.contract_month
         else:
             fetch_fn = lambda symbol, start, end: fetch_option_historical_bars(  # noqa: E731
                 ib, symbol, args.expiry, args.strike, args.right, start, end
             )
+            extra_metadata = {
+                "family_ticker": family_ticker,
+                "strike": args.strike,
+                "expiry": args.expiry,
+                "right": args.right,
+            }
 
     try:
         fetch_kwargs = {"fetch_fn": fetch_fn} if fetch_fn is not None else {}
-        report = fetch_adhoc_asset(args.asset_class, args.ticker, args.start, args.end, apply=args.apply, **fetch_kwargs)
+        report = fetch_adhoc_asset(
+            args.asset_class, args.ticker, args.start, args.end, apply=args.apply,
+            extra_metadata=extra_metadata, **fetch_kwargs,
+        )
     finally:
         if ib is not None:
             disconnect_ib(ib)
@@ -659,6 +676,46 @@ def cmd_ib(_args: argparse.Namespace) -> int:
     print(f"IB: enabled and credentialed, but not reachable — {detail}")
     print("    Check that TWS or IB Gateway is running and logged in on the configured host/port.")
     return 1
+
+
+def cmd_assets(_args: argparse.Namespace) -> int:
+    """`aq assets status`: one command reporting full multi-asset-class
+    readiness at a glance - IB (reuses cmd_ib's own ib_readiness_status()),
+    the futures_risk/options_risk feature flags, how many futures contract
+    specs are loaded, how much of the FRED yield-curve cache is populated,
+    and how many futures/options assets are actually configured in
+    config.json's universe. Read-only reporting only - basic enable/disable
+    of any of these already works today via the generic
+    `aq config set phase_v2.{ib,futures_risk,options_risk}.enabled true|false`
+    (_dispatch_json_config_command), same as cmd_ib's own "Enable with"
+    hint."""
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+
+    ib_status = ib_readiness_status(config, lean_config)
+    print(f"IB: {ib_status}")
+
+    phase_v2 = config.get("phase_v2", {})
+    futures_enabled = bool(phase_v2.get("futures_risk", {}).get("enabled", False))
+    options_enabled = bool(phase_v2.get("options_risk", {}).get("enabled", False))
+    print(f"futures_risk.enabled: {futures_enabled}")
+    print(f"options_risk.enabled: {options_enabled}")
+
+    specs = load_futures_contract_specs()
+    print(f"Futures contract specs loaded: {len(specs)} ({', '.join(sorted(specs)) or 'none'})")
+
+    fred_series = load_cached_fred_series()
+    all_dates = [row["date"] for rows in fred_series.values() for row in rows]
+    most_recent = max(all_dates).isoformat() if all_dates else "never populated"
+    print(f"FRED cache: {len(fred_series)} series populated, most recent date: {most_recent}")
+
+    assets = config.get("phase1", {}).get("universe", {}).get("assets", [])
+    future_count = sum(1 for asset in assets if (asset.get("asset_class") or asset.get("security_type")) == "future")
+    option_count = sum(1 for asset in assets if (asset.get("asset_class") or asset.get("security_type")) == "option")
+    print(f"Configured futures assets: {future_count}")
+    print(f"Configured options assets: {option_count}")
+
+    return 0
 
 
 def cmd_status(_args: argparse.Namespace) -> int:
@@ -820,12 +877,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fetch_parser.add_argument("--strike", type=float, default=None, help="Strike price (required for asset_class options)")
     fetch_parser.add_argument("--right", choices=["call", "put"], default=None, help="Option right (required for asset_class options)")
+    fetch_parser.add_argument(
+        "--contract-month", default=None,
+        help="Futures only: YYYYMM - fetch a specific dated contract instead of the continuous front-month "
+        "(e.g. for building real historical term structure with a second, later --contract-month fetch under "
+        "the same --family-ticker)",
+    )
+    fetch_parser.add_argument(
+        "--family-ticker", default=None,
+        help="Groups multiple fetched contracts under one root for offline training's derivatives-macro features "
+        "(train.py::build_derivatives_macro_features_by_date()) - e.g. two futures/options fetches sharing "
+        "--family-ticker ES. Defaults to --ticker itself (a single, ungrouped contract).",
+    )
     fetch_parser.set_defaults(func=cmd_fetch)
 
     ib_parser = subparsers.add_parser("ib", help="Check Interactive Brokers configuration/connectivity")
     ib_subparsers = ib_parser.add_subparsers(dest="ib_command", required=True)
     ib_subparsers.add_parser("status", help="Report disabled / credentials-missing / reachable")
     ib_parser.set_defaults(func=cmd_ib)
+
+    assets_parser = subparsers.add_parser("assets", help="Report multi-asset-class (futures/options/FRED) readiness")
+    assets_subparsers = assets_parser.add_subparsers(dest="assets_command", required=True)
+    assets_subparsers.add_parser("status", help="Report IB/futures/options/FRED readiness at a glance")
+    assets_parser.set_defaults(func=cmd_assets)
 
     status_parser = subparsers.add_parser("status", help="Show git status")
     status_parser.set_defaults(func=cmd_status)

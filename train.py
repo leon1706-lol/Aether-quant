@@ -41,12 +41,14 @@ from features import (
     average_true_range_pct,
     bollinger_pctb,
     bond_yield_curve_slope,
+    compute_greeks,
     credit_spread_level,
     credit_spread_proxy,
     crypto_risk_appetite_proxy,
     distance_from_52w_high,
     empirical_duration_beta,
     futures_term_structure_slope,
+    implied_volatility,
     macd_histogram_normalized,
     options_implied_vol_skew,
     options_put_call_ratio,
@@ -1209,32 +1211,136 @@ def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFram
     usable for equity/crypto/bond predictions too, not just futures/options
     themselves - generalizing well past any single hardcoded example pair).
 
-    NOT YET FED BY REAL DATA: a genuine futures term-structure slope needs
-    two DISTINCT configured tickers per underlying (a front-month and a
-    next-month contract - Lean's own continuous-contract abstraction used
-    at runtime, main.py::_add_asset()'s add_future() + SetFilter(), has no
-    offline equivalent in this static-per-ticker training pipeline), and a
-    genuine put/call ratio / IV skew needs aggregated options-chain
-    volume/IV data neither aq fetch options nor this dataset builder
-    aggregates yet. Until config.json's universe contains assets shaped
-    that way (aq fetch futures/options --apply, once phase_v2.ib.enabled),
-    every lookup below finds nothing and every function returns its
-    documented neutral default (0.0) - the correct, honest behavior for
-    "no derivatives data configured," not a bug. This function exists now
-    so the schema/broadcast mechanism (and phase1.features.input_set) are
-    already in place and require no further training-pipeline changes once
-    real futures/options tickers with front/next-month or chain-aggregate
-    shape are added."""
-    term_structure_value = futures_term_structure_slope(None, None)
-    put_call_value = options_put_call_ratio(None, None)
-    iv_skew_value = options_implied_vol_skew(None, None)
+    Reuses the SAME `aq fetch futures`/`aq fetch options` historical Lean
+    zips already loaded into `asset_frames` - no separate bulk-fetch
+    pipeline. Real values require the user to have explicitly fetched
+    contracts shaped for this:
+
+    - Futures term structure: two future-class assets sharing a
+      `family_ticker` matching `phase1.features.derivatives_reference_tickers
+      .futures_term_structure` (default "ES") - e.g. `aq fetch futures
+      --ticker ES_FRONT --family-ticker ES --contract-month <early> --apply`
+      and `... --ticker ES_NEXT --family-ticker ES --contract-month <later>
+      --apply`. Ordered by `contract_month` when present (nearest = front),
+      else by ticker name. Fewer than 2 family members -> neutral (0.0).
+    - Options sentiment: option-class assets whose `underlying_ticker`
+      matches `derivatives_reference_tickers.options_sentiment` (default
+      "SPY"), each carrying `strike`/`expiry`/`right` metadata (written by
+      `aq fetch options --strike ... --expiry ... --right ...`). Per date,
+      each contract's IV is solved from that date's close price via
+      features/options_greeks.py::implied_volatility() (using the
+      underlying's own close that date as spot, `phase_v2.options_risk
+      .risk_free_rate`), then delta via compute_greeks() - aggregate
+      volume for the put/call ratio, nearest-25-delta IV pair for the
+      skew. No option assets configured for the reference underlying ->
+      neutral (0.0).
+
+    Every lookup neutral-defaults to 0.0 - never raises - the same
+    "no data configured -> 0.0, indistinguishable from a genuinely neutral
+    signal" convention as every other cross-asset macro feature here.
+    Real historical acquisition via IB is inherently a manual, per-contract,
+    rate-limited process (see data_pipeline/README.md) - this function
+    just consumes whatever the user has already fetched."""
+    assets_by_ticker = {
+        asset["ticker"]: asset
+        for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+    }
+    reference_tickers = {
+        "futures_term_structure": "ES",
+        "options_sentiment": "SPY",
+        **config.get("phase1", {}).get("features", {}).get("derivatives_reference_tickers", {}),
+    }
+    risk_free_rate = float(config.get("phase_v2", {}).get("options_risk", {}).get("risk_free_rate", 0.045))
+
+    def _asset_class(ticker: str) -> str | None:
+        asset = assets_by_ticker.get(ticker, {})
+        return asset.get("asset_class") or asset.get("security_type")
+
+    # --- Futures term structure: two family members, sorted front-to-next ---
+    term_structure_by_date: dict = {}
+    futures_family_ref = reference_tickers.get("futures_term_structure")
+    futures_members = sorted(
+        (
+            ticker for ticker in asset_frames
+            if _asset_class(ticker) == "future"
+            and assets_by_ticker.get(ticker, {}).get("family_ticker", ticker) == futures_family_ref
+        ),
+        key=lambda ticker: assets_by_ticker[ticker].get("contract_month") or ticker,
+    )
+    if len(futures_members) >= 2:
+        front_by_date = dict(zip(asset_frames[futures_members[0]]["date"], asset_frames[futures_members[0]]["close"]))
+        next_by_date = dict(zip(asset_frames[futures_members[1]]["date"], asset_frames[futures_members[1]]["close"]))
+        for current_date in set(front_by_date) | set(next_by_date):
+            term_structure_by_date[current_date] = futures_term_structure_slope(
+                front_by_date.get(current_date), next_by_date.get(current_date)
+            )
+
+    # --- Options sentiment: every option-class asset for the reference underlying ---
+    put_call_ratio_by_date: dict = {}
+    iv_skew_by_date: dict = {}
+    options_ref = reference_tickers.get("options_sentiment")
+    option_members = [
+        ticker for ticker in asset_frames
+        if _asset_class(ticker) == "option" and assets_by_ticker.get(ticker, {}).get("underlying_ticker") == options_ref
+    ]
+    if option_members and options_ref in asset_frames:
+        underlying_close_by_date = dict(zip(asset_frames[options_ref]["date"], asset_frames[options_ref]["close"]))
+        member_rows = {}
+        for ticker in option_members:
+            asset = assets_by_ticker[ticker]
+            right = str(asset.get("right", "")).lower()
+            strike = float(asset.get("strike", 0.0) or 0.0)
+            expiry = asset.get("expiry")
+            if right not in ("call", "put") or strike <= 0 or not expiry:
+                continue
+            expiry_date = pd.Timestamp(expiry).date()
+            frame = asset_frames[ticker]
+            volume_by_date = dict(zip(frame["date"], frame["volume"])) if "volume" in frame.columns else {}
+            close_by_date = dict(zip(frame["date"], frame["close"]))
+            member_rows[ticker] = {"right": right, "strike": strike, "expiry_date": expiry_date, "volume_by_date": volume_by_date, "close_by_date": close_by_date}
+
+        all_dates = set(underlying_close_by_date)
+        for meta in member_rows.values():
+            all_dates |= set(meta["close_by_date"])
+
+        for current_date in all_dates:
+            spot = underlying_close_by_date.get(current_date)
+            current_date_only = current_date.date() if hasattr(current_date, "date") else current_date
+            put_volume = 0.0
+            call_volume = 0.0
+            put_candidates: list[tuple[float, float]] = []
+            call_candidates: list[tuple[float, float]] = []
+            for meta in member_rows.values():
+                option_price = meta["close_by_date"].get(current_date)
+                if spot is None or option_price is None or spot <= 0 or option_price <= 0:
+                    continue
+                time_to_expiry_years = (meta["expiry_date"] - current_date_only).days / 365.0
+                if time_to_expiry_years <= 0:
+                    continue
+                volume = float(meta["volume_by_date"].get(current_date, 0.0) or 0.0)
+                if meta["right"] == "put":
+                    put_volume += volume
+                else:
+                    call_volume += volume
+                iv = implied_volatility(option_price, spot, meta["strike"], time_to_expiry_years, risk_free_rate, 0.0, meta["right"])
+                if iv is None:
+                    continue
+                delta = compute_greeks(spot, meta["strike"], time_to_expiry_years, risk_free_rate, iv, 0.0, meta["right"])["delta"]
+                (put_candidates if meta["right"] == "put" else call_candidates).append((delta, iv))
+
+            put_call_ratio_by_date[current_date] = options_put_call_ratio(
+                put_volume if (put_volume or call_volume) else None, call_volume if (put_volume or call_volume) else None
+            )
+            nearest_put_iv = min(put_candidates, key=lambda pair: abs(pair[0] - (-0.25)))[1] if put_candidates else None
+            nearest_call_iv = min(call_candidates, key=lambda pair: abs(pair[0] - 0.25))[1] if call_candidates else None
+            iv_skew_by_date[current_date] = options_implied_vol_skew(nearest_put_iv, nearest_call_iv)
 
     updated_frames: dict[str, pd.DataFrame] = {}
     for ticker, frame in asset_frames.items():
         result = frame.copy()
-        result["futures_term_structure_slope"] = [term_structure_value] * len(result)
-        result["options_put_call_ratio"] = [put_call_value] * len(result)
-        result["options_implied_vol_skew"] = [iv_skew_value] * len(result)
+        result["futures_term_structure_slope"] = [term_structure_by_date.get(d, 0.0) for d in result["date"]]
+        result["options_put_call_ratio"] = [put_call_ratio_by_date.get(d, 0.0) for d in result["date"]]
+        result["options_implied_vol_skew"] = [iv_skew_by_date.get(d, 0.0) for d in result["date"]]
         updated_frames[ticker] = result
     return updated_frames
 

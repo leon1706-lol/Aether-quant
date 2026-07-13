@@ -103,13 +103,25 @@ def fetch_adhoc_asset(
     apply: bool,
     fetch_fn: Callable = fetch_yahoo_ohlcv,
     config_path: Path = CONFIG_PATH,
+    extra_metadata: dict | None = None,
 ) -> dict:
     """apply=False (default): dry run - fetches but writes nothing (no zip,
     no config.json edit). apply=True: writes the Lean zip via
     write_lean_zip(), then adds a new config.json asset block if this
     ticker isn't already configured. fetch_fn is the injection point for
     tests (never real yfinance in tests), matching
-    yfinance_backfill.run_backfill()'s exact convention."""
+    yfinance_backfill.run_backfill()'s exact convention.
+
+    extra_metadata is merged into the written config.json asset block, on
+    top of class_config["extra_asset_fields"] - the per-fetch-call
+    complement to that per-asset-class static dict. Used by futures/options
+    fetches (aq_cli.py::cmd_fetch()) to store strike/expiry/right (options)
+    and family_ticker (both - defaults to the ticker itself when the
+    caller doesn't group multiple dated contracts under one family), so
+    train.py::build_derivatives_macro_features_by_date() can later
+    recognize and group them for real historical term-structure/put-call-
+    ratio computation. Ignored (None) for crypto/stock, which need no such
+    metadata."""
     ticker = ticker.upper()
     class_config = ASSET_CLASS_CONFIG[asset_class]
     yahoo_symbol = class_config["yahoo_symbol_fn"](ticker)
@@ -139,6 +151,7 @@ def fetch_adhoc_asset(
                 "available_from": suggested_from.isoformat(),
                 "available_to": suggested_to.isoformat(),
                 **class_config.get("extra_asset_fields", {}),
+                **(extra_metadata or {}),
             },
         )
     else:

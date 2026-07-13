@@ -21,6 +21,7 @@ exactly the bug this comment exists to prevent from being reintroduced.
 
 import json
 import sys
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import aq_cli
@@ -698,6 +699,78 @@ def test_ib_status_not_reachable(capsys):
     out = capsys.readouterr().out
     assert exit_code == 1
     assert "not reachable" in out
+
+
+# --- assets status ------------------------------------------------------------
+
+
+def test_assets_status_reports_all_sections(capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["assets", "status"])
+    with patch("aq_cli.ib_readiness_status", return_value="disabled"), patch(
+        "aq_cli.load_futures_contract_specs", return_value={"ES": {}, "NQ": {}}
+    ), patch(
+        "aq_cli.load_cached_fred_series",
+        return_value={"treasury_10yr": [{"date": date(2026, 7, 1), "value": 0.04}]},
+    ):
+        exit_code = args.func(args)
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "IB: disabled" in out
+    assert "futures_risk.enabled: False" in out
+    assert "options_risk.enabled: False" in out
+    assert "Futures contract specs loaded: 2" in out
+    assert "FRED cache: 1 series populated" in out
+    assert "2026-07-01" in out
+    assert "Configured futures assets: 0" in out
+    assert "Configured options assets: 0" in out
+
+
+def test_assets_status_empty_fred_cache_reports_never_populated(capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["assets", "status"])
+    with patch("aq_cli.ib_readiness_status", return_value="disabled"), patch(
+        "aq_cli.load_futures_contract_specs", return_value={}
+    ), patch("aq_cli.load_cached_fred_series", return_value={}):
+        args.func(args)
+
+    assert "never populated" in capsys.readouterr().out
+
+
+def test_assets_status_counts_configured_futures_and_options_assets(tmp_path, capsys, monkeypatch):
+    config = {
+        "phase_v2": {"futures_risk": {"enabled": True}, "options_risk": {"enabled": False}},
+        "phase1": {
+            "universe": {
+                "assets": [
+                    {"ticker": "ES", "asset_class": "future"},
+                    {"ticker": "SPY_500C", "asset_class": "option"},
+                    {"ticker": "SPY_490P", "asset_class": "option"},
+                    {"ticker": "AAPL", "security_type": "equity"},
+                ]
+            }
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    lean_path = tmp_path / "lean.json"
+    lean_path.write_text(json.dumps({"ib-account": "", "ib-user-name": ""}), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "LEAN_JSON_PATH", lean_path)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["assets", "status"])
+    with patch("aq_cli.load_futures_contract_specs", return_value={}), patch(
+        "aq_cli.load_cached_fred_series", return_value={}
+    ):
+        args.func(args)
+
+    out = capsys.readouterr().out
+    assert "futures_risk.enabled: True" in out
+    assert "options_risk.enabled: False" in out
+    assert "Configured futures assets: 1" in out
+    assert "Configured options assets: 2" in out
 
 
 # --- update-check ---------------------------------------------------------

@@ -316,3 +316,48 @@ def test_fetch_adhoc_asset_crypto_and_stock_blocks_carry_no_extra_fields(tmp_pat
     block = written["phase1"]["universe"]["assets"][0]
     assert "asset_class" not in block
     assert "data_source" not in block
+
+
+def test_fetch_adhoc_asset_extra_metadata_merged_into_config_block(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    fetch_adhoc_asset(
+        "options", "SPY_500C", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path,
+        extra_metadata={"family_ticker": "SPY", "strike": 500.0, "expiry": "2026-06-19", "right": "call"},
+    )
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    block = written["phase1"]["universe"]["assets"][0]
+    assert block["family_ticker"] == "SPY"
+    assert block["strike"] == 500.0
+    assert block["expiry"] == "2026-06-19"
+    assert block["right"] == "call"
+    # extra_asset_fields (asset_class/data_source, from ASSET_CLASS_CONFIG)
+    # must still be present alongside the per-call extra_metadata.
+    assert block["asset_class"] == "option"
+    assert block["data_source"] == "ib"
+
+
+def test_fetch_adhoc_asset_extra_metadata_none_is_a_no_op(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    fetch_adhoc_asset("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path)
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    block = written["phase1"]["universe"]["assets"][0]
+    assert "family_ticker" not in block
+    assert "strike" not in block

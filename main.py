@@ -65,6 +65,7 @@ from features import (
     average_true_range_pct,
     bollinger_pctb,
     bond_yield_curve_slope,
+    compute_greeks,
     credit_spread_level,
     credit_spread_proxy,
     cross_sectional_momentum_rank,
@@ -72,6 +73,7 @@ from features import (
     distance_from_52w_high,
     empirical_duration_beta,
     futures_term_structure_slope,
+    implied_volatility,
     macd_histogram_normalized,
     options_implied_vol_skew,
     options_put_call_ratio,
@@ -169,6 +171,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_momentum_by_symbol = {}
         self.latest_signal_state = {}
         self.last_trade_bar_by_symbol = {}
+        # Position-close/exposure tracking for options (A7): main.py's
+        # canonical chain Symbol (self.ticker_to_symbol[asset["ticker"]])
+        # is what every other per-symbol dict here is keyed by, but a real
+        # options ORDER executes on a specific CONTRACT Symbol
+        # (OptionsPositionDecision.contract_symbol) - a different Lean
+        # object. Without this pair of maps, _is_invested()/the sell and
+        # hold-liquidate branches/_asset_class_exposure() would all still
+        # look at the (never-invested) chain Symbol and never find the
+        # real position - see _apply_signal()'s "option" branches.
+        self.option_contract_symbol_by_symbol: dict[str, object] = {}
+        self.symbol_key_by_option_contract_symbol: dict[str, str] = {}
         self.bar_history_size = 25
 
         for asset in self.phase1["universe"]["assets"]:
@@ -351,6 +364,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "crypto": "BTCUSD",
             **self.phase1.get("features", {}).get("macro_reference_tickers", {}),
         }
+        # Derivatives-macro sibling of macro_reference_tickers above - one
+        # reference underlying per broadcast signal (futures term structure
+        # needs one futures ticker; options sentiment needs one options
+        # underlying), since these are broadcast, once-per-bar, cross-asset
+        # macro features (see _build_derivatives_macro_payload()), not
+        # computed per-asset. Neutral-defaults (0.0) whenever the reference
+        # ticker isn't actually configured/subscribed in this universe.
+        self.derivatives_reference_tickers = {
+            "futures_term_structure": "ES",
+            "options_sentiment": "SPY",
+            **self.phase1.get("features", {}).get("derivatives_reference_tickers", {}),
+        }
         # Real yield-curve/credit-spread data (data_pipeline/fred_backfill.py)
         # - loaded ONCE here from the local cache, never fetched live
         # mid-backtest (Lean backtests are date-bounded). {} if the cache
@@ -371,6 +396,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.options_risk_enabled = bool(phase_v2_options_risk.get("enabled", False))
         self.options_target_delta_at_full_confidence = float(phase_v2_options_risk.get("target_delta_at_full_confidence", 0.60))
         self.options_max_vega_budget_pct_of_equity = float(phase_v2_options_risk.get("max_vega_budget_pct_of_equity", 0.02))
+        self.options_risk_free_rate = float(phase_v2_options_risk.get("risk_free_rate", 0.045))
+        self.options_iv_solver_max_iterations = int(phase_v2_options_risk.get("iv_solver_max_iterations", 100))
+        self.options_iv_solver_tolerance = float(phase_v2_options_risk.get("iv_solver_tolerance", 1e-06))
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -450,6 +478,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_topology_payload = {}
         self.latest_macro_payload = {}
         self.latest_bond_payload = {}
+        self.latest_options_chains_payload = {}
+        self.latest_futures_chains_payload = {}
+        self.latest_derivatives_macro_payload = {}
         self._previous_topology_positions: dict[str, tuple[float, float]] = {}
 
         self._ready = True
@@ -467,6 +498,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_topology_payload = self._build_topology_payload()
         self.latest_macro_payload = self._build_macro_payload()
         self.latest_bond_payload = self._build_bond_payload()
+        self.latest_options_chains_payload = self._build_options_chains_payload(slice)
+        self.latest_futures_chains_payload = self._build_futures_chains_payload(slice)
+        self.latest_derivatives_macro_payload = self._build_derivatives_macro_payload()
         topology_by_symbol = {node["symbol"]: node for node in self.latest_topology_payload.get("nodes", [])}
         signals: dict[str, dict] = {}
         close_prices_by_symbol: dict[str, float] = {}
@@ -714,7 +748,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             close_price = float(bar.close)
 
             if decision["action"] == "trade":
-                execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price)
+                execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price, sizing_payload)
             else:
                 execution_note = decision["action"]
 
@@ -723,6 +757,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.latest_regime_by_symbol[symbol_key] = regime_payload.get("trend_regime", "unknown")
             self.latest_regime_risk_score_by_symbol[symbol_key] = float(regime_payload.get("risk_score", 0.0) or 0.0)
             self.latest_liquidity_by_symbol[symbol_key] = liquidity_payload
+
+            # sizing_payload can carry a raw OptionsPositionDecision dataclass
+            # (with a live, non-JSON-serializable Lean Symbol on its
+            # contract_symbol field) inside asset_class_routing_extra -
+            # json.dumps() in _write_state() has no idea how to serialize
+            # that. Build a JSON-safe copy for the dashboard state ONLY;
+            # _apply_signal() above already received (and used) the
+            # original, unsanitized sizing_payload with the real Symbol.
+            # Without this, the first bar that actually sizes an options
+            # position would silently break the ENTIRE state write (caught
+            # by _write_state()'s blanket except), not just this section.
+            dynamic_sizing_for_state = sizing_payload
+            extra = (sizing_payload or {}).get("asset_class_routing_extra") or {}
+            options_decision_obj = extra.get("options_decision")
+            if options_decision_obj is not None:
+                dynamic_sizing_for_state = {
+                    **sizing_payload,
+                    "asset_class_routing_extra": {**extra, "options_decision": options_decision_obj.to_dict()},
+                }
 
             signals[symbol_key].update(
                 {
@@ -739,7 +792,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "moe_gating": gating_payload,
                     "base_target_weight": base_target_weight,
                     "target_weight": target_weight,
-                    "dynamic_sizing": sizing_payload,
+                    "dynamic_sizing": dynamic_sizing_for_state,
                     "regime": regime_payload,
                     "features": feature_payload["base_features"],
                     "execution_note": execution_note,
@@ -1129,14 +1182,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         # Futures term-structure / options-sentiment cross-asset macro
         # features (features/derivatives_macro_features.py) - broadcast to
-        # every symbol, same shape as the bond block above. Always their
-        # documented neutral default (0.0) until futures/options data
-        # actually flows (phase_v2.ib.enabled) - see
-        # train.py::build_derivatives_macro_features_by_date()'s docstring
-        # for why that's the correct behavior, not a placeholder bug.
-        base_features["futures_term_structure_slope"] = futures_term_structure_slope(None, None)
-        base_features["options_put_call_ratio"] = options_put_call_ratio(None, None)
-        base_features["options_implied_vol_skew"] = options_implied_vol_skew(None, None)
+        # every symbol, same shape as the bond block above. Computed once
+        # per bar in _build_derivatives_macro_payload() (on_data(), right
+        # after the chain payloads it depends on) - real values once a
+        # future/option asset matching self.derivatives_reference_tickers
+        # is configured and subscribed; neutral-default (0.0) otherwise,
+        # same convention as every other missing-reference-ticker case.
+        base_features["futures_term_structure_slope"] = float(
+            self.latest_derivatives_macro_payload.get("futures_term_structure_slope", 0.0) or 0.0
+        )
+        base_features["options_put_call_ratio"] = float(
+            self.latest_derivatives_macro_payload.get("options_put_call_ratio", 0.0) or 0.0
+        )
+        base_features["options_implied_vol_skew"] = float(
+            self.latest_derivatives_macro_payload.get("options_implied_vol_skew", 0.0) or 0.0
+        )
 
         # Safe default (10.0) for scaler_stats.json files written before
         # clip_sigma existed - see train.py::write_scaler_artifacts().
@@ -1393,11 +1453,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             )
             if self.futures_risk_enabled
             else {"target_margin_utilization": 0.0, "max_margin_utilization": 0.0},
-            # Empty until an IB-backed options-chain aggregation pipeline
-            # exists (see portfolio/options_strategy.py's module docstring
-            # and _apply_signal()'s "option" branch) - an empty chain
-            # correctly, safely resolves to a zero position, never a crash.
-            available_chain=[],
+            # Real chain rows once IB is connected and an option asset is
+            # configured (self.latest_options_chains_payload, built once
+            # per bar in on_data() - see _build_options_chains_payload()).
+            # An empty/missing chain (IB disabled, no option asset
+            # configured, or a parse failure) correctly, safely resolves to
+            # a zero position via build_options_position_sizing(), never a
+            # crash.
+            available_chain=(
+                self.latest_options_chains_payload.get(asset.get("underlying_ticker"), [])
+                if asset_class == "option"
+                else []
+            ),
             options_kwargs=dict(
                 target_delta_at_full_confidence=self.options_target_delta_at_full_confidence,
                 max_vega_budget_pct_of_equity=self.options_max_vega_budget_pct_of_equity,
@@ -1601,6 +1668,176 @@ class AetherQuantAlgorithm(QCAlgorithm):
         beta = empirical_duration_beta(returns, delta_yield)
         return beta if beta is not None else 0.0
 
+    def _build_options_chains_payload(self, slice: Slice) -> dict[str, list[dict]]:
+        """Once-per-bar sibling of _build_topology_payload()/_build_macro_payload()/
+        _build_bond_payload() - for every configured asset_class=="option"
+        asset, resolves slice.option_chains via the canonical chain Symbol
+        already recorded in self.ticker_to_symbol[asset["ticker"]]
+        (main.py::_add_asset()'s return value), parses it into
+        available_chain-shaped rows keyed by underlying_ticker (see
+        portfolio/options_strategy.py::select_single_leg_contract()/
+        build_options_position_sizing()).
+
+        Prefers Lean's own contract.greeks/contract.implied_volatility when
+        non-null/non-zero (some data providers, incl. IB, supply these
+        directly); falls back to features/options_greeks.py's
+        implied_volatility()+compute_greeks() (from bid/ask mid,
+        self.options_risk_free_rate, dividend_yield=0.0) otherwise. Never
+        executed against real Lean this pass - verified only against the
+        locally-installed quantconnect-stubs package's type signatures.
+
+        Degrades to [] per underlying on any failure - never raises,
+        matching _run_sequence_model()'s blanket-except-return convention."""
+        payload: dict[str, list[dict]] = {}
+        for asset in self.phase1["universe"]["assets"]:
+            asset_class = asset.get("asset_class") or asset.get("security_type")
+            if asset_class != "option":
+                continue
+            underlying_ticker = asset.get("underlying_ticker")
+            if not underlying_ticker:
+                continue
+            chain_symbol = self.ticker_to_symbol.get(asset["ticker"])
+            if chain_symbol is None:
+                payload[underlying_ticker] = []
+                continue
+            try:
+                chain = slice.option_chains.get(chain_symbol)
+                if chain is None:
+                    payload[underlying_ticker] = []
+                    continue
+                rows = []
+                for contract in chain.contracts.values():
+                    right = "call" if contract.right == OptionRight.CALL else "put"
+                    greeks = contract.greeks
+                    delta_value = float(greeks.delta) if greeks is not None else 0.0
+                    gamma_value = float(greeks.gamma) if greeks is not None else 0.0
+                    theta_value = float(greeks.theta) if greeks is not None else 0.0
+                    vega_value = float(greeks.vega) if greeks is not None else 0.0
+                    rho_value = float(greeks.rho) if greeks is not None else 0.0
+                    iv_value = float(contract.implied_volatility) if contract.implied_volatility else 0.0
+
+                    # Lean/IB didn't supply usable greeks for this contract -
+                    # fall back to our own Black-Scholes solve from the mid
+                    # price, per the user's requirement for real greeks/IV
+                    # rather than proxies whenever real chain data exists.
+                    if not delta_value and not vega_value:
+                        bid_price = float(contract.bid_price or 0.0)
+                        ask_price = float(contract.ask_price or 0.0)
+                        mid_price = (bid_price + ask_price) / 2.0 if bid_price > 0 and ask_price > 0 else float(contract.last_price or 0.0)
+                        spot = float(contract.underlying_last_price or 0.0)
+                        time_to_expiry_years = max((contract.expiry.date() - self.Time.date()).days, 0) / 365.0
+                        if mid_price > 0 and spot > 0 and time_to_expiry_years > 0:
+                            solved_iv = implied_volatility(
+                                option_price=mid_price, spot=spot, strike=float(contract.strike),
+                                time_to_expiry_years=time_to_expiry_years,
+                                risk_free_rate=self.options_risk_free_rate, dividend_yield=0.0, right=right,
+                                max_iterations=self.options_iv_solver_max_iterations,
+                                tolerance=self.options_iv_solver_tolerance,
+                            )
+                            if solved_iv is not None:
+                                computed = compute_greeks(
+                                    spot=spot, strike=float(contract.strike),
+                                    time_to_expiry_years=time_to_expiry_years,
+                                    risk_free_rate=self.options_risk_free_rate,
+                                    volatility=solved_iv, dividend_yield=0.0, right=right,
+                                )
+                                delta_value, gamma_value = computed["delta"], computed["gamma"]
+                                theta_value, vega_value, rho_value = computed["theta"], computed["vega"], computed["rho"]
+                                iv_value = solved_iv
+
+                    rows.append({
+                        "symbol": contract.symbol,
+                        "strike": float(contract.strike),
+                        "right": right,
+                        "expiry": contract.expiry.date().isoformat(),
+                        "bid": float(contract.bid_price or 0.0),
+                        "ask": float(contract.ask_price or 0.0),
+                        "volume": float(contract.volume or 0.0),
+                        "open_interest": float(contract.open_interest or 0.0),
+                        "delta": delta_value, "gamma": gamma_value, "theta": theta_value,
+                        "vega": vega_value, "rho": rho_value, "iv": iv_value,
+                    })
+                payload[underlying_ticker] = rows
+            except Exception as error:
+                self.Debug(f"Options chain parse failed for {underlying_ticker}: {error}")
+                payload[underlying_ticker] = []
+        return payload
+
+    def _build_futures_chains_payload(self, slice: Slice) -> dict[str, dict]:
+        """Futures sibling of _build_options_chains_payload() - front/
+        next-month price pair per configured asset_class=="future" asset,
+        keyed by asset["ticker"]. Degrades to a missing key (never raises) -
+        futures_term_structure_slope(None, None) then neutral-defaults."""
+        payload: dict[str, dict] = {}
+        for asset in self.phase1["universe"]["assets"]:
+            asset_class = asset.get("asset_class") or asset.get("security_type")
+            if asset_class != "future":
+                continue
+            ticker = asset["ticker"]
+            chain_symbol = self.ticker_to_symbol.get(ticker)
+            if chain_symbol is None:
+                continue
+            try:
+                chain = slice.futures_chains.get(chain_symbol)
+                if chain is None:
+                    continue
+                contracts = sorted(chain.contracts.values(), key=lambda c: c.expiry)
+                if not contracts:
+                    continue
+
+                def _contract_price(contract) -> float | None:
+                    if contract.last_price:
+                        return float(contract.last_price)
+                    bid_price, ask_price = float(contract.bid_price or 0.0), float(contract.ask_price or 0.0)
+                    return (bid_price + ask_price) / 2.0 if bid_price > 0 and ask_price > 0 else None
+
+                payload[ticker] = {
+                    "front_month_price": _contract_price(contracts[0]),
+                    "next_month_price": _contract_price(contracts[1]) if len(contracts) > 1 else None,
+                }
+            except Exception as error:
+                self.Debug(f"Futures chain parse failed for {ticker}: {error}")
+        return payload
+
+    def _build_derivatives_macro_payload(self) -> dict:
+        """Fourth cross-asset macro sibling to _build_macro_payload()/
+        _build_bond_payload() (features/derivatives_macro_features.py) -
+        computed once per bar, AFTER self.latest_futures_chains_payload/
+        self.latest_options_chains_payload are built this same on_data()
+        call, via self.derivatives_reference_tickers (one reference
+        underlying per signal, same pattern as self.macro_reference_tickers).
+        Neutral-defaults to 0.0 whenever the reference ticker isn't
+        configured/subscribed - correct, honest behavior until the user
+        adds a future/option asset shaped for this, not a bug."""
+        futures_ticker = self.derivatives_reference_tickers.get("futures_term_structure")
+        futures_row = self.latest_futures_chains_payload.get(futures_ticker) if futures_ticker else None
+        front_month_price = futures_row.get("front_month_price") if futures_row else None
+        next_month_price = futures_row.get("next_month_price") if futures_row else None
+
+        options_ticker = self.derivatives_reference_tickers.get("options_sentiment")
+        chain_rows = self.latest_options_chains_payload.get(options_ticker, []) if options_ticker else []
+        put_volume = sum(float(row.get("volume") or 0.0) for row in chain_rows if row.get("right") == "put")
+        call_volume = sum(float(row.get("volume") or 0.0) for row in chain_rows if row.get("right") == "call")
+
+        def _nearest_delta_iv(right: str, target_delta: float) -> float | None:
+            candidates = [
+                row for row in chain_rows
+                if row.get("right") == right and row.get("delta") is not None and row.get("iv") is not None
+            ]
+            if not candidates:
+                return None
+            return float(min(candidates, key=lambda row: abs(row["delta"] - target_delta))["iv"])
+
+        return {
+            "futures_term_structure_slope": futures_term_structure_slope(front_month_price, next_month_price),
+            "options_put_call_ratio": options_put_call_ratio(
+                put_volume if chain_rows else None, call_volume if chain_rows else None
+            ),
+            "options_implied_vol_skew": options_implied_vol_skew(
+                _nearest_delta_iv("put", -0.25), _nearest_delta_iv("call", 0.25)
+            ),
+        }
+
     def _build_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
         # Statistical/diagnostic bypass only (see risk_controls.py::
         # is_backtest_safety_bypass_active() and Problems.md): disables
@@ -1656,10 +1893,78 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _is_invested(self, symbol, orders_allowed: bool) -> bool:
         if orders_allowed:
-            return bool(self.Portfolio[symbol].Invested)
+            return bool(self.Portfolio[self._order_target_symbol(symbol)].Invested)
+        # The simulated/observation-mode portfolio is Aether's own
+        # abstraction, always keyed by the canonical chain Symbol string
+        # regardless of asset class (it never places a real Lean order on
+        # a specific contract) - no contract-symbol substitution needed
+        # here, unlike the real-order path above.
         return str(symbol) in self._simulated_portfolio.holdings
 
-    def _apply_signal(self, symbol, signal_name: str, target_weight: float, close_price: float) -> str:
+    def _order_target_symbol(self, symbol):
+        """The actual Lean Symbol a real order/Liquidate/Invested-check
+        should target for `symbol` - the tracked option CONTRACT Symbol
+        (self.option_contract_symbol_by_symbol) when one exists for this
+        chain Symbol, else `symbol` itself unchanged (every non-option
+        asset class, and an option asset with no currently-open contract
+        position)."""
+        return self.option_contract_symbol_by_symbol.get(str(symbol), symbol)
+
+    def _apply_option_order(
+        self, symbol, symbol_key: str, sizing_payload: dict | None, target_weight: float,
+        close_price: float, orders_allowed: bool, permission_reason: str,
+    ) -> str:
+        """Shared by _apply_signal()'s "buy" and "short" branches for
+        asset_class == "option". Retrieves the OptionsPositionDecision
+        computed this bar (risk/asset_class_router.py, surfaced via
+        sizing_payload["asset_class_routing_extra"]["options_decision"] -
+        see _build_dynamic_sizing_payload()) and places a real order on
+        its resolved CONTRACT Symbol - never the canonical chain Symbol
+        main.py subscribes to (self.add_option()'s return value is not
+        itself a tradable contract). Records the contract in
+        self.option_contract_symbol_by_symbol/
+        self.symbol_key_by_option_contract_symbol (A7) so
+        _is_invested()/the sell and hold-liquidate branches/
+        _asset_class_exposure() can find this position again.
+
+        options_decision.contracts is always a positive quantity -
+        direction is encoded by which right (call vs put) was selected,
+        never by order sign, since portfolio/options_strategy.py never
+        shorts options (see that module's docstring).
+
+        Never executed against real Lean this pass - verified only
+        against the locally-installed quantconnect-stubs package."""
+        options_decision = ((sizing_payload or {}).get("asset_class_routing_extra") or {}).get("options_decision")
+        contract_symbol = getattr(options_decision, "contract_symbol", None) if options_decision is not None else None
+        if options_decision is None or contract_symbol is None:
+            return "options_no_usable_contract"
+
+        if orders_allowed:
+            self.MarketOrder(contract_symbol, options_decision.contracts)
+            self.option_contract_symbol_by_symbol[symbol_key] = contract_symbol
+            self.symbol_key_by_option_contract_symbol[str(contract_symbol)] = symbol_key
+            self.last_trade_bar_by_symbol[symbol] = self.bar_index
+            return f"entered_option_{options_decision.right}"
+
+        self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+        self.last_trade_bar_by_symbol[symbol] = self.bar_index
+        return f"simulated_entered_option_{options_decision.right}:{permission_reason}"
+
+    def _liquidate_position(self, symbol) -> None:
+        """self.Liquidate() targeting the correct Lean Symbol (A7 - the
+        tracked option contract Symbol when one exists, else `symbol`
+        itself), then clears the option-contract-tracking maps so a
+        subsequent _is_invested()/_asset_class_exposure() call correctly
+        sees the position as closed."""
+        self.Liquidate(self._order_target_symbol(symbol))
+        symbol_key = str(symbol)
+        contract_symbol = self.option_contract_symbol_by_symbol.pop(symbol_key, None)
+        if contract_symbol is not None:
+            self.symbol_key_by_option_contract_symbol.pop(str(contract_symbol), None)
+
+    def _apply_signal(
+        self, symbol, signal_name: str, target_weight: float, close_price: float, sizing_payload: dict | None = None
+    ) -> str:
         symbol_key = str(symbol)
         previous_signal = self.latest_signal_state.get(symbol_key, "hold")
         last_trade_bar = self.last_trade_bar_by_symbol.get(symbol, -1000000)
@@ -1687,17 +1992,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 return f"{asset_class or 'asset'}_exposure_cap_reached"
 
             if asset_class == "option":
-                # Order PLACEMENT against a specific resolved option
-                # contract is a documented non-goal of this pass (see
-                # portfolio/options_strategy.py's module docstring) -
-                # self.add_option()'s canonical chain Symbol
-                # (main.py::_add_asset()) is not itself a tradable
-                # contract, and attempting SetHoldings()/MarketOrder() on
-                # it would be silently wrong or a runtime error. Sizing/
-                # exposure-cap accounting above still runs (so the feature
-                # is fully testable end-to-end short of the final order),
-                # but no order is placed.
-                return "options_order_placement_not_yet_implemented"
+                return self._apply_option_order(symbol, symbol_key, sizing_payload, target_weight, close_price, orders_allowed, permission_reason)
 
             if asset_class == "future":
                 contract_spec = self.futures_contract_specs.get(asset.get("ticker"), {})
@@ -1725,7 +2020,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if signal_name == "sell":
             if self._is_invested(symbol, orders_allowed):
                 if orders_allowed:
-                    self.Liquidate(symbol)
+                    self._liquidate_position(symbol)
                 else:
                     self._simulated_portfolio.exit(symbol_key, close_price, self.bar_index)
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
@@ -1758,7 +2053,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             asset_class = asset.get("asset_class") or asset.get("security_type")
             if asset_class == "option":
-                return "options_order_placement_not_yet_implemented"
+                return self._apply_option_order(symbol, symbol_key, sizing_payload, target_weight, close_price, orders_allowed, permission_reason)
             if asset_class == "future":
                 contract_spec = self.futures_contract_specs.get(asset.get("ticker"), {})
                 contract_count = self._futures_contract_count_for_weight(target_weight, contract_spec, close_price, orders_allowed)
@@ -1784,7 +2079,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         if signal_name == "hold" and previous_signal != "hold" and self._is_invested(symbol, orders_allowed):
             if orders_allowed:
-                self.Liquidate(symbol)
+                self._liquidate_position(symbol)
             else:
                 self._simulated_portfolio.exit(symbol_key, close_price, self.bar_index)
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
@@ -1840,10 +2135,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if orders_allowed:
             total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
             exposure = 0.0
+            exclude_target = self._order_target_symbol(exclude_symbol) if exclude_symbol is not None else None
             for holding in self.Portfolio.Values:
-                if exclude_symbol is not None and holding.Symbol == exclude_symbol:
+                if exclude_target is not None and holding.Symbol == exclude_target:
                     continue
-                asset = self.asset_lookup.get(str(holding.Symbol), {})
+                # A7: a real option position is held on the CONTRACT Symbol,
+                # not the canonical chain Symbol self.asset_lookup is keyed
+                # by - resolve back to the chain symbol_key via the reverse
+                # map before the asset_lookup, else this option holding is
+                # silently invisible to every exposure cap.
+                holding_symbol_key = self.symbol_key_by_option_contract_symbol.get(
+                    str(holding.Symbol), str(holding.Symbol)
+                )
+                asset = self.asset_lookup.get(holding_symbol_key, {})
                 if not _matches(asset):
                     continue
                 exposure += abs(float(holding.HoldingsValue)) / total_value
@@ -1977,6 +2281,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # execution/paper_readiness_report.py (see `aq paper-readiness`).
             self.phase_v2_paper_trading = read_paper_trading_config(self.root_path / "config.json")
             self._recompute_broker_config()
+
+            # Same "fresh from local cache once per session rollover" rule
+            # as the two refreshes above - the ALGORITHM only re-reads the
+            # local cache file (no network call inside Lean's live thread);
+            # keeping the cache itself fresh is a separate, user-scheduled
+            # `python -m data_pipeline.fred_backfill --apply` (daily
+            # cron/Task Scheduler), not something main.py triggers. Closes
+            # the "yield-curve features go stale on a multi-day live/paper
+            # deployment" gap - self.fred_series was previously loaded ONCE
+            # in _ensure_ready() and never touched again.
+            self.fred_series = load_cached_fred_series()
 
         self.peak_equity = max(self.peak_equity, portfolio_value)
         self.current_daily_drawdown = portfolio_value / max(self.session_start_equity, 1.0) - 1.0

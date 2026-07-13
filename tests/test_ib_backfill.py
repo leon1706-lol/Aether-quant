@@ -58,9 +58,17 @@ def fake_ib_insync(monkeypatch):
     fake_module.IB = MagicMock()
 
     def _cont_future(ticker, exchange=None, currency=None):
-        return types.SimpleNamespace(symbol=ticker, exchange=exchange, currency=currency)
+        return types.SimpleNamespace(symbol=ticker, exchange=exchange, currency=currency, contract_type="continuous")
 
     fake_module.ContFuture = MagicMock(side_effect=_cont_future)
+
+    def _future(ticker, lastTradeDateOrContractMonth=None, exchange=None, currency=None):
+        return types.SimpleNamespace(
+            symbol=ticker, exchange=exchange, currency=currency,
+            lastTradeDateOrContractMonth=lastTradeDateOrContractMonth, contract_type="dated",
+        )
+
+    fake_module.Future = MagicMock(side_effect=_future)
 
     def _stock(ticker, exchange, currency):
         return types.SimpleNamespace(symbol=ticker, secType="STK", conId=12345, exchange=exchange, currency=currency)
@@ -220,6 +228,35 @@ def test_fetch_future_historical_bars_never_raises_on_ib_failure(fake_ib_insync)
     fake_ib = MagicMock()
     fake_ib.qualifyContracts.side_effect = RuntimeError("contract not found")
     rows = fetch_future_historical_bars(fake_ib, "BOGUS", {"exchange": "CME"}, "2024-01-01", "2024-06-01")
+    assert rows == []
+
+
+def test_fetch_future_historical_bars_uses_continuous_contract_by_default(fake_ib_insync):
+    fake_ib = MagicMock()
+    fake_ib.reqHistoricalData.return_value = []
+
+    fetch_future_historical_bars(fake_ib, "ES", {"exchange": "CME"}, "2024-01-01", "2024-06-01")
+
+    fake_ib_insync.ContFuture.assert_called_once()
+    fake_ib_insync.Future.assert_not_called()
+
+
+def test_fetch_future_historical_bars_uses_dated_contract_when_contract_month_given(fake_ib_insync):
+    fake_ib = MagicMock()
+    fake_ib.reqHistoricalData.return_value = []
+
+    fetch_future_historical_bars(fake_ib, "ES", {"exchange": "CME"}, "2024-01-01", "2024-06-01", contract_month="202406")
+
+    fake_ib_insync.Future.assert_called_once()
+    fake_ib_insync.ContFuture.assert_not_called()
+    _, kwargs = fake_ib_insync.Future.call_args
+    assert kwargs["lastTradeDateOrContractMonth"] == "202406"
+
+
+def test_fetch_future_historical_bars_dated_contract_never_raises_on_ib_failure(fake_ib_insync):
+    fake_ib = MagicMock()
+    fake_ib.qualifyContracts.side_effect = RuntimeError("contract not found")
+    rows = fetch_future_historical_bars(fake_ib, "ES", {"exchange": "CME"}, "2024-01-01", "2024-06-01", contract_month="202406")
     assert rows == []
 
 

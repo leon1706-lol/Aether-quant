@@ -19,6 +19,7 @@
   <img src="https://img.shields.io/badge/PyTorch-4B5563?style=flat-square&labelColor=1A1A1A&logo=pytorch&logoColor=white" alt="PyTorch">
   <img src="https://img.shields.io/badge/scikit--learn-4B5563?style=flat-square&labelColor=1A1A1A&logo=scikitlearn&logoColor=white" alt="scikit-learn">
   <img src="https://img.shields.io/badge/QuantConnect%20Lean-4B5563?style=flat-square&labelColor=1A1A1A" alt="QuantConnect Lean">
+  <img src="https://img.shields.io/badge/Interactive%20Brokers-4B5563?style=flat-square&labelColor=1A1A1A" alt="Interactive Brokers">
   <img src="https://img.shields.io/badge/FastAPI-4B5563?style=flat-square&labelColor=1A1A1A&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/React-4B5563?style=flat-square&labelColor=1A1A1A&logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/TypeScript-4B5563?style=flat-square&labelColor=1A1A1A&logo=typescript&logoColor=white" alt="TypeScript">
@@ -34,14 +35,35 @@ topology layer that combines a deterministic correlation embedding with a
 learned probabilistic overlay, a liquidity/market-impact engine that adjusts
 position sizing to real trading conditions, a cross-sectional ranking signal
 that sizes each position by its predicted relative strength against the rest
-of the trading universe, and a controlled retraining loop that lets the
-model itself evolve as markets do — all wired together and validated
+of the trading universe, a **unified multi-asset-class layer** that trades
+equities, crypto, bonds, futures, and options through one coherent portfolio
+— real yield-curve/duration features for bonds, margin-aware sizing for
+futures, Black-Scholes-greeks-based sizing for options, and shared
+cross-asset macro signals (yield curve shape, futures term structure,
+options sentiment) feeding every asset's prediction, not just its own — and
+a controlled retraining loop that lets the model itself evolve as markets do
+— all wired together and validated
 end-to-end inside QuantConnect's Lean engine. The thesis this project exists
 to test is simple to state and hard to prove: **markets are non-stationary,
 so a trading model should be too.** Every subsystem here exists to make the
 model adapt — to regime shifts, to changing correlation structure, to
 liquidity conditions — rather than to fit one historical window and hope it
 generalizes.
+
+## Known Limitations
+
+Bonds are fully real today — no IB key needed. Futures and options are
+fully wired end-to-end (chain parsing, greeks/IV, sizing, order placement,
+position-close/exposure tracking, offline derivatives-macro training
+features) but remain **data-empty until an Interactive Brokers key is
+connected** (`phase_v2.ib.enabled` — see `aq ib status`/`aq assets
+status`). Remaining, still-open items:
+
+- **No backtest has been run against this code yet** — verified via unit tests and Lean's own type stubs only, not a real Lean runtime. Run one before trusting it in paper trading (see "run it yourself" below).
+- **Futures margin uses a static reference file**, not live IB margin.
+- **IB connection has never been tested against a real Gateway** — `aq ib status`/`aq assets status` report readiness only.
+- **Single-leg options only** — no automatic multi-leg spread selection.
+- **Disabling an asset class doesn't liquidate existing positions in it** — it only stops opening/managing new ones (`aq config set phase_v2.*.enabled`).
 
 ## Table of Contents
 
@@ -375,87 +397,21 @@ for the exact row-count thresholds). This is re-evaluated automatically
 every time `train.py` rebuilds the dataset, so an asset can move between
 these two roles as more history accumulates.
 
+Asset classes sit on opposite sides of the hub (equities/crypto feed in
+from above, fixed income from below) rather than a single top row — ticker
+detail is in the table above, this is the group-level view:
+
 ```mermaid
 flowchart TD
-    DNN(("Baseline DNN<br/>+ MoE Experts<br/>bullish / bearish /<br/>sideways / volatility"))
-
-    subgraph Equities["Equities (15)"]
-        AAPL["AAPL"]
-        SPY["SPY"]
-        QQQ["QQQ"]
-        IWM["IWM"]
-        EEM["EEM"]
-        BAC["BAC"]
-        IBM["IBM"]
-        AIG["AIG"]
-        BNO["BNO"]
-        FB["FB"]
-        GOOG["GOOG"]
-        GOOGL["GOOGL"]
-        USO["USO"]
-        WM["WM"]
-        AAA["AAA"]
-    end
-
-    subgraph FixedIncome["Fixed Income ETFs (10)"]
-        SHY["SHY"]
-        IEF["IEF"]
-        TLT["TLT"]
-        AGG["AGG"]
-        LQD["LQD"]
-        HYG["HYG"]
-        TIP["TIP"]
-        MBB["MBB"]
-        EMB["EMB"]
-        MUB["MUB"]
-    end
-
-    subgraph Crypto["Crypto (5)"]
-        BTCUSD["BTCUSD"]
-        ETHUSD["ETHUSD"]
-        LTCUSD["LTCUSD"]
-        XRPUSD["XRPUSD"]
-        ADAUSD["ADAUSD"]
-    end
-
-    AAPL --- DNN
-    SPY --- DNN
-    QQQ --- DNN
-    IWM --- DNN
-    EEM --- DNN
-    BAC --- DNN
-    IBM --- DNN
-    AIG --- DNN
-    BNO --- DNN
-    FB --- DNN
-    GOOG --- DNN
-    GOOGL --- DNN
-    USO --- DNN
-    WM --- DNN
-    AAA --- DNN
-    SHY --- DNN
-    IEF --- DNN
-    TLT --- DNN
-    AGG --- DNN
-    LQD --- DNN
-    HYG --- DNN
-    TIP --- DNN
-    MBB --- DNN
-    EMB --- DNN
-    MUB --- DNN
-    BTCUSD --- DNN
-    ETHUSD --- DNN
-    LTCUSD --- DNN
-    XRPUSD --- DNN
-    ADAUSD --- DNN
+    Equities["Equities<br/>15 tickers"] --> DNN
+    Crypto["Crypto<br/>5 tickers"] --> DNN
+    DNN(("Baseline DNN<br/>+ MoE Experts")) --> FixedIncome["Fixed Income ETFs<br/>10 tickers"]
 
     classDef hub fill:#1A1A1A,stroke:#FF8C00,color:#FF8C00,stroke-width:2px;
-    classDef trading fill:#FF8C00,stroke:#1A1A1A,color:#1A1A1A,stroke-width:1px;
-    classDef observation fill:#3A3A3A,stroke:#FF8C00,color:#FF8C00,stroke-width:1px,stroke-dasharray: 4 2;
+    classDef group fill:#FF8C00,stroke:#1A1A1A,color:#1A1A1A,stroke-width:1px;
 
     class DNN hub;
-    class AAPL,SPY,QQQ,IWM,EEM,BAC,IBM,AIG,BNO,FB,GOOG,GOOGL,USO,WM,SHY,IEF,TLT,AGG,LQD,HYG,TIP,MBB,EMB,MUB,BTCUSD,LTCUSD trading;
-    class AAA,ETHUSD,XRPUSD,ADAUSD observation;
+    class Equities,Crypto,FixedIncome group;
 ```
 
 ## Project Structure
@@ -772,8 +728,8 @@ to fully automatic behavior.
 #### `aq fetch`
 ```text
 aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]
-aq fetch futures --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> [--apply]
-aq fetch options --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> --strike <STRIKE> --right <call|put> [--apply]
+aq fetch futures --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> [--contract-month <YYYYMM>] [--family-ticker <ROOT>] [--apply]
+aq fetch options --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> --strike <STRIKE> --right <call|put> [--family-ticker <ROOT>] [--apply]
 ```
 `crypto`/`stock` fetch historical OHLCV from Yahoo Finance for a ticker
 that isn't in `config.json` yet, formats it into Lean's zip/CSV
@@ -788,6 +744,18 @@ run by default (no `--apply`): reports what would happen, writes nothing.
 Never runs `train.py` itself — once applied, run `python train.py
 --dataset-only` (then `python train.py` when ready) yourself to actually
 train on the new ticker.
+
+`--contract-month` (futures only, e.g. `202603`) fetches a specific dated
+contract instead of the default continuous contract — needed to build a
+real historical term structure (fetch e.g. an `ES_FRONT` and `ES_NEXT`
+ticker, same root, different `--contract-month`). `--family-ticker`
+(futures/options) tags the asset with its root symbol (e.g. `"ES"`,
+`"SPY"`) so `train.py`'s offline derivatives-macro features can group
+same-family contracts together for term-structure/put-call/IV-skew
+computation — see `data_pipeline/README.md` for the full acquisition
+workflow (IB's historical API is per-contract and rate-limited, so
+building a real training-time derivatives dataset is a manual, repeated
+`aq fetch futures`/`aq fetch options` process, not a single bulk fetch).
 
 #### `aq ib`
 ```text
@@ -812,6 +780,21 @@ deliberately distinct integrations: Lean's backtest engine never talks to
 IB regardless of `lean.json`'s contents (it only ever reads local data
 files), so historical futures/options bars still need this separate,
 offline data-prep step before any backtest can use them.
+
+#### `aq assets`
+```text
+aq assets status
+```
+One command reporting full multi-asset-class readiness at a glance: IB
+status (same three states as `aq ib status`), whether
+`phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled` are on,
+how many futures contract margin specs are loaded, how much of the local
+FRED yield-curve cache is populated (series count + most recent date),
+and how many futures/options assets are actually configured in
+`config.json`'s universe. Read-only reporting — toggling any of these
+asset classes on or off is done with the existing generic
+`aq config set phase_v2.{ib,futures_risk,options_risk}.enabled true|false`
+(no separate enable/disable subcommand needed).
 
 #### `aq status`
 ```text
