@@ -30,20 +30,33 @@ import pandas as pd
 import torch
 from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
 from features import (
+    BOND_FEATURE_NAMES,
+    CREDIT_SPREAD_LEVEL_NEUTRAL,
     CREDIT_SPREAD_NEUTRAL,
     CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
     CRYPTO_RISK_APPETITE_NEUTRAL,
+    YIELD_CURVE_CURVATURE_NEUTRAL,
+    YIELD_CURVE_LEVEL_NEUTRAL,
     YIELD_CURVE_SLOPE_NEUTRAL,
     average_true_range_pct,
     bollinger_pctb,
+    bond_yield_curve_slope,
+    credit_spread_level,
     credit_spread_proxy,
     crypto_risk_appetite_proxy,
     distance_from_52w_high,
+    empirical_duration_beta,
+    futures_term_structure_slope,
     macd_histogram_normalized,
+    options_implied_vol_skew,
+    options_put_call_ratio,
     relative_strength_index,
     volume_zscore,
+    yield_curve_curvature,
+    yield_curve_level,
     yield_curve_slope_proxy,
 )
+from data_pipeline.fred_backfill import bond_reference_series, load_cached_fred_series
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
 from regime import build_market_regime_vector
@@ -1081,6 +1094,151 @@ def build_macro_features_by_date(asset_frames: dict[str, pd.DataFrame], config: 
     return updated_frames
 
 
+def build_bond_features_by_date(
+    asset_frames: dict[str, pd.DataFrame],
+    config: dict,
+    fred_series: dict[str, list[dict]],
+) -> dict[str, pd.DataFrame]:
+    """Real-data sibling of build_macro_features_by_date() -
+    features/bond_features.py, backed by data_pipeline/fred_backfill.py's
+    actual FRED Treasury-yield/credit-spread series rather than
+    macro_features.py's bond-ETF-price-momentum proxies.
+
+    bond_yield_curve_level/slope/curvature and bond_credit_spread_level are
+    date-only (identical across every asset on a given date) and broadcast
+    to EVERY asset's row - same "compute once per date, every asset sees
+    it" shape as build_macro_features_by_date() - this is the concrete
+    mechanism making real yield-curve/credit-spread signal usable for
+    equity/crypto/future/option predictions too, not just bonds themselves.
+
+    bond_empirical_duration_beta is asset-specific: computed once per
+    ticker (NOT a true rolling/date-varying value - a single OLS slope over
+    that asset's whole available history, using
+    features.empirical_duration_beta()) for assets tagged asset_class ==
+    "bond" only, and broadcast unchanged to every row of that asset's own
+    frame; every other asset gets a flat 0.0 (neutral - "no measurable
+    duration sensitivity", not "unknown"). A bond-tagged asset with fewer
+    than empirical_duration_beta()'s min_observations valid paired rows
+    also gets 0.0, same neutral-pad convention as the missing-reference
+    case above.
+
+    fred_series is a plain {series_key: [{"date": date, "value": float},
+    ...]} mapping - load_cached_fred_series()'s return shape, loaded once
+    by the caller (never fetched live mid-run; Lean backtests are
+    date-bounded). A series absent from fred_series (fresh clone, backfill
+    never run) makes every bond feature for every date fall back to its
+    neutral default - never raises.
+    """
+    assets_by_ticker = {asset["ticker"]: asset for asset in config["phase1"]["universe"]["assets"]}
+
+    def _series_asof_lookup(series_key: str):
+        rows = sorted(fred_series.get(series_key, []), key=lambda row: row["date"])
+        dates = [row["date"] for row in rows]
+        values = [row["value"] for row in rows]
+
+        def _asof(current_date) -> float | None:
+            target = current_date.date() if hasattr(current_date, "date") else current_date
+            position = bisect.bisect_right(dates, target)
+            if position == 0:
+                return None
+            return values[position - 1]
+
+        return _asof
+
+    treasury_3mo_asof = _series_asof_lookup("treasury_3mo")
+    treasury_2yr_asof = _series_asof_lookup("treasury_2yr")
+    treasury_5yr_asof = _series_asof_lookup("treasury_5yr")
+    treasury_10yr_asof = _series_asof_lookup("treasury_10yr")
+    credit_spread_asof = _series_asof_lookup("credit_spread_baa10y")
+
+    all_dates = sorted({date_value for frame in asset_frames.values() for date_value in frame["date"]})
+
+    level_by_date: dict = {}
+    slope_by_date: dict = {}
+    curvature_by_date: dict = {}
+    credit_by_date: dict = {}
+    treasury_10yr_by_date: dict = {}
+    for current_date in all_dates:
+        t3mo = treasury_3mo_asof(current_date)
+        t2yr = treasury_2yr_asof(current_date)
+        t5yr = treasury_5yr_asof(current_date)
+        t10yr = treasury_10yr_asof(current_date)
+        baa10y = credit_spread_asof(current_date)
+        level_by_date[current_date] = yield_curve_level(t10yr)
+        slope_by_date[current_date] = bond_yield_curve_slope(t10yr, t3mo)
+        curvature_by_date[current_date] = yield_curve_curvature(t2yr, t5yr, t10yr)
+        credit_by_date[current_date] = credit_spread_level(baa10y)
+        treasury_10yr_by_date[current_date] = t10yr
+
+    updated_frames: dict[str, pd.DataFrame] = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        result["bond_yield_curve_level"] = [level_by_date.get(d, YIELD_CURVE_LEVEL_NEUTRAL) for d in result["date"]]
+        result["bond_yield_curve_slope"] = [slope_by_date.get(d, 0.0) for d in result["date"]]
+        result["bond_yield_curve_curvature"] = [
+            curvature_by_date.get(d, YIELD_CURVE_CURVATURE_NEUTRAL) for d in result["date"]
+        ]
+        result["bond_credit_spread_level"] = [
+            credit_by_date.get(d, CREDIT_SPREAD_LEVEL_NEUTRAL) for d in result["date"]
+        ]
+
+        asset_config = assets_by_ticker.get(ticker, {})
+        is_bond = (asset_config.get("asset_class") or asset_config.get("security_type")) == "bond"
+        beta = None
+        if is_bond and "close_to_close_return_1d" in result.columns:
+            dates_sorted = result["date"].tolist()
+            treasury_10yr_sorted = [treasury_10yr_by_date.get(d) for d in dates_sorted]
+            delta_10yr = [None] * len(treasury_10yr_sorted)
+            for index in range(1, len(treasury_10yr_sorted)):
+                previous_value = treasury_10yr_sorted[index - 1]
+                current_value = treasury_10yr_sorted[index]
+                if previous_value is not None and current_value is not None:
+                    delta_10yr[index] = current_value - previous_value
+            beta = empirical_duration_beta(result["close_to_close_return_1d"].tolist(), delta_10yr)
+        result["bond_empirical_duration_beta"] = beta if beta is not None else 0.0
+
+        updated_frames[ticker] = result
+    return updated_frames
+
+
+def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
+    """Third cross-asset macro sibling to build_macro_features_by_date()/
+    build_bond_features_by_date() - features/derivatives_macro_features.py's
+    futures-term-structure/options-sentiment signals, broadcast identically
+    to EVERY asset's row (the mechanism making derivatives-derived signal
+    usable for equity/crypto/bond predictions too, not just futures/options
+    themselves - generalizing well past any single hardcoded example pair).
+
+    NOT YET FED BY REAL DATA: a genuine futures term-structure slope needs
+    two DISTINCT configured tickers per underlying (a front-month and a
+    next-month contract - Lean's own continuous-contract abstraction used
+    at runtime, main.py::_add_asset()'s add_future() + SetFilter(), has no
+    offline equivalent in this static-per-ticker training pipeline), and a
+    genuine put/call ratio / IV skew needs aggregated options-chain
+    volume/IV data neither aq fetch options nor this dataset builder
+    aggregates yet. Until config.json's universe contains assets shaped
+    that way (aq fetch futures/options --apply, once phase_v2.ib.enabled),
+    every lookup below finds nothing and every function returns its
+    documented neutral default (0.0) - the correct, honest behavior for
+    "no derivatives data configured," not a bug. This function exists now
+    so the schema/broadcast mechanism (and phase1.features.input_set) are
+    already in place and require no further training-pipeline changes once
+    real futures/options tickers with front/next-month or chain-aggregate
+    shape are added."""
+    term_structure_value = futures_term_structure_slope(None, None)
+    put_call_value = options_put_call_ratio(None, None)
+    iv_skew_value = options_implied_vol_skew(None, None)
+
+    updated_frames: dict[str, pd.DataFrame] = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        result["futures_term_structure_slope"] = [term_structure_value] * len(result)
+        result["options_put_call_ratio"] = [put_call_value] * len(result)
+        result["options_implied_vol_skew"] = [iv_skew_value] * len(result)
+        updated_frames[ticker] = result
+    return updated_frames
+
+
 DEFAULT_RANKING_MIN_UNIVERSE_SIZE = 10
 DEFAULT_SECTOR_NEUTRAL_MIN_SECTOR_SIZE = 3
 UNKNOWN_SECTOR_LABEL = "Unknown"
@@ -1348,6 +1506,8 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     # must run after the per-asset loop above, before the final concat.
     engineered_frames = build_topology_features_by_date(engineered_frames, config)
     engineered_frames = build_macro_features_by_date(engineered_frames, config)
+    engineered_frames = build_bond_features_by_date(engineered_frames, config, load_cached_fred_series())
+    engineered_frames = build_derivatives_macro_features_by_date(engineered_frames, config)
     engineered_frames = build_cross_sectional_rank_targets(engineered_frames, config)
     engineered_frames = build_cross_sectional_momentum_rank_features(engineered_frames)
 
@@ -1492,6 +1652,44 @@ def add_asset_context_features(dataset: pd.DataFrame, tickers: list[str]) -> tup
         dataset[column_name] = (dataset["ticker"] == ticker).astype(float)
         context_columns.append(column_name)
     return dataset, context_columns
+
+
+ASSET_CLASS_VALUES = ("equity", "crypto", "bond", "future", "option")
+
+
+def add_asset_class_context_features(dataset: pd.DataFrame, asset_class_by_ticker: dict[str, str]) -> tuple[pd.DataFrame, list[str]]:
+    """5-column one-hot over ASSET_CLASS_VALUES - additive sibling to
+    add_asset_context_features()'s per-ticker one-hot, deliberately using
+    the same "asset_"-prefixed naming convention (asset_class_equity,
+    asset_class_bond, ...) so build_dataset_manifest()'s existing generic
+    `column.startswith("asset_")` filter picks these up as
+    context_feature_names automatically - zero changes needed there. This
+    is the mechanism letting the model condition on asset class (equity vs
+    crypto vs bond vs future vs option) inside one shared, unified feature
+    vector rather than requiring a separate model per asset class - see
+    train.py's module-level docstring / development/v2_architecture.md for
+    why a single shared vector was chosen over per-asset-class models
+    (fragmenting the rank-IC promotion gate and MoE gating architecture
+    across 5 models, and breaking cross-asset macro-feature sharing).
+
+    A ticker missing from asset_class_by_ticker (shouldn't happen -
+    callers always build it from the full configured universe, but
+    defensive) falls back to "equity", the least-surprising default and
+    this codebase's existing Lean security_type default everywhere else."""
+    ticker_classes = dataset["ticker"].map(lambda ticker: asset_class_by_ticker.get(ticker, "equity"))
+    context_columns: list[str] = []
+    for asset_class in ASSET_CLASS_VALUES:
+        column_name = f"asset_class_{asset_class}"
+        dataset[column_name] = (ticker_classes == asset_class).astype(float)
+        context_columns.append(column_name)
+    return dataset, context_columns
+
+
+def asset_class_by_ticker_from_config(config: dict) -> dict[str, str]:
+    return {
+        asset["ticker"]: asset.get("asset_class") or asset.get("security_type")
+        for asset in config["phase1"]["universe"]["assets"]
+    }
 
 
 def build_dataset_manifest(
@@ -4664,6 +4862,7 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
         dataset, _ = add_asset_context_features(
             dataset, [asset["ticker"] for asset in window_config["phase1"]["universe"]["assets"]],
         )
+        dataset, _ = add_asset_class_context_features(dataset, asset_class_by_ticker_from_config(window_config))
         dataset_manifest = build_dataset_manifest(window_config, dataset, {}, metadata, asset_quality)
 
         version_id = f"{run_id}/window_{window_index}"
@@ -4773,6 +4972,7 @@ def main() -> int:
         dataset,
         [asset["ticker"] for asset in config["phase1"]["universe"]["assets"]],
     )
+    dataset, _ = add_asset_class_context_features(dataset, asset_class_by_ticker_from_config(config))
     dataset_manifest = build_dataset_manifest(config, dataset, inventory, metadata, asset_quality)
 
     if args.candidate:

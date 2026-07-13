@@ -215,82 +215,142 @@
                 {
                     "ticker": "SHY",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/shy.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 1.9,
+                        "yield_curve_bucket": "short_duration",
+                        "credit_quality": "treasury"
+                    }
                 },
                 {
                     "ticker": "IEF",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/ief.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 7.5,
+                        "yield_curve_bucket": "medium_duration",
+                        "credit_quality": "treasury"
+                    }
                 },
                 {
                     "ticker": "TLT",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/tlt.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 17.5,
+                        "yield_curve_bucket": "long_duration",
+                        "credit_quality": "treasury"
+                    }
                 },
                 {
                     "ticker": "AGG",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/agg.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 6.0,
+                        "yield_curve_bucket": "medium_duration",
+                        "credit_quality": "mixed_investment_grade"
+                    }
                 },
                 {
                     "ticker": "LQD",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/lqd.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 8.5,
+                        "yield_curve_bucket": "medium_duration",
+                        "credit_quality": "investment_grade_corporate"
+                    }
                 },
                 {
                     "ticker": "HYG",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/hyg.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 3.5,
+                        "yield_curve_bucket": "short_duration",
+                        "credit_quality": "high_yield_corporate"
+                    }
                 },
                 {
                     "ticker": "TIP",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/tip.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 7.0,
+                        "yield_curve_bucket": "medium_duration",
+                        "credit_quality": "treasury_inflation_protected"
+                    }
                 },
                 {
                     "ticker": "MBB",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/mbb.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 5.5,
+                        "yield_curve_bucket": "medium_duration",
+                        "credit_quality": "agency_mbs"
+                    }
                 },
                 {
                     "ticker": "EMB",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/emb.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 7.0,
+                        "yield_curve_bucket": "medium_duration",
+                        "credit_quality": "emerging_market_sovereign"
+                    }
                 },
                 {
                     "ticker": "MUB",
                     "security_type": "equity",
+                    "asset_class": "bond",
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/mub.zip",
                     "available_from": "2014-12-01",
-                    "available_to": "2021-03-30"
+                    "available_to": "2021-03-30",
+                    "bond_metadata": {
+                        "duration_proxy_years": 6.5,
+                        "yield_curve_bucket": "medium_duration",
+                        "credit_quality": "municipal"
+                    }
                 }
             ],
             "common_window": {
@@ -343,14 +403,30 @@
                 "cs_momentum_rank_20",
                 "macro_yield_curve_slope_proxy",
                 "macro_credit_spread_proxy",
-                "macro_crypto_risk_appetite_proxy"
+                "macro_crypto_risk_appetite_proxy",
+                "bond_yield_curve_level",
+                "bond_yield_curve_slope",
+                "bond_yield_curve_curvature",
+                "bond_credit_spread_level",
+                "bond_empirical_duration_beta",
+                "futures_term_structure_slope",
+                "options_put_call_ratio",
+                "options_implied_vol_skew"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
             "winsorize_quantiles": [
                 0.001,
                 0.999
             ],
-            "scaled_feature_clip_sigma": 10.0
+            "scaled_feature_clip_sigma": 10.0,
+            "bond_reference_series": {
+                "treasury_3mo": "DGS3MO",
+                "treasury_2yr": "DGS2",
+                "treasury_5yr": "DGS5",
+                "treasury_10yr": "DGS10",
+                "treasury_30yr": "DGS30",
+                "credit_spread_baa10y": "BAA10Y"
+            }
         },
         "target": {
             "type": "directional_return",
@@ -449,6 +525,9 @@
             "max_active_positions": 12,
             "max_equity_exposure": 0.65,
             "max_crypto_exposure": 0.35,
+            "max_bond_exposure": 0.30,
+            "max_futures_exposure": 0.20,
+            "max_options_exposure": 0.10,
             "max_short_exposure": 0.30,
             "observation_only_assets_can_trade": false
         }
@@ -471,6 +550,28 @@
             "max_rank_multiplier": 1.25
         },
         "risk": {},
+        "ib": {
+            "enabled": false,
+            "host": "127.0.0.1",
+            "port": 7497,
+            "client_id": 7,
+            "connect_timeout_seconds": 10,
+            "notes": "Credentials (ib-account/ib-user-name/ib-password/ib-trading-mode) live in lean.json - Lean's own live/paper InteractiveBrokersBrokerage config, untouched by this flag. This block only controls: (1) whether aq fetch futures/options and data_pipeline/ib_backfill.py are allowed to run at all ('enabled'), and (2) the local TWS/IB Gateway socket API connection settings (host/port/client_id) used for offline historical-data backfill, a second independent API client alongside whatever Lean's own brokerage uses when live-deployed. See 'aq ib status'."
+        },
+        "futures_risk": {
+            "enabled": false,
+            "target_margin_utilization": 0.20,
+            "max_margin_utilization": 0.40,
+            "contract_specs_path": "data/reference/futures_contract_specs.json"
+        },
+        "options_risk": {
+            "enabled": false,
+            "target_delta_at_full_confidence": 0.60,
+            "max_vega_budget_pct_of_equity": 0.02,
+            "risk_free_rate": 0.045,
+            "iv_solver_max_iterations": 100,
+            "iv_solver_tolerance": 1e-06
+        },
         "regime_detection": {
             "bullish_threshold": 0.02,
             "bearish_threshold": -0.02,

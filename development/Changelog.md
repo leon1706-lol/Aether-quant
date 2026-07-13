@@ -2419,3 +2419,187 @@ assertions for `ranking_quality`).
 Final rating after this pass: **9/10** (up from 7/10) — the roadmap's
 functionality is now genuinely wired end-to-end, not just backend-complete
 with silent CLI/webui gaps.
+
+## Multi-Asset-Class Support — Bonds, Futures, Options + Interactive Brokers Integration
+
+V3's headline scope item ("expanded asset universe," root `README.md`'s
+roadmap) — the system can now trade and observe futures and options
+alongside the existing equity/crypto/bond universe, with real Black-Scholes
+greeks for options and a genuine margin-based risk model for futures (not
+a bolt-on onto the existing volatility-scaled equity/crypto sizer), and
+bonds move from "ETFs riding the plain equity path" to real yield-curve/
+duration-aware treatment. All five asset classes now flow through one
+unified, shared model input vector and one coherent portfolio/gating/
+sizing decision pipeline, with cross-asset signals (yield curve, futures
+term structure, options put/call sentiment) broadcast to every asset's
+prediction — not hardcoded to any single example pair.
+
+Interactive Brokers is the data source for futures/options, toggled
+end-to-end: `lean.json`'s existing `ib-account`/`ib-user-name`/`ib-password`/
+`ib-trading-mode` fields (Lean's own native live/paper brokerage config,
+untouched) plus a new `phase_v2.ib.enabled` master switch in `config.json`
+(`aq config set phase_v2.ib.enabled true|false`) and `aq ib status` for a
+disabled/credentials-missing/reachable tri-state check. With IB disabled
+(the default), the entire system — equities, crypto, bonds — works exactly
+as before; futures/options assets are simply absent from the live universe
+until fetched.
+
+**New modules:**
+- `data_pipeline/fred_backfill.py` — no-API-key FRED CSV backfill (real
+  Treasury yield/credit-spread series) + local cache, `load_cached_fred_series()`.
+- `features/bond_features.py` — real yield-curve level/slope/curvature,
+  real credit-spread level, and an empirically-regressed per-ETF duration
+  beta (`empirical_duration_beta()`) replacing/augmenting
+  `features/macro_features.py`'s price-momentum proxies. All 5 new features
+  broadcast to every asset, not just bonds.
+- `data/reference/futures_contract_specs.json` + `risk/futures_risk.py` —
+  static seed contract specs (ES/NQ/CL/GC/ZN/ZB) and margin-utilization-
+  targeted position sizing (`build_futures_position_sizing()`) — contract
+  count, not portfolio weight, is the source of truth; `rollover_due()` is
+  diagnostic-only, actual rollover is entirely Lean's native
+  `add_future()` + continuous-contract `SetFilter()`.
+- `features/options_greeks.py` — real Black-Scholes-Merton pricing/greeks/
+  implied-volatility (safeguarded Newton-Raphson + bisection), verified
+  against Hull's textbook example and put-call parity.
+- `portfolio/options_strategy.py` — single-leg (long call/put) greeks-
+  sized position construction: target delta scales with the model's
+  existing confidence, contract count capped by a vega risk budget. This
+  is how "options need a fundamentally different model output" is
+  satisfied without a new model architecture — the existing direction+
+  confidence prediction becomes the input to a deterministic sizing
+  function, not a retrained target.
+- `data_pipeline/ib_backfill.py` — offline historical-bars-to-local-Lean-zip
+  backfill via `ib_insync` (dev-only dependency), completely separate from
+  Lean's own live/paper IB brokerage. Every public function raises
+  `IBNotConfiguredError` (never a raw traceback) when
+  `phase_v2.ib.enabled` is false or `lean.json`'s IB fields are empty.
+- `risk/asset_class_router.py` — single dispatch point
+  (`route_position_sizing()`): equity/crypto/bond resolve via the existing,
+  unchanged `build_dynamic_position_sizing()`; future/option resolve via
+  the two modules above, then get adapted onto the exact same
+  `PositionSizingDecision` shape so `portfolio/book_construction.py`,
+  liquidity, analyzer, and `_apply_signal()` all stay asset-class-agnostic
+  downstream.
+- `features/derivatives_macro_features.py` — futures term-structure slope
+  and options put/call-ratio (bounded skew, not a raw ratio)/IV-skew,
+  broadcast to every asset. Fully wired into the training/runtime
+  pipelines but always neutral (0.0) until config.json's universe contains
+  assets shaped for real term-structure/chain-aggregate lookups (see
+  Problems.md #29).
+
+**Schema/dispatch changes:**
+- New additive `asset_class` field on `config.json`'s
+  `phase1.universe.assets[]` entries, distinct from Lean's `security_type`
+  (`_add_asset()`'s Lean-API dispatch key) — decouples "how Lean
+  subscribes" from "which risk/feature treatment applies." Every reader
+  falls back to `security_type` when absent, so the 30 existing
+  equity/crypto entries needed zero edits. The 10 existing bond ETFs
+  gained `asset_class: "bond"` + a `bond_metadata` block (static duration/
+  credit-quality documentation only — the model uses the empirical beta,
+  not this).
+- `train.py::add_asset_class_context_features()` — a 5-column
+  `asset_class_<value>` one-hot, deliberately reusing
+  `add_asset_context_features()`'s `"asset_"`-prefixed naming so
+  `build_dataset_manifest()`'s existing generic
+  `column.startswith("asset_")` filter picks it up automatically as
+  `context_feature_names` — zero changes needed there. This is the
+  mechanism letting one shared model condition on asset class instead of
+  requiring 5 separate models (which would fragment the rank-IC
+  promotion-gate pipeline and the MoE gating architecture, and break
+  cross-asset macro-feature sharing).
+- `phase1.features.input_set` grew 30 → 38 (5 bond + 3 derivatives
+  features); full `model_input_count` (scaled + categorical + context)
+  grew accordingly. This is a breaking change to every exported model's
+  input width, requiring the full retrain below.
+- New `phase9.portfolio` exposure caps (`max_bond_exposure` 0.30,
+  `max_futures_exposure` 0.20, `max_options_exposure` 0.10), mirroring
+  `max_equity_exposure`/`max_crypto_exposure` exactly — widened from a
+  ternary to a dict lookup in `main.py::_apply_signal()`.
+- `main.py::_asset_class_exposure()`'s comparison key changed from raw
+  `security_type` to the `asset_class`-or-`security_type` fallback — a bug
+  fix: bond ETFs would previously have silently counted as equity
+  exposure instead of their own bucket.
+- `main.py::_add_asset()` gained `"future"`/`"option"` branches
+  (`add_future()` + `SetFilter(0, 90)`; `add_option()` +
+  `SetFilter(-5, 5, timedelta(0), timedelta(60))`). Futures orders execute
+  via `MarketOrder(symbol, contract_count)` (contract count re-derived
+  from the final, liquidity/analyzer-adjusted target weight — conservative
+  by construction, since any downstream weight shrinkage correctly shrinks
+  the re-derived contract count too) instead of `SetHoldings()`. Options
+  order placement is a deliberate non-goal this pass (Problems.md #29) —
+  sizing/exposure accounting runs, but no order is placed.
+- `aq fetch futures --ticker ... --expiry ...` /
+  `aq fetch options --ticker ... --expiry ... --strike ... --right ...` —
+  new CLI surface, routes through the same `fetch_adhoc_asset()` machinery
+  as `crypto`/`stock` via an injected IB-backed `fetch_fn` closure built in
+  `aq_cli.py::cmd_fetch()`. New `aq ib status` subcommand.
+
+Found and fixed one latent bug while touching `_build_dynamic_sizing_payload()`
+for the asset-class-router rewrite: the portfolio book's `"short"` signal
+was silently zeroed to no position (Problems.md #28) — never observed
+since the book is off by default.
+
+### New/extended tests
+
+New: `tests/test_options_greeks.py` (22), `tests/test_fred_backfill.py`
+(17), `tests/test_bond_features.py` (14), `tests/test_futures_risk.py`
+(19), `tests/test_options_strategy.py` (16), `tests/test_ib_backfill.py`
+(26, `ib_insync` fully mocked via `sys.modules` injection — never a real
+Gateway/TWS connection), `tests/test_asset_class_router.py` (11),
+`tests/test_derivatives_macro_features.py` (15),
+`tests/test_train_bond_features.py` (7), `tests/test_train_derivatives_macro_features.py`
+(4), `tests/test_train_asset_class_context_features.py` (7). Extended:
+`tests/test_fetch.py` (+5, futures/options `ASSET_CLASS_CONFIG` entries +
+`extra_asset_fields` merge), `tests/test_aq_cli.py` (+11, IB-backed fetch
+wiring + `aq ib status` tri-state), `tests/test_portfolio_book_construction.py`
+(+1, asset-class-blind mixed-universe selection).
+
+### Verification
+
+`pytest tests/` — 1106 passed, 11 pre-existing Docker-unavailable errors
+(unrelated — `lean backtest .` needs Docker, not running on this
+environment), 0 real failures. Bond features spot-verified end-to-end
+against the real 30-asset dataset: TLT's empirical duration beta
+(-0.181) is ~17x SHY's (-0.011) in magnitude, matching the real-world
+long- vs. short-duration Treasury ETF hierarchy. Black-Scholes verified
+against Hull's textbook example (call ≈ 4.76), put-call parity (exact to
+1e-9), and IV round-trip (recovers a known 0.35 volatility to 1e-4).
+Futures/options position sizing verified via manual smoke tests (margin
+utilization lands within 2% of target; vega budget respected; empty
+option chain and IB-disabled paths degrade to a clean zero position, never
+a crash).
+
+**Full model zoo retrain**, baseline + 4 experts + gating + multitask +
+sequence, all against the widened 38-feature/85-input-column dataset
+(46,242 rows) — completed without a single crash across the whole zoo.
+Baseline: best epoch 1, validation accuracy 0.5165. Experts: bullish/
+bearish/sideways/volatility all trained. Gating: backtest balanced
+accuracy 0.5000 (near-neutral this cycle). Multitask: direction mcc
+0.0249, rank_5d non-overlapping t-stat 1.12, rank_20d t-stat 3.17 (clears
+the >=2.0 gate on t-stat alone). Sequence: direction mcc 0.0055, rank_5d
+t-stat 2.71, rank_20d t-stat 2.34, sector_neutral_rank_20d t-stat 3.79 —
+several heads clear the t-stat threshold individually, but **every head
+across both trainers was still marked `not_promotable`** this cycle,
+uniformly on `era_sign_instability` (2-4 of only 9-10 non-overlapping eras
+disagreed in sign) — the exact same purged/embargoed promotion-gate
+methodology already in place before this session (untouched by this
+pass), and consistent with this project's established history of ranking
+signals being noisy on small independent-era counts (see the "frontier-
+model edge investigation" entry above: even the strongest historical
+result, t-stat 4.40 on the full autocorrelated series, dropped to 1.20 on
+its own non-overlapping subsample). **Not a regression from the new
+bond/derivatives features** — it's the reason `rank_sizing_enabled` and
+`portfolio_book_enabled` already default to `false`, and they remain
+correctly off. All 5 retrained artifacts were promoted into active `ml/`
+via `aq train --gating-only`/`--multitask-only`/`--sequence-only`
+(baseline+experts via plain `python train.py`, which trains both in one
+pass).
+
+One real environment lesson from this retrain, worth recording: this
+machine has only ~4GB total RAM. Building the sequence model's tensor
+dataset (rows=46103, window=30, features=85 — up from 59 pre-this-pass)
+needs a single ~200MB contiguous allocation and OOM'd on the first attempt
+while Docker Desktop (started for the backtest smoke test below) was also
+running; stopping Docker freed enough memory for a clean retry. Not a code
+bug — a real resource ceiling worth knowing about before running the full
+zoo and a Lean backtest concurrently on a similarly small machine.

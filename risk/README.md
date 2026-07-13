@@ -137,3 +137,49 @@ only, with zero influence on `target_weight`.
 - `PositionSizingDecision` gains `rank_multiplier` (default `1.0`) and
   `rank_sizing_reason` (default `"rank_sizing_disabled_or_absent"`, or
   `"rank_prediction_scaled_sizing"` when actively engaged).
+
+## Multi-asset-class risk dispatch (futures/options get their own risk models)
+
+Futures/derivatives fundamentally need a different risk model, not a bolt-on
+onto the volatility-scaled sizer above: margin, contract count, and
+mark-to-market don't fit a portfolio-weight abstraction. `asset_class_router.py::route_position_sizing()`
+is the single dispatch point — equity/crypto/bond all still resolve via the
+unchanged `build_dynamic_position_sizing()` above (bonds get better upstream
+*features*, `features/bond_features.py`, not a new sizing formula); `future`/
+`option` resolve via the two new modules below, then get adapted onto the
+exact same `PositionSizingDecision` shape so every downstream consumer
+(`portfolio/book_construction.py`, liquidity, analyzer, `main.py::_apply_signal()`)
+stays asset-class-agnostic.
+
+- **`futures_risk.py::build_futures_position_sizing()`** — margin-
+  utilization-targeted, not volatility-of-notional: computes the max
+  contracts affordable at `max_margin_utilization` (hard ceiling), scales
+  toward `target_margin_utilization` by confidence (same `0.5 + 0.5*confidence`
+  shape as `confidence_multiplier` above), floors to an integer
+  `contract_count` (Lean trades futures in whole contracts, never
+  fractional weights). Contract specs (multiplier/tick/margin) come from
+  `data/reference/futures_contract_specs.json`, a static offline/backtest
+  fallback — prefer live IB margin once connected (documented future
+  enhancement, not implemented). `rollover_due()` is a diagnostic date
+  check only — actual rollover is entirely Lean's native `add_future()` +
+  continuous-contract `SetFilter()` (`main.py::_add_asset()`); this module
+  never triggers a trade on its own. Config:
+  `phase_v2.futures_risk.{enabled,target_margin_utilization,max_margin_utilization}`,
+  off by default.
+- **`../portfolio/options_strategy.py::build_options_position_sizing()`**
+  (in the `portfolio` package, not here — needs the whole option chain,
+  not a scalar signal) — real Black-Scholes-Merton greeks
+  (`../features/options_greeks.py`) size a single-leg (long call/put)
+  position: target delta scales with confidence, contract count capped by
+  a vega risk budget. This is how "options need a fundamentally different
+  model output" is satisfied without a new model architecture — the
+  existing direction+confidence prediction becomes the input to a
+  deterministic sizing function. Config:
+  `phase_v2.options_risk.{enabled,target_delta_at_full_confidence,max_vega_budget_pct_of_equity,risk_free_rate}`,
+  off by default. Automatic multi-leg spread selection is an explicit
+  non-goal (see `development/Problems.md` #29).
+- Wired via `main.py::_build_dynamic_sizing_payload()`, which now resolves
+  `asset.get("asset_class") or asset.get("security_type")` and calls
+  `route_position_sizing()` instead of `build_dynamic_position_sizing()`
+  directly — same return shape, so every existing equity/crypto/bond call
+  site downstream is unaffected.

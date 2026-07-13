@@ -145,6 +145,47 @@ dedicated short-exposure cap, independent of this block's own on/off
 switch, since it's a portfolio-wide risk ceiling that should stay in
 effect regardless.
 
+## Multi-asset-class book selection
+
+`build_rank_based_book()` needed **zero signature change** to select
+across a mixed equity/crypto/bond/future/option universe — it already
+operates purely on `predicted_rank_20d`/`trading_eligible` per symbol, and
+never inspects asset class at all. Once the model's widened, unified
+feature vector (`train.py::add_asset_class_context_features()`, see
+`risk/README.md`) produces `rank_20d` for bond/future/option symbols too,
+they become automatically eligible book candidates alongside equities and
+crypto — this is the direct mechanism satisfying "the model's final
+decision maker should consider all enabled asset classes together as one
+coherent portfolio." Ships with one combined-universe top-N/bottom-N
+ranking (not a slot budget per asset class) — simpler, and matches "one
+coherent portfolio" directly; per-asset-class book slots are a documented
+future refinement.
+
+Per-asset-class exposure caps (`phase9.portfolio.max_bond_exposure`/
+`max_futures_exposure`/`max_options_exposure`, mirroring the existing
+`max_equity_exposure`/`max_crypto_exposure`) still apply AFTER book
+selection, in `main.py::_apply_signal()`'s existing per-symbol cap check —
+a book-selected bond/future/option symbol is not exempt from its class's
+exposure ceiling just because the book picked it.
+
+## `options_strategy.py` — single-leg greeks-sized options positions
+
+A second, narrower "sets direction/instrument, not just magnitude"
+decision layer, alongside `book_construction.py` above but for a different
+reason: it lives here (not `risk/`) because sizing an options position
+needs the whole option chain, not a scalar signal, and it lives here (not
+`features/`) because it's a decision layer, not a feature. See
+`risk/README.md`'s "Multi-asset-class risk dispatch" section for the full
+design — `build_options_position_sizing()` translates the model's existing
+direction+confidence prediction into a target delta, selects the nearest-
+delta contract from the chain, and sizes contract count by a vega budget.
+Deliberately single-leg only; automatic multi-leg spread selection via ML
+is an explicit non-goal (`development/Problems.md` #29), as is placing an
+actual order against the selected contract (`main.py::_apply_signal()`'s
+`"option"` branch runs the sizing/exposure-cap accounting but does not
+call `SetHoldings()`/`MarketOrder()` — resolving a live tradable contract
+`Symbol` from Lean's `slice.OptionChains` was out of scope this pass).
+
 ## Webui visibility
 
 `signal_payload["portfolio_book_role"]` (set in `main.py`, see above) is

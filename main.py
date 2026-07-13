@@ -21,6 +21,7 @@ import os
 # across container runs, so only the very first run ever pays this cost.
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".matplotlib_cache"))
 
+import bisect
 import json
 import math
 from collections import deque
@@ -37,6 +38,8 @@ from risk_controls import (
 from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
+from risk.asset_class_router import route_position_sizing
+from risk.futures_risk import load_futures_contract_specs
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
 from portfolio import build_rank_based_book
@@ -61,15 +64,24 @@ from inference import (
 from features import (
     average_true_range_pct,
     bollinger_pctb,
+    bond_yield_curve_slope,
+    credit_spread_level,
     credit_spread_proxy,
     cross_sectional_momentum_rank,
     crypto_risk_appetite_proxy,
     distance_from_52w_high,
+    empirical_duration_beta,
+    futures_term_structure_slope,
     macd_histogram_normalized,
+    options_implied_vol_skew,
+    options_put_call_ratio,
     relative_strength_index,
     volume_zscore,
+    yield_curve_curvature,
+    yield_curve_level,
     yield_curve_slope_proxy,
 )
+from data_pipeline.fred_backfill import load_cached_fred_series
 from performance import evaluate_all_triggers
 
 # volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/
@@ -148,6 +160,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # window size itself must match, not just the formula).
         self.symbol_long_windows = {}
         self.long_bar_history_size = 260
+        # Paired with symbol_long_windows (same length, same append point in
+        # on_data()) so a bond-tagged symbol's own close-return history and
+        # the 10yr Treasury yield level as-of that same bar stay index-
+        # aligned per symbol, regardless of any other symbol's data gaps -
+        # see _build_model_input()'s bond_empirical_duration_beta block.
+        self.symbol_treasury_10yr_history = {}
         self.latest_momentum_by_symbol = {}
         self.latest_signal_state = {}
         self.last_trade_bar_by_symbol = {}
@@ -164,6 +182,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.ticker_to_symbol[ticker] = symbol
             self.symbol_windows[symbol] = deque(maxlen=self.bar_history_size)
             self.symbol_long_windows[symbol] = deque(maxlen=self.long_bar_history_size)
+            self.symbol_treasury_10yr_history[symbol] = deque(maxlen=self.long_bar_history_size)
             self.latest_signal_state[str(symbol)] = "hold"
             self.last_trade_bar_by_symbol[symbol] = -1000000
             self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
@@ -239,6 +258,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.max_active_positions = int(phase9_portfolio.get("max_active_positions", 5))
         self.max_equity_exposure = float(phase9_portfolio.get("max_equity_exposure", 0.65))
         self.max_crypto_exposure = float(phase9_portfolio.get("max_crypto_exposure", 0.25))
+        # Phase: multi-asset-class support - mirrors max_equity_exposure/
+        # max_crypto_exposure exactly, keyed by asset_class rather than
+        # Lean's own security_type (see _asset_class_exposure()'s
+        # docstring for why those two are deliberately different concepts).
+        self.exposure_caps_by_asset_class = {
+            "equity": self.max_equity_exposure,
+            "crypto": self.max_crypto_exposure,
+            "bond": float(phase9_portfolio.get("max_bond_exposure", 0.30)),
+            "future": float(phase9_portfolio.get("max_futures_exposure", 0.20)),
+            "option": float(phase9_portfolio.get("max_options_exposure", 0.10)),
+        }
         # Phase 3 of the 5/10 -> 9/10 roadmap: a portfolio-book-only cap -
         # short-selling doesn't exist anywhere else in this codebase, so
         # this is the only exposure cap that bounds it. Independent of the
@@ -321,6 +351,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "crypto": "BTCUSD",
             **self.phase1.get("features", {}).get("macro_reference_tickers", {}),
         }
+        # Real yield-curve/credit-spread data (data_pipeline/fred_backfill.py)
+        # - loaded ONCE here from the local cache, never fetched live
+        # mid-backtest (Lean backtests are date-bounded). {} if the cache
+        # was never populated (fresh clone) - every bond feature below then
+        # neutral-defaults to 0.0, same convention as a missing macro
+        # reference ticker.
+        self.fred_series = load_cached_fred_series()
+        # Static offline/backtest fallback margin reference
+        # (risk/futures_risk.py) - {} if the file is missing/unparseable,
+        # which just means build_futures_position_sizing() finds no spec
+        # for any ticker and sizes it to zero contracts, never a crash.
+        self.futures_contract_specs = load_futures_contract_specs()
+        phase_v2_futures_risk = self.phase_v2.get("futures_risk", {})
+        self.futures_risk_enabled = bool(phase_v2_futures_risk.get("enabled", False))
+        self.futures_target_margin_utilization = float(phase_v2_futures_risk.get("target_margin_utilization", 0.20))
+        self.futures_max_margin_utilization = float(phase_v2_futures_risk.get("max_margin_utilization", 0.40))
+        phase_v2_options_risk = self.phase_v2.get("options_risk", {})
+        self.options_risk_enabled = bool(phase_v2_options_risk.get("enabled", False))
+        self.options_target_delta_at_full_confidence = float(phase_v2_options_risk.get("target_delta_at_full_confidence", 0.60))
+        self.options_max_vega_budget_pct_of_equity = float(phase_v2_options_risk.get("max_vega_budget_pct_of_equity", 0.02))
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -399,6 +449,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_learned_neighbors_by_symbol = {}
         self.latest_topology_payload = {}
         self.latest_macro_payload = {}
+        self.latest_bond_payload = {}
         self._previous_topology_positions: dict[str, tuple[float, float]] = {}
 
         self._ready = True
@@ -415,6 +466,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._refresh_risk_state()
         self.latest_topology_payload = self._build_topology_payload()
         self.latest_macro_payload = self._build_macro_payload()
+        self.latest_bond_payload = self._build_bond_payload()
         topology_by_symbol = {node["symbol"]: node for node in self.latest_topology_payload.get("nodes", [])}
         signals: dict[str, dict] = {}
         close_prices_by_symbol: dict[str, float] = {}
@@ -437,6 +489,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 continue
 
             self.symbol_long_windows[symbol].append(float(bar.close))
+            self.symbol_treasury_10yr_history[symbol].append(self.latest_bond_payload.get("treasury_10yr_level"))
             self.symbol_windows[symbol].append(
                 {
                     "open": float(bar.open),
@@ -606,17 +659,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier
                 )
 
+            asset = self.asset_lookup[symbol_key]
             sizing_payload = self._build_dynamic_sizing_payload(
                 signal_name,
                 confidence,
                 base_target_weight,
                 feature_payload["base_features"],
+                asset,
+                float(bar.close),
                 topology_payload,
                 predicted_volatility=predicted_volatility,
                 predicted_rank_20d=predicted_rank_20d,
             )
             target_weight = float(sizing_payload["target_weight"])
-            asset = self.asset_lookup[symbol_key]
             # Reuses the exact same spread estimate _build_model_input()
             # already computed and fed to the model as
             # liquidity_spread_proxy, rather than recomputing it here -
@@ -884,6 +939,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 security = self.add_crypto(ticker, self.resolution, market)
                 return security.symbol
 
+            if security_type == "future":
+                # Lean's native continuous-contract subscription -
+                # rollover/mark-to-market are entirely Lean's job
+                # (risk/futures_risk.py::rollover_due() is a diagnostic
+                # signal only, never a trade trigger - see that module's
+                # docstring). asset["ticker"] is the Lean root symbol
+                # (e.g. "ES") unless lean_future_ticker overrides it.
+                security = self.add_future(asset.get("lean_future_ticker", ticker), self.resolution)
+                security.SetFilter(0, 90)
+                return security.symbol
+
+            if security_type == "option":
+                # Near-the-money, <=60 day chain - real greeks/IV
+                # (features/options_greeks.py) only populate once IB
+                # supplies real chain bid/ask data; order PLACEMENT against
+                # a specific resolved contract is a documented non-goal of
+                # this pass (see _apply_signal()'s "option" branch).
+                security = self.add_option(asset.get("underlying_ticker", ticker), self.resolution)
+                security.SetFilter(-5, 5, timedelta(0), timedelta(60))
+                return security.symbol
+
             self.debug(f"Unsupported asset type skipped: {security_type} {ticker}")
             return None
         except Exception as error:
@@ -1029,6 +1105,39 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.latest_macro_payload.get("crypto_risk_appetite_proxy", 0.0) or 0.0
         )
 
+        # Real yield-curve/credit-spread features (features/bond_features.py)
+        # - the first 4 are date-only and identical for every symbol this
+        # bar (self.latest_bond_payload, built once in on_data() same as
+        # the macro block above); bond_empirical_duration_beta is the one
+        # per-symbol exception - only bond-tagged symbols get a non-zero
+        # value, see _bond_empirical_duration_beta_for_symbol()'s docstring.
+        base_features["bond_yield_curve_level"] = float(
+            self.latest_bond_payload.get("yield_curve_level", 0.0) or 0.0
+        )
+        base_features["bond_yield_curve_slope"] = float(
+            self.latest_bond_payload.get("yield_curve_slope", 0.0) or 0.0
+        )
+        base_features["bond_yield_curve_curvature"] = float(
+            self.latest_bond_payload.get("yield_curve_curvature", 0.0) or 0.0
+        )
+        base_features["bond_credit_spread_level"] = float(
+            self.latest_bond_payload.get("credit_spread_level", 0.0) or 0.0
+        )
+        base_features["bond_empirical_duration_beta"] = float(
+            self._bond_empirical_duration_beta_for_symbol(symbol)
+        )
+
+        # Futures term-structure / options-sentiment cross-asset macro
+        # features (features/derivatives_macro_features.py) - broadcast to
+        # every symbol, same shape as the bond block above. Always their
+        # documented neutral default (0.0) until futures/options data
+        # actually flows (phase_v2.ib.enabled) - see
+        # train.py::build_derivatives_macro_features_by_date()'s docstring
+        # for why that's the correct behavior, not a placeholder bug.
+        base_features["futures_term_structure_slope"] = futures_term_structure_slope(None, None)
+        base_features["options_put_call_ratio"] = options_put_call_ratio(None, None)
+        base_features["options_implied_vol_skew"] = options_implied_vol_skew(None, None)
+
         # Safe default (10.0) for scaler_stats.json files written before
         # clip_sigma existed - see train.py::write_scaler_artifacts().
         clip_sigma = float(self.scaler_stats.get("clip_sigma", 10.0))
@@ -1082,6 +1191,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         ticker_key = f"asset_{asset['ticker']}"
         if ticker_key in context_values:
             context_values[ticker_key] = 1.0
+        # train.py::add_asset_class_context_features() - 5-column one-hot,
+        # same "asset_"-prefixed naming so it lands in context_values above
+        # automatically once a retrained model's feature_schema lists it;
+        # a no-op against any older exported model (the key simply won't
+        # be in context_values yet, matching the ticker one-hot's own
+        # "if key in context_values" backward-compat guard immediately
+        # above).
+        asset_class_key = f"asset_class_{asset.get('asset_class') or asset.get('security_type')}"
+        if asset_class_key in context_values:
+            context_values[asset_class_key] = 1.0
 
         model_inputs = []
         for feature_name in self.model_input_names:
@@ -1209,17 +1328,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
         confidence: float,
         base_target_weight: float,
         base_features: dict,
+        asset: dict,
+        close_price: float,
         topology: dict | None = None,
         predicted_volatility: float | None = None,
         predicted_rank_20d: float | None = None,
     ) -> dict:
-        if signal_name not in {"buy", "sell"}:
+        # {"buy", "sell", "short"} - "short" added alongside the portfolio
+        # book (Phase 3 of the 5/10 -> 9/10 roadmap, see
+        # portfolio/book_construction.py); the book is off by default so
+        # this previously never fired with signal_name == "short" in
+        # practice, but zeroing base_target_weight for it here would
+        # silently defeat the book's entire short-selling role once
+        # enabled - closing that gap while this function is rewritten for
+        # asset-class routing rather than leaving it for a future,
+        # separate fix.
+        if signal_name not in {"buy", "sell", "short"}:
             base_target_weight = 0.0
 
         topology = topology or {}
-        decision = build_dynamic_position_sizing(
-            base_target_weight=base_target_weight,
-            confidence=confidence,
+        asset_class = asset.get("asset_class") or asset.get("security_type")
+        equity_crypto_kwargs = dict(
             rolling_volatility=float(base_features.get("rolling_volatility_20d", 0.0) or 0.0),
             max_position_weight=self.max_position_weight,
             target_daily_volatility=self.target_daily_volatility,
@@ -1241,7 +1370,44 @@ class AetherQuantAlgorithm(QCAlgorithm):
             min_rank_multiplier=self.min_rank_multiplier,
             max_rank_multiplier=self.max_rank_multiplier,
         )
-        return decision.to_dict()
+
+        orders_allowed, _ = self._order_permission()
+        portfolio_value = (
+            float(self.Portfolio.TotalPortfolioValue)
+            if orders_allowed
+            else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
+        )
+
+        decision, extra = route_position_sizing(
+            asset_class,
+            signal_name,
+            confidence,
+            base_target_weight,
+            equity_crypto_kwargs=equity_crypto_kwargs,
+            price=close_price,
+            portfolio_value=portfolio_value,
+            contract_spec=self.futures_contract_specs.get(asset.get("ticker"), {}),
+            futures_kwargs=dict(
+                target_margin_utilization=self.futures_target_margin_utilization,
+                max_margin_utilization=self.futures_max_margin_utilization,
+            )
+            if self.futures_risk_enabled
+            else {"target_margin_utilization": 0.0, "max_margin_utilization": 0.0},
+            # Empty until an IB-backed options-chain aggregation pipeline
+            # exists (see portfolio/options_strategy.py's module docstring
+            # and _apply_signal()'s "option" branch) - an empty chain
+            # correctly, safely resolves to a zero position, never a crash.
+            available_chain=[],
+            options_kwargs=dict(
+                target_delta_at_full_confidence=self.options_target_delta_at_full_confidence,
+                max_vega_budget_pct_of_equity=self.options_max_vega_budget_pct_of_equity,
+            )
+            if self.options_risk_enabled
+            else {"target_delta_at_full_confidence": 0.0, "max_vega_budget_pct_of_equity": 0.0},
+        )
+        payload = decision.to_dict()
+        payload["asset_class_routing_extra"] = extra
+        return payload
 
     def _build_topology_payload(self) -> dict:
         returns_by_symbol = {}
@@ -1360,6 +1526,81 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "crypto_risk_appetite_proxy": crypto_risk_appetite_proxy(crypto_value),
         }
 
+    def _fred_series_asof(self, series_key: str, current_date) -> float | None:
+        """Bisect as-of lookup against self.fred_series[series_key] (loaded
+        once in _ensure_ready(), never fetched live mid-bar) - the most
+        recent FRED observation on or before current_date, matching
+        train.py::build_bond_features_by_date()'s identical lookup exactly
+        for train/runtime parity. Returns None if the series is empty
+        (cache never populated) or current_date precedes every observation."""
+        rows = self.fred_series.get(series_key, [])
+        if not rows:
+            return None
+        dates = [row["date"] for row in rows]
+        values = [row["value"] for row in rows]
+        position = bisect.bisect_right(dates, current_date)
+        if position == 0:
+            return None
+        return values[position - 1]
+
+    def _build_bond_payload(self) -> dict:
+        """Real-data sibling of _build_macro_payload() -
+        features/bond_features.py, backed by self.fred_series (real
+        Treasury yield/credit-spread observations) rather than bond-ETF-
+        price-momentum proxies. Computed once per bar (same "compute once,
+        every symbol reads it" shape), broadcast identically to every
+        symbol's model input this bar via _build_model_input().
+
+        Also returns the raw treasury_10yr_level so on_data() can append it
+        to self.symbol_treasury_10yr_history[symbol] - the per-symbol,
+        index-aligned-with-symbol_long_windows series
+        bond_empirical_duration_beta regresses against."""
+        current_date = self.Time.date()
+        t3mo = self._fred_series_asof("treasury_3mo", current_date)
+        t2yr = self._fred_series_asof("treasury_2yr", current_date)
+        t5yr = self._fred_series_asof("treasury_5yr", current_date)
+        t10yr = self._fred_series_asof("treasury_10yr", current_date)
+        baa10y = self._fred_series_asof("credit_spread_baa10y", current_date)
+
+        return {
+            "yield_curve_level": yield_curve_level(t10yr),
+            "yield_curve_slope": bond_yield_curve_slope(t10yr, t3mo),
+            "yield_curve_curvature": yield_curve_curvature(t2yr, t5yr, t10yr),
+            "credit_spread_level": credit_spread_level(baa10y),
+            "treasury_10yr_level": t10yr,
+        }
+
+    def _bond_empirical_duration_beta_for_symbol(self, symbol) -> float:
+        """Only meaningful for asset_class == "bond" symbols - every other
+        symbol gets a flat 0.0 (neutral, same convention as
+        train.py::build_bond_features_by_date()'s non-bond rows). Regresses
+        that symbol's own close-to-close returns against the same-bar
+        Delta-10yr-yield, both read from the two deques appended together
+        in on_data() (self.symbol_long_windows / self.symbol_treasury_10yr_history) -
+        guaranteed index-aligned per symbol regardless of any other
+        symbol's data gaps."""
+        asset = self.asset_lookup.get(str(symbol), {})
+        is_bond = (asset.get("asset_class") or asset.get("security_type")) == "bond"
+        if not is_bond:
+            return 0.0
+
+        closes = list(self.symbol_long_windows.get(symbol, []))
+        treasury_levels = list(self.symbol_treasury_10yr_history.get(symbol, []))
+        if len(closes) < 2 or len(treasury_levels) < 2:
+            return 0.0
+
+        returns = [None] + [
+            (closes[i] / closes[i - 1] - 1.0) if closes[i - 1] else None for i in range(1, len(closes))
+        ]
+        delta_yield = [None] + [
+            (treasury_levels[i] - treasury_levels[i - 1])
+            if treasury_levels[i] is not None and treasury_levels[i - 1] is not None
+            else None
+            for i in range(1, len(treasury_levels))
+        ]
+        beta = empirical_duration_beta(returns, delta_yield)
+        return beta if beta is not None else 0.0
+
     def _build_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
         # Statistical/diagnostic bypass only (see risk_controls.py::
         # is_backtest_safety_bypass_active() and Problems.md): disables
@@ -1438,11 +1679,38 @@ class AetherQuantAlgorithm(QCAlgorithm):
             ):
                 return "max_active_positions_reached"
 
-            exposure_cap = self.max_crypto_exposure if asset.get("security_type") == "crypto" else self.max_equity_exposure
-            current_exposure = self._asset_class_exposure(asset.get("security_type"), orders_allowed, exclude_symbol=symbol)
+            asset_class = asset.get("asset_class") or asset.get("security_type")
+            exposure_cap = self.exposure_caps_by_asset_class.get(asset_class, self.max_equity_exposure)
+            current_exposure = self._asset_class_exposure(asset_class, orders_allowed, exclude_symbol=symbol)
             target_weight, cap_reached = cap_target_weight(target_weight, current_exposure, exposure_cap)
             if cap_reached:
-                return f"{asset.get('security_type', 'asset')}_exposure_cap_reached"
+                return f"{asset_class or 'asset'}_exposure_cap_reached"
+
+            if asset_class == "option":
+                # Order PLACEMENT against a specific resolved option
+                # contract is a documented non-goal of this pass (see
+                # portfolio/options_strategy.py's module docstring) -
+                # self.add_option()'s canonical chain Symbol
+                # (main.py::_add_asset()) is not itself a tradable
+                # contract, and attempting SetHoldings()/MarketOrder() on
+                # it would be silently wrong or a runtime error. Sizing/
+                # exposure-cap accounting above still runs (so the feature
+                # is fully testable end-to-end short of the final order),
+                # but no order is placed.
+                return "options_order_placement_not_yet_implemented"
+
+            if asset_class == "future":
+                contract_spec = self.futures_contract_specs.get(asset.get("ticker"), {})
+                contract_count = self._futures_contract_count_for_weight(target_weight, contract_spec, close_price, orders_allowed)
+                if contract_count == 0:
+                    return "futures_zero_contract_count"
+                if orders_allowed:
+                    self.MarketOrder(symbol, contract_count)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return "entered_long_futures"
+                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+                self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                return f"simulated_entered_long_futures:{permission_reason}"
 
             if previous_signal != "buy" or not self._is_invested(symbol, orders_allowed):
                 if orders_allowed:
@@ -1487,6 +1755,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
             target_weight, cap_reached = cap_target_weight(target_weight, current_short_exposure, self.max_short_exposure)
             if cap_reached:
                 return "short_exposure_cap_reached"
+
+            asset_class = asset.get("asset_class") or asset.get("security_type")
+            if asset_class == "option":
+                return "options_order_placement_not_yet_implemented"
+            if asset_class == "future":
+                contract_spec = self.futures_contract_specs.get(asset.get("ticker"), {})
+                contract_count = self._futures_contract_count_for_weight(target_weight, contract_spec, close_price, orders_allowed)
+                if contract_count == 0:
+                    return "futures_zero_contract_count"
+                if orders_allowed:
+                    self.MarketOrder(symbol, contract_count)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return "entered_short_futures"
+                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+                self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                return f"simulated_entered_short_futures:{permission_reason}"
 
             if previous_signal != "short" or not self._is_invested(symbol, orders_allowed):
                 if orders_allowed:
@@ -1541,7 +1825,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         exclude_key = str(exclude_symbol) if exclude_symbol is not None else None
         return sum(1 for symbol_key in self._simulated_portfolio.holdings if symbol_key != exclude_key)
 
-    def _asset_class_exposure(self, security_type: str | None, orders_allowed: bool = True, exclude_symbol=None) -> float:
+    def _asset_class_exposure(self, asset_class: str | None, orders_allowed: bool = True, exclude_symbol=None) -> float:
+        """asset_class here means the SAME asset_class-or-security_type
+        fallback value used everywhere else in this multi-asset-class
+        wiring (asset.get("asset_class") or asset.get("security_type")) -
+        NOT Lean's raw security_type. Bond ETFs are security_type=="equity"
+        but asset_class=="bond"; comparing against the fallback value (not
+        raw security_type) is what correctly buckets them as bond
+        exposure instead of silently double-counting them as equity
+        exposure."""
+        def _matches(asset: dict) -> bool:
+            return (asset.get("asset_class") or asset.get("security_type")) == asset_class
+
         if orders_allowed:
             total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
             exposure = 0.0
@@ -1549,7 +1844,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if exclude_symbol is not None and holding.Symbol == exclude_symbol:
                     continue
                 asset = self.asset_lookup.get(str(holding.Symbol), {})
-                if asset.get("security_type") != security_type:
+                if not _matches(asset):
                     continue
                 exposure += abs(float(holding.HoldingsValue)) / total_value
             return exposure
@@ -1561,10 +1856,36 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if symbol_key == exclude_key:
                 continue
             asset = self.asset_lookup.get(symbol_key, {})
-            if asset.get("security_type") != security_type:
+            if not _matches(asset):
                 continue
             exposure += abs(self._simulated_portfolio.position_value(symbol_key)) / total_value
         return exposure
+
+    def _futures_contract_count_for_weight(self, target_weight: float, contract_spec: dict, close_price: float, orders_allowed: bool) -> int:
+        """Derives a whole-number contract count from the FINAL target
+        weight (after liquidity/analyzer adjustments), rather than
+        threading risk/futures_risk.py's originally-computed contract
+        count through the whole weight-based liquidity/analyzer pipeline
+        unchanged. target_weight is already margin-aware by construction
+        (risk/asset_class_router.py::_futures_decision_to_position_sizing()
+        derives it FROM build_futures_position_sizing()'s margin-budgeted
+        contract count) - re-deriving here just means any downstream
+        liquidity-driven shrinkage of the weight is correctly reflected as
+        a SMALLER final contract count too, the conservative direction.
+        Returns 0 (never raises) when the contract spec is missing or
+        price/portfolio value are non-positive."""
+        multiplier = float(contract_spec.get("multiplier", 0.0) or 0.0)
+        if multiplier <= 0.0 or close_price <= 0.0:
+            return 0
+        portfolio_value = (
+            float(self.Portfolio.TotalPortfolioValue)
+            if orders_allowed
+            else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
+        )
+        if portfolio_value <= 0.0:
+            return 0
+        notional = target_weight * portfolio_value
+        return int(round(notional / (multiplier * close_price)))
 
     def _short_exposure(self, orders_allowed: bool = True, exclude_symbol=None) -> float:
         """Phase 3 of the 5/10 -> 9/10 roadmap: total exposure currently

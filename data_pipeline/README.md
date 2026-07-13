@@ -97,3 +97,69 @@ format above — any future `aq fetch`-added ticker destined for the real
 universe should get one the same way until/unless a real Lean run confirms
 it's unnecessary.
 
+## Real Treasury yield/credit-spread backfill (`fred_backfill.py`)
+
+A third sibling, alongside `yfinance_backfill.py`/`fetch.py` above, backing
+`features/bond_features.py`'s real-data yield-curve/credit-spread features
+(distinct from `features/macro_features.py`'s price-momentum proxies).
+Fetches FRED's public graph CSV endpoint — **no API key required**, stdlib
+`urllib.request` only (no new runtime dependency, unlike
+`yfinance_backfill.py`'s deferred `import yfinance`). Same
+dry-run-by-default/`--apply` safety convention; writes a local cache
+(`data/reference/fred_series/*.csv`, never committed as real market data
+the way Lean zips are) rather than editing `config.json` at all — nothing
+in this codebase's asset universe schema needs to change for bond features
+to exist, since they're cross-asset macro signals broadcast to every asset,
+not a new configured ticker.
+
+`load_cached_fred_series()` is the read-side: loaded once at
+`train.py`/`main.py` startup (never fetched live mid-backtest — Lean
+backtests are date-bounded), `{}` if the cache was never populated (fresh
+clone), in which case every bond feature neutral-defaults to `0.0` — the
+same "missing reference -> 0.0" convention `macro_features.py` already
+established, never a crash.
+
+Usage: `python -m data_pipeline.fred_backfill [--series treasury_10yr ...] [--apply]`.
+
+## Interactive Brokers historical backfill (`ib_backfill.py`) — futures/options only
+
+The futures/options sibling to `fetch.py`, but a fundamentally different
+data source: `ib_insync` (a **dev-only** dependency,
+`requirements/requirements-dev.txt`, never in `requirements.txt` — this
+module is importable with `ib_insync` absent as long as IB stays
+disabled, same deferred-import convention as `yfinance_backfill.py`).
+
+This is deliberately a **separate integration** from Lean's own native
+live/paper Interactive Brokers brokerage (`lean.json`'s
+`ib-account`/`ib-user-name`/`ib-password`/`ib-trading-mode` fields, and
+`environments.live-interactive` — untouched by this module, see root
+`README.md`'s `aq ib` section for the full explanation of why there are
+two IB integrations, not one). Lean's `environments.backtesting` is
+hardcoded to `FileSystemDataFeed`/`SubscriptionDataReaderHistoryProvider`
+— it never talks to IB regardless of `lean.json`'s contents — so
+historical futures/options bars still need this separate, offline
+data-prep step to land as local Lean-format zip files before any backtest
+can use them.
+
+- **"IB ready" requires both**: `config.json`'s `phase_v2.ib.enabled ==
+  true` (Aether's own app-level feature flag) AND `lean.json`'s
+  `ib-account`/`ib-user-name` non-empty (Lean's own credential fields,
+  read-only from this module's perspective). `phase_v2.ib.host`/`port`/
+  `client_id` are TWS/IB Gateway **socket API connection settings only**
+  (not credentials — your Gateway session already handles login), a
+  second, independent API client alongside whatever Lean's own brokerage
+  uses when live-deployed (standard IB API pattern — Gateway supports
+  multiple simultaneous API clients).
+- Every public function raises `IBNotConfiguredError` — never a raw
+  traceback — when IB isn't ready, so `aq fetch futures`/`aq fetch
+  options` fail cleanly with a message pointing at `aq ib status`.
+- Plugs into `fetch.py::ASSET_CLASS_CONFIG`'s `"futures"`/`"options"`
+  entries the same way `yfinance_backfill.py`'s functions plug into
+  `"crypto"`/`"stock"` — `aq_cli.py::cmd_fetch()` builds a closure binding
+  the connected IB client + contract spec/expiry/strike/right before
+  calling the same `fetch_adhoc_asset()` every asset class shares.
+
+Usage: `aq fetch futures --ticker ES --start ... --end ... --expiry ... [--apply]`,
+`aq fetch options --ticker SPY --start ... --end ... --expiry ... --strike ... --right call [--apply]`
+— see root `README.md`'s CLI Reference.
+

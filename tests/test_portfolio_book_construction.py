@@ -137,6 +137,31 @@ def test_build_rank_based_book_engages_when_spread_clears_confidence_floor():
     assert book["B"].role == "short"
 
 
+def test_build_rank_based_book_is_asset_class_blind():
+    # Multi-asset-class support: book_candidates already includes any
+    # symbol with a valid predicted_rank_20d regardless of asset class -
+    # build_rank_based_book() needs no signature change to select across a
+    # mixed equity/crypto/bond/future/option universe, since it never
+    # inspects asset_class at all. An extra "asset_class" key on each
+    # candidate dict (as main.py's Pass 1 would include incidentally) is
+    # simply ignored.
+    candidates = {
+        "AAPL": {**_candidate(0.95), "asset_class": "equity"},
+        "BTCUSD": {**_candidate(0.85), "asset_class": "crypto"},
+        "TLT": {**_candidate(0.50), "asset_class": "bond"},
+        "ES": {**_candidate(0.15), "asset_class": "future"},
+        "SPY_OPT": {**_candidate(0.05), "asset_class": "option"},
+    }
+
+    book = build_rank_based_book(candidates, top_n=2, bottom_n=2)
+
+    long_symbols = {symbol for symbol, allocation in book.items() if allocation.role == "long"}
+    short_symbols = {symbol for symbol, allocation in book.items() if allocation.role == "short"}
+    assert long_symbols == {"AAPL", "BTCUSD"}
+    assert short_symbols == {"ES", "SPY_OPT"}
+    assert "TLT" not in book
+
+
 def test_build_rank_based_book_allocation_to_dict_shape():
     candidates = {"A": _candidate(0.9), "B": _candidate(0.1)}
 

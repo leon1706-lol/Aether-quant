@@ -37,8 +37,16 @@ def _crypto_yahoo_symbol(ticker: str) -> str:
     return f"{base}-USD"
 
 
-# One entry per asset class - adding "derivative" in V3 is one new entry
-# here (plus adding "derivative" to the CLI's `choices=`), not a redesign.
+# One entry per asset class - V3's "futures"/"options" entries below prove
+# the docstring's original claim (adding a class is one new dict entry, not
+# a redesign): both route through data_pipeline/ib_backfill.py instead of
+# Yahoo Finance (yahoo_symbol_fn stays identity - not a real Yahoo symbol
+# for these two, just this dict's "instrument identifier passed to
+# fetch_fn" slot, reused as-is rather than renamed) and carry an
+# extra_asset_fields block (asset_class/data_source) merged into the
+# config.json asset entry fetch_adhoc_asset() writes on --apply, since IB-
+# backed assets need to be identified by the feature/risk layer
+# (risk/asset_class_router.py) independently of Lean's own security_type.
 ASSET_CLASS_CONFIG = {
     "crypto": {
         "security_type": "crypto",
@@ -51,6 +59,20 @@ ASSET_CLASS_CONFIG = {
         "market": "usa",
         "data_path_fn": lambda ticker: ROOT / "data" / "equity" / "usa" / "daily" / f"{ticker.lower()}.zip",
         "yahoo_symbol_fn": lambda ticker: ticker,
+    },
+    "futures": {
+        "security_type": "future",
+        "market": "cme",
+        "data_path_fn": lambda ticker: ROOT / "data" / "future" / "cme" / "daily" / f"{ticker.lower()}.zip",
+        "yahoo_symbol_fn": lambda ticker: ticker,
+        "extra_asset_fields": {"asset_class": "future", "data_source": "ib"},
+    },
+    "options": {
+        "security_type": "option",
+        "market": "usa",
+        "data_path_fn": lambda ticker: ROOT / "data" / "option" / "usa" / "daily" / f"{ticker.lower()}.zip",
+        "yahoo_symbol_fn": lambda ticker: ticker,
+        "extra_asset_fields": {"asset_class": "option", "data_source": "ib"},
     },
 }
 ASSET_CLASSES = tuple(ASSET_CLASS_CONFIG.keys())
@@ -116,6 +138,7 @@ def fetch_adhoc_asset(
                 "data_path": output_zip.relative_to(ROOT).as_posix(),
                 "available_from": suggested_from.isoformat(),
                 "available_to": suggested_to.isoformat(),
+                **class_config.get("extra_asset_fields", {}),
             },
         )
     else:

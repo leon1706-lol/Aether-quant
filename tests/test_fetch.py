@@ -48,8 +48,8 @@ def test_crypto_yahoo_symbol_passthrough_without_usd_suffix():
 # ---------------------------------------------------------------------------
 
 
-def test_asset_classes_currently_supports_crypto_and_stock_only():
-    assert set(ASSET_CLASSES) == {"crypto", "stock"}
+def test_asset_classes_currently_supports_crypto_stock_futures_options():
+    assert set(ASSET_CLASSES) == {"crypto", "stock", "futures", "options"}
 
 
 # ---------------------------------------------------------------------------
@@ -229,3 +229,90 @@ def test_fetch_adhoc_asset_never_imports_yfinance_when_fetch_fn_injected():
     import sys
 
     assert "yfinance" not in sys.modules
+
+
+# ---------------------------------------------------------------------------
+# futures / options - route through the same fetch_fn injection point,
+# never touch data_pipeline.ib_backfill or ib_insync directly (that's
+# tested in tests/test_ib_backfill.py; this module only cares that
+# ASSET_CLASS_CONFIG's futures/options entries plug into the existing
+# fetch_adhoc_asset() machinery correctly).
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_adhoc_asset_apply_writes_futures_zip_unscaled(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    report = fetch_adhoc_asset("futures", "ES", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path)
+
+    expected_zip = tmp_path / "data" / "future" / "cme" / "daily" / "es.zip"
+    assert expected_zip.exists()
+    with ZipFile(expected_zip) as archive:
+        content = archive.read("es.csv").decode("utf-8")
+    assert "20230101 00:00,100.0,105.0,99.0,104.0,1000.0" in content  # future: unscaled, like crypto
+    assert report["action"] == "written"
+
+
+def test_fetch_adhoc_asset_futures_config_block_carries_asset_class_and_data_source(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    fetch_adhoc_asset("futures", "ES", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path)
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    block = written["phase1"]["universe"]["assets"][0]
+    assert block["security_type"] == "future"
+    assert block["asset_class"] == "future"
+    assert block["data_source"] == "ib"
+
+
+def test_fetch_adhoc_asset_options_config_block_carries_asset_class_and_data_source(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    fetch_adhoc_asset("options", "SPY_OPT", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path)
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    block = written["phase1"]["universe"]["assets"][0]
+    assert block["security_type"] == "option"
+    assert block["asset_class"] == "option"
+    assert block["data_source"] == "ib"
+
+
+def test_fetch_adhoc_asset_crypto_and_stock_blocks_carry_no_extra_fields(tmp_path, monkeypatch):
+    # extra_asset_fields is additive and futures/options-only - crypto/stock
+    # blocks must stay byte-identical to their pre-multi-asset-class shape.
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    fetch_adhoc_asset("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path)
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    block = written["phase1"]["universe"]["assets"][0]
+    assert "asset_class" not in block
+    assert "data_source" not in block

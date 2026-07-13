@@ -569,6 +569,137 @@ def test_fetch_prints_already_exists_config_status(capsys):
     assert "already configured" in capsys.readouterr().out
 
 
+# --- fetch futures/options (IB-backed) ---------------------------------------
+
+
+def test_fetch_futures_accepts_new_asset_class():
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["fetch", "futures", "--ticker", "ES", "--start", "2020-01-01", "--end", "2020-02-01", "--expiry", "2020-06-19"])
+    assert args.asset_class == "futures"
+
+
+def test_fetch_options_accepts_strike_and_right():
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "options", "--ticker", "SPY", "--start", "2020-01-01", "--end", "2020-02-01",
+         "--expiry", "2020-06-19", "--strike", "300", "--right", "call"]
+    )
+    assert args.strike == 300.0
+    assert args.right == "call"
+
+
+def test_fetch_futures_requires_expiry():
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["fetch", "futures", "--ticker", "ES", "--start", "2020-01-01", "--end", "2020-02-01"])
+    exit_code = args.func(args)
+    assert exit_code == 1
+
+
+def test_fetch_options_requires_strike_and_right():
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "options", "--ticker", "SPY", "--start", "2020-01-01", "--end", "2020-02-01", "--expiry", "2020-06-19"]
+    )
+    exit_code = args.func(args)
+    assert exit_code == 1
+
+
+def test_fetch_futures_fails_cleanly_when_ib_not_configured(capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "futures", "--ticker", "ES", "--start", "2020-01-01", "--end", "2020-02-01", "--expiry", "2020-06-19"]
+    )
+    with patch("aq_cli.connect_ib", side_effect=aq_cli.IBNotConfiguredError("IB is not configured: ...")):
+        exit_code = args.func(args)
+
+    assert exit_code == 1
+    assert "IB is not configured" in capsys.readouterr().err
+
+
+def test_fetch_futures_connects_and_disconnects_ib_around_fetch():
+    fake_ib = MagicMock()
+    fetch_mock = MagicMock(return_value=_sample_fetch_report(asset_class="futures", ticker="ES"))
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "futures", "--ticker", "ES", "--start", "2020-01-01", "--end", "2020-02-01", "--expiry", "2020-06-19"]
+    )
+    with patch("aq_cli.connect_ib", return_value=fake_ib), patch("aq_cli.disconnect_ib") as disconnect_mock, patch(
+        "aq_cli.fetch_adhoc_asset", fetch_mock
+    ):
+        args.func(args)
+
+    disconnect_mock.assert_called_once_with(fake_ib)
+    fetch_mock.assert_called_once()
+    assert fetch_mock.call_args.kwargs["fetch_fn"] is not None
+
+
+def test_fetch_futures_disconnects_ib_even_if_fetch_raises():
+    fake_ib = MagicMock()
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["fetch", "futures", "--ticker", "ES", "--start", "2020-01-01", "--end", "2020-02-01", "--expiry", "2020-06-19"]
+    )
+    with patch("aq_cli.connect_ib", return_value=fake_ib), patch("aq_cli.disconnect_ib") as disconnect_mock, patch(
+        "aq_cli.fetch_adhoc_asset", side_effect=RuntimeError("boom")
+    ):
+        try:
+            args.func(args)
+            assert False, "expected RuntimeError to propagate"
+        except RuntimeError:
+            pass
+
+    disconnect_mock.assert_called_once_with(fake_ib)
+
+
+# --- ib status ----------------------------------------------------------------
+
+
+def test_ib_status_disabled(capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["ib", "status"])
+    with patch("aq_cli.ib_readiness_status", return_value="disabled"):
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    assert "disabled" in capsys.readouterr().out
+
+
+def test_ib_status_credentials_missing(capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["ib", "status"])
+    with patch("aq_cli.ib_readiness_status", return_value="enabled_but_lean_credentials_missing"):
+        exit_code = args.func(args)
+
+    out = capsys.readouterr().out
+    assert exit_code == 1
+    assert "aq lean set ib-account" in out
+
+
+def test_ib_status_reachable(capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["ib", "status"])
+    with patch("aq_cli.ib_readiness_status", return_value="ready"), patch(
+        "aq_cli.attempt_connection", return_value=(True, "reachable")
+    ):
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    assert "reachable" in capsys.readouterr().out
+
+
+def test_ib_status_not_reachable(capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["ib", "status"])
+    with patch("aq_cli.ib_readiness_status", return_value="ready"), patch(
+        "aq_cli.attempt_connection", return_value=(False, "connection failed — timeout")
+    ):
+        exit_code = args.func(args)
+
+    out = capsys.readouterr().out
+    assert exit_code == 1
+    assert "not reachable" in out
+
+
 # --- update-check ---------------------------------------------------------
 
 

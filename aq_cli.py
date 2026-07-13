@@ -39,7 +39,19 @@ from importlib.metadata import version as installed_version
 from pathlib import Path
 
 from data_pipeline.fetch import ASSET_CLASSES, fetch_adhoc_asset
+from data_pipeline.ib_backfill import (
+    IBNotConfiguredError,
+    attempt_connection,
+    connect_ib,
+    disconnect_ib,
+    fetch_future_historical_bars,
+    fetch_option_historical_bars,
+    ib_readiness_status,
+    load_futures_contract_specs,
+)
 from risk.manual_override import read_manual_trade_lock_override, write_manual_trade_lock_override
+
+IB_ASSET_CLASSES = ("futures", "options")
 
 ROOT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT_DIR / "config.json"
@@ -569,7 +581,39 @@ def cmd_lean(args: argparse.Namespace) -> int:
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
-    report = fetch_adhoc_asset(args.asset_class, args.ticker, args.start, args.end, apply=args.apply)
+    ib = None
+    fetch_fn = None
+    if args.asset_class in IB_ASSET_CLASSES:
+        if args.expiry is None:
+            print(f"error: --expiry is required for asset_class={args.asset_class!r}", file=sys.stderr)
+            return 1
+        if args.asset_class == "options" and (args.strike is None or args.right is None):
+            print("error: --strike and --right are required for asset_class='options'", file=sys.stderr)
+            return 1
+
+        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+        try:
+            ib = connect_ib(config, lean_config)
+        except IBNotConfiguredError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+
+        if args.asset_class == "futures":
+            contract_spec = load_futures_contract_specs().get(args.ticker.upper(), {})
+            fetch_fn = lambda symbol, start, end: fetch_future_historical_bars(ib, symbol, contract_spec, start, end)  # noqa: E731
+        else:
+            fetch_fn = lambda symbol, start, end: fetch_option_historical_bars(  # noqa: E731
+                ib, symbol, args.expiry, args.strike, args.right, start, end
+            )
+
+    try:
+        fetch_kwargs = {"fetch_fn": fetch_fn} if fetch_fn is not None else {}
+        report = fetch_adhoc_asset(args.asset_class, args.ticker, args.start, args.end, apply=args.apply, **fetch_kwargs)
+    finally:
+        if ib is not None:
+            disconnect_ib(ib)
+
     label = "APPLY" if args.apply else "DRY RUN"
     print(f"{label} — {report['ticker']} ({report['yahoo_symbol']}): {report['action']}, rows_fetched={report['rows_fetched']}")
     if report["suggested_available_from"]:
@@ -590,6 +634,31 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         print("\nReady to prepare training: run `python train.py --dataset-only` to confirm this ticker's asset quality, then `python train.py` when ready.")
 
     return 1 if report["action"] == "no_data_returned" else 0
+
+
+def cmd_ib(_args: argparse.Namespace) -> int:
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+    status = ib_readiness_status(config, lean_config)
+
+    if status == "disabled":
+        print("IB: disabled (phase_v2.ib.enabled is false)")
+        print("    Enable with: aq config set phase_v2.ib.enabled true")
+        return 0
+
+    if status == "enabled_but_lean_credentials_missing":
+        print("IB: enabled in config.json, but lean.json's IB credentials are not filled in")
+        print("    Set them with: aq lean set ib-account <ACCOUNT>  and  aq lean set ib-user-name <USERNAME>")
+        return 1
+
+    reachable, detail = attempt_connection(config, lean_config)
+    if reachable:
+        print(f"IB: {detail} (connected to {config['phase_v2']['ib'].get('host')}:{config['phase_v2']['ib'].get('port')})")
+        return 0
+
+    print(f"IB: enabled and credentialed, but not reachable — {detail}")
+    print("    Check that TWS or IB Gateway is running and logged in on the configured host/port.")
+    return 1
 
 
 def cmd_status(_args: argparse.Namespace) -> int:
@@ -746,7 +815,17 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_parser.add_argument(
         "--apply", action="store_true", help="Actually write the zip file and update config.json (default: dry run, report only)"
     )
+    fetch_parser.add_argument(
+        "--expiry", default=None, help="Contract expiry, YYYY-MM-DD (required for asset_class futures/options; requires IB, see 'aq ib status')"
+    )
+    fetch_parser.add_argument("--strike", type=float, default=None, help="Strike price (required for asset_class options)")
+    fetch_parser.add_argument("--right", choices=["call", "put"], default=None, help="Option right (required for asset_class options)")
     fetch_parser.set_defaults(func=cmd_fetch)
+
+    ib_parser = subparsers.add_parser("ib", help="Check Interactive Brokers configuration/connectivity")
+    ib_subparsers = ib_parser.add_subparsers(dest="ib_command", required=True)
+    ib_subparsers.add_parser("status", help="Report disabled / credentials-missing / reachable")
+    ib_parser.set_defaults(func=cmd_ib)
 
     status_parser = subparsers.add_parser("status", help="Show git status")
     status_parser.set_defaults(func=cmd_status)

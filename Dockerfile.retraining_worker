@@ -12,6 +12,8 @@ COPY topology/ ./topology/
 COPY moe/ ./moe/
 COPY inference/ ./inference/
 COPY risk/ ./risk/
+COPY liquidity/ ./liquidity/
+COPY data_pipeline/ ./data_pipeline/
 COPY retraining/ ./retraining/
 COPY train.py .
 COPY train_topology.py .

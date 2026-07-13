@@ -25,6 +25,14 @@ psycopg[binary]>=3.1
 # inside Lean or any always-on worker container
 yfinance>=0.2.40
 
+# Interactive Brokers historical futures/options backfill
+# (data_pipeline/ib_backfill.py, `aq fetch futures`/`aq fetch options`) —
+# dev/offline-script only, same "never inside Lean or any always-on worker
+# container" convention as yfinance above. Deferred-imported, so the rest
+# of the CLI/test suite works with this package absent as long as
+# phase_v2.ib.enabled stays false (the default).
+ib_insync>=0.9.86
+
 # README backtest-chart generation (generate_backtest_report.py, called by
 # `aq backtest`) — dev/local-script only, never inside Lean or any Docker image
 matplotlib>=3.8.0

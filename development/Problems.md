@@ -963,3 +963,101 @@ plain string dates and a real `np.asarray(pd.Series([...]))` object array
 (the exact real shape) — not just `datetime64`-typed synthetic fixtures —
 in `tests/test_train_ranking_validation.py`, so this class of "passes
 every unit test, fails on first real run" gap can't silently recur.
+
+---
+
+### 28. Portfolio book's `"short"` signal silently zeroed to no position in `main.py::_build_dynamic_sizing_payload()`
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+Found while rewriting `_build_dynamic_sizing_payload()` to route through the
+new `risk/asset_class_router.py` for multi-asset-class support.
+`portfolio/book_construction.py`'s long/short book (Phase 3 of the 5/10 ->
+9/10 roadmap) sets `signal_name = "short"` for its short-role symbols
+(`main.py::on_data()`, Pass 2), but `_build_dynamic_sizing_payload()`'s
+guard clause read `if signal_name not in {"buy", "sell"}: base_target_weight
+= 0.0` — never updated when `"short"` was introduced as a third valid
+signal name alongside buy/sell/hold. Every book-selected short position
+would have been sized to exactly zero, silently defeating the book's
+entire short-selling role. Never observed in practice because
+`phase_v2.portfolio_book.enabled` defaults to `false`.
+
+**Fixed**: the guard now reads `{"buy", "sell", "short"}`. No new test
+added specifically for this line (the existing portfolio-book test suite
+in `tests/test_portfolio_book_construction.py` covers the book's own
+role-selection logic; this fix is at the sizing-payload call site one
+layer up, exercised implicitly by any future end-to-end backtest run with
+the book enabled).
+
+---
+
+### 29. Multi-asset-class support (bonds/futures/options + IB) — explicit non-goals for this pass
+**Severity:** n/a (scope note, not a bug) · **Status:** 🟡 `deferred`
+
+Full session summary is in `development/Changelog.md`. Deliberately out of
+scope for this pass, tracked here so they aren't lost:
+
+- **Automatic multi-leg options spread selection via ML** (verticals,
+  straddles, iron condors). `portfolio/options_strategy.py` is single-leg
+  only (long calls or long puts, greeks-sized via a target delta scaled by
+  the existing direction+confidence prediction) — a genuinely new spread-
+  selection model architecture is future work.
+- **Options order PLACEMENT against a specific resolved contract.**
+  `main.py::_apply_signal()`'s `"option"` branch computes sizing/exposure-
+  cap accounting but deliberately does not call `SetHoldings()`/`MarketOrder()`
+  — Lean's `add_option()` canonical chain `Symbol` is not itself a tradable
+  contract, and resolving a live tradable contract Symbol from
+  `slice.OptionChains` was out of scope this pass. Returns
+  `"options_order_placement_not_yet_implemented"`.
+- **IBC-based headless/automated TWS/Gateway login.** IB's API requires an
+  already-logged-in TWS/Gateway session; `data_pipeline/ib_backfill.py`
+  connects to that session but does not manage its login lifecycle.
+- **Per-asset-class top-N/bottom-N book-slot caps.**
+  `portfolio/book_construction.py::build_rank_based_book()` ships with one
+  combined-universe ranking across all enabled asset classes, not a slot
+  budget per class.
+- **Live IB margin replacing `data/reference/futures_contract_specs.json`'s**
+  static reference numbers. The static file is the sizing source of truth
+  even when IB is connected; live margin queries are a documented future
+  enhancement.
+- **Real futures term-structure / options put-call-ratio / IV-skew data.**
+  `features/derivatives_macro_features.py`'s three cross-asset features are
+  fully wired into the training/runtime pipelines but always resolve to
+  their neutral default (0.0) — a genuine futures term structure needs two
+  distinct front/next-month tickers and a real put/call ratio needs
+  aggregated chain volume, neither of which this offline training pipeline
+  ingests yet (see `train.py::build_derivatives_macro_features_by_date()`'s
+  docstring). Will start producing real values once `aq fetch
+  futures`/`aq fetch options` (IB-backed) populate config.json with assets
+  shaped that way.
+
+---
+
+### 30. `Dockerfile.retraining_worker` missing `data_pipeline/` (and pre-existing: `liquidity/`) copy
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+Same class of bug as #1/#2 (found by tracing the import chain before any
+rebuild was attempted, not by a failed deploy). This session's `train.py`
+gained a new top-level `from data_pipeline.fred_backfill import
+bond_reference_series, load_cached_fred_series` (for real bond yield-
+curve features) — `Dockerfile.retraining_worker` copies `features/` and
+`risk/` (both of which `train.py` needs) but never copied `data_pipeline/`
+at all, so the retraining-worker container would have crashed with
+`ModuleNotFoundError: No module named 'data_pipeline'` the moment
+`retraining.worker` tried to invoke `train.py`.
+
+While tracing this, found a second, **pre-existing** gap unrelated to this
+session's changes: `train.py` already imported `from liquidity import
+estimate_high_low_spread` / `from liquidity.market_liquidity import
+TYPICAL_SPREAD_BY_TYPE` (liquidity-aware feature engineering, an earlier
+phase) and `Dockerfile.retraining_worker` never copied `liquidity/`
+either — same latent crash-on-first-real-retrain risk, just never
+triggered because nobody had rebuilt this image since that feature
+shipped. Fixed alongside the `data_pipeline/` gap since it's the exact
+same root cause in the exact same file, rather than left for a second,
+separate fix.
+
+**Fixed:** added `COPY data_pipeline/ ./data_pipeline/` and `COPY
+liquidity/ ./liquidity/` to `Dockerfile.retraining_worker`. Not yet
+rebuilt/deployed this session — see `development/Changelog.md`'s multi-
+asset-class entry for the rebuild command to run before this worker is
+next restarted.

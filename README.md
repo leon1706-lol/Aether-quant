@@ -772,17 +772,46 @@ to fully automatic behavior.
 #### `aq fetch`
 ```text
 aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]
+aq fetch futures --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> [--apply]
+aq fetch options --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> --strike <STRIKE> --right <call|put> [--apply]
 ```
-Fetches historical OHLCV from Yahoo Finance for a ticker that isn't in
-`config.json` yet, formats it into Lean's zip/CSV convention, and writes
-it to the right spot under `data/` (`data/crypto/coinbase/daily/<ticker>_trade.zip`
-or `data/equity/usa/daily/<ticker>.zip`). On `--apply`, it also appends a
-new asset block to `config.json`'s `phase1.universe.assets[]` — no manual
-editing needed. Dry run by default (no `--apply`): reports what would
-happen, writes nothing. Never runs `train.py` itself — once applied, run
-`python train.py --dataset-only` (then `python train.py` when ready)
-yourself to actually train on the new ticker. `crypto`/`stock` today; a
-`derivative` asset class is planned for V3.
+`crypto`/`stock` fetch historical OHLCV from Yahoo Finance for a ticker
+that isn't in `config.json` yet, formats it into Lean's zip/CSV
+convention, and writes it to the right spot under `data/`
+(`data/crypto/coinbase/daily/<ticker>_trade.zip` or
+`data/equity/usa/daily/<ticker>.zip`). `futures`/`options` do the same but
+source historical bars from Interactive Brokers instead — see `aq ib
+status` below; both fail with a clean error (no traceback) if IB isn't
+configured. On `--apply`, it also appends a new asset block to
+`config.json`'s `phase1.universe.assets[]` — no manual editing needed. Dry
+run by default (no `--apply`): reports what would happen, writes nothing.
+Never runs `train.py` itself — once applied, run `python train.py
+--dataset-only` (then `python train.py` when ready) yourself to actually
+train on the new ticker.
+
+#### `aq ib`
+```text
+aq ib status
+```
+Reports Interactive Brokers readiness as one of three states: **disabled**
+(`phase_v2.ib.enabled` is `false` in `config.json` — the default; the rest
+of the system, equities/crypto/bonds, is fully unaffected either way),
+**enabled but credentials missing** (`phase_v2.ib.enabled` is `true` but
+`lean.json`'s `ib-account`/`ib-user-name` are empty — set them with `aq
+lean set ib-account <ACCOUNT>` / `aq lean set ib-user-name <USERNAME>`),
+or **reachable** (a live connect/disconnect round-trip against your
+running TWS/IB Gateway succeeded). IB credentials live entirely in
+`lean.json` — the same fields Lean's own native live/paper
+`InteractiveBrokersBrokerage` already uses (`environments.live-interactive`)
+— `phase_v2.ib` in `config.json` only adds a master on/off switch plus the
+local Gateway socket connection settings (`host`/`port`/`client_id`) used
+by the separate, offline `aq fetch futures`/`aq fetch options` historical
+backfill path (`data_pipeline/ib_backfill.py`). See
+`risk/README.md`/`data_pipeline/README.md` for why these are two
+deliberately distinct integrations: Lean's backtest engine never talks to
+IB regardless of `lean.json`'s contents (it only ever reads local data
+files), so historical futures/options bars still need this separate,
+offline data-prep step before any backtest can use them.
 
 #### `aq status`
 ```text
@@ -948,7 +977,19 @@ architecture docs already identify:
 - **A low-latency, event-driven runtime** — replacing the daily-bar `on_data()` callback and the 30s+ polling background workers with something closer to a real-time event loop.
 - **Real broker/exchange connectivity beyond paper trading** — building on the credential/readiness groundwork V2-21/V2-22 already laid.
 - **Continuous / online retraining** — moving beyond today's offline, cooldown-gated batch retraining pipeline.
-- Further out: an expanded asset universe, multi-timeframe ensembles, and reinforcement-learning-based position sizing/execution.
+- Further out: multi-timeframe ensembles and reinforcement-learning-based position sizing/execution.
+
+**Expanded asset universe — delivered.** Bonds, futures, and options now
+trade and are observed alongside equities/crypto, with real duration-aware
+bond features, a margin-based futures risk model, Black-Scholes options
+greeks, and Interactive Brokers as the futures/options data source
+(toggleable via `aq config set phase_v2.ib.enabled`/`aq ib status` — the
+whole system works fully with IB disabled). See `aq fetch futures`/`aq
+fetch options` above and `risk/README.md`, `portfolio/README.md`,
+`features/README.md` for the full design. Remaining, deliberately deferred
+scope: automatic multi-leg options spread selection and options order
+placement against a specific resolved contract (see
+`development/Problems.md` #29 for the full non-goals list).
 
 ## Contributing
 
