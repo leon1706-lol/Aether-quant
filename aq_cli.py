@@ -39,7 +39,6 @@ from importlib.metadata import version as installed_version
 from pathlib import Path
 
 from data_pipeline.fetch import ASSET_CLASSES, fetch_adhoc_asset
-from data_pipeline.fred_backfill import load_cached_fred_series
 from data_pipeline.ib_backfill import (
     IBNotConfiguredError,
     attempt_connection,
@@ -680,40 +679,34 @@ def cmd_ib(_args: argparse.Namespace) -> int:
 
 def cmd_assets(_args: argparse.Namespace) -> int:
     """`aq assets status`: one command reporting full multi-asset-class
-    readiness at a glance - IB (reuses cmd_ib's own ib_readiness_status()),
-    the futures_risk/options_risk feature flags, how many futures contract
-    specs are loaded, how much of the FRED yield-curve cache is populated,
-    and how many futures/options assets are actually configured in
-    config.json's universe. Read-only reporting only - basic enable/disable
-    of any of these already works today via the generic
+    readiness at a glance - IB, the futures_risk/options_risk feature
+    flags, how many futures contract specs are loaded, how much of the
+    FRED yield-curve cache is populated, and how many futures/options
+    assets are actually configured in config.json's universe. Read-only
+    reporting only - basic enable/disable of any of these already works
+    today via the generic
     `aq config set phase_v2.{ib,futures_risk,options_risk}.enabled true|false`
     (_dispatch_json_config_command), same as cmd_ib's own "Enable with"
-    hint."""
+    hint.
+
+    The actual report is built by monitoring/assets_status.py::
+    build_assets_status() - shared with the webui's `/api/assets-status`
+    endpoint so the readiness logic is defined exactly once."""
+    from monitoring.assets_status import build_assets_status
+
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+    report = build_assets_status(config, lean_config)
 
-    ib_status = ib_readiness_status(config, lean_config)
-    print(f"IB: {ib_status}")
-
-    phase_v2 = config.get("phase_v2", {})
-    futures_enabled = bool(phase_v2.get("futures_risk", {}).get("enabled", False))
-    options_enabled = bool(phase_v2.get("options_risk", {}).get("enabled", False))
-    print(f"futures_risk.enabled: {futures_enabled}")
-    print(f"options_risk.enabled: {options_enabled}")
-
-    specs = load_futures_contract_specs()
-    print(f"Futures contract specs loaded: {len(specs)} ({', '.join(sorted(specs)) or 'none'})")
-
-    fred_series = load_cached_fred_series()
-    all_dates = [row["date"] for rows in fred_series.values() for row in rows]
-    most_recent = max(all_dates).isoformat() if all_dates else "never populated"
-    print(f"FRED cache: {len(fred_series)} series populated, most recent date: {most_recent}")
-
-    assets = config.get("phase1", {}).get("universe", {}).get("assets", [])
-    future_count = sum(1 for asset in assets if (asset.get("asset_class") or asset.get("security_type")) == "future")
-    option_count = sum(1 for asset in assets if (asset.get("asset_class") or asset.get("security_type")) == "option")
-    print(f"Configured futures assets: {future_count}")
-    print(f"Configured options assets: {option_count}")
+    print(f"IB: {report['ib_status']}")
+    print(f"futures_risk.enabled: {report['futures_risk_enabled']}")
+    print(f"options_risk.enabled: {report['options_risk_enabled']}")
+    tickers = ", ".join(report["futures_contract_specs_tickers"]) or "none"
+    print(f"Futures contract specs loaded: {report['futures_contract_specs_loaded']} ({tickers})")
+    most_recent = report["fred_cache_most_recent_date"] or "never populated"
+    print(f"FRED cache: {report['fred_cache_series_count']} series populated, most recent date: {most_recent}")
+    print(f"Configured futures assets: {report['configured_futures_assets']}")
+    print(f"Configured options assets: {report['configured_options_assets']}")
 
     return 0
 

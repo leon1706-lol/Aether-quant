@@ -11,6 +11,34 @@ export interface Position {
   unrealized_profit?: number
 }
 
+// risk/asset_class_router.py::route_position_sizing()'s "extra" payload -
+// {} for equity/crypto/bond, {contract_count} for future, {options_decision}
+// for option (only once a position was actually sized). Present under
+// dynamic_sizing.asset_class_routing_extra.
+export interface FuturesRoutingExtra {
+  contract_count: number
+}
+
+// Mirrors portfolio/options_strategy.py::OptionsPositionDecision.to_dict() -
+// contract_symbol is already stringified there (never a raw Lean Symbol) so
+// it round-trips through JSON safely.
+export interface OptionsDecision {
+  contracts: number
+  right: 'call' | 'put' | string
+  strike: number
+  expiry: string
+  target_delta: number
+  actual_delta: number
+  vega_budget_used: number
+  sizing_reason: string
+  contract_symbol: string | null
+}
+
+export interface AssetClassRoutingExtra {
+  contract_count?: number
+  options_decision?: OptionsDecision
+}
+
 export interface DynamicSizing {
   base_target_weight?: number
   target_weight?: number
@@ -18,6 +46,8 @@ export interface DynamicSizing {
   leverage_factor?: number
   volatility_regime?: string
   sizing_reason?: string
+  // Present for future/option assets only - see AssetClassRoutingExtra above.
+  asset_class_routing_extra?: AssetClassRoutingExtra
 }
 
 export interface MarketAnalysis {
@@ -428,6 +458,61 @@ export interface PaperReadiness {
   broker_config_reason: string
 }
 
+// monitoring/assets_status.py::build_assets_status() - IB/futures/options/
+// FRED readiness, computed live on every /api/assets-status request (not
+// embedded in RuntimeState/state.json, unlike paper_readiness/
+// retraining_status - see fetchAssetsStatus() in api/client.ts).
+export interface AssetsStatus {
+  ib_status: 'disabled' | 'enabled_but_lean_credentials_missing' | 'ready' | string
+  futures_risk_enabled: boolean
+  options_risk_enabled: boolean
+  futures_contract_specs_loaded: number
+  futures_contract_specs_tickers: string[]
+  fred_cache_series_count: number
+  fred_cache_most_recent_date: string | null
+  configured_futures_assets: number
+  configured_options_assets: number
+}
+
+// One options-chain row - mirrors main.py::_build_options_chains_payload()'s
+// row shape after _options_chains_payload_for_state()'s JSON-safe
+// stringify-symbol pass (never the raw Lean Symbol object).
+export interface OptionsChainRow {
+  symbol: string
+  strike: number
+  right: 'call' | 'put' | string
+  expiry: string
+  bid: number
+  ask: number
+  volume: number
+  open_interest: number
+  delta: number
+  gamma: number
+  theta: number
+  vega: number
+  rho: number
+  iv: number
+}
+
+export interface FuturesChainEntry {
+  front_month_price: number | null
+  next_month_price: number | null
+}
+
+// main.py::_write_state()'s "derivatives" block - the SAME per-bar payloads
+// route_position_sizing()/_build_model_input() already consume for sizing
+// and features, now also surfaced for the webui (previously computed but
+// never exposed anywhere outside the runtime).
+export interface DerivativesState {
+  macro?: {
+    futures_term_structure_slope?: number
+    options_put_call_ratio?: number
+    options_implied_vol_skew?: number
+  }
+  options_chains?: Record<string, OptionsChainRow[]>
+  futures_chains?: Record<string, FuturesChainEntry>
+}
+
 export interface RuntimeState {
   project?: string
   mode?: string
@@ -441,6 +526,7 @@ export interface RuntimeState {
   monitoring?: Monitoring
   scene?: Scene
   topology?: Topology
+  derivatives?: DerivativesState
   observation?: ObservationSummary
   performance_triggers?: PerformanceTriggerReport
   retraining_status?: RetrainingStatus

@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from monitoring.assets_status import build_assets_status_from_disk
 from monitoring.neural_network_state import build_neural_network_state
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -83,6 +84,11 @@ def get_topology() -> dict:
 @app.get("/api/neural-network")
 def get_neural_network() -> dict:
     return build_neural_network_state()
+
+
+@app.get("/api/assets-status")
+def get_assets_status() -> dict:
+    return build_assets_status_from_disk()
 
 
 @app.get("/api/grafana/metrics-snapshot")

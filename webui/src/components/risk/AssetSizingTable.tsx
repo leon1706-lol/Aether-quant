@@ -1,4 +1,4 @@
-import type { Signal } from '../../types/state'
+import type { DynamicSizing, Signal } from '../../types/state'
 import { formatNumber, formatPercent } from '../../lib/format'
 import { Panel } from '../layout/Panel'
 import { Badge } from '../signals/Badge'
@@ -7,6 +7,28 @@ function sortedSignals(signals: Record<string, Signal> | undefined) {
   return Object.entries(signals ?? {})
     .map(([symbol, payload]) => ({ symbol, ...payload }))
     .sort((a, b) => String(a.ticker || a.symbol).localeCompare(String(b.ticker || b.symbol)))
+}
+
+// asset_class_routing_extra is only present for future/option assets
+// (risk/asset_class_router.py::route_position_sizing()) - equity/crypto/
+// bond sizing has nothing to show here.
+function AssetClassDetail({ sizing }: { sizing: DynamicSizing }) {
+  const extra = sizing.asset_class_routing_extra
+  if (!extra) return null
+
+  if (extra.options_decision) {
+    const d = extra.options_decision
+    return (
+      <div className="mt-1 text-[0.74rem] text-white/50">
+        {d.contracts}x {d.right} {formatNumber(d.strike)} exp {d.expiry} · Δ {formatNumber(d.actual_delta)} · vega
+        budget {formatPercent(d.vega_budget_used)}
+      </div>
+    )
+  }
+  if (typeof extra.contract_count === 'number') {
+    return <div className="mt-1 text-[0.74rem] text-white/50">{extra.contract_count} futures contracts</div>
+  }
+  return null
 }
 
 function VolatilityBar({ annualVol }: { annualVol: number }) {
@@ -111,6 +133,7 @@ export function AssetSizingTable({ signals }: { signals: Record<string, Signal> 
                     </td>
                     <td className="border-b border-white/5 px-2.5 py-2.5 text-[0.78rem] text-white/60">
                       {sizing.sizing_reason || asset.execution_note || asset.reason || 'waiting'}
+                      <AssetClassDetail sizing={sizing} />
                     </td>
                   </tr>
                 )

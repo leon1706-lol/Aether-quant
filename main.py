@@ -1763,6 +1763,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 payload[underlying_ticker] = []
         return payload
 
+    def _options_chains_payload_for_state(self) -> dict[str, list[dict]]:
+        """JSON-safe copy of self.latest_options_chains_payload for
+        _write_state() only - each row's "symbol" is a raw Lean Symbol
+        (needed unchanged by _apply_option_order()'s real MarketOrder()
+        call), which json.dumps() cannot serialize. Same
+        stringify-a-copy-not-the-original precedent as the
+        "dynamic_sizing_for_state" sanitization in on_data() for
+        OptionsPositionDecision.contract_symbol - reusing that fix's
+        lesson here rather than re-learning it via a second silent
+        dashboard-state-write crash."""
+        return {
+            underlying: [{**row, "symbol": str(row["symbol"])} for row in rows]
+            for underlying, rows in self.latest_options_chains_payload.items()
+        }
+
     def _build_futures_chains_payload(self, slice: Slice) -> dict[str, dict]:
         """Futures sibling of _build_options_chains_payload() - front/
         next-month price pair per configured asset_class=="future" asset,
@@ -2392,6 +2407,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         state["regime"] = self._build_regime_summary(state["signals"])
         state["topology"] = self.latest_topology_payload
+        state["derivatives"] = {
+            "macro": self.latest_derivatives_macro_payload,
+            "options_chains": self._options_chains_payload_for_state(),
+            "futures_chains": self.latest_futures_chains_payload,
+        }
         state["observation"] = self._build_observation_view()
         state["performance_triggers"] = self._build_performance_triggers_view()
         state["dashboard"] = self._build_dashboard_view(state)

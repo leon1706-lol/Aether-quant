@@ -1,4 +1,5 @@
 import type { RuntimeState } from '../types/state'
+import { useAssetsStatus } from '../api/hooks'
 import { Scorecards } from '../components/scorecards/Scorecards'
 import { Scene3D } from '../components/scene3d/Scene3D'
 import { AssetHeatmap } from '../components/heatmap/AssetHeatmap'
@@ -10,9 +11,12 @@ import { ObservationPanel } from '../components/monitoring/ObservationPanel'
 import { PerformanceTriggersPanel } from '../components/monitoring/PerformanceTriggersPanel'
 import { RetrainingStatusPanel } from '../components/monitoring/RetrainingStatusPanel'
 import { PaperReadinessPanel } from '../components/monitoring/PaperReadinessPanel'
+import { AssetsStatusPanel } from '../components/monitoring/AssetsStatusPanel'
 import { RawStateViewer } from '../components/monitoring/RawStateViewer'
 
 export function Overview({ state }: { state: RuntimeState | undefined }) {
+  const { data: assetsStatus } = useAssetsStatus()
+
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.4fr_1fr]">
       <div className="flex min-w-0 flex-col gap-4">
@@ -24,6 +28,7 @@ export function Overview({ state }: { state: RuntimeState | undefined }) {
         <PerformanceTriggersPanel report={state?.performance_triggers} />
         <RetrainingStatusPanel status={state?.retraining_status} />
         <PaperReadinessPanel status={state?.paper_readiness} />
+        <AssetsStatusPanel status={assetsStatus} />
         <ObservationPanel observation={state?.observation} />
         <SignalBoard signals={state?.signals} />
         <PositionsList positions={state?.positions} />

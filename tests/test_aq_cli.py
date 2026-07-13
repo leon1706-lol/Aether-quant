@@ -502,7 +502,7 @@ def test_fetch_dispatches_to_fetch_adhoc_asset_with_parsed_args():
     with patch("aq_cli.fetch_adhoc_asset", fetch_mock):
         exit_code = args.func(args)
 
-    fetch_mock.assert_called_once_with("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=False)
+    fetch_mock.assert_called_once_with("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=False, extra_metadata=None)
     assert exit_code == 0
 
 
@@ -515,7 +515,7 @@ def test_fetch_apply_flag_is_forwarded():
     with patch("aq_cli.fetch_adhoc_asset", fetch_mock):
         args.func(args)
 
-    fetch_mock.assert_called_once_with("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=True)
+    fetch_mock.assert_called_once_with("crypto", "DOGEUSD", "2023-01-01", "2023-01-03", apply=True, extra_metadata=None)
 
 
 def test_fetch_rejects_unsupported_asset_class():
@@ -707,10 +707,10 @@ def test_ib_status_not_reachable(capsys):
 def test_assets_status_reports_all_sections(capsys):
     parser = aq_cli.build_parser()
     args = parser.parse_args(["assets", "status"])
-    with patch("aq_cli.ib_readiness_status", return_value="disabled"), patch(
-        "aq_cli.load_futures_contract_specs", return_value={"ES": {}, "NQ": {}}
+    with patch("monitoring.assets_status.ib_readiness_status", return_value="disabled"), patch(
+        "monitoring.assets_status.load_futures_contract_specs", return_value={"ES": {}, "NQ": {}}
     ), patch(
-        "aq_cli.load_cached_fred_series",
+        "monitoring.assets_status.load_cached_fred_series",
         return_value={"treasury_10yr": [{"date": date(2026, 7, 1), "value": 0.04}]},
     ):
         exit_code = args.func(args)
@@ -730,9 +730,9 @@ def test_assets_status_reports_all_sections(capsys):
 def test_assets_status_empty_fred_cache_reports_never_populated(capsys):
     parser = aq_cli.build_parser()
     args = parser.parse_args(["assets", "status"])
-    with patch("aq_cli.ib_readiness_status", return_value="disabled"), patch(
-        "aq_cli.load_futures_contract_specs", return_value={}
-    ), patch("aq_cli.load_cached_fred_series", return_value={}):
+    with patch("monitoring.assets_status.ib_readiness_status", return_value="disabled"), patch(
+        "monitoring.assets_status.load_futures_contract_specs", return_value={}
+    ), patch("monitoring.assets_status.load_cached_fred_series", return_value={}):
         args.func(args)
 
     assert "never populated" in capsys.readouterr().out
@@ -761,8 +761,8 @@ def test_assets_status_counts_configured_futures_and_options_assets(tmp_path, ca
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["assets", "status"])
-    with patch("aq_cli.load_futures_contract_specs", return_value={}), patch(
-        "aq_cli.load_cached_fred_series", return_value={}
+    with patch("monitoring.assets_status.load_futures_contract_specs", return_value={}), patch(
+        "monitoring.assets_status.load_cached_fred_series", return_value={}
     ):
         args.func(args)
 

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   fetchAssetPerformance,
+  fetchAssetsStatus,
   fetchEquityCurves,
   fetchMetricsSnapshot,
   fetchNeuralNetwork,
@@ -42,6 +43,14 @@ export function useNeuralNetwork() {
     queryKey: ['neural-network'],
     queryFn: fetchNeuralNetwork,
     refetchInterval: REFRESH_MS,
+  })
+}
+
+export function useAssetsStatus() {
+  return useQuery({
+    queryKey: ['assets-status'],
+    queryFn: fetchAssetsStatus,
+    refetchInterval: TRACING_REFRESH_MS,
   })
 }
 

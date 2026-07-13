@@ -5,20 +5,21 @@
 <h1 align="center">Aether Quant</h1>
 
 <p align="center">
-  <strong>My state-of-the-art flagship trading model — a dynamic, self-adapting algorithmic trading system built on QuantConnect Lean and PyTorch, engineered to prove that dynamic models belong in dynamic markets.</strong>
+  <strong>Aether Quant's flagship trading model — a dynamic, self-adapting algorithmic trading system built on QuantConnect Lean and PyTorch, engineered to prove that dynamic models belong in dynamic markets.</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
   <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-934%2F945%20passing-red?style=flat-square&labelColor=1A1A1A" alt="934 of 945 tests passing"><!-- AQ:TEST_BADGE_END -->
-  <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00" alt="PyPI version">
+  <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/PyTorch-4B5563?style=flat-square&labelColor=1A1A1A&logo=pytorch&logoColor=white" alt="PyTorch">
   <img src="https://img.shields.io/badge/scikit--learn-4B5563?style=flat-square&labelColor=1A1A1A&logo=scikitlearn&logoColor=white" alt="scikit-learn">
-  <img src="https://img.shields.io/badge/QuantConnect%20Lean-4B5563?style=flat-square&labelColor=1A1A1A" alt="QuantConnect Lean">
+  <img src="https://img.shields.io/badge/QuantConnect%20Lean-4B5563?style=flat-square&labelColor=1A1A1A&logo=quantconnect&logoColor=white" alt="QuantConnect Lean">
   <img src="https://img.shields.io/badge/Interactive%20Brokers-4B5563?style=flat-square&labelColor=1A1A1A" alt="Interactive Brokers">
   <img src="https://img.shields.io/badge/FastAPI-4B5563?style=flat-square&labelColor=1A1A1A&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/React-4B5563?style=flat-square&labelColor=1A1A1A&logo=react&logoColor=white" alt="React">
@@ -67,6 +68,7 @@ status`). Remaining, still-open items:
 
 ## Table of Contents
 
+- [Known Limitations](#known-limitations)
 - [Download](#download)
 - [Getting Started](#getting-started)
 - [Requirements](#requirements)
@@ -78,6 +80,21 @@ status`). Remaining, still-open items:
 - [Backtest Results](#backtest-results)
 - [Test Suite](#test-suite)
 - [CLI Reference](#cli-reference)
+  - [`aq train`](#aq-train)
+  - [`aq test`](#aq-test)
+  - [`aq backtest`](#aq-backtest)
+  - [`aq report`](#aq-report)
+  - [`aq api`](#aq-api)
+  - [`aq webui`](#aq-webui)
+  - [`aq docker`](#aq-docker)
+  - [`aq config`](#aq-config)
+  - [`aq lean`](#aq-lean)
+  - [`aq retrain`](#aq-retrain)
+  - [`aq trade-lock`](#aq-trade-lock)
+  - [`aq fetch`](#aq-fetch)
+  - [`aq ib`](#aq-ib)
+  - [`aq assets`](#aq-assets)
+  - [`aq status`](#aq-status)
 - [Release Process](#release-process)
 - [Runbook](#runbook)
 - [Roadmap](#roadmap)
@@ -965,14 +982,16 @@ architecture docs already identify:
 **Expanded asset universe — delivered.** Bonds, futures, and options now
 trade and are observed alongside equities/crypto, with real duration-aware
 bond features, a margin-based futures risk model, Black-Scholes options
-greeks, and Interactive Brokers as the futures/options data source
-(toggleable via `aq config set phase_v2.ib.enabled`/`aq ib status` — the
-whole system works fully with IB disabled). See `aq fetch futures`/`aq
-fetch options` above and `risk/README.md`, `portfolio/README.md`,
-`features/README.md` for the full design. Remaining, deliberately deferred
-scope: automatic multi-leg options spread selection and options order
-placement against a specific resolved contract (see
-`development/Problems.md` #29 for the full non-goals list).
+greeks/IV, real order placement (including for options, against the
+specific resolved contract), and Interactive Brokers as the futures/options
+data source (toggleable via `aq config set phase_v2.ib.enabled`/`aq ib
+status` — the whole system works fully with IB disabled). See `aq fetch
+futures`/`aq fetch options` above and `risk/README.md`,
+`portfolio/README.md`, `features/README.md` for the full design. See
+[Known Limitations](#known-limitations) above for what's still deliberately
+out of scope (automatic multi-leg spread selection) or unverified (no
+completed backtest or live IB Gateway test yet), and
+`development/Problems.md` #29 for the full non-goals list.
 
 ## Contributing
 
@@ -980,6 +999,12 @@ placement against a specific resolved contract (see
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Commit your changes following the existing module structure (see [`development/Changelog.md`](development/Changelog.md) for this project's development history)
 4. Open a Pull Request
+
+---
+
+<p align="center">
+  Built by <strong>Leon Schwarzkopf</strong> — -//-
+</p>
 
 ---
 
