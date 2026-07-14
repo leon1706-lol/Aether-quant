@@ -44,3 +44,6 @@ testpaths = ["tests"]
 # pytest's own `pythonpath` option makes this work identically regardless of
 # how pytest is invoked (bare console script, python -m, any OS, CI).
 pythonpath = ["."]
+markers = [
+    "lean_backtest: real `lean backtest .` integration test (over an hour wall-clock) - excluded from `aq test`'s default run, included via `aq test --lean`/`--full`.",
+]

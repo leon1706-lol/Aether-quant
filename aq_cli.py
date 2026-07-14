@@ -67,6 +67,8 @@ UPDATE_CHECK_TIMEOUT_SECONDS = 2
 _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 _TEST_BADGE_MARKER_START = "<!-- AQ:TEST_BADGE_START -->"
 _TEST_BADGE_MARKER_END = "<!-- AQ:TEST_BADGE_END -->"
+_TEST_COUNT_MARKER_START = "<!-- AQ:TEST_COUNT_START -->"
+_TEST_COUNT_MARKER_END = "<!-- AQ:TEST_COUNT_END -->"
 
 
 def _run(cmd: list[str], cwd: Path = ROOT_DIR) -> int:
@@ -303,35 +305,44 @@ def _train_sequence_only() -> int:
 
 
 def _update_readme_test_badge(passed: int, failed: int) -> None:
-    """Atomically rewrites the shields.io test-count badge between the
-    AQ:TEST_BADGE markers in README.md, so it never drifts from the real
-    pass count. Mirrors the equivalent mechanism in the sibling Aether-Vault
-    project's `av test`. Never raises - a badge-update bug must never fail
-    `aq test` itself."""
+    """Atomically rewrites the shields.io test-count badge AND every
+    AQ:TEST_COUNT-marked "N tests" prose mention (Test Suite section,
+    Module Documentation table's tests/ row) in README.md, so neither ever
+    drifts from the real collected-test total. Mirrors the equivalent
+    mechanism in the sibling Aether-Vault project's `av test`. Never
+    raises - a badge-update bug must never fail `aq test` itself."""
     total = passed + failed
     if total == 0:
-        return  # nothing collected - leave the badge alone rather than zero it out
+        return  # nothing collected - leave the badge/count alone rather than zero them out
     if not README_PATH.is_file():
         return
     text = README_PATH.read_text(encoding="utf-8")
-    if _TEST_BADGE_MARKER_START not in text or _TEST_BADGE_MARKER_END not in text:
-        return
 
-    color = "brightgreen" if failed == 0 else "red"
-    badge = (
-        f'<img src="https://img.shields.io/badge/tests-{passed}%2F{total}%20passing-{color}'
-        f'?style=flat-square&labelColor=1A1A1A" alt="{passed} of {total} tests passing">'
-    )
-    pattern = re.compile(re.escape(_TEST_BADGE_MARKER_START) + r".*?" + re.escape(_TEST_BADGE_MARKER_END), re.DOTALL)
-    replacement = f"{_TEST_BADGE_MARKER_START}{badge}{_TEST_BADGE_MARKER_END}"
-    updated_text = pattern.sub(replacement, text, count=1)
-    if updated_text == text:
+    if _TEST_BADGE_MARKER_START in text and _TEST_BADGE_MARKER_END in text:
+        color = "brightgreen" if failed == 0 else "red"
+        badge = (
+            f'<img src="https://img.shields.io/badge/tests-{passed}%2F{total}%20passing-{color}'
+            f'?style=flat-square&labelColor=1A1A1A" alt="{passed} of {total} tests passing">'
+        )
+        badge_pattern = re.compile(
+            re.escape(_TEST_BADGE_MARKER_START) + r".*?" + re.escape(_TEST_BADGE_MARKER_END), re.DOTALL
+        )
+        text = badge_pattern.sub(f"{_TEST_BADGE_MARKER_START}{badge}{_TEST_BADGE_MARKER_END}", text, count=1)
+
+    if _TEST_COUNT_MARKER_START in text and _TEST_COUNT_MARKER_END in text:
+        count_pattern = re.compile(
+            re.escape(_TEST_COUNT_MARKER_START) + r".*?" + re.escape(_TEST_COUNT_MARKER_END), re.DOTALL
+        )
+        text = count_pattern.sub(f"{_TEST_COUNT_MARKER_START}{total}{_TEST_COUNT_MARKER_END}", text)
+
+    original_text = README_PATH.read_text(encoding="utf-8")
+    if text == original_text:
         return
 
     tmp_path = README_PATH.with_suffix(README_PATH.suffix + ".tmp")
-    tmp_path.write_text(updated_text, encoding="utf-8")
+    tmp_path.write_text(text, encoding="utf-8")
     tmp_path.replace(README_PATH)
-    print(f"Updated README.md test badge: {passed}/{total} passing")
+    print(f"Updated README.md test badge/count: {passed}/{total} passing")
 
 
 def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
@@ -361,18 +372,108 @@ def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
     return process.returncode, "".join(output_lines)
 
 
-def cmd_test(_args: argparse.Namespace) -> int:
+# Subsystem -> tests/*.py filenames, used only when the user passes one or
+# more --<subsystem> flags to filter the run. Not required to be exhaustive
+# (the default, flag-less `aq test` just runs tests/ directly - marker-based
+# exclusion, not this mapping, is what makes that complete) but kept
+# reasonably complete so the flags are actually useful for "test every
+# subsystem" one at a time. test_lean_backtest_ml_coverage.py is
+# deliberately absent from every bucket - it's gated by the lean_backtest
+# marker (see --lean/--full below), never by a subsystem flag.
+_SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
+    "cli": ["test_aq_cli.py", "test_generate_backtest_report.py"],
+    "risk": [
+        "test_risk_controls.py", "test_asset_class_router.py", "test_futures_risk.py",
+        "test_order_gate.py", "test_position_sizing.py", "test_backtest_gate.py",
+        "test_validation_gate.py", "test_manual_override.py",
+    ],
+    "portfolio": [
+        "test_portfolio_book_construction.py", "test_options_strategy.py",
+        "test_options_greeks.py", "test_simulated_portfolio.py",
+    ],
+    "features": [
+        "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
+        "test_technical_indicators.py", "test_train_bond_features.py",
+        "test_train_derivatives_macro_features.py", "test_train_macro_features.py",
+        "test_train_asset_class_context_features.py", "test_train_cross_sectional_features.py",
+        "test_train_indicators.py",
+    ],
+    "data-pipeline": ["test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py"],
+    "webui": [
+        "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
+        "test_rank_ic_monitor.py", "test_observation_metrics.py",
+    ],
+    "ml": [
+        "test_expert_models.py", "test_expert_datasets.py", "test_gating_network.py", "test_train_gating.py",
+        "test_train_multitask.py", "test_train_multitask_architecture.py", "test_train_sequence.py",
+        "test_train_sequence_architecture.py", "test_train_pipeline.py", "test_train_ranking_validation.py",
+        "test_train_walk_forward_windows.py", "test_train_topology.py", "test_learned_topology.py",
+        "test_exported_model.py", "test_market_topology.py", "test_market_regime.py",
+        "test_market_analyzer.py", "test_market_liquidity.py",
+    ],
+    "retraining": [
+        "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
+        "test_retraining_postgres_registry.py", "test_retraining_worker.py", "test_trigger_worker.py",
+        "test_triggers.py", "test_vault_client.py", "test_vault_commands.py", "test_lean_backtest.py",
+        "test_v2_pipeline_manifest.py",
+    ],
+    "notifications": ["test_telegram_alerts.py", "test_telegram_client.py", "test_telegram_worker.py", "test_postgres_telegram.py"],
+    "storage": ["test_postgres_triggers.py", "test_postgres_worker.py", "test_config_cache.py", "test_runtime_config_io.py", "test_experience_queue.py"],
+    "live": [
+        "test_live_credentials.py", "test_live_credentials_io.py", "test_paper_readiness.py",
+        "test_paper_readiness_io.py", "test_paper_readiness_report.py", "test_paper_readiness_scheduler.py",
+    ],
+}
+
+
+def cmd_test(args: argparse.Namespace) -> int:
     """Runs pytest with live-streamed output (same UX as a plain
     subprocess.run), while also capturing it so the real pass/fail count can
     be parsed afterward and used to refresh README.md's test badge - mirrors
-    the sibling Aether-Vault project's `av test` exactly."""
-    exit_code, output = _run_captured([sys.executable, "-m", "pytest", "tests/", "--color=yes"])
+    the sibling Aether-Vault project's `av test` exactly.
+
+    Default (no flags): excludes tests/test_lean_backtest_ml_coverage.py's
+    lean_backtest-marked tests - a real `lean backtest .` run there takes
+    over an hour wall-clock, and this repo's own .venv happens to have a
+    real Lean CLI installed, so that file's skipif alone never actually
+    skipped it. --lean/--full opts back in. --parallel adds pytest-xdist's
+    -n auto (off by default - multiple workers each importing torch is a
+    real OOM risk on memory-constrained dev machines). One or more
+    --<subsystem> flags restrict the run to _SUBSYSTEM_TEST_FILES'
+    filenames for those subsystems instead of the whole tree."""
+    cmd = [sys.executable, "-m", "pytest", "--color=yes", "--durations=15"]
+
+    subsystem_files: list[str] = []
+    for name in _SUBSYSTEM_TEST_FILES:
+        if getattr(args, name.replace("-", "_"), False):
+            subsystem_files.extend(_SUBSYSTEM_TEST_FILES[name])
+    is_filtered_run = bool(subsystem_files)
+
+    if is_filtered_run:
+        cmd.extend(f"tests/{name}" for name in dict.fromkeys(subsystem_files))
+    else:
+        cmd.append("tests/")
+
+    if getattr(args, "lean", False) or getattr(args, "full", False):
+        if is_filtered_run:
+            cmd.append("tests/test_lean_backtest_ml_coverage.py")
+    else:
+        cmd.extend(["-m", "not lean_backtest"])
+
+    if getattr(args, "parallel", False):
+        cmd.extend(["-n", "auto"])
+
+    exit_code, output = _run_captured(cmd)
 
     captured = _ANSI_ESCAPE_PATTERN.sub("", output)
     passed_match = re.search(r"(\d+) passed", captured)
     failed_match = re.search(r"(\d+) failed", captured)
     error_match = re.search(r"(\d+) error", captured)
-    if passed_match:
+    # Only the full, unfiltered default run's pass/fail count reflects the
+    # whole suite - updating the badge from a --cli-only or --lean-only
+    # partial run would make it silently report a subset as if it were
+    # everything.
+    if passed_match and not is_filtered_run:
         passed = int(passed_match.group(1))
         failed = (int(failed_match.group(1)) if failed_match else 0) + (int(error_match.group(1)) if error_match else 0)
         _update_readme_test_badge(passed, failed)
@@ -759,6 +860,20 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser.set_defaults(func=cmd_train)
 
     test_parser = subparsers.add_parser("test", help="Run the test suite (wraps pytest tests/)")
+    test_parser.add_argument(
+        "--lean", "--full", dest="lean", action="store_true",
+        help="Include the real `lean backtest .` integration test (tests/test_lean_backtest_ml_coverage.py, over an hour wall-clock) - excluded by default",
+    )
+    test_parser.add_argument(
+        "--parallel", action="store_true",
+        help="Run via pytest-xdist (-n auto) - off by default, multiple workers importing torch risk OOM on memory-constrained machines",
+    )
+    for _subsystem_name in _SUBSYSTEM_TEST_FILES:
+        test_parser.add_argument(
+            f"--{_subsystem_name}",
+            action="store_true",
+            help=f"Run only the {_subsystem_name} subsystem's tests ({', '.join(_SUBSYSTEM_TEST_FILES[_subsystem_name][:2])}, ...)",
+        )
     test_parser.set_defaults(func=cmd_test)
 
     backtest_parser = subparsers.add_parser("backtest", help="Run a Lean backtest (wraps lean backtest .)")

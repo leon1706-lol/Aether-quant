@@ -1,8 +1,11 @@
+import json
 import math
+from pathlib import Path
 
 import pytest
 
 from inference.exported_model import (
+    _architectures_match,
     _conv1d_causal,
     _layernorm,
     _layernorm_axis,
@@ -14,8 +17,13 @@ from inference.exported_model import (
     resolve_sequence_window_size,
     run_exported_model,
     run_exported_multitask_model,
+    run_exported_multitask_models_batched,
+    run_exported_models_batched,
     run_exported_sequence_multitask_model,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_EXPERT_NAMES = ["bullish", "bearish", "sideways", "volatility"]
 
 
 def test_linear_computes_weighted_sum_plus_bias():
@@ -481,3 +489,205 @@ def test_resolve_sequence_window_size_falls_back_to_config_when_schema_missing()
 
 def test_resolve_sequence_window_size_falls_back_to_config_when_schema_lacks_key():
     assert resolve_sequence_window_size({"model_input_names": []}, 30) == 30
+
+
+# ---------------------------------------------------------------------------
+# Batched inference (run_exported_models_batched / run_exported_multitask_models_batched)
+# - parity net: every batched result must exactly match calling the
+# original single-model function once per entry, since this feeds real
+# trading decisions. See inference/exported_model.py's module comment for
+# why this exists (profiling showed per-call dispatch overhead dominating).
+# ---------------------------------------------------------------------------
+
+
+def _variant_model_export(scale: float) -> dict:
+    """Same architecture as _synthetic_model_export() above, weights
+    scaled by `scale` - stands in for "4 separately-trained experts sharing
+    one architecture," which is what real ml/expert_models/*/model_weights.json
+    actually look like (verified during this pass: identical layer types
+    and weight shapes, different trained values)."""
+    base = _synthetic_model_export()
+    state_dict = base["export"]["state_dict"]
+    scaled_state_dict = {
+        key: [[v * scale for v in row] for row in value] if isinstance(value[0], list) else [v * scale for v in value]
+        for key, value in state_dict.items()
+    }
+    return {"export": {"architecture": base["export"]["architecture"], "state_dict": scaled_state_dict}}
+
+
+def test_architectures_match_true_for_identical_layer_type_and_key_sequences():
+    a = _synthetic_model_export()["export"]["architecture"]
+    b = _synthetic_model_export()["export"]["architecture"]
+    assert _architectures_match([a, b]) is True
+
+
+def test_architectures_match_true_for_single_or_empty_list():
+    a = _synthetic_model_export()["export"]["architecture"]
+    assert _architectures_match([a]) is True
+    assert _architectures_match([]) is True
+
+
+def test_architectures_match_false_when_layer_types_differ():
+    a = _synthetic_model_export()["export"]["architecture"]
+    b = a + [{"type": "relu"}]
+    assert _architectures_match([a, b]) is False
+
+
+def test_run_exported_models_batched_matches_individual_calls():
+    models = [_variant_model_export(scale) for scale in (1.0, 0.8, 1.3)]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_models_batched(models, inputs)
+    individual = [run_exported_model(m, inputs) for m in models]
+
+    assert batched == pytest.approx(individual, abs=1e-9)
+
+
+def test_run_exported_models_batched_preserves_none_at_missing_indices():
+    models = [_variant_model_export(1.0), None, _variant_model_export(0.8)]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_models_batched(models, inputs)
+
+    assert batched[1] is None
+    assert batched[0] == pytest.approx(run_exported_model(models[0], inputs), abs=1e-9)
+    assert batched[2] == pytest.approx(run_exported_model(models[2], inputs), abs=1e-9)
+
+
+def test_run_exported_models_batched_falls_back_when_fewer_than_two_present():
+    models = [_variant_model_export(1.0), None, None]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_models_batched(models, inputs)
+
+    assert batched[0] == pytest.approx(run_exported_model(models[0], inputs), abs=1e-9)
+    assert batched[1] is None and batched[2] is None
+
+
+def test_run_exported_models_batched_falls_back_when_architectures_differ():
+    matching = _variant_model_export(1.0)
+    mismatched = _variant_model_export(0.8)
+    mismatched["export"]["architecture"] = mismatched["export"]["architecture"] + [{"type": "relu"}]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_models_batched([matching, mismatched], inputs)
+
+    assert batched[0] == pytest.approx(run_exported_model(matching, inputs), abs=1e-9)
+    assert batched[1] == pytest.approx(run_exported_model(mismatched, inputs), abs=1e-9)
+
+
+def test_run_exported_models_batched_falls_back_on_shape_mismatch_without_crashing():
+    """Same layer-type/key sequence (passes _architectures_match) but a
+    genuinely different hidden width - the real-world failure mode a type/
+    key check alone can't catch. Must degrade to the individual-calls
+    fallback, never raise."""
+    a = _variant_model_export(1.0)
+    b = _variant_model_export(0.8)
+    # Widen b's hidden layer from 3 to 4 units - same keys/types, incompatible shape.
+    b["export"]["state_dict"]["l1.weight"] = [[0.5, -0.25], [0.1, 0.3], [-0.2, 0.4], [0.1, -0.1]]
+    b["export"]["state_dict"]["l1.bias"] = [0.1, -0.1, 0.05, 0.0]
+    b["export"]["state_dict"]["ln.weight"] = [1.0, 1.0, 1.0, 1.0]
+    b["export"]["state_dict"]["ln.bias"] = [0.0, 0.0, 0.0, 0.0]
+    b["export"]["state_dict"]["l2.weight"] = [[0.3, -0.4, 0.2, 0.1]]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_models_batched([a, b], inputs)
+
+    assert batched[0] == pytest.approx(run_exported_model(a, inputs), abs=1e-9)
+    assert batched[1] == pytest.approx(run_exported_model(b, inputs), abs=1e-9)
+
+
+def _load_real_expert_exports(filename: str) -> list[dict]:
+    exports = []
+    for name in _EXPERT_NAMES:
+        path = _REPO_ROOT / "ml" / "expert_models" / name / filename
+        with path.open("r", encoding="utf-8") as f:
+            exports.append(json.load(f))
+    return exports
+
+
+@pytest.mark.skipif(
+    not (_REPO_ROOT / "ml" / "expert_models" / "bullish" / "model_weights.json").exists(),
+    reason="real trained expert exports not present in this checkout",
+)
+def test_run_exported_models_batched_matches_individual_calls_on_real_expert_exports():
+    """Highest-confidence parity check: real, currently-deployed expert
+    weights (ml/expert_models/*/model_weights.json), not synthetic
+    stand-ins."""
+    experts = _load_real_expert_exports("model_weights.json")
+    input_width = experts[0]["export"]["architecture"][0]["in_features"]
+    inputs = [0.1 * i for i in range(input_width)]
+
+    batched = run_exported_models_batched(experts, inputs)
+    individual = [run_exported_model(m, inputs) for m in experts]
+
+    assert batched == pytest.approx(individual, abs=1e-7)
+
+
+def _variant_multitask_model_export(scale: float) -> dict:
+    base = _synthetic_multitask_model_export()
+    state_dict = base["export"]["state_dict"]
+    scaled_state_dict = {
+        key: [[v * scale for v in row] for row in value] if isinstance(value[0], list) else [v * scale for v in value]
+        for key, value in state_dict.items()
+    }
+    return {
+        "export": {
+            "trunk": base["export"]["trunk"],
+            "heads": base["export"]["heads"],
+            "state_dict": scaled_state_dict,
+        }
+    }
+
+
+def test_run_exported_multitask_models_batched_matches_individual_calls():
+    models = [_variant_multitask_model_export(scale) for scale in (1.0, 0.8, 1.3)]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_multitask_models_batched(models, inputs)
+    individual = [run_exported_multitask_model(m, inputs) for m in models]
+
+    for batched_result, individual_result in zip(batched, individual):
+        assert batched_result == pytest.approx(individual_result, abs=1e-9)
+
+
+def test_run_exported_multitask_models_batched_preserves_none_at_missing_indices():
+    models = [_variant_multitask_model_export(1.0), None, _variant_multitask_model_export(0.8)]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_multitask_models_batched(models, inputs)
+
+    assert batched[1] is None
+    assert batched[0] == pytest.approx(run_exported_multitask_model(models[0], inputs), abs=1e-9)
+
+
+def test_run_exported_multitask_models_batched_falls_back_when_head_names_differ():
+    a = _variant_multitask_model_export(1.0)
+    b = _variant_multitask_model_export(0.8)
+    del b["export"]["heads"]["volatility"]
+    inputs = [1.0, -0.5]
+
+    batched = run_exported_multitask_models_batched([a, b], inputs)
+
+    assert batched[0] == pytest.approx(run_exported_multitask_model(a, inputs), abs=1e-9)
+    assert batched[1] == pytest.approx(run_exported_multitask_model(b, inputs), abs=1e-9)
+
+
+@pytest.mark.skipif(
+    not (_REPO_ROOT / "ml" / "expert_models" / "bullish" / "multitask_model.json").exists(),
+    reason="real trained expert multitask exports not present in this checkout",
+)
+def test_run_exported_multitask_models_batched_matches_individual_calls_on_real_expert_exports():
+    experts = _load_real_expert_exports("multitask_model.json")
+    # Multitask exports don't carry in_features on the trunk's first layer
+    # the way the flat baseline export does - infer width from the
+    # trunk's first linear layer's own weight matrix instead.
+    first_linear = next(layer for layer in experts[0]["export"]["trunk"] if layer["type"] == "linear")
+    input_width = len(experts[0]["export"]["state_dict"][first_linear["weight_key"]][0])
+    inputs = [0.1 * i for i in range(input_width)]
+
+    batched = run_exported_multitask_models_batched(experts, inputs)
+    individual = [run_exported_multitask_model(m, inputs) for m in experts]
+
+    for batched_result, individual_result in zip(batched, individual):
+        assert batched_result == pytest.approx(individual_result, abs=1e-7)

@@ -97,3 +97,6 @@ webui/dist/
 # Lean CLI's ephemeral per-backtest Docker containers instead of rebuilding
 # every run (see Problems.md)
 .matplotlib_cache/
+
+# scripts/profile_inference.py's pstats dump - regenerable output, not source
+scripts/profile_inference_output*.txt

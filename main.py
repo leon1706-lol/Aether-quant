@@ -59,6 +59,8 @@ from inference import (
     resolve_sequence_window_size,
     run_exported_model,
     run_exported_multitask_model,
+    run_exported_multitask_models_batched,
+    run_exported_models_batched,
     run_exported_sequence_multitask_model,
 )
 from features import (
@@ -1287,17 +1289,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         return run_exported_model(self.model_export, inputs)
 
     def _run_expert_models(self, inputs: list[float]) -> dict:
-        probabilities = {}
-        for expert_name in EXPERT_NAMES:
-            model_export = self.expert_model_exports.get(expert_name)
-            if not model_export:
-                probabilities[expert_name] = None
-                continue
-            try:
-                probabilities[expert_name] = run_exported_model(model_export, inputs)
-            except Exception as error:
-                probabilities[expert_name] = None
-                self.Debug(f"Expert inference failed for {expert_name}: {error}")
+        """Batched across all 4 experts (one NumPy call per layer instead
+        of 4 separate run_exported_model() calls) whenever their exported
+        architectures match closely enough - see
+        inference/exported_model.py::run_exported_models_batched(). Falls
+        back to the original per-expert behavior automatically and safely
+        whenever they don't (e.g. only some experts trained, or a shape
+        mismatch) - added after profiling (scripts/profile_inference.py)
+        showed this loop as a meaningful share of the per-bar hot path's
+        cost, see development/Problems.md."""
+        model_exports = [self.expert_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
+        results = run_exported_models_batched(model_exports, inputs)
+        probabilities = dict(zip(EXPERT_NAMES, results))
+        for expert_name, model_export, result in zip(EXPERT_NAMES, model_exports, results):
+            if model_export and result is None:
+                self.Debug(f"Expert inference failed for {expert_name}")
         return probabilities
 
     def _run_multitask_model(self, inputs: list[float]) -> dict | None:
@@ -1319,23 +1325,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         final_magnitude/final_volatility weighted blend (see
         moe/README.md). A missing or failed expert just contributes None
         to both dicts, same per-expert graceful-degradation contract as
-        _run_expert_models()."""
+        _run_expert_models(). Batched across all 4 experts the same way
+        _run_expert_models() is - see
+        inference/exported_model.py::run_exported_multitask_models_batched()."""
+        model_exports = [self.expert_multitask_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
+        results = run_exported_multitask_models_batched(model_exports, inputs)
+
         magnitudes: dict[str, float | None] = {}
         volatilities: dict[str, float | None] = {}
-        for expert_name in EXPERT_NAMES:
-            model_export = self.expert_multitask_model_exports.get(expert_name)
-            if not model_export:
-                magnitudes[expert_name] = None
-                volatilities[expert_name] = None
-                continue
-            try:
-                result = run_exported_multitask_model(model_export, inputs)
-                magnitudes[expert_name] = result.get("magnitude")
-                volatilities[expert_name] = result.get("volatility")
-            except Exception as error:
-                magnitudes[expert_name] = None
-                volatilities[expert_name] = None
-                self.Debug(f"Expert multitask inference failed for {expert_name}: {error}")
+        for expert_name, model_export, result in zip(EXPERT_NAMES, model_exports, results):
+            magnitudes[expert_name] = result.get("magnitude") if result else None
+            volatilities[expert_name] = result.get("volatility") if result else None
+            if model_export and result is None:
+                self.Debug(f"Expert multitask inference failed for {expert_name}")
         return magnitudes, volatilities
 
     def _run_sequence_model(self, symbol) -> dict | None:

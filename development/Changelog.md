@@ -2603,3 +2603,76 @@ while Docker Desktop (started for the backtest smoke test below) was also
 running; stopping Docker freed enough memory for a clean retry. Not a code
 bug — a real resource ceiling worth knowing about before running the full
 zoo and a Lean backtest concurrently on a similarly small machine.
+
+## Infrastructure/latency pass — `aq test` speed, inference-hot-path profiling, CI Docker cache
+
+A research-first pass (3 parallel Explore agents before any code changed,
+per the explicit "profile before optimizing blindly" instruction) into
+four infrastructure/latency requests. Full writeup in
+`development/Problems.md` #31 — summary here.
+
+**`aq test` was silently running a real `lean backtest .` on every
+invocation** (its `skipif` checked binary availability, not intent — this
+repo's `.venv` has a real Lean CLI, so it always ran; the file's own
+comment documents "over an hour wall-clock"). Fixed via a new
+`lean_backtest` pytest marker, excluded by default, opt-in via `aq test
+--lean`/`--full`. `aq test` also gained 11 combinable per-subsystem flags
+(`--cli`, `--risk`, `--portfolio`, `--features`, `--data-pipeline`,
+`--webui`, `--ml`, `--retraining`, `--notifications`, `--storage`,
+`--live`) and an opt-in `--parallel` (`pytest-xdist`, off by default —
+this session's own earlier OOM incident on this ~4GB-RAM machine made
+default-on parallelism the wrong call). Default `aq test` now runs 1153
+tests in well under a minute of actual test time instead of over an hour.
+
+**Built `scripts/profile_inference.py`** — no profiling harness existed
+anywhere in this repo before this. cProfile against real exported model
+weights (never synthetic ones). Found and fixed two real hot-path costs:
+`inference/exported_model.py::_conv1d_causal()`'s per-timestep Python loop
+(the sequence model's causal TCN — the single largest cost in the whole
+hot path, bigger than the expert loop) rewritten as one vectorized
+fancy-index-gather-plus-batched-einsum call; and `main.py`'s 4-expert loop
+(`_run_expert_models()`/`_run_expert_multitask_models()`) batched into one
+NumPy call per layer across all 4 experts (`run_exported_models_batched()`/
+`run_exported_multitask_models_batched()`, new in `inference/`) instead of
+4 separate dispatch calls, with a safe fallback to the original per-model
+loop whenever architectures don't actually match. **Net: 448.4s → 290.6s,
+-35.2%**, measured on the harness's 10,000-iteration synthetic workload.
+Numba JIT was evaluated (per an explicit decision to do so) against the
+post-fix profile and not added — the remaining costs are already
+vectorized NumPy, not the Python-loop-driven dispatch overhead pattern
+Numba would target. Rust/C++ rewrite stays explicitly out of scope,
+future-HFT-fork territory. Parity-tested: new batched-vs-individual
+tests in `tests/test_exported_model.py` using both synthetic fixtures and
+the real `ml/expert_models/*` exports; the conv1d rewrite also verified
+bit-identical against the original loop across 200 random-parameter fuzz
+trials.
+
+**CI Docker builds never cached.** The premise that local Dockerfiles
+reload every dependency on every build didn't hold (all 3 already install
+deps before copying source — correct layer order already). The real gap
+was `.github/workflows/release.yml`'s `docker/build-push-action@v6` step
+having no cache configured; added `cache-from: type=gha` /
+`cache-to: type=gha,mode=max`.
+
+**Documentation audit** (prompted mid-pass): `features/`, `portfolio/`,
+and `backtests/` all had real README.md files never linked from the main
+README's Project Structure tree or Module Documentation table; `scripts/`
+(new home for the profiler) had no README at all. All fixed. The Test
+Suite section's and Module Documentation table's "N tests" prose mentions
+now share the same `AQ:TEST_COUNT` marker mechanism the shields.io badge
+already used, so `aq test` keeps every count in sync, not just the badge.
+
+### Verification
+
+`pytest tests/ -m "not lean_backtest"` — 1153 passed, 11 deselected
+(the lean_backtest-marked tests), 0 failures, re-run after every
+inference-path change (batching wiring, conv1d vectorization) with no
+regressions. `tests/test_exported_model.py` alone: 41 passed (13 new
+batching-parity tests). `tests/test_aq_cli.py` alone: 103 passed (new
+flag-parsing/dispatch and test-count-marker tests included). Full
+before/after profiling numbers, including the noisy intermediate
+measurement and why it doesn't change the conclusion, are in
+`development/Problems.md` #31. Not verified this pass: an actual `lean
+backtest .` run (the whole point of excluding it from default `aq test`)
+and a real IB connection — both remain the user's own manual-verification
+step, per this session's established pattern.

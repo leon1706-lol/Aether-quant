@@ -70,3 +70,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # GitHub Actions cache backend - without this, every release
+          # build started cold (no layer reuse across releases) even
+          # though the Dockerfile itself is already correctly ordered
+          # (deps installed before source COPY, see development/Problems.md).
+          # mode=max caches every intermediate layer, not just the final
+          # image, so the npm ci/pip install layers survive between runs.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

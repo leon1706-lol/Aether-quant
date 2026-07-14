@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-934%2F945%20passing-red?style=flat-square&labelColor=1A1A1A" alt="934 of 945 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1156%2F1156%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1156 of 1156 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -442,6 +442,8 @@ aether-quant/
 ├── analyzer/                    # Central market analyzer (final per-asset decision layer)
 ├── moe/                         # Mixture-of-Experts gating network
 ├── experts/                     # Bullish / bearish / sideways / volatility expert models
+├── features/                    # Shared feature-computation functions (train.py + main.py parity)
+├── portfolio/                   # Stage-2 cross-sectional long/short book construction + options sizing
 ├── regime/                      # Market regime detection
 ├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
 ├── liquidity/                   # Liquidity / market-impact engine
@@ -457,6 +459,7 @@ aether-quant/
 ├── webui/                       # React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing)
 ├── ml/                          # Model weights, datasets, versioned retraining candidates
 ├── storage/                     # Reserved for future persistent artifact storage
+├── scripts/                     # Standalone dev tooling (e.g. profile_inference.py)
 ├── requirements/                # All requirements*.txt variants
 ├── tests/                       # Full pytest suite (828 tests)
 ├── backtests/                   # Lean backtest run outputs (gitignored)
@@ -483,11 +486,13 @@ and how it's wired in — this table is the index.
 | Module | What it owns | Docs |
 |---|---|---|
 | `analyzer/` | Central market analyzer — the final per-asset action categorization layer | [README](analyzer/README.md) |
+| `backtests/` | Strategy validation output (active model + per-candidate reports), gitignored | [README](backtests/README.md) |
 | `data/` | Local Lean data-folder format documentation | [README](data/README.md) |
 | `data_pipeline/` | Lean-data contract + Yahoo Finance historical backfill | [README](data_pipeline/README.md) |
 | `execution/` | Order gating, paper/live broker readiness, config-read caching | [README](execution/README.md) |
 | `experience/` | Observation/decision history — Redis buffer + PostgreSQL persistence | [README](experience/README.md) |
 | `experts/` | Bullish, bearish, sideways, and volatility expert models | [README](experts/README.md) |
+| `features/` | Shared feature-computation functions, called from both `train.py` and `main.py` for train/inference parity | [README](features/README.md) |
 | `inference/` | Vectorized forward-pass interpreter for the exported neural networks | [README](inference/README.md) |
 | `liquidity/` | Liquidity and market-impact engine | [README](liquidity/README.md) |
 | `ml/` | Model & dataset artifacts, including versioned retraining candidates | [README](ml/README.md) |
@@ -495,12 +500,14 @@ and how it's wired in — this table is the index.
 | `monitoring/` | FastAPI JSON API serving runtime state to the webui | [README](monitoring/README.md) |
 | `notifications/` | Telegram alerting worker | [README](notifications/README.md) |
 | `performance/` | Performance trigger system (14 trigger functions) | [README](performance/README.md) |
+| `portfolio/` | Stage-2 cross-sectional long/short book construction + Black-Scholes options sizing | [README](portfolio/README.md) |
 | `regime/` | Market regime detection | [README](regime/README.md) |
 | `requirements/` | All `requirements*.txt` variants and what consumes each | [README](requirements/README.md) |
 | `retraining/` | Controlled retraining — plan/train/validate/backtest/commit/promote/rollback | [README](retraining/README.md) |
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
+| `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (828 tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1156<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -608,7 +615,7 @@ genuinely halted trading exactly as designed.
 
 ## Test Suite
 
-828 tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1156<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -663,9 +670,25 @@ mechanism" section.
 
 #### `aq test`
 ```text
-aq test
+aq test [--lean|--full] [--parallel] [--cli] [--risk] [--portfolio] [--features]
+        [--data-pipeline] [--webui] [--ml] [--retraining] [--notifications]
+        [--storage] [--live]
 ```
-Runs the pytest suite and refreshes this README's test badge.
+Runs the pytest suite and refreshes this README's test badge (only on a
+full, unfiltered default run — a subsystem-filtered run's pass count is a
+subset, never written into the badge). By default, excludes
+`tests/test_lean_backtest_ml_coverage.py`'s real `lean backtest .`
+integration test (over an hour wall-clock) — its own `skipif` only checks
+whether the Lean CLI is *installed*, which it is in this repo's `.venv`, so
+without this exclusion it silently ran on every `aq test`. Pass
+`--lean`/`--full` to include it when you deliberately want full-system
+coverage. `--parallel` runs via `pytest-xdist` (`-n auto`) — off by
+default, since multiple workers each importing PyTorch is a real OOM risk
+on memory-constrained machines. Any combination of the subsystem flags
+(`--cli`, `--risk`, `--portfolio`, `--features`, `--data-pipeline`,
+`--webui`, `--ml`, `--retraining`, `--notifications`, `--storage`,
+`--live`) restricts the run to just those subsystems' test files instead
+of the whole tree — run `aq test --help` for the exact file mapping.
 
 #### `aq backtest`
 ```text

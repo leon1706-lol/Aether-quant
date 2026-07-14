@@ -116,6 +116,39 @@ default `0.0` — off, byte-identical fallback) — see `moe/README.md`'s
 section for why gating was chosen over a direct market-analyzer or
 position-sizing wire, and `development/Changelog.md`.
 
+## Infra pass: batched multi-expert inference + vectorized causal conv
+
+`scripts/profile_inference.py` (a new cProfile harness against real
+exported weights, no synthetic stand-ins) found two real hot-path costs
+this session, closed in the same pass:
+
+- **The 4-expert loop.** `main.py::_run_expert_models()`/
+  `_run_expert_multitask_models()` used to call `run_exported_model()`/
+  `run_exported_multitask_model()` once per expert (4 separate small
+  NumPy dispatch calls, on models confirmed to share byte-identical
+  architecture/weight shapes). `run_exported_models_batched()`/
+  `run_exported_multitask_models_batched()` stack all present experts'
+  weights into one leading batch axis and run ONE
+  `_linear_batched()`/`_layernorm_batched()` call per layer instead —
+  falling back to the original per-model loop (same graceful
+  degradation, one bad expert never takes the others down with it)
+  whenever fewer than 2 experts are present or their architectures/
+  shapes don't actually match closely enough to batch safely.
+- **`_conv1d_causal()`'s per-timestep Python loop** (the sequence
+  model's causal TCN) turned out to be the single largest cost in the
+  whole hot path — bigger than the expert loop. Rewritten to gather
+  every timestep's dilated taps in one fancy-index op and run a single
+  batched `einsum` instead of a `for timestep in range(window):` loop
+  with its own einsum call each iteration. Same function signature,
+  same output (bit-identical, verified against 200 random-parameter
+  fuzz trials, not just the existing fixed test cases) — a pure speed
+  change, zero behavior change.
+
+Net effect measured by the harness: **-35.2%** total profiled cost
+(448.4s → 290.6s across the same 10,000-iteration synthetic workload).
+See `development/Problems.md` for the full before/after numbers and why
+Numba JIT was evaluated but not added this pass.
+
 ## Testing
 
 `tests/test_exported_model.py` is the parity net for the numpy
@@ -123,7 +156,10 @@ vectorization: hand-computed `_linear`/`_layernorm`/`_sigmoid`/`_softplus`
 assertions at tight tolerance, plus full-stack forward-pass tests
 (`run_exported_model()`, `run_exported_multitask_model()`, and
 `run_exported_sequence_multitask_model()`) checked against independently
-hand-transcribed reference implementations. See
+hand-transcribed reference implementations, plus (this pass) batched-vs-
+individual parity tests for `run_exported_models_batched()`/
+`run_exported_multitask_models_batched()` using both synthetic
+multi-model fixtures and the real `ml/expert_models/*` exports. See
 `development/Changelog.md`'s latency-optimization entry and
 `development/v2_architecture.md`'s per-bar hot-path table for the fuller
 extraction story.

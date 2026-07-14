@@ -109,6 +109,210 @@ def _run_layer_stack(layers: list[dict], state_dict: dict, current: np.ndarray) 
     return current
 
 
+# ---------------------------------------------------------------------------
+# Batched inference across multiple SAME-ARCHITECTURE models sharing one
+# input (main.py's 4-expert loop / 4-multitask-expert loop) - one NumPy call
+# per layer across all N stacked models instead of N separate
+# run_exported_model()/run_exported_multitask_model() calls. Added after
+# scripts/profile_inference.py's cProfile run showed Python/NumPy per-call
+# dispatch overhead dominating this hot path's cost, not FLOPs (see
+# development/Problems.md) - the models involved (85->24->1, 4 of them) are
+# too small for raw matmul throughput to matter; call-count is what matters.
+# ---------------------------------------------------------------------------
+
+
+def _architectures_match(architectures: list[list[dict]]) -> bool:
+    """True iff every model's layer-type-and-key sequence is identical -
+    the precondition for batching. Compares type/weight_key/bias_key per
+    layer, not weight shapes - a shape mismatch despite matching keys would
+    be a genuinely corrupt export and is left to surface as a numpy error,
+    caught by run_exported_models_batched()'s own try/except fallback."""
+    if len(architectures) < 2:
+        return True
+    first = [(layer["type"], layer.get("weight_key"), layer.get("bias_key")) for layer in architectures[0]]
+    return all(
+        [(layer["type"], layer.get("weight_key"), layer.get("bias_key")) for layer in arch] == first
+        for arch in architectures[1:]
+    )
+
+
+def _linear_batched(current: np.ndarray, weights_stack: np.ndarray, bias_stack: np.ndarray) -> np.ndarray:
+    """Batched sibling of _linear() - one einsum across all N stacked
+    models instead of N separate `weights @ input + bias` calls.
+    current: (N, in_features); weights_stack: (N, out_features,
+    in_features); bias_stack: (N, out_features)."""
+    return np.einsum("noi,ni->no", weights_stack, current) + bias_stack
+
+
+def _layernorm_batched(current: np.ndarray, weights_stack: np.ndarray, bias_stack: np.ndarray, eps: float) -> np.ndarray:
+    """Batched sibling of _layernorm() - each row (model) normalized
+    independently using its OWN mean/variance along the feature axis, then
+    scaled/shifted by that row's own separately-trained weight/bias.
+    Unlike _layernorm_axis() (one shared weight/bias broadcast across every
+    row, used by the sequence encoder's single-model timestep axis), every
+    stacked model here has its own weights - genuinely different from a
+    plain broadcast."""
+    mean_value = current.mean(axis=-1, keepdims=True)
+    variance = current.var(axis=-1, keepdims=True)
+    normalized = (current - mean_value) / np.sqrt(variance + eps)
+    return normalized * weights_stack + bias_stack
+
+
+def _run_batched_layer_stack(layers: list[dict], state_dicts: list[dict], current: np.ndarray) -> np.ndarray:
+    """Batched sibling of _run_layer_stack() - current starts as (N,
+    features) instead of (features,), one row per stacked model, and each
+    linear/layernorm layer pulls that layer's weights from every model's
+    own state_dict rather than one shared state_dict."""
+    for layer in layers:
+        layer_type = layer["type"]
+        if layer_type == "linear":
+            weights_stack = np.stack([np.asarray(sd[layer["weight_key"]], dtype=np.float64) for sd in state_dicts])
+            bias_stack = np.stack([np.asarray(sd[layer["bias_key"]], dtype=np.float64) for sd in state_dicts])
+            current = _linear_batched(current, weights_stack, bias_stack)
+        elif layer_type == "layernorm":
+            weights_stack = np.stack([np.asarray(sd[layer["weight_key"]], dtype=np.float64) for sd in state_dicts])
+            bias_stack = np.stack([np.asarray(sd[layer["bias_key"]], dtype=np.float64) for sd in state_dicts])
+            current = _layernorm_batched(current, weights_stack, bias_stack, float(layer.get("eps", 1e-5)))
+        elif layer_type == "relu":
+            current = np.maximum(current, 0.0)
+        elif layer_type == "dropout":
+            continue
+        elif layer_type == "sigmoid":
+            current = _sigmoid(current)
+        elif layer_type == "softplus":
+            current = _softplus(current)
+        else:
+            raise ValueError(f"Unsupported layer type in export: {layer_type}")
+    return current
+
+
+def _run_models_individually_with_fallback(model_exports: list[dict | None], inputs: list[float]) -> list[float | None]:
+    """Exactly today's pre-batching behavior: one run_exported_model() call
+    per present entry, None preserved for missing entries, one failed
+    model degrading to None WITHOUT taking any other entry down with it -
+    the same per-expert graceful-degradation contract
+    main.py::_run_expert_models() has always had. Used as the batching
+    functions' fallback whenever batching isn't safe/possible, so that
+    fallback path is never a behavior change, only a performance one."""
+    results: list[float | None] = []
+    for export in model_exports:
+        if not export:
+            results.append(None)
+            continue
+        try:
+            results.append(run_exported_model(export, inputs))
+        except Exception:
+            results.append(None)
+    return results
+
+
+def run_exported_models_batched(model_exports: list[dict | None], inputs: list[float]) -> list[float | None]:
+    """Batched sibling of calling run_exported_model() once per entry in a
+    loop (main.py::_run_expert_models()'s previous shape, still available
+    via _run_models_individually_with_fallback() above). Stacks every
+    PRESENT model's per-layer weights into one leading batch axis and runs
+    one _linear_batched()/_layernorm_batched() call per layer instead of N
+    separate run_exported_model() calls.
+
+    Falls back to the individually-with-fallback path - never raises,
+    never silently produces a wrong answer - whenever fewer than 2 models
+    are present, their architectures don't match closely enough to batch,
+    or the batched computation itself raises for any reason (e.g. a shape
+    mismatch a type/key match didn't catch - a real safety net, not just a
+    defensive habit: a retrained single expert with a different hidden
+    width would otherwise silently corrupt every other expert's output via
+    a numpy broadcast if this fell through to batching anyway).
+
+    Returns one float per entry in model_exports, None preserved at any
+    index whose export was None/falsy - same shape contract
+    main.py::_run_expert_models() already depends on."""
+    present_indices = [i for i, export in enumerate(model_exports) if export]
+    if len(present_indices) < 2:
+        return _run_models_individually_with_fallback(model_exports, inputs)
+
+    architectures = [model_exports[i]["export"]["architecture"] for i in present_indices]
+    if not _architectures_match(architectures):
+        return _run_models_individually_with_fallback(model_exports, inputs)
+
+    try:
+        state_dicts = [model_exports[i]["export"]["state_dict"] for i in present_indices]
+        current = np.tile(np.asarray(inputs, dtype=np.float64), (len(present_indices), 1))
+        current = _run_batched_layer_stack(architectures[0], state_dicts, current)
+    except Exception:
+        return _run_models_individually_with_fallback(model_exports, inputs)
+
+    results: list[float | None] = [None] * len(model_exports)
+    for row, original_index in enumerate(present_indices):
+        results[original_index] = float(current[row, 0])
+    return results
+
+
+def _run_multitask_models_individually_with_fallback(
+    model_exports: list[dict | None], inputs: list[float]
+) -> list[dict[str, float] | None]:
+    """Multitask sibling of _run_models_individually_with_fallback() -
+    same per-expert graceful-degradation contract
+    main.py::_run_expert_multitask_models() has always had."""
+    results: list[dict[str, float] | None] = []
+    for export in model_exports:
+        if not export:
+            results.append(None)
+            continue
+        try:
+            results.append(run_exported_multitask_model(export, inputs))
+        except Exception:
+            results.append(None)
+    return results
+
+
+def run_exported_multitask_models_batched(
+    model_exports: list[dict | None], inputs: list[float]
+) -> list[dict[str, float] | None]:
+    """Batched sibling of run_exported_multitask_model(), for
+    main.py::_run_expert_multitask_models()'s per-expert loop. Batches the
+    shared trunk across all N present models first, then batches each head
+    (direction/magnitude/volatility) across the same N models starting
+    from the trunk's own per-model output - correct only when every
+    present model shares the same trunk AND the same head names/
+    architectures, checked the same way run_exported_models_batched()
+    checks its flat models. Same graceful-degradation contract and
+    same-shape fallback safety net as run_exported_models_batched()."""
+    present_indices = [i for i, export in enumerate(model_exports) if export]
+    if len(present_indices) < 2:
+        return _run_multitask_models_individually_with_fallback(model_exports, inputs)
+
+    exports = [model_exports[i]["export"] for i in present_indices]
+    trunk_architectures = [export["trunk"] for export in exports]
+    head_name_sets = [tuple(sorted(export["heads"].keys())) for export in exports]
+    if not _architectures_match(trunk_architectures) or len(set(head_name_sets)) != 1:
+        return _run_multitask_models_individually_with_fallback(model_exports, inputs)
+
+    head_names = head_name_sets[0]
+    head_architectures_by_name = {
+        name: [export["heads"][name] for export in exports] for name in head_names
+    }
+    if any(not _architectures_match(archs) for archs in head_architectures_by_name.values()):
+        return _run_multitask_models_individually_with_fallback(model_exports, inputs)
+
+    try:
+        state_dicts = [export["state_dict"] for export in exports]
+        trunk_current = np.tile(np.asarray(inputs, dtype=np.float64), (len(present_indices), 1))
+        trunk_output = _run_batched_layer_stack(trunk_architectures[0], state_dicts, trunk_current)
+
+        head_outputs: dict[str, np.ndarray] = {}
+        for head_name in head_names:
+            head_outputs[head_name] = _run_batched_layer_stack(
+                head_architectures_by_name[head_name][0], state_dicts, trunk_output.copy()
+            )
+    except Exception:
+        return _run_multitask_models_individually_with_fallback(model_exports, inputs)
+
+    results: list[dict[str, float] | None] = [None] * len(model_exports)
+    for row, original_index in enumerate(present_indices):
+        results[original_index] = {head_name: float(head_outputs[head_name][row, 0]) for head_name in head_names}
+    return results
+
+
 def _softmax(values, axis: int = -1):
     """Numerically stable softmax along `axis` (subtracts the per-axis max
     before exponentiating). Phase 2 primitive - used by
@@ -172,15 +376,25 @@ def _conv1d_causal(sequence, weights, bias, dilation: int = 1) -> np.ndarray:
     padded = np.zeros((window + pad_left, in_channels), dtype=np.float64)
     padded[pad_left:, :] = sequence_array
 
-    output = np.empty((window, out_channels), dtype=np.float64)
-    for timestep in range(window):
-        # Gather the kernel_size dilated taps ending at this (padded) timestep.
-        tap_indices = timestep + pad_left - np.arange(kernel_size - 1, -1, -1) * dilation
-        window_slice = padded[tap_indices, :]  # (kernel_size, in_channels)
-        # weights_array is (out_channels, in_channels, kernel_size); align
-        # the einsum's k/c axes to window_slice's (kernel_size, in_channels).
-        output[timestep, :] = np.einsum("oik,ki->o", weights_array, window_slice) + bias_array
-    return output
+    # Vectorized sibling of the original `for timestep in range(window):`
+    # loop below (kept only as a reference in git history) - profiling this
+    # hot path (scripts/profile_inference.py) showed this Python loop,
+    # 30 iterations here to match the trained sequence model's window_size
+    # but re-run once per symbol per bar, was the single largest cost in
+    # main.py's entire per-bar inference path (bigger than the 4-expert
+    # loop this same pass also batched - see run_exported_models_batched()
+    # above). Builds every timestep's kernel_size dilated tap indices at
+    # once (tap_indices: (window, kernel_size)), gathers them in one fancy-
+    # index op (window_slices: (window, kernel_size, in_channels)), then
+    # runs ONE einsum across every timestep instead of `window` separate
+    # ones. Same math, same output - tests/test_exported_model.py's
+    # existing hand-computed/causality/mismatch tests are the parity net,
+    # unchanged by this rewrite (same function signature and output
+    # contract, no new call sites needed).
+    offsets = np.arange(kernel_size - 1, -1, -1) * dilation  # (kernel_size,)
+    tap_indices = np.arange(window)[:, None] + pad_left - offsets[None, :]  # (window, kernel_size)
+    window_slices = padded[tap_indices, :]  # (window, kernel_size, in_channels)
+    return np.einsum("oik,tki->to", weights_array, window_slices) + bias_array
 
 
 def _multihead_attention(

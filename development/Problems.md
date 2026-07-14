@@ -1074,3 +1074,116 @@ liquidity/ ./liquidity/` to `Dockerfile.retraining_worker`. Not yet
 rebuilt/deployed this session — see `development/Changelog.md`'s multi-
 asset-class entry for the rebuild command to run before this worker is
 next restarted.
+
+---
+
+### 31. Infrastructure/latency pass — `aq test` silently ran a real Lean backtest, per-bar inference hot path never profiled, CI Docker builds never cached
+**Severity:** 8/10 (the `aq test` one) / 6/10 (inference latency) / 4/10 (CI cache) · **Status:** 🟢 `fixed`
+
+Four separate findings from a research pass (3 parallel Explore agents)
+before any code changed, per the user's explicit "profile before
+optimizing blindly" instruction:
+
+**`aq test` was silently running a real `lean backtest .`.**
+`tests/test_lean_backtest_ml_coverage.py`'s `skipif` only checked whether
+the Lean CLI binary was *installed* (`.venv/Scripts/lean.exe` — present
+in this repo), never whether the caller actually wanted to pay the cost of
+a real backtest (documented in that file's own comment as "over an hour
+wall-clock"). Every `aq test` run silently included it. **Fixed:** added a
+`lean_backtest` pytest marker (registered in `pyproject.toml`), applied to
+that file, excluded by default (`-m "not lean_backtest"`); `aq test
+--lean`/`--full` opts back in. Confirmed via `pytest --collect-only`:
+1132/1143 collected, 11 correctly deselected. A full non-lean run now
+takes ~73s-4min (machine-load-dependent) instead of over an hour.
+`aq test` also gained per-subsystem flags (`--cli`, `--risk`, `--portfolio`,
+`--features`, `--data-pipeline`, `--webui`, `--ml`, `--retraining`,
+`--notifications`, `--storage`, `--live`, combinable) and an opt-in
+`--parallel` (`pytest-xdist -n auto`, off by default — multiple workers
+each importing PyTorch is a real OOM risk on this session's ~4GB-RAM dev
+machine, confirmed by an earlier incident this same session). The README
+badge/test-count only updates on a full, unfiltered default run — a
+subsystem-filtered partial count is never written into it.
+
+**Per-bar inference hot path had never been profiled.** No profiling
+harness existed anywhere in this repo. Built
+`scripts/profile_inference.py` (cProfile against real exported weights
+already on disk under `ml/` — never synthetic ones, so results mean
+something — since a real Lean backtest is off the table for repeated
+profiling runs on this machine). First run (10,000 synthetic symbol-bar
+iterations, matching `main.py::on_data()`'s real call pattern) measured
+**448.4s total**. Two real costs found, both fixed:
+
+- `inference/exported_model.py::_conv1d_causal()` (the sequence model's
+  causal TCN) had a `for timestep in range(window):` Python loop calling
+  its own `einsum` every iteration — this was the **single largest cost
+  in the entire hot path**, bigger than the 4-expert loop below. Rewritten
+  to gather every timestep's dilated taps in one fancy-index op and run
+  ONE batched `einsum` instead. Self-time (`tottime`) for this function
+  dropped from 48.4s to 4.7s across an identical 20,000 calls (~90%
+  reduction) — verified bit-identical against the original loop-based
+  logic across 200 random-parameter fuzz trials (varying window/channels/
+  kernel size/dilation), not just the pre-existing fixed test cases.
+- `main.py::_run_expert_models()`/`_run_expert_multitask_models()` called
+  `run_exported_model()`/`run_exported_multitask_model()` once per expert
+  — 4 separate small NumPy dispatch calls on models confirmed (checked
+  real `ml/expert_models/*/model_weights.json` and
+  `multitask_model.json` — not assumed) to share byte-identical
+  architecture and weight shapes. New
+  `run_exported_models_batched()`/`run_exported_multitask_models_batched()`
+  stack all present experts into one leading batch axis and run one
+  `_linear_batched()`/`_layernorm_batched()` call per layer instead of 4 —
+  falling back to the original per-model loop (same per-expert graceful-
+  degradation contract: one bad expert never takes the others down)
+  whenever fewer than 2 experts are present, their architectures don't
+  match, or the batched computation itself fails for any reason.
+
+**Net measured result: 448.4s → 290.6s, -35.2%**, same 10,000-iteration
+workload, both fixes applied. An isolated mid-point measurement (conv1d
+fix only) showed a *higher* total than the unoptimized baseline despite
+that function's own self-time provably dropping — traced to heavy
+concurrent system load during that specific run (multiple VS Code
+windows + antivirus scanning, confirmed via `Get-Process`, not a real
+regression); reported here for transparency rather than silently
+discarded, and is why the headline number above compares the two cleanest
+available runs rather than every intermediate one. Parity-tested:
+`tests/test_exported_model.py` gained batched-vs-individual-call parity
+tests using both synthetic multi-model fixtures and the real
+`ml/expert_models/*` exports (skipped gracefully in CI, where those
+gitignored generated files don't exist).
+
+**Numba JIT — evaluated, not added.** The user's decision was to evaluate
+Numba if profiling showed per-call dispatch overhead wasn't fully solved
+by batching/vectorization alone. Post-fix profiling shows the remaining
+costs (`numpy.asarray` conversions, elementwise ops) are already
+vectorized NumPy calls operating on real array data, not Python-loop-
+driven dispatch overhead — the two costs that pattern actually described
+(the conv1d loop and the 4-expert loop) are exactly what got fixed. Adding
+Numba now would mean a new compiled-dependency build step (Docker image
+size, wheel compatibility, first-call JIT-compilation overhead) for a
+marginal remaining win, evaluated against real data rather than skipped
+outright. Revisit if a future, quieter profiling run (or a real Lean
+backtest, once one completes) shows otherwise.
+
+**Rust/C++ extension rewrite: explicitly out of scope this pass** — a
+real scope increase (PyO3/build toolchain/wheel packaging), appropriate
+for a dedicated future HFT-fork effort, not bundled into an infra pass.
+
+**Docker build caching.** The user's premise ("it reloads every library
+on every build") didn't hold — all 3 Dockerfiles (`Dockerfile`,
+`Dockerfile.workers`, `Dockerfile.retraining_worker`) already install
+dependencies before copying source, the correct layer order. The real gap
+was `.github/workflows/release.yml`'s `docker/build-push-action@v6` step
+having no `cache-from`/`cache-to` configured, so every CI release build
+started cold. **Fixed:** added `cache-from: type=gha` /
+`cache-to: type=gha,mode=max`.
+
+**Found and fixed while auditing documentation for this pass:**
+`README.md`'s Project Structure tree and Module Documentation table were
+both missing `features/`, `portfolio/`, and `backtests/` (all three had
+real, substantive `README.md` files already, just never linked) — and
+`scripts/` (the new home for `profile_inference.py`) had no `README.md`
+at all. All four fixed. The `<!-- AQ:TEST_COUNT_START -->828<!--
+AQ:TEST_COUNT_END -->`-style marker now wraps both prose "N tests"
+mentions (Test Suite section, `tests/` row in the Module Documentation
+table) so `aq test`'s badge-update logic keeps them in sync with the real
+collected-test count too, not just the shields.io badge.

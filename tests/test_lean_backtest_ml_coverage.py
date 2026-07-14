@@ -71,10 +71,19 @@ def _find_quantconnect_lean_binary() -> str | None:
 
 _LEAN_BINARY = _find_quantconnect_lean_binary()
 
-pytestmark = pytest.mark.skipif(
-    _LEAN_BINARY is None,
-    reason="QuantConnect Lean CLI not available - skipping full-system backtest integration test",
-)
+# lean_backtest (registered in pyproject.toml) is what actually gates this
+# file out of a default `aq test` run - a real `lean backtest .` here takes
+# over an hour wall-clock, and the skipif below only checks binary
+# *availability*, not whether you actually want to pay that cost right now.
+# `aq test --lean`/`--full` drops the marker exclusion; the skipif stays as
+# a secondary guard for machines with no Lean CLI at all.
+pytestmark = [
+    pytest.mark.lean_backtest,
+    pytest.mark.skipif(
+        _LEAN_BINARY is None,
+        reason="QuantConnect Lean CLI not available - skipping full-system backtest integration test",
+    ),
+]
 
 
 @pytest.fixture(scope="module")
