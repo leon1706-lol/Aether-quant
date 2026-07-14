@@ -41,3 +41,13 @@ ib_insync>=0.9.86
 # README backtest-chart generation (generate_backtest_report.py, called by
 # `aq backtest`) — dev/local-script only, never inside Lean or any Docker image
 matplotlib>=3.8.0
+
+# Build-time only, for the OPTIONAL cpp_inference_ext/ accelerator
+# (inference/exported_model.py's _linear_batched() - see
+# development/Problems.md #32). Never required at runtime -
+# inference/exported_model.py deferred-imports the compiled extension and
+# falls back to the NumPy path when it's absent/unbuilt, same convention
+# as ib_insync above. Building the extension itself also needs a C++
+# compiler (MSVC on Windows), which this file can't install for you - see
+# cpp_inference_ext/README.md.
+pybind11>=2.10

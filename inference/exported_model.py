@@ -22,6 +22,17 @@ from __future__ import annotations
 
 import numpy as np
 
+# Optional C++/pybind11 accelerator for _linear_batched() below (see
+# cpp_inference/README.md and development/Problems.md #32) - never a hard
+# dependency. Deferred import, same convention as ib_insync
+# (data_pipeline/ib_backfill.py): absent/unbuilt on most machines, and
+# _linear_batched() falls back to the NumPy einsum path on any
+# import/call failure below, not just at this import site.
+try:
+    import cpp_inference as _cpp_inference
+except ImportError:
+    _cpp_inference = None
+
 
 def run_exported_model(model_export: dict, inputs: list[float]) -> float:
     current = np.asarray(inputs, dtype=np.float64)
@@ -45,6 +56,42 @@ def run_exported_model(model_export: dict, inputs: list[float]) -> float:
             raise ValueError(f"Unsupported layer type in export: {layer_type}")
 
     return float(current[0])
+
+
+def convert_state_dict_arrays(export: dict) -> None:
+    """Converts every value in export["export"]["state_dict"] from a plain
+    Python list to a np.float64 ndarray, IN PLACE - call this ONCE, right
+    after a model export is loaded from JSON (see main.py's various
+    `_load_*` methods), not on every inference call.
+
+    Every `_linear`/`_layernorm`/`_layernorm_axis`/`_conv1d_causal`/
+    `_run_batched_layer_stack` call below still runs `np.asarray(value,
+    dtype=np.float64)` on state_dict values - that line is NOT removed,
+    since `tests/test_exported_model.py` passes raw Python lists directly
+    and must keep working. What changes is the cost: `np.asarray()` on an
+    ndarray that already has the right dtype is a documented no-op (same
+    object returned, no copy) - so calling this once at load time turns
+    every later `np.asarray()` call on that export's weights into a cheap
+    identity check instead of a real list-to-array conversion, which
+    profiling (`scripts/profile_inference.py`) found was the single
+    largest remaining cost in the per-bar inference hot path after the
+    expert-batching/conv1d-vectorization pass (116.9s of 290.6s - see
+    development/Problems.md).
+
+    Safe to call on any export shape this module consumes: flat
+    (`{"architecture": [...], "state_dict": {...}}`), branching multitask
+    (`{"trunk": [...], "heads": {...}, "state_dict": {...}}`), and
+    sequence (same branching shape, `state_dict` may hold conv1d weight
+    tensors - `np.asarray` on those still round-trips through the same
+    no-op-when-already-array path). Never raises on a missing/malformed
+    "state_dict" key - degrades to a no-op, since main.py's loaders
+    already handle malformed exports via their own try/except."""
+    state_dict = export.get("export", {}).get("state_dict")
+    if not isinstance(state_dict, dict):
+        return
+    for key, value in state_dict.items():
+        if not isinstance(value, np.ndarray):
+            state_dict[key] = np.asarray(value, dtype=np.float64)
 
 
 def _linear(inputs, weights: list[list[float]], bias: list[float]) -> np.ndarray:
@@ -140,7 +187,20 @@ def _linear_batched(current: np.ndarray, weights_stack: np.ndarray, bias_stack: 
     """Batched sibling of _linear() - one einsum across all N stacked
     models instead of N separate `weights @ input + bias` calls.
     current: (N, in_features); weights_stack: (N, out_features,
-    in_features); bias_stack: (N, out_features)."""
+    in_features); bias_stack: (N, out_features).
+
+    Uses the optional cpp_inference accelerator (see module-level import
+    above) when it's built and importable - falls back to the always-
+    correct NumPy einsum path on ANY failure (missing extension, a call
+    raising for any reason), never a hard dependency and never a crash
+    risk. This is the hottest, most call-heavy primitive in the batched
+    inference path (see development/Problems.md #32's profiling), which
+    is why it's the one primitive this pass wired an accelerator for."""
+    if _cpp_inference is not None:
+        try:
+            return _cpp_inference.linear_batched(weights_stack, current, bias_stack)
+        except Exception:
+            pass  # fall through to the NumPy path below
     return np.einsum("noi,ni->no", weights_stack, current) + bias_stack
 
 
@@ -158,20 +218,61 @@ def _layernorm_batched(current: np.ndarray, weights_stack: np.ndarray, bias_stac
     return normalized * weights_stack + bias_stack
 
 
-def _run_batched_layer_stack(layers: list[dict], state_dicts: list[dict], current: np.ndarray) -> np.ndarray:
+def build_layer_stacks(layers: list[dict], state_dicts: list[dict]) -> list[tuple[np.ndarray, np.ndarray] | None]:
+    """Precomputes each linear/layernorm layer's weights_stack/bias_stack
+    ONCE - the same np.stack([...]) construction _run_batched_layer_stack()
+    below otherwise rebuilds from scratch on every single call, even though
+    the underlying weights never change once a model's loaded (this was
+    profiling's second-largest finding after the raw asarray cost -
+    stacking itself still copies data into a new array every call). None
+    for layer types that carry no weights (relu/dropout/sigmoid/softplus) -
+    kept as an explicit placeholder so the returned list stays index-
+    aligned with `layers`, letting _run_batched_layer_stack() zip them
+    together directly."""
+    stacks: list[tuple[np.ndarray, np.ndarray] | None] = []
+    for layer in layers:
+        if layer["type"] in ("linear", "layernorm"):
+            weights_stack = np.stack([np.asarray(sd[layer["weight_key"]], dtype=np.float64) for sd in state_dicts])
+            bias_stack = np.stack([np.asarray(sd[layer["bias_key"]], dtype=np.float64) for sd in state_dicts])
+            stacks.append((weights_stack, bias_stack))
+        else:
+            stacks.append(None)
+    return stacks
+
+
+def _run_batched_layer_stack(
+    layers: list[dict],
+    state_dicts: list[dict],
+    current: np.ndarray,
+    precomputed_stacks: list[tuple[np.ndarray, np.ndarray] | None] | None = None,
+) -> np.ndarray:
     """Batched sibling of _run_layer_stack() - current starts as (N,
     features) instead of (features,), one row per stacked model, and each
     linear/layernorm layer pulls that layer's weights from every model's
-    own state_dict rather than one shared state_dict."""
-    for layer in layers:
+    own state_dict rather than one shared state_dict.
+
+    `precomputed_stacks`, when given (see build_layer_stacks() above), is
+    used instead of rebuilding weights_stack/bias_stack via np.stack() on
+    this call - callers with a stable model set (main.py, once experts are
+    loaded) should build this once and reuse it every bar. None (the
+    default) reproduces the exact original behavior - every existing
+    caller/test that doesn't pass it is unaffected."""
+    for index, layer in enumerate(layers):
         layer_type = layer["type"]
+        cached = precomputed_stacks[index] if precomputed_stacks is not None else None
         if layer_type == "linear":
-            weights_stack = np.stack([np.asarray(sd[layer["weight_key"]], dtype=np.float64) for sd in state_dicts])
-            bias_stack = np.stack([np.asarray(sd[layer["bias_key"]], dtype=np.float64) for sd in state_dicts])
+            if cached is not None:
+                weights_stack, bias_stack = cached
+            else:
+                weights_stack = np.stack([np.asarray(sd[layer["weight_key"]], dtype=np.float64) for sd in state_dicts])
+                bias_stack = np.stack([np.asarray(sd[layer["bias_key"]], dtype=np.float64) for sd in state_dicts])
             current = _linear_batched(current, weights_stack, bias_stack)
         elif layer_type == "layernorm":
-            weights_stack = np.stack([np.asarray(sd[layer["weight_key"]], dtype=np.float64) for sd in state_dicts])
-            bias_stack = np.stack([np.asarray(sd[layer["bias_key"]], dtype=np.float64) for sd in state_dicts])
+            if cached is not None:
+                weights_stack, bias_stack = cached
+            else:
+                weights_stack = np.stack([np.asarray(sd[layer["weight_key"]], dtype=np.float64) for sd in state_dicts])
+                bias_stack = np.stack([np.asarray(sd[layer["bias_key"]], dtype=np.float64) for sd in state_dicts])
             current = _layernorm_batched(current, weights_stack, bias_stack, float(layer.get("eps", 1e-5)))
         elif layer_type == "relu":
             current = np.maximum(current, 0.0)
@@ -206,13 +307,63 @@ def _run_models_individually_with_fallback(model_exports: list[dict | None], inp
     return results
 
 
-def run_exported_models_batched(model_exports: list[dict | None], inputs: list[float]) -> list[float | None]:
+class BatchedLayerStackCache:
+    """Precomputed run_exported_models_batched() weight/bias stacks for a
+    FIXED set of models sharing one architecture - build once (e.g. in
+    main.py::_ensure_ready(), right after experts are loaded) via
+    build_models_batched_cache() below, then pass into every bar's
+    run_exported_models_batched() call instead of letting it rebuild the
+    stacks from scratch every time. `present_indices` records exactly
+    which model_exports slots this cache applies to; the caller
+    (run_exported_models_batched()) verifies its own freshly computed
+    present_indices matches before using it - a mismatch (which should
+    never happen in practice, since main.py's expert exports are loaded
+    once and never change mid-run) just means falling back to an on-the-
+    fly rebuild, always safe."""
+
+    def __init__(self, present_indices: list[int], layer_stacks: list[tuple[np.ndarray, np.ndarray] | None]):
+        self.present_indices = present_indices
+        self.layer_stacks = layer_stacks
+
+
+def build_models_batched_cache(model_exports: list[dict | None]) -> BatchedLayerStackCache | None:
+    """Precomputes run_exported_models_batched()'s per-layer weight/bias
+    stacks once, returning None whenever batching wouldn't apply anyway
+    (fewer than 2 present, architectures don't match) - the exact same
+    applicability check run_exported_models_batched() runs itself every
+    call, so a non-None cache this returns is always exactly the one that
+    call would build on its own, just computed once instead of every bar."""
+    present_indices = [i for i, export in enumerate(model_exports) if export]
+    if len(present_indices) < 2:
+        return None
+    architectures = [model_exports[i]["export"]["architecture"] for i in present_indices]
+    if not _architectures_match(architectures):
+        return None
+    try:
+        state_dicts = [model_exports[i]["export"]["state_dict"] for i in present_indices]
+        layer_stacks = build_layer_stacks(architectures[0], state_dicts)
+    except Exception:
+        return None
+    return BatchedLayerStackCache(present_indices, layer_stacks)
+
+
+def run_exported_models_batched(
+    model_exports: list[dict | None],
+    inputs: list[float],
+    stack_cache: BatchedLayerStackCache | None = None,
+) -> list[float | None]:
     """Batched sibling of calling run_exported_model() once per entry in a
     loop (main.py::_run_expert_models()'s previous shape, still available
     via _run_models_individually_with_fallback() above). Stacks every
     PRESENT model's per-layer weights into one leading batch axis and runs
     one _linear_batched()/_layernorm_batched() call per layer instead of N
     separate run_exported_model() calls.
+
+    `stack_cache` (see BatchedLayerStackCache/build_models_batched_cache()
+    above), when given AND its present_indices matches this call's own,
+    skips rebuilding the weight/bias stacks from scratch - the default
+    None reproduces the exact original behavior, so every existing caller/
+    test that doesn't pass it is unaffected.
 
     Falls back to the individually-with-fallback path - never raises,
     never silently produces a wrong answer - whenever fewer than 2 models
@@ -237,7 +388,10 @@ def run_exported_models_batched(model_exports: list[dict | None], inputs: list[f
     try:
         state_dicts = [model_exports[i]["export"]["state_dict"] for i in present_indices]
         current = np.tile(np.asarray(inputs, dtype=np.float64), (len(present_indices), 1))
-        current = _run_batched_layer_stack(architectures[0], state_dicts, current)
+        precomputed_stacks = (
+            stack_cache.layer_stacks if stack_cache is not None and stack_cache.present_indices == present_indices else None
+        )
+        current = _run_batched_layer_stack(architectures[0], state_dicts, current, precomputed_stacks=precomputed_stacks)
     except Exception:
         return _run_models_individually_with_fallback(model_exports, inputs)
 
@@ -265,8 +419,61 @@ def _run_multitask_models_individually_with_fallback(
     return results
 
 
+class BatchedMultitaskLayerStackCache:
+    """Multitask sibling of BatchedLayerStackCache - one precomputed stack
+    set for the shared trunk plus one per head, all tied to the same
+    `present_indices`. Build once via build_multitask_models_batched_cache()
+    below."""
+
+    def __init__(
+        self,
+        present_indices: list[int],
+        trunk_stacks: list[tuple[np.ndarray, np.ndarray] | None],
+        head_stacks_by_name: dict[str, list[tuple[np.ndarray, np.ndarray] | None]],
+    ):
+        self.present_indices = present_indices
+        self.trunk_stacks = trunk_stacks
+        self.head_stacks_by_name = head_stacks_by_name
+
+
+def build_multitask_models_batched_cache(
+    model_exports: list[dict | None],
+) -> BatchedMultitaskLayerStackCache | None:
+    """Multitask sibling of build_models_batched_cache() - same
+    applicability check run_exported_multitask_models_batched() runs
+    itself every call (trunk architectures match, head name sets match,
+    every head's own architecture matches), returning None whenever that
+    check would fail anyway."""
+    present_indices = [i for i, export in enumerate(model_exports) if export]
+    if len(present_indices) < 2:
+        return None
+
+    exports = [model_exports[i]["export"] for i in present_indices]
+    trunk_architectures = [export["trunk"] for export in exports]
+    head_name_sets = [tuple(sorted(export["heads"].keys())) for export in exports]
+    if not _architectures_match(trunk_architectures) or len(set(head_name_sets)) != 1:
+        return None
+
+    head_names = head_name_sets[0]
+    head_architectures_by_name = {name: [export["heads"][name] for export in exports] for name in head_names}
+    if any(not _architectures_match(archs) for archs in head_architectures_by_name.values()):
+        return None
+
+    try:
+        state_dicts = [export["state_dict"] for export in exports]
+        trunk_stacks = build_layer_stacks(trunk_architectures[0], state_dicts)
+        head_stacks_by_name = {
+            name: build_layer_stacks(head_architectures_by_name[name][0], state_dicts) for name in head_names
+        }
+    except Exception:
+        return None
+    return BatchedMultitaskLayerStackCache(present_indices, trunk_stacks, head_stacks_by_name)
+
+
 def run_exported_multitask_models_batched(
-    model_exports: list[dict | None], inputs: list[float]
+    model_exports: list[dict | None],
+    inputs: list[float],
+    stack_cache: BatchedMultitaskLayerStackCache | None = None,
 ) -> list[dict[str, float] | None]:
     """Batched sibling of run_exported_multitask_model(), for
     main.py::_run_expert_multitask_models()'s per-expert loop. Batches the
@@ -276,7 +483,13 @@ def run_exported_multitask_models_batched(
     present model shares the same trunk AND the same head names/
     architectures, checked the same way run_exported_models_batched()
     checks its flat models. Same graceful-degradation contract and
-    same-shape fallback safety net as run_exported_models_batched()."""
+    same-shape fallback safety net as run_exported_models_batched().
+
+    `stack_cache` (see BatchedMultitaskLayerStackCache/
+    build_multitask_models_batched_cache() above), when given AND its
+    present_indices matches this call's own, skips rebuilding every
+    weight/bias stack from scratch - default None reproduces the exact
+    original behavior."""
     present_indices = [i for i, export in enumerate(model_exports) if export]
     if len(present_indices) < 2:
         return _run_multitask_models_individually_with_fallback(model_exports, inputs)
@@ -294,15 +507,21 @@ def run_exported_multitask_models_batched(
     if any(not _architectures_match(archs) for archs in head_architectures_by_name.values()):
         return _run_multitask_models_individually_with_fallback(model_exports, inputs)
 
+    cache_applies = stack_cache is not None and stack_cache.present_indices == present_indices
+
     try:
         state_dicts = [export["state_dict"] for export in exports]
         trunk_current = np.tile(np.asarray(inputs, dtype=np.float64), (len(present_indices), 1))
-        trunk_output = _run_batched_layer_stack(trunk_architectures[0], state_dicts, trunk_current)
+        trunk_output = _run_batched_layer_stack(
+            trunk_architectures[0], state_dicts, trunk_current,
+            precomputed_stacks=stack_cache.trunk_stacks if cache_applies else None,
+        )
 
         head_outputs: dict[str, np.ndarray] = {}
         for head_name in head_names:
             head_outputs[head_name] = _run_batched_layer_stack(
-                head_architectures_by_name[head_name][0], state_dicts, trunk_output.copy()
+                head_architectures_by_name[head_name][0], state_dicts, trunk_output.copy(),
+                precomputed_stacks=stack_cache.head_stacks_by_name.get(head_name) if cache_applies else None,
             )
     except Exception:
         return _run_multitask_models_individually_with_fallback(model_exports, inputs)

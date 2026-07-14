@@ -498,6 +498,21 @@ def cmd_backtest(_args: argparse.Namespace) -> int:
     return exit_code
 
 
+def cmd_profile(args: argparse.Namespace) -> int:
+    """Wraps scripts/profile_inference.py - the cProfile+wall-clock harness
+    for main.py's per-bar inference hot path (see development/Problems.md
+    for what it found: weight-array/batched-stack caching, expert-loop
+    batching, and _conv1d_causal vectorization, -89.2% total profiled
+    cost). Same subprocess-wrapper convention every other non-`trade-lock`/
+    `fetch` command follows (_run(), not an in-process import) - `aq_cli.py`
+    itself doesn't need to import numpy/inference/torch just to expose
+    this command."""
+    cmd = [sys.executable, "scripts/profile_inference.py", "--iterations", str(args.iterations), "--sort", args.sort]
+    if args.batched:
+        cmd.append("--batched")
+    return _run(cmd)
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     lean_binary = _find_quantconnect_lean_binary()
     if lean_binary is None:
@@ -878,6 +893,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     backtest_parser = subparsers.add_parser("backtest", help="Run a Lean backtest (wraps lean backtest .)")
     backtest_parser.set_defaults(func=cmd_backtest)
+
+    profile_parser = subparsers.add_parser(
+        "profile", help="Profile the per-bar inference hot path (wraps scripts/profile_inference.py)"
+    )
+    profile_parser.add_argument("--iterations", type=int, default=10_000, help="Symbol-bar iterations to profile (default: 10000)")
+    profile_parser.add_argument("--sort", default="cumulative", help="pstats sort key (default: cumulative)")
+    profile_parser.add_argument(
+        "--batched", action="store_true",
+        help="Use the batched expert-inference path (with its precomputed stack caches) instead of a per-expert loop",
+    )
+    profile_parser.set_defaults(func=cmd_profile)
 
     report_parser = subparsers.add_parser("report", help="Generate a Lean HTML report for a finished backtest")
     report_parser.add_argument("backtest_dir", help="Folder name under backtests/, e.g. 2026-07-04_13-06-51")

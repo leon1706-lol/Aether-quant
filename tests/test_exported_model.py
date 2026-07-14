@@ -4,16 +4,23 @@ from pathlib import Path
 
 import pytest
 
+import numpy as np
+
 from inference.exported_model import (
     _architectures_match,
     _conv1d_causal,
     _layernorm,
     _layernorm_axis,
     _linear,
+    _linear_batched,
     _multihead_attention,
     _sigmoid,
     _softmax,
     _softplus,
+    build_layer_stacks,
+    build_models_batched_cache,
+    build_multitask_models_batched_cache,
+    convert_state_dict_arrays,
     resolve_sequence_window_size,
     run_exported_model,
     run_exported_multitask_model,
@@ -691,3 +698,247 @@ def test_run_exported_multitask_models_batched_matches_individual_calls_on_real_
 
     for batched_result, individual_result in zip(batched, individual):
         assert batched_result == pytest.approx(individual_result, abs=1e-7)
+
+
+# ---------------------------------------------------------------------------
+# convert_state_dict_arrays() - the weight-array-caching-at-load-time fix.
+# Parity net: pre-converting a state_dict's lists to ndarrays must never
+# change any function's output, only its cost (np.asarray() on an
+# already-correct ndarray is a documented no-op).
+# ---------------------------------------------------------------------------
+
+
+def test_convert_state_dict_arrays_converts_lists_to_float64_ndarrays():
+    export = _synthetic_model_export()
+    convert_state_dict_arrays(export)
+
+    state_dict = export["export"]["state_dict"]
+    for value in state_dict.values():
+        assert isinstance(value, np.ndarray)
+        assert value.dtype == np.float64
+
+
+def test_convert_state_dict_arrays_is_a_noop_on_already_converted_export():
+    export = _synthetic_model_export()
+    convert_state_dict_arrays(export)
+    first_pass_ids = {key: id(value) for key, value in export["export"]["state_dict"].items()}
+
+    convert_state_dict_arrays(export)  # second call - must not rebuild anything
+
+    for key, value in export["export"]["state_dict"].items():
+        assert id(value) == first_pass_ids[key]
+
+
+def test_convert_state_dict_arrays_does_not_change_run_exported_model_output():
+    export = _synthetic_model_export()
+    inputs = [1.0, -0.5]
+    before = run_exported_model(export, inputs)
+
+    convert_state_dict_arrays(export)
+
+    after = run_exported_model(export, inputs)
+    assert after == pytest.approx(before, abs=1e-12)
+
+
+def test_convert_state_dict_arrays_does_not_change_multitask_output():
+    export = _synthetic_multitask_model_export()
+    inputs = [1.0, -0.5]
+    before = run_exported_multitask_model(export, inputs)
+
+    convert_state_dict_arrays(export)
+
+    after = run_exported_multitask_model(export, inputs)
+    for head_name in before:
+        assert after[head_name] == pytest.approx(before[head_name], abs=1e-12)
+
+
+def test_convert_state_dict_arrays_tolerates_missing_state_dict_key():
+    convert_state_dict_arrays({"export": {"architecture": []}})  # no "state_dict" key - must not raise
+
+
+def test_convert_state_dict_arrays_tolerates_malformed_export():
+    convert_state_dict_arrays({})  # no "export" key at all - must not raise
+
+
+# ---------------------------------------------------------------------------
+# build_layer_stacks() / BatchedLayerStackCache / build_models_batched_cache()
+# - the pre-stacked-array caching fix. Parity net: a precomputed cache must
+# produce bit-identical results to the uncached (rebuild-every-call) path.
+# ---------------------------------------------------------------------------
+
+
+def test_build_layer_stacks_returns_none_for_unweighted_layers_and_arrays_for_weighted_ones():
+    architecture = _synthetic_model_export()["export"]["architecture"]
+    state_dicts = [_synthetic_model_export()["export"]["state_dict"]]
+
+    stacks = build_layer_stacks(architecture, state_dicts)
+
+    assert len(stacks) == len(architecture)
+    for layer, stack in zip(architecture, stacks):
+        if layer["type"] in ("linear", "layernorm"):
+            assert stack is not None
+            weights_stack, bias_stack = stack
+            assert weights_stack.shape[0] == 1  # one model stacked
+        else:
+            assert stack is None
+
+
+def test_models_batched_cache_matches_uncached_batched_output():
+    models = [_variant_model_export(scale) for scale in (1.0, 0.8, 1.3)]
+    inputs = [1.0, -0.5]
+
+    cache = build_models_batched_cache(models)
+    assert cache is not None
+    assert cache.present_indices == [0, 1, 2]
+
+    cached_result = run_exported_models_batched(models, inputs, stack_cache=cache)
+    uncached_result = run_exported_models_batched(models, inputs)
+
+    assert cached_result == pytest.approx(uncached_result, abs=1e-12)
+
+
+def test_models_batched_cache_none_when_fewer_than_two_present():
+    models = [_variant_model_export(1.0), None, None]
+    assert build_models_batched_cache(models) is None
+
+
+def test_models_batched_cache_none_when_architectures_differ():
+    matching = _variant_model_export(1.0)
+    mismatched = _variant_model_export(0.8)
+    mismatched["export"]["architecture"] = mismatched["export"]["architecture"] + [{"type": "relu"}]
+    assert build_models_batched_cache([matching, mismatched]) is None
+
+
+def test_models_batched_cache_ignored_when_present_indices_mismatch_call():
+    """A cache built for one model_exports shape must never be silently
+    applied to a DIFFERENT one - run_exported_models_batched() checks
+    present_indices equality before using it, falling back to an on-the-fly
+    rebuild (still correct, just uncached) whenever they don't match."""
+    cache_models = [_variant_model_export(1.0), _variant_model_export(0.8)]
+    cache = build_models_batched_cache(cache_models)
+
+    different_models = [_variant_model_export(1.0), None, _variant_model_export(0.8)]  # different present_indices
+    inputs = [1.0, -0.5]
+
+    result_with_stale_cache = run_exported_models_batched(different_models, inputs, stack_cache=cache)
+    result_without_cache = run_exported_models_batched(different_models, inputs)
+
+    assert result_with_stale_cache == pytest.approx(result_without_cache, abs=1e-12)
+
+
+def test_multitask_models_batched_cache_matches_uncached_batched_output():
+    models = [_variant_multitask_model_export(scale) for scale in (1.0, 0.8, 1.3)]
+    inputs = [1.0, -0.5]
+
+    cache = build_multitask_models_batched_cache(models)
+    assert cache is not None
+
+    cached_result = run_exported_multitask_models_batched(models, inputs, stack_cache=cache)
+    uncached_result = run_exported_multitask_models_batched(models, inputs)
+
+    for cached_row, uncached_row in zip(cached_result, uncached_result):
+        assert cached_row == pytest.approx(uncached_row, abs=1e-12)
+
+
+def test_multitask_models_batched_cache_none_when_head_names_differ():
+    a = _variant_multitask_model_export(1.0)
+    b = _variant_multitask_model_export(0.8)
+    del b["export"]["heads"]["volatility"]
+    assert build_multitask_models_batched_cache([a, b]) is None
+
+
+@pytest.mark.skipif(
+    not (_REPO_ROOT / "ml" / "expert_models" / "bullish" / "model_weights.json").exists(),
+    reason="real trained expert exports not present in this checkout",
+)
+def test_models_batched_cache_matches_uncached_on_real_expert_exports():
+    experts = _load_real_expert_exports("model_weights.json")
+    input_width = experts[0]["export"]["architecture"][0]["in_features"]
+    inputs = [0.1 * i for i in range(input_width)]
+
+    cache = build_models_batched_cache(experts)
+    assert cache is not None
+
+    cached_result = run_exported_models_batched(experts, inputs, stack_cache=cache)
+    uncached_result = run_exported_models_batched(experts, inputs)
+
+    assert cached_result == pytest.approx(uncached_result, abs=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# cpp_inference accelerator (optional C++/pybind11 extension, see
+# cpp_inference_ext/ and development/Problems.md #32) - skip-guarded on
+# whether the extension actually built/is importable on this machine.
+# Parity net: the accelerated path must be bit-identical (within float
+# tolerance) to the NumPy einsum path it replaces.
+# ---------------------------------------------------------------------------
+
+from inference import exported_model as _exported_model_module  # noqa: E402
+
+_CPP_INFERENCE_AVAILABLE = _exported_model_module._cpp_inference is not None
+
+
+@pytest.mark.skipif(not _CPP_INFERENCE_AVAILABLE, reason="cpp_inference extension not built/importable on this machine")
+def test_cpp_inference_linear_batched_matches_numpy_reference():
+    rng_weights = [[[0.5, -0.25, 0.1], [0.2, 0.4, -0.1]], [[-0.3, 0.6, 0.2], [0.1, -0.2, 0.5]]]
+    weights_stack = np.asarray(rng_weights, dtype=np.float64)
+    current = np.asarray([[1.0, -0.5, 0.3], [0.2, 0.8, -0.4]], dtype=np.float64)
+    bias_stack = np.asarray([[0.1, -0.1], [0.05, 0.0]], dtype=np.float64)
+
+    cpp_result = _exported_model_module._cpp_inference.linear_batched(weights_stack, current, bias_stack)
+    numpy_result = np.einsum("noi,ni->no", weights_stack, current) + bias_stack
+
+    assert cpp_result == pytest.approx(numpy_result, abs=1e-9)
+
+
+@pytest.mark.skipif(not _CPP_INFERENCE_AVAILABLE, reason="cpp_inference extension not built/importable on this machine")
+def test_linear_batched_uses_cpp_accelerator_and_matches_numpy_path():
+    """_linear_batched() itself (not the raw extension call) - proves the
+    accelerated path is actually wired in and produces the same result as
+    disabling it would."""
+    weights_stack = np.asarray([[[0.5, -0.25], [0.1, 0.3]]], dtype=np.float64)
+    current = np.asarray([[1.0, -0.5]], dtype=np.float64)
+    bias_stack = np.asarray([[0.1, -0.1]], dtype=np.float64)
+
+    accelerated = _linear_batched(current, weights_stack, bias_stack)
+    numpy_only = np.einsum("noi,ni->no", weights_stack, current) + bias_stack
+
+    assert accelerated == pytest.approx(numpy_only, abs=1e-9)
+
+
+@pytest.mark.skipif(not _CPP_INFERENCE_AVAILABLE, reason="cpp_inference extension not built/importable on this machine")
+def test_linear_batched_falls_back_to_numpy_when_cpp_call_raises(monkeypatch):
+    """Simulates the accelerator misbehaving at call time (not just being
+    absent) - _linear_batched() must still return the correct result via
+    the NumPy fallback, never propagate the C++ side's exception."""
+
+    def _broken_linear_batched(*_args, **_kwargs):
+        raise RuntimeError("simulated cpp_inference failure")
+
+    monkeypatch.setattr(_exported_model_module._cpp_inference, "linear_batched", _broken_linear_batched)
+
+    weights_stack = np.asarray([[[0.5, -0.25], [0.1, 0.3]]], dtype=np.float64)
+    current = np.asarray([[1.0, -0.5]], dtype=np.float64)
+    bias_stack = np.asarray([[0.1, -0.1]], dtype=np.float64)
+
+    result = _linear_batched(current, weights_stack, bias_stack)
+    expected = np.einsum("noi,ni->no", weights_stack, current) + bias_stack
+
+    assert result == pytest.approx(expected, abs=1e-9)
+
+
+def test_linear_batched_correct_when_cpp_inference_absent(monkeypatch):
+    """Simulates the extension never having been built at all (the common
+    case for most checkouts/CI) - _linear_batched() must still work
+    correctly via the pure-NumPy path. Not skip-guarded - this is the
+    always-true-somewhere case."""
+    monkeypatch.setattr(_exported_model_module, "_cpp_inference", None)
+
+    weights_stack = np.asarray([[[0.5, -0.25], [0.1, 0.3]]], dtype=np.float64)
+    current = np.asarray([[1.0, -0.5]], dtype=np.float64)
+    bias_stack = np.asarray([[0.1, -0.1]], dtype=np.float64)
+
+    result = _linear_batched(current, weights_stack, bias_stack)
+    expected = np.einsum("noi,ni->no", weights_stack, current) + bias_stack
+
+    assert result == pytest.approx(expected, abs=1e-9)

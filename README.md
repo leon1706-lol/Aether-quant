@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1156%2F1156%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1156 of 1156 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1201%2F1201%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1201 of 1201 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -83,6 +83,7 @@ status`). Remaining, still-open items:
   - [`aq train`](#aq-train)
   - [`aq test`](#aq-test)
   - [`aq backtest`](#aq-backtest)
+  - [`aq profile`](#aq-profile)
   - [`aq report`](#aq-report)
   - [`aq api`](#aq-api)
   - [`aq webui`](#aq-webui)
@@ -450,6 +451,7 @@ aether-quant/
 ├── risk/                        # Dynamic position sizing, leverage, drawdown controls
 ├── execution/                   # Order gating, paper/live broker readiness, config caching
 ├── inference/                   # Vectorized neural-network forward-pass interpreter
+├── cpp_inference_ext/           # Optional C++/pybind11 accelerator (builds the "cpp_inference" module)
 ├── experience/                  # Redis -> PostgreSQL observation/decision history pipeline
 ├── performance/                 # Performance trigger system (drawdown, Sharpe, regime-shift, ...)
 ├── retraining/                  # Controlled retraining: plan/train/validate/backtest/promote
@@ -494,6 +496,7 @@ and how it's wired in — this table is the index.
 | `experts/` | Bullish, bearish, sideways, and volatility expert models | [README](experts/README.md) |
 | `features/` | Shared feature-computation functions, called from both `train.py` and `main.py` for train/inference parity | [README](features/README.md) |
 | `inference/` | Vectorized forward-pass interpreter for the exported neural networks | [README](inference/README.md) |
+| `cpp_inference_ext/` | Optional C++/pybind11 accelerator (builds the `cpp_inference` module, never a hard dependency) — a separate top-level folder name from the module it builds, deliberately, to avoid a namespace-package collision with the installed package | [README](cpp_inference_ext/README.md) |
 | `liquidity/` | Liquidity and market-impact engine | [README](liquidity/README.md) |
 | `ml/` | Model & dataset artifacts, including versioned retraining candidates | [README](ml/README.md) |
 | `moe/` | Mixture-of-Experts gating network | [README](moe/README.md) |
@@ -507,7 +510,7 @@ and how it's wired in — this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1156<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1201<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -615,7 +618,7 @@ genuinely halted trading exactly as designed.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1156<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1201<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -695,6 +698,23 @@ of the whole tree — run `aq test --help` for the exact file mapping.
 aq backtest
 ```
 Runs `lean backtest .` and refreshes this README's [Backtest Results](#backtest-results) section.
+
+#### `aq profile`
+```text
+aq profile [--iterations N] [--sort cumulative] [--batched]
+```
+Profiles `main.py`'s per-bar inference hot path (`inference/exported_model.py`)
+against real exported model weights (never synthetic ones) with a
+synthetic-but-correctly-shaped input workload — a real `lean backtest .`
+run takes over an hour, so this is how the hot path gets profiled
+repeatably in seconds/minutes instead. Reports both a `pstats` breakdown
+and independent wall-clock tail-latency percentiles (p50/p95/p99/max) to
+`scripts/profile_inference_output.txt` and stdout. `--batched` uses the
+batched expert-inference path (with its precomputed weight/stack caches)
+instead of a per-expert loop — the real, optimized production path. See
+`development/Problems.md` for what this found and fixed this pass
+(weight-array/stack caching, `_conv1d_causal` vectorization, expert-loop
+batching — a combined -89.2% reduction in profiled cost).
 
 #### `aq report`
 ```text
@@ -1026,7 +1046,7 @@ completed backtest or live IB Gateway test yet), and
 ---
 
 <p align="center">
-  Built by <strong>Leon Schwarzkopf</strong> — -//-
+  Built by <strong>Leon Schwarzkopf</strong> — <a href="mailto:leonschwarzkopf08@gmail.com">leonschwarzkopf08@gmail.com</a>
 </p>
 
 ---

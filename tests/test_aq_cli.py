@@ -416,6 +416,50 @@ def test_backtest_errors_cleanly_when_lean_not_found(capsys):
     assert "not found" in capsys.readouterr().err
 
 
+# --- profile --------------------------------------------------------------
+
+
+def test_profile_wraps_profile_inference_script_with_defaults():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile"], run_mock)
+
+    assert run_mock.call_args.args[0] == [
+        sys.executable, "scripts/profile_inference.py", "--iterations", "10000", "--sort", "cumulative",
+    ]
+
+
+def test_profile_forwards_iterations_and_sort():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--iterations", "500", "--sort", "tottime"], run_mock)
+
+    assert run_mock.call_args.args[0] == [
+        sys.executable, "scripts/profile_inference.py", "--iterations", "500", "--sort", "tottime",
+    ]
+
+
+def test_profile_forwards_batched_flag_only_when_set():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--batched"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--batched" in cmd
+
+
+def test_profile_omits_batched_flag_by_default():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--batched" not in cmd
+
+
+def test_profile_returns_the_underlying_exit_code():
+    run_mock = MagicMock(return_value=3)
+    exit_code = _parse_and_dispatch(["profile"], run_mock)
+
+    assert exit_code == 3
+
+
 def test_report_builds_expected_lean_report_command():
     run_mock = MagicMock(return_value=0)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"):

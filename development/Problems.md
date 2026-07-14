@@ -1187,3 +1187,146 @@ AQ:TEST_COUNT_END -->`-style marker now wraps both prose "N tests"
 mentions (Test Suite section, `tests/` row in the Module Documentation
 table) so `aq test`'s badge-update logic keeps them in sync with the real
 collected-test count too, not just the shields.io badge.
+
+---
+
+### 32. Latency deep-dive follow-up — weight-array/stack caching, `aq profile`, opt-in per-symbol multiprocessing, C++ extension attempt
+**Severity:** n/a (optimization pass) · **Status:** 🟢 `fixed` (weight caching, harness, `aq profile`, multiprocessing) / 🟡 in progress (C++ extension - toolchain install + compile checkpoint, see below)
+
+Direct follow-up to #31, after re-profiling the already-batched/vectorized
+hot path and finding `numpy.asarray()` conversions were now the single
+largest remaining cost (116.9s of a 290.6s total) — every inference call
+was re-converting the SAME static, JSON-loaded model weights from Python
+lists into NumPy arrays on **every single bar**, and
+`run_exported_models_batched()`/`run_exported_multitask_models_batched()`
+were rebuilding their stacked weight/bias arrays via `np.stack()` fresh
+on every call too, despite the participating experts never changing after
+load.
+
+**Weight-array + batched-stack caching.** New
+`inference/exported_model.py::convert_state_dict_arrays(export)` converts
+every `state_dict` value from a list to a `np.float64` ndarray once, in
+place — every existing `np.asarray()` call downstream becomes a no-op
+(NumPy returns the same object unchanged when the input already matches
+dtype), so this is a zero-API-change, zero-behavior-change speed fix.
+Called once at each of `main.py`'s ~5 model-load sites. New
+`build_layer_stacks()`/`BatchedLayerStackCache`/`build_models_batched_cache()`
+(and multitask siblings) precompute the batched weight/bias stacks once
+in `_ensure_ready()`, threaded through an optional `stack_cache` parameter
+on the batched functions — default `None` reproduces the exact original
+behavior, so every existing caller/test is unaffected.
+
+**Measured result (scripts/profile_inference.py, 10,000-iteration
+synthetic workload, real exported weights): 448.4s → 48.4s, -89.2%** —
+far beyond #31's already-shipped -35.2%. Broken down: array-caching alone
+(unbatched) got to 107.0s (-76.1%); adding batched-stack caching + the
+batched expert path on top got to 48.4s. Mean per-symbol-bar latency
+dropped from ~44.8ms to 4.83ms (p50 3.68ms). 14 new parity tests in
+`tests/test_exported_model.py` (synthetic + real `ml/expert_models/*`
+exports) prove the cached path is bit-identical to the uncached one.
+
+**Profiling harness rebuilt.** The original harness measured its own
+`random.uniform` input-generation cost as if it were inference cost
+(~150s of the original 448s baseline was this, not real work). Inputs are
+now pre-generated once, outside the profiled region. Also added
+independent wall-clock per-iteration timing (p50/p95/p99/max/mean) — the
+first tail-latency visibility this repo has had for this hot path,
+separate from cProfile's own aggregate stats (which include cProfile's
+own instrumentation overhead). 13 new tests in `tests/test_profile_inference.py`
+for the extracted pure helpers (`percentile`, `summarize_durations`,
+`pregenerate_inputs`).
+
+**`aq profile`** — new CLI command (`aq_cli.py::cmd_profile()`, same
+subprocess-wrapper convention as `cmd_backtest`/`cmd_report`) wrapping
+`scripts/profile_inference.py`, so profiling this hot path no longer
+requires knowing the script exists. 6 new dispatch tests.
+
+**Opt-in per-symbol multiprocessing (`phase_v2.inference_parallelism.enabled`,
+default `false`).** `main.py::on_data()`'s Pass 1 was restructured into
+three phases: 1a (feature build, cheap, stays sequential — depends on
+ordered, append-only mutation of several per-symbol history buffers),
+1b (the actual profiled inference cluster — baseline/sequence/experts/
+multitask/expert-multitask — now optionally parallelizable across
+symbols), 1c (gating + signal derivation, cheap, stays sequential). New
+`inference/parallel_inference.py::run_symbol_inference()` bundles the
+inference cluster into one picklable, Lean-independent function; workers
+load their own copy of every model export ONCE via
+`ProcessPoolExecutor`'s `initializer` (never re-sent per call — sending
+now-real NumPy arrays through IPC every bar would defeat the whole
+point).
+
+**Honest framing, not oversold:** per-symbol inference is now ~4.8ms
+mean, specifically *because* the weight-caching/batching fix above
+already closed the dominant cost — without multiprocessing. IPC/pickling
+overhead may easily exceed any parallel win at this universe's size
+(~30 symbols). Windows' `ProcessPoolExecutor` uses the `spawn` start
+method, which re-bootstraps a fresh interpreter per worker; this has
+never run inside Lean's own embedded-Python runtime (confirmed via
+`python -c "import main"` failing outside Lean entirely — `main.py` has
+no `__main__` guard and depends on Lean's own `AlgorithmImports` bridge,
+so it was never designed to be a standalone `python.exe` process spawn
+target). Pool creation and every pooled call are wrapped in their own
+try/except with a 30s timeout; ANY failure permanently disables the pool
+for the rest of the run and falls back to
+`_run_inference_cluster_sequential()` — the exact same sequential
+behavior/order/results as before this restructuring, byte-identical when
+the flag stays at its default `false`. 9 new tests in
+`tests/test_parallel_inference.py`, including a real
+`ProcessPoolExecutor` round-trip (not just an in-process call) proving
+the exports dict and the function are actually picklable across a real
+OS process boundary. The real judge of whether this feature helps or
+hurts is a real `lean backtest .` run — not attempted with this flag
+enabled this pass (see the final backtest verification, which runs with
+it at its default `false`).
+
+**C++/pybind11 extension** (switched from an initially-proposed Rust/PyO3
+approach per direct request) — built and verified working, with a real
+(if modest) measured speedup:
+
+- `rustc`/`cargo`/`cl.exe`/`g++` were ALL absent from this machine at the
+  start of this pass (confirmed via `where`/`vswhere.exe`, not assumed).
+  Installed the Microsoft C++ Build Tools (MSVC v14.51, via `winget`) since
+  `pybind11` itself was already present (a sibling-project dependency,
+  `pybind11==3.0.4`) — only the compiler needed installing. A trivial
+  pybind11 "hello world" extension was compiled and imported successfully
+  before writing any real code (`2+3=5` round-trip through a real `.pyd`),
+  confirming the toolchain actually works end-to-end.
+- New `cpp_inference_ext/` package (`setup.py` + `pyproject.toml` +
+  `src/linear_batched.cpp`) builds an importable `cpp_inference` module
+  accelerating `_linear_batched()`.
+- **A real bug found and fixed during this build**: the source directory
+  was originally named `cpp_inference/` (matching the module it builds) —
+  `import cpp_inference` from the repo root resolved to that EMPTY source
+  directory as a Python namespace package, silently shadowing the real
+  installed extension (`sys.path[0] == ''`, i.e. cwd, is checked before
+  site-packages). No error, no warning — `hasattr(cpp_inference,
+  "linear_batched")` was simply `False`, `_linear_batched()`'s own
+  try/except silently degraded to the NumPy path, and nothing looked
+  broken from the outside. Fixed by renaming the source directory to
+  `cpp_inference_ext/` (the module it *builds* stays named
+  `cpp_inference` — only the folder name changed) — a real, generalizable
+  lesson for any Python C-extension project: never name the source
+  directory identically to the module it builds.
+- **A second real gap found while verifying**: the extension was first
+  `pip install`ed into system Python, not this project's actual `.venv`
+  (confirmed by every other command this session needing
+  `.venv/Scripts/aq.exe`, not the global `aq`) — so an early profiling
+  comparison silently measured the NumPy fallback path both times and
+  looked like "no difference." Installed into `.venv` specifically;
+  confirmed via `hasattr(cpp_inference, "linear_batched")` there too
+  before trusting any further numbers.
+- **Measured result** (two back-to-back paired comparisons, same
+  10,000-iteration `--batched` workload, C++ vs. NumPy-only immediately
+  before/after each other to control for this machine's known load
+  variance): **Pair 1: 111.5s → 92.8s (-16.7%). Pair 2: 135.1s → 79.8s
+  (-40.9%).** Direction is consistent across both pairs (C++ always
+  faster), magnitude is noisy (this machine's load swings 2x+ run to run,
+  confirmed repeatedly this session) — a real, modest additional win on
+  top of the weight-caching pass's -89.2%, not the dramatic kind. Matches
+  the expectation already written into `cpp_inference_ext/README.md`
+  before this was measured: the win, if any, is in per-call dispatch
+  overhead for this project's genuinely small matrices (85→24→1-shaped
+  experts), not raw FLOPs. 4 new tests in `tests/test_exported_model.py`
+  (skip-guarded on the extension being built/importable), including one
+  that simulates the C++ call itself raising to prove the NumPy fallback
+  still activates correctly, not just the "extension absent" case.

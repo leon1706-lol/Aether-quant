@@ -149,6 +149,57 @@ Net effect measured by the harness: **-35.2%** total profiled cost
 See `development/Problems.md` for the full before/after numbers and why
 Numba JIT was evaluated but not added this pass.
 
+## Follow-up: weight-array/stack caching, C++ accelerator, opt-in per-symbol multiprocessing
+
+Re-profiling the batched/vectorized path above found `numpy.asarray()`
+conversions were now the single largest remaining cost — every call was
+re-converting the SAME static, JSON-loaded model weights from Python
+lists into NumPy arrays on every single bar. Full writeup in
+`development/Problems.md` #32; summary here:
+
+- **`convert_state_dict_arrays(export)`** converts a model export's
+  `state_dict` values from lists to `np.float64` ndarrays once, at
+  load time (`main.py`'s ~5 model-load sites) — every downstream
+  `np.asarray()` call becomes a no-op. Zero API/behavior change.
+- **`build_layer_stacks()`/`BatchedLayerStackCache`/
+  `build_models_batched_cache()`** (+ multitask siblings) precompute
+  `run_exported_models_batched()`/`run_exported_multitask_models_batched()`'s
+  per-layer `weights_stack`/`bias_stack` once too, via an optional
+  `stack_cache` parameter (default `None` reproduces the exact original
+  behavior). Built once in `main.py::_ensure_ready()`, reused every bar.
+- **Measured: 448.4s → 48.4s, -89.2%** total profiled cost on the same
+  workload, mean per-symbol-bar latency ~44.8ms → 4.83ms.
+- **`cpp_inference_ext/`** (new top-level package, `setup.py` +
+  `src/linear_batched.cpp`, builds an importable module named
+  `cpp_inference` — deliberately a different folder name from the module
+  it builds, since a same-named top-level source directory would shadow
+  the installed package as a namespace package whenever the repo root is
+  on `sys.path`, which it always is here) — an OPTIONAL C++/pybind11
+  accelerator for `_linear_batched()`, the hottest primitive in the
+  batched path. `inference/exported_model.py` attempts `import
+  cpp_inference` and falls back to the NumPy `einsum` path on any
+  import/call failure - same deferred-optional-dependency convention as
+  `ib_insync` (`data_pipeline/ib_backfill.py`). Build with `pip install
+  -e cpp_inference_ext/` (requires a C++ compiler; never a hard
+  dependency of this project). **Measured -16.7% to -40.9%** (two paired
+  comparisons, this machine's load varies enough run-to-run that the
+  direction is trustworthy but the exact magnitude isn't) — a real but
+  modest additional win on top of the weight-caching pass's -89.2%, see
+  `development/Problems.md` #32 for the full methodology and two real
+  bugs found while verifying it (a namespace-collision from naming the
+  source folder the same as the module, and testing against the wrong
+  Python environment).
+- **`inference/parallel_inference.py`** — opt-in per-symbol
+  multiprocessing for `main.py::on_data()`'s Pass 1 inference cluster
+  (`phase_v2.inference_parallelism.enabled`, default `false`). See that
+  module's own docstring for the full honest tradeoff (per-symbol
+  inference is now fast enough, precisely because of the caching fix
+  above, that IPC overhead may exceed any parallel win) and
+  `development/Problems.md` #32 for why this is genuinely untested
+  inside Lean's own runtime (Windows' `ProcessPoolExecutor` uses the
+  `spawn` start method, which has never run inside Lean's embedded-
+  Python process before this pass).
+
 ## Testing
 
 `tests/test_exported_model.py` is the parity net for the numpy

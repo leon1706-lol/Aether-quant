@@ -100,3 +100,13 @@ webui/dist/
 
 # scripts/profile_inference.py's pstats dump - regenerable output, not source
 scripts/profile_inference_output*.txt
+
+# cpp_inference_ext/'s compiled build artifacts - regenerable via
+# `pip install -e cpp_inference_ext/`, never source. The .pyd itself is
+# also gitignored (never a hard dependency - the whole point is that
+# most checkouts run without it, falling back to NumPy).
+cpp_inference_ext/build/
+cpp_inference_ext/*.egg-info/
+cpp_inference_ext/*.pyd
+cpp_inference_ext/*.so
+cpp_inference_ext/install_log*.txt

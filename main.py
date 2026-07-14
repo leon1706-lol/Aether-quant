@@ -25,6 +25,7 @@ import bisect
 import json
 import math
 from collections import deque
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -56,12 +57,17 @@ from execution import credentials_present, evaluate_broker_config, resolve_order
 from execution.live_credentials_io import load_live_credentials
 from execution.paper_readiness_io import read_paper_trading_config
 from inference import (
+    build_models_batched_cache,
+    build_multitask_models_batched_cache,
+    convert_state_dict_arrays,
+    init_worker,
     resolve_sequence_window_size,
     run_exported_model,
     run_exported_multitask_model,
     run_exported_multitask_models_batched,
     run_exported_models_batched,
     run_exported_sequence_multitask_model,
+    run_symbol_inference,
 )
 from features import (
     average_true_range_pct,
@@ -218,6 +224,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.phase9 = self.config.get("phase9", {})
         self.phase_v2 = self.config.get("phase_v2", {})
         self.model_export = self._load_json(self.model_path)
+        convert_state_dict_arrays(self.model_export)
         self.expert_training_metrics = self._load_json(self.expert_metrics_path) if self.expert_metrics_path.exists() else {}
         self.expert_model_exports = self._load_expert_model_exports()
         self.feature_schema = self._load_json(self.feature_schema_path)
@@ -413,6 +420,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.multitask_model, self.multitask_feature_schema = self._load_multitask_model()
         self.expert_multitask_model_exports = self._load_expert_multitask_exports()
 
+        # Precomputed once here (never rebuilt per-bar) - expert exports
+        # never change after this point in a run, so the same weight/bias
+        # stacks run_exported_models_batched()/run_exported_multitask_models_batched()
+        # would otherwise rebuild via np.stack() on every single bar can be
+        # built exactly once. None whenever batching wouldn't apply anyway
+        # (fewer than 2 experts loaded, mismatched architectures) - the
+        # batched functions' own fallback path handles that identically
+        # whether the cache is None or simply absent.
+        self.expert_models_stack_cache = build_models_batched_cache(
+            [self.expert_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
+        )
+        self.expert_multitask_models_stack_cache = build_multitask_models_batched_cache(
+            [self.expert_multitask_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
+        )
+
         # Phase 2 (sequence encoder, additive/graceful-fallback; can
         # optionally blend into gating - see gating_sequence_weight above):
         # a per-symbol rolling buffer of already-computed flat
@@ -431,6 +453,41 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.sequence_feature_schema, int(phase_v2_sequence.get("window_size", 30))
         )
         self.symbol_feature_history = {symbol: deque(maxlen=self.sequence_window_size) for symbol in self.symbols}
+
+        # Opt-in per-symbol multiprocessing for Pass 1's inference cluster
+        # (see inference/parallel_inference.py's module docstring for the
+        # full honest tradeoff writeup) - default off. Windows'
+        # ProcessPoolExecutor uses the `spawn` start method, which
+        # re-bootstraps a fresh interpreter per worker; this has never run
+        # inside Lean's own embedded-Python runtime (not a standard
+        # python.exe process tree), so pool creation is wrapped in its own
+        # try/except - ANY failure here, including at Initialize() time,
+        # permanently falls back to self._inference_pool = None (the
+        # always-correct sequential path main.py has always used), never
+        # a crash that takes the whole algorithm down.
+        phase_v2_inference_parallelism = self.phase_v2.get("inference_parallelism", {})
+        self.inference_parallelism_enabled = bool(phase_v2_inference_parallelism.get("enabled", False))
+        self._inference_pool: ProcessPoolExecutor | None = None
+        if self.inference_parallelism_enabled:
+            worker_count = int(phase_v2_inference_parallelism.get("worker_count", min(4, os.cpu_count() or 1)))
+            worker_model_exports = {
+                "baseline": self.model_export,
+                "experts": self.expert_model_exports,
+                "expert_names": list(EXPERT_NAMES),
+                "expert_stack_cache": self.expert_models_stack_cache,
+                "multitask": self.multitask_model,
+                "expert_multitask": self.expert_multitask_model_exports,
+                "expert_multitask_stack_cache": self.expert_multitask_models_stack_cache,
+                "sequence": self.sequence_model,
+            }
+            try:
+                self._inference_pool = ProcessPoolExecutor(
+                    max_workers=worker_count, initializer=init_worker, initargs=(worker_model_exports,)
+                )
+            except Exception as error:
+                self.Debug(f"Inference parallelism pool failed to start, falling back to sequential: {error}")
+                self._inference_pool = None
+
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
         self._liquidity_thresholds = {
             "thin_participation_threshold": float(phase_v2_liquidity.get("thin_participation_threshold", 0.002)),
@@ -519,6 +576,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # previous single-pass loop whenever the book is disabled.
         pass1_state: dict[str, dict] = {}
         book_candidates: dict[str, dict] = {}
+
+        # Phase 1a: per-symbol feature build - cheap, stays sequential
+        # regardless of self._inference_pool (depends on ordered, append-
+        # only mutation of self.symbol_long_windows/self.symbol_windows/
+        # self.symbol_treasury_10yr_history/self.symbol_feature_history in
+        # self.symbols order, which other consumers this same bar rely on).
+        # `pending` collects everything Phase 1b/1c need for the symbols
+        # whose features are actually ready to run inference on.
+        pending: list[dict] = []
         for symbol in self.symbols:
             bar = slice.bars.get(symbol)
             if bar is None:
@@ -558,7 +624,6 @@ class AetherQuantAlgorithm(QCAlgorithm):
             signals[str(symbol)] = signal_payload
 
             if feature_payload["ready"] and not self.is_warming_up:
-                baseline_probability_up = self._run_model(feature_payload["model_inputs"])
                 # Computed inside _build_model_input(), before this model
                 # even ran, since regime is now a genuine model input, not
                 # just a downstream consumer of its output - reused here
@@ -573,75 +638,152 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # model's most-recent timestep is always the current bar,
                 # matching train.py::build_sequence_tensor_dataset()'s
                 # row-includes-itself windowing.
+                sequence_history: list[list[float]] | None = None
                 if self.sequence_model_enabled:
                     self.symbol_feature_history.setdefault(
                         symbol, deque(maxlen=self.sequence_window_size)
                     ).append(feature_payload["model_inputs"])
-                sequence_prediction = self._run_sequence_model(symbol)
-                expert_probabilities = self._run_expert_models(feature_payload["model_inputs"])
-                multitask_payload = self._run_multitask_model(feature_payload["model_inputs"])
-                baseline_magnitude = multitask_payload.get("magnitude") if multitask_payload else None
-                baseline_volatility = multitask_payload.get("volatility") if multitask_payload else None
-                expert_magnitudes, expert_volatilities = self._run_expert_multitask_models(feature_payload["model_inputs"])
-                gating_payload = build_gating_decision(
-                    regime=regime_payload,
-                    expert_training_metrics=self.expert_training_metrics,
-                    expert_probabilities=expert_probabilities,
-                    baseline_probability_up=baseline_probability_up,
-                    baseline_weight=self.gating_baseline_weight,
-                    gating_model=self.gating_model,
-                    gating_feature_schema=self.gating_feature_schema,
-                    expert_magnitudes=expert_magnitudes,
-                    expert_volatilities=expert_volatilities,
-                    baseline_magnitude=baseline_magnitude,
-                    baseline_volatility=baseline_volatility,
-                    sequence_prediction=sequence_prediction,
-                    sequence_weight=self.gating_sequence_weight,
-                ).to_dict()
-                probability_up = float(gating_payload["final_probability_up"])
-                # Same gating-blended treatment probability_up already gets
-                # (baseline anchor + per-expert weighted average, not just
-                # the raw single-model prediction) - see
-                # moe/gating.py::_weighted_blend()/moe/README.md.
-                predicted_return_magnitude = gating_payload.get("final_magnitude")
-                predicted_volatility = gating_payload.get("final_volatility")
-                # Prefer the sequence model's rank_20d head (strongest
-                # backtest rank-IC, 0.073/t=4.40) and fall back to the
-                # multitask model's own rank_20d head when the sequence
-                # model is unavailable/disabled - see risk/position_sizing.py::
-                # rank_sizing_multiplier(). Off by default (rank_sizing_enabled).
-                predicted_rank_20d = None
-                if sequence_prediction:
-                    predicted_rank_20d = sequence_prediction.get("rank_20d")
-                if predicted_rank_20d is None and multitask_payload:
-                    predicted_rank_20d = multitask_payload.get("rank_20d")
-                signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
-
-                symbol_key = str(symbol)
-                pass1_state[symbol_key] = {
-                    "symbol": symbol,
-                    "bar": bar,
-                    "feature_payload": feature_payload,
-                    "topology_payload": topology_payload,
-                    "regime_payload": regime_payload,
-                    "sequence_prediction": sequence_prediction,
-                    "expert_probabilities": expert_probabilities,
-                    "baseline_probability_up": baseline_probability_up,
-                    "gating_payload": gating_payload,
-                    "probability_up": probability_up,
-                    "predicted_return_magnitude": predicted_return_magnitude,
-                    "predicted_volatility": predicted_volatility,
-                    "predicted_rank_20d": predicted_rank_20d,
-                    "signal_name": signal_name,
-                    "confidence": confidence,
-                    "base_target_weight": base_target_weight,
-                }
-                book_candidates[symbol_key] = {
-                    "predicted_rank_20d": predicted_rank_20d,
-                    "trading_eligible": self._is_trading_eligible(symbol),
-                }
+                    sequence_history = list(self.symbol_feature_history[symbol])
+                pending.append(
+                    {
+                        "symbol": symbol,
+                        "bar": bar,
+                        "feature_payload": feature_payload,
+                        "topology_payload": topology_payload,
+                        "regime_payload": regime_payload,
+                        "sequence_history": sequence_history,
+                    }
+                )
             else:
                 signal_payload["reason"] = feature_payload["reason"]
+
+        # Phase 1b: the actual profiled inference cluster (baseline +
+        # sequence + experts + multitask + expert-multitask) - the only
+        # part that's ever parallelized, and only when
+        # phase_v2.inference_parallelism.enabled is true (self._inference_pool
+        # is not None). Sequential-by-default behavior/order/results are
+        # BYTE-IDENTICAL to before this restructuring existed - every
+        # symbol still calls _run_inference_cluster_sequential() in
+        # self.symbols order, one at a time, exactly as the old inline
+        # code did. Only diverges when parallelism is explicitly enabled;
+        # even then, any pooled failure (including a timeout - Windows'
+        # spawn-based ProcessPoolExecutor has never been verified inside
+        # Lean's own embedded-Python runtime, see
+        # inference/parallel_inference.py's module docstring) permanently
+        # disables the pool for the rest of THIS bar's remaining symbols
+        # and falls back to the sequential path, never a crash.
+        inference_results: dict[str, dict] = {}
+        if self._inference_pool is not None:
+            futures = {
+                str(item["symbol"]): self._inference_pool.submit(
+                    run_symbol_inference,
+                    item["feature_payload"]["model_inputs"],
+                    item["sequence_history"],
+                    self.sequence_window_size,
+                )
+                for item in pending
+            }
+            pool_broken = False
+            for item in pending:
+                symbol_key = str(item["symbol"])
+                if pool_broken:
+                    inference_results[symbol_key] = self._run_inference_cluster_sequential(
+                        item["feature_payload"]["model_inputs"], item["symbol"]
+                    )
+                    continue
+                try:
+                    inference_results[symbol_key] = futures[symbol_key].result(timeout=30)
+                except Exception as error:
+                    self.Debug(
+                        f"Inference parallelism failed ({error}) - disabling the pool for the rest of this run "
+                        "and falling back to the sequential inference path."
+                    )
+                    pool_broken = True
+                    self._inference_pool = None
+                    inference_results[symbol_key] = self._run_inference_cluster_sequential(
+                        item["feature_payload"]["model_inputs"], item["symbol"]
+                    )
+        else:
+            for item in pending:
+                inference_results[str(item["symbol"])] = self._run_inference_cluster_sequential(
+                    item["feature_payload"]["model_inputs"], item["symbol"]
+                )
+
+        # Phase 1c: gating + signal derivation - cheap, stays sequential.
+        for item in pending:
+            symbol = item["symbol"]
+            symbol_key = str(symbol)
+            bar = item["bar"]
+            feature_payload = item["feature_payload"]
+            topology_payload = item["topology_payload"]
+            regime_payload = item["regime_payload"]
+
+            result = inference_results[symbol_key]
+            baseline_probability_up = result["baseline_probability"]
+            sequence_prediction = result["sequence_result"]
+            expert_probabilities = result["expert_probabilities"]
+            multitask_payload = result["multitask_result"]
+            baseline_magnitude = multitask_payload.get("magnitude") if multitask_payload else None
+            baseline_volatility = multitask_payload.get("volatility") if multitask_payload else None
+            expert_magnitudes = result["expert_multitask_magnitudes"]
+            expert_volatilities = result["expert_multitask_volatilities"]
+
+            gating_payload = build_gating_decision(
+                regime=regime_payload,
+                expert_training_metrics=self.expert_training_metrics,
+                expert_probabilities=expert_probabilities,
+                baseline_probability_up=baseline_probability_up,
+                baseline_weight=self.gating_baseline_weight,
+                gating_model=self.gating_model,
+                gating_feature_schema=self.gating_feature_schema,
+                expert_magnitudes=expert_magnitudes,
+                expert_volatilities=expert_volatilities,
+                baseline_magnitude=baseline_magnitude,
+                baseline_volatility=baseline_volatility,
+                sequence_prediction=sequence_prediction,
+                sequence_weight=self.gating_sequence_weight,
+            ).to_dict()
+            probability_up = float(gating_payload["final_probability_up"])
+            # Same gating-blended treatment probability_up already gets
+            # (baseline anchor + per-expert weighted average, not just
+            # the raw single-model prediction) - see
+            # moe/gating.py::_weighted_blend()/moe/README.md.
+            predicted_return_magnitude = gating_payload.get("final_magnitude")
+            predicted_volatility = gating_payload.get("final_volatility")
+            # Prefer the sequence model's rank_20d head (strongest
+            # backtest rank-IC, 0.073/t=4.40) and fall back to the
+            # multitask model's own rank_20d head when the sequence
+            # model is unavailable/disabled - see risk/position_sizing.py::
+            # rank_sizing_multiplier(). Off by default (rank_sizing_enabled).
+            predicted_rank_20d = None
+            if sequence_prediction:
+                predicted_rank_20d = sequence_prediction.get("rank_20d")
+            if predicted_rank_20d is None and multitask_payload:
+                predicted_rank_20d = multitask_payload.get("rank_20d")
+            signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
+
+            pass1_state[symbol_key] = {
+                "symbol": symbol,
+                "bar": bar,
+                "feature_payload": feature_payload,
+                "topology_payload": topology_payload,
+                "regime_payload": regime_payload,
+                "sequence_prediction": sequence_prediction,
+                "expert_probabilities": expert_probabilities,
+                "baseline_probability_up": baseline_probability_up,
+                "gating_payload": gating_payload,
+                "probability_up": probability_up,
+                "predicted_return_magnitude": predicted_return_magnitude,
+                "predicted_volatility": predicted_volatility,
+                "predicted_rank_20d": predicted_rank_20d,
+                "signal_name": signal_name,
+                "confidence": confidence,
+                "base_target_weight": base_target_weight,
+            }
+            book_candidates[symbol_key] = {
+                "predicted_rank_20d": predicted_rank_20d,
+                "trading_eligible": self._is_trading_eligible(symbol),
+            }
 
         # `enabled=False` (default) always resolves to {} here - every
         # symbol in Pass 2 below then finds no book_allocation, taking the
@@ -864,6 +1006,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if weights_path.exists():
                 try:
                     exports[expert_name] = self._load_json(weights_path)
+                    convert_state_dict_arrays(exports[expert_name])
                 except Exception as error:
                     self.Debug(f"Expert export load failed for {expert_name}: {error}")
         return exports
@@ -885,6 +1028,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if weights_path.exists():
                 try:
                     exports[expert_name] = self._load_json(weights_path)
+                    convert_state_dict_arrays(exports[expert_name])
                 except Exception as error:
                     self.Debug(f"Expert multitask export load failed for {expert_name}: {error}")
         return exports
@@ -936,6 +1080,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return None, None
         try:
             model = self._load_json(self.multitask_model_path)
+            convert_state_dict_arrays(model)
             feature_schema = self._load_json(self.multitask_feature_schema_path)
             return model, feature_schema
         except Exception as error:
@@ -954,6 +1099,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return None, None
         try:
             model = self._load_json(self.sequence_model_path)
+            convert_state_dict_arrays(model)
             feature_schema = self._load_json(self.sequence_feature_schema_path)
             return model, feature_schema
         except Exception as error:
@@ -1299,7 +1445,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         showed this loop as a meaningful share of the per-bar hot path's
         cost, see development/Problems.md."""
         model_exports = [self.expert_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
-        results = run_exported_models_batched(model_exports, inputs)
+        results = run_exported_models_batched(model_exports, inputs, stack_cache=self.expert_models_stack_cache)
         probabilities = dict(zip(EXPERT_NAMES, results))
         for expert_name, model_export, result in zip(EXPERT_NAMES, model_exports, results):
             if model_export and result is None:
@@ -1329,7 +1475,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         _run_expert_models() is - see
         inference/exported_model.py::run_exported_multitask_models_batched()."""
         model_exports = [self.expert_multitask_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
-        results = run_exported_multitask_models_batched(model_exports, inputs)
+        results = run_exported_multitask_models_batched(
+            model_exports, inputs, stack_cache=self.expert_multitask_models_stack_cache
+        )
 
         magnitudes: dict[str, float | None] = {}
         volatilities: dict[str, float | None] = {}
@@ -1369,6 +1517,31 @@ class AetherQuantAlgorithm(QCAlgorithm):
         except Exception as error:
             self.Debug(f"Sequence model inference failed for {symbol}: {error}")
             return None
+
+    def _run_inference_cluster_sequential(self, model_inputs: list[float], symbol) -> dict:
+        """Bundles the exact same 5 calls Pass 1 has always made
+        (_run_model/_run_sequence_model/_run_expert_models/
+        _run_multitask_model/_run_expert_multitask_models) into ONE return
+        shape - the always-correct, always-available path on_data() uses
+        directly when self._inference_pool is None (the default), and
+        falls back to per-symbol whenever a pooled call fails for any
+        reason. Same result-dict shape as
+        inference/parallel_inference.py::run_symbol_inference(), so Pass
+        1's gating/signal-derivation step (Phase 1c) can consume either
+        one identically."""
+        baseline_probability_up = self._run_model(model_inputs)
+        sequence_prediction = self._run_sequence_model(symbol)
+        expert_probabilities = self._run_expert_models(model_inputs)
+        multitask_payload = self._run_multitask_model(model_inputs)
+        expert_magnitudes, expert_volatilities = self._run_expert_multitask_models(model_inputs)
+        return {
+            "baseline_probability": baseline_probability_up,
+            "sequence_result": sequence_prediction,
+            "expert_probabilities": expert_probabilities,
+            "multitask_result": multitask_payload,
+            "expert_multitask_magnitudes": expert_magnitudes,
+            "expert_multitask_volatilities": expert_volatilities,
+        }
 
     def _derive_signal(self, probability_up: float) -> tuple[str, float, float]:
         confidence = abs(probability_up - self.decision_threshold) / max(1.0 - self.decision_threshold, self.decision_threshold)

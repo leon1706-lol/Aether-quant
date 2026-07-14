@@ -2676,3 +2676,83 @@ measurement and why it doesn't change the conclusion, are in
 backtest .` run (the whole point of excluding it from default `aq test`)
 and a real IB connection — both remain the user's own manual-verification
 step, per this session's established pattern.
+
+## Latency deep-dive follow-up — weight/stack caching, `aq profile`, opt-in per-symbol multiprocessing, C++ extension
+
+Direct follow-up to the pass above, after re-profiling the already-
+batched/vectorized hot path and finding `numpy.asarray()` conversions were
+now the single largest remaining cost. Full writeup in
+`development/Problems.md` #32 — summary here.
+
+**Weight-array + batched-stack caching.** New `convert_state_dict_arrays()`
+converts a model export's `state_dict` from Python lists to NumPy arrays
+once, at load time, instead of on every single inference call (every
+downstream `np.asarray()` call becomes a documented no-op). New
+`build_layer_stacks()`/`BatchedLayerStackCache`/`build_models_batched_cache()`
+(+ multitask siblings) precompute the batched weight/bias stacks once too,
+instead of `np.stack()`-rebuilding them on every call. **Measured:
+448.4s → 48.4s, -89.2%** on the same 10,000-iteration profiling workload
+(far beyond the prior pass's already-shipped -35.2%) — mean per-symbol-bar
+latency dropped from ~44.8ms to 4.83ms. Zero API/behavior change (default
+parameters reproduce the exact original code path); 14 new parity tests.
+
+**Profiling harness rebuilt** — inputs are now pre-generated outside the
+profiled region (the original harness measured its own `random.uniform`
+overhead as inference cost), and independent wall-clock tail-latency
+reporting (p50/p95/p99/max/mean) was added alongside cProfile's own
+aggregate stats. New `aq profile` CLI command wraps it.
+
+**Opt-in per-symbol multiprocessing** (`phase_v2.inference_parallelism.enabled`,
+default `false`) — `main.py::on_data()`'s Pass 1 restructured into three
+phases (feature build → inference cluster → gating/signal derivation) so
+the middle phase can optionally run across a persistent `ProcessPoolExecutor`
+instead of sequentially. New `inference/parallel_inference.py::run_symbol_inference()`
+is the picklable, Lean-independent worker function; workers load their own
+copy of every model export once via the pool's `initializer`, never
+re-sent per call. Honest framing: per-symbol inference is now fast enough
+(~4.8ms) *because* of the caching fix above that IPC overhead may exceed
+any parallel win — shipped default-off, verified via 9 new tests including
+a real `ProcessPoolExecutor` round-trip proving cross-process picklability,
+but never enabled for this pass's own real-backtest verification step
+(Windows' `spawn` start method inside Lean's own embedded-Python runtime
+is genuinely untested territory - any pooled failure permanently falls
+back to the exact original sequential path).
+
+**C++/pybind11 extension** (switched from an initially-proposed Rust
+approach per direct request) — new `cpp_inference_ext/` package
+(`setup.py` + `src/linear_batched.cpp`, builds the `cpp_inference` module
+— a deliberately different folder name from the module it builds, to
+avoid a namespace-package collision when the repo root is on `sys.path`,
+which it always is here) accelerating `_linear_batched()`, the hottest
+primitive in the batched inference path. Installed the MSVC Build Tools
+from scratch (neither Rust nor C++ had a
+compiler on this machine at the start of this pass) via `winget`;
+`pybind11` itself was already present. Wired into
+`inference/exported_model.py` as an optional accelerated path (deferred
+import, falls back to the NumPy einsum path on any import/call failure -
+same convention as `ib_insync`), never a hard dependency. **Measured (two
+back-to-back paired comparisons, controlling for this machine's known
+run-to-run load variance): -16.7% and -40.9%** — a real, modest
+additional win on top of the weight-caching pass's -89.2%, consistent
+across both pairs but noisy in magnitude, matching the expectation that
+this project's small matrix sizes limit how much a compiled loop can help
+over per-call dispatch overhead. Two real bugs found and fixed while
+verifying this, both worth remembering for any future Python C-extension
+work here: (1) the source folder was originally named `cpp_inference/`,
+identical to the module it builds — this silently shadowed the real
+installed extension as an empty namespace package whenever the repo root
+was on `sys.path`, with zero error/warning (fixed by the rename); (2) the
+extension was first installed into system Python, not this project's
+actual `.venv` — an early profiling comparison silently measured the
+NumPy fallback both times and looked like "no difference" until this was
+caught and fixed.
+
+### Verification
+
+Full non-lean suite green throughout (re-run after each phase, not just
+at the end). New test files: `tests/test_profile_inference.py` (13),
+`tests/test_parallel_inference.py` (9, including the real
+`ProcessPoolExecutor` round-trip). `tests/test_exported_model.py` extended
+with 14 caching-parity tests. See `development/Problems.md` #32 for the
+C++ extension's exact build/verification outcome and the final real
+`lean backtest .` run's result.
