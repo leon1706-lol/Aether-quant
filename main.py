@@ -53,7 +53,17 @@ from experience import (
     build_session_summary_event,
     compute_observation_summary,
 )
-from execution import credentials_present, evaluate_broker_config, resolve_order_permission, resolve_runtime_mode
+from execution import (
+    MAX_LIQUIDITY_SLIPPAGE_BPS,
+    credentials_present,
+    evaluate_broker_config,
+    liquidity_cost_fraction,
+    resolve_fill_slippage,
+    resolve_fill_slippage_source,
+    resolve_order_permission,
+    resolve_runtime_mode,
+    resolve_slippage_bps,
+)
 from execution.live_credentials_io import load_live_credentials
 from execution.paper_readiness_io import read_paper_trading_config
 from inference import (
@@ -100,6 +110,51 @@ from performance import evaluate_all_triggers
 # deps like torch/sklearn have no place in the Lean runtime).
 VOLUME_CHANGE_FLOOR = -1.0
 VOLUME_CHANGE_CEILING = 20.0
+
+
+class _LiquidityAwareSlippageModel:
+    """Lean SlippageModel that charges the algorithm's own already-computed
+    per-symbol liquidity cost estimate on every fill, instead of Lean's
+    default zero-slippage fill.
+
+    Reuses liquidity/market_liquidity.py's LiquidityDecision (price impact
+    + bid-ask spread, or impact alone - see
+    phase_v2.liquidity.fill_slippage.source below - already computed every
+    bar for position-sizing/routing decisions in on_data()'s Pass 2,
+    previously only ever used to gate/resize orders, never applied to an
+    actual fill price) via self._algorithm.latest_liquidity_slippage_bps,
+    a plain dict keyed by str(symbol) and refreshed every bar in on_data().
+    All lookup/clamp/apply math lives in execution.order_gate's pure,
+    unit-tested functions - this class is just the thin adapter unpacking
+    Lean's asset/order objects into plain values, matching every other
+    Lean-wiring pattern in this file.
+
+    Two config knobs (`phase_v2.liquidity.fill_slippage`, read once in
+    _ensure_ready()): `source` ("round_trip", default, or "impact_only" -
+    execution.order_gate.liquidity_cost_fraction()'s choice of which
+    LiquidityDecision field to convert to bps) and `max_bps` (the clamp
+    ceiling, default execution.order_gate.MAX_LIQUIDITY_SLIPPAGE_BPS) - so
+    either the cost estimate or its ceiling can be retuned via
+    `aq config set` without a code change if the default proves too
+    aggressive or too permissive.
+
+    Duck-typed against Lean's ISlippageModel (a GetSlippageApproximation(
+    asset, order) method returning a positive price-delta that Lean itself
+    applies in the direction unfavorable to the trader) - no explicit base
+    class needed, matching how Lean's own Python API examples define custom
+    slippage models.
+    """
+
+    def __init__(self, algorithm) -> None:
+        self._algorithm = algorithm
+
+    def GetSlippageApproximation(self, asset, order):
+        return resolve_fill_slippage(
+            str(asset.Symbol),
+            float(asset.Price),
+            self._algorithm.latest_liquidity_slippage_bps,
+            max_bps=self._algorithm._liquidity_slippage_max_bps,
+        )
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -191,6 +246,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.option_contract_symbol_by_symbol: dict[str, object] = {}
         self.symbol_key_by_option_contract_symbol: dict[str, str] = {}
         self.bar_history_size = 25
+        # Most recent per-symbol liquidity/market_liquidity.py
+        # estimated_round_trip_cost, in bps - refreshed every bar in Pass 2
+        # of on_data(), read by _LiquidityAwareSlippageModel (real Lean
+        # fills, below) and threaded into SimulatedPortfolioState.enter_long()
+        # (observation-mode fills) so both paths charge the same estimate.
+        # Must exist before _add_asset()'s SetSlippageModel() call, hence
+        # initialized here rather than in _ensure_ready(). max_bps gets a
+        # safe hardcoded default here; _ensure_ready() overwrites it with
+        # the real phase_v2.liquidity.fill_slippage.max_bps config value
+        # (read before any real order can be placed) - this is only a
+        # fallback in case GetSlippageApproximation is ever somehow called
+        # before _ensure_ready() has run once.
+        self.latest_liquidity_slippage_bps: dict[str, float] = {}
+        self._liquidity_slippage_max_bps = MAX_LIQUIDITY_SLIPPAGE_BPS
+        self._liquidity_slippage_model = _LiquidityAwareSlippageModel(self)
 
         for asset in self.phase1["universe"]["assets"]:
             symbol = self._add_asset(asset)
@@ -500,6 +570,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase_v2_spread_estimation = phase_v2_liquidity.get("spread_estimation", {})
         self._spread_estimation_enabled = bool(phase_v2_spread_estimation.get("enabled", True))
         self._spread_estimation_min_bars = int(phase_v2_spread_estimation.get("min_bars", 2))
+        # Real fill slippage (execution/risk realism pass) - which
+        # liquidity_payload field feeds _LiquidityAwareSlippageModel/
+        # simulate_fill(), and the ceiling on how much slippage either path
+        # will ever charge. See execution/order_gate.py's docstrings for
+        # the "round_trip" vs "impact_only" rationale and why 500bps is a
+        # degenerate-estimate guard, not a normal-path limiter.
+        phase_v2_fill_slippage = phase_v2_liquidity.get("fill_slippage", {})
+        self._liquidity_slippage_source = resolve_fill_slippage_source(phase_v2_fill_slippage.get("source"))
+        self._liquidity_slippage_max_bps = float(
+            phase_v2_fill_slippage.get("max_bps", MAX_LIQUIDITY_SLIPPAGE_BPS)
+        )
         phase_v2_experience = self.phase_v2.get("experience", {})
         phase_v2_runtime = self.phase_v2.get("runtime", {})
         raw_runtime_mode = phase_v2_runtime.get("mode")
@@ -866,6 +947,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
             ).to_dict()
             if liquidity_payload["recommended_action"] == "reduce_size":
                 target_weight = float(liquidity_payload["adjusted_target_weight"])
+            # Refresh this bar's fill-slippage estimate for symbol_key -
+            # read by _LiquidityAwareSlippageModel (real Lean fills) and
+            # passed into SimulatedPortfolioState.enter_long() below
+            # (observation-mode fills), so both paths charge the same,
+            # already-computed cost instead of Lean's/simulate_fill()'s
+            # previous implicit zero-slippage default. Which liquidity_payload
+            # field is used is config-driven (self._liquidity_slippage_source,
+            # phase_v2.liquidity.fill_slippage.source).
+            self.latest_liquidity_slippage_bps[symbol_key] = (
+                liquidity_cost_fraction(liquidity_payload, self._liquidity_slippage_source) * 10_000.0
+            )
 
             decision = build_market_analysis_decision(
                 signal_name=signal_name,
@@ -1134,13 +1226,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         try:
             if security_type == "equity":
                 security = self.add_equity(ticker, self.resolution)
-                return security.symbol
-            if security_type == "crypto":
+            elif security_type == "crypto":
                 market = Market.COINBASE if asset["market"].lower() == "coinbase" else asset["market"].upper()
                 security = self.add_crypto(ticker, self.resolution, market)
-                return security.symbol
-
-            if security_type == "future":
+            elif security_type == "future":
                 # Lean's native continuous-contract subscription -
                 # rollover/mark-to-market are entirely Lean's job
                 # (risk/futures_risk.py::rollover_due() is a diagnostic
@@ -1149,9 +1238,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # (e.g. "ES") unless lean_future_ticker overrides it.
                 security = self.add_future(asset.get("lean_future_ticker", ticker), self.resolution)
                 security.SetFilter(0, 90)
-                return security.symbol
-
-            if security_type == "option":
+            elif security_type == "option":
                 # Near-the-money, <=60 day chain - real greeks/IV
                 # (features/options_greeks.py) only populate once IB
                 # supplies real chain bid/ask data; order PLACEMENT against
@@ -1159,10 +1246,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # this pass (see _apply_signal()'s "option" branch).
                 security = self.add_option(asset.get("underlying_ticker", ticker), self.resolution)
                 security.SetFilter(-5, 5, timedelta(0), timedelta(60))
-                return security.symbol
+            else:
+                self.debug(f"Unsupported asset type skipped: {security_type} {ticker}")
+                return None
 
-            self.debug(f"Unsupported asset type skipped: {security_type} {ticker}")
-            return None
+            # Real per-asset fill slippage (liquidity/market_liquidity.py's
+            # estimated_round_trip_cost, refreshed every bar) instead of
+            # Lean's default zero-slippage fill - one shared model instance
+            # across every security, keyed internally by symbol.
+            security.SetSlippageModel(self._liquidity_slippage_model)
+            return security.symbol
         except Exception as error:
             self.debug(f"{ticker} subscription skipped: {error}")
             return None
@@ -2136,7 +2229,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
             return f"entered_option_{options_decision.right}"
 
-        self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+        self._simulated_portfolio.enter_long(
+            symbol_key,
+            close_price,
+            target_weight,
+            self.bar_index,
+            slippage_bps=resolve_slippage_bps(
+                symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+            ),
+        )
         self.last_trade_bar_by_symbol[symbol] = self.bar_index
         return f"simulated_entered_option_{options_decision.right}:{permission_reason}"
 
@@ -2193,7 +2294,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.MarketOrder(symbol, contract_count)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_long_futures"
-                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+                self._simulated_portfolio.enter_long(
+                    symbol_key,
+                    close_price,
+                    target_weight,
+                    self.bar_index,
+                    slippage_bps=resolve_slippage_bps(
+                        symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                    ),
+                )
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_long_futures:{permission_reason}"
 
@@ -2202,7 +2311,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.SetHoldings(symbol, target_weight)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_long"
-                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+                self._simulated_portfolio.enter_long(
+                    symbol_key,
+                    close_price,
+                    target_weight,
+                    self.bar_index,
+                    slippage_bps=resolve_slippage_bps(
+                        symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                    ),
+                )
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_long:{permission_reason}"
             return "kept_long" if orders_allowed else "simulated_kept_long"
@@ -2253,7 +2370,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.MarketOrder(symbol, contract_count)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_short_futures"
-                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+                self._simulated_portfolio.enter_long(
+                    symbol_key,
+                    close_price,
+                    target_weight,
+                    self.bar_index,
+                    slippage_bps=resolve_slippage_bps(
+                        symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                    ),
+                )
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_short_futures:{permission_reason}"
 
@@ -2262,7 +2387,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.SetHoldings(symbol, target_weight)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_short"
-                self._simulated_portfolio.enter_long(symbol_key, close_price, target_weight, self.bar_index)
+                self._simulated_portfolio.enter_long(
+                    symbol_key,
+                    close_price,
+                    target_weight,
+                    self.bar_index,
+                    slippage_bps=resolve_slippage_bps(
+                        symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                    ),
+                )
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_short:{permission_reason}"
             return "kept_short" if orders_allowed else "simulated_kept_short"

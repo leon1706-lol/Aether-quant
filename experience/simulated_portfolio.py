@@ -44,10 +44,19 @@ class SimulatedPortfolioState:
         )
         return holdings_value / equity
 
-    def enter_long(self, symbol_key: str, close_price: float, target_weight: float, bar_index: int) -> None:
+    def enter_long(
+        self,
+        symbol_key: str,
+        close_price: float,
+        target_weight: float,
+        bar_index: int,
+        slippage_bps: float = 0.0,
+    ) -> None:
         self._last_prices[symbol_key] = close_price
         equity = self._equity()
-        fill = simulate_fill(close_price=close_price, target_weight=target_weight, equity=equity)
+        fill = simulate_fill(
+            close_price=close_price, target_weight=target_weight, equity=equity, slippage_bps=slippage_bps
+        )
 
         existing = self.holdings.get(symbol_key, {"quantity": 0.0, "avg_price": close_price})
         delta_quantity = fill["quantity"] - existing["quantity"]

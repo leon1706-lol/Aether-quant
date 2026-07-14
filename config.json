@@ -639,6 +639,10 @@
             "spread_estimation": {
                 "enabled": true,
                 "min_bars": 2
+            },
+            "fill_slippage": {
+                "source": "round_trip",
+                "max_bps": 500.0
             }
         },
         "experience": {

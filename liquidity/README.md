@@ -89,3 +89,12 @@ shipped via `estimate_high_low_spread()` instead — a published, closed-form
 estimator that needs only the OHLC data already collected every bar. Same
 end goal (a real, dynamic, per-asset spread estimate instead of a static
 lookup), no new instrumentation, no waiting for data to accumulate.
+
+**Follow-up (execution/risk realism pass): the "no SlippageModel was ever
+set" gap above is now closed.** `estimated_round_trip_cost` (this module's
+output) is no longer computed and discarded — `main.py` now attaches a
+real `SlippageModel` to every security (reading this value every bar) and
+threads it into observation-mode's simulated fills too. See
+`execution/README.md`'s "Real fill slippage" section for the full wiring;
+this module itself is unchanged (the fix was entirely in how its existing
+output gets consumed, not in the estimator).

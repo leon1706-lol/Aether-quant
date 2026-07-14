@@ -887,6 +887,8 @@ All thresholds are configurable in `config.json` under `phase_v2.liquidity`.
 
 **V2-23.1, closed** (post-V2-18 architecture audit) — see `liquidity/README.md` for the full story: the original "calibrate from real fill data" premise turned out to have no underlying telemetry to calibrate from (no `SlippageModel` was ever set for Lean backtests, and observation-mode's simulated fills always used `slippage_bps=0.0`), so this shipped instead as a real, published high-low spread estimator requiring no new instrumentation.
 
+**Follow-up (execution/risk realism pass): `estimated_round_trip_cost` now actually reaches a fill price.** Previously this whole contract fed only sizing/routing decisions (`reduce_size`/`block`/`simulate_instead`) and was discarded afterward — no `SlippageModel` was ever attached to a Lean security, and observation-mode's simulated fills hardcoded `slippage_bps=0.0` (the exact gap V2-23.1's note above describes). `main.py::_LiquidityAwareSlippageModel` now reads this module's `estimated_round_trip_cost` every bar and applies it to both real Lean fills and simulated observation-mode fills — see `execution/README.md`'s "Real fill slippage" section for the wiring and `MAX_LIQUIDITY_SLIPPAGE_BPS`'s clamp rationale.
+
 ## Webui and API Contract
 
 The React/Vite webui (`webui/`) replaces the old `dashboard.html` and `volatility_dashboard.html`. It is served either via `npm run dev` on port 3000 (local development) or from the Docker app container on port 8000 via FastAPI `StaticFiles`.
@@ -1566,14 +1568,18 @@ reference so the question doesn't get re-investigated from scratch later.
    inside that window; combined with daily bars and ~10 symbols, a backtest
    produces on the order of single-digit orders per day across the whole
    book. HFT strategies place hundreds to thousands of orders per second.
-3. **Orders are `SetHoldings`/`Liquidate` market orders with no slippage
-   modeling wired to fills.** `liquidity/market_liquidity.py` computes an
-   `estimated_slippage`/spread proxy purely as a pre-trade sizing/blocking
-   signal — it never feeds into an actual fill price (no `SlippageModel` is
-   ever attached to a Lean security, confirmed in the Liquidity Engine
-   Contract above). Observation-mode simulated fills also hardcode
-   `slippage_bps=0.0`. HFT requires limit-order/queue-position-aware
-   execution and explicit latency simulation, both absent.
+3. **Orders are still `SetHoldings`/`Liquidate` market orders — no
+   limit-order/queue-position-aware execution exists.** The slippage half
+   of this gap is closed as of the execution/risk realism pass: a real
+   `SlippageModel` is now attached to every Lean security
+   (`main.py::_LiquidityAwareSlippageModel`, see `execution/README.md`'s
+   "Real fill slippage" section), reading `liquidity/market_liquidity.py`'s
+   `estimated_round_trip_cost` every bar instead of discarding it after
+   sizing/routing decisions — and observation-mode's simulated fills now
+   charge the same estimate instead of a hardcoded `slippage_bps=0.0`.
+   What's still genuinely absent for HFT: real limit orders (fills are
+   still all-or-nothing market fills, no partial-fill/queue-position
+   modeling) and explicit network/exchange latency simulation.
 4. **Retraining is an offline, gated batch process**, not online/continuous
    learning: `phase_v2.retraining.cooldown_minutes` (720 = 12h),
    `max_retrainings_per_day` (2), and a full

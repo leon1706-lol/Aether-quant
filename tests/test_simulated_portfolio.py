@@ -34,6 +34,29 @@ def test_enter_long_updates_cash_and_holdings():
     assert portfolio.cumulative_turnover == 2_500.0
 
 
+def test_enter_long_applies_slippage_bps_to_fill_price():
+    portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
+
+    portfolio.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1, slippage_bps=50.0)
+
+    expected_fill_price = 100.5  # 100.0 * (1 + 50bps)
+    expected_quantity = 2_500.0 / expected_fill_price
+    assert portfolio.holdings["AAPL"]["avg_price"] == expected_fill_price
+    assert round(portfolio.holdings["AAPL"]["quantity"], 6) == round(expected_quantity, 6)
+    assert round(portfolio.cash, 6) == round(10_000.0 - expected_quantity * expected_fill_price, 6)
+
+
+def test_enter_long_defaults_to_zero_slippage():
+    with_default = SimulatedPortfolioState(initial_cash=10_000.0)
+    explicit_zero = SimulatedPortfolioState(initial_cash=10_000.0)
+
+    with_default.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1)
+    explicit_zero.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1, slippage_bps=0.0)
+
+    assert with_default.holdings == explicit_zero.holdings
+    assert with_default.cash == explicit_zero.cash
+
+
 def test_enter_long_with_negative_target_weight_opens_a_short():
     # Phase 3 of the 5/10 -> 9/10 roadmap (portfolio/book_construction.py):
     # enter_long() despite its name is already sign-generic

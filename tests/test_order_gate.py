@@ -1,4 +1,16 @@
-from execution import resolve_order_permission, resolve_runtime_mode, simulate_fill
+from execution import (
+    DEFAULT_FILL_SLIPPAGE_SOURCE,
+    MAX_LIQUIDITY_SLIPPAGE_BPS,
+    VALID_FILL_SLIPPAGE_SOURCES,
+    liquidity_cost_fraction,
+    resolve_fill_slippage,
+    resolve_fill_slippage_source,
+    resolve_order_permission,
+    resolve_runtime_mode,
+    resolve_slippage_bps,
+    simulate_fill,
+    slippage_amount,
+)
 
 
 def test_backtest_mode_always_allows_orders():
@@ -122,3 +134,113 @@ def test_simulate_fill_handles_non_positive_price_safely():
     )
 
     assert result == {"fill_price": 0.0, "notional": 0.0, "quantity": 0.0}
+
+
+def test_slippage_amount_computes_bps_of_price():
+    assert slippage_amount(100.0, 50.0) == 0.5
+    assert slippage_amount(200.0, 100.0) == 2.0
+
+
+def test_slippage_amount_is_zero_for_non_positive_price_or_bps():
+    assert slippage_amount(0.0, 50.0) == 0.0
+    assert slippage_amount(-10.0, 50.0) == 0.0
+    assert slippage_amount(100.0, 0.0) == 0.0
+    assert slippage_amount(100.0, -5.0) == 0.0
+
+
+def test_resolve_slippage_bps_looks_up_symbol():
+    bps_by_symbol = {"AAPL": 12.5, "MSFT": 3.0}
+
+    assert resolve_slippage_bps("AAPL", bps_by_symbol) == 12.5
+    assert resolve_slippage_bps("MSFT", bps_by_symbol) == 3.0
+
+
+def test_resolve_slippage_bps_missing_symbol_defaults_to_zero():
+    assert resolve_slippage_bps("AAPL", {}) == 0.0
+
+
+def test_resolve_slippage_bps_clamps_to_max():
+    bps_by_symbol = {"AAPL": MAX_LIQUIDITY_SLIPPAGE_BPS * 10}
+
+    assert resolve_slippage_bps("AAPL", bps_by_symbol) == MAX_LIQUIDITY_SLIPPAGE_BPS
+
+
+def test_resolve_slippage_bps_clamps_negative_to_zero():
+    bps_by_symbol = {"AAPL": -25.0}
+
+    assert resolve_slippage_bps("AAPL", bps_by_symbol) == 0.0
+
+
+def test_resolve_fill_slippage_matches_slippage_amount_of_clamped_bps():
+    bps_by_symbol = {"AAPL": 50.0}
+
+    result = resolve_fill_slippage("AAPL", 100.0, bps_by_symbol)
+
+    assert result == slippage_amount(100.0, 50.0) == 0.5
+
+
+def test_resolve_fill_slippage_missing_symbol_is_zero():
+    assert resolve_fill_slippage("AAPL", 100.0, {}) == 0.0
+
+
+def test_resolve_slippage_bps_default_max_bps_matches_module_constant():
+    bps_by_symbol = {"AAPL": MAX_LIQUIDITY_SLIPPAGE_BPS * 10}
+
+    assert resolve_slippage_bps("AAPL", bps_by_symbol) == MAX_LIQUIDITY_SLIPPAGE_BPS
+
+
+def test_resolve_slippage_bps_honors_custom_max_bps():
+    bps_by_symbol = {"AAPL": 200.0}
+
+    # A tighter custom ceiling clamps below the estimate.
+    assert resolve_slippage_bps("AAPL", bps_by_symbol, max_bps=50.0) == 50.0
+    # A looser custom ceiling lets the full estimate through.
+    assert resolve_slippage_bps("AAPL", bps_by_symbol, max_bps=1000.0) == 200.0
+
+
+def test_resolve_slippage_bps_custom_max_bps_still_clamps_negative_to_zero():
+    bps_by_symbol = {"AAPL": -25.0}
+
+    assert resolve_slippage_bps("AAPL", bps_by_symbol, max_bps=50.0) == 0.0
+
+
+def test_resolve_fill_slippage_honors_custom_max_bps():
+    bps_by_symbol = {"AAPL": 200.0}
+
+    result = resolve_fill_slippage("AAPL", 100.0, bps_by_symbol, max_bps=50.0)
+
+    assert result == slippage_amount(100.0, 50.0)
+
+
+def test_resolve_fill_slippage_source_passes_through_valid_values():
+    for source in VALID_FILL_SLIPPAGE_SOURCES:
+        assert resolve_fill_slippage_source(source) == source
+
+
+def test_resolve_fill_slippage_source_falls_back_to_default_for_missing_or_unknown():
+    assert resolve_fill_slippage_source(None) == DEFAULT_FILL_SLIPPAGE_SOURCE
+    assert resolve_fill_slippage_source("") == DEFAULT_FILL_SLIPPAGE_SOURCE
+    assert resolve_fill_slippage_source("banana") == DEFAULT_FILL_SLIPPAGE_SOURCE
+
+
+def test_liquidity_cost_fraction_round_trip_reads_estimated_round_trip_cost():
+    liquidity_payload = {"estimated_round_trip_cost": 0.002, "estimated_slippage": 0.0005}
+
+    assert liquidity_cost_fraction(liquidity_payload, "round_trip") == 0.002
+
+
+def test_liquidity_cost_fraction_impact_only_reads_estimated_slippage():
+    liquidity_payload = {"estimated_round_trip_cost": 0.002, "estimated_slippage": 0.0005}
+
+    assert liquidity_cost_fraction(liquidity_payload, "impact_only") == 0.0005
+
+
+def test_liquidity_cost_fraction_unknown_source_falls_back_to_round_trip():
+    liquidity_payload = {"estimated_round_trip_cost": 0.002, "estimated_slippage": 0.0005}
+
+    assert liquidity_cost_fraction(liquidity_payload, "banana") == 0.002
+
+
+def test_liquidity_cost_fraction_missing_field_is_zero():
+    assert liquidity_cost_fraction({}, "round_trip") == 0.0
+    assert liquidity_cost_fraction({}, "impact_only") == 0.0

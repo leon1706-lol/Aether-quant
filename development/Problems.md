@@ -1330,3 +1330,80 @@ approach per direct request) — built and verified working, with a real
   (skip-guarded on the extension being built/importable), including one
   that simulates the C++ call itself raising to prove the NumPy fallback
   still activates correctly, not just the "extension absent" case.
+
+### 33. Execution/risk realism pass — real `SlippageModel` wired to fills (spread + impact estimate previously computed and discarded)
+
+`liquidity/market_liquidity.py::build_liquidity_decision()` computed
+`estimated_round_trip_cost` (participation-based price impact + a real
+Corwin & Schultz high-low spread estimate) every bar for every symbol, but
+this codebase's own HFT-gap analysis (`development/v2_architecture.md`)
+had already documented that the number went nowhere useful: no Lean
+security ever had a `SlippageModel` attached (backtests got Lean's default
+zero-slippage fill), and `execution/order_gate.py::simulate_fill()` — the
+fill math behind every observation-mode simulated trade — always ran with
+a hardcoded `slippage_bps=0.0`. Every historical backtest/observation-mode
+run to date has therefore reported systematically-too-good fills,
+regardless of order size or how thin the estimated liquidity actually was.
+
+**Fixed** by threading the existing estimate into both fill paths instead
+of building new estimation logic:
+
+- New pure functions in `execution/order_gate.py`: `slippage_amount(
+  reference_price, slippage_bps)` (bps -> absolute price delta, the one
+  formula both paths now share), `resolve_slippage_bps(symbol_key,
+  slippage_bps_by_symbol)` (lookup + clamp to `MAX_LIQUIDITY_SLIPPAGE_BPS`
+  = 500bps/5%, a guard against a degenerate estimate rather than a
+  normal-path limiter — `build_liquidity_decision()` already blocks orders
+  at 5% participation long before the estimate could reach anywhere near
+  this), and `resolve_fill_slippage(...)` composing both for the real-fill
+  path. `simulate_fill()` itself is an unchanged-output refactor (`close_price
+  + slippage_amount(...)` instead of an inlined `close_price * (1 +
+  bps/10000)` — same math, single source of truth).
+- `main.py::_LiquidityAwareSlippageModel` (new, Lean-dependent, lives in
+  main.py per this repo's "only main.py touches AlgorithmImports"
+  convention) — a thin `GetSlippageApproximation(asset, order)` adapter,
+  duck-typed against Lean's `ISlippageModel`, delegating to
+  `resolve_fill_slippage()`. Attached to every security in `_add_asset()`
+  via `security.SetSlippageModel(...)` (refactored from 4 early-return
+  branches to if/elif so the attachment happens once, not duplicated per
+  asset type). Reads `self.latest_liquidity_slippage_bps`, a
+  `dict[str, float]` keyed by `str(symbol)` refreshed every bar in Pass 2
+  right after `build_liquidity_decision()` already runs — no new
+  per-bar computation, just capturing a value that used to be discarded.
+- `experience/simulated_portfolio.py::enter_long()` gained an optional
+  `slippage_bps: float = 0.0` parameter; all ~5 `main.py` call sites now
+  pass `resolve_slippage_bps(symbol_key, self.latest_liquidity_slippage_bps)`
+  instead of relying on the old implicit zero.
+- **Design decision, documented in `execution/README.md`**:
+  `estimated_round_trip_cost` (spread + impact combined) was used rather
+  than `estimated_slippage` alone, because Lean's fill model has no
+  bid-ask awareness at all — this is the only place spread cost ever
+  reaches an actual fill price in this codebase, not a double-count
+  against a bid-ask model that doesn't exist.
+- 12 new tests (`tests/test_order_gate.py`: `slippage_amount`,
+  `resolve_slippage_bps`'s clamp/lookup/default behavior,
+  `resolve_fill_slippage`; `tests/test_simulated_portfolio.py`:
+  `enter_long()`'s new parameter, plus a parity test confirming the
+  default (no `slippage_bps` passed) is byte-identical to explicit
+  `slippage_bps=0.0`). `_LiquidityAwareSlippageModel` itself is not
+  unit-testable in isolation — same constraint as every other Lean-typed
+  piece of `main.py` (cannot import `main` outside Lean's runtime) — so
+  all of its actual logic was extracted into the pure, unit-tested
+  `execution/order_gate.py` functions above; the class itself is a
+  2-line adapter with nothing left to test independently.
+
+**Follow-up: both judgment calls above are now config flags, not hardcoded.**
+The initial pass made two defensible-but-unreviewed decisions: which
+`LiquidityDecision` field feeds the estimate (`estimated_round_trip_cost`
+vs. `estimated_slippage`), and where the safety clamp sits (500bps). Both
+are now `phase_v2.liquidity.fill_slippage.{source,max_bps}`, read once in
+`_ensure_ready()`, settable via `aq config set` with no code change:
+`resolve_slippage_bps()`/`resolve_fill_slippage()` gained an optional
+`max_bps` parameter (default `MAX_LIQUIDITY_SLIPPAGE_BPS`), and new
+`liquidity_cost_fraction(liquidity_payload, source)` +
+`resolve_fill_slippage_source(raw_source)` (fail-safe normalize, same
+pattern as `resolve_runtime_mode()`) pick the estimate field. 13 more
+tests (10 in `test_order_gate.py` for the new params/functions, 3 in
+`test_aq_cli.py` proving both keys are reachable via the existing generic
+`aq config get`/`set` — no new CLI code needed, since `aq config` already
+operates on arbitrary dotted paths into `config.json`).

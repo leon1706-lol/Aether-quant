@@ -4,6 +4,40 @@ Detailed phase results for Aether Quant, moved out of `README.md` (see there
 for the current status, project structure, and runbook). Newest entries at
 the bottom, ordered chronologically by phase.
 
+## V1 — Finished
+
+The first universe was deliberately small and mixed:
+
+- `AAPL`
+- `SPY`
+- `QQQ`
+- `BTCUSD`
+
+Shared V1 data coverage:
+
+- Start: `2014-12-01`
+- End: `2018-08-13`
+- Resolution: `Daily`
+
+First windows:
+
+- Training: `2014-12-01` to `2017-06-30`
+- Validation: `2017-07-01` to `2017-12-31`
+- Backtest: `2018-01-01` to `2018-08-13`
+
+First target definition:
+
+- Target type: next day's direction
+- Label: `1` if the next close-to-close return is positive, else `0`
+
+First feature ideas:
+
+- 1d, 5d, and 20d returns
+- 5d and 20d volatility
+- 5d and 20d momentum
+- Daily range and open-close range
+- Volume change
+
 ## Phase 2 Result
 
 The current pipeline does the following:
@@ -2756,3 +2790,58 @@ at the end). New test files: `tests/test_profile_inference.py` (13),
 with 14 caching-parity tests. See `development/Problems.md` #32 for the
 C++ extension's exact build/verification outcome and the final real
 `lean backtest .` run's result.
+
+## Execution/risk realism — real `SlippageModel` wired to fills
+
+`liquidity/market_liquidity.py`'s `estimated_round_trip_cost` (real
+per-bar price-impact + Corwin & Schultz spread estimate) used to be
+computed for every symbol every bar purely to drive sizing/routing
+decisions (`reduce_size`/`block`/`simulate_instead`) and then discarded —
+no Lean security ever had a `SlippageModel` attached, and
+`simulate_fill()` always ran with a hardcoded `slippage_bps=0.0`. Every
+backtest and observation-mode run to date reported fills that were
+systematically too good, with no cost charged regardless of order size or
+liquidity conditions the system itself was already computing.
+
+**Fixed**: threaded the existing estimate into both fill paths.
+`execution/order_gate.py` gained `slippage_amount()` (pure bps -> price
+math), `resolve_slippage_bps()` (lookup + clamp to
+`MAX_LIQUIDITY_SLIPPAGE_BPS` = 500bps, a degenerate-estimate guard, not a
+normal-path limiter), and `resolve_fill_slippage()` (composes both) — one
+shared formula for real and simulated fills alike. `main.py` gained
+`_LiquidityAwareSlippageModel`, a thin Lean `ISlippageModel` adapter
+attached to every security via `SetSlippageModel()`, reading a per-symbol
+bps dict refreshed every bar right after `build_liquidity_decision()`
+already runs. `experience/simulated_portfolio.py::enter_long()` gained an
+optional `slippage_bps` parameter, now populated from the same estimate at
+every `main.py` call site instead of the old implicit zero. Design
+decision (documented in `execution/README.md`): the combined
+impact+spread estimate was used rather than impact alone, since Lean's
+fill model has no bid-ask awareness at all — this is the only place
+spread cost ever reaches an actual price here.
+
+### Verification
+
+12 new tests: `tests/test_order_gate.py` (`slippage_amount`,
+`resolve_slippage_bps`'s clamp/lookup/default behavior,
+`resolve_fill_slippage`), `tests/test_simulated_portfolio.py`
+(`enter_long()`'s new parameter, including a parity test that the default
+is byte-identical to explicit `slippage_bps=0.0`). The Lean-side adapter
+class itself is not unit-testable in isolation (main.py cannot be
+imported outside Lean's runtime, a pre-existing constraint) — all real
+logic lives in the pure, tested `execution/order_gate.py` functions
+instead, matching this repo's established pure-module/thin-Lean-adapter
+pattern. See `development/Problems.md` #33 for the full writeup.
+
+**Follow-up: made both judgment calls configurable.** The `source` field
+choice (round-trip vs. impact-only) and the `500bps` safety clamp were
+initially hardcoded defaults. Both are now `phase_v2.liquidity.fill_slippage.{source,max_bps}`,
+settable via `aq config set` with no code change — `resolve_slippage_bps()`/
+`resolve_fill_slippage()` gained an optional `max_bps` parameter, and new
+`liquidity_cost_fraction()`/`resolve_fill_slippage_source()` pick and
+fail-safe-normalize the estimate source. 13 new tests (10 pure-function
+tests in `test_order_gate.py`, 3 in `test_aq_cli.py` proving both keys are
+reachable through the existing generic `aq config get`/`set` — no new CLI
+parsing code needed). Also moved V1's universe/data-window/feature-list
+detail out of the README's Roadmap section into this file's new top
+"V1 — Finished" entry, keeping the README's roadmap section short.

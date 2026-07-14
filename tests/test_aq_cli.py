@@ -1145,6 +1145,7 @@ def _config_fixture(tmp_path):
                 "phase_v2": {
                     "gating_network": {"baseline_weight": 0.25, "learned_model_enabled": True},
                     "retraining": {"eligible_severities": ["warning", "critical"]},
+                    "liquidity": {"fill_slippage": {"source": "round_trip", "max_bps": 500.0}},
                 }
             },
             indent=4,
@@ -1265,6 +1266,48 @@ def test_config_set_type_change_prints_warning_but_still_writes(tmp_path, capsys
     assert "WARNING: type changed from float to str" in captured.err
     updated = json.loads(config_path.read_text(encoding="utf-8"))
     assert updated["phase_v2"]["gating_network"]["baseline_weight"] == "hello"
+
+
+def test_config_get_fill_slippage_source_and_max_bps(tmp_path, capsys):
+    """execution/risk realism follow-up: phase_v2.liquidity.fill_slippage.{source,max_bps}
+    are reachable via the existing generic `aq config get` - no new CLI
+    code needed, since main.py reads these via the same dotted-path
+    config.json structure as every other phase_v2.* flag."""
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.liquidity.fill_slippage.source"], capsys)
+    assert exit_code == 0
+    assert captured.out.strip() == "round_trip"
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.liquidity.fill_slippage.max_bps"], capsys)
+    assert exit_code == 0
+    assert captured.out.strip() == "500.0"
+
+
+def test_config_set_fill_slippage_source_to_impact_only(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.liquidity.fill_slippage.source", "impact_only"], capsys
+    )
+
+    assert exit_code == 0
+    assert "'round_trip' -> 'impact_only'" in captured.out
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["liquidity"]["fill_slippage"]["source"] == "impact_only"
+
+
+def test_config_set_fill_slippage_max_bps_to_custom_ceiling(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.liquidity.fill_slippage.max_bps", "100.0"], capsys
+    )
+
+    assert exit_code == 0
+    assert "500.0 -> 100.0" in captured.out
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["liquidity"]["fill_slippage"]["max_bps"] == 100.0
 
 
 def test_config_keys_lists_every_leaf(tmp_path, capsys):
