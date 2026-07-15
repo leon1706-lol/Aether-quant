@@ -39,7 +39,11 @@ from risk_controls import (
 from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
-from risk.asset_class_router import route_position_sizing
+from risk.asset_class_router import (
+    resolve_asset_class_enabled,
+    route_position_sizing,
+    should_liquidate_disabled_asset_class_position,
+)
 from risk.futures_risk import load_futures_contract_specs
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
@@ -247,6 +251,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # real position - see _apply_signal()'s "option" branches.
         self.option_contract_symbol_by_symbol: dict[str, object] = {}
         self.symbol_key_by_option_contract_symbol: dict[str, str] = {}
+        # 2-leg vertical spread support (execution/risk realism pass, part
+        # 3): a NEW, additive, plural sibling of the dict above - never
+        # repurposes option_contract_symbol_by_symbol's value type, which
+        # would force every one of its existing read sites to branch even
+        # on the default single-leg path. Only ever populated by
+        # _apply_option_spread_order() below; empty for every non-spread
+        # position, always. See _order_target_symbols()'s docstring for
+        # how this and the singular dict above are reconciled.
+        self.option_contract_symbols_by_symbol: dict[str, list] = {}
         # Real limit-order support (execution/risk realism pass, part 2):
         # in-flight limit orders this algorithm is currently waiting to
         # fill, keyed by str(symbol) - the canonical chain-Symbol string
@@ -493,6 +506,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.options_risk_free_rate = float(phase_v2_options_risk.get("risk_free_rate", 0.045))
         self.options_iv_solver_max_iterations = int(phase_v2_options_risk.get("iv_solver_max_iterations", 100))
         self.options_iv_solver_tolerance = float(phase_v2_options_risk.get("iv_solver_tolerance", 1e-06))
+        # 2-leg vertical spread support (execution/risk realism pass, part
+        # 3) - "single_leg" (default) reproduces today's exact
+        # single-contract behavior; "vertical" routes through
+        # portfolio/options_strategy.py's build_vertical_spread_position_sizing()
+        # instead. See risk/README.md's "Multi-asset-class risk dispatch"
+        # section and development/Problems.md #38.
+        self.options_spread_strategy = str(phase_v2_options_risk.get("spread_strategy", "single_leg"))
+        self.options_short_leg_delta_offset = float(phase_v2_options_risk.get("short_leg_delta_offset", 0.20))
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -678,6 +699,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         self.bar_index += 1
         self._refresh_risk_state()
+        self._liquidate_positions_for_disabled_asset_classes()
         self._process_pending_limit_order_timeouts()
         self.latest_topology_payload = self._build_topology_payload()
         self.latest_macro_payload = self._build_macro_payload()
@@ -1283,11 +1305,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 security = self.add_future(asset.get("lean_future_ticker", ticker), self.resolution)
                 security.SetFilter(0, 90)
             elif security_type == "option":
-                # Near-the-money, <=60 day chain - real greeks/IV
-                # (features/options_greeks.py) only populate once IB
-                # supplies real chain bid/ask data; order PLACEMENT against
-                # a specific resolved contract is a documented non-goal of
-                # this pass (see _apply_signal()'s "option" branch).
+                # Near-the-money, <=60 day chain. Chain data comes from
+                # Lean's own local backtest feed (slice.option_chains) -
+                # no IB key needed for this; real greeks/IV are used when
+                # Lean supplies them, else features/options_greeks.py's
+                # Black-Scholes fallback (see _build_options_chains_payload()).
+                # Order placement against a resolved contract is real
+                # (_apply_option_order()) - single-leg by default, with an
+                # optional 2-leg vertical spread via
+                # phase_v2.options_risk.spread_strategy (see
+                # portfolio/options_strategy.py and risk/README.md).
                 security = self.add_option(asset.get("underlying_ticker", ticker), self.resolution)
                 security.SetFilter(-5, 5, timedelta(0), timedelta(60))
             else:
@@ -1780,6 +1807,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             options_kwargs=dict(
                 target_delta_at_full_confidence=self.options_target_delta_at_full_confidence,
                 max_vega_budget_pct_of_equity=self.options_max_vega_budget_pct_of_equity,
+                spread_strategy=self.options_spread_strategy,
+                short_leg_delta_offset=self.options_short_leg_delta_offset,
             )
             if self.options_risk_enabled
             else {"target_delta_at_full_confidence": 0.0, "max_vega_budget_pct_of_equity": 0.0},
@@ -2220,7 +2249,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _is_invested(self, symbol, orders_allowed: bool) -> bool:
         if orders_allowed:
-            return bool(self.Portfolio[self._order_target_symbol(symbol)].Invested)
+            return any(self.Portfolio[target].Invested for target in self._order_target_symbols(symbol))
         # The simulated/observation-mode portfolio is Aether's own
         # abstraction, always keyed by the canonical chain Symbol string
         # regardless of asset class (it never places a real Lean order on
@@ -2236,6 +2265,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
         asset class, and an option asset with no currently-open contract
         position)."""
         return self.option_contract_symbol_by_symbol.get(str(symbol), symbol)
+
+    def _order_target_symbols(self, symbol) -> list:
+        """Plural sibling of _order_target_symbol() above, for 2-leg
+        vertical spread positions (execution/risk realism pass, part 3):
+        every real Lean Symbol a Liquidate()/Invested-check should target
+        for `symbol` - both leg contract Symbols
+        (self.option_contract_symbols_by_symbol) when this chain symbol
+        currently holds a spread, else a single-element list wrapping
+        _order_target_symbol()'s own result (every non-spread position -
+        single-leg option, future, equity/crypto/bond - unchanged).
+
+        Provably byte-identical to [_order_target_symbol(symbol)] for
+        every position that isn't a spread, by construction:
+        option_contract_symbols_by_symbol is only ever populated by
+        _apply_option_spread_order() below, so it has no entry for any
+        other position, and this falls straight through to the existing,
+        unchanged single-symbol path."""
+        symbol_key = str(symbol)
+        spread_targets = self.option_contract_symbols_by_symbol.get(symbol_key)
+        if spread_targets:
+            return list(spread_targets)
+        return [self._order_target_symbol(symbol)]
 
     def _try_submit_limit_order(
         self,
@@ -2320,28 +2371,43 @@ class AetherQuantAlgorithm(QCAlgorithm):
         close_price: float, orders_allowed: bool, permission_reason: str,
     ) -> str:
         """Shared by _apply_signal()'s "buy" and "short" branches for
-        asset_class == "option". Retrieves the OptionsPositionDecision
-        computed this bar (risk/asset_class_router.py, surfaced via
+        asset_class == "option". Retrieves the options decision computed
+        this bar (risk/asset_class_router.py, surfaced via
         sizing_payload["asset_class_routing_extra"]["options_decision"] -
-        see _build_dynamic_sizing_payload()) and places a real order on
-        its resolved CONTRACT Symbol - never the canonical chain Symbol
-        main.py subscribes to (self.add_option()'s return value is not
-        itself a tradable contract). Records the contract in
+        see _build_dynamic_sizing_payload()) - either a single-leg
+        OptionsPositionDecision (default, handled below) or a 2-leg
+        OptionsSpreadPositionDecision (phase_v2.options_risk.spread_strategy
+        == "vertical", delegated to _apply_option_spread_order() - checked
+        FIRST via hasattr(options_decision, "legs"), before touching
+        contract_symbol, since OptionsSpreadPositionDecision has no such
+        field and getattr(..., "contract_symbol", None) would otherwise
+        silently reject every spread decision as "no usable contract").
+
+        Single-leg: places a real order on the resolved CONTRACT Symbol -
+        never the canonical chain Symbol main.py subscribes to
+        (self.add_option()'s return value is not itself a tradable
+        contract). Records the contract in
         self.option_contract_symbol_by_symbol/
         self.symbol_key_by_option_contract_symbol (A7) so
         _is_invested()/the sell and hold-liquidate branches/
         _asset_class_exposure() can find this position again.
 
-        options_decision.contracts is always a positive quantity -
-        direction is encoded by which right (call vs put) was selected,
-        never by order sign, since portfolio/options_strategy.py never
-        shorts options (see that module's docstring).
-
-        Never executed against real Lean this pass - verified only
-        against the locally-installed quantconnect-stubs package."""
+        options_decision.contracts is always a positive quantity for the
+        single-leg case - direction is encoded by which right (call vs
+        put) was selected, never by order sign, since
+        portfolio/options_strategy.py never shorts a single-leg option
+        (see that module's docstring)."""
         options_decision = ((sizing_payload or {}).get("asset_class_routing_extra") or {}).get("options_decision")
-        contract_symbol = getattr(options_decision, "contract_symbol", None) if options_decision is not None else None
-        if options_decision is None or contract_symbol is None:
+        if options_decision is None:
+            return "options_no_usable_contract"
+
+        if hasattr(options_decision, "legs"):
+            return self._apply_option_spread_order(
+                symbol, symbol_key, options_decision, target_weight, close_price, orders_allowed, permission_reason
+            )
+
+        contract_symbol = getattr(options_decision, "contract_symbol", None)
+        if contract_symbol is None:
             return "options_no_usable_contract"
 
         if orders_allowed:
@@ -2383,17 +2449,100 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.last_trade_bar_by_symbol[symbol] = self.bar_index
         return f"simulated_entered_option_{options_decision.right}:{permission_reason}"
 
+    def _apply_option_spread_order(
+        self,
+        symbol,
+        symbol_key: str,
+        options_decision,
+        target_weight: float,
+        close_price: float,
+        orders_allowed: bool,
+        permission_reason: str,
+    ) -> str:
+        """2-leg vertical spread placement (execution/risk realism pass,
+        part 3 - phase_v2.options_risk.spread_strategy == "vertical"),
+        delegated to from _apply_option_order() above. options_decision
+        is an OptionsSpreadPositionDecision (portfolio/options_strategy.py) -
+        exactly 2 legs (long, short), placed ATOMICALLY via Lean's own
+        OptionStrategies.bull_call_spread()/bear_put_spread() +
+        self.Buy(strategy, quantity), never as two independent single-leg
+        orders - avoiding the partial-fill/leg-slippage risk of an
+        unhedged half-fill on entry (the reason atomicity matters on this
+        side but not on the close side - see _liquidate_position()'s own
+        docstring for why closing goes leg-by-leg instead).
+
+        Matches this codebase's proven mixed Lean-API-casing convention
+        (PascalCase for calls, OptionStrategies bare from `from
+        AlgorithmImports import *`) - genuinely unverified until a real
+        backtest, see risk/README.md's verification list: whether
+        OptionStrategies.* actually accepts the canonical chain Symbol
+        this codebase already holds, whether self.Buy(strategy, quantity)
+        returns one ticket per leg in a matchable order, and general
+        real fill/margin behavior for a debit spread (zero prior combo-
+        order usage in this codebase before this pass).
+
+        No limit-order support for spreads this pass (_try_submit_limit_order()
+        is single-Symbol-shaped) - always a market-priced combo order when
+        real orders are allowed."""
+        if any(leg.contract_symbol is None for leg in options_decision.legs):
+            return "options_spread_no_usable_legs"
+
+        if not orders_allowed:
+            self._simulated_portfolio.enter_long(
+                symbol_key,
+                close_price,
+                target_weight,
+                self.bar_index,
+                slippage_bps=resolve_slippage_bps(
+                    symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                ),
+            )
+            self.last_trade_bar_by_symbol[symbol] = self.bar_index
+            return f"simulated_entered_option_spread_{options_decision.strategy_name}:{permission_reason}"
+
+        long_leg, short_leg = options_decision.legs
+        self.option_contract_symbols_by_symbol[symbol_key] = [long_leg.contract_symbol, short_leg.contract_symbol]
+        for leg in options_decision.legs:
+            self.symbol_key_by_option_contract_symbol[str(leg.contract_symbol)] = symbol_key
+
+        factory = (
+            OptionStrategies.bull_call_spread
+            if options_decision.strategy_name == "bull_call_spread"
+            else OptionStrategies.bear_put_spread
+        )
+        expiration = datetime.fromisoformat(options_decision.expiry)
+        strategy = factory(symbol, long_leg.strike, short_leg.strike, expiration)
+        self.Buy(strategy, options_decision.contracts)
+        self.last_trade_bar_by_symbol[symbol] = self.bar_index
+        return f"entered_option_spread_{options_decision.strategy_name}"
+
     def _liquidate_position(self, symbol) -> None:
-        """self.Liquidate() targeting the correct Lean Symbol (A7 - the
-        tracked option contract Symbol when one exists, else `symbol`
-        itself), then clears the option-contract-tracking maps so a
-        subsequent _is_invested()/_asset_class_exposure() call correctly
-        sees the position as closed."""
-        self.Liquidate(self._order_target_symbol(symbol))
+        """self.Liquidate() targeting every real Lean Symbol this position
+        holds (A7 - the tracked option contract Symbol(s) when one/two
+        exist, else `symbol` itself; see _order_target_symbols()), then
+        clears the option-contract-tracking maps so a subsequent
+        _is_invested()/_asset_class_exposure() call correctly sees the
+        position as closed.
+
+        A 2-leg vertical spread closes leg-by-leg here (two independent
+        Liquidate() calls), NOT an atomic combo unwind - a deliberate,
+        documented scope trade-off (development/Problems.md #38): an
+        already-open, already-hedged position unwinding leg-by-leg is a
+        materially smaller risk than the entry side (which needed
+        atomicity via OptionStrategies to avoid an unhedged half-fill).
+        Reconstructing the exact OptionStrategy at close time would need
+        persisting strategy_name + both strikes + expiration per open
+        spread position - real bookkeeping this pass doesn't add."""
         symbol_key = str(symbol)
+        for target in self._order_target_symbols(symbol):
+            self.Liquidate(target)
         contract_symbol = self.option_contract_symbol_by_symbol.pop(symbol_key, None)
         if contract_symbol is not None:
             self.symbol_key_by_option_contract_symbol.pop(str(contract_symbol), None)
+        spread_targets = self.option_contract_symbols_by_symbol.pop(symbol_key, None)
+        if spread_targets:
+            for target in spread_targets:
+                self.symbol_key_by_option_contract_symbol.pop(str(target), None)
 
     def _apply_signal(
         self, symbol, signal_name: str, target_weight: float, close_price: float, sizing_payload: dict | None = None
@@ -2797,6 +2946,49 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Liquidate()
                 else:
                     self._simulated_portfolio.liquidate_all(self.bar_index)
+
+    def _liquidate_positions_for_disabled_asset_classes(self) -> None:
+        """Runs once per bar, immediately after _refresh_risk_state()
+        above - same "resolve stale state before this bar's fresh Pass 1/
+        Pass 2 signal computation" anchor point, for the identical reason.
+
+        Closes a real gap: when phase_v2.futures_risk.enabled or
+        phase_v2.options_risk.enabled flips to False, _build_dynamic_sizing_payload()
+        zeroes the sizing kwargs so the future/option branches in
+        _apply_signal()/_apply_option_order() hit an early
+        "futures_zero_contract_count"/"options_no_usable_contract" return -
+        but signal_name itself (from _derive_signal(), driven purely by
+        probability_up) never becomes "hold", so those early returns were
+        never liquidation branches, only entry-blocking ones. An
+        already-open position from before the flag flipped off was never
+        revisited - this sweep is the fix.
+
+        Equity/crypto/bond can never trigger this (no enable/disable flag
+        exists for them anywhere in this codebase -
+        resolve_asset_class_enabled() always returns True) - a genuine
+        no-op for 3 of the 5 asset classes, always. All real decision
+        logic is the two pure functions in risk/asset_class_router.py -
+        this method is a thin iterate-and-call adapter, matching
+        _LiquidityAwareSlippageModel's/_try_submit_limit_order's
+        established precedent for keeping Lean-typed code out of anything
+        that needs unit tests."""
+        orders_allowed, _ = self._order_permission()
+        for symbol in self.symbols:
+            symbol_key = str(symbol)
+            asset = self.asset_lookup.get(symbol_key, {})
+            asset_class = asset.get("asset_class") or asset.get("security_type")
+            enabled = resolve_asset_class_enabled(asset_class, self.futures_risk_enabled, self.options_risk_enabled)
+            is_invested = self._is_invested(symbol, orders_allowed)
+            if not should_liquidate_disabled_asset_class_position(enabled, is_invested):
+                continue
+
+            if orders_allowed:
+                self._liquidate_position(symbol)
+            else:
+                self._simulated_portfolio.exit_using_last_known_price(symbol_key, self.bar_index)
+            self.last_trade_bar_by_symbol[symbol] = self.bar_index
+            self.latest_signal_state[symbol_key] = "hold"
+            self.Debug(f"asset_class_disabled_liquidation: {symbol_key} ({asset_class})")
 
     def _process_pending_limit_order_timeouts(self) -> None:
         """Real limit-order support (execution/risk realism pass, part 2):

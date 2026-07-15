@@ -1506,3 +1506,363 @@ new CLI code). `_try_submit_limit_order`/`on_order_event`/
 not unit-tested in isolation — same `main.py`-cannot-be-imported-outside-
 Lean's-runtime constraint `_LiquidityAwareSlippageModel` hit in entry #33;
 all real logic lives in the pure, tested functions above.
+
+### 35. Disabling an asset class never liquidated already-open positions (Section 0: also fixed 2 stale doc comments)
+
+Two stale documentation bugs fixed alongside this entry, found while
+researching it: `main.py`'s comment on the option `_add_asset()` branch
+still claimed greeks "only populate once IB supplies real chain bid/ask
+data" and that order placement "is a documented non-goal" — both false
+(chain data is Lean's own local backtest feed, no IB key needed; real
+order placement was closed in entry #34). `portfolio/README.md` had the
+identical stale "does not call SetHoldings()/MarketOrder()" claim. Both
+rewritten to match reality.
+
+**The real gap**: `phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled`
+flipping to `False` mid-run correctly zeroed a position's *sizing*
+(`_build_dynamic_sizing_payload()` forces the sizing kwargs to 0, which
+`route_position_sizing()`'s future/option branches turn into
+`contract_count=0`/no usable option decision) — but never touched a
+position already open from *before* the flag flipped off.
+`_derive_signal()` (driven purely by `probability_up`) has no idea these
+flags exist, so `signal_name` stays `"buy"`/`"short"` and never becomes
+`"hold"` — the only existing liquidation trigger
+(`if signal_name == "hold" and previous_signal != "hold" and
+self._is_invested(...)`) was never reached. `_apply_signal()`'s
+future/option branches just kept returning
+`"futures_zero_contract_count"`/`"options_no_usable_contract"` forever,
+silently, every bar, with the stale position sitting untouched.
+Equity/crypto/bond have no enable/disable flag anywhere in this codebase
+— confirmed via a full scan of every `phase_v2.*.enabled` key in
+`config.json` — so this only ever applied to futures/options.
+
+**Fixed**:
+- `risk/asset_class_router.py::resolve_asset_class_enabled(asset_class,
+  futures_risk_enabled, options_risk_enabled)` and
+  `should_liquidate_disabled_asset_class_position(asset_class_enabled,
+  is_invested)` — two pure functions, extending this module's existing
+  dispatch-logic ownership rather than a new module for two 3-line
+  functions.
+- `experience/simulated_portfolio.py::SimulatedPortfolioState.exit_using_last_known_price(symbol_key, bar_index)`
+  — sibling of `exit()`/`liquidate_all()`, resolving the missing
+  close-price argument the same way `liquidate_all()` already does
+  (`self._last_prices.get(symbol_key, holding["avg_price"])`), delegating
+  to `exit()` for the actual cash/pnl/trade_log math — no duplicated
+  logic.
+- `main.py::_liquidate_positions_for_disabled_asset_classes()` — new
+  per-bar sweep, called immediately after `_refresh_risk_state()` and
+  before `_process_pending_limit_order_timeouts()` — the same "resolve
+  stale state before this bar's fresh Pass 1/Pass 2 signal computation"
+  anchor point that method already established, for the identical
+  reason. Thin adapter: iterates `self.symbols`, resolves `asset_class`
+  via the existing `asset.get("asset_class") or asset.get("security_type")`
+  idiom, calls the two pure functions above, liquidates on a hit
+  (`_liquidate_position()` real / `exit_using_last_known_price()`
+  simulated), stamps `last_trade_bar_by_symbol` (matching every other
+  liquidation branch), sets `latest_signal_state[symbol_key] = "hold"`
+  for downstream consistency, logs via `self.Debug()` only (no
+  `signals` dict write — Pass 2 still runs this bar and records an
+  accurate, still-true execution note, matching
+  `_process_pending_limit_order_timeouts()`'s own precedent for not
+  double-writing state).
+- A genuine no-op for equity/crypto/bond always, by construction
+  (`resolve_asset_class_enabled()` never returns `False` for them).
+
+**Testing**: full truth-table tests for both new pure functions in
+`tests/test_asset_class_router.py`; no-op/last-price-fallback/parity
+tests for `exit_using_last_known_price()` in
+`tests/test_simulated_portfolio.py` (parity test confirms it produces an
+identical result to calling `exit()` directly with the same resolved
+price). `_liquidate_positions_for_disabled_asset_classes()` itself is not
+unit-testable in isolation — same `main.py`-cannot-be-imported-outside-
+Lean's-runtime constraint every prior Lean-adapter method this session
+hit. One real-backtest-only item: `self.Portfolio[...].Invested` is now
+read at a new, earlier point in `on_data()`'s execution order than
+before — should be fine since `Portfolio` state doesn't depend on
+anything computed later in the bar, but flagged as unverified until a
+real backtest confirms it.
+
+### 36. Latency profiling extended beyond inference — build_market_topology() found to be a much larger per-bar cost than the entire inference step
+
+`scripts/profile_inference.py` only ever profiled
+`inference/exported_model.py`'s forward-pass functions (entries #31/#32).
+Every other per-bar subsystem `main.py::on_data()` calls — feature
+engineering's underlying indicator primitives, regime detection,
+deterministic + learned topology, liquidity, gating, signal
+derivation/analysis — had never been measured at all.
+
+**Fixed**: new sibling harness `scripts/profile_subsystems.py` (a
+sibling of `profile_inference.py`, not an extension of it — different
+input shapes per subsystem, same "new function alongside, not a
+generalization" precedent this codebase already uses elsewhere).
+Reuses `percentile()`/`summarize_durations()` from `profile_inference.py`
+rather than duplicating. Covers `regime`
+(`regime/market_regime.py::build_market_regime_vector()`), `topology`
+(`topology/market_topology.py::build_market_topology()`),
+`learned_topology` (`topology/learned_topology.py::apply_learned_topology()`,
+graceful-degrade path only — no trained model assumed present on disk),
+`liquidity` (`liquidity/market_liquidity.py::build_liquidity_decision()`),
+`gating` (`moe/gating.py::build_gating_decision()`), `analyzer`
+(`analyzer/market_analyzer.py::build_market_analysis_decision()`), and
+`indicators` (the 7 pure functions in `features/technical_indicators.py`,
+each timed **independently**, not summed, so a dominant one is visible
+rather than averaged away). Exposed via new `aq profile --<subsystem>`
+flags (`--regime`/`--topology`/`--learned-topology`/`--liquidity`/
+`--gating`/`--analyzer`/`--indicators`, combinable), following the exact
+same loop-generated-flags convention `aq test --cli --risk` already
+established (`_PROFILE_SUBSYSTEM_FLAGS` mirrors `_SUBSYSTEM_TEST_FILES`).
+`--batched` + any subsystem flag is rejected (exit 1, not silently
+ignored) — batching has no meaning for these pure functions.
+
+**Deliberate, documented scope decision**: `main.py::_build_model_input()`
+itself is NOT profiled — it's a bound method reading ~15 pieces of
+`self.*` state (symbol_windows, scaler_stats, latest_macro_payload,
+etc.), not cleanly synthesizable the way inference's exported model
+weights were. `--indicators` profiles its underlying pure primitives
+instead — a partial-coverage choice, not silent scope-narrowing. The
+README's "Latency profiling only covers inference" bullet is narrowed to
+reflect this remaining, still-real gap rather than removed outright.
+
+**A real, substantial, previously-invisible finding**: `build_market_topology()`
+costs **~500-600ms per call** at this project's real ~30-symbol universe
+size (measured: p50=559.99ms, mean=615.69ms, p99=1616.27ms,
+max=1786.90ms across 200 iterations on this dev machine) — likely its
+`O(n^2)`-ish correlation-matrix + embedding math (default
+`embedding_iterations=100`). Topology is called **once per bar** (not
+per-symbol, unlike inference), so this single call's cost is comparable
+to or larger than the *entire* per-symbol inference total across the
+whole universe (~30 symbols × ~5ms/symbol ≈ 150ms/bar, post the
+weight-caching optimization in #32). This had never been measured before
+this pass — inference was optimized aggressively (entries #31/#32) while
+a genuinely larger cost sat completely unmeasured next to it. **This
+also forced a real design change to the harness itself**: `--iterations`
+defaults to **200** for `profile_subsystems.py` (not `profile_inference.py`'s
+10,000) — 10,000 iterations of `build_market_topology()` alone would
+take over an hour. `aq_cli.py`'s `--iterations` flag now defaults to
+`None` at the CLI layer specifically so each script's own default
+applies when the user doesn't pass one explicitly — hardcoding either
+number at the CLI layer would have silently overridden the other
+whenever a `--<subsystem>` flag routed to the other script.
+
+No code fix is proposed for `build_market_topology()`'s cost in this
+pass — that's a real optimization opportunity for a future pass
+(candidate: `embedding_iterations` reduction, or skipping recomputation
+when the correlation structure hasn't materially changed bar-to-bar),
+flagged here as a finding, not silently left unmentioned.
+
+**Testing**: 7 new tests in `tests/test_profile_subsystems.py` (shape/
+non-negativity, tiny iteration counts — matching
+`test_profile_inference.py`'s own scope, not a real profiling run), 7 new
+CLI reachability tests in `tests/test_aq_cli.py` (subsystem routing,
+multiple-flags-combinable, explicit-vs-omitted `--iterations`, the
+`--learned-topology` hyphen-to-underscore CLI mapping, the
+`--batched`+subsystem rejection). One pre-existing test
+(`test_profile_wraps_profile_inference_script_with_defaults`) updated to
+match the new `--iterations`-omitted-by-default behavior — a real,
+intentional behavior change to `aq profile`'s default invocation, not a
+regression.
+
+### 37. Inference tail latency (p99 3-5x p50) — investigated: real GC-pause contribution to worst-case latency confirmed, root cause of the old `scripts/profile_inference_output.txt` discrepancy resolved as machine load, not a regression
+
+Nothing in this repo had ever investigated *why* `scripts/profile_inference.py`'s
+p99 routinely ran 3-5x the p50 — only the visibility that it does existed
+(entry #32). This entry closes that gap with real diagnostic work, not
+just new code.
+
+**Step 1 — resolved a real discrepancy found while starting this work.**
+The on-disk (git-ignored, never committed, not tied to any revision)
+`scripts/profile_inference_output.txt` showed dramatically worse numbers
+(p99=104.30ms, mean=13.40ms, `numpy.asarray` costing 30.4s of 135.1s
+total) than the canonical "AFTER" snapshot #32 cites (p99=15.73ms).
+Reran `aq profile --batched --iterations 10000` 3 times back-to-back
+(matching #32's own paired-run methodology): **total function call count
+was perfectly identical across all 3 fresh runs (6,460,385) while wall
+time varied 2x (69.3s → 46.0s → 35.9s)** — call count is load-independent
+and stable, wall time is not, which is exactly the signature of machine
+load variance rather than a code-path regression. None of the 3 fresh
+runs showed `numpy.asarray` anywhere near the stale file's dominant
+30.4s cost — `convert_state_dict_arrays()` (entry #32) is working
+correctly on current code. The stale file's differing call count
+(6,820,002 vs. 6,460,385 now) confirms it predates later changes in this
+session (fewer calls now) rather than reflecting current code at all.
+**Conclusion: hypothesis (a) — a stale/unrelated local run, not a
+regression.** No fix needed; the file is regenerated by every `aq
+profile` run and was never meant to be authoritative between runs.
+
+**Step 2 — iteration-index bucketing** (new
+`scripts/profile_inference.py::bucket_durations_by_iteration_index(durations,
+n_buckets=10)`, pure, plus a new `--bucket-report` flag, print-only, zero
+effect on the existing tail-latency/pstats numbers). Real result: p50 was
+stable across all 10 buckets (2.48-3.16ms range) — **no warmup effect**.
+Tail spikes (elevated p99/max) appeared scattered across *multiple*
+buckets (0, 5, 6, 9), not concentrated in bucket 0 alone — this pattern
+rules out a cold-start/warmup explanation and points toward GC pauses or
+OS scheduler preemption instead, motivating Step 3.
+
+**Step 3 — GC-pause isolation** (new `--no-gc` flag, wraps the existing
+`run_workload()` call in `gc.disable()`/`gc.enable()`, inference-profiling
+only). Two paired before/after runs, back-to-back:
+- Pair 1: max 121.56ms (GC on) → 40.89ms (GC off), -66.4%. p50 3.31ms → 3.10ms (flat, within noise).
+- Pair 2: max 262.72ms (GC on) → 14.02ms (GC off), -94.7%. p50 2.73ms → 3.05ms (flat, within noise).
+
+**Real, reproduced finding: GC pauses are a material contributor to this
+hot path's worst-case (max) tail latency specifically** — p50 is
+unaffected either way (confirming this isn't a general speedup, just a
+tail-specific effect), and the *max* value dropped dramatically and
+consistently across both independent pairs. p99 improvement was present
+but noisier/less dramatic than max's.
+
+**Not implemented this pass, by design**: `gc.freeze()` after model load
+in `main.py::_ensure_ready()` (the model weight arrays are large,
+long-lived, and never mutated after load — a textbook `gc.freeze()`
+candidate to keep them out of every future generational GC scan) is
+documented here as a candidate future production tuning knob, not
+shipped. This is a genuinely riskier production change than anything
+else in this pass — it needs real-backtest validation of its interaction
+with Lean's own .NET/Python interop GC boundary, which this synthetic
+harness cannot exercise. Shipping an untested GC-tuning change to the
+hot path without that validation would be irresponsible given how
+central this loop is to every backtest/paper/live run.
+
+**Fixed** (the harness itself):
+- `scripts/profile_inference.py::bucket_durations_by_iteration_index()`
+  (pure) + `--bucket-report` flag.
+- `--no-gc` flag (`gc.disable()`/`gc.enable()` around the profiled
+  region only).
+- `aq profile --no-gc`/`--bucket-report` (inference-profiling only,
+  rejected loudly in combination with any `--<subsystem>` flag from
+  entry #36, same posture as `--batched`).
+
+**Testing**: 6 new pure-function tests for
+`bucket_durations_by_iteration_index()` in `tests/test_profile_inference.py`
+(empty input, uniform bucketing, a synthetic "first-10-iterations-10x-
+slower" case correctly surfacing in bucket 0 only, call-order-not-sorted-
+order preservation, default bucket count, non-positive bucket count).
+4 new CLI reachability tests in `tests/test_aq_cli.py`.
+
+### 38. 2-leg vertical spread selection for options — explicit scope-in of a previously-non-goal feature
+
+Entry #29 explicitly scoped multi-leg options spread selection out:
+*"a genuinely new spread-selection model architecture is future work."*
+No partial design existed anywhere in the repo beyond that one-line
+mention. This entry closes the minimal, most conservative slice of that
+gap — **only** the 2-leg vertical spread case — explicitly, not silently.
+
+**Scope decision, stated prominently, not silently narrowed**: only call
+verticals (`bull_call_spread`) and put verticals (`bear_put_spread`) are
+implemented — the minimal extension of "long calls or long puts."
+Straddles, strangles, iron condors, and butterflies remain out of scope,
+narrowing (not removing) entry #29's non-goal note. Default is
+`"single_leg"` (today's exact existing behavior) — vertical spreads are
+opt-in via `phase_v2.options_risk.spread_strategy: "vertical"`.
+
+**Research finding: chain data needs no IB key.** `slice.option_chains`
+is Lean's own local backtest data feed (`lean.json`'s
+`data-provider: DefaultDataProvider`), and this repo already bundles real
+sample options chain data (`data/option/usa/{daily,hour,minute}/`). IB is
+only relevant for live margin/broker connectivity, never for backtest
+chain data. `features/options_greeks.py` (pure Black-Scholes-Merton) is
+already leg-agnostic — no changes needed there.
+
+**A genuinely novel discovery: `QuantConnect.Securities.Option.OptionStrategies`
+(named factories: `bull_call_spread`, `bear_put_spread`, `butterfly_call/put`,
+`iron_condor`, `straddle`, `strangle`) and `QCAlgorithm.Buy(strategy, quantity)`
+already exist in this project's installed Lean stubs and were completely
+unused anywhere in this codebase before this pass** (confirmed via grep —
+zero hits). This is the correct atomic multi-leg placement primitive,
+avoiding the partial-fill/leg-slippage risk of hand-rolled sequential
+single-leg orders.
+
+**Fixed**:
+- `portfolio/options_strategy.py`: new `OptionsSpreadLeg`/
+  `OptionsSpreadPositionDecision` dataclasses (parallel additions -
+  `OptionsPositionDecision`/`select_single_leg_contract()`/
+  `build_options_position_sizing()` stay byte-identical, matching this
+  codebase's "new function alongside, not a generalization" precedent).
+  `select_vertical_spread_legs()` reuses `select_single_leg_contract()`
+  unchanged for the long leg; the short leg is the nearest-delta match to
+  `target_delta - short_leg_delta_offset` among same-expiry rows filtered
+  to the risk-capping side (strike direction enforced explicitly on
+  strike, never inferred from delta ordering).
+  `build_vertical_spread_position_sizing()` sizes by **net vega** (long
+  minus short), the spread's defining risk reduction versus a single leg.
+- `risk/asset_class_router.py`'s option branch gains a `spread_strategy`
+  dispatch (default `"single_leg"`, unreachable-otherwise by construction)
+  and a new `_options_spread_decision_to_position_sizing()` adapter,
+  parallel to the existing single-leg adapter.
+- `main.py::_apply_option_order()` now checks `hasattr(options_decision,
+  "legs")` **before** touching `contract_symbol` (a real bug caught during
+  implementation: `OptionsSpreadPositionDecision` has no `contract_symbol`
+  field, so the old unconditional `getattr(options_decision,
+  "contract_symbol", None)` would have silently rejected every spread
+  decision as "no usable contract" had the check order not been fixed).
+  Delegates to new `_apply_option_spread_order()`, which places the spread
+  atomically via `OptionStrategies.bull_call_spread()`/`bear_put_spread()`
+  + `self.Buy(strategy, quantity)`.
+- **New, additive** `self.option_contract_symbols_by_symbol: dict[str, list]`
+  (plural) alongside the existing singular dict — deliberately not a
+  repurpose of the existing dict's value type, which would have forced
+  every one of its ~6 existing read sites to branch even on the default
+  single-leg path. New `_order_target_symbols(symbol) -> list` sibling of
+  `_order_target_symbol()`, provably byte-identical to
+  `[_order_target_symbol(symbol)]` for every non-spread position by
+  construction (the plural dict is only ever populated by
+  `_apply_option_spread_order()`). `_is_invested()`/`_liquidate_position()`
+  updated to iterate it; `_asset_class_exposure()` needed no change
+  (already leg-count-agnostic — iterates real `Portfolio.Values` and maps
+  each back to its chain symbol_key independently, a 2-leg spread just
+  contributes two entries instead of one, both correctly attributed).
+- **A second real bug caught during implementation**: an early draft
+  wrote `getattr(options_decision, "contract_symbol", None)` unconditionally
+  as the very first line, which would have broken option orders entirely
+  for the spread case (see above) — caught and fixed by re-reading the
+  method before considering it done, not left for a test to find (no test
+  could have found it anyway, given the untestable-in-isolation
+  constraint below).
+- **Deliberate scope trade-off, documented not hidden**: closing a spread
+  liquidates each leg independently (two separate `Liquidate()` calls),
+  not an atomic combo unwind. An already-open, already-hedged position
+  unwinding leg-by-leg is a materially smaller risk than the entry side
+  (which needed atomicity to avoid an unhedged half-fill). Reconstructing
+  the exact `OptionStrategy` at close time would need persisting
+  `strategy_name` + both strikes + expiration per open spread position -
+  real bookkeeping this pass doesn't add.
+- **A known, minor, conservative-direction side effect, not fixed this
+  pass**: `_active_position_count()` counts `Portfolio.Values` entries
+  directly and doesn't know about spreads - a single 2-leg vertical
+  position counts as 2 toward `max_active_positions`, not 1. This errs
+  conservative (using more of the position-count budget than strictly
+  necessary), not incorrect in a risk-increasing direction, so it was
+  left as-is rather than expanding this pass's scope further.
+- **Config**: `phase_v2.options_risk.spread_strategy` (default
+  `"single_leg"`), `phase_v2.options_risk.short_leg_delta_offset`
+  (default `0.20`). `config.json`'s `phase1.universe.assets` still has no
+  option/future entries at all — exercising this via a real backtest
+  needs config additions too, out of scope for this implementation pass.
+
+**Testing**: 20 new tests in `tests/test_options_strategy.py` (leg
+selection, strike-direction enforcement, net-vega sizing, every
+degrade-to-`None` condition, `to_dict()` JSON-safety), 5 new tests in
+`tests/test_asset_class_router.py` (dispatch, **the critical
+zero-behavior-change parity test**: `options_kwargs` entirely absent
+produces a byte-identical result to `options_kwargs={"spread_strategy":
+"single_leg", ...}` explicitly, plus the stray-`short_leg_delta_offset`-
+doesn't-raise regression guard for the bug class described above). The
+`main.py` spread-placement/tracking-dict changes are not unit-testable in
+isolation — same `main.py`-cannot-be-imported-outside-Lean constraint
+every prior Lean-adapter this session hit; the zero-behavior-change claim
+for `_is_invested()`/`_liquidate_position()` rests on direct re-reading
+(list-of-1 is byte-identical to the prior scalar for every non-spread
+position), not a runnable test.
+
+**Verification — only a real Lean backtest can confirm these, the
+largest such list this session** (zero prior combo-order usage in this
+codebase before this pass): whether `OptionStrategies.*` actually accepts
+the canonical chain Symbol this codebase already holds; whether
+`self.Buy(strategy, quantity)` returns one `OrderTicket` per leg in a
+matchable order; whether leg-by-leg `Liquidate()` behaves sanely against
+a combo-opened position, or whether Lean's margin/position-netting model
+needs an `OptionStrategy`-aware unwind path this pass isn't using;
+general real fill/margin behavior for a debit spread. See
+`risk/README.md`'s "Multi-asset-class risk dispatch" section for the
+same list, mirroring entry #34's format.

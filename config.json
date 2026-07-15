@@ -511,8 +511,8 @@
             "max_position_weight": 0.2,
             "min_confidence_to_trade": 0.05,
             "trade_cooldown_bars": 1,
-            "max_daily_drawdown_pct": 0.03,
-            "max_total_drawdown_pct": 0.12,
+            "max_daily_drawdown_pct": 1.0,
+            "max_total_drawdown_pct": 1.0,
             "liquidate_on_risk_breach": true
         }
     },
@@ -529,10 +529,10 @@
             "max_active_positions": 12,
             "max_equity_exposure": 0.65,
             "max_crypto_exposure": 0.35,
-            "max_bond_exposure": 0.30,
-            "max_futures_exposure": 0.20,
-            "max_options_exposure": 0.10,
-            "max_short_exposure": 0.30,
+            "max_bond_exposure": 0.3,
+            "max_futures_exposure": 0.2,
+            "max_options_exposure": 0.1,
+            "max_short_exposure": 0.3,
             "observation_only_assets_can_trade": false
         }
     },
@@ -564,17 +564,19 @@
         },
         "futures_risk": {
             "enabled": false,
-            "target_margin_utilization": 0.20,
-            "max_margin_utilization": 0.40,
+            "target_margin_utilization": 0.2,
+            "max_margin_utilization": 0.4,
             "contract_specs_path": "data/reference/futures_contract_specs.json"
         },
         "options_risk": {
             "enabled": false,
-            "target_delta_at_full_confidence": 0.60,
+            "target_delta_at_full_confidence": 0.6,
             "max_vega_budget_pct_of_equity": 0.02,
             "risk_free_rate": 0.045,
             "iv_solver_max_iterations": 100,
-            "iv_solver_tolerance": 1e-06
+            "iv_solver_tolerance": 1e-06,
+            "spread_strategy": "single_leg",
+            "short_leg_delta_offset": 0.2
         },
         "regime_detection": {
             "bullish_threshold": 0.02,
@@ -647,7 +649,13 @@
         },
         "limit_orders": {
             "enabled": false,
-            "asset_classes": ["equity", "crypto", "bond", "future", "option"],
+            "asset_classes": [
+                "equity",
+                "crypto",
+                "bond",
+                "future",
+                "option"
+            ],
             "offset_multiplier": 1.0,
             "unfilled_timeout_bars": 3,
             "fallback_to_market_on_timeout": {

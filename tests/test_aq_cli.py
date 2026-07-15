@@ -420,11 +420,17 @@ def test_backtest_errors_cleanly_when_lean_not_found(capsys):
 
 
 def test_profile_wraps_profile_inference_script_with_defaults():
+    # --iterations is deliberately NOT forwarded when the user didn't pass
+    # it - profile_inference.py's own default (10000) and
+    # profile_subsystems.py's own default (200, given
+    # build_market_topology()'s real ~500ms/call cost) are different on
+    # purpose; hardcoding either one here would silently override the
+    # other whenever a --<subsystem> flag routes to the other script.
     run_mock = MagicMock(return_value=0)
     _parse_and_dispatch(["profile"], run_mock)
 
     assert run_mock.call_args.args[0] == [
-        sys.executable, "scripts/profile_inference.py", "--iterations", "10000", "--sort", "cumulative",
+        sys.executable, "scripts/profile_inference.py", "--sort", "cumulative",
     ]
 
 
@@ -458,6 +464,95 @@ def test_profile_returns_the_underlying_exit_code():
     exit_code = _parse_and_dispatch(["profile"], run_mock)
 
     assert exit_code == 3
+
+
+def test_profile_subsystem_flag_routes_to_profile_subsystems_script():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--liquidity"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert cmd[0:2] == [sys.executable, "scripts/profile_subsystems.py"]
+    assert "--liquidity" in cmd
+
+
+def test_profile_multiple_subsystem_flags_all_forwarded():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--regime", "--gating"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert cmd[0:2] == [sys.executable, "scripts/profile_subsystems.py"]
+    assert "--regime" in cmd
+    assert "--gating" in cmd
+
+
+def test_profile_subsystem_flag_forwards_explicit_iterations():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--topology", "--iterations", "50"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--iterations" in cmd
+    assert cmd[cmd.index("--iterations") + 1] == "50"
+
+
+def test_profile_subsystem_flag_omits_iterations_when_not_given():
+    # Lets profile_subsystems.py's own lower default (200, not
+    # profile_inference.py's 10000) apply.
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--indicators"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--iterations" not in cmd
+
+
+def test_profile_learned_topology_flag_uses_hyphenated_cli_form():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--learned-topology"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--learned-topology" in cmd
+
+
+def test_profile_batched_with_subsystem_flag_errors_and_does_not_run(capsys):
+    run_mock = MagicMock(return_value=0)
+    exit_code = _parse_and_dispatch(["profile", "--liquidity", "--batched"], run_mock)
+
+    assert exit_code == 1
+    assert "--batched" in capsys.readouterr().err
+    run_mock.assert_not_called()
+
+
+def test_profile_forwards_no_gc_flag_only_when_set():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--no-gc"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--no-gc" in cmd
+
+
+def test_profile_forwards_bucket_report_flag_only_when_set():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--bucket-report"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--bucket-report" in cmd
+
+
+def test_profile_omits_no_gc_and_bucket_report_by_default():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--no-gc" not in cmd
+    assert "--bucket-report" not in cmd
+
+
+def test_profile_no_gc_with_subsystem_flag_errors_and_does_not_run(capsys):
+    run_mock = MagicMock(return_value=0)
+    exit_code = _parse_and_dispatch(["profile", "--liquidity", "--no-gc"], run_mock)
+
+    assert exit_code == 1
+    assert "--no-gc" in capsys.readouterr().err
+    run_mock.assert_not_called()
 
 
 def test_report_builds_expected_lean_report_command():

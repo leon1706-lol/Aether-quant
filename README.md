@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1240%2F1240%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1240 of 1240 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1295%2F1295%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1295 of 1295 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -60,14 +60,10 @@ features) but remain **data-empty until an Interactive Brokers key is
 connected** (`phase_v2.ib.enabled` — see `aq ib status`/`aq assets
 status`). Remaining, still-open items:
 
-- **No backtest has been run against this code yet** — verified via unit tests and Lean's own type stubs only, not a real Lean runtime. Run one before trusting it in paper trading (see "run it yourself" below).
-- **Futures margin uses a static reference file**, not live IB margin.
-- **IB connection has never been tested against a real Gateway** — `aq ib status`/`aq assets status` report readiness only.
-- **Single-leg options only** — no automatic multi-leg spread selection.
-- **Disabling an asset class doesn't liquidate existing positions in it** — it only stops opening/managing new ones (`aq config set phase_v2.*.enabled`).
-- **Latency profiling (`aq profile`) only covers the neural-net inference step** — feature engineering, regime/topology/liquidity computation, gating, and signal derivation (the rest of `on_data()`'s per-bar cost) have never been measured. They could be a meaningful hidden cost now that inference itself is cheap; nobody's looked yet.
-- **Inference tail latency is unaddressed** — p99 runs routinely 3-5x the p50 in every `aq profile` run this session. Only mean/average-case latency was optimized; the tail gap itself was never investigated.
-- **Real limit orders (`phase_v2.limit_orders`) rely on unverified Lean API naming assumptions** — off by default. Several PascalCase method/enum-casing choices (`OrderStatus.Filled`, `on_order_event` dispatch) could not be confirmed against a real Lean engine this pass; see `execution/README.md`'s "Real limit orders" section for the full prioritized list before enabling this in anything but a test backtest.
+- **Nothing in this repo has been run against a real Lean backtest yet** — verified only via unit tests and Lean's own type stubs, not a real Lean runtime. Run one before trusting any of this in paper trading (see "run it yourself" below); in particular: **real limit orders** (`phase_v2.limit_orders`, off by default) rest on unverified Lean API naming assumptions (PascalCase method/enum casing, `OrderStatus.Filled`, `on_order_event` dispatch — see `execution/README.md`'s "Real limit orders" section for the full prioritized list), and the **2-leg vertical options spread** (`phase_v2.options_risk.spread_strategy: "vertical"`, `development/Problems.md` #38 — single-leg remains the default; straddles/strangles/iron condors/butterflies are still not implemented at all) has the largest verification list of any feature this session — zero prior combo-order usage in this codebase before this pass (see `risk/README.md`'s verification list).
+- **IB is unverified end-to-end** — futures margin uses a static reference file rather than live IB margin, and the IB connection itself has never been tested against a real Gateway (`aq ib status`/`aq assets status` report readiness only, not a live-tested connection).
+- **`main.py::_build_model_input()`'s own feature-build cost (~15 `self.*` state reads) is still unmeasured** — `aq profile` now covers regime/topology/liquidity/gating/analyzer and the pure indicator primitives it calls (`--regime`/`--topology`/`--liquidity`/`--gating`/`--analyzer`/`--indicators`), but not the bound method itself; found in the process that `build_market_topology()`'s per-bar cost is comparable to or larger than the entire per-symbol inference total across the whole universe (see `development/Problems.md` #36).
+- **Inference tail latency (p99 routinely 3-5x the p50) is investigated but not fixed** — `aq profile --bucket-report`/`--no-gc` (`development/Problems.md` #37) ruled out a warmup effect and found real, reproduced evidence that GC pauses materially drive worst-case (max) latency specifically. `gc.freeze()` after model load is a documented candidate fix, deliberately not implemented — it needs real-backtest validation of its interaction with Lean's own GC boundary that this pass doesn't have.
 
 ## Table of Contents
 
@@ -513,7 +509,7 @@ and how it's wired in — this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1240<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1295<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -621,7 +617,7 @@ genuinely halted trading exactly as designed.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1240<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1295<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -705,19 +701,47 @@ Runs `lean backtest .` and refreshes this README's [Backtest Results](#backtest-
 #### `aq profile`
 ```text
 aq profile [--iterations N] [--sort cumulative] [--batched]
+aq profile [--iterations N] [--sort cumulative] [--regime] [--topology] [--learned-topology] [--liquidity] [--gating] [--analyzer] [--indicators]
 ```
-Profiles `main.py`'s per-bar inference hot path (`inference/exported_model.py`)
-against real exported model weights (never synthetic ones) with a
-synthetic-but-correctly-shaped input workload — a real `lean backtest .`
-run takes over an hour, so this is how the hot path gets profiled
-repeatably in seconds/minutes instead. Reports both a `pstats` breakdown
-and independent wall-clock tail-latency percentiles (p50/p95/p99/max) to
+Default (no `--<subsystem>` flags): profiles `main.py`'s per-bar
+inference hot path (`inference/exported_model.py`) against real exported
+model weights (never synthetic ones) with a synthetic-but-correctly-
+shaped input workload — a real `lean backtest .` run takes over an hour,
+so this is how the hot path gets profiled repeatably in seconds/minutes
+instead. Reports both a `pstats` breakdown and independent wall-clock
+tail-latency percentiles (p50/p95/p99/max) to
 `scripts/profile_inference_output.txt` and stdout. `--batched` uses the
 batched expert-inference path (with its precomputed weight/stack caches)
 instead of a per-expert loop — the real, optimized production path. See
-`development/Problems.md` for what this found and fixed this pass
-(weight-array/stack caching, `_conv1d_causal` vectorization, expert-loop
-batching — a combined -89.2% reduction in profiled cost).
+`development/Problems.md` for what this found and fixed (weight-array/
+stack caching, `_conv1d_causal` vectorization, expert-loop batching — a
+combined -89.2% reduction in profiled cost).
+
+Any `--<subsystem>` flag instead profiles `main.py`'s per-bar subsystems
+that inference profiling never covered — `regime`
+(`regime/market_regime.py`), `topology`/`learned-topology`
+(`topology/market_topology.py`/`topology/learned_topology.py`),
+`liquidity` (`liquidity/market_liquidity.py`), `gating` (`moe/gating.py`),
+`analyzer` (`analyzer/market_analyzer.py`), and `indicators` (the 7 pure
+functions in `features/technical_indicators.py`, each reported
+independently so a dominant one doesn't get averaged away) — wraps
+`scripts/profile_subsystems.py`, writing to
+`scripts/profile_subsystems_output.txt`. Combinable (`aq profile --regime
+--gating`). Uses its own, much lower default iteration count (200, not
+10000) — `build_market_topology()` alone costs ~500-600ms per call at
+this project's real ~30-symbol universe, so 10,000 iterations of it would
+take over an hour; `--iterations` overrides this. `--batched` combined
+with any `--<subsystem>` flag is rejected (exit 1) — batching has no
+meaning for these pure functions.
+
+`main.py::_build_model_input()` itself (feature engineering) is
+deliberately NOT profiled — it's a bound method reading ~15 pieces of
+`self.*` state, not cleanly synthesizable the way the other subsystems
+were; `--indicators` profiles its underlying pure primitives instead, a
+documented partial-coverage choice. See `development/Problems.md` for
+what this pass found — most notably that `build_market_topology()`'s
+per-bar cost is comparable to or larger than the *entire* per-bar
+inference total across the whole symbol universe, previously invisible.
 
 #### `aq report`
 ```text

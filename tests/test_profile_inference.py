@@ -4,7 +4,12 @@ Does not test the harness's `main()`/argparse plumbing or run a real
 profiling pass (that's what running the script itself is for) - just the
 extracted pure functions that make its numbers trustworthy."""
 
-from scripts.profile_inference import percentile, pregenerate_inputs, summarize_durations
+from scripts.profile_inference import (
+    bucket_durations_by_iteration_index,
+    percentile,
+    pregenerate_inputs,
+    summarize_durations,
+)
 
 
 def test_percentile_returns_zero_for_empty_list():
@@ -83,3 +88,47 @@ def test_pregenerate_inputs_different_seeds_produce_different_values():
 
 def test_pregenerate_inputs_zero_iterations_returns_empty_list():
     assert pregenerate_inputs(width=5, sequence_window=3, iterations=0) == []
+
+
+def test_bucket_durations_by_iteration_index_empty_list_returns_empty():
+    assert bucket_durations_by_iteration_index([]) == []
+
+
+def test_bucket_durations_by_iteration_index_uniform_durations_bucket_evenly():
+    durations = [0.010] * 100
+    buckets = bucket_durations_by_iteration_index(durations, n_buckets=10)
+    assert len(buckets) == 10
+    for bucket in buckets:
+        assert abs(bucket["p50_ms"] - 10.0) < 1e-6
+        assert abs(bucket["max_ms"] - 10.0) < 1e-6
+
+
+def test_bucket_durations_by_iteration_index_first_bucket_slower_surfaces_in_bucket_zero():
+    # First 10 iterations are 10x slower than the rest - a warmup-effect
+    # stand-in. Only bucket 0 should show the elevated p99/max.
+    durations = [0.100] * 10 + [0.010] * 90
+    buckets = bucket_durations_by_iteration_index(durations, n_buckets=10)
+
+    assert buckets[0]["p50_ms"] > 50.0
+    for bucket in buckets[1:]:
+        assert bucket["p50_ms"] < 15.0
+
+
+def test_bucket_durations_by_iteration_index_respects_call_order_not_sorted_order():
+    # Descending order - bucket 0 (earliest calls) should be the SLOWEST
+    # bucket, proving the function doesn't silently re-sort before
+    # bucketing (which would defeat its entire purpose).
+    durations = [0.050, 0.040, 0.030] + [0.001] * 27
+    buckets = bucket_durations_by_iteration_index(durations, n_buckets=10)
+
+    assert buckets[0]["max_ms"] > buckets[-1]["max_ms"]
+
+
+def test_bucket_durations_by_iteration_index_default_n_buckets_is_ten():
+    durations = [0.001] * 100
+    assert len(bucket_durations_by_iteration_index(durations)) == 10
+
+
+def test_bucket_durations_by_iteration_index_non_positive_n_buckets_returns_empty():
+    assert bucket_durations_by_iteration_index([0.001, 0.002], n_buckets=0) == []
+    assert bucket_durations_by_iteration_index([0.001, 0.002], n_buckets=-1) == []

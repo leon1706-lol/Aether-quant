@@ -168,7 +168,7 @@ selection, in `main.py::_apply_signal()`'s existing per-symbol cap check —
 a book-selected bond/future/option symbol is not exempt from its class's
 exposure ceiling just because the book picked it.
 
-## `options_strategy.py` — single-leg greeks-sized options positions
+## `options_strategy.py` — greeks-sized options positions (single-leg default, optional 2-leg vertical spread)
 
 A second, narrower "sets direction/instrument, not just magnitude"
 decision layer, alongside `book_construction.py` above but for a different
@@ -179,12 +179,17 @@ needs the whole option chain, not a scalar signal, and it lives here (not
 design — `build_options_position_sizing()` translates the model's existing
 direction+confidence prediction into a target delta, selects the nearest-
 delta contract from the chain, and sizes contract count by a vega budget.
-Deliberately single-leg only; automatic multi-leg spread selection via ML
-is an explicit non-goal (`development/Problems.md` #29), as is placing an
-actual order against the selected contract (`main.py::_apply_signal()`'s
-`"option"` branch runs the sizing/exposure-cap accounting but does not
-call `SetHoldings()`/`MarketOrder()` — resolving a live tradable contract
-`Symbol` from Lean's `slice.OptionChains` was out of scope this pass).
+Single-leg is the default. Order placement against the selected contract
+is real (`main.py::_apply_option_order()` resolves a live tradable
+contract `Symbol` from Lean's `slice.OptionChains` and places a real
+`LimitOrder()`/`MarketOrder()`) — this was closed in an earlier pass; see
+`development/Problems.md` #34. A 2-leg vertical call/put spread is
+available via `phase_v2.options_risk.spread_strategy: "vertical"`
+(`select_vertical_spread_legs()`/`build_vertical_spread_position_sizing()`
+below `build_options_position_sizing()` in this same file) — automatic
+selection of anything beyond a vertical (straddles/strangles/iron
+condors/butterflies) remains an explicit non-goal
+(`development/Problems.md` #29/#38).
 
 ## Webui visibility
 

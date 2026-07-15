@@ -99,6 +99,22 @@ class SimulatedPortfolioState:
             }
         )
 
+    def exit_using_last_known_price(self, symbol_key: str, bar_index: int) -> None:
+        """Sibling of exit() (needs an explicit close_price, unavailable to
+        main.py's per-bar asset-class-disablement sweep - it runs before
+        Pass 1 builds this bar's close prices) and liquidate_all() (which
+        already solves this exact problem for the whole portfolio via
+        self._last_prices' per-symbol fallback, for the total-drawdown-
+        breach path). This is liquidate_all()'s SELECTIVE sibling, exiting
+        only symbol_key instead of every holding - delegates to exit() so
+        there is exactly one place the realized-pnl/cash/trade_log math
+        lives. No-op if symbol_key isn't currently held."""
+        holding = self.holdings.get(symbol_key)
+        if holding is None or holding["quantity"] == 0:
+            return
+        close_price = self._last_prices.get(symbol_key, holding["avg_price"])
+        self.exit(symbol_key, close_price, bar_index)
+
     def liquidate_all(self, bar_index: int) -> None:
         total_realized_pnl = 0.0
         for symbol_key in list(self.holdings.keys()):

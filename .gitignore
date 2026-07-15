@@ -100,6 +100,7 @@ webui/dist/
 
 # scripts/profile_inference.py's pstats dump - regenerable output, not source
 scripts/profile_inference_output*.txt
+scripts/profile_subsystems_output*.txt
 
 # cpp_inference_ext/'s compiled build artifacts - regenerable via
 # `pip install -e cpp_inference_ext/`, never source. The .pyd itself is

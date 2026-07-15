@@ -2887,3 +2887,121 @@ reachability tests in `test_aq_cli.py`). The Lean-side routing/callback
 methods are not unit-tested in isolation — same constraint as the
 slippage pass above (`main.py` cannot be imported outside Lean's
 runtime) — not run against a real Lean backtest yet.
+
+## Liquidate positions when an asset class gets disabled (+ 2 stale doc fixes)
+
+`phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled` flipping
+off correctly zeroed a position's sizing but never liquidated an
+already-open position from before the flag flipped — `_derive_signal()`
+has no awareness of these flags, so the future/option branches in
+`_apply_signal()` just kept returning zero-quantity no-ops forever on a
+stale position. New pure `risk/asset_class_router.py::resolve_asset_class_enabled()`/
+`should_liquidate_disabled_asset_class_position()`, new
+`experience/simulated_portfolio.py::SimulatedPortfolioState.exit_using_last_known_price()`,
+new `main.py::_liquidate_positions_for_disabled_asset_classes()` per-bar
+sweep (anchored right after `_refresh_risk_state()`, mirroring
+`_process_pending_limit_order_timeouts()`'s established placement).
+Equity/crypto/bond have no enable flag at all, so this only ever applies
+to futures/options. Also fixed two stale doc comments (`main.py`,
+`portfolio/README.md`) found during research, both claiming options
+order placement was still a non-goal — false since entry #34.
+
+### Verification
+
+7 new tests (4 in `test_asset_class_router.py`, 3 in
+`test_simulated_portfolio.py`). The Lean-side sweep method itself is not
+unit-tested in isolation (same `main.py`-cannot-be-imported constraint as
+every prior Lean-adapter this session) — one real-backtest-only item, see
+`development/Problems.md` #35.
+
+## Extended latency profiling beyond inference — found topology to be a much larger per-bar cost than inference itself
+
+New `scripts/profile_subsystems.py` (sibling harness to
+`scripts/profile_inference.py`, reusing its `percentile()`/
+`summarize_durations()`) profiles the per-bar subsystems inference
+profiling never covered: regime, deterministic + learned topology,
+liquidity, gating, analyzer, and the 7 pure indicator primitives
+(profiled independently, not summed). New `aq profile --<subsystem>`
+flags, combinable, following the exact `aq test --cli --risk`
+loop-generated-flags convention. `main.py::_build_model_input()` itself
+stays unprofiled (not cleanly synthesizable, a documented partial-
+coverage choice) — its pure indicator primitives are profiled instead.
+
+**Real finding**: `build_market_topology()` costs ~500-600ms per call at
+this project's real ~30-symbol universe — called once per bar, so
+comparable to or larger than the *entire* per-symbol inference total
+across the whole universe. Forced `profile_subsystems.py`'s
+`--iterations` default down to 200 (not 10,000 — topology alone would
+take over an hour at that count), and `aq_cli.py`'s `--iterations`
+default to `None` so each script's own default applies independently.
+
+### Verification
+
+14 new tests (7 in `test_profile_subsystems.py`, 7 in `test_aq_cli.py`),
+one pre-existing test updated for the new default-omits-`--iterations`
+behavior. No real-backtest-only risk — every subsystem profiled here is
+pure Python, no Lean dependency. See `development/Problems.md` #36.
+
+## Investigated inference tail latency (p99 3-5x p50) — real GC-pause contribution confirmed
+
+Real diagnostic work, not just code: resolved a discrepancy in the
+git-ignored `scripts/profile_inference_output.txt` (3 fresh paired runs
+showed identical call counts with 2x wall-time variance — confirmed
+machine load, not a regression). New
+`bucket_durations_by_iteration_index()` + `--bucket-report` ruled out a
+warmup effect (p50 flat across all 10 buckets). New `--no-gc` flag
+isolated a real, reproduced finding across 2 paired runs: GC pauses
+materially drive worst-case (max) tail latency specifically (-66% and
+-95% in two independent pairs), with p50 unaffected either way.
+`gc.freeze()` after model load is documented as a candidate future
+production tuning knob — not implemented this pass, since validating its
+interaction with Lean's own .NET/Python GC boundary needs a real
+backtest this pass doesn't have.
+
+### Verification
+
+10 new tests (6 in `test_profile_inference.py`, 4 in `test_aq_cli.py`).
+See `development/Problems.md` #37 for the full investigation writeup.
+
+## 2-leg vertical spread selection for options (single-leg stays the default)
+
+Closed the minimal, most conservative slice of entry #29's "multi-leg is
+a non-goal" note — only call/put verticals (`bull_call_spread`/
+`bear_put_spread`), explicitly scoped in, not silently. Straddles/
+strangles/iron condors/butterflies remain out of scope.
+
+New `portfolio/options_strategy.py::OptionsSpreadLeg`/
+`OptionsSpreadPositionDecision` (parallel additions, the existing
+single-leg dataclass/functions stay byte-identical),
+`select_vertical_spread_legs()` (reuses `select_single_leg_contract()`
+for the long leg, picks the short leg on the risk-capping side),
+`build_vertical_spread_position_sizing()` (sizes by net vega, not the
+long leg's vega alone). `risk/asset_class_router.py` gained a
+`spread_strategy` dispatch (default `"single_leg"`, unreachable
+otherwise). `main.py::_apply_option_order()` places the spread atomically
+via Lean's own `OptionStrategies.bull_call_spread()`/`bear_put_spread()`
++ `self.Buy(strategy, quantity)` — a genuinely novel discovery: this API
+already existed in the installed Lean stubs and was completely unused in
+this codebase before this pass, avoiding the partial-fill/leg-slippage
+risk of hand-rolled sequential single-leg orders.
+
+Two real bugs caught and fixed during implementation, not after: an
+early draft's `contract_symbol` extraction ran unconditionally before
+checking whether the decision was a spread, which would have silently
+rejected every spread order as "no usable contract" (spread decisions
+have no `contract_symbol` field — legs do). A new, additive
+`option_contract_symbols_by_symbol` (plural) dict tracks spread legs
+without repurposing the existing singular dict's value type, keeping
+every existing read site's default-path behavior byte-identical by
+construction. See `development/Problems.md` #38 for the full writeup,
+including a documented (not hidden) scope trade-off on how spreads are
+closed, and the largest real-backtest-only verification list this
+session.
+
+### Verification
+
+25 new tests (20 in `test_options_strategy.py`, 5 in
+`test_asset_class_router.py`, including the critical zero-behavior-
+change parity test). The `main.py` placement/tracking-dict changes are
+not unit-testable in isolation — same constraint as every prior
+Lean-adapter this session.

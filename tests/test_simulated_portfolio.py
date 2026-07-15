@@ -98,6 +98,47 @@ def test_exit_realizes_pnl_and_flattens_position():
     assert portfolio.cash == 10_000.0 - 2_500.0 + 25.0 * 110.0
 
 
+def test_exit_using_last_known_price_is_a_noop_when_not_held():
+    portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
+
+    portfolio.exit_using_last_known_price("AAPL", bar_index=1)
+
+    assert portfolio.cash == 10_000.0
+    assert portfolio.snapshot()["last_realized_pnl"] is None
+
+
+def test_exit_using_last_known_price_uses_last_marked_price():
+    with_last_price = SimulatedPortfolioState(initial_cash=10_000.0)
+    with_last_price.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1)
+    with_last_price.mark_to_market({"AAPL": 120.0}, bar_index=2)
+
+    with_last_price.exit_using_last_known_price("AAPL", bar_index=3)
+
+    # Parity: identical result to calling exit() directly with the same
+    # last-marked price - exit_using_last_known_price() is a pure
+    # price-resolution wrapper around exit(), not independent logic.
+    direct = SimulatedPortfolioState(initial_cash=10_000.0)
+    direct.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1)
+    direct.exit("AAPL", close_price=120.0, bar_index=3)
+
+    assert with_last_price.cash == direct.cash
+    assert with_last_price.snapshot()["last_realized_pnl"] == direct.snapshot()["last_realized_pnl"]
+    assert "AAPL" not in with_last_price.holdings
+
+
+def test_exit_using_last_known_price_falls_back_to_avg_price_when_never_marked():
+    portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
+    portfolio.enter_long("AAPL", close_price=100.0, target_weight=0.25, bar_index=1)
+
+    portfolio.exit_using_last_known_price("AAPL", bar_index=2)
+
+    # No mark_to_market ever ran - falls back to avg_price (100.0), so
+    # this is a flat exit with zero realized pnl, matching
+    # liquidate_all()'s identical fallback for the same scenario.
+    assert portfolio.snapshot()["last_realized_pnl"] == 0.0
+    assert portfolio.cash == 10_000.0
+
+
 def test_exit_on_flat_position_is_a_no_op():
     portfolio = SimulatedPortfolioState(initial_cash=10_000.0)
 

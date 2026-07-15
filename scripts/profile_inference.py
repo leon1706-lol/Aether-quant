@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import cProfile
+import gc
 import json
 import pstats
 import random
@@ -168,6 +169,28 @@ def summarize_durations(durations: list[float]) -> dict[str, float]:
     }
 
 
+def bucket_durations_by_iteration_index(durations: list[float], n_buckets: int = 10) -> list[dict[str, float]]:
+    """Splits `durations` (already in call order, NOT re-sorted) into
+    n_buckets contiguous, equal-sized-ish chunks and summarizes each via
+    summarize_durations() - lets a caller see whether early iterations
+    (bucket 0) are disproportionately slow (a warmup/cold-cache effect -
+    e.g. OS page-fault-in of the weight arrays, CPU frequency-scaling
+    ramp-up) versus tail spikes being roughly uniformly distributed
+    across the whole run (pointing at GC pauses or OS scheduler
+    preemption instead - neither of which correlates with call order).
+
+    Pure function: input is the exact same per-iteration duration list
+    run_workload() already returns, in the exact order iterations ran -
+    no new profiling region needed to use this. The last bucket absorbs
+    any remainder when len(durations) doesn't divide evenly by
+    n_buckets. Returns [] for an empty or non-positive n_buckets input."""
+    if not durations or n_buckets <= 0:
+        return []
+    bucket_size = max(1, len(durations) // n_buckets)
+    buckets = [durations[i : i + bucket_size] for i in range(0, len(durations), bucket_size)]
+    return [summarize_durations(bucket) for bucket in buckets]
+
+
 def run_workload(
     exports: dict,
     pregenerated_inputs: list[tuple[list[float], list[list[float]]]],
@@ -229,6 +252,14 @@ def main() -> None:
         "--batched", action="store_true",
         help="Use run_exported_models_batched()/run_exported_multitask_models_batched() (plus their precomputed stack caches, matching main.py's real optimized path) instead of a per-expert loop",
     )
+    parser.add_argument(
+        "--bucket-report", action="store_true",
+        help="Print/write a 10-bucket breakdown of durations by iteration index (see bucket_durations_by_iteration_index()) - reveals whether the tail is a warmup effect (bucket 0 much slower) or spread evenly (points at GC/OS scheduling instead). Print-only, zero effect on the existing tail-latency/pstats numbers.",
+    )
+    parser.add_argument(
+        "--no-gc", action="store_true",
+        help="Disable Python's garbage collector for the profiled region only (gc.disable()/gc.enable() around run_workload()) - isolates whether GC pauses are a material tail-latency contributor. Compare a --no-gc run against a normal run, back-to-back, to see if p99/max drop while p50 stays flat.",
+    )
     args = parser.parse_args()
 
     exports = load_real_exports()
@@ -245,27 +276,48 @@ def main() -> None:
     pregenerated_inputs = pregenerate_inputs(input_width, sequence_window=30, iterations=args.iterations)
 
     profiler = cProfile.Profile()
+    if args.no_gc:
+        gc.disable()
     profiler.enable()
-    durations = run_workload(
-        exports, pregenerated_inputs, use_batched=args.batched,
-        stack_cache=stack_cache, multitask_stack_cache=multitask_stack_cache,
-    )
-    profiler.disable()
+    try:
+        durations = run_workload(
+            exports, pregenerated_inputs, use_batched=args.batched,
+            stack_cache=stack_cache, multitask_stack_cache=multitask_stack_cache,
+        )
+    finally:
+        profiler.disable()
+        if args.no_gc:
+            gc.enable()
 
     tail_latency = summarize_durations(durations)
     tail_latency_lines = [f"  {key}: {value:.4f} ms" for key, value in tail_latency.items()]
 
+    bucket_lines: list[str] = []
+    if args.bucket_report:
+        buckets = bucket_durations_by_iteration_index(durations)
+        bucket_lines.append("Duration by iteration-index bucket (0 = earliest iterations):")
+        for index, bucket in enumerate(buckets):
+            bucket_lines.append(
+                f"  bucket {index}: p50={bucket['p50_ms']:.4f}ms p99={bucket['p99_ms']:.4f}ms max={bucket['max_ms']:.4f}ms"
+            )
+
+    header = f"--iterations {args.iterations} --batched {args.batched} --no-gc {args.no_gc}"
     stats = pstats.Stats(profiler).sort_stats(args.sort)
     with OUTPUT_PATH.open("w", encoding="utf-8") as f:
-        f.write(f"--iterations {args.iterations} --batched {args.batched}\n\n")
+        f.write(header + "\n\n")
         f.write("Tail latency (wall-clock per iteration, independent of cProfile overhead):\n")
         f.write("\n".join(tail_latency_lines) + "\n\n")
+        if bucket_lines:
+            f.write("\n".join(bucket_lines) + "\n\n")
         stats_out = pstats.Stats(profiler, stream=f).sort_stats(args.sort)
         stats_out.print_stats(40)
 
-    print(f"--iterations {args.iterations} --batched {args.batched}")
+    print(header)
     print("Tail latency (wall-clock per iteration, independent of cProfile overhead):")
     print("\n".join(tail_latency_lines))
+    if bucket_lines:
+        print()
+        print("\n".join(bucket_lines))
     print()
     stats.print_stats(25)
     print(f"\nFull pstats + tail-latency dump written to {OUTPUT_PATH}")

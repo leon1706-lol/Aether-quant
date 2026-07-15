@@ -498,18 +498,62 @@ def cmd_backtest(_args: argparse.Namespace) -> int:
     return exit_code
 
 
+# One flag per scripts/profile_subsystems.py subsystem - same
+# established loop-generated-flags convention as _SUBSYSTEM_TEST_FILES
+# above (`aq test --cli --risk` etc.), applied to `aq profile` instead of
+# `aq test`. Values aren't used (dispatch is by attribute presence, same
+# as cmd_test()) - a plain tuple would do, kept as a dict of Nones so the
+# iteration pattern below reads identically to _SUBSYSTEM_TEST_FILES's.
+_PROFILE_SUBSYSTEM_FLAGS: dict[str, None] = {
+    "regime": None, "topology": None, "learned-topology": None, "liquidity": None,
+    "gating": None, "analyzer": None, "indicators": None,
+}
+
+
 def cmd_profile(args: argparse.Namespace) -> int:
-    """Wraps scripts/profile_inference.py - the cProfile+wall-clock harness
-    for main.py's per-bar inference hot path (see development/Problems.md
-    for what it found: weight-array/batched-stack caching, expert-loop
-    batching, and _conv1d_causal vectorization, -89.2% total profiled
-    cost). Same subprocess-wrapper convention every other non-`trade-lock`/
-    `fetch` command follows (_run(), not an in-process import) - `aq_cli.py`
-    itself doesn't need to import numpy/inference/torch just to expose
-    this command."""
-    cmd = [sys.executable, "scripts/profile_inference.py", "--iterations", str(args.iterations), "--sort", args.sort]
+    """Wraps scripts/profile_inference.py (default) - the cProfile+wall-
+    clock harness for main.py's per-bar inference hot path (see
+    development/Problems.md for what it found: weight-array/batched-stack
+    caching, expert-loop batching, and _conv1d_causal vectorization,
+    -89.2% total profiled cost) - or, when any --<subsystem> flag is set,
+    scripts/profile_subsystems.py instead (regime/topology/liquidity/
+    gating/analyzer/indicators - everything else main.py calls per bar
+    that inference profiling never covered). Same subprocess-wrapper
+    convention every other non-`trade-lock`/`fetch` command follows
+    (_run(), not an in-process import).
+
+    --batched/--no-gc/--bucket-report only have meaning for the inference
+    path (no batched variant, and no GC-isolation/bucketing diagnostic,
+    exists for these pure functions) - combining any of them with a
+    subsystem flag is a user error, rejected loudly rather than silently
+    ignored."""
+    subsystem_flags = [name for name in _PROFILE_SUBSYSTEM_FLAGS if getattr(args, name.replace("-", "_"), False)]
+    inference_only_flags = args.batched or args.no_gc or args.bucket_report
+    if subsystem_flags and inference_only_flags:
+        print(
+            "error: --batched/--no-gc/--bucket-report only apply to inference profiling, not --<subsystem> flags",
+            file=sys.stderr,
+        )
+        return 1
+
+    if subsystem_flags:
+        cmd = [sys.executable, "scripts/profile_subsystems.py"]
+        if args.iterations is not None:
+            cmd.extend(["--iterations", str(args.iterations)])
+        cmd.extend(["--sort", args.sort])
+        cmd.extend(f"--{name}" for name in subsystem_flags)
+        return _run(cmd)
+
+    cmd = [sys.executable, "scripts/profile_inference.py"]
+    if args.iterations is not None:
+        cmd.extend(["--iterations", str(args.iterations)])
+    cmd.extend(["--sort", args.sort])
     if args.batched:
         cmd.append("--batched")
+    if args.no_gc:
+        cmd.append("--no-gc")
+    if args.bucket_report:
+        cmd.append("--bucket-report")
     return _run(cmd)
 
 
@@ -895,14 +939,40 @@ def build_parser() -> argparse.ArgumentParser:
     backtest_parser.set_defaults(func=cmd_backtest)
 
     profile_parser = subparsers.add_parser(
-        "profile", help="Profile the per-bar inference hot path (wraps scripts/profile_inference.py)"
+        "profile",
+        help="Profile the per-bar hot path (wraps scripts/profile_inference.py / scripts/profile_subsystems.py)",
     )
-    profile_parser.add_argument("--iterations", type=int, default=10_000, help="Symbol-bar iterations to profile (default: 10000)")
+    # default=None (not 10_000/200) so cmd_profile() can tell "user didn't
+    # pass --iterations" apart from "user explicitly passed the same
+    # number" and let whichever script actually runs use ITS OWN default -
+    # profile_inference.py's 10,000 (cheap ~5ms/call) and
+    # profile_subsystems.py's 200 (build_market_topology() alone costs
+    # ~500-600ms/call at this project's real universe size - 10,000 there
+    # would take over an hour) are deliberately very different, and
+    # hardcoding either one here would silently override the other.
+    profile_parser.add_argument(
+        "--iterations", type=int, default=None,
+        help="Iterations to profile (default: 10000 for inference, 200 for --<subsystem> flags)",
+    )
     profile_parser.add_argument("--sort", default="cumulative", help="pstats sort key (default: cumulative)")
     profile_parser.add_argument(
         "--batched", action="store_true",
         help="Use the batched expert-inference path (with its precomputed stack caches) instead of a per-expert loop",
     )
+    profile_parser.add_argument(
+        "--no-gc", action="store_true",
+        help="Disable the GC around the profiled region, to isolate whether GC pauses drive tail latency (inference only)",
+    )
+    profile_parser.add_argument(
+        "--bucket-report", action="store_true",
+        help="Print a 10-bucket-by-iteration-index duration breakdown, to check for a warmup effect (inference only)",
+    )
+    for _profile_subsystem_name in _PROFILE_SUBSYSTEM_FLAGS:
+        profile_parser.add_argument(
+            f"--{_profile_subsystem_name}",
+            action="store_true",
+            help=f"Profile only the {_profile_subsystem_name} subsystem (scripts/profile_subsystems.py)",
+        )
     profile_parser.set_defaults(func=cmd_profile)
 
     report_parser = subparsers.add_parser("report", help="Generate a Lean HTML report for a finished backtest")

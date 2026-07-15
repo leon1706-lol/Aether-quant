@@ -155,3 +155,195 @@ def build_options_position_sizing(
         sizing_reason="delta_targeted_vega_budgeted_sizing",
         contract_symbol=contract.get("symbol"),
     )
+
+
+# ---------------------------------------------------------------------------
+# 2-leg vertical spreads (call vertical / bull_call_spread, put vertical /
+# bear_put_spread) - a deliberately minimal, explicit scope-in of the
+# "multi-leg spread selection is a non-goal" note above. Straddles/
+# strangles/iron condors/butterflies remain out of scope (see
+# development/Problems.md #29/#38). OptionsPositionDecision/
+# select_single_leg_contract()/build_options_position_sizing() above are
+# completely untouched - these are new, parallel additions, not a
+# generalization of the single-leg path.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class OptionsSpreadLeg:
+    """One leg of a 2-leg vertical spread. side is "long"/"short" (never a
+    signed quantity) - keeps this symmetric with how Lean's own
+    OptionStrategies/Leg model a spread: a strike, a side, a contract."""
+
+    strike: float
+    right: str  # "call" | "put" - both legs of a vertical share this
+    side: str  # "long" | "short"
+    # Same None-safe contract as OptionsPositionDecision.contract_symbol
+    # above - a synthetic test fixture with no "symbol" key degrades to
+    # None, never a crash.
+    contract_symbol: object = None
+
+
+@dataclass(frozen=True)
+class OptionsSpreadPositionDecision:
+    """2-leg vertical spread sibling of OptionsPositionDecision - a
+    SEPARATE dataclass, not a generalization of it (OptionsPositionDecision
+    stays single-leg-shaped, every existing caller untouched)."""
+
+    strategy_name: str  # "bull_call_spread" | "bear_put_spread" - matches Lean's OptionStrategies factory name exactly, main.py uses this to pick which one to call
+    legs: tuple[OptionsSpreadLeg, OptionsSpreadLeg]  # (long, short), exactly 2 for this pass's scope
+    expiry: str
+    contracts: int  # spread QUANTITY (number of spread units), not a per-leg contract count
+    # Best-effort diagnostic only (mid/bid-ask based, per spread unit) -
+    # 0.0 when bid/ask are absent from the chain rows. NEVER gates sizing,
+    # matching this module's existing "never crash on missing chain
+    # fields" contract.
+    net_debit_or_credit: float
+    net_delta: float  # long leg's delta minus short leg's delta, per spread unit
+    net_vega: float  # fraction of portfolio_value the sized position's net vega consumes - same "budget used" semantic as OptionsPositionDecision.vega_budget_used, not a raw per-unit vega number
+    sizing_reason: str
+
+    def to_dict(self) -> dict:
+        """Same manual-field-access convention as OptionsPositionDecision.to_dict()
+        above - never dataclasses.asdict(), the legs' contract_symbol
+        fields are real Lean Symbol objects, not deepcopy-safe."""
+        return {
+            "strategy_name": self.strategy_name,
+            "legs": [
+                {
+                    "strike": leg.strike,
+                    "right": leg.right,
+                    "side": leg.side,
+                    "contract_symbol": str(leg.contract_symbol) if leg.contract_symbol is not None else None,
+                }
+                for leg in self.legs
+            ],
+            "expiry": self.expiry,
+            "contracts": self.contracts,
+            "net_debit_or_credit": self.net_debit_or_credit,
+            "net_delta": self.net_delta,
+            "net_vega": self.net_vega,
+            "sizing_reason": self.sizing_reason,
+        }
+
+
+def select_vertical_spread_legs(
+    available_chain: list[dict],
+    target_delta: float,
+    right: str,
+    short_leg_delta_offset: float,
+) -> tuple[dict, dict] | None:
+    """Picks two same-expiry, same-right chain rows for a vertical spread:
+    the long leg via the EXACT same nearest-|delta| selection
+    select_single_leg_contract() already uses (no new selection logic
+    duplicated for it), and the short leg as the nearest-|delta| match to
+    (target_delta - short_leg_delta_offset) among rows of the SAME expiry
+    as the long leg, filtered to the side that caps risk (strike > long
+    strike for a call vertical, strike < long strike for a put vertical -
+    enforced explicitly by filtering on strike, not inferred from delta
+    ordering, since assuming monotonic real-market delta-vs-strike
+    ordering shouldn't be load-bearing here).
+
+    Returns None when: no usable long leg (same degrade-to-absent
+    condition as select_single_leg_contract()), or no candidate short leg
+    exists at the long leg's expiry on the risk-capping side - a chain
+    with only one usable strike degrades to "no spread", never a crash."""
+    long_leg = select_single_leg_contract(available_chain, target_delta, right)
+    if long_leg is None:
+        return None
+
+    long_strike = float(long_leg["strike"])
+    long_expiry = long_leg["expiry"]
+    right_normalized = right.lower()
+    short_target_delta = target_delta - short_leg_delta_offset
+
+    def _is_risk_capping_side(strike: float) -> bool:
+        return strike > long_strike if right_normalized == "call" else strike < long_strike
+
+    short_candidates = [
+        row
+        for row in available_chain
+        if str(row.get("right", "")).lower() == right_normalized
+        and row.get("delta") is not None
+        and row.get("expiry") == long_expiry
+        and _is_risk_capping_side(float(row["strike"]))
+    ]
+    if not short_candidates:
+        return None
+
+    short_leg = min(short_candidates, key=lambda row: abs(abs(row["delta"]) - abs(short_target_delta)))
+    return long_leg, short_leg
+
+
+def build_vertical_spread_position_sizing(
+    signal_direction: str,
+    confidence: float,
+    available_chain: list[dict],
+    portfolio_value: float,
+    target_delta_at_full_confidence: float = 0.60,
+    short_leg_delta_offset: float = 0.20,
+    max_vega_budget_pct_of_equity: float = 0.02,
+) -> OptionsSpreadPositionDecision | None:
+    """Vertical-spread sibling of build_options_position_sizing() above -
+    same signal_direction -> right mapping ("buy" -> call vertical/
+    bull_call_spread, "sell"/"short" -> put vertical/bear_put_spread),
+    same confidence-scaled target_delta for the long leg.
+
+    Sizes by NET vega (long leg vega minus short leg vega) rather than
+    the long leg's vega alone - a vertical's defining risk reduction
+    versus a single leg, and the correct risk unit to budget a spread
+    position against. Returns None on the same degrade-to-absent
+    conditions build_options_position_sizing() already documents, plus:
+    no usable short leg found (select_vertical_spread_legs() returned
+    None), or net_vega is non-positive (a spread with ~zero or negative
+    net vega is unsizeable by this budget, not an error)."""
+    confidence = max(0.0, min(float(confidence), 1.0))
+    portfolio_value = max(float(portfolio_value), 0.0)
+
+    if signal_direction == "buy":
+        right, strategy_name = "call", "bull_call_spread"
+    elif signal_direction in ("sell", "short"):
+        right, strategy_name = "put", "bear_put_spread"
+    else:
+        return None
+
+    if confidence == 0.0 or portfolio_value <= 0.0:
+        return None
+
+    target_delta = target_delta_at_full_confidence * confidence
+    legs = select_vertical_spread_legs(available_chain, target_delta, right, short_leg_delta_offset)
+    if legs is None:
+        return None
+    long_row, short_row = legs
+
+    long_vega = float(long_row.get("vega", 0.0) or 0.0)
+    short_vega = float(short_row.get("vega", 0.0) or 0.0)
+    net_vega_per_spread = long_vega - short_vega
+    if net_vega_per_spread <= 0.0:
+        return None
+
+    vega_budget = max_vega_budget_pct_of_equity * portfolio_value
+    contracts = int(vega_budget // net_vega_per_spread)
+    if contracts <= 0:
+        return None
+
+    long_ask = long_row.get("ask")
+    short_bid = short_row.get("bid")
+    net_debit_or_credit = (
+        float(long_ask) - float(short_bid) if long_ask is not None and short_bid is not None else 0.0
+    )
+    net_delta = float(long_row.get("delta", 0.0) or 0.0) - float(short_row.get("delta", 0.0) or 0.0)
+
+    return OptionsSpreadPositionDecision(
+        strategy_name=strategy_name,
+        legs=(
+            OptionsSpreadLeg(strike=float(long_row["strike"]), right=right, side="long", contract_symbol=long_row.get("symbol")),
+            OptionsSpreadLeg(strike=float(short_row["strike"]), right=right, side="short", contract_symbol=short_row.get("symbol")),
+        ),
+        expiry=str(long_row["expiry"]),
+        contracts=contracts,
+        net_debit_or_credit=net_debit_or_credit,
+        net_delta=net_delta,
+        net_vega=(contracts * net_vega_per_spread) / portfolio_value,
+        sizing_reason="delta_targeted_net_vega_budgeted_vertical_spread_sizing",
+    )
