@@ -2,9 +2,11 @@ from execution import (
     DEFAULT_FILL_SLIPPAGE_SOURCE,
     MAX_LIQUIDITY_SLIPPAGE_BPS,
     VALID_FILL_SLIPPAGE_SOURCES,
+    classify_order_status,
     liquidity_cost_fraction,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
+    resolve_limit_price,
     resolve_order_permission,
     resolve_runtime_mode,
     resolve_slippage_bps,
@@ -244,3 +246,72 @@ def test_liquidity_cost_fraction_unknown_source_falls_back_to_round_trip():
 def test_liquidity_cost_fraction_missing_field_is_zero():
     assert liquidity_cost_fraction({}, "round_trip") == 0.0
     assert liquidity_cost_fraction({}, "impact_only") == 0.0
+
+
+def test_resolve_limit_price_buy_sits_below_reference():
+    result = resolve_limit_price(100.0, spread_fraction=0.01, is_buy=True)
+
+    assert result < 100.0
+
+
+def test_resolve_limit_price_sell_sits_above_reference():
+    result = resolve_limit_price(100.0, spread_fraction=0.01, is_buy=False)
+
+    assert result > 100.0
+
+
+def test_resolve_limit_price_offset_is_half_spread_times_multiplier():
+    # spread_fraction=0.02 -> half-spread = 0.01 -> offset = 100 * 0.01 * multiplier
+    buy_default = resolve_limit_price(100.0, spread_fraction=0.02, is_buy=True, offset_multiplier=1.0)
+    assert round(buy_default, 6) == round(100.0 - 1.0, 6)
+
+    sell_default = resolve_limit_price(100.0, spread_fraction=0.02, is_buy=False, offset_multiplier=1.0)
+    assert round(sell_default, 6) == round(100.0 + 1.0, 6)
+
+
+def test_resolve_limit_price_offset_scales_linearly_with_offset_multiplier():
+    buy_1x = resolve_limit_price(100.0, spread_fraction=0.02, is_buy=True, offset_multiplier=1.0)
+    buy_2x = resolve_limit_price(100.0, spread_fraction=0.02, is_buy=True, offset_multiplier=2.0)
+
+    assert round(100.0 - buy_2x, 6) == round((100.0 - buy_1x) * 2.0, 6)
+
+
+def test_resolve_limit_price_zero_reference_price_returns_reference_unchanged():
+    assert resolve_limit_price(0.0, spread_fraction=0.01, is_buy=True) == 0.0
+    assert resolve_limit_price(0.0, spread_fraction=0.01, is_buy=False) == 0.0
+
+
+def test_resolve_limit_price_zero_spread_fraction_returns_reference_unchanged():
+    assert resolve_limit_price(100.0, spread_fraction=0.0, is_buy=True) == 100.0
+    assert resolve_limit_price(100.0, spread_fraction=0.0, is_buy=False) == 100.0
+
+
+def test_resolve_limit_price_negative_spread_fraction_treated_as_no_offset():
+    assert resolve_limit_price(100.0, spread_fraction=-0.01, is_buy=True) == 100.0
+    assert resolve_limit_price(100.0, spread_fraction=-0.01, is_buy=False) == 100.0
+
+
+def test_resolve_limit_price_default_offset_multiplier_is_one():
+    explicit = resolve_limit_price(100.0, spread_fraction=0.02, is_buy=True, offset_multiplier=1.0)
+    implicit = resolve_limit_price(100.0, spread_fraction=0.02, is_buy=True)
+
+    assert explicit == implicit
+
+
+def test_classify_order_status_filled():
+    assert classify_order_status("Filled") == "filled"
+
+
+def test_classify_order_status_canceled_and_invalid():
+    assert classify_order_status("Canceled") == "canceled"
+    assert classify_order_status("Invalid") == "canceled"
+
+
+def test_classify_order_status_pending_variants():
+    for status_name in ("New", "Submitted", "PartiallyFilled", "UpdateSubmitted"):
+        assert classify_order_status(status_name) == "pending"
+
+
+def test_classify_order_status_unknown_string_returns_unknown_not_raises():
+    assert classify_order_status("SomethingLeanMightActuallyCallIt") == "unknown"
+    assert classify_order_status("") == "unknown"

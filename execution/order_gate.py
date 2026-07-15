@@ -164,3 +164,64 @@ def simulate_fill(
         "notional": notional,
         "quantity": quantity,
     }
+
+
+def resolve_limit_price(
+    reference_price: float,
+    spread_fraction: float,
+    is_buy: bool,
+    offset_multiplier: float = 1.0,
+) -> float:
+    """Pure limit-price placement for main.py's real limit orders
+    (execution/risk realism pass, part 2).
+
+    Offsets reference_price by half of spread_fraction (already a
+    fraction, e.g. 0.001 = 10bps - the same unit family
+    liquidity_cost_fraction() above consumes) times offset_multiplier
+    (phase_v2.limit_orders.offset_multiplier). Halving matches the
+    standard "bid = mid - spread/2, ask = mid + spread/2" convention -
+    spread_fraction is a round-trip/full-spread estimate
+    (liquidity/market_liquidity.py's spread_proxy), a single-sided limit
+    order should only cross half of it.
+
+    A buy limit sits BELOW reference_price (never overpay above the last
+    close); a sell/short limit sits ABOVE it (never undersell below the
+    last close). offset_multiplier > 1.0 places a more passive (further
+    from reference, lower fill probability, more price improvement if
+    filled) limit; < 1.0 places a more aggressive one (closer to/crossing
+    reference, higher fill probability, less improvement).
+
+    Returns reference_price unchanged whenever reference_price or
+    spread_fraction is non-positive - never returns a non-positive or
+    crossed-through price, matching slippage_amount()'s fail-safe-to-
+    neutral convention above.
+    """
+    if reference_price <= 0 or spread_fraction <= 0:
+        return float(reference_price)
+    offset = float(reference_price) * (float(spread_fraction) / 2.0) * float(offset_multiplier)
+    return reference_price - offset if is_buy else reference_price + offset
+
+
+# Pure classification of a Lean OrderStatus enum member's name (or
+# str(status)) into "pending" / "filled" / "canceled" / "unknown" -
+# isolates the one place this pass has to guess at Lean's real OrderStatus
+# spelling (see execution/README.md's "Real limit orders" section for the
+# full casing-risk writeup) into a single small function, so a casing fix
+# is a one-line change here rather than a hunt through main.py's
+# on_order_event()/_process_pending_limit_order_timeouts().
+PENDING_ORDER_STATUS_NAMES = ("New", "Submitted", "PartiallyFilled", "UpdateSubmitted")
+TERMINAL_FILLED_STATUS_NAMES = ("Filled",)
+TERMINAL_CANCELED_STATUS_NAMES = ("Canceled", "Invalid")
+
+
+def classify_order_status(status_name: str) -> str:
+    """Pure string classification, never raises on an unrecognized value -
+    returns "unknown" instead, which callers treat as still-pending
+    (conservative: never mistakes an unrecognized status for a fill)."""
+    if status_name in TERMINAL_FILLED_STATUS_NAMES:
+        return "filled"
+    if status_name in TERMINAL_CANCELED_STATUS_NAMES:
+        return "canceled"
+    if status_name in PENDING_ORDER_STATUS_NAMES:
+        return "pending"
+    return "unknown"

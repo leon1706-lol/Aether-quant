@@ -86,6 +86,158 @@ to `impact_only` (see the config flag above) if the combined estimate
 ever proves too aggressive against a real backtest, no code change
 required.
 
+## Real limit orders (execution/risk realism pass, part 2)
+
+Closes the other half of `development/v2_architecture.md`'s HFT-gap item
+3: *"no limit-order/queue-position-aware execution exists — fills are
+still all-or-nothing market fills."* Every real order in `main.py` was a
+`MarketOrder()`/`SetHoldings()` market fill; this pass adds real `LimitOrder()`
+support as a config-gated alternative, for every tradable asset class
+(equity, crypto, bond, future, option). Default **off** — when disabled,
+every routing call site takes the exact same market-order branch it always
+has, byte-for-byte.
+
+**Design decision — casing risk, stated up front, not buried**: this
+codebase's existing, already-proven-working-via-a-completed-real-Lean-
+backtest code calls the Lean API with **PascalCase** (`self.MarketOrder`,
+`self.SetHoldings`, `self.Liquidate`, `self.SetFilter`,
+`self.SetSlippageModel`) but overrides Lean's virtual callback methods
+with **snake_case** (`def initialize(self)`, `def on_data(self, data)`) —
+not PascalCase. The locally installed `quantconnect-stubs` package, by
+contrast, declares the *entire* API in snake_case only and has zero
+PascalCase entries anywhere — it does not actually match whatever Lean
+version is really running here, and isn't authoritative over this
+codebase's own working precedent. This pass matches the proven mixed
+convention exactly: PascalCase for every new API call (`self.LimitOrder(...)`,
+`ticket.Cancel()`, `OrderStatus.Filled`) and snake_case for the new
+override method (`def on_order_event(self, order_event):`, matching
+`initialize`/`on_data`). This is a real, unverified-until-a-real-backtest
+risk — see the Verification list below.
+
+- `order_gate.py::resolve_limit_price(reference_price, spread_fraction,
+  is_buy, offset_multiplier=1.0)` — pure limit-price placement, reusing
+  `liquidity_payload["spread_proxy"]` (already computed every bar, no new
+  estimate invented) rather than a bespoke one. Buy limits sit below the
+  reference price, sell/short limits sit above it, offset by half the
+  spread times `offset_multiplier`. Fails safe to the reference price
+  unchanged for non-positive price/spread.
+- `order_gate.py::classify_order_status(status_name)` — pure string
+  classification into `"pending"`/`"filled"`/`"canceled"`/`"unknown"`,
+  isolating the one place this pass has to guess at Lean's real
+  `OrderStatus` enum member spelling into a single small function — if the
+  real spelling differs, this is a one-function fix, not a hunt through
+  `main.py`.
+
+**Config flags** (`phase_v2.limit_orders`, read once in
+`main.py::_ensure_ready()`, all settable via `aq config set` — no code
+change needed to retune any of them):
+
+- `enabled` (default `false`) — global kill switch.
+  `aq config set phase_v2.limit_orders.enabled true`
+- `asset_classes` (default all 5) — scope the feature to a subset.
+  `aq config set phase_v2.limit_orders.asset_classes '["equity","crypto"]'`
+- `offset_multiplier` (default `1.0`) — scales the limit-price offset;
+  `<1.0` more aggressive/likely to fill, `>1.0` more passive.
+  `aq config set phase_v2.limit_orders.offset_multiplier 1.5`
+- `unfilled_timeout_bars` (default `3`) — bars to wait before canceling a
+  stale pending order.
+  `aq config set phase_v2.limit_orders.unfilled_timeout_bars 5`
+- `fallback_to_market_on_timeout` — **per-asset-class dict, not a single
+  global bool** (mirrors the existing `exposure_caps_by_asset_class`
+  precedent). Defaults `true` for equity/crypto/bond (a fallback fill
+  there is the same trade `SetHoldings` would have placed anyway) and
+  `false` for future/option (margin/expiry mechanics make a silent
+  fallback fill a real position the model didn't choose at that price;
+  safer to stay flat and let the model re-decide next bar). A partial
+  override only changes the classes it mentions:
+  `aq config set phase_v2.limit_orders.fallback_to_market_on_timeout.future true`
+
+**Real Lean fills** (`main.py`): `_try_submit_limit_order()` is the shared
+helper called from every real-order branch in `_apply_signal()`/
+`_apply_option_order()` (buy/short × equity-crypto-bond/future/option).
+Returns `False` immediately when disabled or the asset class isn't
+configured — the only possible behavior in that case, by construction —
+so the caller's existing `MarketOrder()`/`SetHoldings()` call is what
+actually runs. Quantity comes from whatever the caller already computed
+for future/option (`_futures_contract_count_for_weight()`'s
+target-weight-signed result, or `options_decision.contracts`' always-
+positive convention — options are never shorted) used exactly as-is, or
+`self.CalculateOrderQuantity(symbol, target_weight)` for equity/crypto/bond
+— reusing Lean's own built-in weight→quantity math (the same thing
+`SetHoldings` calls internally) instead of writing new custom sizing
+logic. On success, the `OrderTicket` is tracked in
+`self.pending_limit_orders` (keyed by `str(symbol)` — the chain symbol
+string, deliberately **not** following `last_trade_bar_by_symbol`'s
+existing raw-Symbol-object keying, a pre-existing inconsistency not worth
+copying).
+
+`_process_pending_limit_order_timeouts()` runs once per bar, immediately
+after `_refresh_risk_state()` — the same "resolve stale/urgent state
+before this bar's fresh signal computation" anchor point that method's
+own global drawdown-breach `Liquidate()` already uses. Cancels anything
+past `unfilled_timeout_bars`, and (per the per-asset-class fallback flag)
+optionally places a real `MarketOrder()` for the remainder.
+
+`on_order_event(self, order_event)` is Lean's real order-fill callback
+(new). Maps a fill/cancel back to a `pending_limit_orders` entry — via
+`self.symbol_key_by_option_contract_symbol` for options (the event fires
+on the CONTRACT symbol, not the chain symbol other dicts key by — the
+same indirection `_order_target_symbol()` already needs), else
+`str(order_event.Symbol)` directly. On a confirmed fill: stamps
+`last_trade_bar_by_symbol` and clears the entry. On cancel: clears with no
+cooldown stamp.
+
+**Cooldown-timing semantics change (feature-on only)**: today,
+`last_trade_bar_by_symbol` is stamped synchronously at order-*placement*
+time. With limit orders enabled, it's stamped at confirmed-*fill* time
+instead (`on_order_event`) — so a signal that flips while an order sits
+unfilled isn't blocked by a cooldown for a trade that never happened.
+Disabled (default): zero change, every stamp stays exactly where it is
+today. One residual risk: if `on_order_event` never fires for some
+Lean-runtime reason, the cooldown stamp is silently skipped for that fill
+— only a real backtest can confirm this doesn't happen (see Verification
+below).
+
+**Observation-mode simulated fills are completely untouched.**
+`_try_submit_limit_order()` is only ever called from inside
+`if orders_allowed:` blocks, structurally unreachable from the simulated
+`self._simulated_portfolio.enter_long(...)` path. No fill-uncertainty
+modeling was added to `SimulatedPortfolioState` — that class is already
+documented as a fast hypothetical abstraction, not a real-broker-mechanics
+model, and there is no real order book for a simulated limit order to
+queue against. Real execution realism (this pass's goal) and
+observation-mode realism are different, separately-scoped topics.
+
+**Verification — only a real Lean backtest can confirm these, in priority
+order:**
+
+1. **`OrderStatus` enum member casing** (`OrderStatus.Filled` etc.) — the
+   single highest-risk guess in this whole feature. If wrong,
+   `classify_order_status()` returns `"unknown"` for everything and every
+   limit order sits until the timeout sweep force-cancels it — degrades
+   safely (no silent bad trade), but the feature is functionally inert
+   until fixed. Likely a one-line spelling fix in `execution/order_gate.py`'s
+   `PENDING_ORDER_STATUS_NAMES`/`TERMINAL_FILLED_STATUS_NAMES`/
+   `TERMINAL_CANCELED_STATUS_NAMES` once real log output shows the real
+   spelling.
+2. Whether `ticket.Cancel()`/`self.LimitOrder(...)` work via PascalCase at
+   all against this project's actual running Lean version.
+3. Whether `on_order_event` actually gets dispatched by the real engine —
+   only `initialize`/`on_data` are proven snake_case override precedents
+   in this exact codebase.
+4. Whether `on_order_event` fires with the option CONTRACT symbol
+   (assumed) vs. the chain symbol — if wrong, option pending entries are
+   only ever cleared by the timeout sweep, never a genuine fill
+   confirmation.
+5. Whether `CalculateOrderQuantity` produces `SetHoldings`-parity
+   quantities for every asset type in this universe — never called
+   anywhere in this codebase before this pass.
+6. Real fill-rate/behavior sanity — does this actually improve realized
+   execution price, or does `fallback_to_market_on_timeout` end up firing
+   on most trades anyway (effectively "market order with extra
+   bookkeeping")? A pure strategy-quality judgment call no automated check
+   here can answer.
+
 ## Config-read caching (latency-optimization pass, post-V2-23)
 
 `config_cache.py::read_cached(config_path, loader)` — a shared, mtime-gated

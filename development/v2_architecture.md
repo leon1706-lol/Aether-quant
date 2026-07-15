@@ -1568,18 +1568,21 @@ reference so the question doesn't get re-investigated from scratch later.
    inside that window; combined with daily bars and ~10 symbols, a backtest
    produces on the order of single-digit orders per day across the whole
    book. HFT strategies place hundreds to thousands of orders per second.
-3. **Orders are still `SetHoldings`/`Liquidate` market orders — no
-   limit-order/queue-position-aware execution exists.** The slippage half
-   of this gap is closed as of the execution/risk realism pass: a real
-   `SlippageModel` is now attached to every Lean security
-   (`main.py::_LiquidityAwareSlippageModel`, see `execution/README.md`'s
-   "Real fill slippage" section), reading `liquidity/market_liquidity.py`'s
-   `estimated_round_trip_cost` every bar instead of discarding it after
-   sizing/routing decisions — and observation-mode's simulated fills now
-   charge the same estimate instead of a hardcoded `slippage_bps=0.0`.
-   What's still genuinely absent for HFT: real limit orders (fills are
-   still all-or-nothing market fills, no partial-fill/queue-position
-   modeling) and explicit network/exchange latency simulation.
+3. **Orders now support real limit-order execution, config-gated and
+   still default off.** Both halves of this gap are now closed: the
+   slippage half (a real `SlippageModel` attached to every Lean security,
+   `main.py::_LiquidityAwareSlippageModel`, see `execution/README.md`'s
+   "Real fill slippage" section) and the order-type half
+   (`phase_v2.limit_orders`, real `LimitOrder()` support for every asset
+   class via `main.py::_try_submit_limit_order()`/`on_order_event()`, see
+   `execution/README.md`'s "Real limit orders" section and
+   `development/Problems.md` #34). What's still genuinely absent for HFT:
+   partial-fill/queue-position modeling beyond Lean's own `OrderTicket`
+   semantics, and explicit network/exchange latency simulation. The
+   limit-order feature itself also carries a real, explicitly documented
+   risk unresolved until a real backtest runs — several Lean API naming
+   assumptions (see `execution/README.md`'s verification list) could not
+   be confirmed against the actual running engine this pass.
 4. **Retraining is an offline, gated batch process**, not online/continuous
    learning: `phase_v2.retraining.cooldown_minutes` (720 = 12h),
    `max_retrainings_per_day` (2), and a full

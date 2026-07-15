@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1224%2F1224%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1224 of 1224 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1240%2F1240%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1240 of 1240 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -67,6 +67,7 @@ status`). Remaining, still-open items:
 - **Disabling an asset class doesn't liquidate existing positions in it** — it only stops opening/managing new ones (`aq config set phase_v2.*.enabled`).
 - **Latency profiling (`aq profile`) only covers the neural-net inference step** — feature engineering, regime/topology/liquidity computation, gating, and signal derivation (the rest of `on_data()`'s per-bar cost) have never been measured. They could be a meaningful hidden cost now that inference itself is cheap; nobody's looked yet.
 - **Inference tail latency is unaddressed** — p99 runs routinely 3-5x the p50 in every `aq profile` run this session. Only mean/average-case latency was optimized; the tail gap itself was never investigated.
+- **Real limit orders (`phase_v2.limit_orders`) rely on unverified Lean API naming assumptions** — off by default. Several PascalCase method/enum-casing choices (`OrderStatus.Filled`, `on_order_event` dispatch) could not be confirmed against a real Lean engine this pass; see `execution/README.md`'s "Real limit orders" section for the full prioritized list before enabling this in anything but a test backtest.
 
 ## Table of Contents
 
@@ -512,7 +513,7 @@ and how it's wired in — this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1224<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1240<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -620,7 +621,7 @@ genuinely halted trading exactly as designed.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1224<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1240<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -985,7 +986,7 @@ architecture docs already identify:
 
 - **Tick/L1-L2 market data pipeline** — replacing the daily Lean zip files with a genuinely higher-frequency data source and storage layer.
 - **A shorter-horizon model** — a new model operating at sub-second/tick granularity with a much shorter prediction horizon, not a retrained version of today's daily classifier.
-- **Limit-order/queue-position-aware execution** — orders are still `SetHoldings`/`Liquidate` market fills only. (The other half of this item, a real fill simulator, is **delivered**: `main.py` now attaches a real `SlippageModel` to every security and observation-mode's simulated fills charge the same estimate — see `execution/README.md`'s "Real fill slippage" section.)
+- **Limit-order/queue-position-aware execution** — **delivered**, config-gated (`phase_v2.limit_orders`, default off): real `LimitOrder()` support for every asset class, replacing today's `SetHoldings`/`MarketOrder` market fills. Partial-fill/queue-position modeling beyond Lean's own `OrderTicket` semantics remains out of scope. See `execution/README.md`'s "Real limit orders" section — including a real fill-simulator (delivered alongside the slippage half of this item, same section's "Real fill slippage") and an explicit, unresolved-until-a-real-backtest list of Lean API naming assumptions this feature depends on.
 - **A low-latency, event-driven runtime** — replacing the daily-bar `on_data()` callback and the 30s+ polling background workers with something closer to a real-time event loop.
 - **Real broker/exchange connectivity beyond paper trading** — building on the credential/readiness groundwork V2-21/V2-22 already laid.
 - **Continuous / online retraining** — moving beyond today's offline, cooldown-gated batch retraining pipeline.

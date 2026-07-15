@@ -1407,3 +1407,102 @@ tests (10 in `test_order_gate.py` for the new params/functions, 3 in
 `test_aq_cli.py` proving both keys are reachable via the existing generic
 `aq config get`/`set` — no new CLI code needed, since `aq config` already
 operates on arbitrary dotted paths into `config.json`).
+
+### 34. Real limit-order support — every tradable asset class, config-gated (part 2 of the execution/risk realism pass)
+
+Entry #33 closed half of `development/v2_architecture.md`'s documented
+HFT-gap item 3 (real fill slippage). The other half was still open: *"no
+limit-order/queue-position-aware execution exists — fills are still
+all-or-nothing market fills."* Every real order in `main.py` was a
+`MarketOrder()`/`SetHoldings()` market fill across all 5 call sites (option
+buy, future buy/short, equity-crypto-bond buy/short) with no alternative.
+
+**Fixed**: real `LimitOrder()` support, config-gated (`phase_v2.limit_orders`,
+default off), for every asset class the project trades:
+
+- New pure functions in `execution/order_gate.py`: `resolve_limit_price(
+  reference_price, spread_fraction, is_buy, offset_multiplier=1.0)` (buy
+  limits below reference, sell/short above, offset by half the already-
+  computed `liquidity_payload["spread_proxy"]` — no new estimate
+  invented) and `classify_order_status(status_name)` (pure string
+  classification into pending/filled/canceled/unknown, isolating the one
+  place this pass has to guess at Lean's real `OrderStatus` enum spelling
+  into a single function).
+- `main.py::_try_submit_limit_order()` — the shared helper wired into all
+  5 existing real-order branches. Returns `False` immediately when
+  disabled/asset-class-excluded (the only possible behavior in that
+  case), so every caller's existing market-order call is what actually
+  runs when the feature is off. Quantity reuses whatever the caller
+  already computed for future/option (used exactly as-is — see the sign
+  bug caught and fixed below) or Lean's own
+  `self.CalculateOrderQuantity(symbol, target_weight)` for
+  equity/crypto/bond, instead of writing new custom sizing math.
+- `main.py::on_order_event()` (new) — Lean's real order-fill callback,
+  snake_case override matching `initialize()`/`on_data()`'s proven
+  naming. Stamps `last_trade_bar_by_symbol` at confirmed-fill time
+  (instead of the old order-*placement*-time stamp) so a signal that
+  flips while an order sits unfilled isn't blocked by a cooldown for a
+  trade that never happened — feature-off behavior is unchanged.
+- `main.py::_process_pending_limit_order_timeouts()` (new) — runs once
+  per bar right after `_refresh_risk_state()` (the same "resolve stale
+  state before this bar's fresh signal computation" anchor point that
+  method's own drawdown-breach `Liquidate()` already uses). Cancels
+  anything past `unfilled_timeout_bars` and, per a **per-asset-class**
+  fallback flag (not a single global bool — equity/crypto/bond default
+  `true`, future/option default `false`, since a silent fallback fill
+  there is a real position the model didn't choose at that price under
+  margin/expiry mechanics), optionally places a real `MarketOrder()` for
+  the remainder.
+- `phase_v2.limit_orders`: `enabled` (default `false`), `asset_classes`
+  (default all 5), `offset_multiplier` (default `1.0`),
+  `unfilled_timeout_bars` (default `3`), `fallback_to_market_on_timeout`
+  (per-asset-class dict, mirrors the existing
+  `exposure_caps_by_asset_class` shape) — all settable via the existing
+  generic `aq config set`, no new CLI code.
+
+**A real sign bug caught and fixed during implementation, not after**: the
+initial draft applied a uniform `abs(contract_quantity) if is_buy else
+-abs(contract_quantity)` transform to the already-computed quantity
+passed in for futures/options. This is wrong for futures —
+`_futures_contract_count_for_weight()` already returns a
+target-weight-signed count (matching `MarketOrder(symbol, contract_count)`'s
+existing convention exactly), so re-deriving the sign from `is_buy` would
+have silently flipped correctly-negative short-futures quantities. Fixed
+by using `contract_quantity` exactly as submitted by the caller for
+future/option, and deriving `is_buy` only for `resolve_limit_price()`'s
+price-side direction (a separate concern from quantity sign) — never for
+quantity sign itself. A second bug of the same flavor: option orders'
+pending-order entries were initially recording the CONTRACT symbol under
+the key `last_trade_bar_by_symbol` reads from, but that dict is keyed by
+the CHAIN symbol everywhere else in this codebase — fixed by adding a
+`chain_symbol` field to the pending-order entry, distinct from the
+order-target `symbol` (which legitimately is the contract symbol for
+options).
+
+**Known, real, unverified-until-a-real-backtest risk (stated up front, not
+buried)**: this codebase's proven-working code calls the Lean API with
+PascalCase (`self.MarketOrder`, `self.SetHoldings`, `self.SetSlippageModel`)
+but overrides Lean's callbacks with snake_case (`initialize`, `on_data`) —
+not PascalCase. The locally installed `quantconnect-stubs` package
+declares the entire API in snake_case only and disagrees with this
+codebase's own working precedent, so it isn't authoritative. This pass
+matches the proven mixed convention (PascalCase calls, snake_case
+`on_order_event` override) throughout — but `OrderStatus` enum member
+casing specifically, whether `on_order_event` dispatches at all, and
+whether it fires with the contract vs. chain symbol for options are all
+genuinely unverifiable without a real Lean run. See
+`execution/README.md`'s "Real limit orders" section for the full
+prioritized verification list — this is the single biggest open risk in
+the feature and deliberately not glossed over.
+
+**Testing**: 12 new pure-function tests in `tests/test_order_gate.py`
+(`resolve_limit_price`'s buy-below/sell-above/offset-scaling/fail-safe
+behavior, `classify_order_status`'s full status-name coverage), 4 new CLI
+reachability tests in `tests/test_aq_cli.py` (including one proving the
+per-asset-class `fallback_to_market_on_timeout` dict's partial-override
+shape works through the existing generic `aq config get/set` with zero
+new CLI code). `_try_submit_limit_order`/`on_order_event`/
+`_process_pending_limit_order_timeouts` and the 5 modified call sites are
+not unit-tested in isolation — same `main.py`-cannot-be-imported-outside-
+Lean's-runtime constraint `_LiquidityAwareSlippageModel` hit in entry #33;
+all real logic lives in the pure, tested functions above.

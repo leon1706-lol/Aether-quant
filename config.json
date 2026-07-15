@@ -645,6 +645,19 @@
                 "max_bps": 500.0
             }
         },
+        "limit_orders": {
+            "enabled": false,
+            "asset_classes": ["equity", "crypto", "bond", "future", "option"],
+            "offset_multiplier": 1.0,
+            "unfilled_timeout_bars": 3,
+            "fallback_to_market_on_timeout": {
+                "equity": true,
+                "crypto": true,
+                "bond": true,
+                "future": false,
+                "option": false
+            }
+        },
         "experience": {
             "enabled": true,
             "redis_stream": "aether:experience",

@@ -2845,3 +2845,45 @@ reachable through the existing generic `aq config get`/`set` — no new CLI
 parsing code needed). Also moved V1's universe/data-window/feature-list
 detail out of the README's Roadmap section into this file's new top
 "V1 — Finished" entry, keeping the README's roadmap section short.
+
+## Real limit-order support — every tradable asset class, config-gated
+
+Closed the other half of entry above's HFT-gap item — real orders (all 5
+call sites: option buy, future buy/short, equity-crypto-bond buy/short)
+were `MarketOrder()`/`SetHoldings()` market fills only. Added real
+`LimitOrder()` support, config-gated (`phase_v2.limit_orders`, default
+off), for equity, crypto, bond, future, and option alike.
+
+New pure functions in `execution/order_gate.py`: `resolve_limit_price()`
+(buy limits below reference, sell/short above, offset by half the
+already-computed liquidity spread estimate) and
+`classify_order_status()` (isolates the one place this pass has to guess
+at Lean's real `OrderStatus` enum spelling into a single function).
+`main.py` gained `_try_submit_limit_order()` (the shared routing helper,
+a no-op when disabled by construction), `on_order_event()` (Lean's real
+fill callback, snake_case matching `initialize`/`on_data`'s proven
+naming — stamps trade cooldown at confirmed-fill time instead of
+order-placement time), and `_process_pending_limit_order_timeouts()`
+(per-bar stale-order sweep with a **per-asset-class**, not global,
+fallback-to-market policy — equity/crypto/bond default on, future/option
+default off, given margin/expiry mechanics). All five config knobs
+(`enabled`, `asset_classes`, `offset_multiplier`, `unfilled_timeout_bars`,
+`fallback_to_market_on_timeout`) are settable via the existing generic
+`aq config set`, no new CLI code.
+
+Two real sign/keying bugs were caught and fixed during implementation
+(not left for the backtest to find): a naive `is_buy`-derived sign
+transform would have flipped already-correctly-signed futures
+quantities, and option pending-order entries initially recorded the
+wrong symbol under the key `last_trade_bar_by_symbol` actually reads
+from. See `development/Problems.md` #34 for the full writeup, including
+the deliberately-not-buried list of what only a real Lean backtest can
+verify (Lean's real `OrderStatus` enum casing chief among them).
+
+### Verification
+
+16 new tests (12 pure-function tests in `test_order_gate.py`, 4 CLI
+reachability tests in `test_aq_cli.py`). The Lean-side routing/callback
+methods are not unit-tested in isolation — same constraint as the
+slippage pass above (`main.py` cannot be imported outside Lean's
+runtime) — not run against a real Lean backtest yet.

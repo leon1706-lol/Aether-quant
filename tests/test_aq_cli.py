@@ -1146,6 +1146,11 @@ def _config_fixture(tmp_path):
                     "gating_network": {"baseline_weight": 0.25, "learned_model_enabled": True},
                     "retraining": {"eligible_severities": ["warning", "critical"]},
                     "liquidity": {"fill_slippage": {"source": "round_trip", "max_bps": 500.0}},
+                    "limit_orders": {
+                        "enabled": False,
+                        "asset_classes": ["equity", "crypto", "bond", "future", "option"],
+                        "fallback_to_market_on_timeout": {"equity": True, "future": False},
+                    },
                 }
             },
             indent=4,
@@ -1308,6 +1313,69 @@ def test_config_set_fill_slippage_max_bps_to_custom_ceiling(tmp_path, capsys):
     assert "500.0 -> 100.0" in captured.out
     updated = json.loads(config_path.read_text(encoding="utf-8"))
     assert updated["phase_v2"]["liquidity"]["fill_slippage"]["max_bps"] == 100.0
+
+
+def test_config_get_limit_orders_enabled(tmp_path, capsys):
+    """Real limit-order support: phase_v2.limit_orders.enabled is
+    reachable via the existing generic `aq config get` - no new CLI code
+    needed, same pattern as fill_slippage above."""
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.limit_orders.enabled"], capsys)
+
+    assert exit_code == 0
+    assert captured.out.strip() == "false"
+
+
+def test_config_set_limit_orders_enabled(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["set", "phase_v2.limit_orders.enabled", "true"], capsys)
+
+    assert exit_code == 0
+    assert "False -> True" in captured.out
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["limit_orders"]["enabled"] is True
+
+
+def test_config_get_limit_orders_asset_classes_list(tmp_path, capsys):
+    """asset_classes is a JSON list, not a scalar - confirms the generic
+    dotted-path tool round-trips list-typed config values too, a shape
+    fill_slippage's all-scalar fields never exercised."""
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.limit_orders.asset_classes"], capsys)
+
+    assert exit_code == 0
+    assert json.loads(captured.out) == ["equity", "crypto", "bond", "future", "option"]
+
+
+def test_config_set_limit_orders_fallback_to_market_per_asset_class(tmp_path, capsys):
+    """fallback_to_market_on_timeout is a per-asset-class dict, not a
+    single global bool - confirms a single key WITHIN that nested dict is
+    independently gettable/settable through the existing generic tool,
+    proving the per-asset-class override shape works with no new CLI
+    code, same as everything else in this feature."""
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(
+        config_path, ["get", "phase_v2.limit_orders.fallback_to_market_on_timeout.future"], capsys
+    )
+    assert exit_code == 0
+    assert captured.out.strip() == "false"
+
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.limit_orders.fallback_to_market_on_timeout.future", "true"], capsys
+    )
+    assert exit_code == 0
+    assert "False -> True" in captured.out
+
+    # equity is untouched by the partial override above.
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["limit_orders"]["fallback_to_market_on_timeout"] == {
+        "equity": True,
+        "future": True,
+    }
 
 
 def test_config_keys_lists_every_leaf(tmp_path, capsys):

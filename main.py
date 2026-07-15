@@ -55,11 +55,13 @@ from experience import (
 )
 from execution import (
     MAX_LIQUIDITY_SLIPPAGE_BPS,
+    classify_order_status,
     credentials_present,
     evaluate_broker_config,
     liquidity_cost_fraction,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
+    resolve_limit_price,
     resolve_order_permission,
     resolve_runtime_mode,
     resolve_slippage_bps,
@@ -245,6 +247,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # real position - see _apply_signal()'s "option" branches.
         self.option_contract_symbol_by_symbol: dict[str, object] = {}
         self.symbol_key_by_option_contract_symbol: dict[str, str] = {}
+        # Real limit-order support (execution/risk realism pass, part 2):
+        # in-flight limit orders this algorithm is currently waiting to
+        # fill, keyed by str(symbol) - the canonical chain-Symbol string
+        # (deliberately NOT last_trade_bar_by_symbol's raw-Symbol-object
+        # keying just above - that inconsistency is a pre-existing
+        # landmine, not a pattern to copy). For options, keyed by the
+        # CHAIN symbol_key (matching every other per-symbol dict here)
+        # even though the real order/OrderTicket targets the CONTRACT
+        # symbol - see _try_submit_limit_order()'s docstring. See
+        # execution/README.md's "Real limit orders" section for the full
+        # design; empty/unused whenever phase_v2.limit_orders.enabled is
+        # False (the default).
+        self.pending_limit_orders: dict[str, dict] = {}
         self.bar_history_size = 25
         # Most recent per-symbol liquidity/market_liquidity.py
         # estimated_round_trip_cost, in bps - refreshed every bar in Pass 2
@@ -581,6 +596,34 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._liquidity_slippage_max_bps = float(
             phase_v2_fill_slippage.get("max_bps", MAX_LIQUIDITY_SLIPPAGE_BPS)
         )
+        # Real limit-order support (execution/risk realism pass, part 2) -
+        # config-gated, default OFF. When disabled, every routing call site
+        # in _apply_signal()/_apply_option_order() takes the EXACT same
+        # MarketOrder()/SetHoldings() branch it always has - this whole
+        # block changes nothing about today's behavior unless explicitly
+        # turned on. See execution/README.md's "Real limit orders" section
+        # for the full design and development/Problems.md #34 for the
+        # writeup, including the PascalCase/casing risks only a real Lean
+        # backtest can settle.
+        phase_v2_limit_orders = self.phase_v2.get("limit_orders", {})
+        self.limit_orders_enabled = bool(phase_v2_limit_orders.get("enabled", False))
+        self.limit_orders_asset_classes = set(
+            phase_v2_limit_orders.get("asset_classes", ["equity", "crypto", "bond", "future", "option"])
+        )
+        self.limit_order_offset_multiplier = float(phase_v2_limit_orders.get("offset_multiplier", 1.0))
+        self.limit_order_unfilled_timeout_bars = int(phase_v2_limit_orders.get("unfilled_timeout_bars", 3))
+        # Per-asset-class, not a single global bool: a fallback market fill
+        # is low-consequence for equity/crypto/bond (the same trade
+        # SetHoldings would have placed anyway), but a real position the
+        # model didn't choose at that price for future/option, where
+        # margin/expiry mechanics make that a worse outcome than staying
+        # flat and letting the model re-decide next bar - hence the
+        # differing defaults below. Dict-merged so a partial config
+        # override only changes the classes it mentions.
+        self.limit_order_fallback_to_market_by_asset_class = {
+            "equity": True, "crypto": True, "bond": True, "future": False, "option": False,
+            **phase_v2_limit_orders.get("fallback_to_market_on_timeout", {}),
+        }
         phase_v2_experience = self.phase_v2.get("experience", {})
         phase_v2_runtime = self.phase_v2.get("runtime", {})
         raw_runtime_mode = phase_v2_runtime.get("mode")
@@ -635,6 +678,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         self.bar_index += 1
         self._refresh_risk_state()
+        self._process_pending_limit_order_timeouts()
         self.latest_topology_payload = self._build_topology_payload()
         self.latest_macro_payload = self._build_macro_payload()
         self.latest_bond_payload = self._build_bond_payload()
@@ -2193,6 +2237,84 @@ class AetherQuantAlgorithm(QCAlgorithm):
         position)."""
         return self.option_contract_symbol_by_symbol.get(str(symbol), symbol)
 
+    def _try_submit_limit_order(
+        self,
+        symbol,
+        symbol_key: str,
+        asset_class: str | None,
+        is_buy: bool,
+        target_weight: float,
+        close_price: float,
+        contract_quantity: float | None = None,
+        chain_symbol=None,
+    ) -> bool:
+        """Config-gated real limit-order submission (execution/risk
+        realism pass, part 2), shared by every real-order branch in
+        _apply_signal()/_apply_option_order() (buy/short x
+        equity-crypto-bond/future/option). Returns False immediately
+        whenever phase_v2.limit_orders is disabled or asset_class isn't in
+        the configured subset - the ONLY behavior this method can ever
+        have when the feature is off is a no-op early return, by
+        construction, so every caller's existing MarketOrder()/
+        SetHoldings() branch (unchanged) is what actually executes.
+
+        contract_quantity, when given, is used exactly as submitted by
+        the caller - future's _futures_contract_count_for_weight()
+        result is already signed by target_weight (positive=long,
+        negative=short, matching MarketOrder(symbol, contract_count)'s
+        own existing convention), and option's options_decision.contracts
+        is always positive (direction is which contract/right was
+        selected, never order sign - options are never shorted). Neither
+        needs sign massaging here; get either one wrong upstream and this
+        method would just faithfully submit the wrong-signed order, same
+        as the existing MarketOrder() calls would. Equity/crypto/bond
+        (contract_quantity=None) instead calls Lean's own
+        self.CalculateOrderQuantity(symbol, target_weight) - reusing
+        Lean's built-in weight->quantity math (whose sign already matches
+        target_weight, same as SetHoldings(symbol, target_weight) today)
+        instead of writing new custom sizing logic.
+
+        Limit price via resolve_limit_price(), reusing this bar's already-
+        computed liquidity spread_proxy (self.latest_liquidity_by_symbol)
+        rather than a new estimate. On success, records the OrderTicket in
+        self.pending_limit_orders keyed by symbol_key and returns True -
+        callers must NOT also stamp last_trade_bar_by_symbol in this
+        branch (cooldown is stamped at confirmed-fill time via
+        on_order_event(), not here - see execution/README.md's "Real
+        limit orders" section).
+
+        chain_symbol is only needed when it differs from `symbol` - i.e.
+        options, where `symbol` is the tradeable CONTRACT Symbol (what
+        LimitOrder()/Cancel()/the MarketOrder fallback must target) but
+        last_trade_bar_by_symbol is keyed by the CHAIN Symbol everywhere
+        else in this file (see _apply_option_order()'s own
+        self.last_trade_bar_by_symbol[symbol] = ... using its chain
+        `symbol` parameter, never contract_symbol). Defaults to `symbol`
+        itself for every other asset class, where the two are identical."""
+        if not self.limit_orders_enabled or asset_class not in self.limit_orders_asset_classes:
+            return False
+
+        quantity = self.CalculateOrderQuantity(symbol, target_weight) if contract_quantity is None else contract_quantity
+        if quantity == 0:
+            return False
+
+        liquidity_payload = self.latest_liquidity_by_symbol.get(symbol_key, {})
+        spread_fraction = float(liquidity_payload.get("spread_proxy", 0.0) or 0.0)
+        limit_price = resolve_limit_price(close_price, spread_fraction, is_buy, self.limit_order_offset_multiplier)
+
+        ticket = self.LimitOrder(symbol, quantity, limit_price)
+        self.pending_limit_orders[symbol_key] = {
+            "ticket": ticket,
+            "symbol": symbol,
+            "chain_symbol": chain_symbol if chain_symbol is not None else symbol,
+            "symbol_key": symbol_key,
+            "asset_class": asset_class,
+            "submitted_bar": self.bar_index,
+            "direction": "buy" if is_buy else "sell",
+            "target_weight": target_weight,
+        }
+        return True
+
     def _apply_option_order(
         self, symbol, symbol_key: str, sizing_payload: dict | None, target_weight: float,
         close_price: float, orders_allowed: bool, permission_reason: str,
@@ -2223,9 +2345,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return "options_no_usable_contract"
 
         if orders_allowed:
-            self.MarketOrder(contract_symbol, options_decision.contracts)
+            # Set eagerly (before attempting either order type) - required
+            # for on_order_event() to resolve a fill on the CONTRACT
+            # symbol back to this chain symbol_key even when the limit-
+            # order path below is taken. Harmless if the limit order is
+            # later canceled with no fallback fill: _is_invested()/
+            # _asset_class_exposure() both key off Lean's own Portfolio
+            # holdings (ground truth), never this dict directly, and any
+            # later real order on this symbol unconditionally overwrites
+            # it anyway.
             self.option_contract_symbol_by_symbol[symbol_key] = contract_symbol
             self.symbol_key_by_option_contract_symbol[str(contract_symbol)] = symbol_key
+            if self._try_submit_limit_order(
+                contract_symbol,
+                symbol_key,
+                "option",
+                is_buy=True,
+                target_weight=target_weight,
+                close_price=close_price,
+                contract_quantity=options_decision.contracts,
+                chain_symbol=symbol,
+            ):
+                return f"submitted_limit_option_{options_decision.right}"
+            self.MarketOrder(contract_symbol, options_decision.contracts)
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
             return f"entered_option_{options_decision.right}"
 
@@ -2291,6 +2433,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if contract_count == 0:
                     return "futures_zero_contract_count"
                 if orders_allowed:
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, "future", is_buy=True, target_weight=target_weight,
+                        close_price=close_price, contract_quantity=contract_count,
+                    ):
+                        return "submitted_limit_long_futures"
                     self.MarketOrder(symbol, contract_count)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_long_futures"
@@ -2308,6 +2455,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             if previous_signal != "buy" or not self._is_invested(symbol, orders_allowed):
                 if orders_allowed:
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, asset_class, is_buy=True, target_weight=target_weight,
+                        close_price=close_price,
+                    ):
+                        return "submitted_limit_long"
                     self.SetHoldings(symbol, target_weight)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_long"
@@ -2367,6 +2519,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if contract_count == 0:
                     return "futures_zero_contract_count"
                 if orders_allowed:
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, "future", is_buy=False, target_weight=target_weight,
+                        close_price=close_price, contract_quantity=contract_count,
+                    ):
+                        return "submitted_limit_short_futures"
                     self.MarketOrder(symbol, contract_count)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_short_futures"
@@ -2384,6 +2541,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             if previous_signal != "short" or not self._is_invested(symbol, orders_allowed):
                 if orders_allowed:
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, asset_class, is_buy=False, target_weight=target_weight,
+                        close_price=close_price,
+                    ):
+                        return "submitted_limit_short"
                     self.SetHoldings(symbol, target_weight)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
                     return "entered_short"
@@ -2635,6 +2797,92 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Liquidate()
                 else:
                     self._simulated_portfolio.liquidate_all(self.bar_index)
+
+    def _process_pending_limit_order_timeouts(self) -> None:
+        """Real limit-order support (execution/risk realism pass, part 2):
+        runs once per bar, immediately after _refresh_risk_state() above -
+        that's already this codebase's "resolve stale/urgent state before
+        this bar's fresh signal computation" anchor point (it does the
+        global drawdown-breach Liquidate() there for the identical
+        reason). A stale order from a previous bar is resolved (canceled,
+        optionally fallback-filled) before this bar's Pass 1/Pass 2 ever
+        runs for that symbol - never interleaved with it.
+
+        No-op instantly whenever phase_v2.limit_orders.enabled is False
+        or self.pending_limit_orders is empty - zero cost in the
+        default-off configuration beyond one dict-emptiness check."""
+        if not self.limit_orders_enabled or not self.pending_limit_orders:
+            return
+
+        for symbol_key in list(self.pending_limit_orders.keys()):
+            pending = self.pending_limit_orders[symbol_key]
+            if self.bar_index - pending["submitted_bar"] < self.limit_order_unfilled_timeout_bars:
+                continue
+
+            ticket = pending["ticket"]
+            status = classify_order_status(getattr(ticket.Status, "name", str(ticket.Status)))
+            if status != "pending":
+                # Already resolved (filled/canceled) by on_order_event()
+                # this bar or an earlier one - just clear the stale
+                # bookkeeping entry, no cancel/fallback needed.
+                self.pending_limit_orders.pop(symbol_key, None)
+                continue
+
+            ticket.Cancel()
+            # Per-asset-class, not a single global flag - see
+            # limit_order_fallback_to_market_by_asset_class's own comment
+            # in _ensure_ready() for the equity/crypto/bond-vs-future/
+            # option rationale.
+            if self.limit_order_fallback_to_market_by_asset_class.get(pending["asset_class"], True):
+                remaining = ticket.QuantityRemaining
+                if remaining != 0:
+                    self.MarketOrder(pending["symbol"], remaining)
+                    self.last_trade_bar_by_symbol[pending["chain_symbol"]] = self.bar_index
+            self.pending_limit_orders.pop(symbol_key, None)
+
+    def on_order_event(self, order_event) -> None:
+        """Real limit-order support (execution/risk realism pass, part 2):
+        Lean's real order-fill/cancel/invalidate callback. Snake_case
+        override name, matching this file's proven initialize()/on_data()
+        naming - see execution/README.md's "Real limit orders" section for
+        why this genuinely-unverified-until-a-real-backtest casing choice
+        was made the same way as every other new Lean API surface this
+        pass touches.
+
+        Only ever meaningful for orders tracked in
+        self.pending_limit_orders - a filled MarketOrder/SetHoldings order
+        from the feature-disabled (or non-limit) path was never recorded
+        there and is silently ignored here; Lean still calls this hook for
+        those too, there is just nothing for it to do.
+
+        Maps order_event.Symbol back to a pending_limit_orders entry via
+        self.symbol_key_by_option_contract_symbol for options (the event's
+        Symbol is the CONTRACT symbol, not the chain symbol
+        pending_limit_orders is keyed by - the same indirection
+        _order_target_symbol()/_liquidate_position() already need), else
+        str(order_event.Symbol) directly for every other asset class.
+
+        On a "filled" status: stamps last_trade_bar_by_symbol at
+        CONFIRMED fill time (not submission time, unlike every
+        synchronous market-order branch - see the cooldown-timing note in
+        execution/README.md) and clears the pending entry. On
+        "canceled": clears the entry only, no cooldown stamp - nothing
+        was actually filled. "pending"/"unknown" (e.g. a partial fill):
+        left alone, the entry stays tracked for
+        _process_pending_limit_order_timeouts() to eventually resolve."""
+        symbol_key = self.symbol_key_by_option_contract_symbol.get(
+            str(order_event.Symbol), str(order_event.Symbol)
+        )
+        pending = self.pending_limit_orders.get(symbol_key)
+        if pending is None:
+            return
+
+        status = classify_order_status(getattr(order_event.Status, "name", str(order_event.Status)))
+        if status == "filled":
+            self.last_trade_bar_by_symbol[pending["chain_symbol"]] = self.bar_index
+            self.pending_limit_orders.pop(symbol_key, None)
+        elif status == "canceled":
+            self.pending_limit_orders.pop(symbol_key, None)
 
     def _write_state(self, mode: str, insight: str, signals: dict | None = None) -> None:
         now = self.Time if hasattr(self, "Time") else datetime.utcnow()
