@@ -2105,3 +2105,22 @@ This isn't just a one-machine annoyance: with no pin, **every clone of this repo
 **Documented**: root README's `aq backtest` CLI reference and Getting Started section both now state the pin explicitly and set expectations for the one-time ~40GB+ first download.
 
 **Testing**: `tests/test_aq_cli.py` — `test_backtest_wraps_lean_backtest_dot_with_pinned_image_by_default` (renamed/updated from the old unpinned-invocation test) and new `test_backtest_image_flag_overrides_the_pinned_default`. Full suite: `aq test` green.
+
+---
+
+### 41. First real backtest: only 14 trades, none ever closed — root cause is buy/sell thresholds miscalibrated against the model's actual output distribution
+**Severity:** 6/10 (blocks a statistically meaningful backtest) · **Status:** 🟠 `diagnosed, fix not yet applied`
+
+The first real `lean backtest .` (2019-01-01 → 2021-03-31, 29 tradable assets, `bypass_safety_gates: true`) completed successfully but produced only **14 orders, all position-openings, zero closings** (Win Rate / Loss Rate / Avg Win / Avg Loss all 0% because there are no closed round-trips; the +20.36% net profit is entirely unrealized on the 14 still-open positions, mostly bond ETFs). This is far below the ~200-trade target from entry #18 and is not statistically meaningful. Investigated to root cause against the real output files (`visualization/state.json`, order-events, logs):
+
+**Root cause — threshold/output-distribution mismatch, NOT the drawdown traps (those are bypassed) and NOT missing data.** All 29 assets loaded fine (the "38% failed data requests" in the log are only harmless missing crypto `_quote.zip` files; every `_trade.zip` that daily bars actually use loaded successfully). The real mechanism:
+- `main.py::_derive_signal()` emits `buy` when `probability_up >= buy_threshold`, `sell` when `probability_up <= sell_threshold`, else `hold`.
+- The model's `decision_threshold` is **0.46**, so `buy_threshold = 0.46 + 0.04 = 0.50` and `sell_threshold = 0.46 - 0.04 = 0.42`.
+- But the model's actual `probability_up` outputs cluster **very tightly around 0.46-0.49** (measured directly in `state.json`'s final bar: BTCUSD 0.4836, ETHUSD 0.4906, LTCUSD 0.4869, XRPUSD 0.4907, ADAUSD 0.4907 — all `hold`).
+- Consequence: the buy line at 0.50 is barely ever reached (only 14 of 29 assets ever crossed it → the rest, including *all* crypto and SPY/QQQ/AAPL, never bought), and the sell line at 0.42 is essentially never reached (so open positions almost never get a `sell`). The 14 that did open then stayed at/above 0.50 for the trending 2019-2021 bond rally and never dropped into the hold-liquidate zone either — hence zero closes.
+
+**The lever (not yet applied — needs user decision):** tighten the offsets so the model's clustered 0.46-0.49 outputs actually produce both buy AND sell crossings — e.g. `phase5.backtest.buy_threshold_offset` 0.04 → ~0.01-0.02 (buy at ~0.47-0.48, more entries) and `sell_threshold_offset` 0.04 → ~0.01-0.02 (sell at ~0.44-0.45, real exits/churn). This directly raises trade count toward the ~200 target. **Deeper caveat, stated honestly:** the tight clustering of `probability_up` around 0.46-0.49 means the model itself has weak signal separation / low conviction — tightening thresholds buys more trades but on thinner edge; it does not fix underlying model quality, only makes the backtest statistically exercisable. A genuinely better fix long-term is improving the model's probability calibration/separation, but that is out of scope for "get enough trades to have a meaningful backtest."
+
+**Secondary finding — `max_active_positions` is a soft cap.** The run held 14 concurrent positions despite `phase9.portfolio.max_active_positions: 12`. `main.py::_active_position_count()` counts only *already-filled* `Portfolio.Values` positions, and Lean fills submitted orders on the next bar's open — so when several symbols cross the buy line on the same bar, each sees the same pre-fill count (< 12) and all submit, overshooting the cap by however many simultaneous buys land that bar. Not a crash and not a large effect, but the cap is "soft" (can overshoot within one bar), not hard. Documented here; no fix applied (a hard cap would need to also count same-bar pending orders).
+
+**No code changed yet** — this entry is the diagnosis. The threshold-calibration change is a strategy-behavior decision left to the user (which offsets, whether to also revisit the model), consistent with this project's convention of not silently changing trading behavior.

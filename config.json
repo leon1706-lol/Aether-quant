@@ -502,8 +502,8 @@
         "backtest": {
             "trading_days_per_year": 252,
             "strategy_mode": "long_flat",
-            "buy_threshold_offset": 0.04,
-            "sell_threshold_offset": 0.04
+            "buy_threshold_offset": 0.01,
+            "sell_threshold_offset": 0.01
         }
     },
     "phase6": {
