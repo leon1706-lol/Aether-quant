@@ -512,6 +512,14 @@ def test_profile_learned_topology_flag_uses_hyphenated_cli_form():
     assert "--learned-topology" in cmd
 
 
+def test_profile_topology_cached_flag_uses_hyphenated_cli_form():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--topology-cached"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--topology-cached" in cmd
+
+
 def test_profile_batched_with_subsystem_flag_errors_and_does_not_run(capsys):
     run_mock = MagicMock(return_value=0)
     exit_code = _parse_and_dispatch(["profile", "--liquidity", "--batched"], run_mock)
@@ -1246,6 +1254,8 @@ def _config_fixture(tmp_path):
                         "asset_classes": ["equity", "crypto", "bond", "future", "option"],
                         "fallback_to_market_on_timeout": {"equity": True, "future": False},
                     },
+                    "topology": {"cache_enabled": False, "correlation_stability_tolerance": 0.02},
+                    "gc_tuning": {"freeze_after_load_enabled": False},
                 }
             },
             indent=4,
@@ -1431,6 +1441,58 @@ def test_config_set_limit_orders_enabled(tmp_path, capsys):
     assert "False -> True" in captured.out
     updated = json.loads(config_path.read_text(encoding="utf-8"))
     assert updated["phase_v2"]["limit_orders"]["enabled"] is True
+
+
+def test_config_get_topology_cache_enabled(tmp_path, capsys):
+    """development/Problems.md#36: phase_v2.topology.cache_enabled and
+    .correlation_stability_tolerance are reachable via the existing
+    generic `aq config get` - no new CLI code needed, same pattern as
+    limit_orders above."""
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.topology.cache_enabled"], capsys)
+    assert exit_code == 0
+    assert captured.out.strip() == "false"
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.topology.correlation_stability_tolerance"], capsys)
+    assert exit_code == 0
+    assert captured.out.strip() == "0.02"
+
+
+def test_config_set_topology_cache_enabled(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["set", "phase_v2.topology.cache_enabled", "true"], capsys)
+
+    assert exit_code == 0
+    assert "False -> True" in captured.out
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["topology"]["cache_enabled"] is True
+
+
+def test_config_get_gc_tuning_freeze_after_load_enabled(tmp_path, capsys):
+    """development/Problems.md#37: phase_v2.gc_tuning.freeze_after_load_enabled
+    is reachable via the existing generic `aq config get` - no new CLI
+    code needed, same pattern as limit_orders above."""
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["get", "phase_v2.gc_tuning.freeze_after_load_enabled"], capsys)
+
+    assert exit_code == 0
+    assert captured.out.strip() == "false"
+
+
+def test_config_set_gc_tuning_freeze_after_load_enabled(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.gc_tuning.freeze_after_load_enabled", "true"], capsys
+    )
+
+    assert exit_code == 0
+    assert "False -> True" in captured.out
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["gc_tuning"]["freeze_after_load_enabled"] is True
 
 
 def test_config_get_limit_orders_asset_classes_list(tmp_path, capsys):

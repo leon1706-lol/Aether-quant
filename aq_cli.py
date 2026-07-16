@@ -505,7 +505,7 @@ def cmd_backtest(_args: argparse.Namespace) -> int:
 # as cmd_test()) - a plain tuple would do, kept as a dict of Nones so the
 # iteration pattern below reads identically to _SUBSYSTEM_TEST_FILES's.
 _PROFILE_SUBSYSTEM_FLAGS: dict[str, None] = {
-    "regime": None, "topology": None, "learned-topology": None, "liquidity": None,
+    "regime": None, "topology": None, "topology-cached": None, "learned-topology": None, "liquidity": None,
     "gating": None, "analyzer": None, "indicators": None,
 }
 
@@ -516,9 +516,13 @@ def cmd_profile(args: argparse.Namespace) -> int:
     development/Problems.md for what it found: weight-array/batched-stack
     caching, expert-loop batching, and _conv1d_causal vectorization,
     -89.2% total profiled cost) - or, when any --<subsystem> flag is set,
-    scripts/profile_subsystems.py instead (regime/topology/liquidity/
-    gating/analyzer/indicators - everything else main.py calls per bar
-    that inference profiling never covered). Same subprocess-wrapper
+    scripts/profile_subsystems.py instead (regime/topology/topology-cached/
+    liquidity/gating/analyzer/indicators - everything else main.py calls
+    per bar that inference profiling never covered; --topology-cached
+    exercises development/Problems.md#36's correlation-stability cache
+    against slowly-drifting synthetic data, since --topology's fully
+    independent per-iteration returns can never show that cache's
+    benefit). Same subprocess-wrapper
     convention every other non-`trade-lock`/`fetch` command follows
     (_run(), not an in-process import).
 

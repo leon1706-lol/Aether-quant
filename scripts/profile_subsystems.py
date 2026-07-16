@@ -128,6 +128,88 @@ def run_topology_workload(pregenerated: list[dict]) -> list[float]:
 
 
 # ---------------------------------------------------------------------------
+# topology (correlation-stability cache, development/Problems.md#36) -
+# build_topology_workload() above generates fully INDEPENDENT random
+# returns every iteration (maximally decorrelated bar-to-bar by
+# construction), so it can never show any benefit from a bar-to-bar
+# correlation-staleness cache no matter how the cache itself performs.
+# This sibling workload generates correlated returns from a slowly-
+# drifting single-factor model instead (each symbol's per-bar return is
+# `loading * common_factor + fresh idiosyncratic noise`, only the per-
+# symbol loadings drift slowly bar-to-bar) - keeping every individual
+# return draw fully fresh/realistic-variance (an earlier version of this
+# generator instead random-walked each raw return value bar-to-bar,
+# which silently produced near-constant, numerically degenerate per-
+# symbol variance after enough steps - the same class of "0/0-like
+# ill-conditioned" issue features/bond_features.py's
+# empirical_duration_beta() bug (development/Problems.md#10) hit, just in
+# synthetic test data instead of production code this time). Unlike
+# every other workload in this file, this one is deliberately stateful
+# across iterations (threading previous_positions/previous_correlations
+# from one call to the next), matching
+# main.py::_build_topology_payload()'s real per-bar call pattern. Run
+# `aq profile --topology --topology-cached` together for a direct,
+# same-run side-by-side comparison.
+# ---------------------------------------------------------------------------
+
+
+def build_topology_cache_workload(
+    iterations: int, n_symbols: int = 30, seed: int = 7, loading_drift: float = 0.02, window: int = 25
+) -> list[dict]:
+    rng = random.Random(seed)
+    symbols = SYNTHETIC_SYMBOLS[:n_symbols]
+    loadings = {symbol: rng.uniform(-1.0, 1.0) for symbol in symbols}
+    returns_by_symbol: dict[str, list[float]] = {symbol: [] for symbol in symbols}
+    regime_labels_by_symbol = {sym: rng.choice(["bullish", "bearish", "neutral"]) for sym in symbols}
+    workload = []
+    # Runs `window` extra bars up front to fill every symbol's rolling
+    # window before the first recorded iteration - otherwise early
+    # iterations would have progressively growing (not fixed-length)
+    # return series, an unrealistic shape no real bar ever has.
+    for _ in range(iterations + window):
+        common_factor = rng.uniform(-0.02, 0.02)
+        for symbol in symbols:
+            loadings[symbol] = max(-1.0, min(1.0, loadings[symbol] + rng.uniform(-loading_drift, loading_drift)))
+            series = returns_by_symbol[symbol]
+            series.append(loadings[symbol] * common_factor + rng.uniform(-0.02, 0.02))
+            if len(series) > window:
+                series.pop(0)
+        if len(returns_by_symbol[symbols[0]]) == window:
+            workload.append(
+                {
+                    "returns_by_symbol": {symbol: list(returns_by_symbol[symbol]) for symbol in symbols},
+                    "regime_labels_by_symbol": dict(regime_labels_by_symbol),
+                }
+            )
+    return workload[:iterations]
+
+
+def run_topology_cache_workload(pregenerated: list[dict]) -> list[float]:
+    """Threads previous_positions/previous_correlations from one iteration
+    to the next - deliberately stateful, unlike every other workload here,
+    because that statefulness (reusing the prior bar's result) is exactly
+    what's being measured. correlation_stability_tolerance matches
+    config.json's shipped phase_v2.topology.correlation_stability_tolerance
+    default."""
+    durations: list[float] = []
+    previous_positions: dict[str, tuple[float, float]] | None = None
+    previous_correlations: dict[tuple[str, str], float] | None = None
+    for inputs in pregenerated:
+        start = time.perf_counter()
+        result = build_market_topology(
+            inputs["returns_by_symbol"],
+            inputs["regime_labels_by_symbol"],
+            previous_positions=previous_positions,
+            previous_correlations=previous_correlations,
+            correlation_stability_tolerance=0.02,
+        )
+        durations.append(time.perf_counter() - start)
+        previous_positions = {node.symbol: (node.x, node.y) for node in result.nodes}
+        previous_correlations = result.correlations
+    return durations
+
+
+# ---------------------------------------------------------------------------
 # topology (learned overlay) - reuses ONE precomputed deterministic
 # topology per iteration's symbol_features, not regenerated each call
 # (regenerating it would double-count deterministic topology cost into
@@ -342,6 +424,7 @@ def run_indicators_workload(pregenerated: list[dict]) -> dict[str, list[float]]:
 SUBSYSTEM_RUNNERS = {
     "regime": (build_regime_workload, run_regime_workload),
     "topology": (build_topology_workload, run_topology_workload),
+    "topology-cached": (build_topology_cache_workload, run_topology_cache_workload),
     "learned-topology": (build_learned_topology_workload, run_learned_topology_workload),
     "liquidity": (build_liquidity_workload, run_liquidity_workload),
     "gating": (build_gating_workload, run_gating_workload),

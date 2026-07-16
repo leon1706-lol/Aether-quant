@@ -609,7 +609,9 @@
             "embedding_iterations": 100,
             "warm_start_enabled": true,
             "convergence_tolerance": 0.01,
-            "top_peers_n": 3
+            "top_peers_n": 3,
+            "cache_enabled": false,
+            "correlation_stability_tolerance": 0.02
         },
         "topology_learning": {
             "enabled": true,
@@ -710,6 +712,9 @@
             "rank_ic_decay_min_mean_ic": 0.02,
             "rank_ic_decay_min_t_stat": 2.0,
             "rank_ic_resolution_horizon_days": 20
+        },
+        "gc_tuning": {
+            "freeze_after_load_enabled": false
         },
         "runtime": {
             "mode": "backtest",

@@ -22,6 +22,7 @@ import os
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".matplotlib_cache"))
 
 import bisect
+import gc
 import json
 import math
 from collections import deque
@@ -470,6 +471,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_warm_start_enabled = bool(phase_v2_topology.get("warm_start_enabled", True))
         self.topology_convergence_tolerance = float(phase_v2_topology.get("convergence_tolerance", 0.01))
         self.topology_top_peers_n = int(phase_v2_topology.get("top_peers_n", 3))
+        # development/Problems.md#36: skip re-running the expensive SMACOF
+        # embedding when correlation structure hasn't materially changed
+        # bar-to-bar. Off by default - same "opt-in, needs real-backtest
+        # judgment" posture as inference_parallelism_enabled below.
+        self.topology_cache_enabled = bool(phase_v2_topology.get("cache_enabled", False))
+        self.topology_correlation_stability_tolerance = float(
+            phase_v2_topology.get("correlation_stability_tolerance", 0.02)
+        )
         # Phase 1b of the 5/10 -> 9/10 roadmap: deliberate, explicit
         # cross-asset "macro" features (features/macro_features.py) -
         # mirrors train.py::DEFAULT_MACRO_REFERENCE_TICKERS exactly for
@@ -570,6 +579,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.sequence_feature_schema, int(phase_v2_sequence.get("window_size", 30))
         )
         self.symbol_feature_history = {symbol: deque(maxlen=self.sequence_window_size) for symbol in self.symbols}
+
+        # development/Problems.md#37: every model/expert/weight-array load
+        # above is now complete - these are large, long-lived NumPy arrays
+        # that are never mutated after this point, a textbook gc.freeze()
+        # candidate to keep them out of every future generational GC scan
+        # (entry #37 found real, reproduced evidence that GC pauses
+        # materially drive this hot path's worst-case tail latency). Off by
+        # default and opt-in, same "needs real-backtest judgment before
+        # trusting it in production" posture as inference_parallelism_enabled
+        # right below: this needs real-backtest validation of its
+        # interaction with Lean's own .NET/Python interop GC boundary that
+        # a synthetic profiling harness can't provide - shipping it
+        # unconditionally without that validation would be irresponsible
+        # given how central this loop is to every backtest/paper/live run.
+        phase_v2_gc_tuning = self.phase_v2.get("gc_tuning", {})
+        self.gc_freeze_after_load_enabled = bool(phase_v2_gc_tuning.get("freeze_after_load_enabled", False))
+        if self.gc_freeze_after_load_enabled:
+            gc.freeze()
 
         # Opt-in per-symbol multiprocessing for Pass 1's inference cluster
         # (see inference/parallel_inference.py's module docstring for the
@@ -697,6 +724,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_futures_chains_payload = {}
         self.latest_derivatives_macro_payload = {}
         self._previous_topology_positions: dict[str, tuple[float, float]] = {}
+        self._previous_topology_correlations: dict[tuple[str, str], float] = {}
 
         self._ready = True
         self._write_state(mode="initialize", insight="Phase 4 inference engine initialized")
@@ -1862,7 +1890,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     momentum_by_symbol[str(symbol)] = closes[-1] / close_20 - 1.0
         self.latest_momentum_by_symbol = momentum_by_symbol
 
-        deterministic_topology = build_market_topology(
+        deterministic_topology_result = build_market_topology(
             returns_by_symbol=returns_by_symbol,
             regime_labels_by_symbol=dict(self.latest_regime_by_symbol),
             correlation_threshold=self.topology_correlation_threshold,
@@ -1872,10 +1900,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
             previous_positions=self._previous_topology_positions if self.topology_warm_start_enabled else None,
             convergence_tolerance=self.topology_convergence_tolerance,
             top_peers_n=self.topology_top_peers_n,
-        ).to_dict()
+            previous_correlations=self._previous_topology_correlations if self.topology_cache_enabled else None,
+            correlation_stability_tolerance=(
+                self.topology_correlation_stability_tolerance if self.topology_cache_enabled else None
+            ),
+        )
+        deterministic_topology = deterministic_topology_result.to_dict()
         self._previous_topology_positions = {
             node["symbol"]: (node["x"], node["y"]) for node in deterministic_topology["nodes"]
         }
+        # Stored unconditionally (cheap) regardless of topology_cache_enabled,
+        # so flipping the flag on mid-run has a valid baseline from the very
+        # next bar - development/Problems.md#36.
+        self._previous_topology_correlations = deterministic_topology_result.correlations
 
         # V2-17.5 - probabilistic overlay on top of the deterministic layer
         # above (never a replacement). Liquidity/regime-risk-score inputs

@@ -3091,3 +3091,85 @@ needed — the fixes were in the reference files/`.gitignore`/production
 code, not the tests. Full suite: `aq test` → 1304 passed, 0 failed, 11
 deselected (`lean_backtest`, expected), 1 pre-existing warning.
 Confirming CI itself goes green requires the next push's Actions run.
+
+## 2026-07-16 (later) — #10 confirmed green on real CI, full implementations for #36 (topology embedding cache) and #37 (gc.freeze()) shipped, both config-gated off
+
+The previous session's #10 fix was confirmed for real: the user pushed and
+the actual GitHub Actions `ci.yml` run passed, closing the loop every
+prior pass through that entry left open. `development/Problems.md#10`'s
+"confirming CI itself goes green" caveat above is now resolved — see that
+entry's own update for the confirmation, this file staying append-only
+rather than rewriting the original entry.
+
+This session then implemented **full, real fixes** (not more profiling)
+for entries #36 and #37 — previously documented findings that were
+deliberately left unshipped pending validation this project doesn't yet
+have a way to run (a real Lean backtest). Both are now shipped,
+unit-tested, and **config-gated off by default**, ready to flip on and
+validate in a later dedicated Lean-backtest health-check session instead
+of needing another coding round then.
+
+**#36 — correlation-stability embedding cache.** `build_market_topology()`
+gained `previous_correlations`/`correlation_stability_tolerance`
+parameters: when every pairwise correlation among the eligible symbol
+universe moved by no more than the tolerance since the prior bar (and the
+universe itself is unchanged), the expensive SMACOF embedding call is
+skipped entirely and the prior bar's positions are reused directly —
+everything else per node still recomputes fresh every bar, since none of
+it depends on the embedding. `main.py` wires this via
+`phase_v2.topology.cache_enabled` (default `false`) and
+`.correlation_stability_tolerance` (default `0.02`). Correctness is
+directly proven via a `unittest.mock`/`monkeypatch` test asserting
+`_stress_majorize_2d` is called zero times when correlations are
+genuinely stable, plus tolerance-exceeded/universe-changed/missing-state
+fallback cases and a disabled-matches-omitted byte-identical parity test.
+
+Building a workload to demonstrate the *speedup* (not just correctness)
+surfaced a genuinely useful, previously-unknown finding: at this
+project's real ~30-symbol universe (435 pairs) with a 25-observation
+correlation window, the skip essentially never fires at the shipped 0.02
+tolerance, because sample Pearson correlation over so few observations
+has enough inherent small-sample noise that some pair among 435 almost
+always moves more than 2 percentage points bar-to-bar — even under a
+genuinely stable, slowly-drifting synthetic factor model. (An earlier
+version of that same synthetic workload generator random-walked raw
+return values directly instead of using a proper factor model, which
+silently produced near-degenerate per-symbol variance after enough steps
+— the same *class* of ill-conditioned-correlation bug
+`features/bond_features.py::empirical_duration_beta()` hit for real
+earlier this session, entry #10, just caught here in test data before it
+could mislead the finding.) This is honest, load-bearing evidence, not a
+bug in the mechanism: whether real historical market correlations are
+stable enough for the shipped default to matter is a real-data question,
+which is exactly why this ships config-gated off rather than enabled with
+an unvalidated guess at the right tolerance. New `aq profile
+--topology-cached` (a slowly-drifting-factor-model workload, since
+`--topology`'s existing fully-independent-per-iteration workload can
+never show this cache's benefit by construction) exists for whoever runs
+that later real-data validation.
+
+**#37 — `gc.freeze()` after model load.** `main.py::_ensure_ready()` now
+calls `gc.freeze()` once, immediately after the last model/weight-array
+load and before the `inference_parallelism` pool spawn, gated by the new
+`phase_v2.gc_tuning.freeze_after_load_enabled` (default `false`). The
+production-safety concern that kept this unshipped when first documented
+is unchanged — it still needs real-backtest validation of the interaction
+with Lean's own .NET/Python interop GC boundary that no synthetic harness
+can provide. What changed is sequencing: the code exists now, tested and
+inert by default, rather than waiting for that validation before writing
+any of it.
+
+### Verification
+
+21 new/extended tests: 7 in `tests/test_market_topology.py`, 3 in
+`tests/test_profile_subsystems.py` (2 shape, 1 sliding-window-not-
+resampling), 7 in `tests/test_aq_cli.py` (`--topology-cached` CLI
+reachability, `phase_v2.topology.cache_enabled`/
+`correlation_stability_tolerance` get/set, `phase_v2.gc_tuning.
+freeze_after_load_enabled` get/set). `main.py` itself remains untestable
+outside Lean's runtime (no `__main__` guard, requires `AlgorithmImports`)
+— every `main.py`-side change here is exercised only via its pure/
+config-reachable surface, same constraint every prior `main.py`-touching
+entry this project has hit. Full suite: `aq test` → 1318 passed, 0
+failed, 11 deselected (`lean_backtest`, expected), 1 pre-existing
+warning.

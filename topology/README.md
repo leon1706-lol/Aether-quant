@@ -60,6 +60,40 @@ The goal is to make market structure useful for analysis, not only visual.
   as a redeploy-free rollback. See `development/v2_architecture.md`'s "3D
   Topology Contract" section and `development/Problems.md` for the full
   writeup.
+- **Correlation-stability embedding cache** (`development/Problems.md#36`,
+  off by default): `build_market_topology(...)` also accepts
+  `previous_correlations`/`correlation_stability_tolerance` — when both are
+  given and every pairwise correlation moved by no more than the tolerance
+  since the prior bar (and the eligible-symbol universe is unchanged),
+  SMACOF is skipped entirely and the prior bar's already-converged,
+  already-rescaled positions are reused directly, `reasons` gaining
+  `"topology_embedding_reused_stable_correlations"`. This is a much bigger
+  win than warm-starting alone: SMACOF measured ~500-600ms/bar at this
+  project's real universe size (the single largest per-bar cost in the
+  whole system, larger than the entire per-symbol inference total) —
+  skipping it outright on a stable bar removes that cost, not just reduces
+  its iteration count. `main.py` gates this via
+  `phase_v2.topology.cache_enabled` (default `false`) and
+  `phase_v2.topology.correlation_stability_tolerance` (default `0.02`),
+  storing `_previous_topology_correlations` unconditionally every bar so
+  flipping the flag on mid-run has a valid baseline immediately.
+  `cache_enabled: false` (or omitting `previous_correlations`/
+  `correlation_stability_tolerance` entirely) reproduces the exact
+  pre-caching behavior, byte-identical, same rollback contract
+  `warm_start_enabled: false` already guarantees above. Only
+  x/y coordinates are ever reused — every other per-node field
+  (`correlation_strength`, `market_distance`, `volatility_pressure`,
+  `topology_risk`, `regime_label`, `top_peers`/`top_peer_returns`,
+  `cluster_id`) is still recomputed fresh from the current bar's
+  `returns_by_symbol`/`regime_labels_by_symbol` regardless, since none of
+  those depend on the SMACOF embedding at all (same reason
+  `embedding_iterations=1` is safe at dataset-build time, below).
+  Validate with `aq profile --topology-cached`
+  (`scripts/profile_subsystems.py`'s slowly-drifting synthetic workload —
+  `--topology`'s own workload draws fully independent returns every
+  iteration by design and can never show this cache's benefit). **Not yet
+  validated against a real Lean backtest** — that happens in a later
+  session's health-check pass, not this one.
 - `main.py` calls it once per bar (before the per-symbol loop) from
   `self.symbol_windows`, writes the result to `visualization/topology_state.json`
   and `state["topology"]`, and replaces `_build_scene_payload`'s orbit

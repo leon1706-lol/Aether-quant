@@ -76,6 +76,14 @@ class MarketTopology:
     clusters: list[TopologyCluster]
     dimensions: dict
     reasons: list[str]
+    # Sparse pairwise Pearson correlations this bar (symbol pair -> value),
+    # keyed the same way build_market_topology()'s internal `correlations`
+    # dict is - NOT part of to_dict()'s output (tuple keys aren't JSON-safe,
+    # and the webui has no use for raw correlations). Exists so a caller
+    # (main.py) can pass this bar's result back in as next bar's
+    # `previous_correlations` - see build_market_topology()'s
+    # correlation_stability_tolerance parameter, development/Problems.md#36.
+    correlations: dict[tuple[str, str], float]
 
     def to_dict(self) -> dict:
         return {
@@ -284,6 +292,8 @@ def build_market_topology(
     previous_positions: dict[str, tuple[float, float]] | None = None,
     convergence_tolerance: float | None = None,
     top_peers_n: int = 3,
+    previous_correlations: dict[tuple[str, str], float] | None = None,
+    correlation_stability_tolerance: float | None = None,
 ) -> MarketTopology:
     regime_labels_by_symbol = regime_labels_by_symbol or {}
     reasons: list[str] = []
@@ -313,6 +323,7 @@ def build_market_topology(
             clusters=[],
             dimensions=dict(NEUTRAL_DIMENSIONS),
             reasons=reasons,
+            correlations={},
         )
 
     correlations: dict[tuple[str, str], float] = {}
@@ -396,34 +407,69 @@ def build_market_topology(
             member_count_by_symbol[symbol] = len(members)
             seed_positions[symbol] = (seed_x, seed_y)
 
-    # Part D2 warm start: for any eligible symbol present in
-    # previous_positions (the prior bar's converged embedding), seed
-    # SMACOF from there instead of the cosmetic angle-based layout above -
-    # correlations evolve slowly bar to bar, so the prior bar's embedding
-    # is typically already close to this bar's stationary point. Symbols
-    # absent from previous_positions (new to the universe, or isolated
-    # last bar) fall back to the cosmetic seed untouched.
-    if previous_positions:
-        for symbol in eligible_symbols:
-            if symbol in previous_positions:
-                seed_positions[symbol] = previous_positions[symbol]
-
-    # Pass 2: real distance-preserving embedding -- pairwise distance across
-    # ALL eligible symbols (not just within-cluster pairs; cross-cluster
-    # distance matters for a meaningful layout too), seeded from the
-    # cosmetic layout (or the warm-start layout above) so the result is
-    # deterministic and converges fast. This is what makes spatial distance
-    # actually reflect correlation distance instead of arbitrary
-    # index-based placement.
-    final_positions = _rescale_positions_to_bounds(
-        _stress_majorize_2d(
-            eligible_symbols,
-            lambda symbol_a, symbol_b: max(0.0, 1.0 - correlation_between(symbol_a, symbol_b)),
-            seed_positions,
-            iterations=embedding_iterations,
-            convergence_tolerance=convergence_tolerance,
-        )
+    # development/Problems.md#36: skip re-running the expensive Pass 2
+    # embedding entirely when correlation structure hasn't materially
+    # changed bar-to-bar - reuse the prior bar's already-converged,
+    # already-rescaled positions directly instead of paying SMACOF's
+    # ~500-600ms/bar cost again for a result that would barely move. Only
+    # valid when the eligible-symbol universe is unchanged (a new/dropped
+    # symbol always forces a full recompute - set(correlations.keys()) ==
+    # set(previous_correlations.keys()) is sufficient to guarantee this,
+    # since pair-keys uniquely determine the symbol set once >=2 symbols
+    # are eligible) and every pairwise correlation moved by no more than
+    # correlation_stability_tolerance. Off by default
+    # (correlation_stability_tolerance=None, from main.py's
+    # phase_v2.topology.cache_enabled=false) - previous_correlations/
+    # correlation_stability_tolerance both being None reproduces today's
+    # exact always-fresh-compute behavior, byte-identical, same contract
+    # the Part D2 warm-start feature below already guarantees.
+    can_reuse_previous_embedding = (
+        correlation_stability_tolerance is not None
+        and previous_correlations is not None
+        and previous_positions is not None
+        and set(correlations.keys()) == set(previous_correlations.keys())
+        and set(eligible_symbols).issubset(previous_positions.keys())
     )
+    if can_reuse_previous_embedding:
+        max_correlation_change = max(
+            (abs(correlations[key] - previous_correlations[key]) for key in correlations),
+            default=0.0,
+        )
+        can_reuse_previous_embedding = max_correlation_change <= correlation_stability_tolerance
+
+    if can_reuse_previous_embedding:
+        final_positions = {symbol: previous_positions[symbol] for symbol in eligible_symbols}
+        reasons.append("topology_embedding_reused_stable_correlations")
+    else:
+        # Part D2 warm start: for any eligible symbol present in
+        # previous_positions (the prior bar's converged embedding), seed
+        # SMACOF from there instead of the cosmetic angle-based layout
+        # above - correlations evolve slowly bar to bar, so the prior
+        # bar's embedding is typically already close to this bar's
+        # stationary point. Symbols absent from previous_positions (new
+        # to the universe, or isolated last bar) fall back to the
+        # cosmetic seed untouched.
+        if previous_positions:
+            for symbol in eligible_symbols:
+                if symbol in previous_positions:
+                    seed_positions[symbol] = previous_positions[symbol]
+
+        # Pass 2: real distance-preserving embedding -- pairwise distance
+        # across ALL eligible symbols (not just within-cluster pairs;
+        # cross-cluster distance matters for a meaningful layout too),
+        # seeded from the cosmetic layout (or the warm-start layout
+        # above) so the result is deterministic and converges fast. This
+        # is what makes spatial distance actually reflect correlation
+        # distance instead of arbitrary index-based placement.
+        final_positions = _rescale_positions_to_bounds(
+            _stress_majorize_2d(
+                eligible_symbols,
+                lambda symbol_a, symbol_b: max(0.0, 1.0 - correlation_between(symbol_a, symbol_b)),
+                seed_positions,
+                iterations=embedding_iterations,
+                convergence_tolerance=convergence_tolerance,
+            )
+        )
 
     # Pass 3: build nodes from the real embedding + per-symbol metadata.
     for symbol in eligible_symbols:
@@ -489,4 +535,5 @@ def build_market_topology(
         clusters=clusters,
         dimensions=dict(NEUTRAL_DIMENSIONS),
         reasons=reasons,
+        correlations=correlations,
     )

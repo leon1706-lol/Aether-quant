@@ -12,6 +12,7 @@ from scripts.profile_subsystems import (
     build_learned_topology_workload,
     build_liquidity_workload,
     build_regime_workload,
+    build_topology_cache_workload,
     build_topology_workload,
     run_analyzer_workload,
     run_gating_workload,
@@ -19,6 +20,7 @@ from scripts.profile_subsystems import (
     run_learned_topology_workload,
     run_liquidity_workload,
     run_regime_workload,
+    run_topology_cache_workload,
     run_topology_workload,
 )
 
@@ -42,6 +44,30 @@ def test_topology_workload_shape_and_durations():
     assert len(workload) == _N
     assert len(workload[0]["returns_by_symbol"]) == 5
     _assert_non_negative_durations(run_topology_workload(workload), _N)
+
+
+def test_topology_cache_workload_shape_and_durations():
+    workload = build_topology_cache_workload(_N, n_symbols=5)
+    assert len(workload) == _N
+    assert len(workload[0]["returns_by_symbol"]) == 5
+    _assert_non_negative_durations(run_topology_cache_workload(workload), _N)
+
+
+def test_topology_cache_workload_returns_drift_instead_of_resampling_independently():
+    """The whole point of this workload (vs. build_topology_workload()) is
+    that consecutive iterations' returns are related, not independently
+    redrawn - lock that in directly, not just via the shape test above."""
+    workload = build_topology_cache_workload(5, n_symbols=3, seed=7)
+    first_symbol = next(iter(workload[0]["returns_by_symbol"]))
+    # Each iteration's series is the previous one's window slid by one -
+    # only the newest value is new, everything else shifts by one
+    # position - so iteration N's series[1:] always equals iteration
+    # (N+1)'s series[:-1], regardless of how the new value itself was
+    # generated (factor-model here, vs. build_topology_workload()'s fresh
+    # independent draw every iteration).
+    series_a = workload[0]["returns_by_symbol"][first_symbol]
+    series_b = workload[1]["returns_by_symbol"][first_symbol]
+    assert series_a[1:] == series_b[:-1]
 
 
 def test_learned_topology_workload_shape_and_durations():

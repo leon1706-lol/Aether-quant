@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1304%2F1304%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1304 of 1304 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1318%2F1318%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1318 of 1318 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -509,7 +509,7 @@ and how it's wired in — this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1304<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1318<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -617,7 +617,7 @@ genuinely halted trading exactly as designed.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1304<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1318<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test

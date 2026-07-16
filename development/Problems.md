@@ -339,10 +339,11 @@ pass locally. The 11 real-backtest tests still attempt to run locally
 (this dev machine has a real Lean Data folder) and fail fast on a separate,
 pre-existing, unrelated local condition — Docker Desktop's daemon isn't
 running here — which is expected and not part of this fix; they were never
-reachable from CI either way once the skip guard change lands there. Full
-confirmation that CI itself now passes requires the next push's Actions run
-(not yet observed as of this fix, since it hasn't been pushed) — see the
-commit this entry references for the actual outcome.
+reachable from CI either way once the skip guard change lands there.
+**Confirmed: the real GitHub Actions run on `ci.yml` after this fix
+shipped passed** (user-confirmed after pushing) — this closes the loop
+that every prior pass through this entry left open (guessing at a root
+cause without ever seeing a green run afterward).
 
 **Not blocking releases regardless**: `release.yml`'s `publish-pypi`/
 `publish-docker` jobs still don't depend on a test job at all (removed at
@@ -1677,7 +1678,7 @@ anything computed later in the bar, but flagged as unverified until a
 real backtest confirms it.
 
 ### 36. Latency profiling extended beyond inference — build_market_topology() found to be a much larger per-bar cost than the entire inference step
-**Severity:** 6/10 · **Status:** 🟢 `fixed` (new `profile_subsystems.py` harness + `aq profile --<subsystem>` flags shipped and tested; the real ~500-600ms/bar `build_market_topology()` cost this found is a documented future optimization target, deliberately not implemented this pass — see below, not an open bug in this entry's own deliverable)
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (new `profile_subsystems.py` harness + `aq profile --<subsystem>` flags shipped and tested; the real ~500-600ms/bar `build_market_topology()` cost this found now has a real, shipped, tested, config-gated-off fix — see "Follow-up: caching fix implemented" below — not yet validated against a real Lean backtest, which is scoped to a later dedicated session)
 
 `scripts/profile_inference.py` only ever profiled
 `inference/exported_model.py`'s forward-pass functions (entries #31/#32).
@@ -1757,8 +1758,86 @@ match the new `--iterations`-omitted-by-default behavior — a real,
 intentional behavior change to `aq profile`'s default invocation, not a
 regression.
 
+---
+
+**Follow-up: caching fix implemented (correlation-stability embedding
+cache).** The "skipping recomputation when correlation structure hasn't
+materially changed bar-to-bar" candidate above is now real, shipped code
+— `build_market_topology()` gained `previous_correlations`/
+`correlation_stability_tolerance` parameters: when both are given and
+every pairwise correlation moved by no more than the tolerance since the
+prior bar (and the eligible-symbol universe is unchanged — a new/dropped
+symbol always forces a full recompute), the expensive SMACOF embedding
+call is skipped entirely and the prior bar's already-converged positions
+are reused directly. Everything else per node (`correlation_strength`,
+`market_distance`, `volatility_pressure`, `topology_risk`, `regime_label`,
+`top_peers`/`top_peer_returns`, `cluster_id`) is still recomputed fresh
+every bar regardless — none of those depend on the embedding. Gated by
+`phase_v2.topology.cache_enabled` (default `false`) and
+`phase_v2.topology.correlation_stability_tolerance` (default `0.02`) —
+disabled reproduces today's exact behavior byte-identical, same rollback
+contract `warm_start_enabled: false` already guarantees.
+
+**Correctness is directly proven** (not just inferred from output shape):
+a new `tests/test_market_topology.py` case feeds `_stress_majorize_2d`
+through `unittest.mock`/`monkeypatch` and asserts it is called **zero**
+times when correlations are genuinely unchanged, plus cases covering
+tolerance-exceeded, universe-changed, and missing-state fallback to full
+recompute, and a disabled-matches-omitted byte-identical parity test
+(same pattern `test_warm_start_disabled_matches_omitting_previous_positions`
+already established).
+
+**Honest finding, not yet a demonstrated real-world speedup:** validating
+the *benefit* (not just correctness) needed a new `aq profile
+--topology-cached` workload (`scripts/profile_subsystems.py`'s existing
+`--topology` workload draws fully independent random returns every
+iteration by construction and can never show any benefit from a
+bar-to-bar staleness cache). Building that workload surfaced a real,
+useful, previously-unknown constraint: at this project's real universe
+size (~30 symbols → 435 unique pairs) with a 25-observation rolling
+correlation window, **the skip essentially never fires at the shipped
+0.02 tolerance** — not because the mechanism is broken (proven correct
+above), but because sample Pearson correlation over just 25 observations
+has enough inherent small-sample noise that *some* pair among 435 almost
+always moves by more than 2 percentage points bar-to-bar, even under a
+genuinely stable, slowly-drifting single-factor synthetic model (measured
+typical max-pair-change ≈0.15-0.30 per bar across 100+ synthetic bars,
+well above 0.02, at `loading_drift` values an order of magnitude smaller
+than would be visually detectable as "drift" at all). An earlier version
+of this workload generator random-walked each raw return value directly
+bar-to-bar instead of using a factor model — that silently produced
+near-constant, numerically-degenerate per-symbol variance after enough
+steps (the same *class* of ill-conditioned-correlation issue
+`features/bond_features.py::empirical_duration_beta()` hit in production
+code, entry #10, just caught here in synthetic test data instead), and
+was replaced before this finding could even be trusted.
+
+**What this means, honestly:** the fix is real, shipped, and provably
+correct when its precondition holds — but whether that precondition
+(correlation stability within 0.02) holds often enough on **real**
+historical market data to be worth enabling is genuinely unknown from
+synthetic data alone, and is exactly the kind of question this project's
+own established methodology (a real `lean backtest .` run, entries #16/
+#17) is for, not more synthetic profiling. Left config-gated off
+specifically because of this — enabling it and tuning
+`correlation_stability_tolerance` against real historical correlation
+behavior is scoped to a later dedicated Lean-backtest health-check
+session, not this pass.
+
+**Testing (this follow-up)**: 7 new tests in `tests/test_market_topology.py`
+(disabled-matches-omitted parity, stable-correlations reuse + reasons
+marker, the mock-proof zero-SMACOF-calls case, tolerance-exceeded,
+universe-changed, missing-state fallback, `correlations` field
+presence/emptiness on ready vs. insufficient_data), 2 new workload-shape
+tests plus 1 sliding-window-not-resampling test in
+`tests/test_profile_subsystems.py`, 5 new CLI/config reachability tests
+in `tests/test_aq_cli.py` (`--topology-cached` hyphen mapping,
+`phase_v2.topology.cache_enabled`/`correlation_stability_tolerance` get/
+set). Full suite: `aq test` → 1318 passed, 0 failed, 11 deselected
+(`lean_backtest`, expected), 1 pre-existing warning.
+
 ### 37. Inference tail latency (p99 3-5x p50) — investigated: real GC-pause contribution to worst-case latency confirmed, root cause of the old `scripts/profile_inference_output.txt` discrepancy resolved as machine load, not a regression
-**Severity:** 4/10 · **Status:** 🟢 `fixed` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is a documented, deliberately unshipped candidate pending real-backtest validation — not an open bug in this entry's own deliverable)
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is now real, shipped, config-gated-off code — see "Follow-up: gc.freeze() implemented" below — not yet validated against a real Lean backtest, which is scoped to a later dedicated session)
 
 Nothing in this repo had ever investigated *why* `scripts/profile_inference.py`'s
 p99 routinely ran 3-5x the p50 — only the visibility that it does existed
@@ -1808,17 +1887,14 @@ tail-specific effect), and the *max* value dropped dramatically and
 consistently across both independent pairs. p99 improvement was present
 but noisier/less dramatic than max's.
 
-**Not implemented this pass, by design**: `gc.freeze()` after model load
+**Not implemented that pass, by design**: `gc.freeze()` after model load
 in `main.py::_ensure_ready()` (the model weight arrays are large,
 long-lived, and never mutated after load — a textbook `gc.freeze()`
-candidate to keep them out of every future generational GC scan) is
-documented here as a candidate future production tuning knob, not
-shipped. This is a genuinely riskier production change than anything
-else in this pass — it needs real-backtest validation of its interaction
-with Lean's own .NET/Python interop GC boundary, which this synthetic
-harness cannot exercise. Shipping an untested GC-tuning change to the
-hot path without that validation would be irresponsible given how
-central this loop is to every backtest/paper/live run.
+candidate to keep them out of every future generational GC scan) was
+documented as a candidate future production tuning knob, not shipped —
+genuinely riskier than anything else in that pass, needing real-backtest
+validation of its interaction with Lean's own .NET/Python interop GC
+boundary that a synthetic harness cannot exercise.
 
 **Fixed** (the harness itself):
 - `scripts/profile_inference.py::bucket_durations_by_iteration_index()`
@@ -1835,6 +1911,38 @@ central this loop is to every backtest/paper/live run.
 slower" case correctly surfacing in bucket 0 only, call-order-not-sorted-
 order preservation, default bucket count, non-positive bucket count).
 4 new CLI reachability tests in `tests/test_aq_cli.py`.
+
+---
+
+**Follow-up: `gc.freeze()` implemented, config-gated off.** The candidate
+above is now real, shipped code: `main.py::_ensure_ready()` calls
+`gc.freeze()` once, right after the last model/weight-array load
+(`self.symbol_feature_history` construction — the same point every
+model, expert, gating, multitask, and batched-stack-cache array is
+guaranteed already loaded) and strictly before the
+`inference_parallelism` process-pool spawn. Gated by
+`phase_v2.gc_tuning.freeze_after_load_enabled` (new top-level `phase_v2`
+section, default `false`) — disabled means the new `import gc` line and
+one `if` check are the only change to the hot path, zero behavior
+difference from before this follow-up. The real production-safety
+concern that kept this unshipped originally is **unchanged by this
+follow-up** — it's still true that this needs real-backtest validation
+of the .NET/Python interop GC boundary that no synthetic harness can
+provide. What changed is the sequencing: rather than waiting for that
+validation before writing any code, the code now exists, tested, and
+inert by default, ready to flip on and validate in a later dedicated
+Lean-backtest health-check session without needing another coding round
+first.
+
+**Testing**: `main.py` itself remains untestable outside Lean's runtime
+(confirmed again this pass — no `__main__` guard, requires
+`AlgorithmImports`, same constraint every prior `main.py`-touching entry
+this session hit). The only testable surface is the config plumbing: 2
+new reachability tests in `tests/test_aq_cli.py`
+(`phase_v2.gc_tuning.freeze_after_load_enabled` get/set via the existing
+generic `aq config get`/`set`, `_config_fixture()` extended with the new
+key). Full suite: `aq test` → 1318 passed, 0 failed, 11 deselected
+(`lean_backtest`, expected), 1 pre-existing warning.
 
 ### 38. 2-leg vertical spread selection for options — explicit scope-in of a previously-non-goal feature
 **Severity:** n/a (feature scope-in) · **Status:** 🟢 `fixed` (implementation complete and tested; verification against a real Lean backtest is the largest open item this session produced, see below — not an incomplete implementation)

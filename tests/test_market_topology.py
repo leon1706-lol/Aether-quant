@@ -285,6 +285,151 @@ def test_warm_start_disabled_matches_omitting_previous_positions():
 
 
 # ---------------------------------------------------------------------------
+# previous_correlations / correlation_stability_tolerance (development/
+# Problems.md#36 - skip re-running SMACOF when correlation structure hasn't
+# materially changed bar-to-bar)
+# ---------------------------------------------------------------------------
+
+
+def _three_symbol_returns() -> dict[str, list[float]]:
+    base = _series([0.01, -0.02, 0.015, 0.005, -0.01, 0.02, 0.03, -0.025])
+    return {
+        "AAA": base,
+        "BBB": [value * 1.05 for value in base],
+        "CCC": _series([-0.04, 0.05, -0.06, 0.07, -0.03, 0.02, -0.05, 0.04]),
+    }
+
+
+def test_topology_cache_disabled_matches_omitting_previous_correlations():
+    """correlation_stability_tolerance=None (how main.py calls this when
+    phase_v2.topology.cache_enabled is false) must reproduce the exact
+    pre-caching behavior, even when previous_correlations/previous_positions
+    ARE supplied - tolerance=None is what gates the whole feature off, same
+    contract test_warm_start_disabled_matches_omitting_previous_positions
+    already guarantees for the warm-start feature."""
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    without_cache_params = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions,
+    )
+    with_correlations_but_no_tolerance = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance=None,
+    )
+
+    assert without_cache_params.to_dict() == with_correlations_but_no_tolerance.to_dict()
+
+
+def test_topology_cache_reuses_previous_positions_when_correlations_stable():
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance=0.001,  # identical returns -> 0.0 change, well within tolerance
+    )
+
+    for node in second.nodes:
+        assert (node.x, node.y) == previous_positions[node.symbol]
+    assert "topology_embedding_reused_stable_correlations" in second.reasons
+
+
+def test_topology_cache_skips_stress_majorize_2d_when_reusing(monkeypatch):
+    """Proves the expensive embedding call was actually skipped, not just
+    that the result happens to match (SMACOF re-converging to an identical
+    fixed point would look the same from the output alone)."""
+    import topology.market_topology as market_topology_module
+
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    call_count = {"n": 0}
+    real_stress_majorize_2d = market_topology_module._stress_majorize_2d
+
+    def _counting_stress_majorize_2d(*args, **kwargs):
+        call_count["n"] += 1
+        return real_stress_majorize_2d(*args, **kwargs)
+
+    monkeypatch.setattr(market_topology_module, "_stress_majorize_2d", _counting_stress_majorize_2d)
+
+    market_topology_module.build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance=0.001,
+    )
+
+    assert call_count["n"] == 0
+
+
+def test_topology_cache_recomputes_when_correlation_change_exceeds_tolerance():
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+    # Fabricate a "previous bar" correlation snapshot far from the real one -
+    # forces max_correlation_change well above any reasonable tolerance.
+    far_previous_correlations = {key: -value for key, value in first.correlations.items()}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=far_previous_correlations,
+        correlation_stability_tolerance=0.001,
+    )
+
+    assert "topology_embedding_reused_stable_correlations" not in second.reasons
+
+
+def test_topology_cache_recomputes_when_eligible_universe_changed():
+    """A new eligible symbol this bar (absent from previous_correlations)
+    must force a full recompute, even with a very generous tolerance -
+    reusing stale positions for a symbol previous_positions never saw would
+    be silently wrong, not just imprecise."""
+    returns = _three_symbol_returns()
+    two_symbol_returns = {"AAA": returns["AAA"], "BBB": returns["BBB"]}
+    first = build_market_topology(two_symbol_returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,  # CCC newly eligible this bar
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance=1.0,  # maximally generous - would always pass on value alone
+    )
+
+    assert "topology_embedding_reused_stable_correlations" not in second.reasons
+
+
+def test_topology_cache_recomputes_when_previous_correlations_missing():
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=None,
+        correlation_stability_tolerance=1.0,
+    )
+
+    assert "topology_embedding_reused_stable_correlations" not in second.reasons
+
+
+def test_topology_correlations_field_populated_on_ready_state_and_empty_on_insufficient_data():
+    returns = _three_symbol_returns()
+    ready = build_market_topology(returns, min_observations=5)
+    assert ready.state == "ready"
+    assert len(ready.correlations) == 3  # 3 symbols -> 3 unique pairs
+
+    insufficient = build_market_topology({"AAA": returns["AAA"]}, min_observations=5)
+    assert insufficient.state == "insufficient_data"
+    assert insufficient.correlations == {}
+
+
+# ---------------------------------------------------------------------------
 # rank_correlated_peers / TopologyNode.top_peers/top_peer_returns
 # ---------------------------------------------------------------------------
 
