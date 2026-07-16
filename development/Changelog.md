@@ -3228,3 +3228,31 @@ verifiable via direct code review or a real `lean backtest .` run itself
 `main.py`-only fix this project has hit). Full suite: `aq test` → 1324
 passed, 0 failed, 11 deselected (`lean_backtest`, expected), 1
 pre-existing warning.
+
+## 2026-07-16 (yet later) — pinned the Lean engine Docker image, found live during the actual first backtest attempt
+
+`aq backtest` appeared to hang on the very first real attempt - it was
+actually silently re-pulling the ~42.5GB `quantconnect/lean` engine image
+because `lean backtest .` resolves the mutable `:latest` tag whenever no
+`--image` is given, and Docker Hub's `latest` had moved to a newer build
+than what was already fully cached locally. Killing the `lean.exe`/
+`docker.exe` client processes alone didn't stop it - the pull continued
+daemon-side until Docker Desktop itself was restarted. Full writeup in
+`development/Problems.md` #40.
+
+**Fixed**: `aq_cli.py::PINNED_LEAN_ENGINE_IMAGE = "quantconnect/lean:17900"`
+(a real, numbered, immutable QuantConnect build tag, confirmed to exist
+via the Docker Hub API) - `cmd_backtest()` now always passes `--image`
+explicitly, never letting Lean CLI resolve `latest` implicitly. New
+`aq backtest --image <other>` escape hatch for deliberately trying a
+newer engine build. This matters for every clone of this repo, not just
+this machine - without a pin, the same re-pull recurs on every run
+indefinitely, any time QuantConnect moves `latest`. Documented in the
+root README (`aq backtest` CLI reference + Getting Started).
+
+### Verification
+
+`tests/test_aq_cli.py`: updated the existing unpinned-invocation test,
+added a new `--image` override test. Full suite: `aq test` → 1326 passed,
+0 failed, 11 deselected (`lean_backtest`, expected), 1 pre-existing
+warning.

@@ -363,14 +363,29 @@ def test_test_never_calls_run_or_a_real_subprocess():
     popen_mock.assert_not_called()
 
 
-def test_backtest_wraps_lean_backtest_dot():
+def test_backtest_wraps_lean_backtest_dot_with_pinned_image_by_default():
+    # development/Problems.md: lean backtest . resolves the mutable
+    # `latest` tag by default, silently re-pulling on every run even
+    # against an already-cached image - --image is now always passed
+    # explicitly with the pinned default so this repo's engine image
+    # never drifts.
     run_mock = MagicMock(return_value=0)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
         "generate_backtest_report.update_readme_from_latest_backtest", return_value=False
     ):
         _parse_and_dispatch(["backtest"], run_mock)
 
-    assert run_mock.call_args.args[0] == ["lean", "backtest", "."]
+    assert run_mock.call_args.args[0] == ["lean", "backtest", ".", "--image", aq_cli.PINNED_LEAN_ENGINE_IMAGE]
+
+
+def test_backtest_image_flag_overrides_the_pinned_default():
+    run_mock = MagicMock(return_value=0)
+    with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "generate_backtest_report.update_readme_from_latest_backtest", return_value=False
+    ):
+        _parse_and_dispatch(["backtest", "--image", "quantconnect/lean:99999"], run_mock)
+
+    assert run_mock.call_args.args[0] == ["lean", "backtest", ".", "--image", "quantconnect/lean:99999"]
 
 
 def test_backtest_updates_readme_on_success():
@@ -384,7 +399,14 @@ def test_backtest_updates_readme_on_success():
     report_mock.assert_called_once()
 
 
-def test_backtest_skips_readme_update_when_lean_backtest_fails():
+def test_backtest_attempts_readme_update_even_when_lean_returns_nonzero():
+    # A non-zero lean exit code must NOT skip the README update: on a
+    # resource-constrained machine Lean's Python-shutdown teardown can time
+    # out (a benign cosmetic error fired AFTER results are written) and
+    # return non-zero even though the backtest fully completed. The update
+    # function self-guards against picking an incomplete run, so it's always
+    # safe to attempt - see development/Problems.md. The exit code is still
+    # propagated to the caller.
     run_mock = MagicMock(return_value=1)
     report_mock = MagicMock(return_value=True)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
@@ -392,7 +414,7 @@ def test_backtest_skips_readme_update_when_lean_backtest_fails():
     ):
         exit_code = _parse_and_dispatch(["backtest"], run_mock)
 
-    report_mock.assert_not_called()
+    report_mock.assert_called_once()
     assert exit_code == 1
 
 

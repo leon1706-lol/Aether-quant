@@ -64,6 +64,20 @@ UPDATE_CACHE_PATH = Path.home() / ".aq" / "update_check.json"
 UPDATE_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 UPDATE_CHECK_TIMEOUT_SECONDS = 2
 
+# `lean backtest .` resolves quantconnect/lean:latest by default when no
+# --image is given - a MUTABLE tag, so Docker re-checks and re-pulls
+# whatever layers changed on every single run, even against an already-
+# fully-cached local image (confirmed directly: a ~42.5GB re-pull kicked
+# off on this exact machine because Docker Hub's `latest` had moved to a
+# newer build than what was cached). Pinned here to a specific numbered
+# QuantConnect build tag instead (confirmed to exist on Docker Hub) so
+# every clone of this repo - not just this machine - gets a byte-
+# identical, one-time-download engine image that never silently re-pulls.
+# To intentionally move to a newer Lean engine: pull the new tag by hand
+# first (`docker pull quantconnect/lean:<new-tag>`), confirm it works,
+# then bump this constant - never let it drift back to `latest`.
+PINNED_LEAN_ENGINE_IMAGE = "quantconnect/lean:17900"
+
 _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 _TEST_BADGE_MARKER_START = "<!-- AQ:TEST_BADGE_START -->"
 _TEST_BADGE_MARKER_END = "<!-- AQ:TEST_BADGE_END -->"
@@ -481,20 +495,45 @@ def cmd_test(args: argparse.Namespace) -> int:
     return exit_code
 
 
-def cmd_backtest(_args: argparse.Namespace) -> int:
+def cmd_backtest(args: argparse.Namespace) -> int:
     lean_binary = _find_quantconnect_lean_binary()
     if lean_binary is None:
         print("error: QuantConnect Lean CLI not found (checked .venv and PATH).", file=sys.stderr)
         return 1
-    exit_code = _run([lean_binary, "backtest", "."])
-    if exit_code == 0:
-        try:
-            from generate_backtest_report import update_readme_from_latest_backtest
+    # --image always passed explicitly (PINNED_LEAN_ENGINE_IMAGE by default,
+    # see its own comment) rather than letting `lean backtest .` silently
+    # resolve the mutable `latest` tag - --image lets a user deliberately
+    # opt into a different/newer engine build without editing this file.
+    engine_image = args.image or PINNED_LEAN_ENGINE_IMAGE
+    exit_code = _run([lean_binary, "backtest", ".", "--image", engine_image])
+    # Attempt the README update regardless of exit_code, NOT only on == 0.
+    # On a resource-constrained machine Lean's Python-interpreter teardown
+    # can exceed its own hardcoded 10-second shutdown-isolator budget and
+    # make `lean backtest` return a NON-zero exit code even though the
+    # backtest itself fully completed and wrote valid results - a cosmetic
+    # "PythonInitializer.Shutdown() ... Operation timed out" error that
+    # fires AFTER statistics are already saved (see development/Problems.md).
+    # update_readme_from_latest_backtest() self-guards: it only ever picks a
+    # backtest folder whose result JSON has BOTH non-empty statistics and a
+    # non-empty equity curve, so calling it after a genuinely-failed run
+    # (e.g. an init-timeout that produced no statistics) is a safe no-op.
+    # Decoupling the README update from Lean's flaky shutdown-phase exit
+    # code is the robust fix - the exit code is still returned to the caller.
+    try:
+        from generate_backtest_report import update_readme_from_latest_backtest
 
-            if update_readme_from_latest_backtest():
-                print("Updated README.md's Backtest Results section.")
-        except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
-            print(f"warning: failed to update README.md's backtest results ({error})", file=sys.stderr)
+        if update_readme_from_latest_backtest():
+            print("Updated README.md's Backtest Results section.")
+    except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
+        print(f"warning: failed to update README.md's backtest results ({error})", file=sys.stderr)
+    if exit_code != 0:
+        print(
+            "note: `lean backtest` returned a non-zero exit code. If the run reached the end date and "
+            "statistics were written, this is most likely the benign Python-shutdown timeout on a "
+            "resource-constrained machine (development/Problems.md) - the README was still updated from "
+            "the completed results above. Check the backtest log if unsure the run actually finished.",
+            file=sys.stderr,
+        )
     return exit_code
 
 
@@ -940,6 +979,12 @@ def build_parser() -> argparse.ArgumentParser:
     test_parser.set_defaults(func=cmd_test)
 
     backtest_parser = subparsers.add_parser("backtest", help="Run a Lean backtest (wraps lean backtest .)")
+    backtest_parser.add_argument(
+        "--image",
+        default=None,
+        help=f"Override the Lean engine Docker image (default: pinned {PINNED_LEAN_ENGINE_IMAGE}, "
+        "never the mutable :latest tag - see PINNED_LEAN_ENGINE_IMAGE's comment in aq_cli.py)",
+    )
     backtest_parser.set_defaults(func=cmd_backtest)
 
     profile_parser = subparsers.add_parser(
