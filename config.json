@@ -634,7 +634,7 @@
             "min_rank_confidence_spread": 0.2
         },
         "liquidity": {
-            "thin_participation_threshold": 0.01,
+            "thin_participation_threshold": 0.005,
             "high_impact_participation_threshold": 0.01,
             "blocked_participation_threshold": 0.1,
             "min_daily_dollar_volume": 100000,

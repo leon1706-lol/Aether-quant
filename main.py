@@ -48,7 +48,7 @@ from risk.asset_class_router import (
 from risk.futures_risk import load_futures_contract_specs
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
-from portfolio import build_rank_based_book
+from portfolio import build_rank_based_book, normalize_per_asset_class_slots
 from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 from experience import (
@@ -412,12 +412,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # top_n/bottom_n ranking across every enabled asset class - absent
         # by default, which keeps build_rank_based_book()'s original pooled
         # behavior byte-identical (see portfolio/book_construction.py).
-        per_asset_class_slots_config = phase_v2_portfolio_book.get("per_asset_class_slots")
-        self.portfolio_book_per_asset_class_slots = (
-            {asset_class: tuple(slots) for asset_class, slots in per_asset_class_slots_config.items()}
-            if per_asset_class_slots_config
-            else None
+        # normalize_per_asset_class_slots() skips (not fatal) any malformed
+        # entry instead of letting it hard-crash build_rank_based_book();
+        # skipped entries are logged here via self.Debug() same as every
+        # other malformed/missing-artifact case in _ensure_ready().
+        validated_per_asset_class_slots, skipped_asset_class_slots = normalize_per_asset_class_slots(
+            phase_v2_portfolio_book.get("per_asset_class_slots")
         )
+        for asset_class in skipped_asset_class_slots:
+            self.Debug(
+                f"phase_v2.portfolio_book.per_asset_class_slots[{asset_class!r}] must be a "
+                f"2-element [top_n, bottom_n] list - skipping this asset class"
+            )
+        self.portfolio_book_per_asset_class_slots = validated_per_asset_class_slots or None
         self.target_daily_volatility = float(phase_v2_risk.get("target_daily_volatility", 0.015))
         self.low_volatility_threshold = float(phase_v2_risk.get("low_volatility_threshold", 0.01))
         self.high_volatility_threshold = float(phase_v2_risk.get("high_volatility_threshold", 0.03))
@@ -3069,12 +3076,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             ticket = pending["ticket"]
             status = classify_order_status(getattr(ticket.Status, "name", str(ticket.Status)))
-            if status != "pending":
+            if status in ("filled", "canceled"):
                 # Already resolved (filled/canceled) by on_order_event()
                 # this bar or an earlier one - just clear the stale
                 # bookkeeping entry, no cancel/fallback needed.
                 self.pending_limit_orders.pop(symbol_key, None)
                 continue
+            # status is "pending" or "unknown" here - classify_order_status()'s
+            # own docstring says "unknown" must be treated as still-pending
+            # (conservative: never mistakes an unrecognized status for a
+            # resolved order). Falling through to the cancel/fallback path
+            # below for both cases means an order Lean reports with a status
+            # name this codebase doesn't yet recognize still gets a real
+            # ticket.Cancel() instead of silently losing tracking of a
+            # possibly-still-open order. See development/Problems.md.
 
             ticket.Cancel()
             # Per-asset-class, not a single global flag - see

@@ -51,6 +51,33 @@ class BookAllocation:
         return asdict(self)
 
 
+def normalize_per_asset_class_slots(
+    raw: dict[str, object] | None,
+) -> tuple[dict[str, tuple[int, int]], list[str]]:
+    """Validates and coerces a raw `phase_v2.portfolio_book.per_asset_class_slots`
+    config dict into build_rank_based_book()'s expected shape.
+    `build_rank_based_book()` unpacks each value unconditionally
+    (`for asset_class, (top_n, bottom_n) in per_asset_class_slots.items()`),
+    so a malformed entry (wrong length, wrong type) would otherwise hard-
+    crash every bar instead of degrading gracefully like every other
+    optional config-driven feature in this codebase - development/
+    Problems.md. Each value must be a 2-element `[top_n, bottom_n]`
+    list/tuple; anything else is skipped, not fatal.
+
+    Returns `(valid_slots, skipped_asset_classes)` - pure and no-logging
+    by design (so it stays independently testable); callers with access
+    to a logger (main.py's `self.Debug()`) should report the skipped
+    list themselves."""
+    valid: dict[str, tuple[int, int]] = {}
+    skipped: list[str] = []
+    for asset_class, slots in (raw or {}).items():
+        if isinstance(slots, (list, tuple)) and len(slots) == 2:
+            valid[asset_class] = tuple(slots)
+        else:
+            skipped.append(asset_class)
+    return valid, skipped
+
+
 def _select_book_group(
     eligible_ranks: dict[str, float],
     top_n: int,

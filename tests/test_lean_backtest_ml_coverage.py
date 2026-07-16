@@ -232,7 +232,13 @@ def test_model_input_dimensionality_is_59(state_after_backtest):
     liquidity + topology) to 59: +4 peer-return features (Phase 5) + 6
     technical indicators + 1 cross-sectional momentum rank (Phase 6) - see
     development/Changelog.md."""
-    model_config = state_after_backtest.get("config", {}).get("model", {})
+    # main.py::_write_state() writes "model" as a top-level state key -
+    # there is no top-level "config" key anywhere in that method. This was
+    # previously state_after_backtest.get("config", {}).get("model", {}),
+    # which always silently evaluated to {} regardless of what a real
+    # backtest actually did - a test-harness bug (wrong key path), not
+    # evidence these subsystems didn't run. See development/Problems.md.
+    model_config = state_after_backtest.get("model", {})
     assert model_config.get("input_count") == 59
 
 
@@ -242,7 +248,7 @@ def test_baseline_multitask_model_ran(state_after_backtest):
     """Proves train.py::AetherNetMultiTask (train_multitask.py,
     ml/multitask_model.json) actually loaded and produced magnitude/
     volatility predictions during a real backtest."""
-    model_config = state_after_backtest.get("config", {}).get("model", {})
+    model_config = state_after_backtest.get("model", {})  # see test_model_input_dimensionality_is_59's comment
     assert model_config.get("multitask", {}).get("model_loaded") is True
     for signal in _signals_with_full_payload(state_after_backtest):
         assert signal.get("predicted_return_magnitude") is not None
@@ -271,7 +277,7 @@ def test_sequence_model_ran(state_after_backtest):
     (train.py::AetherNetSequenceMultiTask, ml/sequence_model.json) actually
     loaded and ran during a real backtest. Informational-only - this does
     not assert it fed any trading decision, only that it executed."""
-    model_config = state_after_backtest.get("config", {}).get("model", {})
+    model_config = state_after_backtest.get("model", {})  # see test_model_input_dimensionality_is_59's comment
     assert model_config.get("sequence", {}).get("model_loaded") is True
     for signal in _signals_with_full_payload(state_after_backtest):
         sequence_model = signal.get("sequence_model") or {}

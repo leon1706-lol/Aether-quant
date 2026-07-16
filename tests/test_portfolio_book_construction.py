@@ -3,7 +3,7 @@ of the 5/10 -> 9/10 roadmap). Conventions match the rest of this repo:
 no test classes, module-level helpers, plain dicts.
 """
 
-from portfolio.book_construction import build_rank_based_book
+from portfolio.book_construction import build_rank_based_book, normalize_per_asset_class_slots
 
 
 def _candidate(rank: float | None, trading_eligible: bool = True) -> dict:
@@ -284,3 +284,50 @@ def test_build_rank_based_book_per_asset_class_slots_ignores_top_n_bottom_n_para
     )
 
     assert set(book) == {"AAPL", "IBM"}
+
+
+# --- normalize_per_asset_class_slots() (development/Problems.md, per_asset_class_slots shape validation) ---
+
+
+def test_normalize_per_asset_class_slots_none_returns_empty_no_skips():
+    valid, skipped = normalize_per_asset_class_slots(None)
+
+    assert valid == {}
+    assert skipped == []
+
+
+def test_normalize_per_asset_class_slots_empty_dict_returns_empty_no_skips():
+    valid, skipped = normalize_per_asset_class_slots({})
+
+    assert valid == {}
+    assert skipped == []
+
+
+def test_normalize_per_asset_class_slots_well_formed_entries_pass_through():
+    valid, skipped = normalize_per_asset_class_slots({"equity": [3, 3], "crypto": (2, 2)})
+
+    assert valid == {"equity": (3, 3), "crypto": (2, 2)}
+    assert skipped == []
+
+
+def test_normalize_per_asset_class_slots_wrong_length_is_skipped_not_fatal():
+    # This is exactly the case that used to hard-crash build_rank_based_book()
+    # every bar instead of degrading gracefully - see development/Problems.md.
+    valid, skipped = normalize_per_asset_class_slots({"equity": [3], "crypto": [2, 2, 2]})
+
+    assert valid == {}
+    assert skipped == ["equity", "crypto"]
+
+
+def test_normalize_per_asset_class_slots_wrong_type_is_skipped_not_fatal():
+    valid, skipped = normalize_per_asset_class_slots({"equity": "not-a-list", "crypto": 5, "bond": None})
+
+    assert valid == {}
+    assert set(skipped) == {"equity", "crypto", "bond"}
+
+
+def test_normalize_per_asset_class_slots_partial_validity_keeps_good_entries():
+    valid, skipped = normalize_per_asset_class_slots({"equity": [3, 3], "crypto": [2]})
+
+    assert valid == {"equity": (3, 3)}
+    assert skipped == ["crypto"]

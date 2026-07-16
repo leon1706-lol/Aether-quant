@@ -3173,3 +3173,58 @@ config-reachable surface, same constraint every prior `main.py`-touching
 entry this project has hit. Full suite: `aq test` → 1318 passed, 0
 failed, 11 deselected (`lean_backtest`, expected), 1 pre-existing
 warning.
+
+## 2026-07-16 (later still) — final pre-backtest bug sweep, 4 fixes, before this project's first real `lean backtest .` run
+
+Dedicated bug sweep of the trading-critical path (`main.py`'s per-bar
+loop, recent order-placement code, `risk/`/`portfolio/`/`liquidity/`
+config wiring) done specifically to de-risk this project's first-ever
+real `lean backtest .` — everything up to this point has only ever been
+unit-tested and reasoned about via Lean's own type stubs. Full writeup in
+`development/Problems.md` #39; summarized here:
+
+1. **`tests/test_lean_backtest_ml_coverage.py` — 3 of its 11 assertions
+   were reading the wrong state key** (`state.get("config", {}).get("model",
+   {})`; `main.py::_write_state()` writes `"model"` as a top-level key,
+   never a top-level `"config"`). Would have silently failed on a
+   perfectly correct backtest — never caught because the `lean_backtest`
+   marker has kept this whole file excluded from every routine `aq test`
+   run since it was written. Fixed: read `state.get("model", {})`
+   directly.
+2. **`config.json`'s two liquidity participation thresholds had drifted
+   to the same value** (`thin_participation_threshold` /
+   `high_impact_participation_threshold`, both `0.01`), silently
+   collapsing a two-tier system to one — an unintended side effect of
+   entry #18's earlier trade-count-loosening pass. Fixed via
+   `aq config set phase_v2.liquidity.thin_participation_threshold 0.005`.
+3. **`main.py::_process_pending_limit_order_timeouts()` contradicted its
+   own dependency's documented contract** — `classify_order_status()`
+   says "unknown" must be treated as still-pending, but the caller
+   dropped tracking (no `ticket.Cancel()`) on anything not literally
+   `"pending"`. Dormant today (`phase_v2.limit_orders.enabled: false`),
+   part of entry #34's still-open verification list, fixed while in
+   context. Fixed: only `"filled"`/`"canceled"` skip the cancel path now.
+4. **`portfolio/book_construction.py::build_rank_based_book()`'s
+   `per_asset_class_slots` had no shape validation** - a malformed entry
+   would hard-crash instead of degrading gracefully like every other
+   optional config feature here. New pure
+   `normalize_per_asset_class_slots()` (`portfolio/book_construction.py`,
+   exported from `portfolio/__init__.py`) validates and reports skipped
+   entries; `main.py` now calls it and logs skips via `self.Debug()`.
+
+Several other candidate areas were reviewed and found already correct:
+the topology correlation-stability cache's skip logic (#36), `gc.freeze()`
+placement (#37), per-asset-class book-slot `asset_class` threading, and
+the option/spread order contract-vs-chain-symbol bookkeeping (#38's
+remaining risk is genuinely Lean-API-casing, not a logic bug) — no new
+issues found in any of them.
+
+### Verification
+
+6 new tests for `normalize_per_asset_class_slots()` in
+`tests/test_portfolio_book_construction.py`. Fixes #1-#3 are only
+verifiable via direct code review or a real `lean backtest .` run itself
+(same `main.py`-can't-be-unit-tested-outside-Lean constraint every prior
+`main.py`-only fix this project has hit). Full suite: `aq test` → 1324
+passed, 0 failed, 11 deselected (`lean_backtest`, expected), 1
+pre-existing warning.
