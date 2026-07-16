@@ -230,8 +230,8 @@ restart. See the Manual Trade-Lock Override Contract in
 
 ---
 
-### 10. `ci.yml`'s `test` job fails on GitHub's Linux runner — root cause still unknown
-**Severity:** 3/10 · **Status:** 🟠 `open`
+### 10. `ci.yml`'s `test` job fails on GitHub's Linux runner — root cause found and fixed
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
 
 Found while setting up the open-source release pipeline (PyPI + GHCR
 publishing via `.github/workflows/ci.yml`/`release.yml`). Three distinct
@@ -258,57 +258,96 @@ underlying gaps described below).
    `ModuleNotFoundError`. Fixed by adding `pythonpath = ["."]` to
    `pyproject.toml`'s `[tool.pytest.ini_options]`, which works identically
    regardless of invocation style or OS.
-3. **Still open** — after both fixes above, dependency install and test
-   *collection* both succeed in CI, but the actual `pytest` run itself still
-   fails (`exit code 1`) on GitHub's `ubuntu-latest` + Python 3.11 runner.
-   All 488 tests pass cleanly and repeatedly on the local Windows + Python
-   3.14 dev environment (`.venv/Scripts/pytest.exe`, the exact same bare
-   invocation style as CI). Root cause not yet identified.
-   - Confirmed via the public unauthenticated GitHub API
-     (`GET /repos/leon1706-lol/Aether-quant/actions/runs/<id>/jobs`) that the
-     `test` job's "Run tests" step is specifically what fails — every other
-     step (checkout, setup-python, install dependencies) succeeds. The raw
-     log itself (`GET /actions/jobs/<id>/logs`) returns HTTP 403 without an
-     authenticated token, confirmed directly; an unauthenticated web-page
-     fetch of the job's Actions UI also only shows the same generic "1
-     error" annotation, not the pytest traceback.
-   - Attempted a local repro during V2-21/V2-22 planning
-     (2026-07-04/05): `docker run --rm -v <repo>:/repo -w /repo
-     python:3.11-slim bash -c "pip install -r requirements/requirements.txt
-     -r requirements/requirements-dev.txt && pytest"`, to match CI's exact
-     OS/Python combination without needing `gh` auth. **Inconclusive** — the
-     container made effectively zero installation progress after 30+
-     minutes (still only base `pip`/`setuptools`/`wheel`, none of this
-     repo's dependencies), and a direct network check from inside the
-     container timed a single PyPI simple-index fetch (`pypi.org/simple/torch/`)
-     at ~10.5 seconds. This points to severe network-bandwidth/latency
-     constraints in the local sandbox this session ran in, not a
-     dependency-resolution bug — the repro was stopped rather than left
-     running indefinitely. Worth retrying from an environment with normal
-     PyPI throughput before concluding anything from it either way.
-   - **Next step, still open:** either (a) retry the same Docker repro
-     command above from a machine/network with normal PyPI download speeds,
-     or (b) install/authenticate the `gh` CLI (`winget install GitHub.cli`,
-     then `gh auth login`) and run `gh run view <run-id> --log --job <job-id>`
-     to get the actual pytest failure text — this remains the fastest path
-     if (a) isn't convenient. Suspected root causes, unchanged from before:
-     a Linux BLAS numeric-precision difference affecting a sklearn/topology
-     test, or a Python 3.11-vs-3.14 stdlib behavior difference.
+3. **Fixed** — after both fixes above, dependency install and test
+   *collection* both succeeded in CI, but the actual `pytest` run itself
+   still failed (`exit code 1`) on GitHub's `ubuntu-latest` + Python 3.11
+   runner while passing locally. Root cause was finally obtained by
+   installing/authenticating the `gh` CLI (`winget install GitHub.cli` +
+   `gh auth login`, a one-time browser device-code prompt) and running
+   `gh run view <run-id> --log --job <job-id>` — the fastest path the
+   previous pass through this entry had already identified but not yet
+   executed. The real pytest summary: `4 failed, 1285 passed, 6 skipped,
+   1 warning, 11 errors`. Neither of the two long-standing suspected causes
+   (Linux BLAS numeric precision, a Python 3.11-vs-3.14 stdlib behavior
+   difference) was the actual culprit for 3 of the 4 failures or the 11
+   errors — both hypotheses turned out to be reasonable guesses that the
+   real log immediately disproved, a good example of why "grab the real
+   traceback" beats guessing from symptoms alone. Three independent root
+   causes, all now fixed:
+   - **3 of the 4 `FAILED` tests** (`test_futures_risk.py::test_load_futures_contract_specs_from_real_reference_file`,
+     `test_ib_backfill.py::test_load_futures_contract_specs_from_real_reference_file`,
+     `test_train_cross_sectional_features.py::test_load_sector_mapping_reads_the_checked_in_reference_file`)
+     all read one of two small, hand-authored reference files —
+     `data/reference/futures_contract_specs.json` and
+     `data/reference/sector_mapping.json` — that their own test names call
+     "the checked-in reference file." They were never actually checked in:
+     `.gitignore`'s blanket `data/**` rule (added to keep bulk Lean market
+     data out of a public repo) swallowed these two small config files
+     along with it, so every fresh checkout (any CI runner, or a fresh
+     local clone) silently had neither file, while every existing local
+     dev environment (this one included) had them on disk from whenever
+     they were first hand-authored, masking the gap identically to how
+     `python -m pytest` masked fix #2 above. Fixed: added a
+     `!data/reference/*.json` exception to `.gitignore` and committed both
+     files (confirmed non-sensitive: static contract specs and a ticker
+     -> sector map, no credentials).
+   - **1 of the 4 `FAILED` tests**
+     (`test_bond_features.py::test_empirical_duration_beta_none_when_delta_yield_has_zero_variance`)
+     — this one WAS a genuine Python 3.11-vs-3.14 stdlib difference, just
+     not in the place either standing hypothesis pointed at.
+     `features/bond_features.py::empirical_duration_beta()` checked
+     `variance_x == 0.0` (exact equality) to detect a mathematically
+     constant input series. CPython changed `sum()`'s internal float
+     summation algorithm between 3.11 (naive left-to-right) and 3.12+
+     (compensated/Neumaier) — on 3.14 (this dev machine) the constant
+     series' mean/variance round to exactly `0.0`; on 3.11 (CI) tiny
+     summation rounding noise (~1e-20 scale) survives, so the exact
+     equality check silently failed and the function returned a wild
+     `covariance / near-zero-noise` ratio (`-12.515...`) instead of the
+     intended `None`. Fixed: `variance_x < 1e-12` (still many orders of
+     magnitude below any real delta-yield variance in this codebase's
+     data, and light years above the rounding-noise floor) instead of
+     exact equality.
+   - **All 11 `ERROR`s** were a single new regression, not present when
+     this entry was first opened: `tests/test_lean_backtest_ml_coverage.py`
+     is meant to self-skip when no usable local Lean setup exists (its own
+     module docstring says so), but fix #1 above (installing the real
+     `lean` PyPI package) had the side effect of putting the `lean` binary
+     on CI's PATH for the first time — the skip check only ever tested
+     binary *presence*, not whether a real backtest could actually run, so
+     CI stopped skipping and instead launched a real `lean backtest .`
+     that immediately failed with `Unable to locate symbol properties
+     file: Data/symbol-properties/symbol-properties-database.csv`. That
+     file (like every other Lean bootstrap reference file under `data/`)
+     is also caught by the `data/**` gitignore rule above — CI's fresh
+     checkout has no Lean Data folder at all, which was always true and
+     always the reason this test was meant to skip there; fix #1 just
+     changed which half of the skip condition silently stopped holding.
+     Fixed: the skip guard now also checks for
+     `data/symbol-properties/symbol-properties-database.csv` (the exact
+     file the real error named) via a new, independently unit-tested
+     `_lean_data_folder_is_usable()` helper, restoring the originally
+     intended skip-in-CI/run-locally behavior without needing to vendor
+     Lean's bootstrap data into git. `ci.yml`'s explanatory comment updated
+     to match (it previously and incorrectly said GitHub runners "don't
+     have" the Lean CLI at all).
 
-**Not currently blocking releases**: `release.yml`'s `publish-pypi`/
-`publish-docker` jobs no longer depend on a test job at all (removed at the
-user's explicit request, in favor of testing locally before tagging) — see
-`v2_architecture.md`/git history around the `v0.2.0` release. `ci.yml`'s
-`test` job still runs (and still fails) on every push/PR to `main`, so it
-remains a visible red check, just not a release gate.
+**Verification**: all 4 previously-`FAILED` tests plus 3 new regression
+tests for the strengthened Lean skip guard
+(`tests/test_lean_backtest_ml_coverage.py::test_lean_data_folder_check_*`)
+pass locally. The 11 real-backtest tests still attempt to run locally
+(this dev machine has a real Lean Data folder) and fail fast on a separate,
+pre-existing, unrelated local condition — Docker Desktop's daemon isn't
+running here — which is expected and not part of this fix; they were never
+reachable from CI either way once the skip guard change lands there. Full
+confirmation that CI itself now passes requires the next push's Actions run
+(not yet observed as of this fix, since it hasn't been pushed) — see the
+commit this entry references for the actual outcome.
 
-**Next step, when revisited:** grab the actual failing test's output from
-the Actions UI (expand the "Run tests" step) or via `gh run view --log
---job <id>` with an authenticated `gh` CLI, since likely candidates
-(platform-specific path/locale assumptions, a numeric-precision difference
-in a Linux BLAS backend affecting one of the sklearn/topology tests, a
-Python 3.11-vs-3.14 stdlib behavior difference) can't be distinguished
-without the real error text.
+**Not blocking releases regardless**: `release.yml`'s `publish-pypi`/
+`publish-docker` jobs still don't depend on a test job at all (removed at
+the user's explicit request, in favor of testing locally before tagging) —
+see `v2_architecture.md`/git history around the `v0.2.0` release.
 
 ---
 
@@ -702,38 +741,66 @@ themselves.
 
 ---
 
-### 21. Per-bar model forward-pass count doubled (5 → 11) — not yet a measured problem
-**Severity:** 2/10 · **Status:** 🟡 `documented, not measured`
+### 21. Per-bar model forward-pass count doubled (5 → 11) — now measured, not currently a problem
+**Severity:** 2/10 · **Status:** 🟢 `measured, not currently a problem`
 
 The multitask/sequence pass added 6 more optional model forward passes per
 symbol per bar on top of the original 5 (baseline + 4 experts):
 `baseline_multitask`, 4 `expert_multitask` heads, and the Phase 2
 `sequence` encoder — all still `inference/exported_model.py`'s plain-numpy
 interpreters (`run_exported_multitask_model()`/
-`run_exported_sequence_multitask_model()`), no batching across the 11
-calls, no shared computation between a flat model and its multitask
-sibling (e.g. `baseline` and `baseline_multitask` each run their own
-independent forward pass over the same 48-dim input, rather than one
-model with two exit points).
+`run_exported_sequence_multitask_model()`). Correcting one detail from
+when this entry was first written: there IS batching within each 4-expert
+group by default in `main.py` (`_run_expert_models()`/
+`_run_expert_multitask_models()` both call the batched
+`run_exported_*_models_batched()` path unconditionally, falling back to
+per-expert only on a shape mismatch — see entries #31/#32) — so `main.py`
+actually makes 5 top-level calls per symbol per bar (baseline, sequence,
+one batched call for the 4 experts, multitask, one batched call for the 4
+expert-multitask heads), which collectively perform 11 individual model
+forward passes. There is still no shared computation between a flat model
+and its multitask sibling (`baseline`/`baseline_multitask` each still run
+an independent forward pass over the same input).
 
-**Not independently measured this pass** — no `lean backtest .` timing run
-was taken, deliberately, for two reasons: (1) both new model families are
-either informational-only (`sequence`, per the Phase 2 Sequence Encoder
-Contract) or feed only a config-gated, off-by-default optional path
-(`predicted_volatility` → `risk/position_sizing.py`,
-`phase_v2.dynamic_risk.use_predicted_volatility`) — nothing yet trades on
-their output by default, so there is no live-decision urgency to profile
-them; (2) the only hard, actually-enforced latency constraint anywhere in
-this codebase is Lean's 90-second `initialize()` isolator timeout
-(entry #16), which is unrelated to per-bar `on_data()` cost — there is no
-established per-bar time budget to compare against.
+**Now measured** using the harness this exact situation calls for
+(`scripts/profile_inference.py`, wrapped by `aq profile`, already built for
+entries #31/#32/#36/#37 — its `run_workload()` already simulates this
+precise 5-call/11-forward-pass bundle with real exported weights from
+`ml/`, no Lean/Docker required): two 10,000-iteration runs, matching
+`main.py`'s real production path (`--batched`, since that's the always-on
+default there) plus the unbatched comparison point:
 
-**If this ever becomes a real observed problem** (e.g. `initialize()`
-timing regresses, or a full backtest's wall-clock time becomes a practical
-obstacle to iteration speed), the method this codebase already uses is a
-real `lean backtest .` run plus temporary side-channel disk logging (never
-a persisted timer/profiler class) — see entries #16 and #17 for the exact
-pattern and precedent before building anything new.
+| | p50 | p95 | p99 | max | mean |
+|---|---|---|---|---|---|
+| `aq profile --batched --iterations 10000` (matches `main.py`) | 7.03ms | 35.55ms | 106.01ms | 587.40ms | 12.00ms |
+| `aq profile --iterations 10000` (unbatched comparison) | 7.19ms | 19.78ms | 41.02ms | 212.67ms | 8.72ms |
+
+Both single runs, not the paired-run methodology entries #32/#37 used —
+the batched run's noticeably worse tail (p99/max) versus the unbatched
+run is consistent with those entries' own documented finding that this
+harness's wall-clock tail is materially affected by concurrent machine
+load, not just code path (this session ran other background work
+concurrently); p50, the least load-sensitive statistic, is consistent
+across both runs at ~7ms. cProfile's own breakdown shows
+`run_exported_sequence_multitask_model()` as the single largest
+contributor (~48-58% of total profiled time across both runs) — the
+sequence encoder, still a real, previously-flagged optimization
+opportunity (entries #31/#32 already improved its causal-convolution loop
+once; further gains would need a second pass) — plus a large
+`numpy.asarray` call count (890,000 calls in the batched run) suggesting
+repeated small-array construction inside its per-timestep loop.
+
+**Verdict: not currently a problem.** Judged against the only real,
+enforced constraint anywhere in this codebase — Lean's 90-second
+`initialize()` isolator timeout (entry #16), which is unrelated to
+per-bar `on_data()` cost — a ~12ms mean per symbol per bar is negligible;
+there is still no established per-bar time budget this violates, and nothing
+in this pass changed that. Left as a documented future optimization target
+(the sequence encoder specifically), not a fix — matching this entry's own
+original framing: revisit with the existing `lean backtest .` +
+side-channel-log method (entries #16/#17) only if `initialize()` timing
+regresses or backtest wall-clock time becomes a real iteration-speed
+obstacle.
 
 ---
 
@@ -991,7 +1058,7 @@ the book enabled).
 ---
 
 ### 29. Multi-asset-class support (bonds/futures/options + IB) — explicit non-goals
-**Severity:** n/a (scope note, not a bug) · **Status:** 🟡 `deferred` (narrowed — see resolved items below)
+**Severity:** n/a (scope note, not a bug) · **Status:** 🟢 `fixed` (core multi-asset-class trading is fully implemented; the remaining IB-dependent gaps below are permanent non-goals, not open work — tracked in the root README's Known Limitations section, not as pending items here)
 
 Full session summaries are in `development/Changelog.md`. A first pass added
 bonds/futures/options architecturally; a second pass closed the gaps that
@@ -1015,27 +1082,51 @@ pass** (previously listed here as deferred):
   --family-ticker`). Still resolves to the neutral default (0.0) when no
   such assets are configured — the honest "no data" case, not a bug.
 
-Still deliberately out of scope:
+**Resolved this pass:**
+
+- ~~Per-asset-class top-N/bottom-N book-slot caps~~ — now implemented.
+  `portfolio/book_construction.py::build_rank_based_book()` gained an
+  optional `per_asset_class_slots: dict[str, tuple[int, int]] | None`
+  parameter (default `None` — pooled combined-universe ranking, byte-
+  identical to this function's original and only behavior; see the shared
+  `_select_book_group()` helper the pooled and per-class paths now both
+  call). When configured, each asset class is ranked and slotted
+  independently instead of one class potentially dominating a side of the
+  book (e.g. equities and crypto each get their own long/short slot
+  budget). `min_rank_confidence_spread` applies independently per class.
+  Wired into `main.py` via `phase_v2.portfolio_book.per_asset_class_slots`
+  (absent by default, so `portfolio_book_per_asset_class_slots` stays
+  `None` and behavior is unchanged) and a new `asset_class` field on each
+  `book_candidates` entry (same `asset.get("asset_class") or
+  asset.get("security_type")` fallback every other asset-class-aware call
+  site in `main.py` already uses). 7 new tests in
+  `tests/test_portfolio_book_construction.py` (per-class ranking, class
+  exclusion when not listed, one thin class not blocking others, per-class
+  confidence-spread gating, `top_n`/`bottom_n` correctly ignored once
+  `per_asset_class_slots` is set, and an explicit `None`-matches-omitted
+  backward-compatibility check).
+
+Re-reviewed the remaining items this pass — still genuinely out of scope,
+none newly addressable without external dependencies this repo doesn't
+control:
 
 - **Automatic multi-leg options spread selection via ML** (verticals,
   straddles, iron condors). `portfolio/options_strategy.py` is single-leg
   only (long calls or long puts, greeks-sized via a target delta scaled by
   the existing direction+confidence prediction) — a genuinely new spread-
-  selection model architecture is future work.
+  selection model architecture is future work, not a data/plumbing gap.
 - **IBC-based headless/automated TWS/Gateway login.** IB's API requires an
   already-logged-in TWS/Gateway session; `data_pipeline/ib_backfill.py`
   connects to that session but does not manage its login lifecycle. The
   live connection itself has also never been tested against a real
   Gateway — everything is verified via unit tests and Lean's own type
-  stubs only.
-- **Per-asset-class top-N/bottom-N book-slot caps.**
-  `portfolio/book_construction.py::build_rank_based_book()` ships with one
-  combined-universe ranking across all enabled asset classes, not a slot
-  budget per class.
+  stubs only. Blocked on IB's own product design, not something this
+  codebase can route around.
 - **Live IB margin replacing `data/reference/futures_contract_specs.json`'s**
   static reference numbers. The static file is the sizing source of truth
   even when IB is connected; live margin queries are a documented future
-  enhancement.
+  enhancement. Blocked on wiring a live IB session end-to-end (untested,
+  see above) before this would even be safe to build against.
 - **Real historical derivatives training data acquisition is manual.** IB's
   historical API is per-contract and rate-limited, so building a rich
   training-window dataset means repeated `aq fetch futures --contract-month
@@ -1191,7 +1282,7 @@ collected-test count too, not just the shields.io badge.
 ---
 
 ### 32. Latency deep-dive follow-up — weight-array/stack caching, `aq profile`, opt-in per-symbol multiprocessing, C++ extension attempt
-**Severity:** n/a (optimization pass) · **Status:** 🟢 `fixed` (weight caching, harness, `aq profile`, multiprocessing) / 🟡 in progress (C++ extension - toolchain install + compile checkpoint, see below)
+**Severity:** n/a (optimization pass) · **Status:** 🟢 `fixed` (weight caching, harness, `aq profile`, multiprocessing, AND the C++ extension — built, compiled, verified importable, measured, tested; corrected from an earlier stale "in progress" badge, confirmed by re-checking this session: `cpp_inference_ext/cpp_inference.cp314-win_amd64.pyd` exists and `hasattr(cpp_inference, "linear_batched")` is `True` in `.venv` right now)
 
 Direct follow-up to #31, after re-profiling the already-batched/vectorized
 hot path and finding `numpy.asarray()` conversions were now the single
@@ -1332,6 +1423,7 @@ approach per direct request) — built and verified working, with a real
   still activates correctly, not just the "extension absent" case.
 
 ### 33. Execution/risk realism pass — real `SlippageModel` wired to fills (spread + impact estimate previously computed and discarded)
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
 
 `liquidity/market_liquidity.py::build_liquidity_decision()` computed
 `estimated_round_trip_cost` (participation-based price impact + a real
@@ -1409,6 +1501,7 @@ tests (10 in `test_order_gate.py` for the new params/functions, 3 in
 operates on arbitrary dotted paths into `config.json`).
 
 ### 34. Real limit-order support — every tradable asset class, config-gated (part 2 of the execution/risk realism pass)
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (config-gated, default off; Lean API casing/dispatch assumptions remain unverified until a real backtest — see below, not blocking)
 
 Entry #33 closed half of `development/v2_architecture.md`'s documented
 HFT-gap item 3 (real fill slippage). The other half was still open: *"no
@@ -1508,6 +1601,7 @@ Lean's-runtime constraint `_LiquidityAwareSlippageModel` hit in entry #33;
 all real logic lives in the pure, tested functions above.
 
 ### 35. Disabling an asset class never liquidated already-open positions (Section 0: also fixed 2 stale doc comments)
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
 
 Two stale documentation bugs fixed alongside this entry, found while
 researching it: `main.py`'s comment on the option `_add_asset()` branch
@@ -1583,6 +1677,7 @@ anything computed later in the bar, but flagged as unverified until a
 real backtest confirms it.
 
 ### 36. Latency profiling extended beyond inference — build_market_topology() found to be a much larger per-bar cost than the entire inference step
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (new `profile_subsystems.py` harness + `aq profile --<subsystem>` flags shipped and tested; the real ~500-600ms/bar `build_market_topology()` cost this found is a documented future optimization target, deliberately not implemented this pass — see below, not an open bug in this entry's own deliverable)
 
 `scripts/profile_inference.py` only ever profiled
 `inference/exported_model.py`'s forward-pass functions (entries #31/#32).
@@ -1663,6 +1758,7 @@ intentional behavior change to `aq profile`'s default invocation, not a
 regression.
 
 ### 37. Inference tail latency (p99 3-5x p50) — investigated: real GC-pause contribution to worst-case latency confirmed, root cause of the old `scripts/profile_inference_output.txt` discrepancy resolved as machine load, not a regression
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is a documented, deliberately unshipped candidate pending real-backtest validation — not an open bug in this entry's own deliverable)
 
 Nothing in this repo had ever investigated *why* `scripts/profile_inference.py`'s
 p99 routinely ran 3-5x the p50 — only the visibility that it does existed
@@ -1741,6 +1837,7 @@ order preservation, default bucket count, non-positive bucket count).
 4 new CLI reachability tests in `tests/test_aq_cli.py`.
 
 ### 38. 2-leg vertical spread selection for options — explicit scope-in of a previously-non-goal feature
+**Severity:** n/a (feature scope-in) · **Status:** 🟢 `fixed` (implementation complete and tested; verification against a real Lean backtest is the largest open item this session produced, see below — not an incomplete implementation)
 
 Entry #29 explicitly scoped multi-leg options spread selection out:
 *"a genuinely new spread-selection model architecture is future work."*

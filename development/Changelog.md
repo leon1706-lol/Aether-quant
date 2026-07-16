@@ -3005,3 +3005,89 @@ session.
 change parity test). The `main.py` placement/tracking-dict changes are
 not unit-testable in isolation — same constraint as every prior
 Lean-adapter this session.
+
+## 2026-07-16 — CI root cause found and fixed (#10), per-bar forward-pass latency measured (#21), per-asset-class book-slot caps (#29)
+
+Closed out three `development/Problems.md` entries picked specifically
+because none needed a rebuilt Docker image. All three turned out to need
+real evidence rather than guessing from symptoms — the session's own
+`gh` CLI setup and the pre-existing `aq profile` harness both did the
+actual work; no new profiling/CI tooling had to be built.
+
+**#10 — `ci.yml`'s `test` job, real root cause.** Installed and
+authenticated the GitHub CLI (`winget install GitHub.cli` + `gh auth
+login`, one-time browser device-code prompt) and pulled the actual
+failing run's log via `gh run view --log --job`, something no prior pass
+through this entry had done. Real result: `4 failed, ... 11 errors`, and
+neither of the two long-standing suspected causes (Linux BLAS precision,
+Python 3.11-vs-3.14 stdlib) was the reason for 3 of the 4 failures or the
+11 errors. Three independent, now-fixed root causes:
+
+- `.gitignore`'s blanket `data/**` rule (meant to keep bulk Lean market
+  data out of a public repo) silently excluded two small, hand-authored
+  reference JSON files (`data/reference/futures_contract_specs.json`,
+  `data/reference/sector_mapping.json`) that three tests explicitly
+  expect to be checked in. Added a `!data/reference/*.json` exception and
+  committed both files.
+- `features/bond_features.py::empirical_duration_beta()`'s exact
+  `variance_x == 0.0` check IS a real Python 3.11-vs-3.14 difference —
+  CPython changed `sum()`'s internal float summation algorithm between
+  those versions (naive vs. compensated), so a mathematically-constant
+  input's variance rounds to exactly `0.0` on 3.14 but not on 3.11,
+  turning an intended `None` into a wild ratio. Fixed with a
+  `variance_x < 1e-12` tolerance instead of exact equality.
+- `tests/test_lean_backtest_ml_coverage.py`'s self-skip guard only ever
+  checked `lean` binary *presence*, not a usable local Lean Data folder —
+  fixing #10's own earlier `lean` package-name bug put the binary on
+  CI's PATH for the first time, so CI stopped skipping and instead
+  launched a real `lean backtest .` that immediately failed on Lean's own
+  missing bootstrap reference data (also caught by the `data/**`
+  gitignore rule, and always absent from any fresh checkout). New
+  `_lean_data_folder_is_usable()` helper checks for the exact file the
+  real error named; `ci.yml`'s stale explanatory comment updated to match.
+
+**#21 — per-bar forward-pass count, now actually measured.** No new
+tooling needed: `scripts/profile_inference.py` (`aq profile`) already
+simulated the exact 11-forward-pass/5-call bundle this entry describes,
+built during the earlier #31/#32/#36/#37 latency passes. Two 10,000-
+iteration runs: `--batched` (matches `main.py`'s always-on production
+path) measured mean=12.00ms/p50=7.03ms/p99=106.01ms/max=587.40ms;
+unbatched comparison measured mean=8.72ms/p50=7.19ms/p99=41.02ms/
+max=212.67ms. `run_exported_sequence_multitask_model()` dominates
+(~48-58% of profiled time) — flagged as the real future optimization
+target, not fixed this pass. Verdict: negligible against the only real
+constraint in this codebase (Lean's 90s `initialize()` isolator timeout,
+entry #16, unrelated to per-bar cost) — not currently a problem.
+
+**#29 — per-asset-class book-slot caps, implemented.**
+`portfolio/book_construction.py::build_rank_based_book()` gained an
+optional `per_asset_class_slots: dict[str, tuple[int, int]] | None`
+parameter (default `None`, byte-identical to the original pooled
+behavior — the pooled and per-class paths now share one
+`_select_book_group()` selection helper instead of duplicating the
+top-N/bottom-N + confidence-spread logic). Wired into `main.py` via
+`phase_v2.portfolio_book.per_asset_class_slots` and a new `asset_class`
+field on each `book_candidates` entry (same `asset.get("asset_class") or
+asset.get("security_type")` fallback every other call site already
+uses). Also reviewed the remaining 4 items in #29's "still out of scope"
+list — all confirmed still genuinely blocked on external dependencies
+(IB login lifecycle, live margin feeds, per-contract rate-limited
+historical data), none newly addressable this pass.
+
+### Verification
+
+19 new/extended tests: 3 in `tests/test_lean_backtest_ml_coverage.py`
+(the new `_lean_data_folder_is_usable()` guard, refactored off a
+module-level `pytestmark` so this regression test itself isn't skipped in
+the exact CI environment it's proving correct), 6 in
+`tests/test_portfolio_book_construction.py` (per-class ranking, class
+exclusion, thin-class isolation, per-class confidence-spread gating,
+`top_n`/`bottom_n` correctly ignored once per-class slots are set, and
+explicit `None`-matches-omitted backward compatibility). Plus the 4
+originally-failing tests (`test_bond_features.py`,
+`test_futures_risk.py`, `test_ib_backfill.py`,
+`test_train_cross_sectional_features.py`) now pass with no test changes
+needed — the fixes were in the reference files/`.gitignore`/production
+code, not the tests. Full suite: `aq test` → 1304 passed, 0 failed, 11
+deselected (`lean_backtest`, expected), 1 pre-existing warning.
+Confirming CI itself goes green requires the next push's Actions run.

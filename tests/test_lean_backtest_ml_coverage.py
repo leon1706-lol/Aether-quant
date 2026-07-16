@@ -8,6 +8,16 @@ actually fired on at least one asset.
 Mirrors retraining/lean_backtest.py's optional-dependency convention: if the
 `lean` binary isn't on PATH, skip (never fail) - Lean/Docker are not assumed
 to be installed in every environment this suite runs in.
+
+Also requires a usable local Lean Data folder (see
+_lean_data_folder_is_usable() below), not just the binary - development/
+Problems.md#10: once `requirements-dev.txt` started installing the real
+`lean` PyPI package, GitHub's CI runner had the binary on PATH for the first
+time, so the binary-only skip check stopped skipping there - but CI's fresh
+checkout still has none of `data/`'s Lean bootstrap reference files
+(data/** is gitignored), so `lean backtest .` failed immediately with
+"Unable to locate symbol properties file" instead of skipping as originally
+intended.
 """
 
 from __future__ import annotations
@@ -69,21 +79,60 @@ def _find_quantconnect_lean_binary() -> str | None:
     return None
 
 
-_LEAN_BINARY = _find_quantconnect_lean_binary()
+def _lean_data_folder_is_usable(root: Path = REPO_ROOT) -> bool:
+    """The `lean` binary being importable is necessary but not sufficient -
+    every `lean backtest .` run, regardless of universe/config, first loads
+    Lean's own bootstrap reference databases (symbol properties, market
+    hours, etc.) from the local Data folder. This repo's data/** is
+    gitignored (real market data is too large for a public repo - see
+    .gitignore), so a fresh checkout (any CI runner, or a fresh local clone
+    before `lean data download`/manual setup) has the binary but not a
+    working Data folder. Checking for this file specifically - not just
+    `data/` existing - because it's the exact one `lean backtest .` fails
+    on first (confirmed via a real CI run, development/Problems.md#10).
+    `root` is overridable (default REPO_ROOT) purely for testability."""
+    return (root / "data" / "symbol-properties" / "symbol-properties-database.csv").exists()
 
-# lean_backtest (registered in pyproject.toml) is what actually gates this
-# file out of a default `aq test` run - a real `lean backtest .` here takes
-# over an hour wall-clock, and the skipif below only checks binary
-# *availability*, not whether you actually want to pay that cost right now.
-# `aq test --lean`/`--full` drops the marker exclusion; the skipif stays as
-# a secondary guard for machines with no Lean CLI at all.
-pytestmark = [
-    pytest.mark.lean_backtest,
-    pytest.mark.skipif(
-        _LEAN_BINARY is None,
-        reason="QuantConnect Lean CLI not available - skipping full-system backtest integration test",
-    ),
-]
+
+_LEAN_BINARY = _find_quantconnect_lean_binary()
+_LEAN_DATA_READY = _lean_data_folder_is_usable()
+
+# lean_backtest (registered in pyproject.toml) is what actually gates the
+# real-backtest tests below out of a default `aq test` run - a real
+# `lean backtest .` here takes over an hour wall-clock, and _skip_no_lean
+# below only checks binary/data-folder *availability*, not whether you
+# actually want to pay that cost right now. `aq test --lean`/`--full` drops
+# the marker exclusion; the skipif stays as a secondary guard for machines
+# with no working local Lean setup at all.
+#
+# Deliberately NOT a module-level `pytestmark` list (unlike this file's
+# previous version): that would also skip _lean_data_folder_is_usable()'s
+# own regression test below whenever the thing it's testing is exactly the
+# "no Lean data folder" case (e.g. in CI) - the one environment where
+# proving this guard works correctly matters most. Applied per-function to
+# only the tests that actually need a real backtest instead.
+_skip_no_lean = pytest.mark.skipif(
+    _LEAN_BINARY is None or not _LEAN_DATA_READY,
+    reason="QuantConnect Lean CLI or a usable local Lean Data folder not available - skipping full-system backtest integration test",
+)
+
+
+def test_lean_data_folder_check_true_when_symbol_properties_file_present(tmp_path):
+    (tmp_path / "data" / "symbol-properties").mkdir(parents=True)
+    (tmp_path / "data" / "symbol-properties" / "symbol-properties-database.csv").write_text("x")
+    assert _lean_data_folder_is_usable(tmp_path) is True
+
+
+def test_lean_data_folder_check_false_when_symbol_properties_file_missing(tmp_path):
+    assert _lean_data_folder_is_usable(tmp_path) is False
+
+
+def test_lean_data_folder_check_false_on_fresh_checkout_shape(tmp_path):
+    """Mirrors a real fresh clone/CI checkout: data/ exists (its directory
+    structure is git-tracked via .keep files) but data/** contents are
+    gitignored - see development/Problems.md#10."""
+    (tmp_path / "data").mkdir()
+    assert _lean_data_folder_is_usable(tmp_path) is False
 
 
 @pytest.fixture(scope="module")
@@ -110,10 +159,14 @@ def _signals_with_full_payload(state: dict) -> list[dict]:
     return [signal for signal in signals.values() if signal.get("feature_ready")]
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_backtest_produced_at_least_one_fully_evaluated_signal(state_after_backtest):
     assert len(_signals_with_full_payload(state_after_backtest)) > 0
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_baseline_model_ran(state_after_backtest):
     for signal in _signals_with_full_payload(state_after_backtest):
         assert signal.get("baseline_probability_up") is not None
@@ -121,6 +174,8 @@ def test_baseline_model_ran(state_after_backtest):
     pytest.fail("no evaluated signal found")
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_all_four_experts_ran(state_after_backtest):
     for signal in _signals_with_full_payload(state_after_backtest):
         expert_probabilities = signal.get("expert_probabilities") or {}
@@ -129,6 +184,8 @@ def test_all_four_experts_ran(state_after_backtest):
     pytest.fail("no evaluated signal found")
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_moe_gating_ran(state_after_backtest):
     for signal in _signals_with_full_payload(state_after_backtest):
         gating = signal.get("moe_gating") or {}
@@ -138,6 +195,8 @@ def test_moe_gating_ran(state_after_backtest):
     pytest.fail("no evaluated signal found")
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_regime_detection_ran(state_after_backtest):
     for signal in _signals_with_full_payload(state_after_backtest):
         regime = signal.get("regime") or {}
@@ -146,6 +205,8 @@ def test_regime_detection_ran(state_after_backtest):
     pytest.fail("no evaluated signal found")
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_liquidity_engine_ran(state_after_backtest):
     for signal in _signals_with_full_payload(state_after_backtest):
         liquidity = signal.get("liquidity") or {}
@@ -154,11 +215,15 @@ def test_liquidity_engine_ran(state_after_backtest):
     pytest.fail("no evaluated signal found")
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_topology_ran(state_after_backtest):
     topology = state_after_backtest.get("topology") or {}
     assert len(topology.get("nodes") or []) > 0
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_model_input_dimensionality_is_59(state_after_backtest):
     """Proves the full regime/liquidity/topology/peer-return/technical-
     indicator-as-input feature pipeline (train.py::build_feature_dataset() /
@@ -171,6 +236,8 @@ def test_model_input_dimensionality_is_59(state_after_backtest):
     assert model_config.get("input_count") == 59
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_baseline_multitask_model_ran(state_after_backtest):
     """Proves train.py::AetherNetMultiTask (train_multitask.py,
     ml/multitask_model.json) actually loaded and produced magnitude/
@@ -184,6 +251,8 @@ def test_baseline_multitask_model_ran(state_after_backtest):
     pytest.fail("no evaluated signal found")
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_expert_multitask_heads_ran(state_after_backtest):
     """Proves per-expert multitask heads (ml/expert_models/<name>/
     multitask_model.json) actually fed moe/gating.py's _weighted_blend()
@@ -195,6 +264,8 @@ def test_expert_multitask_heads_ran(state_after_backtest):
     pytest.fail("no evaluated signal found")
 
 
+@_skip_no_lean
+@pytest.mark.lean_backtest
 def test_sequence_model_ran(state_after_backtest):
     """Proves the Phase 2 causal-TCN sequence encoder
     (train.py::AetherNetSequenceMultiTask, ml/sequence_model.json) actually

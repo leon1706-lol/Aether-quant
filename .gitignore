@@ -43,6 +43,14 @@ data/**
 !data/**/.keep
 !data/**/.gitkeep
 
+# Exception: small, hand-authored reference/config JSON files that this
+# codebase documents as "checked in" and reads at runtime/test time (not
+# bulk market data) - see tests/test_futures_risk.py, tests/test_ib_backfill.py,
+# tests/test_train_cross_sectional_features.py, and development/Problems.md#10.
+# The blanket data/** rule above silently excluded these from every fresh
+# clone (including CI), which is why the tests reading them failed there.
+!data/reference/*.json
+
 # Lean object store / local runtime output
 storage/
 objectstore/

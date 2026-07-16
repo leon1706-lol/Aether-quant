@@ -406,6 +406,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.portfolio_book_min_rank_confidence_spread = float(
             phase_v2_portfolio_book.get("min_rank_confidence_spread", 0.2)
         )
+        # development/Problems.md#29: optional per-asset-class slot budget
+        # (e.g. {"equity": [3, 3], "crypto": [2, 2]}) instead of one pooled
+        # top_n/bottom_n ranking across every enabled asset class - absent
+        # by default, which keeps build_rank_based_book()'s original pooled
+        # behavior byte-identical (see portfolio/book_construction.py).
+        per_asset_class_slots_config = phase_v2_portfolio_book.get("per_asset_class_slots")
+        self.portfolio_book_per_asset_class_slots = (
+            {asset_class: tuple(slots) for asset_class, slots in per_asset_class_slots_config.items()}
+            if per_asset_class_slots_config
+            else None
+        )
         self.target_daily_volatility = float(phase_v2_risk.get("target_daily_volatility", 0.015))
         self.low_volatility_threshold = float(phase_v2_risk.get("low_volatility_threshold", 0.01))
         self.high_volatility_threshold = float(phase_v2_risk.get("high_volatility_threshold", 0.03))
@@ -927,9 +938,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "confidence": confidence,
                 "base_target_weight": base_target_weight,
             }
+            asset = self.asset_lookup[str(symbol)]
             book_candidates[symbol_key] = {
                 "predicted_rank_20d": predicted_rank_20d,
                 "trading_eligible": self._is_trading_eligible(symbol),
+                # Only consumed when portfolio_book_per_asset_class_slots is
+                # configured (development/Problems.md#29) - same
+                # asset.get("asset_class") or asset.get("security_type")
+                # fallback every other asset-class-aware call site in this
+                # file already uses (see e.g. line ~1573).
+                "asset_class": asset.get("asset_class") or asset.get("security_type"),
             }
 
         # `enabled=False` (default) always resolves to {} here - every
@@ -941,6 +959,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 top_n=self.portfolio_book_top_n,
                 bottom_n=self.portfolio_book_bottom_n,
                 min_rank_confidence_spread=self.portfolio_book_min_rank_confidence_spread,
+                per_asset_class_slots=self.portfolio_book_per_asset_class_slots,
             )
             if self.portfolio_book_enabled
             else {}

@@ -51,58 +51,18 @@ class BookAllocation:
         return asdict(self)
 
 
-def build_rank_based_book(
-    book_candidates: dict[str, dict],
+def _select_book_group(
+    eligible_ranks: dict[str, float],
     top_n: int,
     bottom_n: int,
-    min_rank_confidence_spread: float = 0.0,
+    min_rank_confidence_spread: float,
 ) -> dict[str, BookAllocation]:
-    """Discrete top-N-long / bottom-N-short book construction from each
-    symbol's predicted_rank_20d for this bar. Continuous rank-weighted
-    sizing (rather than a hard top/bottom-N cutoff) is a documented future
-    extension, not built here - the discrete version is simpler to reason
-    about and test first.
-
-    `book_candidates` is `{symbol: {"predicted_rank_20d": float | None,
-    "trading_eligible": bool, ...}}` - one entry per symbol Pass 1 of
-    main.py::on_data() collected this bar (extra keys like
-    probability_up/confidence are ignored here, kept only so callers can
-    pass the same dict they already built for other purposes). A symbol is
-    eligible for book selection only if `trading_eligible` is true (this is
-    exactly how phase9.asset_quality's observation-only assets get excluded
-    - main.py already computes this per-symbol flag identically for every
-    other decision) and `predicted_rank_20d` is not None (model
-    unavailable/still warming up that bar).
-
-    Requires at least one eligible symbol on EACH side (long and short) to
-    form a book at all - a one-sided book (all longs, no shorts, or vice
-    versa) isn't attempted in this pass; returns {} in that case, same as
-    every other degenerate-input case below. `top_n`/`bottom_n` exceeding
-    the number of eligible symbols degrades gracefully to however many are
-    actually available (never raises) - same "pad/truncate rather than
-    error on a thin universe" convention as topology/market_topology.py's
-    rank_correlated_peers().
-
-    `min_rank_confidence_spread` is a floor on (mean long-side rank - mean
-    short-side rank) before the book engages at all - on a day where the
-    universe's predicted ranks are all clustered near 0.5 (no real
-    dispersion), forcing a long/short split would be noise, not signal;
-    the book disengages entirely (returns {}) rather than trading a
-    meaningless split. Every symbol then falls through to whatever
-    non-book decision main.py's Pass 2 would have made anyway - byte-
-    identical to this module not existing at all, the same "missing/
-    degraded signal never changes trading behavior" contract this
-    codebase's other optional overlays already guarantee.
-
-    Returns a dict covering ONLY the symbols the book actively wants long
-    or short (not a "flat" entry for every candidate) - callers should
-    treat "symbol absent from the returned dict" as "book has no view on
-    this symbol," not "book says flat.\""""
-    eligible_ranks = {
-        symbol: candidate["predicted_rank_20d"]
-        for symbol, candidate in book_candidates.items()
-        if candidate.get("trading_eligible") and candidate.get("predicted_rank_20d") is not None
-    }
+    """Core discrete top-N-long / bottom-N-short selection over an already-
+    filtered `{symbol: predicted_rank_20d}` pool - shared by the pooled
+    (build_rank_based_book()'s default) and per-asset-class
+    (`per_asset_class_slots`) paths, so both apply identical selection
+    logic to whatever pool they're given, just scoped differently. See
+    build_rank_based_book()'s docstring for the full behavior contract."""
     if len(eligible_ranks) < 2 or top_n <= 0 or bottom_n <= 0:
         return {}
 
@@ -133,5 +93,95 @@ def build_rank_based_book(
             book_role_multiplier=-1.0,
             predicted_rank_20d=eligible_ranks[symbol],
             book_reason="rank_based_book_short",
+        )
+    return allocations
+
+
+def build_rank_based_book(
+    book_candidates: dict[str, dict],
+    top_n: int,
+    bottom_n: int,
+    min_rank_confidence_spread: float = 0.0,
+    per_asset_class_slots: dict[str, tuple[int, int]] | None = None,
+) -> dict[str, BookAllocation]:
+    """Discrete top-N-long / bottom-N-short book construction from each
+    symbol's predicted_rank_20d for this bar. Continuous rank-weighted
+    sizing (rather than a hard top/bottom-N cutoff) is a documented future
+    extension, not built here - the discrete version is simpler to reason
+    about and test first.
+
+    `book_candidates` is `{symbol: {"predicted_rank_20d": float | None,
+    "trading_eligible": bool, "asset_class": str | None, ...}}` - one entry
+    per symbol Pass 1 of main.py::on_data() collected this bar (extra keys
+    like probability_up/confidence are ignored here, kept only so callers
+    can pass the same dict they already built for other purposes). A
+    symbol is eligible for book selection only if `trading_eligible` is
+    true (this is exactly how phase9.asset_quality's observation-only
+    assets get excluded - main.py already computes this per-symbol flag
+    identically for every other decision) and `predicted_rank_20d` is not
+    None (model unavailable/still warming up that bar).
+
+    Requires at least one eligible symbol on EACH side (long and short) to
+    form a book at all - a one-sided book (all longs, no shorts, or vice
+    versa) isn't attempted in this pass; returns {} in that case, same as
+    every other degenerate-input case below. `top_n`/`bottom_n` (or each
+    asset class's own pair, see `per_asset_class_slots` below) exceeding
+    the number of eligible symbols degrades gracefully to however many are
+    actually available (never raises) - same "pad/truncate rather than
+    error on a thin universe" convention as topology/market_topology.py's
+    rank_correlated_peers().
+
+    `min_rank_confidence_spread` is a floor on (mean long-side rank - mean
+    short-side rank) before a book (or, with `per_asset_class_slots`, each
+    individual asset class's own book) engages at all - on a day where the
+    ranked pool's predicted ranks are all clustered near 0.5 (no real
+    dispersion), forcing a long/short split would be noise, not signal;
+    the book disengages entirely (returns {} for that pool) rather than
+    trading a meaningless split. Every symbol then falls through to
+    whatever non-book decision main.py's Pass 2 would have made anyway -
+    byte-identical to this module not existing at all, the same "missing/
+    degraded signal never changes trading behavior" contract this
+    codebase's other optional overlays already guarantee.
+
+    `per_asset_class_slots` (default None - pooled ranking, this function's
+    original and only behavior before this parameter existed) is an
+    optional `{asset_class: (top_n, bottom_n)}` map. When provided, `top_n`/
+    `bottom_n` are ignored and every eligible symbol is ranked *within its
+    own asset_class group only* instead of one combined-universe pool - so
+    e.g. equities and crypto each get their own long/short slot budget
+    instead of one side potentially being filled entirely by a single
+    dominant asset class. A symbol whose `asset_class` isn't a key in
+    `per_asset_class_slots` is excluded from book selection entirely (not
+    silently folded into some catch-all group) - same explicit-opt-in
+    convention risk/asset_class_router.py already uses for future/option.
+    `min_rank_confidence_spread` is applied independently per asset class
+    (each class's own long/short spread must individually clear the bar -
+    pooling the check across classes with potentially very different rank
+    distributions would be misleading). Results from every class are
+    unioned into one returned dict, same shape as the pooled path.
+
+    Returns a dict covering ONLY the symbols the book actively wants long
+    or short (not a "flat" entry for every candidate) - callers should
+    treat "symbol absent from the returned dict" as "book has no view on
+    this symbol," not "book says flat.\""""
+    eligible = {
+        symbol: candidate
+        for symbol, candidate in book_candidates.items()
+        if candidate.get("trading_eligible") and candidate.get("predicted_rank_20d") is not None
+    }
+
+    if per_asset_class_slots is None:
+        eligible_ranks = {symbol: candidate["predicted_rank_20d"] for symbol, candidate in eligible.items()}
+        return _select_book_group(eligible_ranks, top_n, bottom_n, min_rank_confidence_spread)
+
+    allocations: dict[str, BookAllocation] = {}
+    for asset_class, (class_top_n, class_bottom_n) in per_asset_class_slots.items():
+        class_eligible_ranks = {
+            symbol: candidate["predicted_rank_20d"]
+            for symbol, candidate in eligible.items()
+            if candidate.get("asset_class") == asset_class
+        }
+        allocations.update(
+            _select_book_group(class_eligible_ranks, class_top_n, class_bottom_n, min_rank_confidence_spread)
         )
     return allocations

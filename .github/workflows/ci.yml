@@ -20,8 +20,11 @@ jobs:
 
       - name: Run tests
         run: pytest
-        # tests/test_lean_backtest_ml_coverage.py self-skips: it requires the
-        # QuantConnect Lean CLI, which GitHub-hosted runners don't have.
+        # tests/test_lean_backtest_ml_coverage.py self-skips: this runner
+        # does have the `lean` binary (installed via requirements-dev.txt),
+        # but not a usable local Lean Data folder (data/** is gitignored -
+        # see .gitignore) that a real `lean backtest .` needs just to boot,
+        # regardless of universe/config. See development/Problems.md#10.
 
   webui:
     runs-on: ubuntu-latest

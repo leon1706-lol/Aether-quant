@@ -139,6 +139,9 @@ validation caveat documented in `risk/README.md`.
 - `enabled` (default `false`)
 - `top_n` / `bottom_n` (default `3` / `3`)
 - `min_rank_confidence_spread` (default `0.2`)
+- `per_asset_class_slots` (default absent — pooled combined-universe
+  ranking via `top_n`/`bottom_n` above; see "Multi-asset-class book
+  selection" below for the per-class alternative)
 
 Also see `phase9.portfolio.max_short_exposure` (default `0.30`) — the
 dedicated short-exposure cap, independent of this block's own on/off
@@ -147,19 +150,30 @@ effect regardless.
 
 ## Multi-asset-class book selection
 
-`build_rank_based_book()` needed **zero signature change** to select
-across a mixed equity/crypto/bond/future/option universe — it already
-operates purely on `predicted_rank_20d`/`trading_eligible` per symbol, and
-never inspects asset class at all. Once the model's widened, unified
-feature vector (`train.py::add_asset_class_context_features()`, see
-`risk/README.md`) produces `rank_20d` for bond/future/option symbols too,
-they become automatically eligible book candidates alongside equities and
-crypto — this is the direct mechanism satisfying "the model's final
-decision maker should consider all enabled asset classes together as one
-coherent portfolio." Ships with one combined-universe top-N/bottom-N
-ranking (not a slot budget per asset class) — simpler, and matches "one
-coherent portfolio" directly; per-asset-class book slots are a documented
-future refinement.
+`build_rank_based_book()` originally needed **zero signature change** to
+select across a mixed equity/crypto/bond/future/option universe — it
+operates purely on `predicted_rank_20d`/`trading_eligible` per symbol.
+Once the model's widened, unified feature vector
+(`train.py::add_asset_class_context_features()`, see `risk/README.md`)
+produces `rank_20d` for bond/future/option symbols too, they become
+automatically eligible book candidates alongside equities and crypto —
+this is the direct mechanism satisfying "the model's final decision maker
+should consider all enabled asset classes together as one coherent
+portfolio." Ships with one combined-universe top-N/bottom-N ranking by
+default (`per_asset_class_slots` absent) — simpler, and matches "one
+coherent portfolio" directly.
+
+`per_asset_class_slots` (development/Problems.md#29) is the optional
+alternative: a `{asset_class: (top_n, bottom_n)}` map giving each asset
+class its own independent long/short slot budget instead of one pooled
+ranking, so e.g. a handful of high-conviction crypto symbols can't fill
+every book slot and crowd out equities entirely. Each class is ranked and
+`min_rank_confidence_spread`-gated independently; a class not listed in
+the map is excluded from book selection entirely (explicit opt-in, same
+convention `risk/asset_class_router.py` uses for future/option). Both
+paths share the same core selection logic
+(`book_construction.py::_select_book_group()`) so behavior is identical
+per group either way — only the pooling boundary changes.
 
 Per-asset-class exposure caps (`phase9.portfolio.max_bond_exposure`/
 `max_futures_exposure`/`max_options_exposure`, mirroring the existing

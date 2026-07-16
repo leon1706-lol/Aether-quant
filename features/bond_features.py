@@ -109,6 +109,15 @@ def empirical_duration_beta(
     mean_y = sum(ys) / len(ys)
     covariance = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
     variance_x = sum((x - mean_x) ** 2 for x in xs)
-    if variance_x == 0.0:
+    # An exact `== 0.0` check is not robust here: for a mathematically
+    # constant xs, whether mean_x/variance_x round to exactly 0.0 depends on
+    # sum()'s internal summation algorithm, which CPython changed (naive
+    # left-to-right -> compensated) between 3.11 and 3.12 - the same input
+    # can produce a true 0.0 on one Python version and a tiny rounding-noise
+    # variance (~1e-20 scale, versus real delta-yield variance on the order
+    # of 1e-4 to 1e-8) on another, silently producing a wild
+    # covariance/near-zero-noise ratio instead of the intended None. See
+    # development/Problems.md#10.
+    if variance_x < 1e-12:
         return None
     return covariance / variance_x

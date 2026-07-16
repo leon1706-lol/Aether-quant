@@ -1,0 +1,45 @@
+{
+    "_comment": "Static reference contract specs (multiplier/tick size/initial margin/exchange) for a small seed set of liquid futures contracts. Approximate as of file authoring - for offline sizing math only, NOT a live margin feed. When phase_v2.ib.enabled and IB is reachable, prefer IB's live margin over these static numbers (documented future enhancement, not implemented in this pass) - this file is the offline/backtest/IB-disabled fallback risk/futures_risk.py::load_futures_contract_specs() reads. Initial margins move with exchange SPAN requirements and will drift from these numbers over time; refresh by hand periodically.",
+    "ES": {
+        "description": "E-mini S&P 500",
+        "multiplier": 50,
+        "tick_size": 0.25,
+        "initial_margin_usd": 13200,
+        "exchange": "CME"
+    },
+    "NQ": {
+        "description": "E-mini Nasdaq-100",
+        "multiplier": 20,
+        "tick_size": 0.25,
+        "initial_margin_usd": 17600,
+        "exchange": "CME"
+    },
+    "CL": {
+        "description": "Crude Oil (WTI)",
+        "multiplier": 1000,
+        "tick_size": 0.01,
+        "initial_margin_usd": 6050,
+        "exchange": "NYMEX"
+    },
+    "GC": {
+        "description": "Gold",
+        "multiplier": 100,
+        "tick_size": 0.1,
+        "initial_margin_usd": 9350,
+        "exchange": "COMEX"
+    },
+    "ZN": {
+        "description": "10-Year Treasury Note",
+        "multiplier": 1000,
+        "tick_size": 0.015625,
+        "initial_margin_usd": 1980,
+        "exchange": "CBOT"
+    },
+    "ZB": {
+        "description": "30-Year Treasury Bond",
+        "multiplier": 1000,
+        "tick_size": 0.03125,
+        "initial_margin_usd": 3850,
+        "exchange": "CBOT"
+    }
+}

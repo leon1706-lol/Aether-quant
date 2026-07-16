@@ -10,6 +10,10 @@ def _candidate(rank: float | None, trading_eligible: bool = True) -> dict:
     return {"predicted_rank_20d": rank, "trading_eligible": trading_eligible}
 
 
+def _class_candidate(rank: float | None, asset_class: str, trading_eligible: bool = True) -> dict:
+    return {"predicted_rank_20d": rank, "trading_eligible": trading_eligible, "asset_class": asset_class}
+
+
 def test_build_rank_based_book_selects_top_and_bottom_by_rank():
     candidates = {
         "A": _candidate(0.95),
@@ -173,3 +177,110 @@ def test_build_rank_based_book_allocation_to_dict_shape():
         "predicted_rank_20d": 0.9,
         "book_reason": "rank_based_book_long",
     }
+
+
+# --- per_asset_class_slots (development/Problems.md#29) ---
+
+
+def test_build_rank_based_book_per_asset_class_slots_none_matches_pooled_default():
+    # Explicit per_asset_class_slots=None must be byte-identical to omitting
+    # it entirely - the backward-compatibility contract this parameter is
+    # required to preserve.
+    candidates = {
+        "A": _candidate(0.95), "B": _candidate(0.80), "C": _candidate(0.50),
+        "D": _candidate(0.20), "E": _candidate(0.05),
+    }
+
+    pooled_default = build_rank_based_book(candidates, top_n=2, bottom_n=2)
+    pooled_explicit_none = build_rank_based_book(candidates, top_n=2, bottom_n=2, per_asset_class_slots=None)
+
+    assert pooled_default == pooled_explicit_none
+
+
+def test_build_rank_based_book_per_asset_class_slots_ranks_within_each_class_independently():
+    # Pooled top_n=2/bottom_n=2 across these 4 symbols would put both
+    # equities long and both crypto short (highest two ranks are equities,
+    # lowest two are crypto) - per-class slots give each class its own
+    # long+short split instead of one class dominating a side.
+    candidates = {
+        "AAPL": _class_candidate(0.95, "equity"),
+        "IBM": _class_candidate(0.85, "equity"),
+        "BTCUSD": _class_candidate(0.30, "crypto"),
+        "ETHUSD": _class_candidate(0.20, "crypto"),
+    }
+
+    book = build_rank_based_book(
+        candidates, top_n=99, bottom_n=99,
+        per_asset_class_slots={"equity": (1, 1), "crypto": (1, 1)},
+    )
+
+    assert book["AAPL"].role == "long"
+    assert book["IBM"].role == "short"
+    assert book["BTCUSD"].role == "long"
+    assert book["ETHUSD"].role == "short"
+
+
+def test_build_rank_based_book_per_asset_class_slots_excludes_classes_not_listed():
+    candidates = {
+        "AAPL": _class_candidate(0.95, "equity"),
+        "IBM": _class_candidate(0.05, "equity"),
+        "BTCUSD": _class_candidate(0.90, "crypto"),
+        "ETHUSD": _class_candidate(0.10, "crypto"),
+    }
+
+    book = build_rank_based_book(candidates, top_n=1, bottom_n=1, per_asset_class_slots={"equity": (1, 1)})
+
+    assert set(book) == {"AAPL", "IBM"}
+    assert "BTCUSD" not in book
+    assert "ETHUSD" not in book
+
+
+def test_build_rank_based_book_per_asset_class_slots_one_thin_class_does_not_block_others():
+    candidates = {
+        "AAPL": _class_candidate(0.95, "equity"),
+        "IBM": _class_candidate(0.05, "equity"),
+        # Only one eligible crypto candidate - can't form a two-sided book.
+        "BTCUSD": _class_candidate(0.50, "crypto"),
+    }
+
+    book = build_rank_based_book(
+        candidates, top_n=1, bottom_n=1,
+        per_asset_class_slots={"equity": (1, 1), "crypto": (1, 1)},
+    )
+
+    assert set(book) == {"AAPL", "IBM"}
+    assert "BTCUSD" not in book
+
+
+def test_build_rank_based_book_per_asset_class_slots_min_rank_confidence_spread_applies_per_class():
+    candidates = {
+        # Wide long/short spread - clears the floor.
+        "AAPL": _class_candidate(0.95, "equity"),
+        "IBM": _class_candidate(0.05, "equity"),
+        # Tightly clustered near 0.5 - does not clear the same floor.
+        "BTCUSD": _class_candidate(0.52, "crypto"),
+        "ETHUSD": _class_candidate(0.48, "crypto"),
+    }
+
+    book = build_rank_based_book(
+        candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.5,
+        per_asset_class_slots={"equity": (1, 1), "crypto": (1, 1)},
+    )
+
+    assert set(book) == {"AAPL", "IBM"}
+
+
+def test_build_rank_based_book_per_asset_class_slots_ignores_top_n_bottom_n_params():
+    # top_n/bottom_n are documented as ignored once per_asset_class_slots is
+    # provided - only each class's own (top_n, bottom_n) pair applies.
+    candidates = {
+        "AAPL": _class_candidate(0.95, "equity"),
+        "IBM": _class_candidate(0.05, "equity"),
+    }
+
+    book = build_rank_based_book(
+        candidates, top_n=0, bottom_n=0,
+        per_asset_class_slots={"equity": (1, 1)},
+    )
+
+    assert set(book) == {"AAPL", "IBM"}
