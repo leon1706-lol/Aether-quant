@@ -60,11 +60,11 @@ features) but remain **data-empty until an Interactive Brokers key is
 connected** (`phase_v2.ib.enabled` — see `aq ib status`/`aq assets
 status`). Remaining, still-open items:
 
-- **Two real `lean backtest .` runs exposed a deep chain of bugs (trading logic + the training pipeline itself), now fixed — a third verification run is still outstanding.** The first two runs (2019-01-01 → 2021-03-31) produced bit-identical results (14 positions opened, none ever closed) even across a threshold recalibration, proving the calibration had zero effect. Root-caused in full: the position cap could be overshot in a single bar (stale pre-fill counts), the sell threshold sat ~10 standard deviations from the model's actual output range, risk vetoes blocked *exits* as well as entries (backwards — closing a position is risk-reducing and should never be blocked), the drawdown circuit breaker was neutered by config, no stop-loss/trailing/max-age exit existed at all, and — the deeper cause — early stopping shipped the untrained model (best_epoch=1) for the baseline/multitask/sequence models alike, the threshold search picked degenerate operating points, and the trading path ignored this codebase's one statistically-significant signal (the cross-sectional rank_20d heads) entirely in favor of a near-noise 1-day-direction objective. See `development/Problems.md` #43 for the complete root-cause chain and fix list. All of the above is now fixed and the full model stack has been retrained and promoted to the active model (baseline best_epoch 16/34, sequence model's rank_20d backtest non-overlapping t-stat 2.955, clearing this project's own promotion-gate threshold) — **but a fresh `aq backtest` verification run exercising all of these fixes together has not yet been done; that's the next step.** Topology retraining and a full walk-forward evaluation were both out of scope this pass (documented in #43) — topology needs live experience-event telemetry this environment doesn't have yet, and a full walk-forward would take ~4 hours on this hardware. **Still NOT exercised by any real backtest** (all config-gated off for every run so far, so their own verification lists remain fully open): **real limit orders** (`phase_v2.limit_orders`) rest on unverified Lean API naming assumptions (PascalCase method/enum casing, `OrderStatus.Filled`, `on_order_event` dispatch — see `execution/README.md`'s "Real limit orders" section), and the **2-leg vertical options spread** (`phase_v2.options_risk.spread_strategy: "vertical"`, `development/Problems.md` #38 — single-leg remains the default; straddles/strangles/iron condors/butterflies are still not implemented at all) has the largest verification list of any feature — zero prior combo-order usage in this codebase (see `risk/README.md`'s verification list).
-- **IB is unverified end-to-end** — futures margin uses a static reference file rather than live IB margin, and the IB connection itself has never been tested against a real Gateway (`aq ib status`/`aq assets status` report readiness only, not a live-tested connection).
-- **`main.py::_build_model_input()`'s own feature-build cost (~15 `self.*` state reads) is still unmeasured** — `aq profile` now covers regime/topology/liquidity/gating/analyzer and the pure indicator primitives it calls (`--regime`/`--topology`/`--liquidity`/`--gating`/`--analyzer`/`--indicators`), but not the bound method itself; found in the process that `build_market_topology()`'s per-bar cost is comparable to or larger than the entire per-symbol inference total across the whole universe (see `development/Problems.md` #36).
-- **No dedicated audit logging before live capital** — a pre-live security review (`development/Problems.md` #42) fixed the credential-handling surface: broker/API keys are never hand-edited into the git-tracked `lean.json` (it stays all-empty and shareable; real keys render into a gitignored `lean.live.json` via `aq render-lean-config`, since Lean does not expand env vars inside its own config), secrets are excluded from the published Docker image, the DB/Redis ports bind to `127.0.0.1` only, live mode fails closed on the repo-published default DB password, and `aq secrets-check` + an opt-in `.githooks/pre-commit` (`git config core.hooksPath .githooks`) block committing secrets. **What remains open:** order placement, credential loads and live-mode transitions still go through ordinary application logging rather than a tamper-evident audit trail — acceptable for backtest/paper, but should be built before real capital.
-- **Inference tail latency (p99 routinely 3-5x the p50) is investigated but not fixed** — `aq profile --bucket-report`/`--no-gc` (`development/Problems.md` #37) ruled out a warmup effect and found real, reproduced evidence that GC pauses materially drive worst-case (max) latency specifically. `gc.freeze()` after model load **is now implemented** and config-gated (`phase_v2.gc_tuning.freeze_after_load_enabled`, off by default, `development/Problems.md` #37) — what remains open is validating its interaction with Lean's own GC boundary with the flag turned **on** in a real backtest, which the completed run (flag off) did not exercise.
+- **The model doesn't yet have enough edge to be profitable.** A completed `aq backtest` (2019-01-01 → 2021-03-31) confirms the trading-logic/training-pipeline fixes work (653 orders, real 11.1% drawdown, 47%/53% win/loss — no longer a frozen book), but the strategy lost money net of costs: Net Profit −4.6%, Sharpe −0.59, negative expectancy. Even the strongest signal (`rank_20d`) is a modest edge, likely too weak at this trading frequency (development/Problems.md #43).
+- **IB is unverified end-to-end** — futures margin uses a static reference file rather than live IB margin, and the connection itself has never been tested against a real Gateway.
+- **`main.py::_build_model_input()`'s own feature-build cost is still unmeasured** — `aq profile` covers the subsystems it calls but not the bound method itself (development/Problems.md #36).
+- **No dedicated audit logging before live capital** — order placement, credential loads, and live-mode transitions go through ordinary application logging, not a tamper-evident trail. Fine for backtest/paper; should be built before real capital.
+- **`gc.freeze()`'s interaction with Lean's own GC boundary is unvalidated with the flag turned on** — implemented and config-gated (`phase_v2.gc_tuning.freeze_after_load_enabled`, off by default), but no completed backtest has exercised it turned on yet (development/Problems.md #37).
 
 ## Table of Contents
 
@@ -538,13 +538,13 @@ and how it's wired in — this table is the index.
 | Metric | Value |
 |---|---|
 | Backtest window | 2019-01-01 to 2021-04-02 |
-| Sharpe Ratio | 0.757 |
-| Net Profit | 20.364% |
-| Compounding Annual Return | 8.581% |
-| Drawdown | 12.700% |
-| Total Orders | 14 |
-| Win Rate | 0% |
-| Last updated | 2026-07-17 17:49 UTC (auto-generated by `aq backtest`) |
+| Sharpe Ratio | -0.59 |
+| Net Profit | -4.604% |
+| Compounding Annual Return | -2.072% |
+| Drawdown | 11.100% |
+| Total Orders | 653 |
+| Win Rate | 47% |
+| Last updated | 2026-07-17 19:07 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 <details>
@@ -553,33 +553,33 @@ and how it's wired in — this table is the index.
 <!-- AQ:BACKTEST_FULL_STATS_START -->
 | Metric | Value |
 |---|---|
-| Total Orders | 14 |
-| Average Win | 0% |
-| Average Loss | 0% |
-| Compounding Annual Return | 8.581% |
-| Drawdown | 12.700% |
-| Expectancy | 0 |
+| Total Orders | 653 |
+| Average Win | 0.19% |
+| Average Loss | -0.20% |
+| Compounding Annual Return | -2.072% |
+| Drawdown | 11.100% |
+| Expectancy | -0.084 |
 | Start Equity | 100000.00 |
-| End Equity | 120364.24 |
-| Net Profit | 20.364% |
-| Sharpe Ratio | 0.757 |
-| Sortino Ratio | 0.644 |
-| Probabilistic Sharpe Ratio | 32.150% |
-| Loss Rate | 0% |
-| Win Rate | 0% |
-| Profit-Loss Ratio | 0 |
-| Alpha | 0.006 |
-| Beta | 0.22 |
-| Annual Standard Deviation | 0.059 |
-| Annual Variance | 0.004 |
-| Information Ratio | -0.801 |
-| Tracking Error | 0.163 |
-| Treynor Ratio | 0.205 |
-| Total Fees | $14.00 |
-| Estimated Strategy Capacity | $64000000.00 |
-| Lowest Capacity Asset | MUB VW1A4C2VJMN9 |
-| Portfolio Turnover | 0.11% |
-| Drawdown Recovery | 160 |
+| End Equity | 95396.32 |
+| Net Profit | -4.604% |
+| Sharpe Ratio | -0.59 |
+| Sortino Ratio | -0.522 |
+| Probabilistic Sharpe Ratio | 0.172% |
+| Loss Rate | 53% |
+| Win Rate | 47% |
+| Profit-Loss Ratio | 0.95 |
+| Alpha | -0.046 |
+| Beta | 0.099 |
+| Annual Standard Deviation | 0.049 |
+| Annual Variance | 0.002 |
+| Information Ratio | -1.087 |
+| Tracking Error | 0.188 |
+| Treynor Ratio | -0.289 |
+| Total Fees | $607.69 |
+| Estimated Strategy Capacity | $320000000.00 |
+| Lowest Capacity Asset | HYG VW1A4C2VJMN9 |
+| Portfolio Turnover | 7.09% |
+| Drawdown Recovery | 110 |
 <!-- AQ:BACKTEST_FULL_STATS_END -->
 
 </details>

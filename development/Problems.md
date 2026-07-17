@@ -2208,7 +2208,7 @@ pass and flagged for its own review as V3 approaches — this is the one known
 open security item.
 
 ### 43. Full pre-live model overhaul — why the second backtest still produced the same 14 trades, and the fixes for it: trading-logic bugs + training-pipeline bugs + a pivot to the one statistically-significant signal in this codebase
-**Severity:** 9/10 · **Status:** 🟢 `fixed` (trading logic + training pipeline); 🟡 `partial` (retrain landed, full walk-forward and topology retrain deferred — see caveats)
+**Severity:** 9/10 · **Status:** 🟢 `fixed and verified` (trading logic + training pipeline — confirmed by a completed `aq backtest` run, see the 2026-07-17 update below); 🟡 `open` (the verification run's own result: mechanics work but the model's edge isn't yet large enough to be profitable net of costs — see update); full walk-forward and topology retrain still deferred (see caveats)
 
 Follow-up to #41. The July 17 backtest, run AFTER the #41 threshold recalibration
 (buy 0.50→0.47, sell 0.42→0.45) was already active, produced **bit-identical**
@@ -2425,3 +2425,5 @@ are unit-tested as shown above. `test_model_input_dimensionality_is_59` →
 `_is_52`, updated for the new 52-dim input vector (was 59: 38 numeric + 12
 categorical + ~context; now 35 numeric + 12 categorical + 5 asset-class
 context = 52).
+
+**Update 2026-07-17 (later same day):** the outstanding verification run happened. `aq backtest` completed the full 2019-01-01→2021-03-31 window cleanly (653 orders vs. the old stuck-at-14, real 11.1% drawdown, 47%/53% win/loss — the mechanical fixes above are confirmed working) but the strategy **lost money as currently calibrated**: Net Profit −4.604%, Sharpe −0.59, Probabilistic Sharpe Ratio 0.172%. Also surfaced one more real bug on the way: `main.py` unconditionally applied `InteractiveBrokersFeeModel()` to every security including crypto, which Lean's fee model doesn't support at all (`ArgumentException: Unsupported security type: Crypto`) — never triggered before since crypto rarely got a buy signal under the old broken logic; now fixed (crypto keeps its Lean-assigned default fee model instead). Status updated to 🟢 `fixed and verified` for the mechanics, 🟡 `open` for the new finding: the model's edge (mainly `rank_20d`) isn't yet large enough to clear 653 trades' worth of fees/slippage — next lever is likely less aggressive book rotation or lower trading frequency, not another mechanical fix.

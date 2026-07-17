@@ -320,7 +320,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.symbol_treasury_10yr_history[symbol] = deque(maxlen=self.long_bar_history_size)
             self.latest_signal_state[str(symbol)] = "hold"
             self.last_trade_bar_by_symbol[symbol] = -1000000
-            self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
+            # InteractiveBrokersFeeModel() does not support security_type
+            # "crypto" at all - Lean's own fee-model code throws
+            # ArgumentException("Unsupported security type: Crypto") the
+            # first time SetHoldings() is called on one (confirmed live,
+            # development/Problems.md - a pre-existing bug that simply never
+            # fired before, since crypto rarely got a "buy" signal under the
+            # old threshold logic; the portfolio_book pivot to rank-driven
+            # entries in #43 made this a live crash). _add_asset() already
+            # calls add_crypto(..., market) which gives the security a
+            # correct, exchange-specific default fee model (e.g. Coinbase) -
+            # leave that alone rather than stomping it with an incompatible
+            # one. IB's fee model is fine for the other 4 asset classes.
+            if asset["security_type"] != "crypto":
+                self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
 
         self.set_warm_up(max(int(self.runtime["warmup_bars"]), 21), self.resolution)
 
