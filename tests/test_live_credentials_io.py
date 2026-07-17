@@ -1,7 +1,7 @@
 import sys
 import types
 
-from execution.live_credentials_io import load_live_credentials
+from execution.live_credentials_io import load_live_credentials, load_postgres_dsn
 
 
 def test_load_live_credentials_falls_back_to_env_vars_when_ib_config_absent(monkeypatch):
@@ -51,3 +51,17 @@ def test_load_live_credentials_prefers_ib_config_module_when_importable(monkeypa
         "ib_password": "modsecret",
         "ib_trading_mode": "live",
     }
+
+
+def test_load_postgres_dsn_reads_env_var(monkeypatch):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@postgres:5432/aether_quant")
+
+    assert load_postgres_dsn() == "postgresql://aether:pw@postgres:5432/aether_quant"
+
+
+def test_load_postgres_dsn_returns_empty_string_when_unset(monkeypatch):
+    """Empty (not None) so the live gate's postgres_dsn_is_live_safe() fails
+    closed on an unconfigured DSN rather than skipping the check."""
+    monkeypatch.delenv("AETHER_POSTGRES_DSN", raising=False)
+
+    assert load_postgres_dsn() == ""

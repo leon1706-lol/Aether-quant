@@ -1,0 +1,29 @@
+#!/bin/sh
+# Aether Quant pre-commit secret guard (Phase V2-22 security).
+#
+# Blocks a commit that would publish a secret: a populated secret field in the
+# tracked lean.json, or a tracked real `.env` file. All detection lives in
+# `aq secrets-check` (execution/secret_scan.py) - this hook just invokes it.
+#
+# Enable once per clone (opt-in, so it never surprises a fresh checkout):
+#     git config core.hooksPath .githooks
+#
+# Runs under git's POSIX sh (git-bash on Windows), so keep it portable.
+
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# Prefer the installed `aq` console script; fall back to running the module
+# directly with whichever Python is on PATH (venv-activated shells get theirs).
+if command -v aq >/dev/null 2>&1; then
+    aq secrets-check
+elif command -v python >/dev/null 2>&1; then
+    python aq_cli.py secrets-check
+elif command -v python3 >/dev/null 2>&1; then
+    python3 aq_cli.py secrets-check
+else
+    echo "pre-commit: could not find 'aq' or 'python' to run secrets-check" >&2
+    exit 1
+fi

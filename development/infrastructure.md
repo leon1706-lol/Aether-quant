@@ -475,10 +475,52 @@ cp .env.live.example .env.live
 ```
 
 This is pure preflight validation for `execution/paper_readiness.py`'s
-`evaluate_live_broker_config()` — Lean itself additionally needs the
-fields **directly in `lean.json`** (`ib-account`, `ib-user-name`,
-`ib-password`, `ib-trading-mode`), entered by hand, since Lean never reads
-`config.json`/`.env.live`.
+`evaluate_live_broker_config()`. Lean itself additionally needs the fields
+in its own config (`ib-account`, `ib-user-name`, `ib-password`,
+`ib-trading-mode`), since Lean never reads `config.json`/`.env.live` — but
+**do not hand-edit them into `lean.json`**: that file is tracked in git (so
+everyone who clones gets the working config structure), and a populated
+secret field there is one `git add` away from publishing a live broker
+password. Lean also does **not** expand `${ENV_VAR}` inside `lean.json` —
+the literal string would be sent to the broker. Instead render a gitignored
+copy with the secrets filled in:
+
+```powershell
+aq render-lean-config      # .env.live + AETHER_* env vars -> lean.live.json
+```
+
+That reads the same `AETHER_*` vars as above (see `.env.live.example` for
+the full list, including the `AETHER_POLYGON_API_KEY` /
+`AETHER_IEX_CLOUD_API_KEY` data-feed keys) and overlays them onto the empty
+tracked `lean.json`, writing `lean.live.json` (gitignored). It prints only
+which *fields* were filled, never the values. Deploy against it:
+
+```powershell
+lean live deploy --lean-config lean.live.json ...
+```
+
+`aq backtest` is unaffected and keeps using the plain, all-empty `lean.json`
+— backtests need no credentials. See `execution/lean_config_render.py`.
+
+**Enable the secret-commit guard once per clone** (opt-in, so a fresh
+checkout is never surprised by a hook):
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-commit` then runs `aq secrets-check`, which fails the commit
+if `lean.json` has a populated secret field or a real `.env` is tracked. Run
+it by hand anytime with `aq secrets-check`.
+
+**2b. Set a real database password.** The `aether_dev_password` default is
+published in this repo, so live mode **refuses to start** while the Postgres
+DSN still contains it (`execution/live_credentials.py::postgres_dsn_is_live_safe`,
+enforced via `evaluate_live_broker_config()` → reason
+`live_broker_config_unsafe_db_password`). Set `POSTGRES_PASSWORD` in `.env`
+before going live. Note the compose DB/Redis ports are published on
+`127.0.0.1` only, so they are reachable from this host but never from the
+LAN — containers still reach them internally as `redis:6379`/`postgres:5432`.
 
 **3. Set the live risk ceiling** — in `config.json`:
 

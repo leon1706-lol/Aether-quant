@@ -21,6 +21,10 @@ ib_config.py
 *_config.local.py
 config.local.json
 lean.local.json
+# Rendered, secret-bearing Lean config produced by
+# scripts/render_lean_credentials.py / `aq render-lean-config` from .env.live.
+# The tracked lean.json stays all-empty; this is the copy with real keys filled.
+lean.live.json
 
 *.key
 *.pem

@@ -652,6 +652,79 @@ def cmd_docker_build(_args: argparse.Namespace) -> int:
     return _run(["docker", "compose", "build", "engine"])
 
 
+def cmd_render_lean_config(args: argparse.Namespace) -> int:
+    """Render the gitignored lean.live.json from .env.live / AETHER_* env vars.
+    The tracked lean.json stays all-empty; live/paper deploy uses the rendered
+    file via `--lean-config`. See execution/lean_config_render.py."""
+    from execution.lean_config_render import build_render_environment, write_rendered_config
+
+    base = Path(args.base) if args.base else LEAN_JSON_PATH
+    out = Path(args.out) if args.out else ROOT_DIR / "lean.live.json"
+    env_file = Path(args.env_file) if args.env_file else ROOT_DIR / ".env.live"
+
+    try:
+        filled = write_rendered_config(base, out, build_render_environment(env_file=env_file))
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if filled:
+        # Field NAMES only - never the secret values.
+        print(f"Rendered {out} with {len(filled)} field(s): {', '.join(filled)}")
+    else:
+        print(
+            f"Rendered {out}, but NO secret fields were populated - check that "
+            f"{env_file} exists and its AETHER_* values are set."
+        )
+    print(f"Deploy against it with Lean's  --lean-config {out}")
+    return 0
+
+
+def cmd_secrets_check(_args: argparse.Namespace) -> int:
+    """Fail (non-zero) if secrets are about to be committed: a populated
+    secret field in the tracked lean.json, or a tracked real `.env` file.
+    Backs .githooks/pre-commit. Pure detection lives in
+    execution/secret_scan.py."""
+    from execution.secret_scan import find_populated_secret_fields, is_tracked_env_secret
+
+    problems: list[str] = []
+
+    if LEAN_JSON_PATH.exists():
+        try:
+            lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"Error reading lean.json: {exc}", file=sys.stderr)
+            return 1
+        populated = find_populated_secret_fields(lean_config)
+        if populated:
+            problems.append(
+                "lean.json has populated secret field(s) that must not be committed "
+                f"(render them into gitignored lean.live.json instead): {', '.join(populated)}"
+            )
+
+    # Ask git which files are tracked; flag any real .env among them. Degrades
+    # gracefully (skips this check) outside a git repo or without git on PATH.
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-files"], cwd=str(ROOT_DIR), capture_output=True, text=True
+        )
+        if tracked.returncode == 0:
+            for path in tracked.stdout.splitlines():
+                if is_tracked_env_secret(path):
+                    problems.append(f"tracked secret file must not be committed: {path}")
+    except (OSError, FileNotFoundError):
+        pass
+
+    if problems:
+        print("aq secrets-check FAILED:", file=sys.stderr)
+        for problem in problems:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
+
+    print("aq secrets-check passed: no committed secrets detected.")
+    return 0
+
+
 def cmd_retrain(args: argparse.Namespace) -> int:
     return _run([sys.executable, "-m", "retraining.orchestrator", args.stage, *args.retrain_args])
 
@@ -1158,6 +1231,21 @@ def build_parser() -> argparse.ArgumentParser:
     assets_subparsers = assets_parser.add_subparsers(dest="assets_command", required=True)
     assets_subparsers.add_parser("status", help="Report IB/futures/options/FRED readiness at a glance")
     assets_parser.set_defaults(func=cmd_assets)
+
+    render_lean_parser = subparsers.add_parser(
+        "render-lean-config",
+        help="Render gitignored lean.live.json from .env.live / AETHER_* env vars (secrets for live/paper)",
+    )
+    render_lean_parser.add_argument("--base", default=None, help="Empty tracked template (default: lean.json)")
+    render_lean_parser.add_argument("--out", default=None, help="Rendered secret-bearing output (default: lean.live.json)")
+    render_lean_parser.add_argument("--env-file", dest="env_file", default=None, help="Secrets file (default: .env.live)")
+    render_lean_parser.set_defaults(func=cmd_render_lean_config)
+
+    secrets_check_parser = subparsers.add_parser(
+        "secrets-check",
+        help="Fail if a populated secret field in lean.json or a tracked .env is about to be committed (backs the pre-commit hook)",
+    )
+    secrets_check_parser.set_defaults(func=cmd_secrets_check)
 
     status_parser = subparsers.add_parser("status", help="Show git status")
     status_parser.set_defaults(func=cmd_status)

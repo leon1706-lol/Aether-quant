@@ -6,7 +6,11 @@ services:
     container_name: aether-quant-redis
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "${REDIS_PORT:-6380}:6379"
+      # Bound to 127.0.0.1 so the DB is reachable only from this host, never
+      # from the LAN - Docker otherwise publishes to 0.0.0.0. Containers on
+      # aether-net still reach it as redis:6379 (that path is internal and
+      # unaffected). Override the host interface/port via REDIS_PORT if needed.
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -25,7 +29,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-aether}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aether_dev_password}
     ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+      # Localhost-only (see the redis service's note). The default password
+      # above is published in the repo, so exposing 5432 to the LAN would be an
+      # open DB - live mode additionally refuses to start while the DSN still
+      # uses that default (execution/live_credentials.py::postgres_dsn_is_live_safe).
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

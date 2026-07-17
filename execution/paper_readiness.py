@@ -25,6 +25,7 @@ _LIVE_REASON_ALL_CONFIRMED = "live_broker_config_confirmed"
 _LIVE_REASON_PAPER_NOT_READY = "live_broker_config_paper_corridor_not_ready"
 _LIVE_REASON_MISSING_CREDENTIALS = "live_broker_config_missing_credentials"
 _LIVE_REASON_RISK_POSTURE_UNSAFE = "live_broker_config_risk_posture_unsafe"
+_LIVE_REASON_UNSAFE_DB_PASSWORD = "live_broker_config_unsafe_db_password"
 
 
 def evaluate_paper_broker_config(paper_trading_config: dict) -> tuple[bool, str]:
@@ -71,17 +72,29 @@ def evaluate_live_broker_config(
     live_credentials_present: bool,
     risk_config: dict | None = None,
     live_config: dict | None = None,
+    postgres_dsn: str | None = None,
 ) -> tuple[bool, str]:
     """mode='live' gate (V2-22). You cannot go straight to live without a
     validated paper corridor - the paper check must also pass - AND real
     broker credentials must be present AND (if risk/live config supplied)
-    the live risk posture must be safe."""
+    the live risk posture must be safe AND (if a Postgres DSN is supplied) it
+    must not still use the published dev-default password.
+
+    `postgres_dsn` is optional and defaults to None (unchecked) so existing
+    callers/tests are unaffected; main.py threads the real DSN through so a
+    live run against the public default password fails closed."""
     paper_ready, paper_reason = evaluate_paper_broker_config(paper_trading_config)
     if not paper_ready:
         return False, _LIVE_REASON_PAPER_NOT_READY
 
     if not live_credentials_present:
         return False, _LIVE_REASON_MISSING_CREDENTIALS
+
+    if postgres_dsn is not None:
+        from execution.live_credentials import postgres_dsn_is_live_safe
+
+        if not postgres_dsn_is_live_safe(postgres_dsn):
+            return False, _LIVE_REASON_UNSAFE_DB_PASSWORD
 
     if risk_config is not None and live_config is not None:
         risk_ok, _ = evaluate_live_risk_posture(risk_config, live_config)
@@ -97,6 +110,7 @@ def evaluate_broker_config(
     live_credentials_present: bool = False,
     risk_config: dict | None = None,
     live_config: dict | None = None,
+    postgres_dsn: str | None = None,
 ) -> tuple[bool, str]:
     """Single entrypoint main.py._order_permission() calls regardless of
     mode - dispatches to the two functions above. Any mode other than
@@ -105,7 +119,11 @@ def evaluate_broker_config(
     for those modes) goes through the paper path."""
     if mode == "live":
         return evaluate_live_broker_config(
-            paper_trading_config, live_credentials_present, risk_config, live_config
+            paper_trading_config,
+            live_credentials_present,
+            risk_config,
+            live_config,
+            postgres_dsn,
         )
     return evaluate_paper_broker_config(paper_trading_config)
 

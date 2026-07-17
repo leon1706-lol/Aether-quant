@@ -147,6 +147,39 @@ def test_evaluate_live_broker_config_blocks_on_unsafe_risk_posture_when_supplied
     assert reason == "live_broker_config_risk_posture_unsafe"
 
 
+def test_evaluate_live_broker_config_blocks_on_default_db_password():
+    allowed, reason = evaluate_live_broker_config(
+        paper_trading_config=_confirmed_paper_config(),
+        live_credentials_present=True,
+        postgres_dsn="postgresql://aether:aether_dev_password@postgres:5432/aether_quant",
+    )
+
+    assert allowed is False
+    assert reason == "live_broker_config_unsafe_db_password"
+
+
+def test_evaluate_live_broker_config_passes_with_real_db_password():
+    allowed, reason = evaluate_live_broker_config(
+        paper_trading_config=_confirmed_paper_config(),
+        live_credentials_present=True,
+        postgres_dsn="postgresql://aether:a-real-strong-password@postgres:5432/aether_quant",
+    )
+
+    assert allowed is True
+    assert reason == "live_broker_config_confirmed"
+
+
+def test_evaluate_live_broker_config_ignores_dsn_when_not_supplied():
+    # default None => unchecked, preserving existing behavior/callers
+    allowed, reason = evaluate_live_broker_config(
+        paper_trading_config=_confirmed_paper_config(),
+        live_credentials_present=True,
+    )
+
+    assert allowed is True
+    assert reason == "live_broker_config_confirmed"
+
+
 def test_evaluate_broker_config_dispatches_to_paper_for_non_live_modes():
     for mode in ("backtest", "observation", "paper", "banana"):
         allowed, reason = evaluate_broker_config(mode, _confirmed_paper_config(), live_credentials_present=False)

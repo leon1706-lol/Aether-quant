@@ -1655,3 +1655,47 @@ def test_lean_get_missing_key_errors(tmp_path, capsys):
 
     assert exit_code == 1
     assert "no such config key" in captured.err
+
+
+def test_render_lean_config_renders_from_empty_template_to_out(tmp_path, capsys):
+    # base defaults to the real (all-empty) lean.json; render to a tmp file with
+    # a tmp env-file supplying one secret - proves wiring end-to-end without
+    # writing lean.live.json into the repo.
+    env_file = tmp_path / ".env.live"
+    env_file.write_text("AETHER_IB_ACCOUNT=U-TEST-123\n", encoding="utf-8")
+    out = tmp_path / "lean.live.json"
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["render-lean-config", "--out", str(out), "--env-file", str(env_file)])
+    exit_code = args.func(args)
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    rendered = json.loads(out.read_text(encoding="utf-8"))
+    assert rendered["ib-account"] == "U-TEST-123"
+    # field name is reported, secret value is not
+    assert "ib-account" in captured.out
+    assert "U-TEST-123" not in captured.out
+
+
+def test_render_lean_config_errors_on_missing_base(tmp_path, capsys):
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["render-lean-config", "--base", str(tmp_path / "nope.json"), "--out", str(tmp_path / "o.json")]
+    )
+    exit_code = args.func(args)
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "not found" in captured.err.lower()
+
+
+def test_secrets_check_passes_on_clean_repo(capsys):
+    # the repo's tracked lean.json ships all-empty, so the guard passes (exit 0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["secrets-check"])
+    exit_code = args.func(args)
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "passed" in captured.out.lower()

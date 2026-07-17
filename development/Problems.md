@@ -2124,3 +2124,85 @@ The first real `lean backtest .` (2019-01-01 → 2021-03-31, 29 tradable assets,
 **Secondary finding — `max_active_positions` is a soft cap.** The run held 14 concurrent positions despite `phase9.portfolio.max_active_positions: 12`. `main.py::_active_position_count()` counts only *already-filled* `Portfolio.Values` positions, and Lean fills submitted orders on the next bar's open — so when several symbols cross the buy line on the same bar, each sees the same pre-fill count (< 12) and all submit, overshooting the cap by however many simultaneous buys land that bar. Not a crash and not a large effect, but the cap is "soft" (can overshoot within one bar), not hard. Documented here; no fix applied (a hard cap would need to also count same-bar pending orders).
 
 **No code changed yet** — this entry is the diagnosis. The threshold-calibration change is a strategy-behavior decision left to the user (which offsets, whether to also revisit the model), consistent with this project's convention of not silently changing trading behavior.
+
+### 42. Pre-live security review — broker/API credentials could be published via `lean.json` or baked into the Docker image; DB exposed to the LAN behind a repo-published password
+**Severity:** 7/10 · **Status:** 🟢 `fixed` (one item deliberately deferred, see below)
+
+A dedicated security pass requested before any live-capital / multi-asset-class
+(V3) step, on the reasoning that credential handling, broker API-key storage and
+audit logging all matter far more once real money is in play. **No secret was
+ever actually leaked** — every finding below was prospective, caught before the
+first real credential existed. Findings, in severity order:
+
+**1. `lean.json` credentials would have been committed (the main one).**
+`lean.json` is tracked in git deliberately — everyone who clones needs the
+working config structure. It ships as the stock Lean template with every
+brokerage/API secret field empty (`ib-password`, `polygon-api-key`, all the
+`*-api-secret`, …). But this file's own V2-22 runbook (`infrastructure.md`)
+instructed hand-editing **real IB credentials directly into it** — one `git add`
+away from publishing a live broker password to a public repo. The obvious fix
+("use `${ENV_VAR}` in the field") **does not work**: Lean does not expand
+environment variables inside `lean.json` — verified directly against the Lean
+CLI's own `components/config/lean_config_manager.py`, which reads every value
+literally, so the literal string `${ENV_VAR}` would be handed to the brokerage.
+Fixed with a **render step** instead: `execution/lean_config_render.py` +
+`scripts/render_lean_credentials.py` (`aq render-lean-config`) overlay the
+`AETHER_*` values from the gitignored `.env.live` onto the empty tracked
+template and write a **gitignored `lean.live.json`**; live/paper deploys point
+Lean at that via `--lean-config`. The tracked `lean.json` stays all-empty and
+shareable. Only field *names* are ever printed, never values. `aq backtest` is
+untouched — backtests need no credentials and keep using the plain `lean.json`.
+
+**2. Secrets would have been baked into the published Docker image.** The
+Docker consolidation (see Changelog, same date) made the engine image
+`COPY . .` the whole source tree, and that same fat image is what gets published
+to ghcr. `.dockerignore` excluded `.venv/`/`data/`/… but **not** `lean.json`,
+`.env*`, or `ib_config.py` — so a locally-populated credential file would have
+been baked permanently into a public registry image layer, extractable via
+`docker history`/`docker save` even if a later commit removed it. Note
+`.gitignore` does not protect against this: it is a *separate* mechanism, and
+`lean.json` is git-tracked anyway. Fixed by mirroring the secret list into
+`.dockerignore`. **The verification pass then caught a second instance of this
+exact bug in the fix itself**: `lean.live.json` — the rendered file that holds
+the *real* credentials — was gitignored but not dockerignored, so
+`aq render-lean-config` followed by `aq docker build` would have embedded a live
+broker password in the published image. Now excluded and pinned by
+`tests/test_dockerignore_secrets.py`, which evaluates real Docker pattern
+semantics (a literal line-grep misses this class: `.env.*` covers `.env.live`
+without an exact line) and cross-checks that no secret filename in
+`.gitignore`'s block is missing from `.dockerignore`.
+
+**3. Postgres was reachable from the LAN behind a password published in this
+repo.** `docker-compose.yml` published `${POSTGRES_PORT:-5433}:5432`, and Docker
+publishes to `0.0.0.0` by default — so on any untrusted network (café/hotel
+wifi) another device could reach the DB and authenticate with
+`aether_dev_password`, which is in the public repo and therefore not a password
+at all. Fixed by binding the published DB/Redis ports to `127.0.0.1` (host-only;
+the internal `redis:6379`/`postgres:5432` container paths are unaffected), plus
+a **fail-closed live guard**: `execution/live_credentials.py::postgres_dsn_is_live_safe()`
+refuses live mode while the DSN still carries the default password (or is
+unset), surfaced through `evaluate_live_broker_config()` as
+`live_broker_config_unsafe_db_password`. Local dev/backtest behavior is
+unchanged.
+
+**4. Nothing structurally prevented a future secret commit.** Added
+`aq secrets-check` (`execution/secret_scan.py`) — fails if `lean.json` has a
+populated secret-looking field or a real (non-`*.example`) `.env` is tracked —
+and an opt-in `.githooks/pre-commit` that runs it (`git config core.hooksPath
+.githooks`, documented in `infrastructure.md`/`README.md`). No new dependency,
+works on Windows.
+
+**Checked and found clean, no action needed:** no deserialization-RCE surface
+(no `torch.load`/`pickle.load`/`joblib.load` anywhere — models load from plain
+JSON `ml/model_weights.json`/`ml/scaler_stats.json`); the FastAPI monitoring
+server is read-only/GET-only with CORS restricted to localhost and serves no
+secrets; Telegram bot token/chat id were already env-var-only and never in
+`config.json`; no secret exists in git history (every `lean.json` secret field
+has always been empty).
+
+**Deliberately deferred — 🟡 `pending`: no dedicated audit logging.** Order
+placement, credential loads and live-mode transitions currently go through
+ordinary application logging, not a tamper-evident audit trail. Acceptable for
+backtest/paper; **should be built before real capital**. Larger scope than this
+pass and flagged for its own review as V3 approaches — this is the one known
+open security item.

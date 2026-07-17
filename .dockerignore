@@ -16,12 +16,15 @@ ml/
 storage/
 
 # Local secrets and broker/API credentials - mirrors .gitignore's own list.
-# lean.json is tracked in git (its ib-account/ib-user-name/ib-password/
-# ib-trading-mode fields ship as empty placeholders, hand-filled locally per
-# development/infrastructure.md's V2-22 runbook) so it must be excluded here
-# too, or a locally-populated copy gets baked straight into the image layer
-# on the next `aq docker build` - and that image is the same one published
-# to ghcr (single fat target, no slim variant).
+# Being .gitignore'd does NOT keep a file out of the image: the engine build
+# does `COPY . .`, and that same image is published to ghcr (single fat
+# target, no slim variant), so anything not excluded here is baked into a
+# public registry layer - recoverable via `docker history`/`docker save` even
+# if a later commit removes it. lean.live.json is the rendered, secret-bearing
+# config `aq render-lean-config` produces (execution/lean_config_render.py);
+# lean.json itself is git-tracked with empty placeholders but is excluded too,
+# so a locally-populated copy can never leak. Keep this list in sync with
+# .gitignore's "Local secrets" block.
 .env
 .env.*
 !.env.compose.example
@@ -30,6 +33,7 @@ ib_config.py
 *_config.local.py
 config.local.json
 lean.local.json
+lean.live.json
 lean.json
 *.key
 *.pem

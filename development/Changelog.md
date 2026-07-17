@@ -3335,3 +3335,88 @@ and the one-time removal of the old `aether-*` containers and old
 per-worker images (they don't disappear automatically on a rename) are
 left for the user to run themselves, per their standing preference for
 Docker build/deploy actions.
+
+## 2026-07-17 — Pre-live security review: `lean.json` credential indirection, secrets out of the Docker image, localhost-only DB, secret-commit guard
+
+A dedicated security pass before any live-capital / V3 multi-asset-class step,
+on the reasoning that credential handling and broker API-key storage matter far
+more once real money is in play. Full findings and root causes in
+`development/Problems.md` #42. **Nothing was ever actually leaked** — every
+finding was prospective, caught before a real credential existed.
+
+**The core problem and why the obvious fix doesn't work.** `lean.json` is
+tracked in git on purpose (everyone who clones needs the working config
+structure) and ships with every brokerage/API secret field empty. But the V2-22
+runbook told you to hand-edit **real IB credentials straight into it** — one
+`git add` from publishing a live broker password. Putting `${ENV_VAR}` in the
+field does **not** work: Lean reads `lean.json` values literally (verified
+against the Lean CLI's own `components/config/lean_config_manager.py` — no
+`os.environ`/`expandvars`/`${}` handling anywhere), so the literal string would
+be sent to the brokerage. Hence a **render step**:
+`execution/lean_config_render.py` (pure render + `.env` parser, no new
+dependency) and `scripts/render_lean_credentials.py` / `aq render-lean-config`
+overlay `.env.live`'s `AETHER_*` values onto the empty tracked template and
+write a gitignored **`lean.live.json`**; live/paper deploys use
+`--lean-config lean.live.json`. Only field *names* are ever printed, never
+values. The tracked `lean.json` stays all-empty and shareable — exactly the
+"others get my config, never my keys" property that was asked for. **`aq
+backtest` is deliberately untouched** and still uses the plain `lean.json`;
+backtests need no credentials.
+
+**Secrets could have been baked into the published image.** The same-day Docker
+consolidation made the engine image `COPY . .` the whole tree, and that fat
+image is what ships to ghcr — but `.dockerignore` didn't exclude `lean.json`,
+`.env*`, or `ib_config.py`, so a populated credential file would have been
+permanently embedded in a public registry layer (`docker history`/`docker save`
+recover it even after a later commit removes it). `.gitignore` does not help
+here — different mechanism, and `lean.json` is tracked regardless. Fixed by
+mirroring the secret list into `.dockerignore`. Verification then caught the
+same bug *inside the fix*: `lean.live.json`, the rendered file holding the real
+keys, was gitignored but not dockerignored — `aq render-lean-config` then
+`aq docker build` would have baked a live broker password into the published
+image. Now excluded, and pinned by `tests/test_dockerignore_secrets.py` (real
+Docker pattern semantics, plus a cross-check that .gitignore's secret block and
+.dockerignore cannot drift apart — a literal grep misses this class).
+
+**Postgres was LAN-reachable behind a password published in this repo.**
+Compose published `5433:5432` and Docker publishes to `0.0.0.0`, so on any
+untrusted network another device could log in with `aether_dev_password` — which
+is in the public repo and therefore not a password. Published DB/Redis ports now
+bind to `127.0.0.1` (host-only; the internal `redis:6379`/`postgres:5432`
+container paths are unchanged, so nothing about inter-service connectivity
+moves). Plus a fail-closed live guard:
+`execution/live_credentials.py::postgres_dsn_is_live_safe()` +
+`load_postgres_dsn()`, threaded through `evaluate_live_broker_config()` (new
+optional `postgres_dsn` param, default `None` = unchecked, so every existing
+caller is unaffected) and `main.py::_recompute_broker_config()` — live mode now
+refuses to start on the default password with reason
+`live_broker_config_unsafe_db_password`. Backtest/dev behavior unchanged.
+
+**Nothing prevented a future secret commit.** New `aq secrets-check`
+(`execution/secret_scan.py`): fails if `lean.json` has a populated
+secret-looking field (suffix/exact allow-list over the whole stock template's
+credential surface) or a real, non-`*.example` `.env` is tracked. Backed by an
+**opt-in** `.githooks/pre-commit` (`git config core.hooksPath .githooks` — never
+auto-installed). No new dependency; works on Windows.
+
+**Checked, found clean, no action:** no deserialization-RCE surface (no
+`torch.load`/`pickle.load`/`joblib.load` — models load from plain JSON); the
+FastAPI monitoring server is read-only/GET-only, CORS-restricted to localhost,
+serves no secrets; Telegram token/chat id already env-var-only; no secret in git
+history.
+
+**Deferred, tracked:** no dedicated audit logging of order placement/credential
+loads/live-mode transitions yet (ordinary app logging today). Fine for
+backtest/paper, should exist before real capital — the one known open security
+item, now also in README's Known Limitations.
+
+### Verification
+
+New: `tests/test_lean_config_render.py`, `tests/test_secret_scan.py`,
+`tests/test_dockerignore_secrets.py`; extended:
+`tests/test_live_credentials.py` (DSN safety), `tests/test_paper_readiness.py`
+(the live DB-password gate), `tests/test_live_credentials_io.py`
+(`load_postgres_dsn`), `tests/test_aq_cli.py` (both new commands). Docs updated:
+`development/infrastructure.md`'s V2-22 runbook (render step + hook opt-in +
+the live DB-password requirement), `README.md`, `.env.live.example` (now
+documents the data-feed keys and `POSTGRES_PASSWORD`).

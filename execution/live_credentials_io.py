@@ -8,12 +8,13 @@ Two equally-supported patterns, tried in order:
    see .env.live.example).
 
 This is pre-flight validation only, feeding execution.live_credentials's
-credentials_present() - it does not wire Lean itself. Lean's
-BrokerageSetupHandler reads ib-account/ib-user-name/ib-password/
-ib-trading-mode directly out of lean.json (already gitignored, already has
-these exact fields as empty placeholders); populating those is a separate,
-manual step documented in development/infrastructure.md's V2-22 runbook.
-Never raises - missing everything just yields all-empty-string values.
+credentials_present() - it does not wire Lean itself. The tracked `lean.json`
+ships with ib-account/ib-user-name/ib-password/ib-trading-mode as empty
+placeholders; real values are rendered into a gitignored `lean.live.json` by
+scripts/render_lean_credentials.py (`aq render-lean-config`) from these same
+AETHER_* vars, and Lean is pointed at that file via `--lean-config` (see
+execution/lean_config_render.py and development/infrastructure.md's V2-22
+runbook). Never raises - missing everything just yields all-empty-string values.
 """
 
 from __future__ import annotations
@@ -40,3 +41,12 @@ def load_live_credentials() -> dict:
         "ib_password": os.environ.get("AETHER_IB_PASSWORD", ""),
         "ib_trading_mode": os.environ.get("AETHER_IB_TRADING_MODE", "paper"),
     }
+
+
+def load_postgres_dsn() -> str:
+    """The runtime Postgres DSN, read from AETHER_POSTGRES_DSN (the same var
+    docker-compose.yml injects). Empty string if unset. Fed to
+    execution.paper_readiness's live gate so a live run against the published
+    dev-default password fails closed - see
+    execution.live_credentials.postgres_dsn_is_live_safe()."""
+    return os.environ.get("AETHER_POSTGRES_DSN", "")

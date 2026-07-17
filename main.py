@@ -71,7 +71,7 @@ from execution import (
     resolve_runtime_mode,
     resolve_slippage_bps,
 )
-from execution.live_credentials_io import load_live_credentials
+from execution.live_credentials_io import load_live_credentials, load_postgres_dsn
 from execution.paper_readiness_io import read_paper_trading_config
 from inference import (
     build_models_batched_cache,
@@ -2300,6 +2300,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "liquidate_on_risk_breach": self.liquidate_on_risk_breach,
             },
             live_config=self.phase_v2_live,
+            postgres_dsn=load_postgres_dsn(),
         )
 
     def _order_permission(self) -> tuple[bool, str]:

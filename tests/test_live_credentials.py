@@ -1,4 +1,9 @@
-from execution import credentials_present, describe_missing_fields
+from execution import (
+    DEFAULT_DEV_DB_PASSWORD,
+    credentials_present,
+    describe_missing_fields,
+    postgres_dsn_is_live_safe,
+)
 
 
 def _complete_credentials(**overrides) -> dict:
@@ -36,3 +41,23 @@ def test_describe_missing_fields_empty_when_all_present():
 
 def test_describe_missing_fields_lists_all_on_empty_dict():
     assert describe_missing_fields({}) == ["ib_account", "ib_user_name", "ib_password"]
+
+
+def test_postgres_dsn_unsafe_when_empty():
+    assert postgres_dsn_is_live_safe("") is False
+    assert postgres_dsn_is_live_safe("   ") is False
+
+
+def test_postgres_dsn_unsafe_when_default_password_present():
+    dsn = f"postgresql://aether:{DEFAULT_DEV_DB_PASSWORD}@postgres:5432/aether_quant"
+    assert postgres_dsn_is_live_safe(dsn) is False
+
+
+def test_postgres_dsn_safe_with_real_password():
+    dsn = "postgresql://aether:a-real-strong-password@postgres:5432/aether_quant"
+    assert postgres_dsn_is_live_safe(dsn) is True
+
+
+def test_postgres_dsn_safe_without_password_component():
+    # trust/peer auth (no password at all) is not the published default - allowed
+    assert postgres_dsn_is_live_safe("postgresql://aether@postgres:5432/aether_quant") is True

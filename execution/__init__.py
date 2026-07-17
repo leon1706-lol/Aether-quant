@@ -1,4 +1,9 @@
-from .live_credentials import credentials_present, describe_missing_fields
+from .live_credentials import (
+    DEFAULT_DEV_DB_PASSWORD,
+    credentials_present,
+    describe_missing_fields,
+    postgres_dsn_is_live_safe,
+)
 from .order_gate import (
     DEFAULT_FILL_SLIPPAGE_SOURCE,
     MAX_LIQUIDITY_SLIPPAGE_BPS,
@@ -51,4 +56,6 @@ __all__ = [
     "evaluate_paper_broker_config",
     "credentials_present",
     "describe_missing_fields",
+    "postgres_dsn_is_live_safe",
+    "DEFAULT_DEV_DB_PASSWORD",
 ]
