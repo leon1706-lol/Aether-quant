@@ -3420,3 +3420,122 @@ New: `tests/test_lean_config_render.py`, `tests/test_secret_scan.py`,
 `development/infrastructure.md`'s V2-22 runbook (render step + hook opt-in +
 the live DB-password requirement), `README.md`, `.env.live.example` (now
 documents the data-feed keys and `POSTGRES_PASSWORD`).
+
+## 2026-07-17 — Full pre-live model overhaul: rank-driven trading, unblockable exits, and a training-pipeline rewrite that stops shipping the untrained model
+
+Follow-up to the July 17 backtest showing bit-identical results to the
+pre-calibration run (same 14 orders, same 20.364% net profit to the cent) —
+proof the earlier threshold recalibration had zero effect on actual trades.
+Full root-cause + fix in `development/Problems.md` #43. Two independent bug
+classes, both fixed:
+
+**Trading logic could never exit a position.** All 14 buys fired in the first
+5 trading days and hit the position cap immediately (`_active_position_count()`
+counted only already-*filled* holdings, so same-bar submissions all saw a
+stale pre-fill count and overshot `max_active_positions`). From there, nothing
+could ever close: the static sell threshold sat ~10 standard deviations from
+the model's actual live output range, the drawdown circuit breaker was
+neutered by config (`max_daily/total_drawdown_pct: 1.0` = 100%,
+`bypass_safety_gates: true`), and — the worst one — the risk-off/elevated-
+topology/trade-lock vetoes in `analyzer/market_analyzer.py` applied to `"sell"`
+exactly like `"buy"`, so during a real drawdown the system was structurally
+*prevented* from cutting the position it most needed to cut.
+
+**The model's output was nearly constant.** Early stopping monitored
+validation BCE loss, which was lowest at epoch 1 and rose every epoch after —
+shipping essentially the untrained random initialization for the baseline,
+multitask, and sequence models alike. The threshold search had no guard
+against a degenerate operating point (baseline picked positive_rate 0.91;
+sequence picked 0.0004). The MoE blend averaged several near-random experts
+together with an unconditional 0.25 weight floor, mathematically pulling the
+combined output toward 0.5. Meanwhile this codebase's cross-sectional ranking
+heads (`rank_5d`/`rank_20d`) were already the one statistically significant
+signal anywhere in it — and the trading path ignored them completely.
+
+### The fixes
+
+**Trading logic** (`main.py`, `analyzer/market_analyzer.py`,
+`portfolio/book_construction.py`): `portfolio_book` enabled — rank_20d now
+drives entries directly instead of the noise-objective direction threshold.
+`strategy_mode` is now actually read and enforced (previously zero references
+in `main.py`); `"long_flat"` forces the book's short side off at runtime.
+`build_rank_based_book()` gained a deliberate long-only mode for `bottom_n==0`
+(previously an all-or-nothing guard disabled the whole book). Book rotation
+now forces a `"sell"` when a held symbol drops out of the top/bottom-N instead
+of leaving it open forever. `build_market_analysis_decision()` gained a new
+Priority 0: a `"sell"` for an `is_currently_invested` symbol always executes,
+bypassing every protective veto — closing a position is risk-*reducing* by
+construction, so those vetoes may only ever accelerate an exit, never block
+one. New non-model safety exits (`phase_v2.exits`, ON by default): max holding
+age and a direction-aware trailing stop. Sell threshold is now adaptive — the
+25th percentile of a symbol's own rolling probability_up history, not a fixed
+number that could sit arbitrarily far from the model's real output range.
+Same-bar position-cap overshoot fixed via a per-bar pending-entries reservation.
+Circuit breaker re-armed to real thresholds (0.03/0.12) with
+`bypass_safety_gates: false`. A dead, unreachable `"hold"`-liquidation branch
+removed.
+
+**Training pipeline** (`train.py`, `train_multitask.py`, `train_sequence.py`,
+`train_gating.py`, `moe/gating.py`, `retraining/validation_gate.py`): new
+shared `is_new_best_epoch()` — single-head direction trainers now monitor
+validation balanced-accuracy with a `min_best_epoch=3` floor; the two
+multi-head trainers keep monitoring combined loss (an earlier attempt to
+switch them to direction balanced-accuracy too measurably *improved* direction
+MCC but *degraded* the sequence model's actual downstream signal, rank_20d's
+non-overlapping t-stat, 2.90 → 2.21 — these models' real consumer is
+`predicted_rank_20d`, not direction) but still gets the epoch floor, fixing
+the untrained-init bug without that side effect. `find_optimal_threshold()`
+gained a non-degenerate positive-rate band (falls back to the unconstrained
+optimum only if the whole sweep is degenerate). New shared
+`select_model_context_columns()` collapses the 30 per-ticker asset one-hots
+down to 5 asset-class one-hots (model input dimensionality 85 → 52, also
+dropping 3 always-dead futures/options features). `phase9.asset_quality.min_training_rows`
+50 → 250, excluding ETHUSD/XRPUSD/ADAUSD's ~52-row training history (a
+fixed-calendar split artifact) from training. `moe/gating.py::_performance_score()`
+now floors at exactly `0.0` (not the old unconditional 0.25) for any expert
+with no measured skill on both balanced-accuracy and MCC, excluding it from
+the blend entirely instead of diluting it toward 0.5.
+`retraining/validation_gate.py` gained a skill-floor check (balanced-accuracy
+≥ 0.50 OR MCC ≥ 0.0) — every prior check was Sharpe/drawdown/exposure-shaped,
+which a zero-skill model can pass trivially in a rising backtest window.
+Expert quality-gate defaults raised from below-coin-flip (0.48/0.48/−0.05) to
+0.50/0.50/0.0.
+
+### Retrain results
+
+Full stack retrained and promoted to active `ml/` this session (baseline,
+4 experts, multitask, sequence, learned gating — topology excluded, see
+caveat below). Baseline best_epoch 16/34 (was 1/19), threshold search now
+selects a non-degenerate operating point (positive_rate 0.155, was 0.91). All
+4 experts clear the new skill floor. Sequence model (main.py's preferred
+`predicted_rank_20d` source) best_epoch 3/13 (was 1), backtest rank_20d
+non-overlapping mean IC 0.2318, t-stat 2.955 — clears the existing
+`promotion_gate.min_non_overlapping_t_stat: 2.0`.
+
+**Caveats, documented in full in Problems.md #43**: topology was not
+retrained (its trainer needs live Postgres experience-event telemetry that
+doesn't exist in this environment yet); no full walk-forward was run (would
+be ~27 windows × ~8-9 min ≈ 4 hours on this machine — verification instead
+relies on the existing proper temporal split plus the backtest window's own
+era-based IC stats); rank_20d's internal promotion-quality status is still
+`not_promotable` by this project's strictest bar (one non-overlapping era out
+of ~9-40 has an opposite-sign mean IC) despite clearing the raw t-stat/CI
+thresholds — doesn't block `portfolio_book` functionally (it doesn't consult
+that status), but is a real caveat on the signal's consistency.
+
+### Verification
+
+New `tests/test_train_threshold_and_early_stop.py`,
+`tests/test_train_select_model_context_columns.py`; extended
+`tests/test_gating_network.py`, `tests/test_market_analyzer.py`,
+`tests/test_validation_gate.py`, `tests/test_expert_models.py`,
+`tests/test_portfolio_book_construction.py`. `test_model_input_dimensionality_is_59`
+→ `_is_52` (new 52-dim input vector). Full suite: `pytest -m "not lean_backtest"`
+→ 1392 passed, 0 failed, 11 deselected (lean_backtest, expected).
+`main.py`'s own new logic (exit tracking, hard cap, adaptive band, rotation)
+has no direct unit tests, matching this codebase's existing convention that
+`main.py`'s Lean-runtime wiring is verified by a real `lean backtest .` run,
+not mocked unit tests — the pure-function pieces it calls into are unit-tested
+as listed above. **The user's own verification `aq backtest` run is still
+outstanding** — this entry covers the code/training-side fix and retrain
+only.

@@ -224,14 +224,20 @@ def test_topology_ran(state_after_backtest):
 
 @_skip_no_lean
 @pytest.mark.lean_backtest
-def test_model_input_dimensionality_is_59(state_after_backtest):
+def test_model_input_dimensionality_is_52(state_after_backtest):
     """Proves the full regime/liquidity/topology/peer-return/technical-
     indicator-as-input feature pipeline (train.py::build_feature_dataset() /
     main.py::_build_model_input()) was actually exercised in a real
-    backtest, not just unit-tested. Grew from the original 48 (regime +
-    liquidity + topology) to 59: +4 peer-return features (Phase 5) + 6
-    technical indicators + 1 cross-sectional momentum rank (Phase 6) - see
-    development/Changelog.md."""
+    backtest, not just unit-tested. Was 59 (grew from an original 48 via +4
+    peer-return features + 6 technical indicators + 1 cross-sectional
+    momentum rank), then dropped to 52 in the pre-live model overhaul
+    (development/Problems.md): -3 dead futures/options features (always
+    0.0/1.0 scale in scaler_stats.json - never populated) and the 35-column
+    per-ticker asset one-hot collapsed to a 5-column asset-CLASS one-hot
+    (train.py::select_model_context_columns()) - a per-ticker identity flag
+    can only encode that ticker's own base rate, pushing the net toward a
+    constant per-asset output. 35 numeric + 12 categorical (regime/topology)
+    + 5 asset-class context = 52."""
     # main.py::_write_state() writes "model" as a top-level state key -
     # there is no top-level "config" key anywhere in that method. This was
     # previously state_after_backtest.get("config", {}).get("model", {}),
@@ -239,7 +245,7 @@ def test_model_input_dimensionality_is_59(state_after_backtest):
     # backtest actually did - a test-harness bug (wrong key path), not
     # evidence these subsystems didn't run. See development/Problems.md.
     model_config = state_after_backtest.get("model", {})
-    assert model_config.get("input_count") == 59
+    assert model_config.get("input_count") == 52
 
 
 @_skip_no_lean

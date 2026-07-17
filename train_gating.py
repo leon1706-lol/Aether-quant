@@ -69,6 +69,7 @@ from train import (
     export_state_dict,
     find_optimal_threshold,
     frame_to_tensors,
+    is_new_best_epoch,
     set_seed,
 )
 
@@ -312,9 +313,10 @@ def main() -> int:
 
         best_state = None
         best_epoch = 0
-        best_early_stop_loss = float("inf")
+        best_early_stop_balanced_accuracy = float("-inf")
         epochs_without_improvement = 0
         history: list[dict] = []
+        min_best_epoch = int(training_config.get("min_best_epoch", 3))
 
         for epoch in range(1, max_epochs + 1):
             model.train()
@@ -346,15 +348,20 @@ def main() -> int:
                 }
             )
 
-            if early_stop_metrics["loss"] < best_early_stop_loss:
-                best_early_stop_loss = early_stop_metrics["loss"]
+            # See train.py::is_new_best_epoch()'s docstring - monitors
+            # skill (balanced-accuracy), not the loss already computed
+            # above into early_stop_metrics (development/Problems.md).
+            if is_new_best_epoch(
+                early_stop_metrics["balanced_accuracy"], best_early_stop_balanced_accuracy, epoch, min_best_epoch
+            ):
+                best_early_stop_balanced_accuracy = early_stop_metrics["balanced_accuracy"]
                 best_epoch = epoch
                 best_state = copy.deepcopy(model.state_dict())
                 epochs_without_improvement = 0
             else:
                 epochs_without_improvement += 1
 
-            if epochs_without_improvement >= patience:
+            if epoch >= min_best_epoch and epochs_without_improvement >= patience:
                 break
 
         if best_state is None:

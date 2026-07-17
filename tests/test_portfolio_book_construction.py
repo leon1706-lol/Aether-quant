@@ -116,11 +116,22 @@ def test_build_rank_based_book_empty_when_only_one_side_has_candidates():
     assert book == {}
 
 
-def test_build_rank_based_book_zero_top_n_or_bottom_n_returns_empty():
+def test_build_rank_based_book_zero_top_n_returns_empty():
     candidates = {"A": _candidate(0.9), "B": _candidate(0.1)}
 
     assert build_rank_based_book(candidates, top_n=0, bottom_n=1) == {}
-    assert build_rank_based_book(candidates, top_n=1, bottom_n=0) == {}
+
+
+def test_build_rank_based_book_zero_bottom_n_is_a_deliberate_long_only_book():
+    # main.py passes bottom_n=0 to honor phase5.backtest.strategy_mode ==
+    # "long_flat" while still getting rank-driven entries/rotation on the
+    # long side - not a degenerate case like top_n=0 above.
+    candidates = {"A": _candidate(0.9), "B": _candidate(0.8), "C": _candidate(0.1)}
+
+    book = build_rank_based_book(candidates, top_n=2, bottom_n=0)
+
+    assert set(book) == {"A", "B"}
+    assert all(allocation.role == "long" for allocation in book.values())
 
 
 def test_build_rank_based_book_disengages_when_rank_spread_below_confidence_floor():

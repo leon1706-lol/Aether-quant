@@ -241,6 +241,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_momentum_by_symbol = {}
         self.latest_signal_state = {}
         self.last_trade_bar_by_symbol = {}
+        # Same-bar hard position cap (development/Problems.md) - reset once
+        # per bar at the top of on_data(), populated by _apply_signal()'s
+        # "buy"/"short" branches, consumed by _active_position_count().
+        self._pending_entries_this_bar: set[str] = set()
+        # Per-symbol exit state for the non-model safety exits (max holding
+        # age + trailing stop) - see _check_non_model_exit()'s docstring.
+        # entry_bar_index/entry_price are set the bar a NEW long/short opens
+        # (never on "kept_long") and cleared the bar the position fully
+        # exits; peak_price_since_entry trails the best close seen while
+        # held (highest close for a long, lowest for a short).
+        self._position_entry_bar_index: dict[str, int] = {}
+        self._position_entry_price: dict[str, float] = {}
+        self._position_peak_price_since_entry: dict[str, float] = {}
+        self._position_direction_by_symbol: dict[str, str] = {}
+        self.latest_non_model_exit_reason_by_symbol: dict[str, str] = {}
         # Position-close/exposure tracking for options (A7): main.py's
         # canonical chain Symbol (self.ticker_to_symbol[asset["ticker"]])
         # is what every other per-symbol dict here is keyed by, but a real
@@ -350,6 +365,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase_v2_backtest = self.phase_v2.get("backtest", {})
         phase_v2_portfolio_book = self.phase_v2.get("portfolio_book", {})
 
+        # Enforced (development/Problems.md): previously read only by
+        # train.py, main.py had zero references, so "long_flat" was an
+        # emergent property of the code structure (no code path ever
+        # produced a "short" signal_name outside the portfolio_book's own
+        # role assignment) rather than an actually-checked value. Now the
+        # real gate for whether the book's short side may ever activate -
+        # see the portfolio_book_effective_bottom_n assignment below and
+        # portfolio/book_construction.py::build_rank_based_book()'s
+        # bottom_n==0 long-only mode.
+        self.strategy_mode = str(phase5_backtest.get("strategy_mode", "long_flat"))
         self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
         self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
         self.sell_threshold = max(0.25, self.decision_threshold - float(phase5_backtest.get("sell_threshold_offset", 0.08)))
@@ -425,6 +450,50 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 f"2-element [top_n, bottom_n] list - skipping this asset class"
             )
         self.portfolio_book_per_asset_class_slots = validated_per_asset_class_slots or None
+        # strategy_mode enforcement: "long_flat" forces the book's short
+        # side off (bottom_n=0 -> build_rank_based_book()'s long-only mode)
+        # regardless of the configured bottom_n, which stays as-is ready for
+        # the moment strategy_mode is deliberately changed (e.g. to
+        # "long_short"). This is the one place shorting is actually gated -
+        # see self.strategy_mode's own assignment above.
+        self.portfolio_book_effective_bottom_n = (
+            self.portfolio_book_bottom_n if self.strategy_mode == "long_short" else 0
+        )
+        # Non-model safety exits (development/Problems.md): main.py used to
+        # have NO stop-loss/take-profit/trailing/max-age exit at all - a
+        # position only ever closed if the model's own signal crossed
+        # sell_threshold, which for a near-constant-output model can simply
+        # never happen. These are a backstop independent of model output,
+        # applied only to symbols NOT already exiting via the model signal
+        # or portfolio-book rotation (see _check_non_model_exit()). Both
+        # ON by default (unlike this codebase's usual off-by-default
+        # convention) because the gap they close is a real, demonstrated bug
+        # (positions open Jan 2019 never closing through the entire 2019-2021
+        # backtest, COVID crash included) rather than a new speculative
+        # feature - see Problems.md's entry for the full backtest evidence.
+        phase_v2_exits = self.phase_v2.get("exits", {})
+        self.exits_max_holding_bars = int(phase_v2_exits.get("max_holding_bars", 60))
+        self.exits_trailing_stop_pct = float(phase_v2_exits.get("trailing_stop_pct", 0.15))
+        self.exits_enabled = bool(phase_v2_exits.get("enabled", True))
+        # Adaptive sell band (development/Problems.md): the model's live
+        # probability_up output can sit entirely on one side of the static
+        # config sell_threshold for a symbol's whole history (confirmed:
+        # 0.4836-0.4907 observed vs a static sell_threshold of 0.45, ~10
+        # standard deviations away - the fixed threshold was mathematically
+        # unreachable). Instead of comparing against a fixed absolute
+        # number, sell_threshold_effective is a low percentile of THIS
+        # symbol's own recent probability_up distribution
+        # (self._probability_up_history_by_symbol, a rolling per-symbol
+        # deque - see _derive_signal()), so a sell signal stays reachable
+        # regardless of where the model's raw output happens to sit. Falls
+        # back to the static self.sell_threshold until enough history has
+        # accumulated (adaptive_band_min_observations) - never blocks
+        # trading during warmup.
+        self.adaptive_sell_band_enabled = bool(phase_v2_exits.get("adaptive_band_enabled", True))
+        self.adaptive_sell_band_window_bars = int(phase_v2_exits.get("adaptive_band_window_bars", 60))
+        self.adaptive_sell_band_min_observations = int(phase_v2_exits.get("adaptive_band_min_observations", 20))
+        self.adaptive_sell_band_percentile = float(phase_v2_exits.get("adaptive_band_percentile", 0.25))
+        self._probability_up_history_by_symbol: dict[str, deque] = {}
         self.target_daily_volatility = float(phase_v2_risk.get("target_daily_volatility", 0.015))
         self.low_volatility_threshold = float(phase_v2_risk.get("low_volatility_threshold", 0.01))
         self.high_volatility_threshold = float(phase_v2_risk.get("high_volatility_threshold", 0.03))
@@ -744,6 +813,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return
 
         self.bar_index += 1
+        self._pending_entries_this_bar.clear()
         self._refresh_risk_state()
         self._liquidate_positions_for_disabled_asset_classes()
         self._process_pending_limit_order_timeouts()
@@ -953,7 +1023,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 predicted_rank_20d = sequence_prediction.get("rank_20d")
             if predicted_rank_20d is None and multitask_payload:
                 predicted_rank_20d = multitask_payload.get("rank_20d")
-            signal_name, confidence, base_target_weight = self._derive_signal(probability_up)
+            signal_name, confidence, base_target_weight = self._derive_signal(probability_up, symbol_key=str(symbol))
 
             pass1_state[symbol_key] = {
                 "symbol": symbol,
@@ -992,7 +1062,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             build_rank_based_book(
                 book_candidates,
                 top_n=self.portfolio_book_top_n,
-                bottom_n=self.portfolio_book_bottom_n,
+                # Not self.portfolio_book_bottom_n directly - see
+                # strategy_mode enforcement at this attribute's own
+                # assignment in __init__: "long_flat" (the default) forces
+                # this to 0, a deliberate long-only book.
+                bottom_n=self.portfolio_book_effective_bottom_n,
                 min_rank_confidence_spread=self.portfolio_book_min_rank_confidence_spread,
                 per_asset_class_slots=self.portfolio_book_per_asset_class_slots,
             )
@@ -1023,6 +1097,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             confidence = state["confidence"]
             base_target_weight = state["base_target_weight"]
 
+            orders_allowed_for_exit_check, _ = self._order_permission()
+            is_currently_invested = self._is_invested(symbol, orders_allowed_for_exit_check)
+
             # The one deliberate departure from every other rank_20d
             # integration's "never flips direction" rule - see
             # portfolio/book_construction.py's module docstring. A
@@ -1037,6 +1114,32 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 base_target_weight = (
                     min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier
                 )
+            elif self.portfolio_book_enabled and is_currently_invested:
+                # Rotation exit (development/Problems.md): the book is
+                # active and picked a fresh top/bottom-N this bar, but this
+                # symbol - previously book-selected - didn't make the cut.
+                # Without this, a position the book no longer wants just
+                # sits there forever (nothing else would ever force it
+                # closed), permanently consuming one of max_active_positions'
+                # slots and defeating the entire point of ranking a fresh
+                # top-N every bar. Forced "sell" here always executes - see
+                # analyzer/market_analyzer.py's Priority 0 (is_currently_invested
+                # bypass) below.
+                signal_name = "sell"
+                confidence = 1.0
+                base_target_weight = 0.0
+
+            if is_currently_invested and signal_name != "sell":
+                non_model_exit_reason = self._check_non_model_exit(symbol_key, float(bar.close))
+                if non_model_exit_reason is not None:
+                    signal_name = "sell"
+                    confidence = 1.0
+                    base_target_weight = 0.0
+                    self.latest_non_model_exit_reason_by_symbol[symbol_key] = non_model_exit_reason
+                else:
+                    self.latest_non_model_exit_reason_by_symbol.pop(symbol_key, None)
+            elif not is_currently_invested:
+                self.latest_non_model_exit_reason_by_symbol.pop(symbol_key, None)
 
             asset = self.asset_lookup[symbol_key]
             sizing_payload = self._build_dynamic_sizing_payload(
@@ -1097,6 +1200,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 use_composite_signal_score=self.analyzer_use_composite_signal_score,
                 predicted_return_magnitude=predicted_return_magnitude,
                 predicted_volatility=predicted_volatility,
+                is_currently_invested=is_currently_invested,
             ).to_dict()
 
             signal_name = decision["signal"]
@@ -1107,6 +1211,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price, sizing_payload)
             else:
                 execution_note = decision["action"]
+
+            self._update_position_exit_tracking(
+                symbol_key,
+                is_currently_invested,
+                self._is_invested(symbol, orders_allowed_for_exit_check),
+                close_price,
+                signal_name,
+            )
 
             close_prices_by_symbol[symbol_key] = close_price
 
@@ -1761,18 +1873,52 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "expert_multitask_volatilities": expert_volatilities,
         }
 
-    def _derive_signal(self, probability_up: float) -> tuple[str, float, float]:
+    def _record_probability_up_observation(self, symbol_key: str, probability_up: float) -> None:
+        history = self._probability_up_history_by_symbol.get(symbol_key)
+        if history is None:
+            history = deque(maxlen=self.adaptive_sell_band_window_bars)
+            self._probability_up_history_by_symbol[symbol_key] = history
+        history.append(float(probability_up))
+
+    def _effective_sell_threshold(self, symbol_key: str) -> float:
+        """See adaptive_sell_band_enabled's own comment in __init__ for why
+        this exists. Pure lookup + percentile over already-accumulated
+        history - _derive_signal() is responsible for appending this bar's
+        probability_up AFTER calling this, so the band never includes the
+        very observation it's about to gate."""
+        if not self.adaptive_sell_band_enabled:
+            return self.sell_threshold
+        history = self._probability_up_history_by_symbol.get(symbol_key)
+        if history is None or len(history) < self.adaptive_sell_band_min_observations:
+            return self.sell_threshold
+        sorted_history = sorted(history)
+        index = max(0, min(len(sorted_history) - 1, int(self.adaptive_sell_band_percentile * len(sorted_history))))
+        # Never adapt ABOVE the static config threshold - the adaptive band
+        # only ever makes selling easier (reachable), never harder than the
+        # deliberately-configured buy/sell_threshold_offset calibration.
+        return min(self.sell_threshold, sorted_history[index])
+
+    def _derive_signal(self, probability_up: float, symbol_key: str | None = None) -> tuple[str, float, float]:
         confidence = abs(probability_up - self.decision_threshold) / max(1.0 - self.decision_threshold, self.decision_threshold)
         confidence = max(0.0, min(confidence, 1.0))
 
         if probability_up >= self.buy_threshold:
             target_weight = min(self.max_position_weight, 0.10 + 0.15 * confidence)
+            if symbol_key is not None:
+                self._record_probability_up_observation(symbol_key, probability_up)
             return "buy", confidence, target_weight
 
-        if probability_up <= self.sell_threshold:
+        effective_sell_threshold = (
+            self._effective_sell_threshold(symbol_key) if symbol_key is not None else self.sell_threshold
+        )
+        if probability_up <= effective_sell_threshold:
             target_weight = -min(self.max_position_weight, 0.10 + 0.15 * confidence)
+            if symbol_key is not None:
+                self._record_probability_up_observation(symbol_key, probability_up)
             return "sell", confidence, target_weight
 
+        if symbol_key is not None:
+            self._record_probability_up_observation(symbol_key, probability_up)
         return "hold", confidence, 0.0
 
     def _build_dynamic_sizing_payload(
@@ -2629,6 +2775,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self._is_invested(symbol, orders_allowed),
             ):
                 return "max_active_positions_reached"
+            # Reserve this bar's slot immediately, before routing to
+            # equity/futures/option order-placement below - real fills are
+            # asynchronous (Portfolio.Values won't show Invested==True until
+            # a later bar), so without this every symbol entering on the
+            # SAME bar sees the same stale pre-bar count and the cap can be
+            # overshot (development/Problems.md: 14 positions opened against
+            # a configured max of 12, all in the first few bars). Not
+            # reserved for an already-invested symbol (self._is_invested
+            # below) - that path doesn't consume a new slot.
+            if not self._is_invested(symbol, orders_allowed):
+                self._pending_entries_this_bar.add(symbol_key)
 
             asset_class = asset.get("asset_class") or asset.get("security_type")
             exposure_cap = self.exposure_caps_by_asset_class.get(asset_class, self.max_equity_exposure)
@@ -2717,6 +2874,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self._is_invested(symbol, orders_allowed),
             ):
                 return "max_active_positions_reached"
+            # See the "buy" branch's identical reservation above for why.
+            if not self._is_invested(symbol, orders_allowed):
+                self._pending_entries_this_bar.add(symbol_key)
 
             current_short_exposure = self._short_exposure(orders_allowed, exclude_symbol=symbol)
             target_weight, cap_reached = cap_target_weight(target_weight, current_short_exposure, self.max_short_exposure)
@@ -2775,14 +2935,6 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 return f"simulated_entered_short:{permission_reason}"
             return "kept_short" if orders_allowed else "simulated_kept_short"
 
-        if signal_name == "hold" and previous_signal != "hold" and self._is_invested(symbol, orders_allowed):
-            if orders_allowed:
-                self._liquidate_position(symbol)
-            else:
-                self._simulated_portfolio.exit(symbol_key, close_price, self.bar_index)
-            self.last_trade_bar_by_symbol[symbol] = self.bar_index
-            return "liquidated_on_hold" if orders_allowed else f"simulated_liquidated_on_hold:{permission_reason}"
-
         return "no_action"
 
     def _asset_quality_for_symbol(self, symbol) -> dict:
@@ -2805,7 +2957,88 @@ class AetherQuantAlgorithm(QCAlgorithm):
         ticker = self.asset_lookup.get(str(symbol), {}).get("ticker", str(symbol))
         return ticker in self.trading_eligible_tickers
 
+    def _check_non_model_exit(self, symbol_key: str, close_price: float) -> str | None:
+        """Backstop exits, independent of the model's own signal (development/
+        Problems.md - main.py had zero stop-loss/take-profit/trailing/max-age
+        exit before this). Only ever called for a symbol that IS currently
+        invested and whose signal this bar is not already "sell" - see the
+        Pass 2 call site. Returns a reason string if an exit should fire,
+        else None. Two checks, first match wins:
+
+        1. Max holding age: closes a position that's been open
+           `exits_max_holding_bars` bars regardless of anything else - a
+           position should never be able to sit untouched for the entire
+           backtest just because the model's output never revisits its
+           sell_threshold (confirmed: exactly what happened in the first
+           real backtest, Jan 2019 entries still open at Mar 2021).
+        2. Trailing stop: closes a position that has drawn down
+           `exits_trailing_stop_pct` from its best price since entry
+           (direction-aware: "best" is the highest close for a long,
+           lowest for a short, tracked incrementally in
+           _update_position_exit_tracking()).
+
+        Self.exits_enabled=False (not the default) restores pre-fix
+        behavior byte-for-byte - no non-model exit ever fires."""
+        if not self.exits_enabled:
+            return None
+
+        entry_bar_index = self._position_entry_bar_index.get(symbol_key)
+        if entry_bar_index is None:
+            return None
+
+        if self.bar_index - entry_bar_index >= self.exits_max_holding_bars:
+            return "max_holding_age_exceeded"
+
+        peak_price = self._position_peak_price_since_entry.get(symbol_key)
+        direction = self._position_direction_by_symbol.get(symbol_key, "long")
+        if peak_price is not None and peak_price > 0.0:
+            if direction == "long":
+                drawdown_from_peak = (peak_price - close_price) / peak_price
+            else:
+                drawdown_from_peak = (close_price - peak_price) / peak_price
+            if drawdown_from_peak >= self.exits_trailing_stop_pct:
+                return "trailing_stop_triggered"
+
+        return None
+
+    def _update_position_exit_tracking(
+        self, symbol_key: str, was_invested: bool, is_invested: bool, close_price: float, signal_name: str
+    ) -> None:
+        """Maintains the per-symbol entry-bar/entry-price/peak-price state
+        _check_non_model_exit() reads. Observes the net invested/not-invested
+        transition around _apply_signal() rather than hooking into its many
+        asset-class-specific branches (equity/futures/options x buy/short) -
+        robust to every routing path by construction, since it only cares
+        about the outcome."""
+        if is_invested and not was_invested:
+            self._position_entry_bar_index[symbol_key] = self.bar_index
+            self._position_entry_price[symbol_key] = close_price
+            self._position_peak_price_since_entry[symbol_key] = close_price
+            self._position_direction_by_symbol[symbol_key] = "short" if signal_name == "short" else "long"
+        elif is_invested and was_invested:
+            direction = self._position_direction_by_symbol.get(symbol_key, "long")
+            peak_price = self._position_peak_price_since_entry.get(symbol_key, close_price)
+            if direction == "long":
+                self._position_peak_price_since_entry[symbol_key] = max(peak_price, close_price)
+            else:
+                self._position_peak_price_since_entry[symbol_key] = min(peak_price, close_price)
+        elif not is_invested and was_invested:
+            self._position_entry_bar_index.pop(symbol_key, None)
+            self._position_entry_price.pop(symbol_key, None)
+            self._position_peak_price_since_entry.pop(symbol_key, None)
+            self._position_direction_by_symbol.pop(symbol_key, None)
+
     def _active_position_count(self, exclude_symbol=None, orders_allowed: bool = True) -> int:
+        exclude_key = str(exclude_symbol) if exclude_symbol is not None else None
+        # self._pending_entries_this_bar (reset once per bar in on_data())
+        # holds symbols that already reserved a slot THIS bar via a "buy"/
+        # "short" _apply_signal() call, but whose fill hasn't landed in
+        # Portfolio.Values/simulated holdings yet - counting it here is what
+        # makes the cap atomic across a single bar's Pass 2 loop instead of
+        # every same-bar entrant seeing the same stale pre-bar count
+        # (development/Problems.md).
+        pending_count = sum(1 for symbol_key in self._pending_entries_this_bar if symbol_key != exclude_key)
+
         if orders_allowed:
             count = 0
             for holding in self.Portfolio.Values:
@@ -2813,10 +3046,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     continue
                 if holding.Invested:
                     count += 1
-            return count
+            return count + pending_count
 
-        exclude_key = str(exclude_symbol) if exclude_symbol is not None else None
-        return sum(1 for symbol_key in self._simulated_portfolio.holdings if symbol_key != exclude_key)
+        return sum(1 for symbol_key in self._simulated_portfolio.holdings if symbol_key != exclude_key) + pending_count
 
     def _asset_class_exposure(self, asset_class: str | None, orders_allowed: bool = True, exclude_symbol=None) -> float:
         """asset_class here means the SAME asset_class-or-security_type

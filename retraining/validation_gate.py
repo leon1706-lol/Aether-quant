@@ -46,6 +46,8 @@ def evaluate_validation_gate(
     - compute_overfitting_gap(candidate) <= max_train_backtest_balanced_accuracy_gap
     - candidate backtest trade_count >= min_trade_count
     - candidate backtest exposure_rate >= min_exposure_rate
+    - candidate backtest balanced_accuracy >= min_balanced_accuracy OR
+      candidate backtest mcc >= min_mcc (skill floor - see below)
     """
     min_sharpe = float(config.get("min_sharpe", 0.3))
     max_validation_loss_increase_ratio = float(config.get("max_validation_loss_increase_ratio", 0.10))
@@ -53,6 +55,18 @@ def evaluate_validation_gate(
     min_trade_count = int(config.get("min_trade_count", 0))
     min_exposure_rate = float(config.get("min_exposure_rate", 0.0))
     watchlist_margin = float(config.get("watchlist_margin", 0.03))
+    # Skill floor (development/Problems.md): every prior check here is
+    # Sharpe/drawdown/exposure-shaped, which a model with ZERO
+    # discriminative power can pass trivially during any backtest window
+    # with a sustained trend (a constant "always slightly bullish" output
+    # rides a bull market to a positive Sharpe with full exposure - exactly
+    # what the shipped baseline model did: MCC 0.066, balanced-accuracy
+    # 0.519, positive_rate 0.91, yet a real 20% backtest return). Requires
+    # EITHER metric to clear a coin-flip-or-better bar (an OR, not AND -
+    # balanced_accuracy and MCC can disagree at the margin, and a model
+    # need only demonstrate skill on one recognized axis).
+    min_balanced_accuracy = float(config.get("min_balanced_accuracy", 0.50))
+    min_mcc = float(config.get("min_mcc", 0.0))
 
     candidate_backtest_strategy = candidate_report.get("backtest", {}).get("strategy", {})
     active_backtest_strategy = active_report.get("backtest", {}).get("strategy", {})
@@ -69,6 +83,10 @@ def evaluate_validation_gate(
 
     candidate_trade_count = int(candidate_report.get("backtest", {}).get("trade_count", 0) or 0)
     candidate_exposure_rate = float(candidate_report.get("backtest", {}).get("exposure_rate", 0.0) or 0.0)
+    candidate_backtest_balanced_accuracy = float(
+        candidate_metrics.get("backtest", {}).get("balanced_accuracy", 0.0) or 0.0
+    )
+    candidate_backtest_mcc = float(candidate_metrics.get("backtest", {}).get("mcc", 0.0) or 0.0)
 
     failures: list[str] = []
     near_misses: list[str] = []
@@ -106,6 +124,14 @@ def evaluate_validation_gate(
     if candidate_exposure_rate < min_exposure_rate:
         failures.append("candidate_exposure_rate_too_low")
 
+    # 7. Skill floor - see min_balanced_accuracy/min_mcc's own comment above.
+    has_balanced_accuracy_skill = candidate_backtest_balanced_accuracy >= min_balanced_accuracy
+    has_mcc_skill = candidate_backtest_mcc >= min_mcc
+    if not (has_balanced_accuracy_skill or has_mcc_skill):
+        failures.append("candidate_no_demonstrated_skill")
+    elif not has_balanced_accuracy_skill or not has_mcc_skill:
+        near_misses.append("candidate_skill_marginal_on_one_metric")
+
     passed = not failures
 
     return {
@@ -119,6 +145,8 @@ def evaluate_validation_gate(
             "min_trade_count": min_trade_count,
             "min_exposure_rate": min_exposure_rate,
             "watchlist_margin": watchlist_margin,
+            "min_balanced_accuracy": min_balanced_accuracy,
+            "min_mcc": min_mcc,
         },
         "observed": {
             "candidate_drawdown": candidate_drawdown,
@@ -130,5 +158,7 @@ def evaluate_validation_gate(
             "candidate_overfitting_gap": candidate_gap,
             "candidate_trade_count": candidate_trade_count,
             "candidate_exposure_rate": candidate_exposure_rate,
+            "candidate_backtest_balanced_accuracy": candidate_backtest_balanced_accuracy,
+            "candidate_backtest_mcc": candidate_backtest_mcc,
         },
     }

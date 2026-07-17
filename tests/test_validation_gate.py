@@ -109,3 +109,42 @@ def test_evaluate_validation_gate_rejects_low_exposure_rate():
 
     assert result["passed"] is False
     assert "candidate_exposure_rate_too_low" in result["failures"]
+
+
+def test_evaluate_validation_gate_rejects_candidate_with_no_demonstrated_skill():
+    # development/Problems.md: every other check here is Sharpe/drawdown/
+    # exposure-shaped, which a model with ZERO discriminative power can pass
+    # trivially during a sustained-trend backtest window - exactly what the
+    # shipped baseline model did (MCC 0.066, balanced-accuracy 0.519, yet a
+    # real 20% backtest return riding a bull market). A candidate at-or-below
+    # a coin flip on BOTH balanced-accuracy and MCC must fail even if every
+    # other Sharpe/drawdown/trade-count check passes.
+    candidate_metrics = _metrics(backtest={"balanced_accuracy": 0.49, "mcc": -0.01})
+
+    result = evaluate_validation_gate(candidate_metrics, _report(), _ACTIVE_METRICS, _ACTIVE_REPORT, _CONFIG)
+
+    assert result["passed"] is False
+    assert "candidate_no_demonstrated_skill" in result["failures"]
+
+
+def test_evaluate_validation_gate_accepts_candidate_with_skill_on_either_metric():
+    # Only ONE of balanced_accuracy/mcc needs to clear the floor (an OR) -
+    # a candidate with mcc exactly at the default active fixture's implicit
+    # 0.0 (unset) but a real balanced-accuracy edge still passes this check.
+    candidate_metrics = _metrics(backtest={"balanced_accuracy": 0.55})  # mcc unset -> defaults to 0.0, clears min_mcc=0.0
+
+    result = evaluate_validation_gate(candidate_metrics, _report(), _ACTIVE_METRICS, _ACTIVE_REPORT, _CONFIG)
+
+    assert "candidate_no_demonstrated_skill" not in result["failures"]
+
+
+def test_evaluate_validation_gate_skill_floor_thresholds_are_configurable():
+    candidate_metrics = _metrics(backtest={"balanced_accuracy": 0.52, "mcc": 0.02})
+    strict_config = {**_CONFIG, "min_balanced_accuracy": 0.55, "min_mcc": 0.05}
+
+    result = evaluate_validation_gate(candidate_metrics, _report(), _ACTIVE_METRICS, _ACTIVE_REPORT, strict_config)
+
+    assert result["passed"] is False
+    assert "candidate_no_demonstrated_skill" in result["failures"]
+    assert result["thresholds"]["min_balanced_accuracy"] == 0.55
+    assert result["thresholds"]["min_mcc"] == 0.05

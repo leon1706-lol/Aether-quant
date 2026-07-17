@@ -8,7 +8,7 @@ from moe import (
     build_gating_decision,
     build_gating_model_features,
 )
-from moe.gating import ExpertGateWeight
+from moe.gating import ExpertGateWeight, _performance_score
 
 
 def _metrics() -> dict:
@@ -474,3 +474,69 @@ def test_sequence_prediction_applies_on_top_of_learned_gating_override():
     expected_probability = 0.5 * 0.1 + 0.5 * learned_probability
     assert decision.final_probability_up == pytest.approx(expected_probability, abs=1e-9)
     assert decision.sequence_blended is True
+
+
+def test_performance_score_floors_at_zero_below_coin_flip_skill():
+    # development/Problems.md: the old unconditional 0.25 floor let a
+    # no-measured-skill expert (backtest balanced-accuracy AT or BELOW a
+    # coin flip AND backtest MCC not positive) still contribute weight to
+    # the blend - averaging several such experts together mathematically
+    # pulls the combined prediction toward 0.5, which main.py's live output
+    # (0.4836-0.4907) matched exactly.
+    no_skill_metrics = {"validation": {"balanced_accuracy": 0.51}, "backtest": {"balanced_accuracy": 0.50, "mcc": 0.0}}
+    assert _performance_score(no_skill_metrics) == 0.0
+
+    below_random_metrics = {"validation": {"balanced_accuracy": 0.55}, "backtest": {"balanced_accuracy": 0.48, "mcc": -0.02}}
+    assert _performance_score(below_random_metrics) == 0.0
+
+
+def test_performance_score_positive_when_either_metric_clears_skill_floor():
+    # Only ONE of backtest_balanced_accuracy > 0.5 / backtest_mcc > 0.0 needs
+    # to clear the bar - matches _performance_score()'s own `and` (both must
+    # be at-or-below to zero out), not requiring both to clear to count.
+    bacc_only = {"validation": {"balanced_accuracy": 0.50}, "backtest": {"balanced_accuracy": 0.53, "mcc": 0.0}}
+    assert _performance_score(bacc_only) > 0.0
+
+    mcc_only = {"validation": {"balanced_accuracy": 0.50}, "backtest": {"balanced_accuracy": 0.50, "mcc": 0.03}}
+    assert _performance_score(mcc_only) > 0.0
+
+
+def test_zero_skill_expert_is_excluded_from_the_blend_entirely():
+    metrics = {
+        "experts": {
+            "bullish": {
+                "quality_gate": {"quality_status": "stable", "gating_eligible": True},
+                "validation": {"balanced_accuracy": 0.55},
+                "backtest": {"balanced_accuracy": 0.53, "mcc": 0.06},
+            },
+            "bearish": {
+                # No measured skill - should score 0.0 and be excluded.
+                "quality_gate": {"quality_status": "stable", "gating_eligible": True},
+                "validation": {"balanced_accuracy": 0.50},
+                "backtest": {"balanced_accuracy": 0.49, "mcc": -0.01},
+            },
+            "sideways": {
+                "quality_gate": {"quality_status": "disabled_for_gating", "gating_eligible": False},
+                "validation": {"balanced_accuracy": 0.50},
+                "backtest": {"balanced_accuracy": 0.50, "mcc": 0.0},
+            },
+            "volatility": {
+                "quality_gate": {"quality_status": "disabled_for_gating", "gating_eligible": False},
+                "validation": {"balanced_accuracy": 0.50},
+                "backtest": {"balanced_accuracy": 0.50, "mcc": 0.0},
+            },
+        }
+    }
+    decision = build_gating_decision(
+        regime={"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"},
+        expert_training_metrics=metrics,
+        expert_probabilities={"bullish": 0.70, "bearish": 0.30, "sideways": None, "volatility": None},
+    )
+
+    bearish_weight = next(weight for weight in decision.weights if weight.expert == "bearish")
+    assert bearish_weight.performance_score == 0.0
+    assert bearish_weight.raw_score == 0.0
+    assert bearish_weight.weight == 0.0
+    # Only bullish had any measured skill - it should get ALL the weight.
+    bullish_weight = next(weight for weight in decision.weights if weight.expert == "bullish")
+    assert bullish_weight.weight == pytest.approx(1.0)

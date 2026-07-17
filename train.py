@@ -1791,6 +1791,38 @@ def add_asset_class_context_features(dataset: pd.DataFrame, asset_class_by_ticke
     return dataset, context_columns
 
 
+def select_model_context_columns(dataset_columns) -> list[str]:
+    """The one place that decides which "asset_"-prefixed dataset columns
+    become actual model inputs - used by build_dataset_manifest() (what
+    gets exported as feature_schema.json's context_feature_names, which
+    main.py reads at runtime) AND by every trainer's own feature_names
+    construction, so the exported schema and the actually-trained model
+    input vector can never drift apart (same predicate, same column order,
+    computed from the same dataset object).
+
+    Selects only the 5 asset_class_* columns (add_asset_class_context_features()),
+    not the per-ticker asset_<TICKER> ones (add_asset_context_features()) -
+    35 of this model's 85 inputs used to be static per-ticker identity
+    flags (development/Problems.md), which can only encode each ticker's
+    own base rate and pushes the net toward a constant per-asset output.
+    Collapsing to 5 class-level flags keeps the "which kind of asset is
+    this" context signal (needed for the macro/bond/crypto feature blocks
+    to mean the right thing per asset class) without the per-ticker
+    memorization capacity. add_asset_context_features() itself is
+    unchanged and still runs (other, non-model-input consumers may still
+    want the per-ticker columns in the dataset) - this only changes which
+    columns get SELECTED as model inputs.
+
+    Safe on the runtime side without further plumbing: main.py's
+    context_values dict (main.py::_build_model_input()) is built generically
+    from whatever names feature_schema.json's context_feature_names lists,
+    filling asset_<ticker>/asset_class_<class> keys only "if key in
+    context_values" - a per-ticker key simply won't exist post-collapse,
+    exactly like an older exported model's schema missing the (newer)
+    asset_class_ keys entirely already degrades gracefully today."""
+    return [column for column in dataset_columns if str(column).startswith("asset_class_")]
+
+
 def asset_class_by_ticker_from_config(config: dict) -> dict[str, str]:
     return {
         asset["ticker"]: asset.get("asset_class") or asset.get("security_type")
@@ -1806,7 +1838,7 @@ def build_dataset_manifest(
     asset_quality: dict,
 ) -> dict:
     base_feature_names = config["phase1"]["features"]["input_set"]
-    context_feature_names = [column for column in dataset.columns if column.startswith("asset_")]
+    context_feature_names = select_model_context_columns(dataset.columns)
     categorical_feature_names = _categorical_feature_names(dataset)
     scaled_feature_names = [f"{feature_name}_scaled" for feature_name in base_feature_names]
     model_input_names = scaled_feature_names + categorical_feature_names + context_feature_names
@@ -2424,6 +2456,36 @@ def compute_binary_metrics(
     }
 
 
+def is_new_best_epoch(
+    candidate_metric: float,
+    best_metric_so_far: float,
+    epoch: int,
+    min_epoch: int = 3,
+) -> bool:
+    """Shared early-stopping decision for every direction-classification
+    trainer (train_model/_train_expert_classifier here; train_multitask.py/
+    train_sequence.py/train_gating.py call this too). Monitors a SKILL
+    metric (validation balanced_accuracy - higher is better), not raw
+    validation loss.
+
+    Root cause this fixes (development/Problems.md): with near-flat logits,
+    validation BCE loss was observed lowest at epoch 1 and rising every
+    epoch after - so the old "epoch with min validation loss" rule shipped
+    best_epoch=1 for the baseline, multitask AND sequence models alike: the
+    checkpoint shipped was essentially the random initialization. Loss and
+    balanced-accuracy are not the same surface - the network can still
+    improve its decision boundary (balanced-accuracy) for a few epochs even
+    while its calibration (BCE loss) degrades, which is exactly what a
+    near-noise label produces. `min_epoch` additionally refuses to
+    ship an epoch-1/2 checkpoint at all (returns False for epoch <
+    min_epoch), forcing at least a few real gradient updates before any
+    checkpoint becomes eligible, so a network that never improves past its
+    initialization is at least given the chance to."""
+    if epoch < min_epoch:
+        return False
+    return candidate_metric > best_metric_so_far
+
+
 def compute_regression_metrics(predictions: torch.Tensor, targets: torch.Tensor) -> dict:
     """Plain regression metrics (MAE/RMSE + bias) for the magnitude/volatility
     heads - compute_binary_metrics() above stays direction-only, since MCC/
@@ -3009,22 +3071,62 @@ def find_optimal_threshold(
     threshold_min: float,
     threshold_max: float,
     threshold_steps: int,
+    min_positive_rate: float = 0.15,
+    max_positive_rate: float = 0.85,
 ) -> tuple[float, dict]:
+    """MCC (or whatever metric_name is) is nearly flat when logits carry
+    little discriminative signal, so its weak maximum tends to sit at a
+    near-degenerate corner - an operating point that calls almost
+    everything positive (or almost everything negative). Confirmed live:
+    the shipped baseline model picked threshold 0.46 -> positive_rate 0.91,
+    the sequence model's threshold picked 0.545 -> positive_rate 0.0004
+    (development/Problems.md). Neither is a useful trading signal even
+    though each was the metric-optimal point in its unconstrained search.
+
+    `min_positive_rate`/`max_positive_rate` restrict SELECTION to
+    thresholds whose predicted positive rate falls in a non-degenerate
+    band (every candidate is still scored, so the metric surface is swept
+    faithfully). If every candidate in the sweep is degenerate, falls back
+    to the plain best-scoring threshold from the unconstrained sweep rather
+    than silently returning the never-searched default 0.5 - callers can
+    tell which happened via best_metrics['positive_rate'] sitting outside
+    the band."""
     best_threshold = 0.5
     best_metrics = compute_binary_metrics(logits, targets, criterion, best_threshold)
     best_score = best_metrics.get(metric_name, best_metrics["f1"])
+    best_threshold_unconstrained = best_threshold
+    best_metrics_unconstrained = best_metrics
+    best_score_unconstrained = best_score
+
+    def _within_band(metrics: dict) -> bool:
+        positive_rate = float(metrics.get("positive_rate", 0.5))
+        return min_positive_rate <= positive_rate <= max_positive_rate
+
+    found_non_degenerate = _within_band(best_metrics)
 
     for threshold in np.linspace(threshold_min, threshold_max, threshold_steps):
         threshold = float(round(float(threshold), 4))
         metrics = compute_binary_metrics(logits, targets, criterion, threshold)
         score = metrics.get(metric_name, metrics["f1"])
 
-        if score > best_score or (abs(score - best_score) < 1e-12 and abs(threshold - 0.5) < abs(best_threshold - 0.5)):
+        if score > best_score_unconstrained or (
+            abs(score - best_score_unconstrained) < 1e-12 and abs(threshold - 0.5) < abs(best_threshold_unconstrained - 0.5)
+        ):
+            best_threshold_unconstrained = threshold
+            best_metrics_unconstrained = metrics
+            best_score_unconstrained = score
+
+        if _within_band(metrics) and (
+            score > best_score or (abs(score - best_score) < 1e-12 and abs(threshold - 0.5) < abs(best_threshold - 0.5))
+        ):
             best_threshold = threshold
             best_metrics = metrics
             best_score = score
+            found_non_degenerate = True
 
-    return best_threshold, best_metrics
+    if found_non_degenerate:
+        return best_threshold, best_metrics
+    return best_threshold_unconstrained, best_metrics_unconstrained
 
 
 def find_optimal_masked_threshold(
@@ -3279,7 +3381,7 @@ def train_model(
     feature_names = [f"{name}_scaled" for name in config["phase1"]["features"]["input_set"]]
     feature_names += _categorical_feature_names(dataset)
     if bool(model_config.get("use_asset_context", False)):
-        feature_names += [column for column in dataset.columns if column.startswith("asset_")]
+        feature_names += select_model_context_columns(dataset.columns)
 
     set_seed(int(training_config["seed"]))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -3332,9 +3434,10 @@ def train_model(
 
     best_state = None
     best_epoch = 0
-    best_validation_loss = float("inf")
+    best_validation_balanced_accuracy = float("-inf")
     epochs_without_improvement = 0
     history: list[dict] = []
+    min_best_epoch = int(training_config.get("min_best_epoch", 3))
 
     validation_features = validation_features.to(device)
     validation_targets = validation_targets.to(device)
@@ -3375,15 +3478,19 @@ def train_model(
             }
         )
 
-        if validation_metrics["loss"] < best_validation_loss:
-            best_validation_loss = validation_metrics["loss"]
+        # Monitors validation balanced-accuracy (a skill metric), not raw
+        # loss - see is_new_best_epoch()'s docstring for why (Problems.md:
+        # loss-monitoring shipped best_epoch=1, essentially the untrained
+        # initialization, for baseline/multitask/sequence alike).
+        if is_new_best_epoch(validation_metrics["balanced_accuracy"], best_validation_balanced_accuracy, epoch, min_best_epoch):
+            best_validation_balanced_accuracy = validation_metrics["balanced_accuracy"]
             best_epoch = epoch
             best_state = copy.deepcopy(model.state_dict())
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
 
-        if epochs_without_improvement >= patience:
+        if epoch >= min_best_epoch and epochs_without_improvement >= patience:
             break
 
     if best_state is None:
@@ -3464,7 +3571,7 @@ def _feature_names_for_model(config: dict, dataset: pd.DataFrame) -> list[str]:
     feature_names = [f"{name}_scaled" for name in config["phase1"]["features"]["input_set"]]
     feature_names += _categorical_feature_names(dataset)
     if bool(model_config.get("use_asset_context", False)):
-        feature_names += [column for column in dataset.columns if column.startswith("asset_")]
+        feature_names += select_model_context_columns(dataset.columns)
     return feature_names
 
 
@@ -3489,9 +3596,17 @@ def _expert_training_config(config: dict) -> tuple[dict, dict]:
     training_config["min_validation_rows"] = int(training_overrides.get("min_validation_rows", 10))
     training_config["min_backtest_rows"] = int(training_overrides.get("min_backtest_rows", 10))
     training_config["quality_gate"] = {
-        "min_validation_balanced_accuracy": float(training_overrides.get("min_validation_balanced_accuracy", 0.48)),
-        "min_backtest_balanced_accuracy": float(training_overrides.get("min_backtest_balanced_accuracy", 0.48)),
-        "min_backtest_mcc": float(training_overrides.get("min_backtest_mcc", -0.05)),
+        # Raised to coin-flip-or-better (development/Problems.md): these
+        # used to default BELOW random (0.48 balanced-accuracy, -0.05 MCC),
+        # so every expert this codebase ever trained cleared the gate
+        # automatically regardless of whether it had learned anything -
+        # confirmed live, every shipped expert's validation MCC was 0.02-0.11
+        # and still passed. moe/gating.py's _performance_score() applies the
+        # matching 0.0-below-coin-flip floor at inference time; this is the
+        # training-time gate that should have caught it first.
+        "min_validation_balanced_accuracy": float(training_overrides.get("min_validation_balanced_accuracy", 0.50)),
+        "min_backtest_balanced_accuracy": float(training_overrides.get("min_backtest_balanced_accuracy", 0.50)),
+        "min_backtest_mcc": float(training_overrides.get("min_backtest_mcc", 0.0)),
         "max_train_backtest_balanced_accuracy_gap": float(
             training_overrides.get("max_train_backtest_balanced_accuracy_gap", 0.20)
         ),
@@ -3502,9 +3617,9 @@ def _expert_training_config(config: dict) -> tuple[dict, dict]:
 
 def assess_expert_quality(metrics: dict, training_config: dict) -> dict:
     gate = training_config.get("quality_gate", {})
-    min_validation_balanced_accuracy = float(gate.get("min_validation_balanced_accuracy", 0.48))
-    min_backtest_balanced_accuracy = float(gate.get("min_backtest_balanced_accuracy", 0.48))
-    min_backtest_mcc = float(gate.get("min_backtest_mcc", -0.05))
+    min_validation_balanced_accuracy = float(gate.get("min_validation_balanced_accuracy", 0.50))
+    min_backtest_balanced_accuracy = float(gate.get("min_backtest_balanced_accuracy", 0.50))
+    min_backtest_mcc = float(gate.get("min_backtest_mcc", 0.0))
     max_gap = float(gate.get("max_train_backtest_balanced_accuracy_gap", 0.20))
     watchlist_margin = float(gate.get("watchlist_margin", 0.03))
 
@@ -3958,9 +4073,10 @@ def _train_expert_classifier(
 
     best_state = None
     best_epoch = 0
-    best_validation_loss = float("inf")
+    best_validation_balanced_accuracy = float("-inf")
     epochs_without_improvement = 0
     history: list[dict] = []
+    min_best_epoch = int(training_config.get("min_best_epoch", 3))
 
     validation_features = validation_features.to(device)
     validation_targets = validation_targets.to(device)
@@ -3999,15 +4115,15 @@ def _train_expert_classifier(
             }
         )
 
-        if validation_metrics["loss"] < best_validation_loss:
-            best_validation_loss = validation_metrics["loss"]
+        if is_new_best_epoch(validation_metrics["balanced_accuracy"], best_validation_balanced_accuracy, epoch, min_best_epoch):
+            best_validation_balanced_accuracy = validation_metrics["balanced_accuracy"]
             best_epoch = epoch
             best_state = copy.deepcopy(model.state_dict())
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
 
-        if epochs_without_improvement >= patience:
+        if epoch >= min_best_epoch and epochs_without_improvement >= patience:
             break
 
     if best_state is None:

@@ -151,3 +151,36 @@ def test_assess_expert_quality_marks_near_gate_experts_as_watchlist():
 
     assert quality["quality_status"] == "watchlist"
     assert quality["gating_eligible"] is True
+
+
+def test_assess_expert_quality_default_floor_is_coin_flip_or_better():
+    # development/Problems.md: the OLD defaults (0.48/0.48/-0.05) were all
+    # below random-guess baseline (0.50 balanced-accuracy, 0.0 MCC), so
+    # every expert this codebase ever trained cleared the gate automatically
+    # regardless of whether it had learned anything. A candidate with
+    # exactly coin-flip metrics (balanced-accuracy 0.50, MCC 0.0) must now
+    # sit right AT the floor, not comfortably above it, when no explicit
+    # quality_gate override is supplied.
+    metrics = {
+        "train": {"balanced_accuracy": 0.50},
+        "validation": {"balanced_accuracy": 0.50},
+        "backtest": {"balanced_accuracy": 0.50, "mcc": 0.0},
+    }
+
+    quality = assess_expert_quality(metrics, training_config={})
+
+    assert quality["thresholds"]["min_validation_balanced_accuracy"] == 0.50
+    assert quality["thresholds"]["min_backtest_balanced_accuracy"] == 0.50
+    assert quality["thresholds"]["min_backtest_mcc"] == 0.0
+
+
+def test_assess_expert_quality_default_floor_rejects_below_coin_flip():
+    metrics = {
+        "train": {"balanced_accuracy": 0.55},
+        "validation": {"balanced_accuracy": 0.51},
+        "backtest": {"balanced_accuracy": 0.49, "mcc": -0.02},
+    }
+
+    quality = assess_expert_quality(metrics, training_config={})
+
+    assert quality["gating_eligible"] is False

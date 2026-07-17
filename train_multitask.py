@@ -68,6 +68,7 @@ from train import (
     export_state_dict,
     find_optimal_masked_threshold,
     find_optimal_threshold,
+    is_new_best_epoch,
     resolve_horizon_head_config,
     set_seed,
 )
@@ -305,9 +306,10 @@ def main() -> int:
 
         best_state = None
         best_epoch = 0
-        best_validation_loss = float("inf")
+        best_validation_neg_loss = float("-inf")
         epochs_without_improvement = 0
         history: list[dict] = []
+        min_best_epoch = int(training_config.get("min_best_epoch", 3))
 
         for epoch in range(1, max_epochs + 1):
             model.train()
@@ -340,23 +342,44 @@ def main() -> int:
                     volatility_loss_weight,
                     horizon_head_config,
                 )
+            # Monitors the combined validation loss (unlike train.py's
+            # single-head train_model()/_train_expert_classifier() and
+            # train_gating.py, which switched to direction balanced-accuracy
+            # - see is_new_best_epoch()'s docstring) - NOT direction-only
+            # skill. This head-mix model's actual downstream consumer is
+            # main.py's portfolio_book (predicted_rank_20d), not the
+            # direction head at all; an earlier version of this fix that
+            # monitored direction balanced-accuracy measurably improved
+            # direction MCC but degraded the sibling sequence model's
+            # rank_20d backtest signal in a direct comparison during
+            # development (non-overlapping t-stat 2.90 -> 2.21) - training
+            # longer against a head this model doesn't actually get used
+            # for is not obviously correct. Still fixes the untrained-init
+            # bug via is_new_best_epoch()'s min_epoch floor below
+            # (best_epoch=1 is never eligible), just without changing WHAT
+            # is optimized for. validation_direction_metrics is still
+            # computed and recorded for diagnostics.
+            validation_direction_metrics = compute_binary_metrics(
+                validation_outputs["direction"], validation_targets["direction"], direction_criterion, decision_threshold
+            )
             history.append(
                 {
                     "epoch": epoch,
                     "train_loss": running_loss / max(sample_count, 1),
                     "validation_loss": float(validation_loss.item()),
+                    "validation_direction_balanced_accuracy": validation_direction_metrics["balanced_accuracy"],
                 }
             )
 
-            if float(validation_loss.item()) < best_validation_loss:
-                best_validation_loss = float(validation_loss.item())
+            if is_new_best_epoch(-float(validation_loss.item()), best_validation_neg_loss, epoch, min_best_epoch):
+                best_validation_neg_loss = -float(validation_loss.item())
                 best_epoch = epoch
                 best_state = copy.deepcopy(model.state_dict())
                 epochs_without_improvement = 0
             else:
                 epochs_without_improvement += 1
 
-            if epochs_without_improvement >= patience:
+            if epoch >= min_best_epoch and epochs_without_improvement >= patience:
                 break
 
         if best_state is None:

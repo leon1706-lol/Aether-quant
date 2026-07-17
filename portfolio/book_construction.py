@@ -90,7 +90,7 @@ def _select_book_group(
     (`per_asset_class_slots`) paths, so both apply identical selection
     logic to whatever pool they're given, just scoped differently. See
     build_rank_based_book()'s docstring for the full behavior contract."""
-    if len(eligible_ranks) < 2 or top_n <= 0 or bottom_n <= 0:
+    if len(eligible_ranks) < 2 or top_n <= 0:
         return {}
 
     ranked_symbols = sorted(eligible_ranks, key=lambda symbol: eligible_ranks[symbol], reverse=True)
@@ -98,13 +98,23 @@ def _select_book_group(
     remaining_symbols = [symbol for symbol in ranked_symbols if symbol not in long_symbols]
     short_symbols = remaining_symbols[-bottom_n:] if bottom_n > 0 else []
 
-    if not long_symbols or not short_symbols:
+    if not long_symbols:
+        return {}
+    # bottom_n > 0 means a short side was actually requested - if nothing
+    # was left over to fill it (long_n consumed the whole eligible pool),
+    # stay strict and refuse the whole book, matching this function's
+    # original behavior. bottom_n == 0 (main.py passes this for
+    # phase5.backtest.strategy_mode == "long_flat" - see main.py's own
+    # strategy_mode enforcement) is a deliberate long-only request, not a
+    # degenerate case - falls through to the long-only book below.
+    if bottom_n > 0 and not short_symbols:
         return {}
 
-    long_mean_rank = sum(eligible_ranks[symbol] for symbol in long_symbols) / len(long_symbols)
-    short_mean_rank = sum(eligible_ranks[symbol] for symbol in short_symbols) / len(short_symbols)
-    if (long_mean_rank - short_mean_rank) < min_rank_confidence_spread:
-        return {}
+    if short_symbols:
+        long_mean_rank = sum(eligible_ranks[symbol] for symbol in long_symbols) / len(long_symbols)
+        short_mean_rank = sum(eligible_ranks[symbol] for symbol in short_symbols) / len(short_symbols)
+        if (long_mean_rank - short_mean_rank) < min_rank_confidence_spread:
+            return {}
 
     allocations: dict[str, BookAllocation] = {}
     for symbol in long_symbols:
@@ -148,10 +158,14 @@ def build_rank_based_book(
     identically for every other decision) and `predicted_rank_20d` is not
     None (model unavailable/still warming up that bar).
 
-    Requires at least one eligible symbol on EACH side (long and short) to
-    form a book at all - a one-sided book (all longs, no shorts, or vice
-    versa) isn't attempted in this pass; returns {} in that case, same as
-    every other degenerate-input case below. `top_n`/`bottom_n` (or each
+    `bottom_n == 0` requests a deliberate long-only book (no shorts at all) -
+    used by main.py to honor `phase5.backtest.strategy_mode == "long_flat"`
+    while still getting rank-driven entry/rotation on the long side. Any
+    `bottom_n > 0` still requires at least one eligible symbol on EACH side
+    to form a book at all - a one-sided book isn't attempted when a short
+    side was actually requested but nothing was available for it; returns
+    {} in that case, same as every other degenerate-input case below.
+    `top_n`/`bottom_n` (or each
     asset class's own pair, see `per_asset_class_slots` below) exceeding
     the number of eligible symbols degrades gracefully to however many are
     actually available (never raises) - same "pad/truncate rather than

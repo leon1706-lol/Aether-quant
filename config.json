@@ -408,10 +408,7 @@
                 "bond_yield_curve_slope",
                 "bond_yield_curve_curvature",
                 "bond_credit_spread_level",
-                "bond_empirical_duration_beta",
-                "futures_term_structure_slope",
-                "options_put_call_ratio",
-                "options_implied_vol_skew"
+                "bond_empirical_duration_beta"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
             "winsorize_quantiles": [
@@ -511,8 +508,8 @@
             "max_position_weight": 0.2,
             "min_confidence_to_trade": 0.05,
             "trade_cooldown_bars": 1,
-            "max_daily_drawdown_pct": 1.0,
-            "max_total_drawdown_pct": 1.0,
+            "max_daily_drawdown_pct": 0.03,
+            "max_total_drawdown_pct": 0.12,
             "liquidate_on_risk_breach": true
         }
     },
@@ -521,7 +518,7 @@
         "objective": "Expand the universe while keeping thin-history assets visible but safely observation-only.",
         "asset_quality": {
             "min_total_feature_rows": 50,
-            "min_training_rows": 50,
+            "min_training_rows": 250,
             "min_backtest_rows": 20,
             "observation_only_kept_in_universe": true
         },
@@ -628,10 +625,15 @@
             }
         },
         "portfolio_book": {
-            "enabled": false,
-            "top_n": 3,
-            "bottom_n": 3,
-            "min_rank_confidence_spread": 0.2
+            "enabled": true,
+            "top_n": 5,
+            "bottom_n": 5,
+            "min_rank_confidence_spread": 0.1
+        },
+        "exits": {
+            "enabled": true,
+            "max_holding_bars": 60,
+            "trailing_stop_pct": 0.15
         },
         "liquidity": {
             "thin_participation_threshold": 0.005,
@@ -721,7 +723,7 @@
             "allow_live_orders": false
         },
         "backtest": {
-            "bypass_safety_gates": true
+            "bypass_safety_gates": false
         },
         "paper_trading": {
             "brokerage": "lean_paper_brokerage",

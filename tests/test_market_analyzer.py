@@ -388,3 +388,84 @@ def test_composite_score_enabled_can_upgrade_simulate_to_trade():
     assert off.action == "simulate"
     assert on.action == "trade"
     assert on.signal_quality_score >= 0.3 > off.confidence
+
+
+# ---------------------------------------------------------------------------
+# Priority 0: is_currently_invested exit bypass (development/Problems.md) -
+# closing an existing position is risk-REDUCING by construction, so none of
+# the protective vetoes below may block it, unlike a NEW buy/short signal.
+# ---------------------------------------------------------------------------
+
+
+def test_sell_for_invested_position_bypasses_trade_lock():
+    decision = build_market_analysis_decision(
+        signal_name="sell", confidence=0.5, probability_up=0.3, target_weight=0.0,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=True, trade_lock_reason="total_drawdown_limit_breached",
+        is_currently_invested=True,
+    )
+    assert decision.action == "trade"
+    assert decision.signal == "sell"
+    assert "exit_signal_for_open_position_bypasses_risk_vetoes" in decision.reasons
+
+
+def test_sell_for_invested_position_bypasses_risk_off_regime():
+    # This is the exact scenario development/Problems.md documents: a
+    # risk-off regime read during a real drawdown (e.g. COVID 2020) used to
+    # block the exit that would have been most valuable right then.
+    decision = build_market_analysis_decision(
+        signal_name="sell", confidence=0.9, probability_up=0.2, target_weight=0.0,
+        regime=_regime(confidence=0.8, risk_regime="risk_off"), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        is_currently_invested=True,
+    )
+    assert decision.action == "trade"
+    assert decision.signal == "sell"
+
+
+def test_sell_for_invested_position_bypasses_elevated_topology():
+    decision = build_market_analysis_decision(
+        signal_name="sell", confidence=0.5, probability_up=0.3, target_weight=0.0,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        topology={"topology_risk": "elevated"},
+        is_currently_invested=True,
+    )
+    assert decision.action == "trade"
+
+
+def test_sell_without_invested_position_still_goes_through_normal_vetoes():
+    # is_currently_invested defaults to False - "nothing to protect", so a
+    # sell signal with no open position is NOT fast-pathed; behaves exactly
+    # like before this fix (matches test_risk_off_regime_overrides_directional_signal).
+    decision = build_market_analysis_decision(
+        signal_name="sell", confidence=0.9, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(confidence=0.8, risk_regime="risk_off"), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+    )
+    assert decision.action == "reduce_risk"
+    assert decision.signal == "hold"
+
+
+def test_buy_signal_never_bypasses_vetoes_even_when_invested():
+    # is_currently_invested only ever fast-paths "sell" - a "buy" (adding
+    # to/re-entering a position) is a NEW risk-increasing decision and must
+    # still go through every tier, regardless of whether something else is
+    # already held.
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.8, probability_up=0.7, target_weight=0.15,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=True, trade_lock_reason="total_drawdown_limit_breached",
+        is_currently_invested=True,
+    )
+    assert decision.action == "reduce_risk"
+
+
+def test_short_signal_never_bypasses_vetoes_even_when_invested():
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.8, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=True, trade_lock_reason="total_drawdown_limit_breached",
+        is_currently_invested=True,
+    )
+    assert decision.action == "reduce_risk"

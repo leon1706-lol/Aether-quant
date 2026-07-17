@@ -92,6 +92,7 @@ def build_market_analysis_decision(
     use_composite_signal_score: bool = False,
     predicted_return_magnitude: float | None = None,
     predicted_volatility: float | None = None,
+    is_currently_invested: bool = False,
 ) -> MarketAnalysisDecision:
     # signal_name == "short" (Phase 3 of the 5/10 -> 9/10 roadmap,
     # portfolio/book_construction.py) is treated identically to "buy"/"sell"
@@ -101,6 +102,41 @@ def build_market_analysis_decision(
     # as any other directional signal, never bypassing it. See
     # analyzer/README.md for why this categorization stays deterministic.
     reasons: list[str] = []
+
+    # Priority 0 (evaluated before even trade-lock): closing an EXISTING
+    # position is risk-REDUCING by construction, so none of the protective
+    # vetoes below (trade-lock, risk-off regime, elevated topology) may
+    # block it - only ever suppress a new/added exposure. Before this fix
+    # they applied identically to "sell", so a risk-off regime or an
+    # elevated-topology reading during exactly the periods you'd most want
+    # to cut a position instead trapped it open (development/Problems.md:
+    # confirmed to be why the COVID-2020 drawdown window closed zero
+    # positions in the first real backtest). "sell" is the one signal that
+    # universally means "close whatever is open" (main.py::_apply_signal()
+    # liquidates on it regardless of long/short), so this only ever reduces
+    # risk, never increases it - a "short"/"buy" signal still goes through
+    # every tier below unchanged, and a "sell" with nothing currently open
+    # falls through too (there's nothing to protect by fast-pathing it).
+    if signal_name == "sell" and is_currently_invested:
+        reasons.append("exit_signal_for_open_position_bypasses_risk_vetoes")
+        bypass_quality_score, bypass_quality_breakdown = compute_signal_quality_score(
+            confidence, float((regime or {}).get("confidence", 0.0) or 0.0), topology or {}, liquidity or {}
+        )
+        return MarketAnalysisDecision(
+            action="trade",
+            signal=signal_name,
+            target_weight=target_weight,
+            confidence=confidence,
+            probability_up=probability_up,
+            trading_eligible=trading_eligible,
+            topology_considered=bool(topology),
+            liquidity_considered=bool(liquidity),
+            reasons=reasons,
+            signal_quality_score=bypass_quality_score,
+            signal_quality_breakdown=bypass_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
+        )
     decision_source = str(gating.get("decision_source", "unknown"))
     regime_confidence = float(regime.get("confidence", 0.0) or 0.0)
     risk_regime = str(regime.get("risk_regime", "risk_neutral"))

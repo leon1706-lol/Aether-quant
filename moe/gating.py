@@ -90,6 +90,22 @@ def _performance_score(metrics: dict) -> float:
     backtest_balanced_accuracy = float(backtest.get("balanced_accuracy", 0.5) or 0.5)
     backtest_mcc = float(backtest.get("mcc", 0.0) or 0.0)
 
+    # Skill floor (development/Problems.md): the old unconditional 0.25
+    # floor meant EVERY expert - even one with backtest balanced-accuracy at
+    # or below a coin flip and non-positive MCC, i.e. no measured skill at
+    # all - still contributed at least 0.25 of weight to the blend. Since
+    # the blend is a weighted AVERAGE of several experts, several
+    # simultaneously near-0.5 predictors mathematically pull the combined
+    # output toward 0.5 regardless of what any single expert says
+    # (confirmed: the live blended probability_up clustered 0.46-0.49,
+    # matching this exactly). An expert with no measured skill on either
+    # metric now scores exactly 0.0 - normalize_weights() (below) then
+    # excludes it from the blend entirely, rather than diluting it, so
+    # only experts that clear a basic skill bar can move the final
+    # prediction away from the baseline.
+    if backtest_balanced_accuracy <= 0.5 and backtest_mcc <= 0.0:
+        return 0.0
+
     score = 0.25
     score += max(0.0, validation_balanced_accuracy - 0.48) * 2.0
     score += max(0.0, backtest_balanced_accuracy - 0.48) * 3.0
