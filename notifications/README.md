@@ -39,11 +39,11 @@ and `retraining/`:
     are attempted best-effort per row, and the watermark always advances to
     the newest row's `created_at` regardless of individual send failures.
 
-Docker: `telegram-worker` service in `docker-compose.yml`, built from the
-shared `Dockerfile.workers`/`requirements/requirements-workers.txt` (also
-used by `experience-worker`/`performance-trigger-worker` since the Docker
-image consolidation), depends only on `postgres` (no Redis — this worker
-never touches the experience stream directly).
+Docker: `telegram-worker` service in `docker-compose.yml`, running from
+the single consolidated `aether-quant-engine` image (the same build every
+other service — the app and every other worker — shares; see
+`requirements/README.md`), depends only on `postgres` (no Redis — this
+worker never touches the experience stream directly).
 
 Secrets: `AETHER_TELEGRAM_BOT_TOKEN` / `AETHER_TELEGRAM_CHAT_ID`, set via a
 local `.env` (see `.env.compose.example`) — never committed, never placed in

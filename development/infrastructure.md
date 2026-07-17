@@ -8,6 +8,16 @@ Docker Compose connects the local V2 building blocks:
 
 Grafana used to be part of this stack, but was removed in V2-18 — the webui's tracing page (`/tracing`) now displays the same feeds natively, see `development/v2_architecture.md`.
 
+**Naming**: every container in this stack is `aether-quant-<name>` (e.g.
+`aether-quant-postgres`, `aether-quant-redis`, `aether-quant-lean-live`) —
+distinct from the sibling `aether-vault-*` project's containers on the
+same machine. The app (`engine` service) and every worker service
+(`experience-worker`, `performance-trigger-worker`, `telegram-worker`,
+`paper-readiness-scheduler`, `retraining-worker`) all run from the same
+built image, `aether-quant-engine` — one `Dockerfile`, `docker compose
+build engine`, no more per-worker Dockerfiles. See
+`requirements/README.md` for why this replaced three separate images.
+
 ## Data Flow
 
 1. The live or observation loop produces a signal and immediately writes raw metrics to Redis.
@@ -46,7 +56,7 @@ docker compose run --rm experience-worker python -m experience.postgres_worker -
 ## PostgreSQL — Inspecting Experience Events
 
 ```powershell
-docker exec -it aether-postgres psql -U aether -d aether_quant
+docker exec -it aether-quant-postgres psql -U aether -d aether_quant
 ```
 
 ```sql
@@ -66,8 +76,8 @@ FROM experience_events ORDER BY created_at DESC LIMIT 5;
 Dead-letter stream in Redis:
 
 ```powershell
-docker exec -it aether-redis redis-cli XLEN aether:experience:deadletter
-docker exec -it aether-redis redis-cli XRANGE aether:experience:deadletter - + COUNT 5
+docker exec -it aether-quant-redis redis-cli XLEN aether:experience:deadletter
+docker exec -it aether-quant-redis redis-cli XRANGE aether:experience:deadletter - + COUNT 5
 ```
 
 ## Using Your Own Images
@@ -77,7 +87,12 @@ If you have your own Redis, PostgreSQL, or Lean images, set the image names befo
 ```powershell
 $env:REDIS_IMAGE="your-redis-image:tag"
 $env:POSTGRES_IMAGE="your-postgres-image:tag"
-$env:LEAN_IMAGE="your-lean-image:tag"
+$env:LEAN_IMAGE="your-lean-image:tag"   # defaults to quantconnect/lean:17900, a
+                                          # PINNED build (aq_cli.py::PINNED_LEAN_ENGINE_IMAGE,
+                                          # development/Problems.md #40) - NOT :latest,
+                                          # so it never silently re-pulls the ~42GB
+                                          # image against an already-cached one. Override
+                                          # here to deliberately move to a newer build.
 docker compose --profile lean up -d
 ```
 
@@ -427,7 +442,7 @@ for ad-hoc backtests):
 ```powershell
 docker compose up -d redis postgres experience-worker
 docker compose --profile lean-live up -d
-docker compose logs -f aether-lean-live
+docker compose logs -f aether-quant-lean-live
 ```
 
 **Caution:** `lean live deploy`'s exact CLI flags were not verified against
@@ -486,7 +501,7 @@ fields **directly in `lean.json`** (`ib-account`, `ib-user-name`,
 # config.json: phase_v2.runtime.mode = "live"
 $env:LEAN_LIVE_ENVIRONMENT = "live-interactive"
 docker compose --profile lean-live up -d
-docker compose logs -f aether-lean-live
+docker compose logs -f aether-quant-lean-live
 ```
 
 **5. Monitor:** Telegram (V2-19) alerts on `critical` triggers, including
@@ -509,4 +524,4 @@ V2-17 so they don't collide with the separate Aether-Vault Compose stack):
 
 - Redis: `localhost:6380`
 - PostgreSQL: `localhost:5433`
-- aether-quant (FastAPI + webui bundle): `http://localhost:8001`
+- `engine` (FastAPI + webui bundle): `http://localhost:8001`

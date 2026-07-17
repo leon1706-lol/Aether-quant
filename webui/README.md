@@ -68,8 +68,8 @@ uvicorn monitoring.api_server:app --port 8001 --reload
 ```
 
 In Docker, the same build is instead bundled into and served by the
-`aether-quant` container itself on port 8001 — no separate webui container
-or port.
+`aether-quant-engine` container (the `engine` service) itself on port
+8001 — no separate webui container or port.
 
 ## Build / lint
 

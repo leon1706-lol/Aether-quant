@@ -3,7 +3,7 @@ name: aether-quant
 services:
   redis:
     image: ${REDIS_IMAGE:-redis:7-alpine}
-    container_name: aether-redis
+    container_name: aether-quant-redis
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6380}:6379"
@@ -19,7 +19,7 @@ services:
 
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:16-alpine}
-    container_name: aether-postgres
+    container_name: aether-quant-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aether_quant}
       POSTGRES_USER: ${POSTGRES_USER:-aether}
@@ -36,11 +36,15 @@ services:
     networks:
       - aether-net
 
-  aether-quant:
-    image: ${AETHER_QUANT_IMAGE:-ghcr.io/leon1706-lol/aether-quant:latest}
+  # The one consolidated build - serves the FastAPI app by default (CMD in
+  # Dockerfile) and is reused, unbuilt, as the `image:` for every worker
+  # service below (each just overrides `command:`). See requirements/README.md
+  # for why this replaced three separate Dockerfiles.
+  engine:
+    image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
     build:
       context: .
-    container_name: aether-quant
+    container_name: aether-quant-engine
     ports:
       - "${AETHER_QUANT_PORT:-8001}:8000"
     volumes:
@@ -59,8 +63,13 @@ services:
       - aether-net
 
   lean:
-    image: ${LEAN_IMAGE:-quantconnect/lean:latest}
-    container_name: aether-lean
+    # Pinned to the same build aq_cli.py::PINNED_LEAN_ENGINE_IMAGE uses for
+    # `aq backtest` (development/Problems.md #40) - NOT quantconnect/lean:latest,
+    # a mutable tag that would silently re-pull the ~42GB image whenever
+    # QuantConnect moves `latest`, even against an already-fully-cached
+    # local image. Keep this in sync with aq_cli.py's pin when bumped.
+    image: ${LEAN_IMAGE:-quantconnect/lean:17900}
+    container_name: aether-quant-lean
     profiles:
       - lean
     working_dir: /workspace
@@ -89,8 +98,9 @@ services:
   # started by `docker compose up` or `--all`/`--lean` - profile-gated on
   # purpose so a bare `up` never accidentally starts real/paper trading.
   lean-live:
-    image: ${LEAN_IMAGE:-quantconnect/lean:latest}
-    container_name: aether-lean-live
+    # Same pin rationale as the `lean` service above.
+    image: ${LEAN_IMAGE:-quantconnect/lean:17900}
+    container_name: aether-quant-lean-live
     profiles:
       - lean-live
     working_dir: /workspace
@@ -111,10 +121,8 @@ services:
     restart: unless-stopped
 
   experience-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.workers
-    container_name: aether-experience-worker
+    image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
+    container_name: aether-quant-experience-worker
     command: python -m experience.postgres_worker
     environment:
       AETHER_REDIS_URL: redis://redis:6379/0
@@ -132,10 +140,8 @@ services:
     restart: unless-stopped
 
   performance-trigger-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.workers
-    container_name: aether-performance-trigger-worker
+    image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
+    container_name: aether-quant-performance-trigger-worker
     command: python -m performance.trigger_worker
     environment:
       AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
@@ -155,10 +161,8 @@ services:
     # default: not started by `docker compose up` alone (no depends_on
     # from another service) - start explicitly with
     # `docker compose up paper-readiness-scheduler` when wanted.
-    build:
-      context: .
-      dockerfile: Dockerfile.workers
-    container_name: aether-paper-readiness-scheduler
+    image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
+    container_name: aether-quant-paper-readiness-scheduler
     command: python -m execution.paper_readiness_scheduler --poll-interval 3600
     environment:
       AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
@@ -175,10 +179,8 @@ services:
       - paper-readiness
 
   telegram-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.workers
-    container_name: aether-telegram-worker
+    image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
+    container_name: aether-quant-telegram-worker
     command: python -m notifications.telegram_worker
     environment:
       AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
@@ -194,10 +196,8 @@ services:
     restart: unless-stopped
 
   retraining-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.retraining_worker
-    container_name: aether-retraining-worker
+    image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
+    container_name: aether-quant-retraining-worker
     command: python -m retraining.worker
     environment:
       AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}

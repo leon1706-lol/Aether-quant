@@ -3256,3 +3256,82 @@ root README (`aq backtest` CLI reference + Getting Started).
 added a new `--image` override test. Full suite: `aq test` → 1326 passed,
 0 failed, 11 deselected (`lean_backtest`, expected), 1 pre-existing
 warning.
+
+## 2026-07-17 — Docker consolidation: one `aether-quant-engine` image for app + every worker, `aether-quant-` container rename, compose Lean image pinned
+
+Docker Desktop had accumulated separate built images per service (the app,
+one shared image for the three lightweight workers, and a separate image
+for `retraining-worker`) plus bare `aether-` container names that
+collided conceptually with the user's other `aether-*` projects (e.g.
+`aether-vault`). User-requested rework, two explicit decisions up front:
+the published ghcr image becomes the same fat consolidated image (no
+multi-target slim/fat split), and every container gets an `aether-quant-`
+prefix.
+
+**One consolidated `Dockerfile`, replacing three.** `Dockerfile.workers`
+(experience/performance-trigger/telegram workers) and
+`Dockerfile.retraining_worker` are deleted. The single remaining
+`Dockerfile` keeps its existing webui-builder first stage, then installs
+the single `requirements/requirements.txt` (gained `aiofiles>=23.0`, the
+one dep the deleted `requirements-runtime.txt` had that the main file
+didn't) and `COPY . .`s the whole source tree instead of a hand-maintained
+per-service `COPY <package>/` allow-list. `requirements-runtime.txt`,
+`requirements-workers.txt`, and `requirements-retraining-worker.txt` are
+deleted as now-redundant. **This structurally eliminates an entire bug
+class**: `development/Problems.md` #1, #2, #20, #30 were all the same
+root cause — a per-worker COPY allow-list drifting out of sync with that
+worker's actual import graph, crash-looping on `ModuleNotFoundError` at
+container start. With one image copying everything, there is no allow-list
+left to drift.
+
+**`docker-compose.yml`**: the app service is renamed `aether-quant` →
+`engine` (`container_name: aether-quant-engine`, image
+`aether-quant-engine:latest`); every worker service drops its `build:`
+block entirely and instead references `image:
+${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}` (same image, different
+`command:` per service, exactly as before) with `container_name:
+aether-quant-<service>`. `redis`/`postgres` keep their service names
+(used as DNS hostnames in every DSN — renaming those would have broken
+inter-service connectivity) but get `aether-quant-redis`/
+`aether-quant-postgres` container names. The compose project name stays
+`aether-quant` (unchanged since before this pass), so `aether-quant_redis-data`/
+`aether-quant_postgres-data` volumes are untouched — no data migration,
+containers just get recreated under new names on next `up`.
+
+**Lean image pin extended to compose** (ties into `development/Problems.md`
+#40's `aq backtest` fix): the `lean`/`lean-live` services' `LEAN_IMAGE`
+default changed from `quantconnect/lean:latest` (mutable — re-pulls
+whenever QuantConnect moves the tag, even against an already-cached
+image) to `quantconnect/lean:17900`, matching
+`aq_cli.py::PINNED_LEAN_ENGINE_IMAGE` exactly. Starting the compose Lean
+services now reuses the same cached ~42GB image `aq backtest` already
+uses — no second, redundant pull path.
+
+**`aq_cli.py`**: `cmd_docker_up`'s `--all` service list and
+`cmd_docker_build`'s hardcoded service name both changed `"aether-quant"`
+→ `"engine"`. `aq docker build`'s help text updated to describe the
+consolidated image.
+
+**Docs updated** (current runbooks only — historical Changelog/Problems.md/
+v2_architecture.md entries left as-is, matching this project's append-only
+convention): `development/infrastructure.md` (container names in every
+`docker exec`, a new intro note on the naming scheme and consolidated
+image, the `LEAN_IMAGE` pin note), root `README.md` (Download section),
+`requirements/README.md` (rewritten — two files instead of five, explains
+the consolidation and the bug class it closes), `notifications/README.md`,
+`webui/README.md`, `data_pipeline/README.md`.
+
+### Verification
+
+`tests/test_aq_cli.py`: `test_docker_up_all_includes_every_worker` and
+`test_docker_build_wraps_compose_build` updated for the `engine` service
+name. Full suite: `aq test` green. `docker compose config` (read-only)
+validated the rewritten compose file resolves cleanly with every
+`container_name` as `aether-quant-*` and every app/worker service
+pointing at `aether-quant-engine:latest`.
+
+**Division of labor, explicit**: the actual `docker compose build`/`up`
+and the one-time removal of the old `aether-*` containers and old
+per-worker images (they don't disappear automatically on a rename) are
+left for the user to run themselves, per their standing preference for
+Docker build/deploy actions.

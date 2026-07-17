@@ -118,9 +118,12 @@ below). `aq` checks PyPI at most once every 24h (short timeout, never
 blocking) for a newer version and prints a one-line notice if one's
 available — disable with `AQ_SKIP_UPDATE_CHECK=1`.
 
-The Docker image is the same one `docker-compose.yml`'s `aether-quant`
-service pulls by default (override with the `AETHER_QUANT_IMAGE` env var,
-e.g. to use a locally built image instead).
+The Docker image is the same one `docker-compose.yml`'s `engine` service
+(and every worker service — they all share this one build,
+`aether-quant-engine`) pulls by default (override with the
+`AETHER_QUANT_IMAGE` env var, e.g. to use a locally built image instead).
+This is the single consolidated image (app + every worker, includes the
+full ML stack) — expect a larger download than a minimal API-only image.
 
 ## Getting Started
 

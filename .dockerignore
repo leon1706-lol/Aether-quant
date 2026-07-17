@@ -14,3 +14,22 @@ Aether-quant-Obsidian-Vault/
 data/
 ml/
 storage/
+
+# Local secrets and broker/API credentials - mirrors .gitignore's own list.
+# lean.json is tracked in git (its ib-account/ib-user-name/ib-password/
+# ib-trading-mode fields ship as empty placeholders, hand-filled locally per
+# development/infrastructure.md's V2-22 runbook) so it must be excluded here
+# too, or a locally-populated copy gets baked straight into the image layer
+# on the next `aq docker build` - and that image is the same one published
+# to ghcr (single fat target, no slim variant).
+.env
+.env.*
+!.env.compose.example
+!.env.live.example
+ib_config.py
+*_config.local.py
+config.local.json
+lean.local.json
+lean.json
+*.key
+*.pem

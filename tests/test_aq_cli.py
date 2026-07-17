@@ -632,7 +632,9 @@ def test_docker_up_all_includes_every_worker():
     _parse_and_dispatch(["docker", "up", "--all"], run_mock)
 
     argv = run_mock.call_args.args[0]
-    for service in ("redis", "postgres", "aether-quant", "experience-worker", "performance-trigger-worker", "retraining-worker", "telegram-worker"):
+    # "engine" is the one consolidated aether-quant-engine build (app +
+    # every worker) - see docker-compose.yml's `engine` service.
+    for service in ("redis", "postgres", "engine", "experience-worker", "performance-trigger-worker", "retraining-worker", "telegram-worker"):
         assert service in argv
 
 
@@ -640,7 +642,7 @@ def test_docker_build_wraps_compose_build():
     run_mock = MagicMock(return_value=0)
     _parse_and_dispatch(["docker", "build"], run_mock)
 
-    assert run_mock.call_args.args[0] == ["docker", "compose", "build", "aether-quant"]
+    assert run_mock.call_args.args[0] == ["docker", "compose", "build", "engine"]
 
 
 def test_paper_readiness_wraps_the_report_module():

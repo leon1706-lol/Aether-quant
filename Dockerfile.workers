@@ -1,8 +1,0 @@
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements/requirements-workers.txt .
-RUN pip install --no-cache-dir -r requirements-workers.txt
-COPY execution/ ./execution/
-COPY experience/ ./experience/
-COPY performance/ ./performance/
-COPY notifications/ ./notifications/

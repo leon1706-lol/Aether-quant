@@ -630,10 +630,13 @@ def cmd_webui(_args: argparse.Namespace) -> int:
 
 def cmd_docker_up(args: argparse.Namespace) -> int:
     if args.all:
+        # "engine" is the one consolidated build (aether-quant-engine) that
+        # backs the app AND every worker below - see docker-compose.yml's
+        # own comment on the `engine` service and requirements/README.md.
         services = [
             "redis",
             "postgres",
-            "aether-quant",
+            "engine",
             "experience-worker",
             "performance-trigger-worker",
             "retraining-worker",
@@ -646,7 +649,7 @@ def cmd_docker_up(args: argparse.Namespace) -> int:
 
 
 def cmd_docker_build(_args: argparse.Namespace) -> int:
-    return _run(["docker", "compose", "build", "aether-quant"])
+    return _run(["docker", "compose", "build", "engine"])
 
 
 def cmd_retrain(args: argparse.Namespace) -> int:
@@ -1044,7 +1047,9 @@ def build_parser() -> argparse.ArgumentParser:
     docker_up_group.add_argument("--all", action="store_true", help="Start the full stack, including all workers")
     docker_up_parser.set_defaults(func=cmd_docker_up)
 
-    docker_build_parser = docker_subparsers.add_parser("build", help="Rebuild the aether-quant app image")
+    docker_build_parser = docker_subparsers.add_parser(
+        "build", help="Rebuild the consolidated aether-quant-engine image (app + every worker)"
+    )
     docker_build_parser.set_defaults(func=cmd_docker_build)
 
     config_parser = subparsers.add_parser("config", help="Show or edit config.json")

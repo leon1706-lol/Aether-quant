@@ -33,7 +33,8 @@ training or a backtest.
 
 Usage: `python -m data_pipeline.yfinance_backfill [--tickers ETHUSD LTCUSD] [--apply]`.
 `yfinance` is a dev-only dependency (`requirements/requirements-dev.txt`),
-never in `requirements.txt`/`requirements-runtime.txt`.
+never in `requirements.txt` (the one requirements file the consolidated
+`aether-quant-engine` Docker image installs).
 
 ## Ad-hoc ticker fetch (`aq fetch`)
 
