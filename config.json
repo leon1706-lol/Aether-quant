@@ -825,7 +825,8 @@
                 "auto_promote": true,
                 "auto_promote_blocked_in_live_mode": true,
                 "poll_interval_seconds": 300,
-                "batch_limit": 1000
+                "batch_limit": 1000,
+                "stale_running_timeout_seconds": 10800
             },
             "topology_training": {
                 "enabled": true,

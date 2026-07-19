@@ -37,6 +37,7 @@ from retraining.orchestrator import (
     commit,
     plan,
     promote,
+    reconcile_stale_running_events,
     status,
     train,
     train_gating,
@@ -86,6 +87,14 @@ class RetrainingWorker:
 
         ensure_schema(self._conn)
         ensure_performance_schema(self._conn)
+
+        # Reconcile any retraining_events row orphaned by a prior crash/
+        # redeploy mid-cycle (see development/Problems.md #48) before the
+        # poll loop starts - otherwise a single interrupted cycle silently
+        # blocks every future retraining attempt for the full cooldown window.
+        reconciled = reconcile_stale_running_events(self._conn, self.config)
+        if reconciled:
+            logger.warning("RetrainingWorker: reconciled %d orphaned retraining_events row(s) on startup.", len(reconciled))
 
     def run_once(self) -> dict:
         """Runs at most one full retraining cycle. Returns a summary dict.

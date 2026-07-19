@@ -1550,6 +1550,77 @@ live trades were configured or tested in this phase.
   placed. This phase only built the scaffolding a real live-trading rollout
   would need.
 
+## Audit Logging Contract
+
+New package `audit/`, following the same Redis Stream → Postgres worker →
+JSON snapshot pattern `experience/` (V2-14) already established — closes the
+one deferred item from the pre-live security review (`development/Problems.md`
+#42): order placement, credential loads, and live-mode transitions previously
+only went through ordinary application logging, not a tamper-evident trail.
+
+- `audit/hash_chain.py` (pure) — `compute_entry_hash(prev_hash, event_type,
+  created_at, payload)` (sha256 over the canonical-JSON payload chained to
+  the previous row's hash, git-commit-style) and `verify_chain(rows)` (walks
+  the full table oldest-first, returns `(True, None)` or `(False,
+  first_broken_index)`). Any row's content tampered with after the fact
+  breaks its own hash *and* every hash after it — detectable, not just
+  logged.
+- `audit/redis_queue.py` (IO, injectable, mirrors `experience/redis_queue.py`
+  exactly) — `AuditQueue.push()` never raises (fire-and-forget `XADD` on
+  stream `aether:audit`), `build_audit_event()` validates
+  `event_type ∈ {order_placement, credential_load, live_mode_transition}`.
+- `audit/postgres_worker.py` (IO) — `PostgresWorker` consumes via
+  `XREADGROUP` consumer-group semantics (same durable at-least-once,
+  dead-letter-on-malformed-JSON contract as `experience/postgres_worker.py`),
+  computes each row's chain hash against the current tail
+  (`fetch_latest_hash()`) before insert, `ON CONFLICT (event_id) DO NOTHING`
+  for idempotent re-delivery. **Note:** `xreadgroup(..., block=0)` means
+  "block indefinitely" in Redis, not "don't block" — both this worker and
+  `experience/postgres_worker.py` originally called it that way and it was a
+  real, previously-invisible bug (perpetual socket-timeout errors on an idle
+  stream); fixed by omitting `block` entirely. See `development/Problems.md`
+  #46.
+- `audit/postgres_audit.py` (IO, read-only) — `fetch_recent_events()`/
+  `fetch_all_events_ordered()`, the same shape `performance/postgres_triggers.py`
+  already established for its own read-side helpers.
+- `audit/status_export.py` — `build_audit_status_view()`/`write_status_file()`
+  writes `visualization/grafana/audit_log.json` (`chain_valid`,
+  `chain_broken_at_event_id` if not, `recent_events`), mirroring
+  `retraining/status_export.py`'s exact JSON-snapshot pattern so
+  `monitoring/api_server.py` stays a pure read-and-reshape layer with no new
+  computation.
+
+**Call sites** (each a minimal, defensive, never-blocking hook, same
+convention as `ExperienceQueue`): `main.py`'s runtime-mode init and
+`_apply_signal()`'s real-order branches (gated through the new
+`execution/order_gate.py::is_real_order_placement()` helper, which excludes
+simulated fills and every no-op execution note so only genuine order
+placements get logged), and `aq_cli.py`'s `render-lean-config` command
+(credential loads).
+
+**CLI:** `aq audit-log [--event-type X] [--since DATE] [--limit N]
+[--verify]` — `--verify` walks the full chain and reports the first break,
+if any, with a non-zero exit code.
+
+**API/webui:** `GET /api/audit-log` (read-only, same convention as every
+other `/api/*` route) → `useAuditLog()` (TanStack Query hook) →
+`AuditLogPanel.tsx`, wired into `Overview.tsx`'s existing right-column
+monitoring stack alongside `PerformanceTriggersPanel`/`RetrainingStatusPanel`.
+
+**Docker:** new `audit-worker` service, same shape as `experience-worker`
+(depends on `postgres`+`redis`, shares the consolidated `aether-quant-engine`
+image).
+
+**Config:** `phase_v2.audit_log` block (`enabled` default **true** — unlike
+this codebase's usual off-by-default convention, this closes a documented
+pre-live security gap rather than adding a speculative feature, matching the
+precedent set for `phase_v2.exits.enabled`), `redis_stream`, `maxlen`,
+`worker.{group,consumer,batch_size,deadletter_stream,backoff_max}`.
+
+**Stop:** no retention/rotation policy on `audit_log` exists yet (grows
+unbounded) — acceptable at current volume, flagged for a later pass once
+real trading volume exists.
+
 ## Why This Is Not HFT, And What It Would Take (Advisory)
 
 Analysis only — no code changed as a result of this section (explicit

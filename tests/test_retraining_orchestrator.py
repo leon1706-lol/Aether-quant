@@ -189,6 +189,88 @@ def test_rollback_rejects_ineligible_target_status():
     assert result["error"] == "rollback_target_not_eligible"
 
 
+# -- reconcile_stale_running_events (#48 orphaned-row startup fix) -----------
+
+
+def test_reconcile_stale_running_events_marks_event_failed_and_rejects_candidate():
+    conn_mock, _ = _make_conn_mock()
+    stale_event = {
+        "retraining_id": "r_orphan",
+        "status": "running",
+        "candidate_version_id": "v_orphan",
+        "notes": [],
+    }
+    candidate = {"model_version_id": "v_orphan", "status": "candidate"}
+
+    with patch("retraining.orchestrator.fetch_stale_active_events", return_value=[stale_event]) as fetch_mock, patch(
+        "retraining.orchestrator.fetch_model_version", return_value=candidate
+    ), patch("retraining.orchestrator.update_retraining_event_status") as update_event_mock, patch(
+        "retraining.orchestrator.update_model_version_status"
+    ) as update_version_mock:
+        reconciled = orchestrator.reconcile_stale_running_events(conn_mock, {"worker": {}})
+
+    assert reconciled == ["r_orphan"]
+    fetch_mock.assert_called_once_with(conn_mock, 10800.0)
+    update_event_mock.assert_called_once()
+    assert update_event_mock.call_args.args == (conn_mock, "r_orphan")
+    assert update_event_mock.call_args.kwargs["status"] == "failed"
+    assert update_event_mock.call_args.kwargs["notes"][0]["reason"] == "orphaned_on_startup"
+    update_version_mock.assert_called_once_with(conn_mock, "v_orphan", status="rejected")
+
+
+def test_reconcile_stale_running_events_leaves_non_candidate_model_version_alone():
+    conn_mock, _ = _make_conn_mock()
+    stale_event = {"retraining_id": "r1", "status": "running", "candidate_version_id": "v1", "notes": []}
+    already_promoted = {"model_version_id": "v1", "status": "active"}
+
+    with patch("retraining.orchestrator.fetch_stale_active_events", return_value=[stale_event]), patch(
+        "retraining.orchestrator.fetch_model_version", return_value=already_promoted
+    ), patch("retraining.orchestrator.update_retraining_event_status"), patch(
+        "retraining.orchestrator.update_model_version_status"
+    ) as update_version_mock:
+        orchestrator.reconcile_stale_running_events(conn_mock, {"worker": {}})
+
+    update_version_mock.assert_not_called()
+
+
+def test_reconcile_stale_running_events_handles_planned_row_with_no_candidate_yet():
+    conn_mock, _ = _make_conn_mock()
+    stale_event = {"retraining_id": "r1", "status": "planned", "candidate_version_id": None, "notes": []}
+
+    with patch("retraining.orchestrator.fetch_stale_active_events", return_value=[stale_event]), patch(
+        "retraining.orchestrator.fetch_model_version"
+    ) as fetch_version_mock, patch("retraining.orchestrator.update_retraining_event_status") as update_event_mock, patch(
+        "retraining.orchestrator.update_model_version_status"
+    ) as update_version_mock:
+        reconciled = orchestrator.reconcile_stale_running_events(conn_mock, {"worker": {}})
+
+    assert reconciled == ["r1"]
+    fetch_version_mock.assert_not_called()
+    update_version_mock.assert_not_called()
+    update_event_mock.assert_called_once()
+
+
+def test_reconcile_stale_running_events_returns_empty_list_when_nothing_stale():
+    conn_mock, _ = _make_conn_mock()
+
+    with patch("retraining.orchestrator.fetch_stale_active_events", return_value=[]), patch(
+        "retraining.orchestrator.update_retraining_event_status"
+    ) as update_event_mock:
+        reconciled = orchestrator.reconcile_stale_running_events(conn_mock, {"worker": {}})
+
+    assert reconciled == []
+    update_event_mock.assert_not_called()
+
+
+def test_reconcile_stale_running_events_uses_configured_staleness_threshold():
+    conn_mock, _ = _make_conn_mock()
+
+    with patch("retraining.orchestrator.fetch_stale_active_events", return_value=[]) as fetch_mock:
+        orchestrator.reconcile_stale_running_events(conn_mock, {"worker": {"stale_running_timeout_seconds": 60}})
+
+    fetch_mock.assert_called_once_with(conn_mock, 60.0)
+
+
 # -- V2-17.5 learned-topology training stage ---------------------------------
 
 

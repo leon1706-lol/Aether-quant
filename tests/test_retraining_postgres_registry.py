@@ -13,6 +13,7 @@ from retraining.postgres_registry import (
     fetch_model_version,
     fetch_recent_retraining_events,
     fetch_rollback_candidates,
+    fetch_stale_active_events,
     insert_model_version,
     insert_retraining_event,
     model_version_to_row,
@@ -180,6 +181,32 @@ def test_fetch_rollback_candidates_filters_by_status():
     assert result == []
     sql = cur_mock.execute.call_args.args[0]
     assert "'archived'" in sql or "archived" in sql
+
+
+def test_fetch_stale_active_events_returns_list():
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.fetchall.return_value = [
+        ("evt-stale", None, "ver-1", "2026-07-02T12:00:00+00:00", "2026-07-02T12:00:00+00:00", "running", "reason", {}, [])
+    ]
+
+    events = fetch_stale_active_events(conn_mock, older_than_seconds=10800)
+
+    assert len(events) == 1
+    assert events[0]["retraining_id"] == "evt-stale"
+    assert events[0]["status"] == "running"
+
+
+def test_fetch_stale_active_events_filters_by_status_and_staleness():
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.fetchall.return_value = []
+
+    fetch_stale_active_events(conn_mock, older_than_seconds=10800)
+
+    sql = cur_mock.execute.call_args.args[0]
+    params = cur_mock.execute.call_args.args[1]
+    assert "'planned'" in sql and "'running'" in sql
+    assert "updated_at" in sql
+    assert params["older_than_seconds"] == 10800
 
 
 def test_count_experience_events_returns_int():

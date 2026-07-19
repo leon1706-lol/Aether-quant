@@ -45,6 +45,7 @@ from retraining.postgres_registry import (
     fetch_active_model_version,
     fetch_model_version,
     fetch_recent_retraining_events,
+    fetch_stale_active_events,
     insert_model_version,
     insert_retraining_event,
     promote_model_version,
@@ -88,6 +89,76 @@ def connect(postgres_dsn: str = ""):
     ensure_schema(conn)
     ensure_performance_schema(conn)  # performance_triggers table must exist before we read it
     return conn
+
+
+# ---------------------------------------------------------------------------
+# Startup maintenance
+# ---------------------------------------------------------------------------
+
+
+def reconcile_stale_running_events(conn, config: dict) -> list[str]:
+    """Marks any retraining_events row stuck in 'planned'/'running' status as
+    failed, and rejects its candidate model_versions row if still
+    'candidate'. Called once at RetrainingWorker startup, before the poll
+    loop begins.
+
+    Why this exists: a worker crash, redeploy, or container recreate mid-cycle
+    orphans that row forever - nothing else ever updates it again (`train()`
+    itself only writes on completion or failure of its subprocess), so a
+    single interrupted cycle silently blocks every future retraining attempt
+    for the full `cooldown_minutes` window (`cooldown_remaining_seconds()`
+    treats 'planned'/'running' as an active retraining in progress). Found and
+    manually worked around during a real rehearsal - see
+    development/Problems.md #48.
+
+    Staleness threshold defaults to 10800s (3h) - deliberately larger than the
+    *sum* of every stage's own timeout in one full cycle (train 3600s +
+    train_topology 900s + train_gating 300s + train_multitask 900s +
+    train_sequence 1800s + backtest_gate 1800s + vault commit 120s ~= 9420s),
+    not just the single largest one - a genuinely still-running cycle (owned
+    by this worker or a concurrent manual `orchestrator train` CLI call) must
+    never be falsely reconciled. Configurable via
+    phase_v2.retraining.worker.stale_running_timeout_seconds.
+    """
+    worker_config = config.get("worker", {})
+    staleness_seconds = float(worker_config.get("stale_running_timeout_seconds", 10800))
+    stale_events = fetch_stale_active_events(conn, staleness_seconds)
+
+    reconciled_ids: list[str] = []
+    for event in stale_events:
+        retraining_id = str(event["retraining_id"])
+        update_retraining_event_status(
+            conn,
+            retraining_id,
+            status="failed",
+            notes=(event.get("notes") or [])
+            + [
+                {
+                    "stage": "reconcile",
+                    "reason": "orphaned_on_startup",
+                    "detail": (
+                        f"status was still '{event['status']}' after "
+                        f"{staleness_seconds:.0f}s with no update - the owning "
+                        "process likely crashed or was recreated mid-cycle."
+                    ),
+                }
+            ],
+        )
+
+        candidate_version_id = event.get("candidate_version_id")
+        if candidate_version_id:
+            candidate = fetch_model_version(conn, str(candidate_version_id))
+            if candidate and candidate.get("status") == "candidate":
+                update_model_version_status(conn, str(candidate_version_id), status="rejected")
+
+        logger.warning(
+            "reconcile_stale_running_events: %s was orphaned at status=%s - marked failed.",
+            retraining_id,
+            event["status"],
+        )
+        reconciled_ids.append(retraining_id)
+
+    return reconciled_ids
 
 
 # ---------------------------------------------------------------------------

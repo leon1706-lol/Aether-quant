@@ -1,7 +1,7 @@
 from datetime import date
 from unittest.mock import patch
 
-from monitoring.assets_status import build_assets_status
+from monitoring.assets_status import build_assets_status, build_assets_status_from_disk
 
 
 def _config(assets: list[dict] | None = None, futures_enabled: bool = False, options_enabled: bool = False) -> dict:
@@ -90,3 +90,23 @@ def test_build_assets_status_never_raises_on_empty_config():
 
     assert report["configured_futures_assets"] == 0
     assert report["configured_options_assets"] == 0
+
+
+def test_build_assets_status_from_disk_degrades_gracefully_when_lean_json_missing(tmp_path):
+    """lean.json is deliberately excluded from the published Docker image
+    (development/Problems.md #42) and only reaches a running engine
+    container via a volume mount - a misconfigured deployment missing that
+    mount must not 500 the /api/assets-status route, just report IB as not
+    ready (same as if lean.json existed but had no credential fields)."""
+    config_path = tmp_path / "config.json"
+    config_path.write_text('{"phase_v2": {"ib": {"enabled": true}}, "phase1": {"universe": {"assets": []}}}', encoding="utf-8")
+    missing_lean_json_path = tmp_path / "lean.json"  # deliberately never created
+
+    with patch("monitoring.assets_status.CONFIG_PATH", config_path), patch(
+        "monitoring.assets_status.LEAN_JSON_PATH", missing_lean_json_path
+    ), patch("monitoring.assets_status.load_futures_contract_specs", return_value={}), patch(
+        "monitoring.assets_status.load_cached_fred_series", return_value={}
+    ):
+        report = build_assets_status_from_disk()
+
+    assert report["ib_status"] == "enabled_but_lean_credentials_missing"

@@ -58,6 +58,14 @@ services:
     volumes:
       - ./visualization:/app/visualization
       - ./ml:/app/ml
+      # lean.json is deliberately excluded from the image build itself
+      # (.dockerignore, development/Problems.md #42 - a published image must
+      # never bake in a file that could hold real broker credentials) but
+      # monitoring/assets_status.py needs to read it at runtime (IB
+      # readiness booleans only, never the secret values themselves) -
+      # mounted read-only here instead, which never becomes part of any
+      # image layer.
+      - ./lean.json:/app/lean.json:ro
     environment:
       AETHER_ENV: docker
       AETHER_REDIS_URL: redis://redis:6379/0

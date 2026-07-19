@@ -365,3 +365,21 @@ def fetch_latest_retraining_event(conn) -> dict | None:
         )
         row = cur.fetchone()
     return _row_to_dict(row, _RETRAINING_EVENT_COLUMNS) if row else None
+
+
+def fetch_stale_active_events(conn, older_than_seconds: float) -> list[dict]:
+    """Rows stuck in 'planned'/'running' whose updated_at is older than the
+    given staleness window - feeds reconcile_stale_running_events() (see
+    retraining/orchestrator.py). A worker that crashed/was recreated mid-cycle
+    leaves its retraining_events row frozen at 'running' forever (nothing
+    else ever updates it again) - see development/Problems.md #48."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"SELECT {', '.join(_RETRAINING_EVENT_COLUMNS)} FROM retraining_events "
+            "WHERE status IN ('planned', 'running') "
+            "AND updated_at < NOW() - make_interval(secs => %(older_than_seconds)s) "
+            "ORDER BY created_at ASC;",
+            {"older_than_seconds": older_than_seconds},
+        )
+        rows = cur.fetchall()
+    return [_row_to_dict(row, _RETRAINING_EVENT_COLUMNS) for row in rows]

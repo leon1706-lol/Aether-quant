@@ -51,7 +51,12 @@ from risk.position_sizing import build_dynamic_position_sizing
 from portfolio import build_rank_based_book, normalize_per_asset_class_slots
 from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
-from audit import AuditQueue, CREDENTIAL_LOAD, ORDER_PLACEMENT, LIVE_MODE_TRANSITION, build_audit_event
+# Imports directly from audit.redis_queue (not the audit package's own
+# __init__.py) so main.py's isolator-timed startup (Problems.md #16) never
+# pays for importing audit/postgres_worker.py, audit/postgres_audit.py, or
+# audit/status_export.py - main.py only ever pushes to the Redis stream,
+# never touches Postgres directly (that's audit-worker's job).
+from audit.redis_queue import AuditQueue, CREDENTIAL_LOAD, ORDER_PLACEMENT, LIVE_MODE_TRANSITION, build_audit_event
 from experience import (
     ExperienceQueue,
     SimulatedPortfolioState,

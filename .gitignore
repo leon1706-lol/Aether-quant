@@ -124,3 +124,12 @@ cpp_inference_ext/*.egg-info/
 cpp_inference_ext/*.pyd
 cpp_inference_ext/*.so
 cpp_inference_ext/install_log*.txt
+
+# Aether-Vault (`av` CLI) local repo bootstrap - machine-local tool state
+# (retraining/vault_client.py's commit target), not project source.
+.av/
+
+# scripts/profile_subsystems.py's main.py::_build_model_input() profiling
+# side-channel log (development/Problems.md #36) - regenerable diagnostic
+# output, not source.
+model_input_timing.log

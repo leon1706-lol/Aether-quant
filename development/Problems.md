@@ -1502,7 +1502,7 @@ tests (10 in `test_order_gate.py` for the new params/functions, 3 in
 operates on arbitrary dotted paths into `config.json`).
 
 ### 34. Real limit-order support — every tradable asset class, config-gated (part 2 of the execution/risk realism pass)
-**Severity:** 6/10 · **Status:** 🟢 `fixed` (config-gated, default off; Lean API casing/dispatch assumptions remain unverified until a real backtest — see below, not blocking)
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (config-gated, default off; Lean API casing/dispatch assumptions remain unverified until a real backtest — see below, not blocking; a real attempt at this verification this session was blocked by this dev machine's RAM, not by anything here — see #50)
 
 Entry #33 closed half of `development/v2_architecture.md`'s documented
 HFT-gap item 3 (real fill slippage). The other half was still open: *"no
@@ -1886,8 +1886,16 @@ cost. Left as a prepared snippet rather than applied, since applying it
 means editing `main.py` itself and running a real backtest — both
 out of scope for this pass's division of labor.
 
+**Update 2026-07-19: the snippet was applied and a real verification
+attempt was made** (a later session, once `lean backtest .` division-of-labor
+constraints were relaxed) — see entry #50. Four real attempts all failed
+before a single bar was ever processed (Lean's 90-second `initialize()`
+isolator cap, root-caused to this dev machine's 4GB RAM, not a code issue),
+so no real timing data was ever collected; the snippet was fully reverted
+afterward rather than left half-applied. Still genuinely open.
+
 ### 37. Inference tail latency (p99 3-5x p50) — investigated: real GC-pause contribution to worst-case latency confirmed, root cause of the old `scripts/profile_inference_output.txt` discrepancy resolved as machine load, not a regression
-**Severity:** 4/10 · **Status:** 🟢 `fixed` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is now real, shipped, config-gated-off code — see "Follow-up: gc.freeze() implemented" below — not yet validated against a real Lean backtest, which is scoped to a later dedicated session)
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is now real, shipped, config-gated-off code — see "Follow-up: gc.freeze() implemented" below — not yet validated against a real Lean backtest; a real attempt this session was blocked by this dev machine's RAM, not by anything here — see #50)
 
 Nothing in this repo had ever investigated *why* `scripts/profile_inference.py`'s
 p99 routinely ran 3-5x the p50 — only the visibility that it does existed
@@ -1995,7 +2003,7 @@ key). Full suite: `aq test` → 1318 passed, 0 failed, 11 deselected
 (`lean_backtest`, expected), 1 pre-existing warning.
 
 ### 38. 2-leg vertical spread selection for options — explicit scope-in of a previously-non-goal feature
-**Severity:** n/a (feature scope-in) · **Status:** 🟢 `fixed` (implementation complete and tested; verification against a real Lean backtest is the largest open item this session produced, see below — not an incomplete implementation)
+**Severity:** n/a (feature scope-in) · **Status:** 🟢 `fixed` (implementation complete and tested; verification against a real Lean backtest is the largest open item this session produced, see below — not an incomplete implementation; note this specifically also needs a `phase1.universe.assets` config addition to include an option/future entry, a separate scope decision from #50's RAM-blocked verification attempt below)
 
 Entry #29 explicitly scoped multi-leg options spread selection out:
 *"a genuinely new spread-selection model architecture is future work."*
@@ -2652,7 +2660,7 @@ confirmed `train.py` completes past this point.
 ---
 
 ### 48. Force-recreating `retraining-worker` mid-cycle orphaned a `retraining_events`/`model_versions` row permanently at `status="running"`/`"candidate"` — no startup reconciliation exists
-**Severity:** 6/10 · **Status:** 🟡 `worked around, not fixed` (the orphaned-row/no-reconciliation issue itself has no code fix — see below); 🟢 `fixed` (the related zombie-process finding hit later the same session, `init: true` added)
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (real startup reconciliation shipped and tested in a later pass the same day — see update below; the related zombie-process finding hit later the same session also fixed, `init: true` added)
 
 Found live during this session's retraining rehearsal, self-inflicted but
 revealing a real, general gap: `retraining-worker`'s own background poll
@@ -2678,16 +2686,32 @@ edge case) would silently block all future retraining for the full
 `cooldown_minutes` (12h default) until someone notices and manually
 intervenes, same as here.
 
-**Worked around this session** (not a code fix): manually updated the
-orphaned rows to `status="failed"`/`"rejected"` with an explanatory note via
-a throwaway script, which cleared the cooldown and let a fresh cycle run.
-**No code fix applied** — a real fix would need either (a) a startup
-reconciliation pass in `RetrainingWorker.__init__()`/`run()` that finds any
-`status="running"` row older than some staleness threshold (e.g. longer than
-`train`'s own `timeout_seconds`) and marks it `failed` with a
-`orphaned_on_startup` note, or (b) a heartbeat/lease mechanism on the row
-itself. Left open as a real, scoped, well-understood follow-up rather than
-rushed — flagged here explicitly so it isn't lost.
+**Worked around initially** (not a code fix, this same day): manually
+updated the orphaned rows to `status="failed"`/`"rejected"` with an
+explanatory note via a throwaway script, which cleared the cooldown and let
+a fresh cycle run.
+
+**Update — real code fix shipped and tested the same day**: exactly the
+option (a) sketched above. New `retraining/postgres_registry.py::fetch_stale_active_events(conn,
+older_than_seconds)` (rows with `status IN ('planned', 'running')` and
+`updated_at` older than the threshold) and
+`retraining/orchestrator.py::reconcile_stale_running_events(conn, config)`
+— marks each stale row `failed` with an `orphaned_on_startup` note, and
+rejects its candidate `model_versions` row if still `status="candidate"`.
+Called once from `RetrainingWorker.__init__()`, right after
+`ensure_schema()`, before the poll loop begins — exactly where this
+session's real orphaned row would have been caught automatically had this
+existed. **Threshold set to the sum of every stage's own timeout (10800s /
+3h), not just the largest single one** — `train()` alone can legitimately
+hold `status="running"` for up to 3600s without updating `updated_at`, and
+a full cycle chains six more stages after it; a threshold shorter than
+their sum risked falsely reconciling a still-genuinely-running cycle. New
+config key `phase_v2.retraining.worker.stale_running_timeout_seconds`
+(default 10800). 8 new tests (`tests/test_retraining_postgres_registry.py`,
+`tests/test_retraining_orchestrator.py`, `tests/test_retraining_worker.py`)
+— stale row reconciled, fresh row left alone, non-candidate model_version
+left alone, configured-threshold plumbing, `__init__` reachability. Full
+suite green (1465 passed) both before and after.
 
 **A second, deeper related finding, hit later the same session**: a
 subsequent routine `docker compose up -d --force-recreate retraining-worker`
@@ -2813,5 +2837,123 @@ consistent with, not contradicting, entry #43's missing-edge finding), or
 the `backtest_gate` stage specifically (never reached organically, and
 confirmed structurally unable to run in this container as configured — see
 above).
+
+---
+
+### 50. This development machine's 4GB RAM cannot reliably run a real `lean backtest .` — blocks verifying #34/#36/#37/#38, root-caused precisely, not a code defect
+**Severity:** n/a (hardware constraint) · **Status:** 🟡 `blocked on hardware` — the four items it blocks stay honestly open; everything fixable in software this pass is fixed
+
+Attempted, this session, to close out every remaining "implemented, needs a
+real backtest to verify" item in one combined run (limit orders #34,
+`gc.freeze()` #37, vertical spreads #38, and to finally measure
+`_build_model_input()`'s real per-call cost for #36 via a temporary
+side-channel timing wrapper). **Four consecutive real `aq backtest`
+attempts failed**, all with the identical signature: Lean's hardcoded
+90-second `Isolator.ExecuteWithTimeLimit()` cap on `initialize()` (the same
+constraint entry #16 already fixed once for artifact-loading cost) —
+`TimeoutException: Execution Security Error: Operation timed out - 1.5
+minutes max`.
+
+**Root-caused, not guessed.** The Windows host has only **4GB total RAM**;
+direct measurement mid-session showed as little as **~300MB free**. Docker
+Desktop's own daemon crashed once during this (`postgres`/`redis` both
+exited 255, `audit-worker` crash-looping) while the Compose stack and a new
+Lean container competed for memory simultaneously — stopping the Compose
+stack first (`docker compose down`) was necessary before a Lean run could
+even start cleanly. **The precise mechanism, captured directly from a real
+run's trace timestamps**: `AlgorithmPythonWrapper(): Importing python module
+main` to `main successfully imported` spanned **~82 seconds by itself** —
+nearly the entire 90-second budget consumed by `main.py`'s plain top-level
+`import` statements (torch/pandas/sklearn/etc.), before `initialize()` even
+starts, before a single bar is processed. Under normal (unconstrained)
+conditions this import is a few seconds; 82 seconds is memory-pressure
+thrashing, not a code-side regression — consistent with entries #16/#17's
+own established "machine load, not a regression" pattern, just this time
+severe enough to actually breach the cap rather than merely inflate tail
+latency.
+
+**A real, additional discovery along the way**: `lean backtest`-launched
+Docker containers (`lean_cli_<hash>`) are **not reliably cleaned up on
+failure** — twice, a container from a just-failed attempt was found still
+`Up` 6-10 minutes later, silently holding memory that made the *next*
+attempt's odds worse. Had to be removed manually (`docker rm -f
+lean_cli_...`) before retrying. Not something this repo's own code
+controls (it's Lean CLI's own container lifecycle), but worth knowing: after
+any failed `aq backtest` on a memory-constrained machine, check `docker ps
+-a` for an orphaned `lean_cli_*` container before assuming the memory was
+actually freed.
+
+**One real, permanent fix shipped anyway, independent of whether it fully
+explains the timeout**: `main.py` was importing the whole `audit` package
+(`from audit import ...`), which transitively imports
+`audit/postgres_worker.py`/`postgres_audit.py`/`status_export.py` —
+`main.py` never uses any of those (it only ever pushes to the Redis stream;
+`audit-worker`, a separate process, owns the Postgres side). Narrowed to
+`from audit.redis_queue import ...`, removing avoidable cost from the
+isolator-timed import window. Confirmed `python -m py_compile main.py`
+clean and the full test suite still green after the change.
+
+**Disposition**: the two temporary artifacts prepared for this
+verification (the `_build_model_input()` side-channel timing wrapper in
+`main.py`, and the `phase_v2.limit_orders.enabled`/
+`phase_v2.gc_tuning.freeze_after_load_enabled` config flips) were both
+**fully reverted** rather than left half-applied — `git diff` after
+reverting shows only the legitimate audit-import fix and entry #48's
+config addition remain. #34/#36/#37/#38 stay exactly as they were
+(implemented, tested, config-gated-off, real-backtest verification still
+outstanding) — this entry documents *why* verification didn't happen this
+session and gives the precise, reproducible cause, rather than leaving a
+silent gap. Verification is expected to succeed on a machine with more
+headroom (8GB+ RAM, and/or with the Compose stack stopped first so nothing
+competes with Lean's own container).
+
+---
+
+### 51. `GET /api/assets-status` 500'd in the real Docker deployment — `lean.json`'s security exclusion (entry #42) was never volume-mounted back in for the `engine` service, and the reader didn't degrade gracefully either
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+Found live while re-verifying the webui end-to-end after this session's
+Docker Desktop restart (the user's original "webui shows no stats" report
+— by then already explained as "nothing was running," see the resolution
+in this session's own record) — with the `engine` container genuinely up
+and `/api/state` serving real data correctly, `/api/assets-status`
+(`AssetsStatusPanel`'s data source) still 500'd. Root cause: entry #42's
+security fix deliberately excludes `lean.json` from the published Docker
+image (`.dockerignore` — a published image must never bake in a file that
+could hold real broker credentials), which is correct and unchanged here,
+but nothing ever volume-mounted a *local* `lean.json` back into the
+running `engine` container at deploy time the way `config.json` already
+reaches it (baked into the image, since it holds no secrets) — so
+`monitoring/assets_status.py::build_assets_status_from_disk()`'s
+`LEAN_JSON_PATH.read_text()` hit a bare `FileNotFoundError`, uncaught,
+surfacing as a plain FastAPI 500 with no useful detail in the response
+body (had to read the container's own logs to get the real traceback).
+
+**Fixed, two layers**:
+1. `docker-compose.yml`'s `engine` service gained
+   `./lean.json:/app/lean.json:ro` — read-only, mounted at *runtime* from
+   the host, which never becomes part of any image layer (the exact
+   distinction #42 already established: an image layer is what gets
+   published/extractable via `docker history`; a runtime volume mount is
+   not). The `engine` container can now read `lean.json` for the same
+   IB-readiness boolean checks `aq assets status` already does locally,
+   without reopening the security hole #42 closed.
+2. **Defense in depth, not relying on the mount alone**:
+   `build_assets_status_from_disk()` now catches `FileNotFoundError` on
+   the `lean.json` read and degrades to an empty `lean_config = {}` —
+   `ib_readiness_status()` already handles that via plain `.get()` calls
+   (no direct indexing), so a genuinely missing file now correctly reports
+   `"enabled_but_lean_credentials_missing"`/`"disabled"` instead of 500ing
+   the whole route. A stripped-down or misconfigured deployment missing
+   the volume mount now degrades instead of breaking.
+
+**Testing**: new
+`tests/test_assets_status.py::test_build_assets_status_from_disk_degrades_gracefully_when_lean_json_missing`
+(patches `CONFIG_PATH`/`LEAN_JSON_PATH` to a `tmp_path` where the lean.json
+file is deliberately never created, confirms `ib_status` reports the
+graceful degraded value, not an exception). All 8 tests in that file pass.
+Confirmed against the real container after rebuild+redeploy:
+`/api/assets-status` → `200` with correct real content (`{"ib_status":
+"disabled", ...}`), where it previously 500'd.
 
 ---

@@ -56,9 +56,21 @@ def build_assets_status_from_disk() -> dict:
     """Convenience wrapper reading config.json/lean.json from their
     canonical repo-root paths - used by callers (the API server) that don't
     already have both loaded, mirroring aq_cli.py::cmd_assets()'s own
-    CONFIG_PATH/LEAN_JSON_PATH read pattern."""
+    CONFIG_PATH/LEAN_JSON_PATH read pattern.
+
+    lean.json is deliberately excluded from the published Docker image
+    itself (development/Problems.md #42) and only reaches a running
+    container via an explicit volume mount (docker-compose.yml's `engine`
+    service) - a misconfigured or stripped-down deployment could still be
+    missing it, so a missing file degrades to an empty lean_config (every
+    ib_readiness_status() field it drives already has a graceful
+    "not configured" reading for that case) rather than a 500.
+    """
     import json
 
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+    try:
+        lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        lean_config = {}
     return build_assets_status(config, lean_config)

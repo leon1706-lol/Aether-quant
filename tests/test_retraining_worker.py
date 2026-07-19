@@ -217,3 +217,20 @@ def test_run_once_calls_train_topology_then_train_gating_between_train_and_valid
     # a failed/skipped topology or gating training result must not block
     # the primary candidate's own pipeline.
     assert result["reason"] == "validated_awaiting_manual_promotion"
+
+
+def test_init_reconciles_stale_running_events_before_entering_run_loop():
+    """#48: a retraining_events row orphaned by a prior crash/redeploy must be
+    reconciled at worker startup, before run()'s poll loop begins - otherwise
+    it silently blocks every future retraining attempt for the full cooldown
+    window. Patches retraining.worker.reconcile_stale_running_events (the name
+    RetrainingWorker.__init__ actually calls), matching this file's own
+    patch-by-import-site convention."""
+    conn_mock, _ = _make_conn_mock()
+    config = {"enabled": True, "worker": {"auto_promote": False}}
+
+    with patch("retraining.worker.reconcile_stale_running_events", return_value=["orphaned-1"]) as reconcile_mock:
+        worker = RetrainingWorker(config=config, _pg_conn=conn_mock)
+
+    reconcile_mock.assert_called_once_with(conn_mock, config)
+    assert worker.config is config

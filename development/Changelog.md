@@ -3539,3 +3539,76 @@ not mocked unit tests — the pure-function pieces it calls into are unit-tested
 as listed above. **The user's own verification `aq backtest` run is still
 outstanding** — this entry covers the code/training-side fix and retrain
 only.
+
+## 2026-07-18 — Operational maturity pass: tamper-evident audit logging, a real end-to-end retraining/rollback rehearsal, and every structural gap the rehearsal itself surfaced
+
+Two headline exercises, both against real infrastructure, not mocks:
+
+**Audit logging** (closes the one deferred item from the pre-live security
+review, Problems.md #42): new `audit/` package, same Redis Stream → Postgres
+worker → JSON snapshot shape as `experience/`, hash-chained
+(git-commit-style — each row's hash covers its own content plus the
+previous row's, so tampering breaks the chain from that point forward,
+detectable via `aq audit-log --verify`). Hooked into `main.py` (orders,
+credential loads, live-mode transitions) and `aq render-lean-config`.
+Queryable via `aq audit-log`, visible in the webui
+(`AuditLogPanel.tsx`/`GET /api/audit-log`). See `development/v2_architecture.md`'s
+new Audit Logging Contract section for the full shape.
+
+**Retraining loop, real end-to-end rehearsal**: seeded `experience_events`
+past the observation floor and a real `performance_triggers` row, then let
+the `retraining-worker` container's own background poll loop (not a manual
+invocation) auto-detect the trigger and run the full
+plan→train→train_topology→train_gating→train_multitask→train_sequence→validate
+pipeline against real Postgres and real subprocesses, three separate times.
+All three candidates were correctly **rejected** by the validation gate
+(consistent with, not contradicting, Problems.md #43's missing-edge
+finding — the gate doing its job, not a test failure). Rollback was
+rehearsed directly against `retraining.orchestrator.rollback()`'s real code
+path — both the happy path (hash-verified restore, Postgres status flips,
+a new `retraining_events` row) and the negative path (a deliberately
+corrupted hash correctly refused activation, zero files touched). Full
+details, including three real structural bugs the rehearsal itself found
+and fixed (a read-only Docker volume mount blocking `train.py`, a Redis
+`xreadgroup(block=0)` bug causing perpetual socket timeouts in every
+Stream-consuming worker, and an orphaned-`retraining_events`-row gap with
+no startup reconciliation — since fixed, see below) are in
+`development/Problems.md` #44-#49.
+
+**Orphaned-row reconciliation** (closes the one gap the rehearsal found
+that didn't yet have a code fix): `RetrainingWorker.__init__()` now calls
+`retraining.orchestrator.reconcile_stale_running_events()` on startup,
+marking any `retraining_events` row stuck in `planned`/`running` (orphaned
+by a prior crash/redeploy mid-cycle — nothing else ever updates that row
+again) as `failed`, and rejecting its candidate `model_versions` row if
+still `candidate`. Staleness threshold defaults to 10800s (3h) — the sum of
+every stage's own timeout, not just the largest one, so a genuinely
+still-running cycle is never falsely reconciled. New config key
+`phase_v2.retraining.worker.stale_running_timeout_seconds`. 8 new tests.
+
+**A real-backtest verification pass was attempted but blocked by this dev
+machine's hardware** (Problems.md #50): limit orders (#34), `gc.freeze()`
+(#37), and vertical spreads (#38) all remain implemented, tested, and
+config-gated-off, but unverified against a real `lean backtest .` — four
+real attempts all hit Lean's 90-second `initialize()` isolator cap, root
+caused precisely to this machine's 4GB RAM (module-import time alone
+measured at ~82 seconds under the resulting memory pressure). One real,
+permanent fix shipped regardless: `main.py` now imports directly from
+`audit.redis_queue` instead of the whole `audit` package, removing
+avoidable cost from the isolator-timed startup window. Both temporary
+verification artifacts (a `_build_model_input()` timing wrapper, and the
+two config flag flips) were fully reverted rather than left half-applied.
+
+**Housekeeping**: `ml/versions/` and `.av/` (Aether-Vault's local repo
+bootstrap) untracked from git (`git rm -r --cached`) and gitignored — model
+weights and the local vault state were being swept into commits
+incidentally; both remain in prior git history, a separate concern if true
+history-level privacy is ever needed. `docker-compose.yml`'s
+`retraining-worker` gained `init: true` (Docker's built-in tini) after a
+container-stop failure traced to an unreapable zombie subprocess left by a
+killed `train_sequence.py` timeout — without a real init process as PID 1,
+a killed child can outlive `docker stop` entirely.
+
+**Verification**: full `aq test` green (1465 passed, 0 failed, 11
+deselected `lean_backtest`, 1 pre-existing warning) both before and after
+the reconciliation fix landed. `docker compose config` resolves cleanly.
