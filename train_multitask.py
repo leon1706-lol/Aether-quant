@@ -62,6 +62,7 @@ from train import (
     compute_combined_multitask_loss,
     compute_masked_binary_metrics,
     compute_masked_regression_metrics,
+    compute_purged_cv_rank_ic_diagnostic,
     compute_rank_ic,
     compute_regression_metrics,
     export_multitask_horizons_architecture,
@@ -86,6 +87,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version-id", type=str, required=True, help="Candidate model_version_id (UUID)")
     parser.add_argument("--config-path", type=str, default=str(CONFIG_PATH))
     parser.add_argument("--dataset-path", type=str, default=str(DATASET_PATH))
+    # Stage 4 of the rank-pivot roadmap (development/Problems.md#43):
+    # seed-ensembling support. Overrides config.json's multitask_training.seed
+    # for THIS invocation only (never mutates config.json) - run this script
+    # once per seed (e.g. --seed 42/43/44), each with its own --version-id,
+    # writing independent candidates under ml/versions/. Combine their
+    # backtest rank_20d predictions afterward with
+    # train.py::aggregate_seed_ensemble_rank_ic() (average_ensemble_predictions()
+    # is prediction-averaging, not weight-averaging - see its docstring for
+    # why that's the only statistically valid form here). Defaults to None
+    # (use config.json's seed unchanged) - zero behavior change for anyone
+    # not passing this flag.
+    parser.add_argument("--seed", type=int, default=None, help="Override config.json's seed for this run (seed-ensembling)")
     return parser.parse_args()
 
 
@@ -211,8 +224,21 @@ def main() -> int:
         threshold_steps = int(training_config.get("threshold_search_steps", 61))
         magnitude_loss_weight = float(training_config.get("magnitude_loss_weight", 1.0))
         volatility_loss_weight = float(training_config.get("volatility_loss_weight", 1.0))
+        # Stage 4 of the rank-pivot roadmap - see
+        # compute_combined_multitask_loss()'s docstring for why this
+        # defaults to 1.0 (fully backward-compatible) but config.json sets
+        # it low for this trainer specifically: the primary "direction" head
+        # is a near-noise 1-day objective main.py never reads.
+        direction_loss_weight = float(training_config.get("direction_loss_weight", 1.0))
+        # Stage 4 of the rank-pivot roadmap - see
+        # compute_horizon_consistency_loss()'s docstring. Defaults to 0.0
+        # (fully backward-compatible - a zero weight adds zero gradient);
+        # config.json sets this to a small positive value for this trainer.
+        consistency_loss_weight = float(training_config.get("consistency_loss_weight", 0.0))
         horizon_head_config = resolve_horizon_head_config(training_config)
-        seed = int(training_config.get("seed", 42))
+        # --seed (if passed) wins over config.json for this invocation only -
+        # see parse_args()'s docstring for the seed-ensembling workflow.
+        seed = int(args.seed) if args.seed is not None else int(training_config.get("seed", 42))
 
         if not FEATURE_SCHEMA_PATH.exists():
             LOGGER.info("train_multitask: missing feature schema - skipping.")
@@ -306,10 +332,33 @@ def main() -> int:
 
         best_state = None
         best_epoch = 0
-        best_validation_neg_loss = float("-inf")
+        best_validation_metric = float("-inf")
         epochs_without_improvement = 0
         history: list[dict] = []
         min_best_epoch = int(training_config.get("min_best_epoch", 3))
+        # Stage 4 of the rank-pivot roadmap (development/Problems.md#43): the
+        # comment this replaces documented an EARLIER attempt at fixing this
+        # same untrained-init bug by monitoring direction balanced-accuracy
+        # instead of loss - that measurably improved direction MCC but
+        # DEGRADED the sibling sequence model's rank_20d backtest signal
+        # (non-overlapping t-stat 2.90 -> 2.21, confirmed by direct
+        # comparison). This model's actual downstream consumer is
+        # main.py's portfolio_book (predicted_rank_20d), not the direction
+        # head at all - monitoring validation rank_20d mean IC directly is a
+        # third, previously-untried option (not a repeat of the balanced-
+        # accuracy regression above), so it's config-gated
+        # (early_stop_metric) rather than a silent hardcoded switch: revert
+        # to the previous "validation_loss" behavior in one config edit if a
+        # future comparison shows the same kind of regression. Falls back to
+        # "validation_loss" automatically if the rank_20d head itself is
+        # disabled/missing - monitoring an IC that doesn't exist is not a
+        # valid choice regardless of what this key says.
+        early_stop_metric = str(training_config.get("early_stop_metric", "rank_ic"))
+        monitor_rank_ic = (
+            early_stop_metric == "rank_ic"
+            and "rank_20d" in horizon_head_config
+            and horizon_head_config["rank_20d"].get("enabled", True)
+        )
 
         for epoch in range(1, max_epochs + 1):
             model.train()
@@ -323,7 +372,14 @@ def main() -> int:
                 optimizer.zero_grad()
                 outputs = model(batch_features)
                 loss = compute_combined_multitask_loss(
-                    outputs, batch_targets, direction_criterion, magnitude_loss_weight, volatility_loss_weight, horizon_head_config
+                    outputs,
+                    batch_targets,
+                    direction_criterion,
+                    magnitude_loss_weight,
+                    volatility_loss_weight,
+                    horizon_head_config,
+                    direction_loss_weight,
+                    consistency_loss_weight,
                 )
                 loss.backward()
                 optimizer.step()
@@ -341,38 +397,38 @@ def main() -> int:
                     magnitude_loss_weight,
                     volatility_loss_weight,
                     horizon_head_config,
+                    direction_loss_weight,
+                    consistency_loss_weight,
                 )
-            # Monitors the combined validation loss (unlike train.py's
-            # single-head train_model()/_train_expert_classifier() and
-            # train_gating.py, which switched to direction balanced-accuracy
-            # - see is_new_best_epoch()'s docstring) - NOT direction-only
-            # skill. This head-mix model's actual downstream consumer is
-            # main.py's portfolio_book (predicted_rank_20d), not the
-            # direction head at all; an earlier version of this fix that
-            # monitored direction balanced-accuracy measurably improved
-            # direction MCC but degraded the sibling sequence model's
-            # rank_20d backtest signal in a direct comparison during
-            # development (non-overlapping t-stat 2.90 -> 2.21) - training
-            # longer against a head this model doesn't actually get used
-            # for is not obviously correct. Still fixes the untrained-init
-            # bug via is_new_best_epoch()'s min_epoch floor below
-            # (best_epoch=1 is never eligible), just without changing WHAT
-            # is optimized for. validation_direction_metrics is still
-            # computed and recorded for diagnostics.
+            # validation_direction_metrics is always computed and recorded
+            # for diagnostics regardless of what's actually monitored below
+            # (see monitor_rank_ic's assignment above for the monitoring
+            # decision itself).
             validation_direction_metrics = compute_binary_metrics(
                 validation_outputs["direction"], validation_targets["direction"], direction_criterion, decision_threshold
             )
-            history.append(
-                {
-                    "epoch": epoch,
-                    "train_loss": running_loss / max(sample_count, 1),
-                    "validation_loss": float(validation_loss.item()),
-                    "validation_direction_balanced_accuracy": validation_direction_metrics["balanced_accuracy"],
-                }
-            )
 
-            if is_new_best_epoch(-float(validation_loss.item()), best_validation_neg_loss, epoch, min_best_epoch):
-                best_validation_neg_loss = -float(validation_loss.item())
+            validation_rank_20d_ic = None
+            if monitor_rank_ic:
+                validation_rank_20d_ic = compute_rank_ic(
+                    validation_outputs["rank_20d"], validation_targets["rank_20d"], validation_frame["date"]
+                )
+                candidate_metric = validation_rank_20d_ic["mean_ic"]
+            else:
+                candidate_metric = -float(validation_loss.item())
+
+            history_entry = {
+                "epoch": epoch,
+                "train_loss": running_loss / max(sample_count, 1),
+                "validation_loss": float(validation_loss.item()),
+                "validation_direction_balanced_accuracy": validation_direction_metrics["balanced_accuracy"],
+            }
+            if validation_rank_20d_ic is not None:
+                history_entry["validation_rank_20d_mean_ic"] = validation_rank_20d_ic["mean_ic"]
+            history.append(history_entry)
+
+            if is_new_best_epoch(candidate_metric, best_validation_metric, epoch, min_best_epoch):
+                best_validation_metric = candidate_metric
                 best_epoch = epoch
                 best_state = copy.deepcopy(model.state_dict())
                 epochs_without_improvement = 0
@@ -434,7 +490,9 @@ def main() -> int:
                 "validation": int(len(validation_frame)),
                 "backtest": int(len(backtest_frame)),
             },
+            "seed": seed,
             "best_epoch": best_epoch,
+            "early_stop_metric": "rank_20d_ic" if monitor_rank_ic else "validation_loss",
             "epochs_ran": len(history),
             "loss_weights": {
                 "magnitude_loss_weight": magnitude_loss_weight,
@@ -463,6 +521,28 @@ def main() -> int:
             ),
             "history": history,
         }
+        # Stage 5 of the rank-pivot roadmap (development/Problems.md#43):
+        # actually invokes purged_embargoed_folds() via
+        # compute_purged_cv_rank_ic_diagnostic() - see that function's
+        # docstring for why phase1.target.ranking.purged_cv.enabled was
+        # previously dead configuration (zero call sites). Evaluates the
+        # SAME already-trained model over the TRAIN split's own purged/
+        # embargoed folds - no extra training. Only runs when the rank_20d
+        # head itself is enabled (an IC diagnostic for a disabled head is
+        # meaningless).
+        purged_cv_config = full_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("purged_cv", {})
+        if purged_cv_config.get("enabled", False) and horizon_head_config["rank_20d"].get("enabled", True):
+            model.eval()
+            with torch.no_grad():
+                train_outputs_for_purged_cv = model(train_features_device)
+            metrics["purged_cv_rank_20d"] = compute_purged_cv_rank_ic_diagnostic(
+                train_outputs_for_purged_cv["rank_20d"],
+                train_targets_device["rank_20d"],
+                train_frame["date"],
+                n_folds=int(purged_cv_config.get("n_folds", 5)),
+                horizon_days=20,
+                embargo_days=int(purged_cv_config.get("embargo_days", 5)),
+            )
         metrics["magnitude_quality"] = assess_regression_quality(
             {
                 "train": metrics["train"]["magnitude"],

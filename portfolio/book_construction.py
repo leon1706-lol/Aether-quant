@@ -226,3 +226,32 @@ def build_rank_based_book(
             _select_book_group(class_eligible_ranks, class_top_n, class_bottom_n, min_rank_confidence_spread)
         )
     return allocations
+
+
+def should_rebalance_this_bar(
+    bar_index: int,
+    rebalance_every_bars: int,
+    has_previous_allocation: bool,
+) -> bool:
+    """Stage 2 of the rank-pivot roadmap (development/Problems.md#43): the
+    book previously re-ranked and re-formed on EVERY bar, churning positions
+    far faster than rank_20d's actual ~20-trading-day horizon can support
+    (653 orders/~2yr, no edge left after costs). This is a pure, main.py-
+    independent extraction of main.py::on_data()'s rebalance-gating decision
+    so it's unit-testable without a running Lean/QCAlgorithm instance (this
+    module has no Lean import, main.py does).
+
+    `bar_index` is main.py's 1-indexed `self.bar_index` (incremented to 1 on
+    the very first `on_data()` call, before any bar has been processed).
+    `rebalance_every_bars` is `phase_v2.portfolio_book.rebalance_every_bars`
+    (1 reproduces the previous every-bar-rebalance behavior exactly, since
+    `(n - 1) % 1 == 0` for every n). `has_previous_allocation` should be
+    False only on a genuinely fresh run (no cached book yet) - it forces a
+    rebalance regardless of the modulo so the book is never left empty.
+
+    Returns True on bar_index 1, 1+N, 1+2N, ... (i.e. 0, N, 2N, ... in
+    0-indexed bar terms) - False on every bar in between, where the caller
+    should reuse its previously cached allocation and simply hold."""
+    if not has_previous_allocation:
+        return True
+    return (bar_index - 1) % max(1, rebalance_every_bars) == 0

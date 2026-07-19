@@ -69,6 +69,10 @@ ml/datasets/
 ml/expert_datasets/
 ml/expert_models/
 ml/versions/
+# Manual pre-rank-pivot snapshot (rollback point for the Stage 1-5
+# rank-pivot roadmap work, development/Problems.md#43) - a local backup,
+# never meant to be committed.
+ml/_backup_pre_rank_pivot/
 ml/model.pt
 ml/scaler.pkl
 ml/*.pkl

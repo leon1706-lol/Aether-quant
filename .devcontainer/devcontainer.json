@@ -1,0 +1,12 @@
+{
+    "name": "Aether Quant",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    },
+    "hostRequirements": {
+        "cpus": 4,
+        "memory": "8gb"
+    },
+    "postCreateCommand": "pip install -r requirements/requirements.txt && pip install -r requirements/requirements-dev.txt"
+}

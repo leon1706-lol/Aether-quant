@@ -16,9 +16,12 @@ import pytest
 import torch
 
 from train import (
+    aggregate_seed_ensemble_rank_ic,
     assess_ranking_quality,
     assess_ranking_quality_from_predictions,
+    average_ensemble_predictions,
     bootstrap_ic_confidence_interval,
+    compute_purged_cv_rank_ic_diagnostic,
     purged_embargoed_folds,
     split_into_non_overlapping_eras,
 )
@@ -383,3 +386,211 @@ def test_assess_ranking_quality_from_predictions_accepts_plain_string_dates_from
     )
 
     assert result["quality_status"] in {"promotable", "watchlist", "not_promotable"}  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# average_ensemble_predictions() (Stage 4 of the rank-pivot roadmap:
+# seed-ensembling - see the function's own docstring for why this is
+# PREDICTION averaging, never weight averaging)
+# ---------------------------------------------------------------------------
+
+
+def test_average_ensemble_predictions_two_seeds_is_elementwise_mean():
+    seed_a = torch.tensor([0.2, 0.4, 0.6, 0.8])
+    seed_b = torch.tensor([0.4, 0.6, 0.8, 1.0])
+
+    ensembled = average_ensemble_predictions([seed_a, seed_b])
+
+    assert torch.allclose(ensembled, torch.tensor([0.3, 0.5, 0.7, 0.9]))
+
+
+def test_average_ensemble_predictions_three_seeds():
+    seed_a = torch.tensor([1.0, 1.0])
+    seed_b = torch.tensor([2.0, 4.0])
+    seed_c = torch.tensor([3.0, 7.0])
+
+    ensembled = average_ensemble_predictions([seed_a, seed_b, seed_c])
+
+    assert torch.allclose(ensembled, torch.tensor([2.0, 4.0]))
+
+
+def test_average_ensemble_predictions_single_seed_is_a_no_op():
+    seed_a = torch.tensor([0.1, 0.5, 0.9])
+
+    ensembled = average_ensemble_predictions([seed_a])
+
+    assert torch.allclose(ensembled, seed_a)
+
+
+def test_average_ensemble_predictions_is_deterministic():
+    seeds = [torch.tensor([0.1, 0.2]), torch.tensor([0.3, 0.4]), torch.tensor([0.5, 0.6])]
+
+    first_call = average_ensemble_predictions(seeds)
+    second_call = average_ensemble_predictions(seeds)
+
+    assert torch.equal(first_call, second_call)
+
+
+def test_average_ensemble_predictions_empty_list_raises():
+    with pytest.raises(ValueError):
+        average_ensemble_predictions([])
+
+
+def test_average_ensemble_predictions_order_independent():
+    seed_a = torch.tensor([1.0, 2.0])
+    seed_b = torch.tensor([3.0, 4.0])
+    seed_c = torch.tensor([5.0, 6.0])
+
+    forward_order = average_ensemble_predictions([seed_a, seed_b, seed_c])
+    reverse_order = average_ensemble_predictions([seed_c, seed_b, seed_a])
+
+    assert torch.allclose(forward_order, reverse_order)
+
+
+# ---------------------------------------------------------------------------
+# aggregate_seed_ensemble_rank_ic() (Stage 4 of the rank-pivot roadmap: the
+# evaluation half of seed-ensembling, pairing average_ensemble_predictions()
+# with compute_rank_ic())
+# ---------------------------------------------------------------------------
+
+
+def _rank_ic_dates_and_targets():
+    """5 assets/date x 20 dates, base cross-sectional rank pattern repeated
+    every date - same shape convention as this file's other end-to-end
+    rank-IC tests above."""
+    dates = np.array([d for day in range(1, 21) for d in [f"2020-01-{day:02d}"] * 5], dtype="datetime64[D]")
+    base_targets = np.tile([1.0, 0.75, 0.5, 0.25, 0.0], 20)
+    targets = torch.tensor(base_targets, dtype=torch.float32)
+    return dates, targets, base_targets
+
+
+def test_aggregate_seed_ensemble_rank_ic_structure_has_one_entry_per_seed():
+    dates, targets, base_targets = _rank_ic_dates_and_targets()
+    rng = np.random.default_rng(1)
+    predictions_by_seed = {
+        42: torch.tensor(base_targets + rng.normal(0.0, 0.05, size=len(base_targets)), dtype=torch.float32),
+        43: torch.tensor(base_targets + rng.normal(0.0, 0.05, size=len(base_targets)), dtype=torch.float32),
+        44: torch.tensor(base_targets + rng.normal(0.0, 0.05, size=len(base_targets)), dtype=torch.float32),
+    }
+
+    result = aggregate_seed_ensemble_rank_ic(predictions_by_seed, targets, dates, non_overlapping_stride=1)
+
+    assert result["seeds"] == [42, 43, 44]
+    assert set(result["per_seed_rank_ic"].keys()) == {"42", "43", "44"}
+    for seed_ic in result["per_seed_rank_ic"].values():
+        assert "mean_ic" in seed_ic and "t_stat" in seed_ic
+    assert "mean_ic" in result["ensemble_rank_ic"]
+
+
+def test_aggregate_seed_ensemble_rank_ic_single_seed_ensemble_matches_that_seed():
+    # Averaging exactly one seed's predictions is a no-op (see
+    # average_ensemble_predictions()'s own single-seed test) - the ensemble
+    # IC must therefore be identical to that one seed's own IC.
+    dates, targets, base_targets = _rank_ic_dates_and_targets()
+    rng = np.random.default_rng(2)
+    only_seed_predictions = torch.tensor(base_targets + rng.normal(0.0, 0.05, size=len(base_targets)), dtype=torch.float32)
+
+    result = aggregate_seed_ensemble_rank_ic({42: only_seed_predictions}, targets, dates, non_overlapping_stride=1)
+
+    assert result["ensemble_rank_ic"]["mean_ic"] == pytest.approx(result["per_seed_rank_ic"]["42"]["mean_ic"])
+
+
+def test_aggregate_seed_ensemble_rank_ic_averaging_reduces_noise_variance():
+    # The core claim ensembling makes: averaging several independently-
+    # noisy-but-unbiased seeds around the same true signal should reduce
+    # the ensemble's IC variability relative to the average of the
+    # individual seeds' own variability - not necessarily raise every
+    # single seed's mean_ic, but the ensemble's std_ic should be no worse
+    # than a typical individual seed's.
+    dates, targets, base_targets = _rank_ic_dates_and_targets()
+    rng = np.random.default_rng(7)
+    predictions_by_seed = {
+        seed: torch.tensor(base_targets + rng.normal(0.0, 0.15, size=len(base_targets)), dtype=torch.float32)
+        for seed in (42, 43, 44, 45, 46)
+    }
+
+    result = aggregate_seed_ensemble_rank_ic(predictions_by_seed, targets, dates, non_overlapping_stride=1)
+
+    mean_individual_std = np.mean([ic["std_ic"] for ic in result["per_seed_rank_ic"].values()])
+    assert result["ensemble_rank_ic"]["std_ic"] <= mean_individual_std
+
+
+def test_aggregate_seed_ensemble_rank_ic_empty_raises():
+    dates, targets, _ = _rank_ic_dates_and_targets()
+
+    with pytest.raises(ValueError):
+        aggregate_seed_ensemble_rank_ic({}, targets, dates)
+
+
+# ---------------------------------------------------------------------------
+# compute_purged_cv_rank_ic_diagnostic() (Stage 5 of the rank-pivot roadmap:
+# the actual executed diagnostic behind phase1.target.ranking.purged_cv -
+# purged_embargoed_folds() previously had zero call sites in production code)
+# ---------------------------------------------------------------------------
+
+
+def _purged_cv_dates_and_predictions(n_days: int = 40, assets_per_day: int = 5, noise_std: float = 0.05, seed: int = 5):
+    dates = np.array(
+        [
+            d
+            for day_offset in range(n_days)
+            for d in [np.datetime64("2020-01-01") + np.timedelta64(day_offset, "D")] * assets_per_day
+        ]
+    )
+    base_targets = np.tile(np.linspace(0.0, 1.0, assets_per_day), n_days)
+    rng = np.random.default_rng(seed)
+    predictions = torch.tensor(base_targets + rng.normal(0.0, noise_std, size=len(base_targets)), dtype=torch.float32)
+    targets = torch.tensor(base_targets, dtype=torch.float32)
+    return dates, predictions, targets
+
+
+def test_compute_purged_cv_rank_ic_diagnostic_structure():
+    dates, predictions, targets = _purged_cv_dates_and_predictions()
+
+    result = compute_purged_cv_rank_ic_diagnostic(predictions, targets, dates, n_folds=5, horizon_days=1, embargo_days=1)
+
+    assert result["n_folds_requested"] == 5
+    assert result["n_folds_with_data"] == len(result["per_fold"])
+    assert result["n_folds_with_data"] > 0
+    for fold in result["per_fold"]:
+        assert "fold" in fold and "mean_ic" in fold and "t_stat" in fold
+    # A clean, strongly-correlated signal (small noise) should produce a
+    # positive aggregate IC across folds.
+    assert result["mean_ic_across_folds"] > 0.0
+
+
+def test_compute_purged_cv_rank_ic_diagnostic_too_few_dates_is_empty_not_error():
+    dates, predictions, targets = _purged_cv_dates_and_predictions(n_days=3, assets_per_day=5)
+
+    result = compute_purged_cv_rank_ic_diagnostic(predictions, targets, dates, n_folds=5, horizon_days=1, embargo_days=0)
+
+    assert result["per_fold"] == []
+    assert result["n_folds_with_data"] == 0
+    assert result["mean_ic_across_folds"] == 0.0
+    assert result["any_fold_opposite_sign"] is False
+
+
+def test_compute_purged_cv_rank_ic_diagnostic_detects_opposite_sign_folds():
+    # Construct predictions that correlate POSITIVELY with targets in the
+    # first half of the date range and NEGATIVELY in the second half - the
+    # exact failure mode this diagnostic exists to catch (a signal that
+    # only works in one training sub-period).
+    n_days, assets_per_day = 40, 5
+    dates = np.array(
+        [
+            d
+            for day_offset in range(n_days)
+            for d in [np.datetime64("2020-01-01") + np.timedelta64(day_offset, "D")] * assets_per_day
+        ]
+    )
+    base_targets = np.tile(np.linspace(0.0, 1.0, assets_per_day), n_days)
+    targets = torch.tensor(base_targets, dtype=torch.float32)
+
+    flipped_targets = np.tile(np.linspace(1.0, 0.0, assets_per_day), n_days)
+    first_half_days = n_days // 2 * assets_per_day
+    predictions_array = np.concatenate([base_targets[:first_half_days], flipped_targets[first_half_days:]])
+    predictions = torch.tensor(predictions_array, dtype=torch.float32)
+
+    result = compute_purged_cv_rank_ic_diagnostic(predictions, targets, dates, n_folds=4, horizon_days=1, embargo_days=0)
+
+    assert result["any_fold_opposite_sign"] is True

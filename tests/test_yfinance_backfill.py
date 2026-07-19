@@ -3,6 +3,13 @@
 Conventions: no test classes, module-level helpers. yfinance is never
 imported or called here — fetch_yahoo_ohlcv is always replaced via the
 fetch_fn injection point, so zero real network access happens in this file.
+
+One deliberate exception:
+test_fetch_yahoo_ohlcv_flattens_multiindex_columns() substitutes a fully
+fake, in-memory `yfinance` module into sys.modules (never the real package,
+never a network call) to regression-test fetch_yahoo_ohlcv()'s MultiIndex-
+column flattening fix — still zero real network access, just exercising the
+one function every other test in this file deliberately avoids.
 """
 
 from datetime import date
@@ -254,3 +261,75 @@ def test_run_backfill_never_imports_yfinance_when_fetch_fn_injected(tmp_path):
     import sys
 
     assert "yfinance" not in sys.modules
+
+
+def test_fetch_yahoo_ohlcv_flattens_multiindex_columns(monkeypatch):
+    """Regression test for the Stage 3 universe-expansion bug found live:
+    newer yfinance returns MultiIndex columns (price field, ticker) even for
+    a single-ticker download, so `record["Open"]` on a raw row is a length-1
+    Series, not a scalar - float() on that only works today via a deprecated
+    pandas fallback (FutureWarning: will raise TypeError in a future
+    pandas). fetch_yahoo_ohlcv() now flattens to the price-field level right
+    after download - this proves that flattening actually produces correct
+    scalar rows, using a fake in-memory yfinance module (see module
+    docstring), never the real package or a network call."""
+    import sys
+    import types
+
+    import pandas as pd
+
+    dates = pd.to_datetime(["2020-01-02", "2020-01-03"])
+    multiindex_columns = pd.MultiIndex.from_product([["Open", "High", "Low", "Close", "Volume"], ["MSFT"]])
+    frame = pd.DataFrame(
+        [
+            [100.0, 101.0, 99.0, 100.5, 1000.0],
+            [101.0, 102.0, 100.0, 101.5, 1100.0],
+        ],
+        index=dates,
+        columns=multiindex_columns,
+    )
+    fake_yfinance = types.SimpleNamespace(download=lambda *args, **kwargs: frame)
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yfinance)
+
+    from data_pipeline.yfinance_backfill import fetch_yahoo_ohlcv
+
+    rows = fetch_yahoo_ohlcv("MSFT", "2020-01-01", "2020-01-05")
+
+    assert len(rows) == 2
+    assert rows[0] == {
+        "date": date(2020, 1, 2),
+        "open": 100.0,
+        "high": 101.0,
+        "low": 99.0,
+        "close": 100.5,
+        "volume": 1000.0,
+    }
+    assert rows[1]["date"] == date(2020, 1, 3)
+    assert rows[1]["close"] == 101.5
+
+
+def test_fetch_yahoo_ohlcv_handles_flat_columns_too(monkeypatch):
+    """Older yfinance (or a single-ticker call that never gained MultiIndex
+    columns) returns a plain flat Index - the isinstance() guard must be a
+    no-op in that case, not break it."""
+    import sys
+    import types
+
+    import pandas as pd
+
+    dates = pd.to_datetime(["2020-01-02"])
+    frame = pd.DataFrame(
+        [[100.0, 101.0, 99.0, 100.5, 1000.0]],
+        index=dates,
+        columns=["Open", "High", "Low", "Close", "Volume"],
+    )
+    fake_yfinance = types.SimpleNamespace(download=lambda *args, **kwargs: frame)
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yfinance)
+
+    from data_pipeline.yfinance_backfill import fetch_yahoo_ohlcv
+
+    rows = fetch_yahoo_ohlcv("MSFT", "2020-01-01", "2020-01-05")
+
+    assert len(rows) == 1
+    assert rows[0]["open"] == 100.0
+    assert rows[0]["close"] == 100.5

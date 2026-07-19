@@ -2957,3 +2957,139 @@ Confirmed against the real container after rebuild+redeploy:
 "disabled", ...}`), where it previously 500'd.
 
 ---
+
+### 52. The rank-pivot roadmap: trading path switched from the noise-objective direction head to `rank_20d`, universe expanded and rebalanced 30→74 assets, four Stage-4 regularization gaps closed — and a second, training-side confirmation of entry #50's RAM finding
+**Severity:** 9/10 (the model's core edge/turnover problem) · **Status:** 🟡 `code complete and unit-tested; empirical retrain/backtest verification deliberately deferred to different hardware` — every code change below is shipped, tested, and config-gated exactly as intended; what's still outstanding is running it against real data at scale, not writing it
+
+This is the direct fix for this entry's own root-cause finding above: next-day
+direction is noise (backtest MCC ~0.02-0.04) and the one signal with genuine
+skill, `rank_20d`, was being traded far faster than its ~20-day horizon
+supports. Five changes, each config-gated and independently tested:
+
+**1. Trading path pivoted onto `rank_20d`** (`config.json`): `strategy_mode`
+`long_flat` → `long_short` (unlocks the book's short side at
+`main.py`'s existing gate), `dynamic_risk.rank_sizing_enabled` → `true`,
+`gating_network.sequence_weight` `0.0` → `0.5` (blends the sequence
+model's `rank_20d` head into the traded probability), `portfolio_book`
+`top_n`/`bottom_n` `5`/`5` → `8`/`8`, `min_rank_confidence_spread` `0.1` →
+`0.15`. Verified: `aq test --risk --cli --portfolio` green.
+
+**2. An explicit 5-trading-day rebalance scheduler** (not just a per-symbol
+cooldown) to cut turnover to match `rank_20d`'s own horizon. New pure,
+Lean-independent function `portfolio/book_construction.py::
+should_rebalance_this_bar()` (extracted specifically so it's unit-testable
+without a running `QCAlgorithm` — `main.py` cannot be imported outside
+Lean at all, per its `AlgorithmImports` wildcard import) wired into
+`main.py::on_data()`'s existing book-formation call: the book is only
+re-ranked every `phase_v2.portfolio_book.rebalance_every_bars` bars (new
+key, default `5`; `1` reproduces the previous every-bar behavior exactly),
+holding positions via the existing rotation-exit path in between. 8 new
+tests in `tests/test_portfolio_book_construction.py`, including a
+synthetic simulation proving a 5x reduction in book-formation events.
+
+**3. Universe expanded 30 → 74 assets, deliberately rebalanced away from
+equity-heavy.** First pass landed 47 equities/18 bonds/9 crypto (63%/24%/
+12%) — flagged as too equity-heavy and reworked to **40 equities/22
+bonds/12 crypto (54%/30%/16%)**, still ≤ the user's 75-name cap. All 44
+new tickers backfilled via `data_pipeline/yfinance_backfill.py --apply`
+after a dry-run validation pass; dataset rebuilt clean
+(`train.py --dataset-only`): **113,804 rows** (was 46,242 — a 2.46x
+increase matching the 74/30 asset ratio almost exactly), **63
+training-eligible + 11 observation-only**. Honest finding, not a bug: all
+25 new equities and 12 new bonds are training-eligible, but all 7 new
+crypto (BCH/LINK/BNB/DOGE/XLM/EOS/TRX) landed observation-only — their
+Yahoo history only starts 2017-11-09, giving them almost no rows inside
+the fixed 2014-2017 train-split window (same reason ETH/XRP/ADA were
+already observation-only). Tradeable crypto count stays at 2 (BTC, LTC);
+the new crypto adds cross-sectional/observation diversity, not new
+tradeable positions.
+
+**A real bug found and fixed along the way**: `yfinance_backfill.py::
+fetch_yahoo_ohlcv()` used `float(record["Open"])` etc. on a raw yfinance
+download frame — newer yfinance always returns MultiIndex columns (price
+field, ticker) even for a single-ticker request, so `record["Open"]` is a
+length-1 `Series`, and `float()` on that only works today via a deprecated
+pandas fallback (`FutureWarning: will raise TypeError in the future`).
+Fixed by flattening `frame.columns` to the price-field level right after
+download when a `MultiIndex` is detected. 2 new regression tests (a fake
+in-memory `yfinance` module, never the real package/network) prove both
+the MultiIndex and flat-column cases produce correct scalar rows.
+
+**4. Four Stage-4 regularization gaps closed, both `train_multitask.py`
+and `train_sequence.py`:**
+- **Rank-IC-based early stopping** (config: `early_stop_metric:
+  "rank_ic"`, default): monitors validation `rank_20d` mean IC instead of
+  combined loss — a third, previously-untried option, distinct from an
+  earlier documented experiment (monitoring direction balanced-accuracy)
+  that measurably degraded the sequence model's own rank_20d backtest
+  signal (non-overlapping t-stat 2.90 → 2.21). Config-gated with a
+  fallback to `"validation_loss"` in one edit if this experiment also
+  regresses.
+- **The dead 1-day direction head down-weighted, not removed**:
+  `compute_combined_multitask_loss()` gained `direction_loss_weight`
+  (default `1.0`, fully backward-compatible; config sets `0.1` for both
+  trainers). Its output was already confirmed unused anywhere in
+  `main.py`'s trading decision (only `magnitude`/`volatility`/`rank_5d`/
+  `rank_20d` are read) — it was forcing the shared trunk to keep fitting a
+  target with no signal and no consumer.
+- **Seed-ensembling**: new `train.py::average_ensemble_predictions()`
+  (prediction-averaging, deliberately never weight-averaging — two
+  independently-initialized nets aren't parameter-aligned, so averaging
+  raw weights is not well-defined; averaging outputs always is, matching
+  this codebase's existing `moe/gating.py` ensembling precedent) and
+  `aggregate_seed_ensemble_rank_ic()` (per-seed + ensembled rank-IC
+  reporting), plus a new `--seed` CLI override on both trainers so each
+  seed can be run as its own isolated `--candidate`. 10 new tests.
+- **Horizon-consistency regularization** (config: `consistency_loss_weight`,
+  default `0.0`, set to `0.2` for both trainers): new
+  `compute_horizon_consistency_loss()` penalizes the 5-day and 20-day
+  rank/direction heads for landing on opposite sides of their shared 0.5
+  midpoint — the piece of regularization previously missing (rank-IC
+  early-stopping and seed-ensembling address the *epoch*/*seed* axes of
+  overfitting; this addresses the *cross-head* axis). 7 new tests.
+
+**5. `phase1.target.ranking.purged_cv.enabled` was dead configuration** —
+`purged_embargoed_folds()` existed as a tested, standalone utility with
+**zero call sites** anywhere in the training pipeline (confirmed by
+grepping the entire codebase). Flipping the flag did nothing. Fixed:
+new `train.py::compute_purged_cv_rank_ic_diagnostic()` actually invokes
+it, evaluating the already-trained model's own `rank_20d` predictions
+against each purged/embargoed fold of the **train** split (no extra
+training runs) — reported as `metrics["purged_cv_rank_20d"]` in both
+trainers' metrics JSON when the flag is on. 6 new tests, including one
+proving the diagnostic correctly flags a fold whose sign flips relative to
+the others (the exact "overfit to one training sub-period" failure mode
+it exists to catch).
+
+**What's still outstanding, honestly:** the actual retrain of
+multitask/sequence/gating/baseline+experts on the new 74-asset dataset —
+i.e. the empirical confirmation that `rank_20d`'s non-overlapping t-stat
+actually clears 2.0 under all of the above, and that the backtest's order
+count/Sharpe/expectancy actually improve — was **not completed this
+session**. A `--multitask-only` retrain was started and ran for **~4
+hours of wall-clock time consuming only ~800 CPU-seconds** before being
+deliberately stopped (not a crash) so the user could move training to
+cloud compute instead. This is a second, training-side data point for
+entry #50's RAM finding: `Get-Process`'s CPU-time counter barely moved
+across many 20-30 minute check-ins even though the process was confirmed
+alive and non-zombied throughout, and system-wide free memory was
+measured at **350MB out of 3.9GB total** (Docker Desktop, VS Code, and
+Claude Code itself, not this training process specifically — which used
+only ~50-70MB of its own — accounted for most of the pressure). Every
+code change above is verified at the unit level (all new tests pass); the
+dataset itself is confirmed correctly rebuilt (113,804 rows, right
+asset-eligibility split). Re-running the full retrain (ideally via cloud
+compute — GitHub Codespaces, or a `Remote-SSH`-connected free-tier VM with
+more RAM) and then a real `aq backtest` is the direct next step, and does
+not require any further code changes.
+
+**Testing**: every function above shipped with new unit tests (see each
+sub-section) — none of them require a full retrain to verify at the code
+level. Full `aq test` (non-`lean_backtest`) green at the end of this
+session — **1497 passed, 0 failed, 11 deselected, 1 pre-existing
+warning** (up from 1465 at the start) — across the whole touched surface
+(config.json, main.py, portfolio/, data_pipeline/yfinance_backfill.py,
+train.py, train_multitask.py, train_sequence.py). README's test badge
+auto-updated to match.
+
+---

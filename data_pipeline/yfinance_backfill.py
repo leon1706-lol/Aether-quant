@@ -30,6 +30,8 @@ from pathlib import Path
 from typing import Callable
 from zipfile import ZipFile
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -212,6 +214,16 @@ def fetch_yahoo_ohlcv(symbol: str, start: str, end: str) -> list[dict]:
     if frame is None or frame.empty:
         logger.warning("fetch_yahoo_ohlcv(%s): no data returned for %s..%s", symbol, start, end)
         return []
+
+    # Newer yfinance always returns MultiIndex columns (price field, ticker),
+    # even for a single-ticker download — `record["Open"]` on that shape
+    # returns a length-1 Series instead of a scalar, and `float(...)` on it
+    # only works today via a deprecated pandas fallback (FutureWarning: will
+    # raise TypeError in a future pandas). Flattening to the price-field
+    # level here keeps `record["Open"]` a plain scalar regardless of which
+    # yfinance/pandas version is installed.
+    if isinstance(frame.columns, pd.MultiIndex):
+        frame.columns = frame.columns.get_level_values(0)
 
     rows = []
     for index, record in frame.iterrows():

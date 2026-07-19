@@ -2708,6 +2708,81 @@ def bootstrap_ic_confidence_interval(
     }
 
 
+def average_ensemble_predictions(predictions_by_seed: list[torch.Tensor]) -> torch.Tensor:
+    """Stage 4 of the rank-pivot roadmap (development/Problems.md#43):
+    combines the SAME model architecture's predictions from independently-
+    seeded training runs (see train_multitask.py/train_sequence.py's
+    `ensemble_seeds` config) into one steadier signal for a given head
+    (typically rank_20d).
+
+    Deliberately PREDICTION averaging, not weight averaging: two networks
+    trained from different random initializations generally land in
+    different (but equally valid) regions of a non-convex loss landscape -
+    their hidden units are not aligned to the same "meaning" (permutation
+    symmetry), so averaging their raw weights elementwise produces a
+    network that doesn't correspond to either optimum and is not
+    guaranteed to be sensible, let alone better. Averaging their OUTPUTS
+    instead is always well-defined regardless of internal alignment, is
+    the standard neural-net ensembling technique in the literature, and
+    matches this codebase's existing ensembling precedent (moe/gating.py's
+    build_gating_decision() blends multiple experts' PROBABILITY outputs,
+    never their weights).
+
+    Deterministic (a plain elementwise mean) - same inputs always produce
+    the same output, matching this codebase's other seeded-determinism
+    conventions (set_seed()). Requires at least one prediction tensor, all
+    the same shape (one entry per seed, each already evaluated on the same
+    rows in the same order)."""
+    if not predictions_by_seed:
+        raise ValueError("average_ensemble_predictions() requires at least one prediction tensor")
+    stacked = torch.stack(list(predictions_by_seed), dim=0)
+    return stacked.mean(dim=0)
+
+
+def aggregate_seed_ensemble_rank_ic(
+    predictions_by_seed: dict[int, torch.Tensor],
+    targets: torch.Tensor,
+    dates,
+    non_overlapping_stride: int = 20,
+) -> dict:
+    """Stage 4 of the rank-pivot roadmap (development/Problems.md#43): the
+    evaluation half of seed-ensembling, pairing with
+    average_ensemble_predictions() above and train_multitask.py/
+    train_sequence.py's `--seed` CLI override.
+
+    Workflow: train the same trainer once per seed (e.g. `--seed 42/43/44`,
+    each its own --version-id, isolated under ml/versions/ exactly like any
+    other --candidate run), reload each seed's exported backtest rank_20d
+    predictions on the SAME rows/order (e.g. via
+    inference/exported_model.py against the shared backtest split), then
+    call this function once to get both the per-seed rank-IC (did any
+    individual seed happen to get lucky/unlucky) and the ensembled rank-IC
+    (does averaging across seeds actually produce a steadier signal - the
+    entire point of ensembling). `dates` and `non_overlapping_stride`
+    forward directly to compute_rank_ic() - default stride 20 matches
+    rank_20d's own horizon (see compute_rank_ic()'s docstring on why the
+    naive daily series overstates significance for a 20-day-forward
+    target).
+
+    Requires at least one seed. Returns a dict shaped for direct JSON
+    serialization into an ensemble_summary.json-style artifact."""
+    if not predictions_by_seed:
+        raise ValueError("aggregate_seed_ensemble_rank_ic() requires at least one seed's predictions")
+
+    per_seed_ic = {
+        str(seed): compute_rank_ic(predictions, targets, dates, non_overlapping_stride=non_overlapping_stride)
+        for seed, predictions in predictions_by_seed.items()
+    }
+    ensembled_predictions = average_ensemble_predictions(list(predictions_by_seed.values()))
+    ensemble_ic = compute_rank_ic(ensembled_predictions, targets, dates, non_overlapping_stride=non_overlapping_stride)
+
+    return {
+        "seeds": sorted(predictions_by_seed.keys()),
+        "per_seed_rank_ic": per_seed_ic,
+        "ensemble_rank_ic": ensemble_ic,
+    }
+
+
 def purged_embargoed_folds(
     dates,
     n_folds: int,
@@ -2800,6 +2875,57 @@ def purged_embargoed_folds(
         folds.append((train_indices, validation_indices))
 
     return folds
+
+
+def compute_purged_cv_rank_ic_diagnostic(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    dates,
+    n_folds: int,
+    horizon_days: int,
+    embargo_days: int = 0,
+) -> dict:
+    """Stage 5 of the rank-pivot roadmap (development/Problems.md#43): the
+    actual executed diagnostic behind phase1.target.ranking.purged_cv.enabled -
+    purged_embargoed_folds() above existed as a tested, standalone utility
+    with ZERO call sites in the actual training pipeline (config.json's flag
+    was pure dead configuration, verified by grep - no production code path
+    ever read it). This function is what train_multitask.py/train_sequence.py
+    now call when that flag is true.
+
+    Evaluates the model ALREADY trained on the full fixed train window's own
+    rank_20d predictions against each purged/embargoed fold's held-out row
+    subset - no extra training, no separately-trained per-fold models. This
+    is a robustness check of one model's in-sample IC stability across
+    sub-periods of its own training data, distinct from (and complementary
+    to) assess_ranking_quality()'s non-overlapping-era check on the
+    BACKTEST split: that asks "is the OOS edge concentrated in one regime?";
+    this asks "is the model's fit itself concentrated in one training
+    sub-period, or does it generalize evenly across the whole train
+    window?" A per-fold IC that flips sign, or an aggregate far below the
+    full-train IC, is evidence of exactly that overfit-to-one-sub-period
+    failure mode.
+
+    Requires `predictions`/`targets` aligned 1:1 with `dates` (same row
+    order - typically the TRAIN split's own rows, since purging/embargoing
+    is layered *inside* that split, never across the train/validation/
+    backtest wall - see purged_embargoed_folds()'s docstring)."""
+    folds = purged_embargoed_folds(dates, n_folds, horizon_days, embargo_days)
+    dates_array = np.asarray(dates)
+    per_fold = []
+    for fold_index, (_train_indices, validation_indices) in enumerate(folds):
+        fold_ic = compute_rank_ic(predictions[validation_indices], targets[validation_indices], dates_array[validation_indices])
+        per_fold.append({"fold": fold_index, **fold_ic})
+
+    folds_with_data = [fold for fold in per_fold if fold["num_dates"] > 0]
+    mean_ics = [fold["mean_ic"] for fold in folds_with_data]
+    return {
+        "n_folds_requested": n_folds,
+        "n_folds_with_data": len(folds_with_data),
+        "per_fold": per_fold,
+        "mean_ic_across_folds": float(np.mean(mean_ics)) if mean_ics else 0.0,
+        "any_fold_opposite_sign": bool(mean_ics and min(mean_ics) < 0 < max(mean_ics)),
+    }
 
 
 def split_into_non_overlapping_eras(dates, era_length_days: int) -> list[tuple]:
@@ -3199,6 +3325,63 @@ def resolve_horizon_head_config(training_config: dict) -> dict:
     return resolved
 
 
+def _pairwise_consistency_penalty(values_a: torch.Tensor, values_b: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Core of compute_horizon_consistency_loss() below - shared between the
+    rank pair (rank_5d/rank_20d, already ~[0,1]-scaled by their own MSE
+    objective) and the direction pair (direction_5d/direction_20d, sigmoid-
+    applied first by the caller so they're on the same [0,1] scale). Both
+    `values_a`/`values_b` are expected centered around 0.5 = "no opinion" -
+    `-(a-0.5)*(b-0.5)` is negative (relu zeroes it - no penalty) whenever
+    both sit on the SAME side of 0.5 (both bullish-of-median or both
+    bearish-of-median), and positive (penalized) whenever they disagree.
+    Returns a true zero (no gradient contribution) when the mask is empty,
+    matching masked_bce_with_logits_loss()/masked_mse_loss()'s convention."""
+    if not torch.any(mask):
+        return torch.zeros((), device=values_a.device)
+    a_centered = values_a[mask] - 0.5
+    b_centered = values_b[mask] - 0.5
+    return nn.functional.relu(-(a_centered * b_centered)).mean()
+
+
+def compute_horizon_consistency_loss(outputs: dict[str, torch.Tensor], targets: dict[str, torch.Tensor]) -> torch.Tensor:
+    """Stage 4 of the rank-pivot roadmap (development/Problems.md#43): an
+    explicit regularizer penalizing the model for predicting the 5-day and
+    20-day views of the SAME underlying signal on opposite sides of the
+    cross-section/direction, rather than letting each head overfit its own
+    horizon independently with no coherence constraint between them - the
+    piece previously missing from Stage 4's regularization (rank-IC-based
+    early stopping and seed-ensembling address the *epoch*/*seed* axes of
+    overfitting; this addresses the *cross-head* axis).
+
+    Two pairs, both using _pairwise_consistency_penalty() with the exact
+    masking convention every other head loss already uses (only rows where
+    BOTH targets in the pair are non-NaN contribute - trailing rows missing
+    one horizon's forward window make "do these two heads agree"
+    ill-posed, not just unsupervised):
+    - rank_5d vs rank_20d: used directly (both already ~[0,1]-scaled by
+      their own masked-MSE objective against a [0,1] percentile-rank
+      target - no extra activation needed or wanted, since applying one
+      would put this term on a different scale than the MSE loss actually
+      training these heads).
+    - direction_5d vs direction_20d: sigmoid-applied first, since these are
+      raw BCEWithLogits logits (unbounded) - sigmoid(logit) has the same
+      SIGN-relative-to-0.5 as the logit relative to 0, but keeps the
+      product term boundedly scaled instead of letting large logit
+      magnitudes dominate/destabilize the combined loss.
+
+    Callers gate each pair on whether BOTH heads in it are actually enabled
+    (horizon_head_config) - penalizing agreement between a disabled head's
+    meaningless output and an enabled one's is not well-defined."""
+    rank_mask = ~torch.isnan(targets["rank_5d"]) & ~torch.isnan(targets["rank_20d"])
+    rank_penalty = _pairwise_consistency_penalty(outputs["rank_5d"], outputs["rank_20d"], rank_mask)
+
+    direction_mask = ~torch.isnan(targets["direction_5d"]) & ~torch.isnan(targets["direction_20d"])
+    direction_penalty = _pairwise_consistency_penalty(
+        torch.sigmoid(outputs["direction_5d"]), torch.sigmoid(outputs["direction_20d"]), direction_mask
+    )
+    return rank_penalty + direction_penalty
+
+
 def compute_combined_multitask_loss(
     outputs: dict[str, torch.Tensor],
     targets: dict[str, torch.Tensor],
@@ -3206,6 +3389,8 @@ def compute_combined_multitask_loss(
     magnitude_loss_weight: float,
     volatility_loss_weight: float,
     horizon_head_config: dict,
+    direction_loss_weight: float = 1.0,
+    consistency_loss_weight: float = 0.0,
 ) -> torch.Tensor:
     """Combined loss for both AetherNetMultiTaskHorizons and
     AetherNetSequenceMultiTaskHorizons (identical head-name dict shape,
@@ -3213,9 +3398,31 @@ def compute_combined_multitask_loss(
     MSE(magnitude)/MSE(volatility) + a masked BCE/MSE term per enabled
     horizon head (masked since direction_5d/20d/rank_5d/20d are NaN for
     the trailing few rows of an asset's history that lack a full forward
-    window, see engineer_features()'s docstring)."""
+    window, see engineer_features()'s docstring).
+
+    direction_loss_weight (Stage 4 of the rank-pivot roadmap,
+    development/Problems.md#43): the primary 1-day "direction" head is a
+    near-noise objective (backtest MCC ~0.02-0.04, and the sequence model's
+    own copy of it collapsed to a constant during training - positive_rate
+    0.0002) whose output main.py never even reads (only magnitude/
+    volatility/rank_5d/rank_20d feed the trading decision) - it exists only
+    as an artifact of this model's original single-task ancestor. Its loss
+    was previously hardcoded at weight 1.0, forcing the shared trunk to keep
+    fitting a target with no signal and no downstream consumer. Defaults to
+    1.0 (fully backward-compatible - existing positional callers/tests are
+    unaffected); config.json sets this low (not 0.0, so the head stays a
+    harmless diagnostic rather than a dead weight-less no-op) for the
+    multitask/sequence trainers specifically.
+
+    consistency_loss_weight (Stage 4, same roadmap entry): scales
+    compute_horizon_consistency_loss() above - see its own docstring.
+    Defaults to 0.0 (fully backward-compatible - a zero-weighted term adds
+    zero gradient contribution, so every existing positional caller/test is
+    completely unaffected); only added when BOTH heads of a pair are
+    enabled (horizon_head_config), matching this function's existing
+    per-head enabled-gating convention immediately below."""
     loss = (
-        direction_criterion(outputs["direction"], targets["direction"])
+        direction_loss_weight * direction_criterion(outputs["direction"], targets["direction"])
         + magnitude_loss_weight * nn.functional.mse_loss(outputs["magnitude"], targets["magnitude"])
         + volatility_loss_weight * nn.functional.mse_loss(outputs["volatility"], targets["volatility"])
     )
@@ -3230,6 +3437,26 @@ def compute_combined_multitask_loss(
             else masked_mse_loss(outputs[head_name], targets[head_name], mask)
         )
         loss = loss + float(head_config.get("loss_weight", 1.0)) * head_loss
+
+    if consistency_loss_weight:
+        rank_pair_enabled = horizon_head_config["rank_5d"].get("enabled", True) and horizon_head_config["rank_20d"].get(
+            "enabled", True
+        )
+        direction_pair_enabled = horizon_head_config["direction_5d"].get(
+            "enabled", True
+        ) and horizon_head_config["direction_20d"].get("enabled", True)
+        if rank_pair_enabled or direction_pair_enabled:
+            consistency_targets = {
+                "rank_5d": targets["rank_5d"] if rank_pair_enabled else torch.full_like(targets["rank_5d"], float("nan")),
+                "rank_20d": targets["rank_20d"] if rank_pair_enabled else torch.full_like(targets["rank_20d"], float("nan")),
+                "direction_5d": targets["direction_5d"]
+                if direction_pair_enabled
+                else torch.full_like(targets["direction_5d"], float("nan")),
+                "direction_20d": targets["direction_20d"]
+                if direction_pair_enabled
+                else torch.full_like(targets["direction_20d"], float("nan")),
+            }
+            loss = loss + consistency_loss_weight * compute_horizon_consistency_loss(outputs, consistency_targets)
     return loss
 
 

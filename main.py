@@ -58,7 +58,7 @@ from risk.asset_class_router import (
 from risk.futures_risk import load_futures_contract_specs
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
-from portfolio import build_rank_based_book, normalize_per_asset_class_slots
+from portfolio import build_rank_based_book, normalize_per_asset_class_slots, should_rebalance_this_bar
 from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 # Imports directly from audit.redis_queue (not the audit package's own
@@ -462,6 +462,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.portfolio_book_min_rank_confidence_spread = float(
             phase_v2_portfolio_book.get("min_rank_confidence_spread", 0.2)
         )
+        # Stage 2 of the rank-pivot roadmap (development/Problems.md#43):
+        # the book previously re-ranked and re-formed EVERY bar, churning
+        # positions far faster than rank_20d's actual 20-trading-day
+        # horizon can support (653 orders/~2yr with no cost edge left over).
+        # rebalance_every_bars freezes book_allocations between rebalance
+        # bars (see the on_data() cache just below the build_rank_based_book
+        # call) - positions are held via the existing rotation-exit/
+        # non-model-exit paths, never churned mid-cycle. 1 preserves the
+        # previous every-bar behavior exactly (no regression when unset).
+        self.portfolio_book_rebalance_every_bars = max(
+            1, int(phase_v2_portfolio_book.get("rebalance_every_bars", 1))
+        )
+        self._last_book_allocations: dict = {}
         # development/Problems.md#29: optional per-asset-class slot budget
         # (e.g. {"equity": [3, 3], "crypto": [2, 2]}) instead of one pooled
         # top_n/bottom_n ranking across every enabled asset class - absent
@@ -1123,21 +1136,39 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # `enabled=False` (default) always resolves to {} here - every
         # symbol in Pass 2 below then finds no book_allocation, taking the
         # exact same code path as before this restructuring existed.
-        book_allocations = (
-            build_rank_based_book(
-                book_candidates,
-                top_n=self.portfolio_book_top_n,
-                # Not self.portfolio_book_bottom_n directly - see
-                # strategy_mode enforcement at this attribute's own
-                # assignment in __init__: "long_flat" (the default) forces
-                # this to 0, a deliberate long-only book.
-                bottom_n=self.portfolio_book_effective_bottom_n,
-                min_rank_confidence_spread=self.portfolio_book_min_rank_confidence_spread,
-                per_asset_class_slots=self.portfolio_book_per_asset_class_slots,
+        #
+        # Stage 2 rebalance scheduler (development/Problems.md#43): the book
+        # is only re-ranked/re-formed on rebalance bars
+        # ((bar_index - 1) % rebalance_every_bars == 0, so the very first
+        # bar - bar_index==1 - always rebalances); every bar in between
+        # reuses the previous allocation from self._last_book_allocations
+        # untouched, so positions are HELD rather than re-rotated every bar.
+        # rebalance_every_bars==1 (the default) makes this branch always
+        # true, reproducing the previous every-bar-rebalance behavior
+        # exactly - no regression for anyone who doesn't set the new key.
+        if self.portfolio_book_enabled:
+            is_rebalance_bar = should_rebalance_this_bar(
+                self.bar_index,
+                self.portfolio_book_rebalance_every_bars,
+                bool(self._last_book_allocations),
             )
-            if self.portfolio_book_enabled
-            else {}
-        )
+            if is_rebalance_bar:
+                book_allocations = build_rank_based_book(
+                    book_candidates,
+                    top_n=self.portfolio_book_top_n,
+                    # Not self.portfolio_book_bottom_n directly - see
+                    # strategy_mode enforcement at this attribute's own
+                    # assignment in __init__: "long_flat" (the default) forces
+                    # this to 0, a deliberate long-only book.
+                    bottom_n=self.portfolio_book_effective_bottom_n,
+                    min_rank_confidence_spread=self.portfolio_book_min_rank_confidence_spread,
+                    per_asset_class_slots=self.portfolio_book_per_asset_class_slots,
+                )
+                self._last_book_allocations = book_allocations
+            else:
+                book_allocations = self._last_book_allocations
+        else:
+            book_allocations = {}
 
         # ---- Pass 2: sizing/liquidity/analyzer/order-application, now
         # that every symbol's book role (if any) is known. Iterates

@@ -3612,3 +3612,76 @@ a killed child can outlive `docker stop` entirely.
 **Verification**: full `aq test` green (1465 passed, 0 failed, 11
 deselected `lean_backtest`, 1 pre-existing warning) both before and after
 the reconciliation fix landed. `docker compose config` resolves cleanly.
+
+## 2026-07-19 — The rank-pivot roadmap: trading path switched onto `rank_20d`, universe expanded 30→74 and rebalanced across asset classes, four Stage-4 regularization gaps closed
+
+Direct follow-through on Problems.md #43's own finding: next-day direction is
+noise, `rank_20d` is the one signal with genuine skill, and it was being
+traded far faster than its ~20-day horizon supports (653 orders against a
+Sharpe -0.59 / Net -4.6% backtest). Five changes, each config-gated,
+independently unit-tested, and detailed in full in Problems.md #52:
+
+**Trading path pivoted onto `rank_20d`**: `strategy_mode` → `long_short`
+(unlocks the book's short side), `rank_sizing_enabled` → `true`,
+`gating_network.sequence_weight` `0.0` → `0.5`, book `top_n`/`bottom_n`
+`5`/`5` → `8`/`8`, `min_rank_confidence_spread` `0.1` → `0.15`.
+
+**An explicit 5-trading-day rebalance scheduler**, not just a per-symbol
+cooldown — new pure, Lean-independent
+`portfolio/book_construction.py::should_rebalance_this_bar()` (extracted
+specifically so it's unit-testable without a running `QCAlgorithm`), wired
+into `main.py::on_data()`'s book-formation call via a new
+`phase_v2.portfolio_book.rebalance_every_bars` config key (default `5`;
+`1` reproduces the previous every-bar behavior exactly). Positions are
+held between rebalances via the existing rotation-exit path.
+
+**Universe expanded 30 → 74 assets**, deliberately rebalanced from an
+initial equity-heavy 47/18/9 split to **40 equities / 22 bonds / 12
+crypto** (54%/30%/16%) per direct feedback mid-session, still under the
+75-name cap. All 44 new tickers backfilled via `yfinance_backfill.py`
+after a dry-run validation pass (a real MultiIndex-columns bug in that
+script, exposed by a newer yfinance version, was found and fixed along the
+way, with 2 new regression tests). Dataset rebuilt clean: **113,804 rows**
+(up from 46,242 — matches the 74/30 asset ratio almost exactly), 63
+training-eligible + 11 observation-only. Honest finding: all 7 new crypto
+tickers landed observation-only (their Yahoo history starts 2017-11-09,
+inside the fixed train-split window's later years only) — tradeable
+crypto count stays at 2 (BTC, LTC), same as before; the new crypto adds
+observation/cross-sectional diversity, not new tradeable positions.
+
+**Four Stage-4 regularization gaps closed** in both `train_multitask.py`
+and `train_sequence.py`: rank-IC-based early stopping (config-gated,
+falls back to the previous loss-based criterion in one edit); the dead
+1-day direction head down-weighted via a new `direction_loss_weight`
+(confirmed unused anywhere in `main.py`'s trading decision already);
+seed-ensembling (`average_ensemble_predictions()` — prediction-averaging,
+never weight-averaging, matching this codebase's existing MoE-blend
+precedent — plus a new `--seed` CLI override on both trainers); and a new
+horizon-consistency regularization term penalizing 5d/20d heads that land
+on opposite sides of their shared midpoint.
+
+**`phase1.target.ranking.purged_cv.enabled` was dead configuration** —
+`purged_embargoed_folds()` had zero call sites anywhere in the training
+pipeline (confirmed by grep). New `compute_purged_cv_rank_ic_diagnostic()`
+actually invokes it now, evaluating the trained model's own `rank_20d`
+predictions across purged/embargoed folds of the train split (no extra
+training) — reported in both trainers' metrics JSON when the flag is on.
+
+**What's still outstanding, honestly**: the empirical retrain of the whole
+ensemble on the new 74-asset dataset, and the real `aq backtest` that
+would confirm `rank_20d`'s non-overlapping t-stat actually clears 2.0 and
+the order-count/Sharpe/expectancy actually improve. A `--multitask-only`
+retrain was started and left running **~4 hours of wall-clock time for
+only ~800 CPU-seconds of actual progress** before being deliberately
+stopped so training could move to cloud compute instead — a second,
+training-side confirmation of Problems.md #50's RAM finding (measured
+350MB free out of 3.9GB total system memory during the run, mostly other
+concurrently-running applications, not this training process itself).
+Every code change above is unit-tested and does not require a retrain to
+verify at the code level; the retrain and backtest are the direct next
+step and need no further code changes first.
+
+**Verification**: every new function shipped with its own unit tests (see
+Problems.md #52 for the full per-item breakdown). Full `aq test` green
+(1497 passed, 0 failed, 11 deselected `lean_backtest`, 1 pre-existing
+warning) at the end of this session — README's test badge auto-updated.

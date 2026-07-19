@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1325%2F1325%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1325 of 1325 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1497%2F1497%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1497 of 1497 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -60,7 +60,7 @@ features) but remain **data-empty until an Interactive Brokers key is
 connected** (`phase_v2.ib.enabled` — see `aq ib status`/`aq assets
 status`). Remaining, still-open items:
 
-- **The model doesn't yet have enough edge to be profitable.** A completed `aq backtest` (2019-01-01 → 2021-03-31) confirms the trading-logic/training-pipeline fixes work (653 orders, real 11.1% drawdown, 47%/53% win/loss — no longer a frozen book), but the strategy lost money net of costs: Net Profit −4.6%, Sharpe −0.59, negative expectancy. Even the strongest signal (`rank_20d`) is a modest edge, likely too weak at this trading frequency (development/Problems.md #43).
+- **The model doesn't yet have enough edge to be profitable — the numbers below are pre-rank-pivot and not yet re-verified.** A completed `aq backtest` (2019-01-01 → 2021-03-31) confirmed the trading-logic/training-pipeline fixes work (653 orders, real 11.1% drawdown, 47%/53% win/loss — no longer a frozen book), but the strategy lost money net of costs: Net Profit −4.6%, Sharpe −0.59, negative expectancy. Even the strongest signal (`rank_20d`) was a modest edge, likely too weak at that trading frequency (development/Problems.md #43). **A direct fix for exactly this (development/Problems.md #52) is code-complete and unit-tested**: the trading path now runs long/short on `rank_20d` itself instead of the noise-objective direction head, rebalances every 5 bars instead of every bar, the universe expanded 30→74 assets, and four training-regularization gaps closed (rank-IC early stopping, dead-head down-weighting, seed-ensembling, horizon-consistency loss). The empirical retrain + a fresh `aq backtest` confirming these numbers actually improve is the direct next step, deliberately deferred to different hardware (development/Problems.md #52) — not yet done.
 - **IB is unverified end-to-end** — futures margin uses a static reference file rather than live IB margin, and the connection itself has never been tested against a real Gateway.
 - **Four items — `_build_model_input()`'s feature-build cost (#36), limit orders (#34), `gc.freeze()` (#37), vertical spreads (#38) — still need one real `lean backtest .` run to verify, blocked by this dev machine's 4GB RAM, not by any code issue.** Real attempts reliably hit Lean's 90-second `initialize()` isolator cap under the resulting memory pressure (development/Problems.md #50). Should run cleanly on a machine with more headroom (8GB+).
 
@@ -359,21 +359,24 @@ writeup.
 
 ## Universe Size
 
-The trading universe currently spans **30 assets** — 15 stocks/broad-market
-ETFs, 10 fixed-income (bond) ETFs, and 5 crypto pairs — defined in
+The trading universe currently spans **74 assets** — 40 stocks/broad-market
+ETFs, 22 fixed-income (bond) ETFs, and 12 crypto pairs — defined in
 `config.json`'s `phase1.universe.assets` and shared across training,
 validation, and backtesting (`phase1.universe.common_window`: `2014-12-01`
-to `2021-03-31`). The bond ETF sleeve (Phase 1 of the 5/10 -> 9/10 roadmap,
-see [`development/Changelog.md`](development/Changelog.md)) was added
-specifically as a new, genuinely different information channel — not more
-of the same equity cross-section — and deliberately spans the duration
+to `2021-03-31`). Expanded from an original 30-asset universe (Phase 3 of
+the rank-pivot roadmap, `development/Problems.md` #52) specifically to
+strengthen the cross-sectional `rank_20d` signal, which scales with
+names-per-date — and deliberately rebalanced toward bonds/crypto (54%
+equity / 30% bond / 12% crypto by count) rather than staying equity-heavy.
+The bond ETF sleeve (Phase 1 of the 5/10 -> 9/10 roadmap, see
+[`development/Changelog.md`](development/Changelog.md)) spans the duration
 curve (short/intermediate/long/aggregate) and credit spectrum
-(Treasury/investment-grade/high-yield/municipal/emerging-market) so the
-yield-curve-slope and credit-spread macro proxies computed from it
-(`features/macro_features.py`) are meaningful. Bond ETFs are registered
-with `security_type: "equity"` (they trade through Lean's ordinary equity
-subscription path, like every other ETF already in the universe, e.g.
-SPY/QQQ/IWM/EEM — not a new Lean security type).
+(Treasury/investment-grade/high-yield/municipal/emerging-market/
+international) so the yield-curve-slope and credit-spread macro proxies
+computed from it (`features/macro_features.py`) are meaningful. Bond ETFs
+are registered with `security_type: "equity"` (they trade through Lean's
+ordinary equity subscription path, like every other ETF already in the
+universe, e.g. SPY/QQQ/IWM/EEM — not a new Lean security type).
 
 | Ticker | Type | Role |
 |---|---|---|
@@ -392,21 +395,65 @@ SPY/QQQ/IWM/EEM — not a new Lean security type).
 | USO | Equity | Trading |
 | WM | Equity | Trading |
 | AAA | Equity | Observation-only (thin history) |
-| SHY | Equity (Fixed Income ETF) | Trading — short-duration Treasury (1-3y) |
-| IEF | Equity (Fixed Income ETF) | Trading — intermediate-duration Treasury (7-10y) |
-| TLT | Equity (Fixed Income ETF) | Trading — long-duration Treasury (20y+) |
-| AGG | Equity (Fixed Income ETF) | Trading — broad aggregate bond benchmark |
-| LQD | Equity (Fixed Income ETF) | Trading — investment-grade corporate |
-| HYG | Equity (Fixed Income ETF) | Trading — high-yield corporate |
-| TIP | Equity (Fixed Income ETF) | Trading — inflation-protected (TIPS) |
-| MBB | Equity (Fixed Income ETF) | Trading — mortgage-backed |
-| EMB | Equity (Fixed Income ETF) | Trading — emerging-market sovereign debt |
-| MUB | Equity (Fixed Income ETF) | Trading — municipal |
+| MSFT | Equity | Trading |
+| NVDA | Equity | Trading |
+| AMZN | Equity | Trading |
+| JPM | Equity | Trading |
+| XOM | Equity | Trading |
+| JNJ | Equity | Trading |
+| PG | Equity | Trading |
+| KO | Equity | Trading |
+| DIS | Equity | Trading |
+| HD | Equity | Trading |
+| WMT | Equity | Trading |
+| V | Equity | Trading |
+| MA | Equity | Trading |
+| UNH | Equity | Trading |
+| CVX | Equity | Trading |
+| PFE | Equity | Trading |
+| VZ | Equity | Trading |
+| CSCO | Equity | Trading |
+| INTC | Equity | Trading |
+| MCD | Equity | Trading |
+| ABBV | Equity | Trading |
+| CRM | Equity | Trading |
+| COST | Equity | Trading |
+| PEP | Equity | Trading |
+| TMO | Equity | Trading |
+| SHY | Equity (Fixed Income ETF) | Trading - short-duration Treasury (1-3y) |
+| IEF | Equity (Fixed Income ETF) | Trading - intermediate-duration Treasury (7-10y) |
+| TLT | Equity (Fixed Income ETF) | Trading - long-duration Treasury (20y+) |
+| AGG | Equity (Fixed Income ETF) | Trading - broad aggregate bond benchmark |
+| LQD | Equity (Fixed Income ETF) | Trading - investment-grade corporate |
+| HYG | Equity (Fixed Income ETF) | Trading - high-yield corporate |
+| TIP | Equity (Fixed Income ETF) | Trading - inflation-protected (TIPS) |
+| MBB | Equity (Fixed Income ETF) | Trading - mortgage-backed |
+| EMB | Equity (Fixed Income ETF) | Trading - emerging-market sovereign debt |
+| MUB | Equity (Fixed Income ETF) | Trading - municipal |
+| BND | Equity (Fixed Income ETF) | Trading - broad aggregate bond benchmark |
+| GOVT | Equity (Fixed Income ETF) | Trading - broad Treasury benchmark |
+| SHV | Equity (Fixed Income ETF) | Trading - ultra-short Treasury |
+| IGIB | Equity (Fixed Income ETF) | Trading - intermediate investment-grade corporate |
+| VCIT | Equity (Fixed Income ETF) | Trading - intermediate investment-grade corporate |
+| VCSH | Equity (Fixed Income ETF) | Trading - short investment-grade corporate |
+| BIV | Equity (Fixed Income ETF) | Trading - intermediate aggregate |
+| BSV | Equity (Fixed Income ETF) | Trading - short aggregate |
+| TLH | Equity (Fixed Income ETF) | Trading - long-duration Treasury (10-20y) |
+| IGSB | Equity (Fixed Income ETF) | Trading - short investment-grade corporate |
+| JNK | Equity (Fixed Income ETF) | Trading - high-yield corporate |
+| BWX | Equity (Fixed Income ETF) | Trading - international Treasury |
 | BTCUSD | Crypto | Trading |
 | ETHUSD | Crypto | Observation-only (thin history) |
 | LTCUSD | Crypto | Trading |
 | XRPUSD | Crypto | Observation-only (thin history) |
 | ADAUSD | Crypto | Observation-only (thin history) |
+| BCHUSD | Crypto | Observation-only (thin history) |
+| LINKUSD | Crypto | Observation-only (thin history) |
+| BNBUSD | Crypto | Observation-only (thin history) |
+| DOGEUSD | Crypto | Observation-only (thin history) |
+| XLMUSD | Crypto | Observation-only (thin history) |
+| EOSUSD | Crypto | Observation-only (thin history) |
+| TRXUSD | Crypto | Observation-only (thin history) |
 
 "Observation-only" assets (Phase 9's `asset_quality` gate) are still fed
 through the full model/expert/topology pipeline every bar and visible on
@@ -415,7 +462,13 @@ history is too short relative to the training window to be trusted for
 trading decisions (see [`development/Changelog.md`](development/Changelog.md)
 for the exact row-count thresholds). This is re-evaluated automatically
 every time `train.py` rebuilds the dataset, so an asset can move between
-these two roles as more history accumulates.
+these two roles as more history accumulates. All 7 newly-added crypto
+pairs land observation-only today — their Yahoo history only starts
+2017-11-09, giving them almost no rows inside the fixed 2014-2017
+train-split window (the same reason ETHUSD/XRPUSD/ADAUSD are
+observation-only) — so tradeable crypto stays at 2 names (BTCUSD, LTCUSD);
+the new crypto tickers add cross-sectional/observation diversity, not new
+tradeable positions, until the training window itself moves forward.
 
 Asset classes sit on opposite sides of the hub (equities/crypto feed in
 from above, fixed income from below) rather than a single top row — ticker
@@ -423,9 +476,9 @@ detail is in the table above, this is the group-level view:
 
 ```mermaid
 flowchart TD
-    Equities["Equities<br/>15 tickers"] --> DNN
-    Crypto["Crypto<br/>5 tickers"] --> DNN
-    DNN(("Baseline DNN<br/>+ MoE Experts")) --> FixedIncome["Fixed Income ETFs<br/>10 tickers"]
+    Equities["Equities<br/>40 tickers"] --> DNN
+    Crypto["Crypto<br/>12 tickers"] --> DNN
+    DNN(("Baseline DNN<br/>+ MoE Experts")) --> FixedIncome["Fixed Income ETFs<br/>22 tickers"]
 
     classDef hub fill:#1A1A1A,stroke:#FF8C00,color:#FF8C00,stroke-width:2px;
     classDef group fill:#FF8C00,stroke:#1A1A1A,color:#1A1A1A,stroke-width:1px;
@@ -512,7 +565,7 @@ and how it's wired in — this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1325<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1497<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -620,7 +673,7 @@ genuinely halted trading exactly as designed.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1325<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1497<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test

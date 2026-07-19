@@ -3,7 +3,11 @@ of the 5/10 -> 9/10 roadmap). Conventions match the rest of this repo:
 no test classes, module-level helpers, plain dicts.
 """
 
-from portfolio.book_construction import build_rank_based_book, normalize_per_asset_class_slots
+from portfolio.book_construction import (
+    build_rank_based_book,
+    normalize_per_asset_class_slots,
+    should_rebalance_this_bar,
+)
 
 
 def _candidate(rank: float | None, trading_eligible: bool = True) -> dict:
@@ -342,3 +346,84 @@ def test_normalize_per_asset_class_slots_partial_validity_keeps_good_entries():
 
     assert valid == {"equity": (3, 3)}
     assert skipped == ["crypto"]
+
+
+# ---- should_rebalance_this_bar() (Stage 2 of the rank-pivot roadmap:
+# rebalance_every_bars turnover control - see main.py::on_data()'s use of
+# this exact function for why it's extracted here instead of living inline
+# in main.py, which cannot be imported outside a running Lean container). ----
+
+
+def test_should_rebalance_this_bar_first_bar_always_rebalances_even_with_no_history():
+    assert should_rebalance_this_bar(1, 5, has_previous_allocation=False) is True
+
+
+def test_should_rebalance_this_bar_first_bar_rebalances_with_history_too():
+    assert should_rebalance_this_bar(1, 5, has_previous_allocation=True) is True
+
+
+def test_should_rebalance_this_bar_rebuilds_every_nth_bar_only():
+    rebalance_every_bars = 5
+    # 1-indexed bar_index: rebalance bars are 1, 6, 11, 16, ... (i.e. bars
+    # 0, 5, 10, 15, ... in 0-indexed terms).
+    expected_rebalance_bars = {1, 6, 11, 16}
+
+    for bar_index in range(1, 21):
+        result = should_rebalance_this_bar(bar_index, rebalance_every_bars, has_previous_allocation=True)
+        assert result == (bar_index in expected_rebalance_bars), bar_index
+
+
+def test_should_rebalance_this_bar_missing_previous_allocation_forces_rebalance():
+    # Never leave the book empty just because the modulo didn't line up -
+    # e.g. a mid-run restart that lost the cached allocation.
+    assert should_rebalance_this_bar(13, 5, has_previous_allocation=False) is True
+
+
+def test_should_rebalance_this_bar_rebalance_every_bars_of_one_matches_previous_every_bar_behavior():
+    # rebalance_every_bars=1 must reproduce the pre-Stage-2 every-bar
+    # rebalance behavior exactly - no regression for anyone who never sets
+    # the new config key (it defaults to 1 in main.py's constructor).
+    for bar_index in range(1, 11):
+        assert should_rebalance_this_bar(bar_index, 1, has_previous_allocation=True) is True
+
+
+def test_should_rebalance_this_bar_rejects_zero_or_negative_interval_by_clamping_to_one():
+    # max(1, rebalance_every_bars) inside the function - a misconfigured 0
+    # degrades to "every bar" instead of a ZeroDivisionError.
+    for bar_index in range(1, 6):
+        assert should_rebalance_this_bar(bar_index, 0, has_previous_allocation=True) is True
+
+
+def test_rebalance_schedule_holds_positions_between_rebalances_synthetic():
+    """Synthetic simulation of main.py::on_data()'s caching pattern: confirm
+    that between rebalance bars the SAME allocation object is reused (held),
+    and that a per-bar book-formation baseline would churn far more often
+    than the scheduled one - the concrete order-count-reduction claim behind
+    Stage 2 of the rank-pivot roadmap."""
+    total_bars = 100
+    rebalance_every_bars = 5
+
+    # Deterministic, changing candidate ranks so a naive per-bar rebuild
+    # would pick a different top/bottom-N most bars (maximal churn baseline).
+    def candidates_for_bar(bar_index: int) -> dict:
+        return {
+            symbol: _candidate((bar_index + offset) % 10 / 10.0)
+            for offset, symbol in enumerate(["A", "B", "C", "D", "E", "F"])
+        }
+
+    # Scheduled path: only rebuild on rebalance bars, else hold the cached book.
+    scheduled_rebuild_count = 0
+    last_allocation: dict = {}
+    for bar_index in range(1, total_bars + 1):
+        if should_rebalance_this_bar(bar_index, rebalance_every_bars, bool(last_allocation)):
+            last_allocation = build_rank_based_book(candidates_for_bar(bar_index), top_n=2, bottom_n=2)
+            scheduled_rebuild_count += 1
+
+    # Naive baseline: rebuild (and therefore potentially re-rotate) every bar.
+    naive_rebuild_count = total_bars
+
+    assert scheduled_rebuild_count == total_bars // rebalance_every_bars
+    assert scheduled_rebuild_count < naive_rebuild_count
+    # Concretely a 5x reduction in book-formation events, the direct driver
+    # of the order-count drop this stage targets.
+    assert naive_rebuild_count / scheduled_rebuild_count == rebalance_every_bars
