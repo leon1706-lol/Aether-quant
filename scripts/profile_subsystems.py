@@ -20,12 +20,20 @@ Covers, each pure and Lean-free by construction:
                      is visible rather than averaged away
 
 Deliberate scope decision: main.py::_build_model_input() itself is NOT
-profiled here - it's a bound instance method reading ~15 pieces of
-self.* state (symbol_windows, scaler_stats, latest_macro_payload, etc.),
-not cleanly synthesizable the way inference's exported model weights
-were. Profiling its underlying pure indicator primitives (the
+profiled here. Confirmed harder than "not cleanly synthesizable" (the
+original framing) - main.py does `from AlgorithmImports import *` at
+module level, and `class AetherQuantAlgorithm(QCAlgorithm)` fails
+`NameError: name 'QCAlgorithm' is not defined` when imported outside a
+real Lean process (`AlgorithmImports` resolves to an empty stub locally,
+just enough for IDE linting, not a usable `QCAlgorithm` base class) - so
+there is no way to construct even a bare, `__new__`-only instance of the
+class from a plain host-side script, let alone profile a bound method on
+one. Profiling its underlying pure indicator primitives (the
 `indicators` workload above) instead is a documented partial-coverage
-choice, not silent scope-narrowing - see development/Problems.md.
+choice, not silent scope-narrowing. The only way to measure this method
+for real is in-process instrumentation during an actual `lean backtest .`
+run - see development/Problems.md's #16/#17 side-channel-log precedent
+and the entry for this specific method.
 
 Usage:
     python scripts/profile_subsystems.py [--iterations N] [--sort cumulative]

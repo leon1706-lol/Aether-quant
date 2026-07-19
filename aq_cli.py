@@ -638,6 +638,7 @@ def cmd_docker_up(args: argparse.Namespace) -> int:
             "postgres",
             "engine",
             "experience-worker",
+            "audit-worker",
             "performance-trigger-worker",
             "retraining-worker",
             "telegram-worker",
@@ -667,6 +668,22 @@ def cmd_render_lean_config(args: argparse.Namespace) -> int:
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+
+    # Credential-load audit event (development/Problems.md #42) - field
+    # NAMES only, matching the print statement below. A short-lived local
+    # AuditQueue (this is a one-shot CLI invocation, not a long-running
+    # process like main.py's) - never blocks/raises on a Redis hiccup.
+    try:
+        from audit import AuditQueue, CREDENTIAL_LOAD, build_audit_event
+
+        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+        audit_config = config.get("phase_v2", {}).get("audit_log", {})
+        AuditQueue(
+            enabled=bool(audit_config.get("enabled", True)),
+            stream_name=str(audit_config.get("redis_stream", "aether:audit")),
+        ).push(build_audit_event(CREDENTIAL_LOAD, {"loaded_fields": filled}, actor="cli"))
+    except Exception:  # noqa: BLE001 - audit logging must never fail this command
+        pass
 
     if filled:
         # Field NAMES only - never the secret values.
@@ -723,6 +740,63 @@ def cmd_secrets_check(_args: argparse.Namespace) -> int:
 
     print("aq secrets-check passed: no committed secrets detected.")
     return 0
+
+
+def cmd_audit_log(args: argparse.Namespace) -> int:
+    """Query the tamper-evident audit log (development/Problems.md #42) -
+    order placement, credential loads, live-mode transitions. Requires
+    AETHER_POSTGRES_DSN (same var every other Postgres-backed `aq` command
+    uses) - the audit-worker service must have drained at least one batch
+    from Redis into Postgres for anything to show up here (see
+    docker-compose.yml's audit-worker service / `python -m audit.postgres_worker`)."""
+    import psycopg
+
+    from audit import fetch_all_events_ordered, fetch_recent_events, verify_chain
+
+    dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    if not dsn:
+        print("error: AETHER_POSTGRES_DSN is not set.", file=sys.stderr)
+        return 1
+
+    try:
+        conn = psycopg.connect(dsn, autocommit=False)
+    except Exception as exc:
+        print(f"error: could not connect to Postgres: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        if args.verify:
+            rows = fetch_all_events_ordered(conn)
+            valid, broken_index = verify_chain(rows)
+            if not rows:
+                print("aq audit-log --verify: table is empty — trivially valid.")
+                return 0
+            if valid:
+                print(f"aq audit-log --verify: chain intact across {len(rows)} entries.")
+                return 0
+            broken_row = rows[broken_index]
+            print(
+                f"aq audit-log --verify: CHAIN BROKEN at entry {broken_index} "
+                f"(event_id={broken_row['event_id']}, event_type={broken_row['event_type']}, "
+                f"created_at={broken_row['created_at']}) — tampering or data loss detected.",
+                file=sys.stderr,
+            )
+            return 1
+
+        since = None
+        if args.since:
+            from datetime import datetime as _datetime, timezone as _timezone
+
+            since = _datetime.fromisoformat(args.since).replace(tzinfo=_timezone.utc)
+        rows = fetch_recent_events(conn, event_type=args.event_type, since=since, limit=args.limit)
+        if not rows:
+            print("aq audit-log: no matching entries.")
+            return 0
+        for row in rows:
+            print(f"{row['created_at']}  {row['event_type']:<20} {row['actor']:<8} {json.dumps(row['payload'])}")
+        return 0
+    finally:
+        conn.close()
 
 
 def cmd_retrain(args: argparse.Namespace) -> int:
@@ -1246,6 +1320,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail if a populated secret field in lean.json or a tracked .env is about to be committed (backs the pre-commit hook)",
     )
     secrets_check_parser.set_defaults(func=cmd_secrets_check)
+
+    audit_log_parser = subparsers.add_parser(
+        "audit-log",
+        help="Query the tamper-evident audit log (order placement, credential loads, live-mode transitions)",
+    )
+    audit_log_parser.add_argument("--event-type", dest="event_type", default=None,
+                                   choices=["order_placement", "credential_load", "live_mode_transition"],
+                                   help="Filter to one event type (default: all)")
+    audit_log_parser.add_argument("--since", default=None, type=_iso_date, help="Only entries after this date, ISO 8601 YYYY-MM-DD")
+    audit_log_parser.add_argument("--limit", type=int, default=100, help="Max entries to show (default: 100)")
+    audit_log_parser.add_argument("--verify", action="store_true", help="Walk the whole hash chain and report the first break, if any")
+    audit_log_parser.set_defaults(func=cmd_audit_log)
 
     status_parser = subparsers.add_parser("status", help="Show git status")
     status_parser.set_defaults(func=cmd_status)

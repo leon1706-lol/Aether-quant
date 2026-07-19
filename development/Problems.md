@@ -1836,6 +1836,56 @@ in `tests/test_aq_cli.py` (`--topology-cached` hyphen mapping,
 set). Full suite: `aq test` → 1318 passed, 0 failed, 11 deselected
 (`lean_backtest`, expected), 1 pre-existing warning.
 
+---
+
+**Update 2026-07-18 (operational-maturity pass): `_build_model_input()`'s
+scope gap re-investigated, confirmed harder than originally documented —
+prepared, not run.** Attempted to close this specific gap by constructing
+a bare `AetherQuantAlgorithm` instance host-side (`object.__new__(...)`
+with only the ~15-28 needed `self.*` attributes populated from real
+`ml/feature_schema.json`/`ml/scaler_stats.json` plus synthetic window
+data — the approach the original entry's wording implied was merely
+"fragile," not impossible). It's impossible, not just fragile:
+`main.py` does `from AlgorithmImports import *` at module level, and
+`class AetherQuantAlgorithm(QCAlgorithm)` raises `NameError: name
+'QCAlgorithm' is not defined` the moment `main.py` is imported outside a
+real Lean process — confirmed directly (`python -c "import main"` from
+this repo's own `.venv`, which has the `lean` PyPI package installed;
+`AlgorithmImports` resolves to an empty stub there, sufficient for IDE
+linting only, never a real `QCAlgorithm` base class). There is no way to
+even construct an uninitialized instance of the class host-side, let
+alone call a bound method on one — `scripts/profile_subsystems.py`'s
+module docstring updated to state this precisely instead of the older,
+softer "not cleanly synthesizable" framing.
+
+**The only viable measurement path**: in-process instrumentation during a
+real `lean backtest .` run, the exact side-channel-disk-log technique
+entries #16/#17 already proved works for `initialize()`-timing (a plain
+log file written directly to disk survives even though Lean's own
+Isolator can silently drop `self.Debug()` output). Prepared, ready for
+the user to apply and run (per this session's established division of
+labor — `lean backtest .` invocations are the user's to trigger):
+
+```python
+# Temporary diagnostic only - remove after use, not meant to ship.
+# In main.py, at the top of _build_model_input():
+def _build_model_input(self, symbol, topology_payload=None):
+    _t0 = time.perf_counter()
+    try:
+        return self.__build_model_input_impl(symbol, topology_payload)
+    finally:
+        with open(self.root_path / "model_input_timing.log", "a") as f:
+            f.write(f"{time.perf_counter() - _t0}\n")
+# ...then rename the existing method body to __build_model_input_impl.
+```
+
+Run with `aq backtest`, then summarize `model_input_timing.log` (mean/p50/
+p99/max, same `percentile()`/`summarize_durations()` helpers
+`scripts/profile_inference.py` already exports) to get a real per-call
+cost. Left as a prepared snippet rather than applied, since applying it
+means editing `main.py` itself and running a real backtest — both
+out of scope for this pass's division of labor.
+
 ### 37. Inference tail latency (p99 3-5x p50) — investigated: real GC-pause contribution to worst-case latency confirmed, root cause of the old `scripts/profile_inference_output.txt` discrepancy resolved as machine load, not a regression
 **Severity:** 4/10 · **Status:** 🟢 `fixed` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is now real, shipped, config-gated-off code — see "Follow-up: gc.freeze() implemented" below — not yet validated against a real Lean backtest, which is scoped to a later dedicated session)
 
@@ -2109,7 +2159,18 @@ This isn't just a one-machine annoyance: with no pin, **every clone of this repo
 ---
 
 ### 41. First real backtest: only 14 trades, none ever closed — root cause is buy/sell thresholds miscalibrated against the model's actual output distribution
-**Severity:** 6/10 (blocks a statistically meaningful backtest) · **Status:** 🟠 `diagnosed, fix not yet applied`
+**Severity:** 6/10 (blocks a statistically meaningful backtest) · **Status:** 🟢 `superseded` — see #43, which replaced the whole entry-signal approach
+
+**Superseded, not fixed as diagnosed here:** the threshold-tightening lever this
+entry proposed was never applied on its own terms. Entry #43 (same
+investigation continued) found the threshold offsets were never the real
+lever — the bugs were structural (soft position-cap overshoot, risk vetoes
+blocking exits, a neutered circuit breaker, no exit mechanism at all) and the
+model's near-constant output was a training-pipeline defect, not something a
+threshold tweak could fix. #43's actual fix pivoted trading to the
+`rank_20d`/`portfolio_book` signal entirely, bypassing the direction-threshold
+mechanism this entry is about. Left in place for the investigation history;
+#43 is the entry that reflects what actually shipped.
 
 The first real `lean backtest .` (2019-01-01 → 2021-03-31, 29 tradable assets, `bypass_safety_gates: true`) completed successfully but produced only **14 orders, all position-openings, zero closings** (Win Rate / Loss Rate / Avg Win / Avg Loss all 0% because there are no closed round-trips; the +20.36% net profit is entirely unrealized on the 14 still-open positions, mostly bond ETFs). This is far below the ~200-trade target from entry #18 and is not statistically meaningful. Investigated to root cause against the real output files (`visualization/state.json`, order-events, logs):
 
@@ -2126,7 +2187,7 @@ The first real `lean backtest .` (2019-01-01 → 2021-03-31, 29 tradable assets,
 **No code changed yet** — this entry is the diagnosis. The threshold-calibration change is a strategy-behavior decision left to the user (which offsets, whether to also revisit the model), consistent with this project's convention of not silently changing trading behavior.
 
 ### 42. Pre-live security review — broker/API credentials could be published via `lean.json` or baked into the Docker image; DB exposed to the LAN behind a repo-published password
-**Severity:** 7/10 · **Status:** 🟢 `fixed` (one item deliberately deferred, see below)
+**Severity:** 7/10 · **Status:** 🟢 `fixed` (every finding closed, including the one item originally deferred — see the 2026-07-18 audit-logging update below)
 
 A dedicated security pass requested before any live-capital / multi-asset-class
 (V3) step, on the reasoning that credential handling, broker API-key storage and
@@ -2200,12 +2261,32 @@ secrets; Telegram bot token/chat id were already env-var-only and never in
 `config.json`; no secret exists in git history (every `lean.json` secret field
 has always been empty).
 
+**Update 2026-07-18 — 🟢 `fixed`: dedicated audit logging built.** The
+deferred item below shipped in the operational-maturity pass (see #44): a new
+`audit/` package (mirroring `experience/`'s Redis Stream → Postgres worker →
+JSON snapshot pattern) hash-chains every `order_placement`/`credential_load`/
+`live_mode_transition` event (git-commit-style: each row's hash covers its
+own content plus the previous row's hash, so any tampering breaks the chain
+from that point forward, detectable via `aq audit-log --verify`). Hooked into
+`main.py` (orders, credential loads, live-mode init) and `aq_cli.py`'s
+`render-lean-config`. Queryable via `aq audit-log [--event-type] [--since]
+[--limit] [--verify]`, and visible in the webui (`GET /api/audit-log` +
+`AuditLogPanel.tsx` on the Overview page). Config-gated
+`phase_v2.audit_log.enabled` (default `true`, matching the precedent set for
+other post-#42 security-closing defaults). This was the one open item #42
+originally left pending — closed.
+
+<details>
+<summary>Original deferred note (superseded by the fix above)</summary>
+
 **Deliberately deferred — 🟡 `pending`: no dedicated audit logging.** Order
 placement, credential loads and live-mode transitions currently go through
 ordinary application logging, not a tamper-evident audit trail. Acceptable for
 backtest/paper; **should be built before real capital**. Larger scope than this
 pass and flagged for its own review as V3 approaches — this is the one known
 open security item.
+
+</details>
 
 ### 43. Full pre-live model overhaul — why the second backtest still produced the same 14 trades, and the fixes for it: trading-logic bugs + training-pipeline bugs + a pivot to the one statistically-significant signal in this codebase
 **Severity:** 9/10 · **Status:** 🟢 `fixed and verified` (trading logic + training pipeline — confirmed by a completed `aq backtest` run, see the 2026-07-17 update below); 🟡 `open` (the verification run's own result: mechanics work but the model's edge isn't yet large enough to be profitable net of costs — see update); full walk-forward and topology retrain still deferred (see caveats)
@@ -2427,3 +2508,310 @@ categorical + ~context; now 35 numeric + 12 categorical + 5 asset-class
 context = 52).
 
 **Update 2026-07-17 (later same day):** the outstanding verification run happened. `aq backtest` completed the full 2019-01-01→2021-03-31 window cleanly (653 orders vs. the old stuck-at-14, real 11.1% drawdown, 47%/53% win/loss — the mechanical fixes above are confirmed working) but the strategy **lost money as currently calibrated**: Net Profit −4.604%, Sharpe −0.59, Probabilistic Sharpe Ratio 0.172%. Also surfaced one more real bug on the way: `main.py` unconditionally applied `InteractiveBrokersFeeModel()` to every security including crypto, which Lean's fee model doesn't support at all (`ArgumentException: Unsupported security type: Crypto`) — never triggered before since crypto rarely got a buy signal under the old broken logic; now fixed (crypto keeps its Lean-assigned default fee model instead). Status updated to 🟢 `fixed and verified` for the mechanics, 🟡 `open` for the new finding: the model's edge (mainly `rank_20d`) isn't yet large enough to clear 653 trades' worth of fees/slippage — next lever is likely less aggressive book rotation or lower trading frequency, not another mechanical fix.
+
+---
+
+### 44. Lean CLI silently couldn't feed the retraining loop — a second, undocumented `requirements.txt` convention
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+Found while planning this session's operational-maturity pass (before any
+Compose/retraining rehearsal work started): `main.py`'s `ExperienceQueue`
+silently no-oped during every real `lean backtest .` run
+(`"ExperienceQueue: Redis unavailable ... No module named 'redis'"`, logged
+but never surfaced as a failure — by design, matching this codebase's
+defensive "never block trading on telemetry" convention elsewhere). Root
+cause: Lean CLI auto-installs Python dependencies from a **project-root**
+`requirements.txt` (`lean_runner.py::set_up_python_options()`, mounted next
+to `main.py`) — a completely separate mechanism from this repo's own
+`requirements/requirements.txt` convention, which Lean never reads at all.
+Every other dependency `main.py` needs (torch/pandas/sklearn) happened to
+already exist inside the Lean image bundle itself, so this gap was invisible
+until `redis` — added only for the experience-queue work — became the first
+import Lean's bundled image didn't already carry.
+
+**Impact if left unfixed:** a real Lean backtest could never populate
+`experience_events`, meaning the retraining loop's "learning while trading"
+design could never close the loop from a real backtest run — only from
+paper/live `main.py` processes running outside Lean's Docker sandbox (which
+already have `redis` via `requirements/requirements.txt`'s normal install
+path), or from directly-seeded Postgres data (see #45's rehearsal).
+
+**Fix:** added a new repo-root `requirements.txt` containing only
+`redis>=5.0.0` (matching the pin already in `requirements/requirements.txt`),
+with an inline comment explaining why it must exist and stay minimal —
+anything more in it would be redundant with what Lean's image already
+bundles, and installed on every single backtest run regardless. Cross-referenced
+from `requirements/README.md`. Not yet re-verified against a real
+`lean backtest .` run in this session (left for the user to trigger per this
+session's established division of labor — see #44 note below); the fix
+itself is a one-line, low-risk addition confirmed correct against Lean CLI's
+own source (`lean_runner.py`).
+
+---
+
+### 45. `av` (Aether-Vault CLI) was broken on this machine — never actually run once in this repo
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+`retraining/vault_client.py::commit_candidate_to_vault()` shells out to the
+`av` CLI (a sibling project, model/dataset version control) at the `commit`
+stage of every retraining cycle. Found broken while preparing this session's
+retraining-loop rehearsal: every `av` subcommand failed with
+`ModuleNotFoundError: No module named 'questionary'`, and `av init` had never
+been run in this repo at all (`.av/` didn't exist). Because
+`commit_candidate_to_vault()` degrades gracefully (catches the failure,
+returns `status="failed"`, never crashes the orchestrator — by design), this
+was invisible in every previous session; a real end-to-end retraining cycle
+would have silently stopped making vault commits at the `commit` stage
+without ever raising an error loud enough to notice.
+
+**Root cause:** `av`'s executable belongs to a completely separate Python
+3.14 **user-scoped** environment
+(`C:\Users\<user>\AppData\Roaming\Python\Python314`), not this repo's
+`.venv` — `pip install questionary` into `.venv` did nothing, since `av.exe`
+never resolves through that interpreter at all.
+
+**Fix:** `py -3.14 -m pip install --user questionary` into the correct
+environment, then `av init --mode local -y --no-repl` in the repo root
+(confirmed via `av status`). Local-only mode is correct for this environment
+— `av commit` degrades gracefully to a local-only queue
+(`.av/pending_push`) if no remote registry is configured, which is expected
+and acceptable here.
+
+---
+
+### 46. `xreadgroup(..., block=0)` meant "block forever," not "don't block" — every idle Redis-Stream worker poll timed out
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+Found live, the hard way, during this session's Compose-stack retraining
+rehearsal (#47) — the first time `experience-worker` and the new
+`audit-worker` (see #42's update) were ever run continuously against a real
+Redis instance with genuinely idle streams (no active trading session
+producing events). Both workers logged `Worker error — Timeout reading from
+socket. Retrying in Ns` on a perpetual exponential-backoff loop, every single
+cycle, from the moment they started — never a transient blip, never
+recovering. This was invisible in every previous test/session because
+`fakeredis` (used throughout the test suite) doesn't reproduce the real
+blocking-socket-timeout behavior real Redis-over-TCP has; and no prior
+session had run these workers continuously against a live Redis instance
+with an idle stream for more than a few seconds.
+
+**Root cause:** `experience/postgres_worker.py::run_once()` and
+`audit/postgres_worker.py::run_once()` both called
+`self._redis.xreadgroup(..., block=0)` with an inline comment claiming this
+was "non-blocking." It is the opposite: in the Redis `XREADGROUP` command
+(and redis-py's binding — confirmed directly from `redis.client.Redis.xreadgroup`'s
+source, which only appends `BLOCK <n>` to the command when `block is not
+None`), `BLOCK 0` means **block indefinitely**, not "don't block." With the
+Redis client's own `socket_timeout=5` set on the connection, every idle poll
+blocked server-side past that 5-second client-side ceiling, so the client
+raised its own socket-timeout exception on every single cycle whenever no
+new stream entry had arrived within 5 seconds — which, on an idle stream, is
+always. Both workers' `run()` loops already implement the correct idle-sleep
+themselves (`time.sleep(1)` when `run_once()` returns 0) — the `block=0` call
+was fighting that existing, correct design, not complementing it.
+
+**Fix:** removed the `block=0` argument entirely from both call sites (its
+default, `None`, correctly omits `BLOCK` from the command, making
+`XREADGROUP` return immediately with whatever's available — the behavior the
+original comment actually intended). Confirmed fixed by rebuilding the engine
+image and redeploying both workers against a real Compose Redis instance:
+both now sit cleanly in their run loop at 0% CPU with zero errors, instead of
+erroring every cycle. `tests/test_postgres_worker.py`/
+`tests/test_audit_postgres_worker.py` (18 tests) still pass unchanged — none
+of them asserted on the `block` argument, which is exactly why this bug was
+invisible to the test suite in the first place.
+
+---
+
+### 47. `retraining-worker`'s `./data` volume mount was read-only — `train.py` could never actually complete inside the real container
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+Found live during this session's first real end-to-end retraining rehearsal
+(#49) — the first time `train.py` had ever actually run to completion inside
+the real `retraining-worker` Docker container rather than on the host.
+`docker-compose.yml`'s `retraining-worker` service mounted
+`./data:/app/data:ro` — read-only. `train.py::ensure_derived_crypto_daily_series()`
+(entry #15's fix) needs to read-then-merge-then-write
+`data/crypto/coinbase/daily/*_trade.zip` on **every** `train.py` invocation
+for any derived-from-minute-trade asset (`ETHUSD`/`LTCUSD`), unconditionally,
+not just on a cold cache. The real container crashed immediately:
+`OSError: [Errno 30] Read-only file system: '/app/data/crypto/coinbase/daily/ethusd_trade.zip'`,
+caught by `retraining/orchestrator.py::train()`'s generic subprocess-failure
+handler and correctly recorded as a `retraining_events` `status="failed"`
+row — the orchestrator itself behaved correctly; the container's own volume
+definition was simply wrong. Every previous test/rehearsal of this pipeline
+had run `train.py` on the host (where `data/` is always writable), so this
+had never been exercised against the real container's actual mount before.
+
+**Fix:** `docker-compose.yml`'s `retraining-worker.volumes` changed from
+`./data:/app/data:ro` to `./data:/app/data` (writable). No image rebuild
+needed — a compose-level change only, picked up by `docker compose up -d
+--force-recreate retraining-worker`. Re-ran the rehearsal afterward and
+confirmed `train.py` completes past this point.
+
+---
+
+### 48. Force-recreating `retraining-worker` mid-cycle orphaned a `retraining_events`/`model_versions` row permanently at `status="running"`/`"candidate"` — no startup reconciliation exists
+**Severity:** 6/10 · **Status:** 🟡 `worked around, not fixed` (the orphaned-row/no-reconciliation issue itself has no code fix — see below); 🟢 `fixed` (the related zombie-process finding hit later the same session, `init: true` added)
+
+Found live during this session's retraining rehearsal, self-inflicted but
+revealing a real, general gap: `retraining-worker`'s own background poll
+loop auto-detected the seeded trigger and started a real `train.py`
+subprocess (`retraining/orchestrator.py::train()`, which writes
+`status="running"`/`"candidate"` to Postgres **before** spawning the
+subprocess). Moments later, `docker compose up -d --force-recreate
+retraining-worker` was run (applying entry #47's mount fix) — recreating the
+container **while that training subprocess was still in flight** killed it
+mid-run, before it could ever report success or failure back to Postgres.
+Both rows (`retraining_events.status="running"`, `model_versions.status="candidate"`)
+were left permanently stuck — confirmed via direct inspection: `updated_at`
+frozen at the exact moment the container was recreated, no child process
+for `train.py` remaining inside the new container, and the worker's normal
+5-minute poll cycles running cleanly afterward but reporting
+`cooldown_active` indefinitely, because `cooldown_remaining_seconds()`
+treats any `status="running"` row as an active retraining in progress
+(`_ACTIVE_EVENT_STATUSES = ("planned", "running", "promoted")`) with **no
+mechanism anywhere to detect or reconcile a row whose owning process no
+longer exists**. In production, this exact scenario (a redeploy, crash, or
+OOM kill while a real retraining is genuinely in flight — not a contrived
+edge case) would silently block all future retraining for the full
+`cooldown_minutes` (12h default) until someone notices and manually
+intervenes, same as here.
+
+**Worked around this session** (not a code fix): manually updated the
+orphaned rows to `status="failed"`/`"rejected"` with an explanatory note via
+a throwaway script, which cleared the cooldown and let a fresh cycle run.
+**No code fix applied** — a real fix would need either (a) a startup
+reconciliation pass in `RetrainingWorker.__init__()`/`run()` that finds any
+`status="running"` row older than some staleness threshold (e.g. longer than
+`train`'s own `timeout_seconds`) and marks it `failed` with a
+`orphaned_on_startup` note, or (b) a heartbeat/lease mechanism on the row
+itself. Left open as a real, scoped, well-understood follow-up rather than
+rushed — flagged here explicitly so it isn't lost.
+
+**A second, deeper related finding, hit later the same session**: a
+subsequent routine `docker compose up -d --force-recreate retraining-worker`
+(restoring `max_retrainings_per_day` to its production default after the
+rehearsal) failed outright: `cannot stop container: ... PID 48030 is
+zombie and can not be killed. Use the --init option when creating
+containers to run an init inside the container that forwards signals and
+reaps processes`. Root cause: `retraining-worker`'s container runs `python
+-m retraining.worker` directly as PID 1, with no init process — a classic
+Docker anti-pattern. `retraining.orchestrator`'s `subprocess.run(...,
+timeout=timeout_seconds)` calls (`train`/`train_topology`/`train_gating`/
+`train_multitask`/`train_sequence`) kill the child on a timeout, but
+without a real init process as PID 1 to reap it, a killed child can be left
+as an unreapable zombie — exactly what this session's real `train_sequence`
+timeout (see #49) most likely produced. Docker could not even `stop` the
+container afterward; recovery needed a forceful `docker rm -f` of both the
+zombie-holding container and the orphaned rename-swap container compose
+left behind, then a plain (non-recreate) `docker compose up -d`. **Fixed**: added `init: true` to `docker-compose.yml`'s `retraining-worker`
+service (Docker's built-in tini, zero extra dependencies, no image rebuild
+needed) — the container's own init process now properly reaps any
+subprocess `retraining/orchestrator.py` kills on a timeout. Confirmed via
+`docker compose config --quiet` resolving cleanly. Not applied to any other
+service in this file — `retraining-worker` is the only one that spawns
+long-running, timeout-killable subprocesses (`train.py`/`train_topology.py`/
+etc.); every other worker here is a plain Redis/Postgres poll loop with no
+child processes to reap.
+
+---
+
+### 49. Full end-to-end retraining-loop rehearsal, with the real Compose stack up and a real trigger firing — three real cycles ran, all correctly rejected; rollback rehearsed (both the happy path and the tamper-detection path)
+**Severity:** n/a (operational-maturity verification, not a bug) · **Status:** 🟢 `verified working`
+
+The headline exercise of this session's operational-maturity pass (see
+README/user request): prove the retraining loop is a real, working closed
+loop under actual Docker/Postgres/Redis conditions, not just
+unit-tested-with-mocks logic. `experience_events` seeded past
+`min_observations=500` (600 synthetic rows) and one qualifying
+`performance_triggers` row inserted directly (`drawdown_trigger`/`critical`,
+`retrain_candidate=true`) via a throwaway script — from there, every
+subsequent step was the **real, unmodified** system: the
+`retraining-worker` container's own background poll loop (not a manual
+`--once` invocation) auto-detected the trigger and ran the full
+`plan→train→train_topology→train_gating→train_multitask→train_sequence→
+validate→[backtest→commit→promote]` pipeline against real Postgres, real
+subprocesses, and real `ml/` artifacts, three separate times across this
+session (after entries #47/#48's blockers were found and cleared):
+
+- `train`/`train_topology`/`train_gating`/`train_multitask` succeeded in
+  every run.
+- `train_sequence` **timed out once** at its full configured 1800s (30 min)
+  cap on this resource-constrained host — a real finding, not simulated;
+  see the follow-up note below. Being a best-effort, independently-failable
+  stage (same contract as topology/gating/multitask), this correctly did
+  **not** crash the pipeline — it continued to `validate` regardless.
+- `validate` correctly **rejected** all three candidates on legitimate
+  quality grounds (`candidate_drawdown_worse_than_active` and other
+  `validation_gate` failures) — proof the quality gate genuinely protects
+  against promoting an inferior model, not just that it exists in code.
+  Consistent with entry #43's own finding that this model's edge is
+  currently weak — real candidates against real (if synthetic-seeded)
+  conditions failing to clear the bar is the gate doing its job, not a
+  test failure.
+- Because every candidate was correctly rejected at `validate`, none ever
+  reached `backtest_gate` or `commit`/`promote` organically this session —
+  which also means entry's own finding below (`lean` binary missing from
+  the image) was never actually hit by a real cycle, only confirmed by
+  direct inspection.
+
+**Follow-up finding — `lean` CLI is not installed in the `retraining-worker`
+image at all.** Confirmed directly (`docker exec ... which lean` → exit 1).
+`backtest_gate`'s `run_lean_backtest()` (`retraining/lean_backtest.py`) is
+explicitly designed to degrade gracefully when this happens
+(`find_lean_binary()` returning `None` is documented as "the actual gate" —
+no subprocess is ever attempted), so this would never crash a real cycle
+that reached that stage — it would just silently skip the backtest gate
+every time, in every real Docker deployment, since `lean` only ships in
+`requirements-dev.txt`, never in the production `requirements/requirements.txt`
+the engine image is built from. **Left as-is, not fixed**: whether the
+backtest gate should actually run inside this container (requiring both the
+`lean` PyPI package baked into the image AND real Docker-socket access
+passed through, since `lean backtest` itself launches a further nested
+Lean engine container) is a real infrastructure/scope decision, not a small
+fix, and out of this pass's scope — flagged here so it's a known,
+deliberate gap rather than a silent one.
+
+**Rollback rehearsal (Part 4)**: since no candidate was organically
+promoted this session (all three were correctly rejected — see above),
+there was nothing to roll back *from* in the literal
+"promote-then-rollback" sense the original plan described. Rather than
+fabricate that narrative or burn another ~70-minute cycle with no
+guarantee of a promotable outcome, the real `retraining.orchestrator.rollback()`
+function was exercised directly against a real, honest target: the
+currently-active `ml/` artifacts were snapshotted into a new
+`ml/versions/<id>/` directory (genuine file copies) with real sha256 hashes
+computed from them (`retraining/artifacts.py::compute_artifact_hashes()`),
+and a `model_versions` row inserted with `status="archived"` (a real
+`rollback()`-eligible status) referencing those hashes. Then, via `docker
+exec ... python -m retraining.orchestrator rollback --to-version-id <id>`
+(the real CLI entry point, inside the real container):
+- **Happy path**: `{"ok": true, ...}` — `model_versions` row flipped to
+  `status="active"`, a new `retraining_events` row inserted
+  (`status="promoted", reason="rollback to <id>"`), `write_status_file()`
+  ran. Verified directly against Postgres.
+- **Negative path (tamper detection)**: one hash in the row was
+  deliberately corrupted (`model_weights.json` → 64 zeros) and rollback
+  attempted again — correctly refused: `{"ok": false, "error":
+  "artifact_hash_mismatch", "details": {"mismatched": ["model_weights.json"]}}`,
+  **no files copied, no Postgres row touched** (confirmed:
+  `restore_active_from_version()` returns before any
+  `copy_candidate_to_active()` call on a mismatch, and `rollback()` returns
+  before any status update when `restore_result["ok"]` is `False`). The
+  correct hash was then restored and status re-set to `active` to leave the
+  system consistent.
+
+**What this session's rehearsal proves, stated precisely:** the retraining
+loop's plan/train/validate machinery is a real, working closed loop against
+real infrastructure, not just mocked logic — three full real cycles, three
+correct rejections. Rollback's hash-verify-before-copy path is proven
+correct in both directions (activates on a match, refuses on a mismatch)
+against real files and real Postgres state. What it does **not** prove: a
+genuine promotion (no candidate was good enough to earn one this session —
+consistent with, not contradicting, entry #43's missing-edge finding), or
+the `backtest_gate` stage specifically (never reached organically, and
+confirmed structurally unable to run in this container as configured — see
+above).
+
+---

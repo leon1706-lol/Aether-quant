@@ -1,8 +1,11 @@
+import pytest
+
 from execution import (
     DEFAULT_FILL_SLIPPAGE_SOURCE,
     MAX_LIQUIDITY_SLIPPAGE_BPS,
     VALID_FILL_SLIPPAGE_SOURCES,
     classify_order_status,
+    is_real_order_placement,
     liquidity_cost_fraction,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
@@ -315,3 +318,58 @@ def test_classify_order_status_pending_variants():
 def test_classify_order_status_unknown_string_returns_unknown_not_raises():
     assert classify_order_status("SomethingLeanMightActuallyCallIt") == "unknown"
     assert classify_order_status("") == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# is_real_order_placement — audit-log hook classifier (development/Problems.md #42)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "execution_note",
+    [
+        "entered_long",
+        "entered_short",
+        "entered_long_futures",
+        "entered_short_futures",
+        "submitted_limit_long",
+        "submitted_limit_short",
+        "submitted_limit_long_futures",
+        "submitted_limit_short_futures",
+        "liquidated_on_sell",
+    ],
+)
+def test_is_real_order_placement_true_for_real_outcomes(execution_note):
+    assert is_real_order_placement(execution_note, orders_allowed=True) is True
+
+
+@pytest.mark.parametrize(
+    "execution_note",
+    [
+        "kept_long",
+        "kept_short",
+        "already_flat",
+        "cooldown_active",
+        "no_action",
+        "max_active_positions_reached",
+        "futures_zero_contract_count",
+        "options_no_usable_contract",
+        "options_spread_no_usable_legs",
+        "equity_exposure_cap_reached",
+        "short_exposure_cap_reached",
+    ],
+)
+def test_is_real_order_placement_false_for_no_op_outcomes(execution_note):
+    assert is_real_order_placement(execution_note, orders_allowed=True) is False
+
+
+def test_is_real_order_placement_false_when_simulated():
+    assert is_real_order_placement("entered_long", orders_allowed=False) is False
+    assert is_real_order_placement("simulated_entered_long:paper", orders_allowed=True) is False
+
+
+def test_is_real_order_placement_false_when_orders_not_allowed_even_for_real_looking_note():
+    # orders_allowed=False means observation/paper/live-without-permission -
+    # a real-shaped execution_note under that mode is a Lean-bug signal, not
+    # something to ever audit as a genuine placement.
+    assert is_real_order_placement("liquidated_on_sell", orders_allowed=False) is False

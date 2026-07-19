@@ -147,6 +147,28 @@ services:
       - aether-net
     restart: unless-stopped
 
+  # Drains the tamper-evident audit log (development/Problems.md #42) - same
+  # shape as experience-worker above, separate Redis Stream/Postgres table
+  # so a compliance-relevant trail is never mixed with ML experience data.
+  audit-worker:
+    image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
+    container_name: aether-quant-audit-worker
+    command: python -m audit.postgres_worker
+    environment:
+      AETHER_REDIS_URL: redis://redis:6379/0
+      AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
+      AETHER_AUDIT_STREAM: aether:audit
+      AETHER_AUDIT_GROUP: aether-audit-workers
+      AETHER_AUDIT_BATCH_SIZE: "100"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - aether-net
+    restart: unless-stopped
+
   performance-trigger-worker:
     image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
     container_name: aether-quant-performance-trigger-worker
@@ -206,13 +228,19 @@ services:
   retraining-worker:
     image: ${AETHER_QUANT_IMAGE:-aether-quant-engine:latest}
     container_name: aether-quant-retraining-worker
+    # Docker's built-in tini as PID 1 - this service's own subprocess.run(...,
+    # timeout=...) calls (train/train_topology/train_gating/train_multitask/
+    # train_sequence) can leave a killed child as an unreapable zombie
+    # without a real init process, which then makes even `docker stop`/
+    # recreate fail (see development/Problems.md #48's follow-up finding).
+    init: true
     command: python -m retraining.worker
     environment:
       AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
     volumes:
       - ./config.json:/app/config.json:ro
       - ./ml:/app/ml
-      - ./data:/app/data:ro
+      - ./data:/app/data
       - ./backtests:/app/backtests
     depends_on:
       postgres:

@@ -634,7 +634,7 @@ def test_docker_up_all_includes_every_worker():
     argv = run_mock.call_args.args[0]
     # "engine" is the one consolidated aether-quant-engine build (app +
     # every worker) - see docker-compose.yml's `engine` service.
-    for service in ("redis", "postgres", "engine", "experience-worker", "performance-trigger-worker", "retraining-worker", "telegram-worker"):
+    for service in ("redis", "postgres", "engine", "experience-worker", "audit-worker", "performance-trigger-worker", "retraining-worker", "telegram-worker"):
         assert service in argv
 
 
@@ -1699,3 +1699,98 @@ def test_secrets_check_passes_on_clean_repo(capsys):
 
     assert exit_code == 0
     assert "passed" in captured.out.lower()
+
+
+def test_audit_log_errors_without_postgres_dsn(monkeypatch, capsys):
+    monkeypatch.delenv("AETHER_POSTGRES_DSN", raising=False)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["audit-log"])
+
+    exit_code = args.func(args)
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "AETHER_POSTGRES_DSN" in captured.err
+
+
+def test_audit_log_prints_matching_entries(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    conn_mock = MagicMock()
+    fake_rows = [
+        {
+            "event_id": "id-1",
+            "created_at": "2026-07-17T12:00:00Z",
+            "event_type": "order_placement",
+            "actor": "system",
+            "prev_hash": "0" * 64,
+            "hash": "a" * 64,
+            "payload": {"symbol": "AAPL"},
+        }
+    ]
+    with patch("psycopg.connect", return_value=conn_mock), \
+         patch("audit.fetch_recent_events", return_value=fake_rows):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["audit-log", "--limit", "5"])
+        exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "order_placement" in captured.out
+    assert "AAPL" in captured.out
+    conn_mock.close.assert_called_once()
+
+
+def test_audit_log_verify_reports_intact_chain(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    conn_mock = MagicMock()
+    with patch("psycopg.connect", return_value=conn_mock), \
+         patch("audit.fetch_all_events_ordered", return_value=[{"event_id": "id-1"}]), \
+         patch("audit.verify_chain", return_value=(True, None)):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["audit-log", "--verify"])
+        exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "intact" in captured.out.lower()
+
+
+def test_audit_log_verify_reports_broken_chain(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    conn_mock = MagicMock()
+    broken_row = {"event_id": "id-2", "event_type": "order_placement", "created_at": "2026-07-17T12:00:01Z"}
+    with patch("psycopg.connect", return_value=conn_mock), \
+         patch("audit.fetch_all_events_ordered", return_value=[{"event_id": "id-1"}, broken_row]), \
+         patch("audit.verify_chain", return_value=(False, 1)):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["audit-log", "--verify"])
+        exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "CHAIN BROKEN" in captured.err
+    assert "id-2" in captured.err
+
+
+def test_audit_log_verify_empty_table_is_trivially_valid(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    conn_mock = MagicMock()
+    with patch("psycopg.connect", return_value=conn_mock), \
+         patch("audit.fetch_all_events_ordered", return_value=[]):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["audit-log", "--verify"])
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+
+
+def test_audit_log_connection_failure_returns_error(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    with patch("psycopg.connect", side_effect=Exception("connection refused")):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["audit-log"])
+        exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "connection refused" in captured.err

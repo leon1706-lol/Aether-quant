@@ -682,6 +682,18 @@
                 "backoff_max": 60
             }
         },
+        "audit_log": {
+            "enabled": true,
+            "redis_stream": "aether:audit",
+            "maxlen": 500000,
+            "worker": {
+                "group": "aether-audit-workers",
+                "consumer": "worker-1",
+                "batch_size": 100,
+                "deadletter_stream": "aether:audit:deadletter",
+                "backoff_max": 60
+            }
+        },
         "performance_triggers": {
             "enabled": true,
             "observation_interval": 100,

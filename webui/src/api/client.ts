@@ -1,5 +1,6 @@
 import type { AssetsStatus, NeuralNetworkState, RuntimeState, Scene, Topology } from '../types/state'
 import type { CsvRow, RuntimeMetricsSnapshot } from '../types/tracing'
+import type { AuditLogStatus } from '../types/audit'
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' })
@@ -21,3 +22,7 @@ export const fetchMetricsSnapshot = () => getJson<RuntimeMetricsSnapshot>('/api/
 export const fetchEquityCurves = () => getJson<CsvRow[]>('/api/grafana/equity-curves')
 export const fetchAssetPerformance = () => getJson<CsvRow[]>('/api/grafana/asset-performance')
 export const fetchObservationEquityCurve = () => getJson<CsvRow[]>('/api/grafana/observation-equity-curve')
+
+// Tamper-evident audit trail (development/Problems.md #42) - order
+// placement, credential loads, live-mode transitions.
+export const fetchAuditLog = () => getJson<AuditLogStatus>('/api/audit-log')

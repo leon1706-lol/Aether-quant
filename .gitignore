@@ -68,6 +68,7 @@ backtests/**
 ml/datasets/
 ml/expert_datasets/
 ml/expert_models/
+ml/versions/
 ml/model.pt
 ml/scaler.pkl
 ml/*.pkl

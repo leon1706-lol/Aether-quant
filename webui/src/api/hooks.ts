@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   fetchAssetPerformance,
   fetchAssetsStatus,
+  fetchAuditLog,
   fetchEquityCurves,
   fetchMetricsSnapshot,
   fetchNeuralNetwork,
@@ -66,6 +67,14 @@ export function useEquityCurves() {
   return useQuery({
     queryKey: ['tracing', 'equity-curves'],
     queryFn: fetchEquityCurves,
+    refetchInterval: TRACING_REFRESH_MS,
+  })
+}
+
+export function useAuditLog() {
+  return useQuery({
+    queryKey: ['audit-log'],
+    queryFn: fetchAuditLog,
     refetchInterval: TRACING_REFRESH_MS,
   })
 }

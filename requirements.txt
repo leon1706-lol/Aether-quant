@@ -1,0 +1,15 @@
+# Lean CLI auto-detects a requirements.txt at the PROJECT ROOT (next to
+# main.py) and pip-installs it into its own per-backtest site-packages
+# volume (see the installed `lean` package's
+# components/docker/lean_runner.py::set_up_python_options()) - a completely
+# separate mechanism from this repo's own requirements/requirements.txt
+# convention, which Lean never reads. Keep this file minimal: Lean's own
+# image already bundles the heavy scientific stack this project's models
+# need (torch/pandas/numpy/scikit-learn all already work inside a real
+# `lean backtest .` run) - the only thing it was missing is redis, which
+# main.py's ExperienceQueue (experience/redis_queue.py) needs to actually
+# push events to Postgres during a real backtest (development/Problems.md).
+# Without this file, that push silently no-ops ("ExperienceQueue: Redis
+# unavailable ... No module named 'redis'") and the retraining loop's real
+# data source never gets fed by a real backtest at all.
+redis>=5.0.0

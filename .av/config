@@ -1,0 +1,7 @@
+{
+  "lfs_threshold_mb": 50,
+  "remote_url": "http://localhost:8000",
+  "project_id": "8b1a724e3ea940d2b1f25c46df125cf6",
+  "project_name": "Aether-quant",
+  "login_mode": "local"
+}

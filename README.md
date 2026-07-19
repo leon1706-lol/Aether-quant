@@ -63,7 +63,6 @@ status`). Remaining, still-open items:
 - **The model doesn't yet have enough edge to be profitable.** A completed `aq backtest` (2019-01-01 → 2021-03-31) confirms the trading-logic/training-pipeline fixes work (653 orders, real 11.1% drawdown, 47%/53% win/loss — no longer a frozen book), but the strategy lost money net of costs: Net Profit −4.6%, Sharpe −0.59, negative expectancy. Even the strongest signal (`rank_20d`) is a modest edge, likely too weak at this trading frequency (development/Problems.md #43).
 - **IB is unverified end-to-end** — futures margin uses a static reference file rather than live IB margin, and the connection itself has never been tested against a real Gateway.
 - **`main.py::_build_model_input()`'s own feature-build cost is still unmeasured** — `aq profile` covers the subsystems it calls but not the bound method itself (development/Problems.md #36).
-- **No dedicated audit logging before live capital** — order placement, credential loads, and live-mode transitions go through ordinary application logging, not a tamper-evident trail. Fine for backtest/paper; should be built before real capital.
 - **`gc.freeze()`'s interaction with Lean's own GC boundary is unvalidated with the flag turned on** — implemented and config-gated (`phase_v2.gc_tuning.freeze_after_load_enabled`, off by default), but no completed backtest has exercised it turned on yet (development/Problems.md #37).
 
 ## Table of Contents

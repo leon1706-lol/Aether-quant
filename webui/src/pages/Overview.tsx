@@ -1,5 +1,5 @@
 import type { RuntimeState } from '../types/state'
-import { useAssetsStatus } from '../api/hooks'
+import { useAssetsStatus, useAuditLog } from '../api/hooks'
 import { Scorecards } from '../components/scorecards/Scorecards'
 import { Scene3D } from '../components/scene3d/Scene3D'
 import { AssetHeatmap } from '../components/heatmap/AssetHeatmap'
@@ -12,10 +12,12 @@ import { PerformanceTriggersPanel } from '../components/monitoring/PerformanceTr
 import { RetrainingStatusPanel } from '../components/monitoring/RetrainingStatusPanel'
 import { PaperReadinessPanel } from '../components/monitoring/PaperReadinessPanel'
 import { AssetsStatusPanel } from '../components/monitoring/AssetsStatusPanel'
+import { AuditLogPanel } from '../components/monitoring/AuditLogPanel'
 import { RawStateViewer } from '../components/monitoring/RawStateViewer'
 
 export function Overview({ state }: { state: RuntimeState | undefined }) {
   const { data: assetsStatus } = useAssetsStatus()
+  const { data: auditLog } = useAuditLog()
 
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -29,6 +31,7 @@ export function Overview({ state }: { state: RuntimeState | undefined }) {
         <RetrainingStatusPanel status={state?.retraining_status} />
         <PaperReadinessPanel status={state?.paper_readiness} />
         <AssetsStatusPanel status={assetsStatus} />
+        <AuditLogPanel status={auditLog} />
         <ObservationPanel observation={state?.observation} />
         <SignalBoard signals={state?.signals} />
         <PositionsList positions={state?.positions} />

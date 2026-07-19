@@ -225,3 +225,42 @@ def classify_order_status(status_name: str) -> str:
     if status_name in PENDING_ORDER_STATUS_NAMES:
         return "pending"
     return "unknown"
+
+
+# Pure classification of main.py::_apply_signal()/_apply_option_order()'s
+# execution_note return strings into "was a REAL order actually placed" -
+# used by the audit-log hook (development/Problems.md #42) at its single
+# call site in on_data()'s Pass 2 loop, rather than scattering a push call
+# across every one of _apply_signal()'s many branches/asset-class routings
+# (equity/futures/option x buy/sell/short, each with its own f-string
+# execution_note). An explicit denylist, not a broader heuristic, so a new
+# no-op reason added to main.py in the future fails safe (gets audited as
+# "real" and is easy to notice/fix) rather than silently never being
+# audited if it happened to match a loose pattern.
+_NO_OP_EXECUTION_NOTES = frozenset(
+    {
+        "kept_long",
+        "kept_short",
+        "already_flat",
+        "cooldown_active",
+        "no_action",
+        "max_active_positions_reached",
+        "futures_zero_contract_count",
+        "options_no_usable_contract",
+        "options_spread_no_usable_legs",
+    }
+)
+_NO_OP_EXECUTION_NOTE_SUFFIXES = ("_exposure_cap_reached",)
+
+
+def is_real_order_placement(execution_note: str, orders_allowed: bool) -> bool:
+    """True only for a genuinely-placed real order - never a simulated/
+    observation-mode fill (execution_note prefixed "simulated_") and never
+    one of the known no-op/blocked outcomes above."""
+    if not orders_allowed or execution_note.startswith("simulated_"):
+        return False
+    if execution_note in _NO_OP_EXECUTION_NOTES:
+        return False
+    if execution_note.endswith(_NO_OP_EXECUTION_NOTE_SUFFIXES):
+        return False
+    return True

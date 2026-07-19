@@ -126,6 +126,16 @@ def get_retraining_status() -> dict:
     return _read_json(GRAFANA_DIR / "retraining_status.json")
 
 
+@app.get("/api/audit-log")
+def get_audit_log() -> dict:
+    """Reads visualization/grafana/audit_log.json - written by
+    audit/postgres_worker.py after every batch it persists (development/
+    Problems.md #42). Same "main.py can't reach Postgres, so a worker
+    exports a JSON snapshot" pattern as /api/grafana/retraining-status
+    (see retraining/status_export.py's docstring)."""
+    return _read_json(GRAFANA_DIR / "audit_log.json")
+
+
 @app.get("/api/grafana/paper-readiness")
 def get_paper_readiness() -> dict:
     return _read_json(GRAFANA_DIR / "paper_readiness_report.json")

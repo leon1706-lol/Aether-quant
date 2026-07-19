@@ -51,6 +51,7 @@ from risk.position_sizing import build_dynamic_position_sizing
 from portfolio import build_rank_based_book, normalize_per_asset_class_slots
 from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
+from audit import AuditQueue, CREDENTIAL_LOAD, ORDER_PLACEMENT, LIVE_MODE_TRANSITION, build_audit_event
 from experience import (
     ExperienceQueue,
     SimulatedPortfolioState,
@@ -63,6 +64,7 @@ from execution import (
     classify_order_status,
     credentials_present,
     evaluate_broker_config,
+    is_real_order_placement,
     liquidity_cost_fraction,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
@@ -787,6 +789,41 @@ class AetherQuantAlgorithm(QCAlgorithm):
             stream_name=str(phase_v2_experience.get("redis_stream", "aether:experience")),
             maxlen=int(phase_v2_experience.get("maxlen", 100_000)),
         )
+        # Tamper-evident audit trail (development/Problems.md #42) - same
+        # fire-and-forget Redis Stream contract as _experience_queue above,
+        # never blocks trading. Default ON (unlike this codebase's usual
+        # off-by-default convention - this closes a documented pre-live
+        # security gap, not a speculative feature; same precedent as
+        # phase_v2.exits.enabled in #43).
+        phase_v2_audit_log = self.phase_v2.get("audit_log", {})
+        self._audit_queue = AuditQueue(
+            enabled=bool(phase_v2_audit_log.get("enabled", True)),
+            redis_url="redis://localhost:6380/0",
+            stream_name=str(phase_v2_audit_log.get("redis_stream", "aether:audit")),
+            maxlen=int(phase_v2_audit_log.get("maxlen", 500_000)),
+        )
+        # Live-mode transition audit event - the single highest-stakes fact
+        # about a run (whether real capital is at risk) determined once here
+        # at startup. self.runtime_mode is already fully resolved above.
+        self._audit_queue.push(
+            build_audit_event(
+                LIVE_MODE_TRANSITION,
+                {"runtime_mode": self.runtime_mode, "allow_live_orders": self.allow_live_orders},
+            )
+        )
+        # Credential-load audit event - self._live_credentials was already
+        # loaded above (before self._audit_queue existed, hence the push
+        # here rather than at the load_live_credentials() call site). Field
+        # NAMES only, never values - matches the exact convention
+        # execution/lean_config_render.py's render step and
+        # scripts/render_lean_credentials.py already established
+        # (development/Problems.md #42).
+        self._audit_queue.push(
+            build_audit_event(
+                CREDENTIAL_LOAD,
+                {"loaded_fields": [key for key, value in self._live_credentials.items() if str(value).strip()]},
+            )
+        )
         self._simulated_portfolio = SimulatedPortfolioState(initial_cash=float(self.runtime["initial_cash"]))
         self._equity_curve_flushed_count = 0
         self._observation_event_log = deque(maxlen=5000)
@@ -1224,6 +1261,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price, sizing_payload)
             else:
                 execution_note = decision["action"]
+
+            # Audit trail (development/Problems.md #42) - one hook point for
+            # every asset-class/signal branch _apply_signal() can take,
+            # rather than one per branch - see execution/order_gate.py::
+            # is_real_order_placement()'s own docstring for why. Fire-and-
+            # forget: never blocks trading, matches _experience_queue's
+            # contract exactly.
+            if is_real_order_placement(execution_note, orders_allowed_for_exit_check):
+                self._audit_queue.push(
+                    build_audit_event(
+                        ORDER_PLACEMENT,
+                        {
+                            "symbol": symbol_key,
+                            "signal": signal_name,
+                            "target_weight": target_weight,
+                            "execution_note": execution_note,
+                            "close_price": close_price,
+                            "bar_index": self.bar_index,
+                        },
+                    )
+                )
 
             self._update_position_exit_tracking(
                 symbol_key,
