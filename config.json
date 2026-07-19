@@ -652,7 +652,7 @@
             }
         },
         "limit_orders": {
-            "enabled": false,
+            "enabled": true,
             "asset_classes": [
                 "equity",
                 "crypto",
@@ -728,7 +728,7 @@
             "rank_ic_resolution_horizon_days": 20
         },
         "gc_tuning": {
-            "freeze_after_load_enabled": false
+            "freeze_after_load_enabled": true
         },
         "runtime": {
             "mode": "backtest",

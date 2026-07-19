@@ -25,6 +25,16 @@ import bisect
 import gc
 import json
 import math
+# TEMP — only used by _build_model_input()'s profiling wrapper, revert with
+# it (Problems.md #36). Imports the function directly, not the module under
+# the bare name `time` - `from AlgorithmImports import *` below re-exports a
+# name `time` too (datetime.time, the time-of-day class), and since that
+# wildcard import runs after this one, it silently shadows a plain
+# `import time`, breaking `time.perf_counter()` at runtime with
+# `AttributeError: type object 'datetime.time' has no attribute
+# 'perf_counter'` - confirmed live, a real Lean-namespace gotcha worth
+# remembering beyond just this temporary snippet.
+from time import perf_counter as _profile_perf_counter
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
@@ -1573,7 +1583,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.debug(f"{ticker} subscription skipped: {error}")
             return None
 
+    # TEMP — profiling instrumentation for development/Problems.md #36, revert
+    # after this run. Elapsed time is measured BEFORE the log file is opened
+    # so the file I/O itself never contaminates the recorded duration.
     def _build_model_input(self, symbol, topology_payload: dict | None = None) -> dict:
+        _profile_t0 = _profile_perf_counter()
+        try:
+            return self._build_model_input_impl(symbol, topology_payload)
+        finally:
+            _profile_elapsed = _profile_perf_counter() - _profile_t0
+            with open(self.root_path / "model_input_timing.log", "a", encoding="utf-8") as _profile_f:
+                _profile_f.write(f"{_profile_elapsed}\n")
+
+    def _build_model_input_impl(self, symbol, topology_payload: dict | None = None) -> dict:
         """Builds the full model input vector - the original 10 price/
         volume-derived features, plus regime/liquidity/topology as genuine
         input features (Phase 1 remainder, not just downstream consumers of
