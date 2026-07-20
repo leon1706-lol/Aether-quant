@@ -89,6 +89,20 @@ ml/model_weights.json
 ml/scaler_stats.json
 ml/training_metrics.json
 ml/expert_training_metrics.json
+# Multitask/sequence/gating model artifacts - these were previously tracked
+# (an inconsistency with every other generated model artifact above, which
+# was already gitignored), so a real trained model's weights could end up
+# committed to the public repo. Untracked via `git rm --cached` alongside
+# this rule so it's actually impossible, not just something to remember.
+ml/multitask_model.json
+ml/multitask_feature_schema.json
+ml/multitask_training_metrics.json
+ml/sequence_model.json
+ml/sequence_feature_schema.json
+ml/sequence_training_metrics.json
+ml/gating_model.json
+ml/gating_feature_schema.json
+ml/gating_training_metrics.json
 
 # Generated visualization/runtime feeds
 visualization/state.json
