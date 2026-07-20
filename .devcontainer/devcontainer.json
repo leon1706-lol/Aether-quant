@@ -1,4 +1,14 @@
 {
     "name": "Aether Quant",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11"
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "features": {
+        "ghcr.io/devcontainers/features/sshd:1": {
+            "version": "latest"
+        }
+    },
+    "hostRequirements": {
+        "cpus": 2,
+        "memory": "8gb"
+    },
+    "postCreateCommand": "pip install -r requirements/requirements.txt && pip install -r requirements/requirements-dev.txt"
 }
