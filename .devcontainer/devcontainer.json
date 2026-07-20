@@ -10,5 +10,5 @@
         "cpus": 2,
         "memory": "8gb"
     },
-    "postCreateCommand": "pip install -r requirements/requirements.txt && pip install -r requirements/requirements-dev.txt"
+    "postCreateCommand": "pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements/requirements.txt && pip install -r requirements/requirements-dev.txt"
 }
