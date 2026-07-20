@@ -554,6 +554,89 @@ manual in this mode
 (`phase_v2.retraining.worker.auto_promote_blocked_in_live_mode`, default
 `true`) — `aq retrain promote --version-id <uuid>` after review.
 
+## Cloud Training via GitHub Codespaces
+
+Model training (`aq train` / `python train.py`, all 8 model artifacts:
+baseline + 4 experts + multitask + sequence + gating) is CPU-bound and
+memory-hungry enough that it can take **hours of wall-clock time while
+barely consuming CPU-seconds** on a 4GB-RAM dev machine — the process
+isn't crashing, it's thrashing (see `development/Problems.md` #50/#52 for
+the measured evidence: ~800 CPU-seconds consumed over ~4 hours of
+wall-clock). **GitHub Codespaces solves exactly this one problem** — a
+free-tier (2-core/8GB) cloud container reachable over SSH, used purely as
+disposable training compute. It does **not** replace local Lean
+backtesting (see the limitation below).
+
+**One-time setup** — `.devcontainer/devcontainer.json` at the repo root:
+
+```json
+{
+    "name": "Aether Quant",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "features": {
+        "ghcr.io/devcontainers/features/sshd:1": {
+            "version": "latest"
+        }
+    },
+    "hostRequirements": {
+        "cpus": 2,
+        "memory": "8gb"
+    },
+    "postCreateCommand": "pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements/requirements.txt && pip install -r requirements/requirements-dev.txt"
+}
+```
+
+Two non-obvious gotchas this config exists to avoid:
+
+- **Do not add the `docker-in-docker` feature.** Both v1 and v2 of that
+  feature silently make Codespaces build from an **Alpine** base instead
+  of the `image` field above, regardless of what's specified — confirmed
+  via 5 systematic A/B rebuild tests (see `development/Problems.md`, the
+  Codespaces entry). The practical consequence: **Lean/Docker backtests
+  cannot run inside a Codespace at all** — even manually installing
+  `docker.io` and starting `dockerd` fails (`iptables: Permission denied`,
+  `mount overlay: operation not permitted`), because Codespaces containers
+  are unprivileged by default and only that broken feature grants the
+  needed capabilities. Training (pure Python/PyTorch, no Docker) is
+  entirely unaffected by this and is the only heavy task this workflow
+  offloads.
+- **`sshd` feature is required** for `gh codespace ssh` specifically (VS
+  Code's own tunnel-based Remote-Explorer connection doesn't need it, but
+  the `gh` CLI's SSH path does — the base Debian image has no SSH server).
+- Bare `pip install torch` resolves the CUDA build on Linux, which then
+  fails to import at all on a GPU-less Codespace
+  (`OSError: libtorch_global_deps.so: cannot open shared object file`);
+  the explicit `--index-url .../whl/cpu` avoids it.
+
+**Workflow, once the Codespace exists:**
+
+```powershell
+# Create (only once; reuse the same Codespace afterward)
+gh codespace create --repo <owner>/Aether-quant --branch main --machine basicLinux32gb
+
+# Connect
+gh codespace ssh -c <codespace-name>
+
+# Inside the Codespace: run training exactly like locally
+cd Aether-quant
+python train.py                 # or python train.py --multitask-only, etc.
+
+# Back on your local machine: pull the trained artifacts down
+gh codespace cp -e "remote:Aether-quant/ml/*.json" ./ml/ -c <codespace-name>
+
+# When done training, stop billing (Codespaces only bills while running)
+gh codespace stop -c <codespace-name>
+```
+
+`ml/` model artifacts are gitignored (see `.gitignore` — every generated
+`ml/*.json`/`.pkl` file, not just the baseline ones), so **no trained
+weights or datasets ever need to touch the public GitHub repo** to move
+between the Codespace and your local machine — `gh codespace cp` copies
+files directly over the same SSH connection, entirely outside git.
+`data/` and `ml/datasets/` (raw bars, built training rows) are handled the
+same way: copied up once via `gh codespace cp` in the other direction,
+never committed.
+
 ## Connecting Between Containers
 
 Within the Compose network, services use their service names:

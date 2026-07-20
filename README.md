@@ -5,7 +5,7 @@
 <h1 align="center">Aether Quant</h1>
 
 <p align="center">
-  <strong>Aether Quant's flagship trading model — a dynamic, self-adapting algorithmic trading system built on QuantConnect Lean and PyTorch, engineered to prove that dynamic models belong in dynamic markets.</strong>
+  <strong>Aether Quant's flagship trading model: a dynamic, self-adapting algorithmic trading system built on QuantConnect Lean and PyTorch, engineered to prove that dynamic models belong in dynamic markets.</strong>
 </p>
 
 <p align="center">
@@ -27,45 +27,85 @@
   <img src="https://img.shields.io/badge/Redis-4B5563?style=flat-square&labelColor=1A1A1A&logo=redis&logoColor=white" alt="Redis">
   <img src="https://img.shields.io/badge/PostgreSQL-4B5563?style=flat-square&labelColor=1A1A1A&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/GitHub%20Actions-4B5563?style=flat-square&labelColor=1A1A1A&logo=githubactions&logoColor=white" alt="GitHub Actions">
+  <img src="https://img.shields.io/badge/GitHub%20Codespaces-4B5563?style=flat-square&labelColor=1A1A1A&logo=github&logoColor=white" alt="GitHub Codespaces">
 </p>
 
-Aether Quant is not a single static strategy — it's a **dynamic system**: a
-Mixture-of-Experts ensemble (bullish/bearish/sideways/volatility specialists)
-routed by a learned gating network, a market-regime detector, a 3D market
-topology layer that combines a deterministic correlation embedding with a
-learned probabilistic overlay, a liquidity/market-impact engine that adjusts
-position sizing to real trading conditions, a cross-sectional ranking signal
-that sizes each position by its predicted relative strength against the rest
-of the trading universe, a **unified multi-asset-class layer** that trades
-equities, crypto, bonds, futures, and options through one coherent portfolio
-— real yield-curve/duration features for bonds, margin-aware sizing for
-futures, Black-Scholes-greeks-based sizing for options, and shared
-cross-asset macro signals (yield curve shape, futures term structure,
-options sentiment) feeding every asset's prediction, not just its own — and
-a controlled retraining loop that lets the model itself evolve as markets do
-— all wired together and validated
-end-to-end inside QuantConnect's Lean engine. The thesis this project exists
-to test is simple to state and hard to prove: **markets are non-stationary,
-so a trading model should be too.** Every subsystem here exists to make the
-model adapt — to regime shifts, to changing correlation structure, to
-liquidity conditions — rather than to fit one historical window and hope it
-generalizes.
+Aether Quant is not a single static strategy. It's a **dynamic system**.
+At its core, an ensemble of neural models predicts, for every asset every
+day, a multi-horizon view of the market: **direction** at 1, 5 and 20 days,
+expected **return magnitude** and **volatility**, and the signal it actually
+trades on: each asset's **cross-sectional rank** (its predicted relative
+strength against the rest of the universe), which drives a market-neutral
+**long/short book**. Those predictions come from a **Mixture-of-Experts**
+ensemble (bullish/bearish/sideways/volatility specialists) routed by a
+learned gating network, alongside a **causal-TCN sequence encoder** that
+adds temporal structure the flat-MLP trunk can't see. All of it reads one
+feature pipeline that folds in a **market-regime detector**, a **3D market
+topology** layer (a deterministic correlation embedding with a learned
+probabilistic overlay), and a **liquidity/market-impact engine** that
+adjusts sizing to real trading conditions. A **unified multi-asset-class
+layer** trades equities, crypto, bonds, futures, and options through one
+coherent portfolio, with real yield-curve/duration features for bonds,
+margin-aware sizing for futures, Black-Scholes-greeks-based sizing for
+options, and shared cross-asset macro signals (yield curve shape, futures
+term structure, options sentiment) feeding every asset's prediction, not
+just its own. And a **controlled retraining loop** lets the model itself
+evolve as markets do, all wired together and validated end-to-end inside
+QuantConnect's Lean engine. The thesis this project exists to test is simple
+to state and hard to prove: **markets are non-stationary, so a trading model
+should be too.** Every subsystem here exists to make the model adapt to
+regime shifts, changing correlation structure, and liquidity conditions,
+rather than fit one historical window and hope it generalizes.
+
+## Quickstart
+
+```powershell
+pip install aether-quant     # published CLI + backend
+aq --help                    # explore commands
+
+# ...or from a clone, to train and backtest end-to-end:
+pip install -e . && python train.py && aq backtest
+```
+
+`aq backtest` needs Docker Desktop and the Lean CLI running; see
+[Getting Started](#getting-started) and [Requirements](#requirements) for the
+full setup.
+
+## Current Status
+
+**V3 complete.** Multi-asset-class trading (equities, crypto, bonds,
+futures, options), the full ML stack, and the retraining loop are all
+built, tested (<!-- AQ:TEST_COUNT_START -->1497<!-- AQ:TEST_COUNT_END -->
+tests) and wired end-to-end inside Lean.
+
+- **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
+  **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
+  [Backtest Results](#backtest-results)). This is a real flip from the
+  pre-rank-pivot −0.59 Sharpe.
+- **Two honest caveats on that number:** it ran with
+  `bypass_safety_gates` on (not live-representative), and the `rank_20d`
+  signal's *non-overlapping*-window significance still hasn't cleared the
+  project's own t-stat ≥ 2.0 bar. Encouraging, not yet settled.
+- **Not paper/live-deployable yet**: Interactive Brokers has never been
+  tested against a real Gateway (see [Known Limitations](#known-limitations)).
+- **Next:** V4 (walk-forward validation, model fine-tuning, more asset
+  classes, IB testing), see [Roadmap](#roadmap).
 
 ## Known Limitations
 
-Bonds are fully real today — no IB key needed. Futures and options are
+Bonds are fully real today, no IB key needed. Futures and options are
 fully wired end-to-end (chain parsing, greeks/IV, sizing, order placement,
 position-close/exposure tracking, offline derivatives-macro training
 features) but remain **data-empty until an Interactive Brokers key is
-connected** (`phase_v2.ib.enabled` — see `aq ib status`/`aq assets
+connected** (`phase_v2.ib.enabled`, see `aq ib status`/`aq assets
 status`). Remaining, still-open items:
 
-- **The model doesn't yet have enough edge to be profitable — the numbers below are pre-rank-pivot and not yet re-verified.** A completed `aq backtest` (2019-01-01 → 2021-03-31) confirmed the trading-logic/training-pipeline fixes work (653 orders, real 11.1% drawdown, 47%/53% win/loss — no longer a frozen book), but the strategy lost money net of costs: Net Profit −4.6%, Sharpe −0.59, negative expectancy. Even the strongest signal (`rank_20d`) was a modest edge, likely too weak at that trading frequency (development/Problems.md #43). **A direct fix for exactly this (development/Problems.md #52) is code-complete and unit-tested**: the trading path now runs long/short on `rank_20d` itself instead of the noise-objective direction head, rebalances every 5 bars instead of every bar, the universe expanded 30→74 assets, and four training-regularization gaps closed (rank-IC early stopping, dead-head down-weighting, seed-ensembling, horizon-consistency loss). The empirical retrain + a fresh `aq backtest` confirming these numbers actually improve is the direct next step, deliberately deferred to different hardware (development/Problems.md #52) — not yet done.
-- **IB is unverified end-to-end** — futures margin uses a static reference file rather than live IB margin, and the connection itself has never been tested against a real Gateway.
-- **Four items — `_build_model_input()`'s feature-build cost (#36), limit orders (#34), `gc.freeze()` (#37), vertical spreads (#38) — still need one real `lean backtest .` run to verify, blocked by this dev machine's 4GB RAM, not by any code issue.** Real attempts reliably hit Lean's 90-second `initialize()` isolator cap under the resulting memory pressure (development/Problems.md #50). Should run cleanly on a machine with more headroom (8GB+).
+- **IB is unverified end-to-end**: futures margin uses a static reference file rather than live IB margin, and the connection itself has never been tested against a real Gateway. Vertical spreads (#38) are unverified for the same reason, no option/future asset exists in the universe yet, and adding a real one goes through the IB-backed `aq fetch options --apply` path.
 
 ## Table of Contents
 
+- [Quickstart](#quickstart)
+- [Current Status](#current-status)
 - [Known Limitations](#known-limitations)
 - [Download](#download)
 - [Getting Started](#getting-started)
@@ -104,7 +144,7 @@ status`). Remaining, still-open items:
 ## Download
 
 If you just want to use Aether Quant rather than develop on it, no local
-`pip install -e .` or source checkout is needed — the CLI and backend are
+`pip install -e .` or source checkout is needed: the CLI and backend are
 published as ready-to-use releases:
 
 ```powershell
@@ -115,14 +155,14 @@ docker pull ghcr.io/leon1706-lol/aether-quant:latest
 `aq --help` is then available immediately (see [CLI Reference](#cli-reference)
 below). `aq` checks PyPI at most once every 24h (short timeout, never
 blocking) for a newer version and prints a one-line notice if one's
-available — disable with `AQ_SKIP_UPDATE_CHECK=1`.
+available (disable with `AQ_SKIP_UPDATE_CHECK=1`).
 
 The Docker image is the same one `docker-compose.yml`'s `engine` service
-(and every worker service — they all share this one build,
+(and every worker service, which all share this one build,
 `aether-quant-engine`) pulls by default (override with the
 `AETHER_QUANT_IMAGE` env var, e.g. to use a locally built image instead).
 This is the single consolidated image (app + every worker, includes the
-full ML stack) — expect a larger download than a minimal API-only image.
+full ML stack), so expect a larger download than a minimal API-only image.
 
 ## Getting Started
 
@@ -173,13 +213,13 @@ For local development (this repo cloned, a virtual environment active):
    pip install -e .   # registers the `aq` command from source
    aq backtest
    ```
-   First run downloads the pinned QuantConnect Lean engine Docker image once (~40GB+, budget time/bandwidth for it) — see [`aq backtest`](#aq-backtest) below for why it's pinned rather than always re-checking `latest`.
+   First run downloads the pinned QuantConnect Lean engine Docker image once (~40GB+, budget time/bandwidth for it), see [`aq backtest`](#aq-backtest) below for why it's pinned rather than always re-checking `latest`.
 
 ## Requirements
 
 - **Python ≥ 3.10** for the training pipeline, `main.py`'s Lean algorithm, the FastAPI monitoring server, and the `aq` CLI.
 - **QuantConnect Lean CLI** (`pip install lean`) for running backtests and paper/live trading.
-- **Docker & Docker Compose** for the local infrastructure (Redis, PostgreSQL, and the background workers — experience persistence, performance triggers, controlled retraining, Telegram alerts).
+- **Docker & Docker Compose** for the local infrastructure (Redis, PostgreSQL, and the background workers, experience persistence, performance triggers, controlled retraining, Telegram alerts).
 - **Node.js** (for the `webui/` React/Vite dashboard).
 
 This repo splits its Python dependencies across several `requirements*.txt`
@@ -202,7 +242,7 @@ that a controlled retraining loop reads from to evolve the model over time.
 
 ```mermaid
 flowchart LR
-    A["Lean data folder<br/>stocks, ETFs, bonds, crypto"] --> B["Feature pipeline<br/>train.py<br/>62-dim: price/volume + indicators +<br/>regime + liquidity + topology + peer returns + macro"]
+    A["Lean data folder<br/>stocks, ETFs, bonds, crypto"] --> B["Feature pipeline<br/>train.py<br/>price/volume + indicators +<br/>regime + liquidity + topology + peer returns + macro<br/>(35-feat baseline / 52-input multitask)"]
     B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
     B --> D["3D topology modeling<br/>market structure and clusters"]
     B -.-> U["Sequence encoder (Phase 2)<br/>causal-TCN, 30-bar window<br/>informational only"]
@@ -236,7 +276,7 @@ flowchart LR
 ```
 
 Dashed edges mark the Phase 2 sequence encoder's **informational-only**
-path — it's computed every bar and reaches the experience log, but never
+path, it's computed every bar and reaches the experience log, but never
 the gating network, market analyzer, or position sizing (see
 `inference/README.md`'s Phase 2 section).
 
@@ -245,8 +285,9 @@ the gating network, market analyzer, or position sizing (see
 ```mermaid
 flowchart TB
     A["Infrastructure"] --> A1["Docker Compose<br/>(Redis, Postgres, aether-quant app)"]
-    A --> A2["Lean CLI<br/>(backtest + paper trading)"]
+    A --> A2["Lean CLI<br/>(backtest + paper trading, local only)"]
     A --> A3["30-day observation phase before live mode"]
+    A --> A4["GitHub Codespaces<br/>(cloud training compute, optional)"]
     B["Development"] --> B1["VS Code + Claude Code"]
     B --> B2["GitHub"]
     C["Data and storage"] --> C1["Lean data folder for training/backtesting"]
@@ -257,301 +298,102 @@ flowchart TB
     D --> D3["NumPy / Pandas"]
     D --> D4["MoE experts and gating network"]
     D --> D5["Multitask heads (direction/magnitude/<br/>volatility) + causal-TCN sequence encoder"]
-    E["Monitoring and UI"] --> E1["React/Vite webui — Tracing dashboard (port 3002 dev / 8001 Docker)"]
+    E["Monitoring and UI"] --> E1["React/Vite webui, Tracing dashboard (port 3002 dev / 8001 Docker)"]
     E --> E2["FastAPI JSON API (port 8000)"]
     E --> E3["Telegram alerts (V2-19)<br/>notifications/telegram_worker.py"]
 ```
 
-These two diagrams are the high-level summary. For the full system —
+These two diagrams are the high-level summary. For the full system,
 every per-phase "contract" (Observation Mode, Performance Triggers,
 Controlled Retraining, 3D Topology, Liquidity Engine, Paper/Live Deployment,
 and more), the module map, and an honest analysis of what would need to
-change for this to become a genuinely low-latency/HFT system — see
+change for this to become a genuinely low-latency/HFT system, see
 **[`development/v2_architecture.md`](development/v2_architecture.md)**.
 
-**The baseline model can now predict more than direction.** An optional
-multi-task model (`train.py::AetherNetMultiTask`, trained by
-`train_multitask.py`) predicts next-day direction, return magnitude and
-volatility jointly from one shared trunk — the direction-only baseline and
-experts are unchanged and still ship independently. All 4 experts also
-have their own optional multitask heads (`train.py::_train_expert_multitask()`),
-so `moe/gating.py` blends per-expert magnitude/volatility with a
-baseline-scale anchor the same weighted-average way it already blends
-direction. `main.py` threads the resulting `predicted_return_magnitude`/
-`predicted_volatility` through the market analyzer (informational only,
-never changes routing) and, opt-in via
-`phase_v2.dynamic_risk.use_predicted_volatility`, into position sizing —
-replacing the backward-looking `rolling_volatility_20d` average with an
-actual forward-looking forecast for that one calculation.
+#### The model stack
 
-**Regime, liquidity and topology are now genuine model input features,
-not just downstream consumers of its output.** Model input dimensionality
-grew from 30 to 48: regime one-hot/confidence/trend/risk score, an
-asset-intrinsic liquidity spread/dollar-volume estimate, and cross-asset
-topology correlation/risk state are all computed offline
-(`train.py::add_regime_features()`/`add_liquidity_features()`/
-`build_topology_features_by_date()`) and at runtime
-(`main.py::_build_model_input()`, reordered so regime is computed
-*before* the model runs) with verified train/runtime parity.
+Three model families are trained and shipped, all reading the same
+train/runtime-parity feature pipeline (shared pure functions, never
+hand-matched formulas, `features/`, `main.py::_build_model_input()`):
 
-**Multi-horizon direction, cross-sectional ranking, correlated-peer
-returns and technical indicators (model input 48 → 59).** A root-cause
-investigation found every model — baseline, all 4 experts, the multitask
-heads, the sequence encoder — sitting at backtest MCC 0.02-0.07 (noise) on
-next-day binary direction, and traced (and fixed) real data bugs
-confounding those numbers: an unadjusted-split bug in `train.py`'s own
-Lean-zip reader (Lean's live/backtest engine was never affected — see
-`development/Problems.md` #24) and a data-feed volume-unit discontinuity
-that blew up the sequence model's RMSE 31x (#23). Beyond the fixes,
-`AetherNetMultiTaskHorizons`/`AetherNetSequenceMultiTaskHorizons` (new
-sibling classes to the originals — experts/baseline/gating stay
-1d-direction-only by design) add 4 heads: `direction_5d`/`direction_20d`
-(longer-horizon direction) and `rank_5d`/`rank_20d` (per-date
-cross-sectional percentile rank of forward return — the most learnable
-target this investigation found, maps directly onto a long/short
-portfolio, evaluated via rank-IC, `train.py::compute_rank_ic()`, not MCC).
-11 new scaled input features: 4 correlated-peer lagged-return features
-(`topology/market_topology.py`'s `top_peers`/`top_peer_returns`, a genuine
-new information channel from correlation data the model previously only
-saw as a compressed scalar) and 7 technical indicators (`features/`
-package — RSI, ATR%, Bollinger %B, volume z-score, MACD histogram,
-distance-from-52-week-high, cross-sectional momentum rank), all computed
-identically offline and at runtime by construction (shared pure
-functions, not hand-matched duplicated formulas). All new signals are
-visible on `/neural-network` and in `*_training_metrics.json`; see
-`development/Changelog.md`'s "Frontier-model edge investigation" entry
-for the full build and the real rank-IC results.
+- **Baseline + 4 experts** (`train.py::AetherNet*`), a 35-feature
+  direction model plus bullish/bearish/sideways/volatility specialists,
+  routed by the learned gating network (`moe/gating.py`). Each also carries
+  optional multitask heads for return magnitude and volatility.
+- **Multitask model** (`AetherNetMultiTaskHorizons`, `train_multitask.py`),
+  a 52-input shared trunk with multiple heads: next-day direction,
+  `direction_5d`/`direction_20d`, and `rank_5d`/`rank_20d` (per-date
+  cross-sectional percentile rank of forward return, evaluated via rank-IC,
+  `train.py::compute_rank_ic()`). `rank_20d` is the one signal with genuine
+  cross-sectional skill and is what the trading path now runs on.
+- **Sequence encoder** (`AetherNetSequenceMultiTaskHorizons`,
+  `train_sequence.py`), a causal-TCN over a rolling 30-bar window of the
+  same 52 inputs, adding temporal structure the flat-MLP trunk can't see.
 
-**`rank_20d` now sizes positions (opt-in).** A follow-up pass wired the
-one Phase-4 signal with a statistically significant full-series result —
-`rank_20d`, sequence model mean IC `0.073`/t-stat `4.40` — into an actual
-trading decision: `risk/position_sizing.py::rank_sizing_multiplier()`
-adds a fourth, bounded, direction-preserving factor to the sizing chain,
-scaling an already-approved trade UP toward `max_rank_multiplier` (default
-`1.25`) when the model predicts this asset near the top of the universe's
-20-day forward-return ranking, and DOWN toward `min_rank_multiplier`
-(default `0.75`) near the bottom — never flipping direction, same
-convention as the existing `topology_sizing_multiplier()`. **Off by
-default** (`phase_v2.dynamic_risk.rank_sizing_enabled: false`): the
-signal's non-overlapping-date subsample (28 independent 20-day windows)
-was not yet independently significant on its own (t-stat `1.20`), so it
-ships wired end-to-end but not promoted to on-by-default until validated
-on more out-of-sample data. `direction_5d`/`direction_20d`/`rank_5d`
-remain informational-only. See `risk/README.md`'s "Cross-sectional
-rank_20d → position sizing" section.
+The 52 model inputs are not just price/volume: regime state (one-hot /
+confidence / trend / risk), an asset-intrinsic liquidity spread/dollar-volume
+estimate, cross-asset topology correlation/risk, 4 correlated-peer
+lagged-return channels, and 7 technical indicators (RSI, ATR%, Bollinger %B,
+volume z-score, MACD histogram, distance-from-52-week-high, cross-sectional
+momentum rank) are all computed as first-class features, computed offline
+and at runtime by the same code, with verified parity.
 
-**A causal-TCN sequence encoder (Phase 2) now exists alongside the
-flat-MLP trunk**, replacing the "zero temporal structure" limitation the
-original root-cause investigation flagged — `train.py::AetherNetSequenceMultiTask`,
-trained by `train_sequence.py`, over a rolling 30-bar window of
-already-computed model inputs. Informational only this pass
-(`main.py::_run_sequence_model()` — not yet wired into any trading
-decision); see `inference/README.md`'s Phase 2 section for the new
-`_conv1d_causal`/`_multihead_attention`/`_softmax`/`_layernorm_axis`
-interpreter primitives (each independently verified against real PyTorch
-modules).
+`rank_20d` drives the long/short book and per-position sizing
+(`risk/position_sizing.py::rank_sizing_multiplier()`, bounded and
+direction-preserving); the multitask magnitude/volatility heads feed
+position sizing opt-in via `phase_v2.dynamic_risk.use_predicted_volatility`.
+All signals are visible on the `/neural-network` webui tab and in
+`ml/*_training_metrics.json`.
 
 See `inference/README.md`, `moe/README.md`, `risk/README.md`,
-`regime/README.md`, `liquidity/README.md` and `topology/README.md` for
-the full contracts, and `development/Changelog.md`'s "Multi-task
-prediction" and "Phase 1 remainder + Phase 2" entries for the complete
-writeup.
+`regime/README.md`, `liquidity/README.md` and `topology/README.md` for the
+full per-subsystem contracts, and `development/Changelog.md` for how this
+stack was built, phase by phase.
 
 ## Universe Size
 
-The trading universe currently spans **74 assets** — 40 stocks/broad-market
-ETFs, 22 fixed-income (bond) ETFs, and 12 crypto pairs — defined in
-`config.json`'s `phase1.universe.assets` and shared across training,
-validation, and backtesting (`phase1.universe.common_window`: `2014-12-01`
-to `2021-03-31`). Expanded from an original 30-asset universe (Phase 3 of
-the rank-pivot roadmap, `development/Problems.md` #52) specifically to
-strengthen the cross-sectional `rank_20d` signal, which scales with
-names-per-date — and deliberately rebalanced toward bonds/crypto (54%
-equity / 30% bond / 12% crypto by count) rather than staying equity-heavy.
-The bond ETF sleeve (Phase 1 of the 5/10 -> 9/10 roadmap, see
-[`development/Changelog.md`](development/Changelog.md)) spans the duration
-curve (short/intermediate/long/aggregate) and credit spectrum
-(Treasury/investment-grade/high-yield/municipal/emerging-market/
-international) so the yield-curve-slope and credit-spread macro proxies
-computed from it (`features/macro_features.py`) are meaningful. Bond ETFs
-are registered with `security_type: "equity"` (they trade through Lean's
-ordinary equity subscription path, like every other ETF already in the
-universe, e.g. SPY/QQQ/IWM/EEM — not a new Lean security type).
+The trading universe currently spans **74 assets**: 40 stocks/broad-market
+ETFs, 22 fixed-income (bond) ETFs, and 12 crypto pairs (54% equity / 30% bond
+/ 12% crypto by count), defined in `config.json`'s `phase1.universe.assets`
+and shared across training, validation, and backtesting (common window
+`2014-12-01` to `2021-03-31`). Of these, tradeable names carry real positions
+while "observation-only" names (thin history) are fed through the full model
+pipeline but never sized.
 
-| Ticker | Type | Role |
-|---|---|---|
-| AAPL | Equity | Trading |
-| SPY | Equity | Trading |
-| QQQ | Equity | Trading |
-| IWM | Equity | Trading |
-| EEM | Equity | Trading |
-| BAC | Equity | Trading |
-| IBM | Equity | Trading |
-| AIG | Equity | Trading |
-| BNO | Equity | Trading |
-| FB | Equity | Trading |
-| GOOG | Equity | Trading |
-| GOOGL | Equity | Trading |
-| USO | Equity | Trading |
-| WM | Equity | Trading |
-| AAA | Equity | Observation-only (thin history) |
-| MSFT | Equity | Trading |
-| NVDA | Equity | Trading |
-| AMZN | Equity | Trading |
-| JPM | Equity | Trading |
-| XOM | Equity | Trading |
-| JNJ | Equity | Trading |
-| PG | Equity | Trading |
-| KO | Equity | Trading |
-| DIS | Equity | Trading |
-| HD | Equity | Trading |
-| WMT | Equity | Trading |
-| V | Equity | Trading |
-| MA | Equity | Trading |
-| UNH | Equity | Trading |
-| CVX | Equity | Trading |
-| PFE | Equity | Trading |
-| VZ | Equity | Trading |
-| CSCO | Equity | Trading |
-| INTC | Equity | Trading |
-| MCD | Equity | Trading |
-| ABBV | Equity | Trading |
-| CRM | Equity | Trading |
-| COST | Equity | Trading |
-| PEP | Equity | Trading |
-| TMO | Equity | Trading |
-| SHY | Equity (Fixed Income ETF) | Trading - short-duration Treasury (1-3y) |
-| IEF | Equity (Fixed Income ETF) | Trading - intermediate-duration Treasury (7-10y) |
-| TLT | Equity (Fixed Income ETF) | Trading - long-duration Treasury (20y+) |
-| AGG | Equity (Fixed Income ETF) | Trading - broad aggregate bond benchmark |
-| LQD | Equity (Fixed Income ETF) | Trading - investment-grade corporate |
-| HYG | Equity (Fixed Income ETF) | Trading - high-yield corporate |
-| TIP | Equity (Fixed Income ETF) | Trading - inflation-protected (TIPS) |
-| MBB | Equity (Fixed Income ETF) | Trading - mortgage-backed |
-| EMB | Equity (Fixed Income ETF) | Trading - emerging-market sovereign debt |
-| MUB | Equity (Fixed Income ETF) | Trading - municipal |
-| BND | Equity (Fixed Income ETF) | Trading - broad aggregate bond benchmark |
-| GOVT | Equity (Fixed Income ETF) | Trading - broad Treasury benchmark |
-| SHV | Equity (Fixed Income ETF) | Trading - ultra-short Treasury |
-| IGIB | Equity (Fixed Income ETF) | Trading - intermediate investment-grade corporate |
-| VCIT | Equity (Fixed Income ETF) | Trading - intermediate investment-grade corporate |
-| VCSH | Equity (Fixed Income ETF) | Trading - short investment-grade corporate |
-| BIV | Equity (Fixed Income ETF) | Trading - intermediate aggregate |
-| BSV | Equity (Fixed Income ETF) | Trading - short aggregate |
-| TLH | Equity (Fixed Income ETF) | Trading - long-duration Treasury (10-20y) |
-| IGSB | Equity (Fixed Income ETF) | Trading - short investment-grade corporate |
-| JNK | Equity (Fixed Income ETF) | Trading - high-yield corporate |
-| BWX | Equity (Fixed Income ETF) | Trading - international Treasury |
-| BTCUSD | Crypto | Trading |
-| ETHUSD | Crypto | Observation-only (thin history) |
-| LTCUSD | Crypto | Trading |
-| XRPUSD | Crypto | Observation-only (thin history) |
-| ADAUSD | Crypto | Observation-only (thin history) |
-| BCHUSD | Crypto | Observation-only (thin history) |
-| LINKUSD | Crypto | Observation-only (thin history) |
-| BNBUSD | Crypto | Observation-only (thin history) |
-| DOGEUSD | Crypto | Observation-only (thin history) |
-| XLMUSD | Crypto | Observation-only (thin history) |
-| EOSUSD | Crypto | Observation-only (thin history) |
-| TRXUSD | Crypto | Observation-only (thin history) |
-
-"Observation-only" assets (Phase 9's `asset_quality` gate) are still fed
-through the full model/expert/topology pipeline every bar and visible on
-the dashboard, but are never sized into real positions — their real
-history is too short relative to the training window to be trusted for
-trading decisions (see [`development/Changelog.md`](development/Changelog.md)
-for the exact row-count thresholds). This is re-evaluated automatically
-every time `train.py` rebuilds the dataset, so an asset can move between
-these two roles as more history accumulates. All 7 newly-added crypto
-pairs land observation-only today — their Yahoo history only starts
-2017-11-09, giving them almost no rows inside the fixed 2014-2017
-train-split window (the same reason ETHUSD/XRPUSD/ADAUSD are
-observation-only) — so tradeable crypto stays at 2 names (BTCUSD, LTCUSD);
-the new crypto tickers add cross-sectional/observation diversity, not new
-tradeable positions, until the training window itself moves forward.
-
-Asset classes sit on opposite sides of the hub (equities/crypto feed in
-from above, fixed income from below) rather than a single top row — ticker
-detail is in the table above, this is the group-level view:
-
-```mermaid
-flowchart TD
-    Equities["Equities<br/>40 tickers"] --> DNN
-    Crypto["Crypto<br/>12 tickers"] --> DNN
-    DNN(("Baseline DNN<br/>+ MoE Experts")) --> FixedIncome["Fixed Income ETFs<br/>22 tickers"]
-
-    classDef hub fill:#1A1A1A,stroke:#FF8C00,color:#FF8C00,stroke-width:2px;
-    classDef group fill:#FF8C00,stroke:#1A1A1A,color:#1A1A1A,stroke-width:1px;
-
-    class DNN hub;
-    class Equities,Crypto,FixedIncome group;
-```
+See **[`development/asset_universe.md`](development/asset_universe.md)** for
+the full ticker list, the trading-vs-observation split, the bond-ETF
+duration/credit coverage, and the group-level diagram.
 
 ## Project Structure
 
-```text
-aether-quant/
-├── .github/                     # CI workflows (tests, webui build, release)
-├── development/                 # Architecture docs, changelog, problems log, backtest chart
-├── data/                        # Local Lean data folder (equities, crypto)
-├── data_pipeline/                # Lean-data contract + Yahoo Finance historical backfill
-├── analyzer/                    # Central market analyzer (final per-asset decision layer)
-├── moe/                         # Mixture-of-Experts gating network
-├── experts/                     # Bullish / bearish / sideways / volatility expert models
-├── features/                    # Shared feature-computation functions (train.py + main.py parity)
-├── portfolio/                   # Stage-2 cross-sectional long/short book construction + options sizing
-├── regime/                      # Market regime detection
-├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
-├── liquidity/                   # Liquidity / market-impact engine
-├── risk/                        # Dynamic position sizing, leverage, drawdown controls
-├── execution/                   # Order gating, paper/live broker readiness, config caching
-├── inference/                   # Vectorized neural-network forward-pass interpreter
-├── cpp_inference_ext/           # Optional C++/pybind11 accelerator (builds the "cpp_inference" module)
-├── experience/                  # Redis -> PostgreSQL observation/decision history pipeline
-├── performance/                 # Performance trigger system (drawdown, Sharpe, regime-shift, ...)
-├── retraining/                  # Controlled retraining: plan/train/validate/backtest/promote
-├── monitoring/                  # FastAPI JSON API serving runtime state to the webui
-├── notifications/               # Telegram alerting worker
-├── visualization/               # Shared runtime-state JSON/CSV exports
-├── webui/                       # React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing)
-├── ml/                          # Model weights, datasets, versioned retraining candidates
-├── storage/                     # Reserved for future persistent artifact storage
-├── scripts/                     # Standalone dev tooling (e.g. profile_inference.py)
-├── requirements/                # All requirements*.txt variants
-├── tests/                       # Full pytest suite (828 tests)
-├── backtests/                   # Lean backtest run outputs (gitignored)
-├── Aether-quant-Obsidian-Vault/ # Auto-generated code-graph / architecture vault
-├── main.py                      # Lean algorithm: inference, signal engine, risk controls
-├── train.py                     # Training pipeline: dataset build, model training, validation
-├── train_topology.py            # Offline trainer for the learned topology overlay
-├── train_gating.py              # Offline trainer for the learned gating blend
-├── train_multitask.py           # Offline trainer for the joint direction+magnitude+volatility model
-├── train_sequence.py            # Offline trainer for the Phase 2 causal-TCN sequence encoder
-├── generate_backtest_report.py  # Regenerates this README's Backtest Results section
-├── aq_cli.py                    # `aq` convenience CLI
-├── config.json                  # Runtime configuration (phase1 / phase_v2 blocks)
-├── lean.json                    # Lean engine + brokerage configuration
-├── docker-compose.yml           # Local infrastructure (Lean, Redis, PostgreSQL, workers)
-└── pyproject.toml               # Package metadata, `aq` entry point, pytest config
-```
+The repository is a set of single-responsibility Python packages (one concern
+per folder, each with its own README), a few top-level entry-point scripts
+(`main.py` for the Lean algorithm, `train*.py` for the offline trainers,
+`aq_cli.py` for the CLI), and the runtime config (`config.json` / `lean.json`).
+
+See **[`development/project_structure.md`](development/project_structure.md)**
+for the full annotated directory tree, and the
+[Module Documentation](#module-documentation) table below for a per-package
+index with links to each package's own README.
 
 ## Module Documentation
 
 Every package below has its own README with the full detail on what it owns
-and how it's wired in — this table is the index.
+and how it's wired in, this table is the index.
 
 | Module | What it owns | Docs |
 |---|---|---|
-| `analyzer/` | Central market analyzer — the final per-asset action categorization layer | [README](analyzer/README.md) |
+| `analyzer/` | Central market analyzer, the final per-asset action categorization layer | [README](analyzer/README.md) |
+| `audit/` | Tamper-evident hash-chained audit log (credential loads, live-mode transitions, order path), Redis + PostgreSQL | [README](audit/README.md) |
 | `backtests/` | Strategy validation output (active model + per-candidate reports), gitignored | [README](backtests/README.md) |
 | `data/` | Local Lean data-folder format documentation | [README](data/README.md) |
 | `data_pipeline/` | Lean-data contract + Yahoo Finance historical backfill | [README](data_pipeline/README.md) |
 | `execution/` | Order gating, paper/live broker readiness, config-read caching | [README](execution/README.md) |
-| `experience/` | Observation/decision history — Redis buffer + PostgreSQL persistence | [README](experience/README.md) |
+| `experience/` | Observation/decision history, Redis buffer + PostgreSQL persistence | [README](experience/README.md) |
 | `experts/` | Bullish, bearish, sideways, and volatility expert models | [README](experts/README.md) |
 | `features/` | Shared feature-computation functions, called from both `train.py` and `main.py` for train/inference parity | [README](features/README.md) |
 | `inference/` | Vectorized forward-pass interpreter for the exported neural networks | [README](inference/README.md) |
-| `cpp_inference_ext/` | Optional C++/pybind11 accelerator (builds the `cpp_inference` module, never a hard dependency) — a separate top-level folder name from the module it builds, deliberately, to avoid a namespace-package collision with the installed package | [README](cpp_inference_ext/README.md) |
+| `cpp_inference_ext/` | Optional C++/pybind11 accelerator (builds the `cpp_inference` module, never a hard dependency), a separate top-level folder name from the module it builds, deliberately, to avoid a namespace-package collision with the installed package | [README](cpp_inference_ext/README.md) |
 | `liquidity/` | Liquidity and market-impact engine | [README](liquidity/README.md) |
 | `ml/` | Model & dataset artifacts, including versioned retraining candidates | [README](ml/README.md) |
 | `moe/` | Mixture-of-Experts gating network | [README](moe/README.md) |
@@ -561,12 +403,12 @@ and how it's wired in — this table is the index.
 | `portfolio/` | Stage-2 cross-sectional long/short book construction + Black-Scholes options sizing | [README](portfolio/README.md) |
 | `regime/` | Market regime detection | [README](regime/README.md) |
 | `requirements/` | All `requirements*.txt` variants and what consumes each | [README](requirements/README.md) |
-| `retraining/` | Controlled retraining — plan/train/validate/backtest/commit/promote/rollback | [README](retraining/README.md) |
+| `retraining/` | Controlled retraining, plan/train/validate/backtest/commit/promote/rollback | [README](retraining/README.md) |
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
 | `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1497<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
-| `topology/` | 3D market topology — deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
+| `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
 | `Aether-quant-Obsidian-Vault/` | Auto-generated Obsidian vault mirroring the repo's architecture/code graph | [README](Aether-quant-Obsidian-Vault/README.md) |
@@ -576,9 +418,11 @@ and how it's wired in — this table is the index.
 | Document | Contents |
 |---|---|
 | [`development/README.md`](development/README.md) | Index of this folder |
+| [`development/asset_universe.md`](development/asset_universe.md) | The full 74-asset universe: ticker list, trading-vs-observation split, bond-ETF coverage, group diagram |
+| [`development/project_structure.md`](development/project_structure.md) | The full annotated directory tree of the repository |
 | [`development/v2_architecture.md`](development/v2_architecture.md) | The full V2 system architecture: process-flow and tech-stack diagrams, the module map, per-phase "contract" sections, and the HFT-readiness analysis |
-| [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook — start commands for every service, SQL inspection snippets, port reference |
-| [`development/Changelog.md`](development/Changelog.md) | Detailed, append-only, per-phase build history — what was built, when, and why |
+| [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook, start commands for every service, SQL inspection snippets, port reference |
+| [`development/Changelog.md`](development/Changelog.md) | Detailed, append-only, per-phase build history, what was built, when, and why |
 | [`development/Problems.md`](development/Problems.md) | Append-only audit log of bugs and infrastructure issues, each with a severity rating and fixed/open status |
 
 ## Backtest Results
@@ -589,13 +433,13 @@ and how it's wired in — this table is the index.
 | Metric | Value |
 |---|---|
 | Backtest window | 2019-01-01 to 2021-04-02 |
-| Sharpe Ratio | -0.59 |
-| Net Profit | -4.604% |
-| Compounding Annual Return | -2.072% |
-| Drawdown | 11.100% |
-| Total Orders | 653 |
-| Win Rate | 47% |
-| Last updated | 2026-07-19 15:08 UTC (auto-generated by `aq backtest`) |
+| Sharpe Ratio | 0.403 |
+| Net Profit | 10.438% |
+| Compounding Annual Return | 4.508% |
+| Drawdown | 4.000% |
+| Total Orders | 2082 |
+| Win Rate | 58% |
+| Last updated | 2026-07-20 16:52 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 <details>
@@ -604,72 +448,48 @@ and how it's wired in — this table is the index.
 <!-- AQ:BACKTEST_FULL_STATS_START -->
 | Metric | Value |
 |---|---|
-| Total Orders | 653 |
-| Average Win | 0.19% |
-| Average Loss | -0.20% |
-| Compounding Annual Return | -2.072% |
-| Drawdown | 11.100% |
-| Expectancy | -0.084 |
+| Total Orders | 2082 |
+| Average Win | 0.09% |
+| Average Loss | -0.09% |
+| Compounding Annual Return | 4.508% |
+| Drawdown | 4.000% |
+| Expectancy | 0.154 |
 | Start Equity | 100000.00 |
-| End Equity | 95396.32 |
-| Net Profit | -4.604% |
-| Sharpe Ratio | -0.59 |
-| Sortino Ratio | -0.522 |
-| Probabilistic Sharpe Ratio | 0.172% |
-| Loss Rate | 53% |
-| Win Rate | 47% |
-| Profit-Loss Ratio | 0.95 |
-| Alpha | -0.046 |
-| Beta | 0.099 |
-| Annual Standard Deviation | 0.049 |
+| End Equity | 110437.80 |
+| Net Profit | 10.438% |
+| Sharpe Ratio | 0.403 |
+| Sortino Ratio | 0.398 |
+| Probabilistic Sharpe Ratio | 13.809% |
+| Loss Rate | 42% |
+| Win Rate | 58% |
+| Profit-Loss Ratio | 1.00 |
+| Alpha | -0.003 |
+| Beta | 0.113 |
+| Annual Standard Deviation | 0.041 |
 | Annual Variance | 0.002 |
-| Information Ratio | -1.087 |
-| Tracking Error | 0.188 |
-| Treynor Ratio | -0.289 |
-| Total Fees | $607.69 |
-| Estimated Strategy Capacity | $320000000.00 |
-| Lowest Capacity Asset | HYG VW1A4C2VJMN9 |
-| Portfolio Turnover | 7.09% |
-| Drawdown Recovery | 110 |
+| Information Ratio | -0.871 |
+| Tracking Error | 0.183 |
+| Treynor Ratio | 0.145 |
+| Total Fees | $1620.21 |
+| Estimated Strategy Capacity | $40000000.00 |
+| Lowest Capacity Asset | BNO UN3IMQ2JU1YD |
+| Portfolio Turnover | 7.51% |
+| Drawdown Recovery | 150 |
 <!-- AQ:BACKTEST_FULL_STATS_END -->
 
 </details>
 
-This section is regenerated automatically every time you run `aq backtest`
-(see [`generate_backtest_report.py`](generate_backtest_report.py)) — it
-always reflects your most recent successful Lean backtest, reading directly
-from Lean's own result JSON (strategy equity curve, its native SPY benchmark
-series, and the full statistics block), so it never goes stale as long as
-you keep backtesting. Both the chart image and every statistic above are
-overwritten on each run — there is no manual step and nothing here can go
-stale relative to your last `aq backtest`.
+Regenerated on every `aq backtest` run
+([`generate_backtest_report.py`](generate_backtest_report.py)) directly from
+Lean's own result JSON, chart, headline table, and full stats all
+overwritten, never hand-edited, so nothing here goes stale relative to your
+last backtest.
 
-**What this backtest does *not* prove:** a bare `lean backtest .` run
-exercises the full inference stack (baseline model, all 4 experts, MoE
-gating, regime, topology, liquidity) every bar, but it does **not**
-exercise the controlled retraining loop — the "learning while trading"
-half of this system's thesis. That loop is a decoupled, asynchronous
-pipeline (`main.py` → Redis → experience-worker → Postgres →
-performance-trigger-worker → retraining-worker), and a bare backtest run
-outside the Docker Compose network can't even reach Redis — events are
-dropped with a warning, so nothing reaches Postgres, no performance
-trigger can fire, and no retraining ever runs (see
-`development/infrastructure.md`). Exercising retraining for real requires
-the full Compose stack up (`docker compose up -d redis postgres
-experience-worker performance-trigger-worker retraining-worker`) with the
-backtest run inside that network, plus an actual trigger condition being
-met during the run.
+**Read these numbers with three caveats:**
 
-**If `phase_v2.backtest.bypass_safety_gates` is `true`:** this backtest
-also does not represent live/paper-deployable behavior. That flag (default
-`false`) disables the sticky total-drawdown lock and the regime detector's
-drawdown-driven `risk_off` override — both real, designed safety behavior
-in live/paper mode — purely to generate enough trade volume for
-statistically meaningful backtest metrics (see `development/Problems.md`
-#18). A backtest run with this flag set shows the underlying model's
-signal quality across more market conditions, not what this system would
-have actually done if deployed — in live/paper mode, both gates would have
-genuinely halted trading exactly as designed.
+- **`bypass_safety_gates` is currently `true`.** This run had the sticky drawdown lock and the regime `risk_off` override disabled, to generate enough trade volume for meaningful stats (`development/Problems.md` #18), so it shows raw signal quality, *not* live/paper-deployable behavior. Set it back to `false` and re-run for the safety-gated number.
+- **The signal isn't independently significant yet.** `rank_20d`'s full-series IC is strong (multitask `0.172`/t=`7.55`), but its *non-overlapping*-window t-stat (multitask `1.40`, sequence `0.43`) hasn't cleared the project's own ≥ 2.0 bar. The positive Sharpe is real but not yet settled (`development/Problems.md` #52/#54).
+- **Retraining isn't exercised.** A bare `lean backtest .` runs the full inference stack every bar but can't reach Redis, so the "learning while trading" loop (`main.py` → Redis → Postgres → triggers → retraining) never fires. That needs the full Compose stack up, see `development/infrastructure.md`.
 
 ## Test Suite
 
@@ -679,14 +499,14 @@ genuinely halted trading exactly as designed.
 aq test
 ```
 
-which — like the backtest chart above — automatically keeps the badge at
+which, like the backtest chart above, automatically keeps the badge at
 the top of this README in sync with the real pass count every time you run
 it. See [`tests/README.md`](tests/README.md) for the suite's conventions.
 
 ## CLI Reference
 
 The easiest way to get the `aq` command is straight from PyPI (see
-[Download](#download) above) — no source checkout needed:
+[Download](#download) above), no source checkout needed:
 
 ```powershell
 pip install aether-quant
@@ -708,23 +528,20 @@ command already documented elsewhere in this README:
 ```text
 aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--walk-forward] [--step-days N] [--mode rolling|expanding]
 ```
-Runs `train.py`: builds the dataset and trains the baseline + expert
-models. `--gating-only` trains just the learned gating blend
-(`train_gating.py`) and installs it straight into active `ml/`,
-mirroring what `--experts-only` already does for the expert models — see
-`moe/README.md`. `--multitask-only` does the same for the joint
-direction+magnitude+volatility model (`train_multitask.py`) — see
-`inference/README.md`/`risk/README.md`. `--sequence-only` does the same
-for the Phase 2 causal-TCN sequence encoder (`train_sequence.py`) — see
-`inference/README.md`. `--walk-forward` (Phase 4 of the 5/10 -> 9/10
-roadmap) wraps `python train.py --walk-forward`, running the dataset-build
-+ training pipeline once per rolling/expanding window instead of once on
-the fixed `phase1.windows` — diagnostic only, never touches active `ml/`
-(each window writes to `ml/versions/<run-id>/window_<i>/`, same as
-`--candidate`); `--step-days`/`--mode` override
-`phase_v2.retraining.walk_forward`'s `step_days`/`mode` defaults — see
-`retraining/README.md`'s "Walk-forward retraining is a separate, scheduled
-mechanism" section.
+**Builds the dataset and trains the models** (`train.py`). With no flags,
+trains everything (baseline + experts + gating + multitask + sequence) and
+installs it into the active `ml/` folder.
+
+Scope flags (each trains just one piece, installs straight into `ml/`):
+- `--dataset-only` / `--init-only`: (re)build the dataset / refresh the data inventory, no training.
+- `--experts-only`: the 4 expert models (see `moe/README.md`).
+- `--gating-only`: the learned gating blend (`train_gating.py`, `moe/README.md`).
+- `--multitask-only`: the joint direction/magnitude/volatility + rank model (`train_multitask.py`, `risk/README.md`).
+- `--sequence-only`: the causal-TCN sequence encoder (`train_sequence.py`, `inference/README.md`).
+
+Walk-forward (diagnostic, **never** touches active `ml/`):
+- `--walk-forward`: runs the whole pipeline once per rolling/expanding window instead of on the fixed `phase1.windows`; each window writes to `ml/versions/<run-id>/window_<i>/`.
+- `--step-days N` / `--mode rolling|expanding`: override `phase_v2.retraining.walk_forward`'s defaults. See `retraining/README.md`.
 
 #### `aq test`
 ```text
@@ -732,72 +549,42 @@ aq test [--lean|--full] [--parallel] [--cli] [--risk] [--portfolio] [--features]
         [--data-pipeline] [--webui] [--ml] [--retraining] [--notifications]
         [--storage] [--live]
 ```
-Runs the pytest suite and refreshes this README's test badge (only on a
-full, unfiltered default run — a subsystem-filtered run's pass count is a
-subset, never written into the badge). By default, excludes
-`tests/test_lean_backtest_ml_coverage.py`'s real `lean backtest .`
-integration test (over an hour wall-clock) — its own `skipif` only checks
-whether the Lean CLI is *installed*, which it is in this repo's `.venv`, so
-without this exclusion it silently ran on every `aq test`. Pass
-`--lean`/`--full` to include it when you deliberately want full-system
-coverage. `--parallel` runs via `pytest-xdist` (`-n auto`) — off by
-default, since multiple workers each importing PyTorch is a real OOM risk
-on memory-constrained machines. Any combination of the subsystem flags
-(`--cli`, `--risk`, `--portfolio`, `--features`, `--data-pipeline`,
-`--webui`, `--ml`, `--retraining`, `--notifications`, `--storage`,
-`--live`) restricts the run to just those subsystems' test files instead
-of the whole tree — run `aq test --help` for the exact file mapping.
+**Runs the pytest suite** and refreshes this README's test badge (only on a
+full, unfiltered run, a filtered run's count is a subset, never written to
+the badge).
+
+- `--lean` / `--full`: also run the real `lean backtest .` integration test (`tests/test_lean_backtest_ml_coverage.py`, over an hour). Excluded by default since its own `skipif` only checks whether Lean is *installed* (it always is here), so it would otherwise run every time.
+- `--parallel`: run via `pytest-xdist` (`-n auto`). Off by default: multiple workers each importing PyTorch is a real OOM risk on low-memory machines.
+- Subsystem filters, `--cli`, `--risk`, `--portfolio`, `--features`, `--data-pipeline`, `--webui`, `--ml`, `--retraining`, `--notifications`, `--storage`, `--live` restrict the run to just those test files (combinable). `aq test --help` lists the exact file mapping.
 
 #### `aq backtest`
 ```text
 aq backtest [--image quantconnect/lean:<tag>]
 ```
-Runs `lean backtest .` and refreshes this README's [Backtest Results](#backtest-results) section. Always passes an explicit `--image` to Lean CLI, pinned by default to a specific, verified QuantConnect engine build (`aq_cli.py::PINNED_LEAN_ENGINE_IMAGE`) rather than letting `lean backtest .` silently resolve the mutable `:latest` tag — `:latest` gets re-pushed by QuantConnect periodically, so without a pin, every clone of this repo (including yours, the first time) re-checks and re-pulls whatever changed on **every single run**, even against an already-fully-cached local image. **First run downloads the pinned engine image once (~40GB+)** — after that, repeat runs reuse the exact same cached image and download nothing further, since the pin never silently changes. Pass `--image` yourself to deliberately try a newer engine build.
+**Runs `lean backtest .`** and refreshes this README's [Backtest Results](#backtest-results) section from the real Lean output. Requires Docker Desktop running.
+
+- **First run downloads the pinned Lean engine image once (~40GB+)**; every run after reuses the cache and downloads nothing.
+- `--image quantconnect/lean:<tag>`: use a different engine build. By default the image is pinned (`aq_cli.py::PINNED_LEAN_ENGINE_IMAGE`) rather than the mutable `:latest`, so a routine re-push by QuantConnect can't silently trigger a full re-pull on every run.
 
 #### `aq profile`
 ```text
 aq profile [--iterations N] [--sort cumulative] [--batched]
 aq profile [--iterations N] [--sort cumulative] [--regime] [--topology] [--learned-topology] [--liquidity] [--gating] [--analyzer] [--indicators]
 ```
-Default (no `--<subsystem>` flags): profiles `main.py`'s per-bar
-inference hot path (`inference/exported_model.py`) against real exported
-model weights (never synthetic ones) with a synthetic-but-correctly-
-shaped input workload — a real `lean backtest .` run takes over an hour,
-so this is how the hot path gets profiled repeatably in seconds/minutes
-instead. Reports both a `pstats` breakdown and independent wall-clock
-tail-latency percentiles (p50/p95/p99/max) to
-`scripts/profile_inference_output.txt` and stdout. `--batched` uses the
-batched expert-inference path (with its precomputed weight/stack caches)
-instead of a per-expert loop — the real, optimized production path. See
-`development/Problems.md` for what this found and fixed (weight-array/
-stack caching, `_conv1d_causal` vectorization, expert-loop batching — a
-combined -89.2% reduction in profiled cost).
+**Profiles the per-bar hot path** without needing a real backtest (which
+takes over an hour), reports a `pstats` breakdown plus wall-clock
+tail-latency percentiles (p50/p95/p99/max).
 
-Any `--<subsystem>` flag instead profiles `main.py`'s per-bar subsystems
-that inference profiling never covered — `regime`
-(`regime/market_regime.py`), `topology`/`learned-topology`
-(`topology/market_topology.py`/`topology/learned_topology.py`),
-`liquidity` (`liquidity/market_liquidity.py`), `gating` (`moe/gating.py`),
-`analyzer` (`analyzer/market_analyzer.py`), and `indicators` (the 7 pure
-functions in `features/technical_indicators.py`, each reported
-independently so a dominant one doesn't get averaged away) — wraps
-`scripts/profile_subsystems.py`, writing to
-`scripts/profile_subsystems_output.txt`. Combinable (`aq profile --regime
---gating`). Uses its own, much lower default iteration count (200, not
-10000) — `build_market_topology()` alone costs ~500-600ms per call at
-this project's real ~30-symbol universe, so 10,000 iterations of it would
-take over an hour; `--iterations` overrides this. `--batched` combined
-with any `--<subsystem>` flag is rejected (exit 1) — batching has no
-meaning for these pure functions.
+- **Default (no subsystem flag)**: profiles the inference path (`inference/exported_model.py`) against real exported weights, writing to `scripts/profile_inference_output.txt`. Add `--batched` to profile the optimized production path (precomputed weight/stack caches) instead of a per-expert loop.
+- **Subsystem flags**: `--regime`, `--topology`, `--learned-topology`, `--liquidity`, `--gating`, `--analyzer`, `--indicators` profile the per-bar subsystems inference profiling never covered (combinable, e.g. `--regime --gating`). Writes to `scripts/profile_subsystems_output.txt`.
+- `--iterations N`: default 10000 for inference, 200 for subsystems (`build_market_topology()` alone costs ~500-600ms/call, so 10k iterations would take over an hour). `--batched` with a subsystem flag is rejected, batching is meaningless for those pure functions.
 
-`main.py::_build_model_input()` itself (feature engineering) is
-deliberately NOT profiled — it's a bound method reading ~15 pieces of
-`self.*` state, not cleanly synthesizable the way the other subsystems
-were; `--indicators` profiles its underlying pure primitives instead, a
-documented partial-coverage choice. See `development/Problems.md` for
-what this pass found — most notably that `build_market_topology()`'s
-per-bar cost is comparable to or larger than the *entire* per-bar
-inference total across the whole symbol universe, previously invisible.
+Why this exists: it found `build_market_topology()`'s per-bar cost rivaling
+the *entire* inference step, and drove a combined −89.2% reduction (weight
+caching, `_conv1d_causal` vectorization, expert-loop batching). See
+`development/Problems.md` #36. `_build_model_input()` itself isn't directly
+profiled (it reads `self.*` state, not cleanly synthesizable); `--indicators`
+covers its pure primitives instead.
 
 #### `aq report`
 ```text
@@ -830,25 +617,19 @@ aq docker build
 ```text
 aq config [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
 ```
-Reads or edits `config.json` directly, no manual file editing needed.
-Bare `aq config` pretty-prints the whole file; `aq config keys
-[<dotted.prefix>]` lists every leaf key path (handy for finding the right
-key in a deeply nested file); `aq config get <dotted.key>` prints one
-value (scalar, or a whole nested section as JSON); `aq config set
-<dotted.key> <value>` writes it — the value is parsed as JSON first (so
-`true`/`123`/`0.5`/`["a","b"]` become their real types automatically),
-falling back to a plain string otherwise. Every `set` backs up the
-previous file to `config.json.bak` first and prints old → new so a
-mistake is immediately visible; changing a value's type (e.g. bool →
-string) prints a warning but still writes it, since this command
-intentionally gives full access to every key, not just a safe subset.
+**Reads or edits `config.json` by dotted key path**, no manual file editing.
+
+- `aq config` (bare): pretty-print the whole file.
+- `aq config keys [<prefix>]`: list every leaf key path (find the right key in a deeply nested file).
+- `aq config get <key>`: print one value (a scalar, or a whole nested section as JSON).
+- `aq config set <key> <value>`: write it. The value is parsed as JSON first (`true`/`123`/`0.5`/`["a","b"]` become real types), falling back to a string. Every `set` backs up to `config.json.bak` and prints old → new; a type change (e.g. bool → string) warns but still writes, since this gives full access to every key.
 
 #### `aq lean`
 ```text
 aq lean [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
 ```
 The exact same `get`/`set`/`keys` tool as `aq config`, just pointed at
-`lean.json` (the QuantConnect Lean CLI's own config file — broker
+`lean.json` (the QuantConnect Lean CLI's own config file, broker
 credentials, environments, data providers) instead. `aq lean set
 ib-trading-mode live`, `aq lean keys environments.live-paper`, etc.
 
@@ -874,70 +655,49 @@ aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD
 aq fetch futures --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> [--contract-month <YYYYMM>] [--family-ticker <ROOT>] [--apply]
 aq fetch options --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> --strike <STRIKE> --right <call|put> [--family-ticker <ROOT>] [--apply]
 ```
-`crypto`/`stock` fetch historical OHLCV from Yahoo Finance for a ticker
-that isn't in `config.json` yet, formats it into Lean's zip/CSV
-convention, and writes it to the right spot under `data/`
-(`data/crypto/coinbase/daily/<ticker>_trade.zip` or
-`data/equity/usa/daily/<ticker>.zip`). `futures`/`options` do the same but
-source historical bars from Interactive Brokers instead — see `aq ib
-status` below; both fail with a clean error (no traceback) if IB isn't
-configured. On `--apply`, it also appends a new asset block to
-`config.json`'s `phase1.universe.assets[]` — no manual editing needed. Dry
-run by default (no `--apply`): reports what would happen, writes nothing.
-Never runs `train.py` itself — once applied, run `python train.py
---dataset-only` (then `python train.py` when ready) yourself to actually
-train on the new ticker.
+**Backfills historical data for a new ticker** and (with `--apply`) registers
+it in `config.json`'s `phase1.universe.assets[]`, no manual editing.
 
-`--contract-month` (futures only, e.g. `202603`) fetches a specific dated
-contract instead of the default continuous contract — needed to build a
-real historical term structure (fetch e.g. an `ES_FRONT` and `ES_NEXT`
-ticker, same root, different `--contract-month`). `--family-ticker`
-(futures/options) tags the asset with its root symbol (e.g. `"ES"`,
-`"SPY"`) so `train.py`'s offline derivatives-macro features can group
-same-family contracts together for term-structure/put-call/IV-skew
-computation — see `data_pipeline/README.md` for the full acquisition
-workflow (IB's historical API is per-contract and rate-limited, so
-building a real training-time derivatives dataset is a manual, repeated
-`aq fetch futures`/`aq fetch options` process, not a single bulk fetch).
+- `crypto` / `stock`: fetch OHLCV from Yahoo Finance, written into Lean's zip/CSV layout (`data/crypto/coinbase/daily/<ticker>_trade.zip` or `data/equity/usa/daily/<ticker>.zip`).
+- `futures` / `options`: same, but source bars from Interactive Brokers (needs IB configured, see `aq ib status`; fails cleanly if not).
+- **Dry run by default**: without `--apply` it reports the plan and writes nothing. Never runs `train.py`: after `--apply`, run `python train.py --dataset-only` (then `python train.py`) yourself.
+
+Derivatives-only flags:
+- `--contract-month <YYYYMM>` (futures): fetch a specific dated contract instead of the continuous one, to build a real term structure (e.g. `ES_FRONT`/`ES_NEXT`, same root, different month).
+- `--family-ticker <ROOT>` (futures/options): tag the asset with its root (e.g. `"ES"`, `"SPY"`) so `train.py`'s derivatives-macro features can group same-family contracts for term-structure/put-call/IV-skew. IB's historical API is per-contract and rate-limited, so building a training set is a repeated manual process, see `data_pipeline/README.md`.
 
 #### `aq ib`
 ```text
 aq ib status
 ```
-Reports Interactive Brokers readiness as one of three states: **disabled**
-(`phase_v2.ib.enabled` is `false` in `config.json` — the default; the rest
-of the system, equities/crypto/bonds, is fully unaffected either way),
-**enabled but credentials missing** (`phase_v2.ib.enabled` is `true` but
-`lean.json`'s `ib-account`/`ib-user-name` are empty — set them with `aq
-lean set ib-account <ACCOUNT>` / `aq lean set ib-user-name <USERNAME>`),
-or **reachable** (a live connect/disconnect round-trip against your
-running TWS/IB Gateway succeeded). IB credentials live entirely in
-`lean.json` — the same fields Lean's own native live/paper
-`InteractiveBrokersBrokerage` already uses (`environments.live-interactive`)
-— `phase_v2.ib` in `config.json` only adds a master on/off switch plus the
-local Gateway socket connection settings (`host`/`port`/`client_id`) used
-by the separate, offline `aq fetch futures`/`aq fetch options` historical
-backfill path (`data_pipeline/ib_backfill.py`). See
-`risk/README.md`/`data_pipeline/README.md` for why these are two
-deliberately distinct integrations: Lean's backtest engine never talks to
-IB regardless of `lean.json`'s contents (it only ever reads local data
-files), so historical futures/options bars still need this separate,
-offline data-prep step before any backtest can use them.
+**Reports Interactive Brokers readiness** as one of three states:
+- **disabled**: `phase_v2.ib.enabled` is `false` (the default; equities/crypto/bonds are unaffected either way).
+- **enabled but credentials missing**: `phase_v2.ib.enabled` is `true` but `lean.json`'s `ib-account`/`ib-user-name` are empty (set with `aq lean set ib-account <ACCOUNT>` / `aq lean set ib-user-name <USERNAME>`).
+- **reachable**: a live connect/disconnect round-trip against your running TWS/IB Gateway succeeded.
+
+Credentials live entirely in `lean.json` (the same fields Lean's native
+`InteractiveBrokersBrokerage` uses); `phase_v2.ib` in `config.json` only adds
+the on/off switch plus the Gateway socket settings (`host`/`port`/`client_id`)
+for the offline `aq fetch futures`/`aq fetch options` backfill path. These are
+two distinct integrations on purpose: Lean's backtest engine never talks to IB
+(it only reads local data files), so historical futures/options bars must be
+backfilled separately before any backtest can use them, see
+`data_pipeline/README.md`.
 
 #### `aq assets`
 ```text
 aq assets status
 ```
-One command reporting full multi-asset-class readiness at a glance: IB
-status (same three states as `aq ib status`), whether
-`phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled` are on,
-how many futures contract margin specs are loaded, how much of the local
-FRED yield-curve cache is populated (series count + most recent date),
-and how many futures/options assets are actually configured in
-`config.json`'s universe. Read-only reporting — toggling any of these
-asset classes on or off is done with the existing generic
-`aq config set phase_v2.{ib,futures_risk,options_risk}.enabled true|false`
-(no separate enable/disable subcommand needed).
+**Full multi-asset-class readiness at a glance** (read-only), reports:
+- IB status (same three states as `aq ib status`).
+- Whether `phase_v2.futures_risk.enabled` / `phase_v2.options_risk.enabled` are on.
+- How many futures contract margin specs are loaded.
+- FRED yield-curve cache coverage (series count + most recent date).
+- How many futures/options assets are configured in the universe.
+
+Toggle any of these with the generic `aq config set
+phase_v2.{ib,futures_risk,options_risk}.enabled true|false`, there's no
+separate enable/disable subcommand.
 
 #### `aq status`
 ```text
@@ -947,7 +707,7 @@ Shows `git status`.
 
 ## Release Process
 
-A release is exactly one manual step — deliberately no automatic release on
+A release is exactly one manual step, deliberately no automatic release on
 every push to `main`, only on an explicitly pushed version tag
 (`.github/workflows/release.yml`, triggered on `push: tags: ["v*.*.*"]`):
 
@@ -956,12 +716,12 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-This then automatically runs (no manual version bump anywhere in the repo —
+This then automatically runs (no manual version bump anywhere in the repo,
 `pyproject.toml` reads the version straight from the tag via
 `setuptools-scm`):
 
-1. The test suite (`pytest`) — a failure blocks the release entirely.
-2. PyPI publishing via Trusted Publishing (OIDC) — no PyPI token is stored as a GitHub secret.
+1. The test suite (`pytest`), a failure blocks the release entirely.
+2. PyPI publishing via Trusted Publishing (OIDC), no PyPI token is stored as a GitHub secret.
 3. Docker image build and push to `ghcr.io/leon1706-lol/aether-quant`, tagged with the version number and `:latest`.
 
 **One-time manual setup, before the first tag is ever pushed** (can't be
@@ -972,119 +732,97 @@ done from here):
 
 ## Runbook
 
-Everyday local commands.
-
-Activate the virtual environment:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-Rebuild training artifacts:
+Everyday local commands (assumes the [Getting Started](#getting-started) setup
+is done and the venv is active: `.\.venv\Scripts\Activate.ps1`).
 
 ```powershell
-python train.py
-```
+# Rebuild model artifacts
+python train.py                 # full dataset build + train
+python train.py --dataset-only  # dataset/scaler/manifest only
 
-Rebuild only the dataset/scaler/manifest:
-
-```powershell
-python train.py --dataset-only
-```
-
-Run the tests:
-
-```powershell
+# Recommended pre-commit workflow
 pytest tests/
-```
-
-Recommended full workflow:
-
-```powershell
-python train.py
-pytest tests/
-aq backtest
-aq report <backtest-folder> <result-id>
+aq backtest                     # runs `lean backtest .`, refreshes Backtest Results
+aq report <backtest-folder> <result-id>   # official Lean HTML report
 git status
-```
 
-Start a Lean backtest from the project folder:
-
-```powershell
-lean backtest .
-```
-
-Find a finished backtest:
-
-```powershell
+# Inspect a finished backtest
 Get-ChildItem .\backtests\<backtest-folder>\*-summary.json
-```
 
-Generate the official Lean HTML report:
-
-```powershell
-lean report --backtest-results .\backtests\<backtest-folder>\<result-id>.json --report-destination .\backtests\<backtest-folder>\report.html --overwrite
-```
-
-Start the webui locally (API server and frontend, two terminals):
-
-```powershell
+# Webui (two terminals) -> http://localhost:3002 (Overview) / /risk
 uvicorn monitoring.api_server:app --port 8001 --reload
+cd webui; npm run dev
 ```
+
+**Train in the cloud (GitHub Codespaces)** instead, useful on a
+memory-constrained machine where a full retrain can take hours of wall-clock
+time while barely using any CPU (see `development/Problems.md` #50/#52):
 
 ```powershell
-cd webui
-npm run dev
+gh codespace create --repo <owner>/Aether-quant --branch main --machine basicLinux32gb
+gh codespace ssh -c <codespace-name>
+# inside the Codespace:
+cd Aether-quant && python train.py
+# back on your local machine:
+gh codespace cp -e "remote:Aether-quant/ml/*.json" ./ml/ -c <codespace-name>
+gh codespace stop -c <codespace-name>
 ```
 
-Then:
-
-```text
-http://localhost:3002          (Overview)
-http://localhost:3002/risk     (Risk)
-```
-
-Check git status before a commit:
-
-```powershell
-git status
-```
+Model artifacts are gitignored and `gh codespace cp` moves them over SSH, so
+nothing trained this way touches the public repo. Lean/Docker backtests can't
+run in a Codespace (see `development/infrastructure.md`'s "Cloud Training via
+GitHub Codespaces" section for why); those stay local.
 
 ## Roadmap
 
-V1's universe/data-window/target/feature details, and detailed phase
-results (Phase 2 through Phase 10, Phase V2-1 through Phase V2-15,
-Visualization Unification), live in
-[`development/Changelog.md`](development/Changelog.md) to keep this README short.
+All finished phases and changes can be found in
+[`development/Changelog.md`](development/Changelog.md), kept separate to keep this README short.
 
-### V3 — 🔜 Incoming Soon
+### V4, 🔜 Next Up
+
+**Optimization**
+- More latency passes, continue the profiling/optimization work beyond `build_market_topology()` and the inference hot path.
+- Model fine-tuning, a critical 1-10 review of the retrained model's actual performance (development/Problems.md #52/#54), and a concrete plan to close the gap to a 10/10 signal (clearing the non-overlapping significance bar, not just the full-series one).
+
+**Training**
+- Walk-forward training, Stage 6 of the rank-pivot roadmap (`phase_v2.retraining.walk_forward`, `aq train --walk-forward`), still deferred after this session's single-window retrain.
+
+**Assets**
+- More complex option strategies, straddles, strangles, iron condors, butterflies, and general multi-leg spreads beyond today's 2-leg verticals (#38), using the rest of what `QuantConnect.Securities.Option.OptionStrategies` already offers.
+- Forex/FX as a tradable asset class, plus any other major asset classes still missing.
+- Single-bond trading (individual bonds, not just bond ETFs), today's fixed-income sleeve is entirely ETF-based (see the Universe Size section above).
+
+**Functionality**
+- Allow adding to an existing position, today, if the model already holds SPY and the signal says to buy more SPY, it should be able to scale the position up rather than being blocked just because a position already exists.
+
+**Webui**
+- Consider moving some of the Overview tab's content into its own, larger tab for better organization.
+- Tracing tab: move the backtest equity curve under "Runtime Metrics Snapshot" and the observation-mode equity curve under "Backtest Equity Curve", so interactive tabs sit on the left and asset performance (which grows with more assets) has room to grow on the right.
+- Make the webui topology genuinely 3D instead of 2D, `topology/learned_topology.py`'s `_stress_majorize_2d()` is the function to extend.
+
+**Tests / production readiness**
+- Real IB API key insertion and testing, the one blocker behind #29/#38's unverified items and the README's Known Limitations.
+
+**Computing**
+- Beyond GitHub Codespaces (#53): Oracle Cloud Always Free + Remote-SSH as a more powerful, persistent free compute option.
+
+### V5, Later (HFT)
 
 `development/v2_architecture.md`'s own "Why This Is Not HFT, And What It
-Would Take" analysis is the honest starting point for what V3 needs to
-close — not marketing aspiration, but a concrete gap list the system's own
-architecture docs already identify:
+Would Take" analysis is the honest starting point here, not marketing
+aspiration, but a concrete six-point gap list the system's own architecture
+docs already identify (daily bars everywhere, no tick/L1-L2 data, no
+slippage/latency-aware execution, offline batch retraining, polling
+infrastructure, no colocated broker connectivity). Its own conclusion is
+blunt: closing these gaps is **"closer to a second, parallel trading system
+than an incremental change."** Bolting HFT onto V4's daily-bar architecture
+isn't realistic; it would need to be built alongside it, not on top of it.
 
-- **Tick/L1-L2 market data pipeline** — replacing the daily Lean zip files with a genuinely higher-frequency data source and storage layer.
-- **A shorter-horizon model** — a new model operating at sub-second/tick granularity with a much shorter prediction horizon, not a retrained version of today's daily classifier.
-- **Limit-order/queue-position-aware execution** — **delivered**, config-gated (`phase_v2.limit_orders`, default off): real `LimitOrder()` support for every asset class, replacing today's `SetHoldings`/`MarketOrder` market fills. Partial-fill/queue-position modeling beyond Lean's own `OrderTicket` semantics remains out of scope. See `execution/README.md`'s "Real limit orders" section — including a real fill-simulator (delivered alongside the slippage half of this item, same section's "Real fill slippage") and an explicit, unresolved-until-a-real-backtest list of Lean API naming assumptions this feature depends on.
-- **A low-latency, event-driven runtime** — replacing the daily-bar `on_data()` callback and the 30s+ polling background workers with something closer to a real-time event loop.
-- **Real broker/exchange connectivity beyond paper trading** — building on the credential/readiness groundwork V2-21/V2-22 already laid.
-- **Continuous / online retraining** — moving beyond today's offline, cooldown-gated batch retraining pipeline.
-- Further out: multi-timeframe ensembles and reinforcement-learning-based position sizing/execution.
-
-**Expanded asset universe — delivered.** Bonds, futures, and options now
-trade and are observed alongside equities/crypto, with real duration-aware
-bond features, a margin-based futures risk model, Black-Scholes options
-greeks/IV, real order placement (including for options, against the
-specific resolved contract), and Interactive Brokers as the futures/options
-data source (toggleable via `aq config set phase_v2.ib.enabled`/`aq ib
-status` — the whole system works fully with IB disabled). See `aq fetch
-futures`/`aq fetch options` above and `risk/README.md`,
-`portfolio/README.md`, `features/README.md` for the full design. See
-[Known Limitations](#known-limitations) above for what's still deliberately
-out of scope (automatic multi-leg spread selection) or unverified (no
-completed backtest or live IB Gateway test yet), and
-`development/Problems.md` #29 for the full non-goals list.
+If pursued, sequence it as its own workstream, in this order:
+1. **Tick/L1-L2 market data pipeline**: a new storage layer entirely, replacing the daily Lean zip files.
+2. **A genuinely new short-horizon model**: using minute/second-resolution data for faster trades (not milliseconds), not a retrained version of today's daily classifier.
+3. **Execution/latency infrastructure**: slippage/latency-aware, queue-position-aware execution and a low-latency event-driven runtime, replacing the daily-bar `on_data()` callback and the 30s+ polling background workers.
+4. Further out: real broker/exchange connectivity beyond paper trading, continuous/online retraining, multi-timeframe ensembles, and reinforcement-learning-based position sizing/execution.
 
 ## Contributing
 
@@ -1096,7 +834,7 @@ completed backtest or live IB Gateway test yet), and
 ---
 
 <p align="center">
-  Built by <strong>Leon Schwarzkopf</strong> — <a href="mailto:leonschwarzkopf08@gmail.com">leonschwarzkopf08@gmail.com</a>
+  Built by <strong>Leon Schwarzkopf</strong>, <a href="mailto:leonschwarzkopf08@gmail.com">leonschwarzkopf08@gmail.com</a>
 </p>
 
 ---

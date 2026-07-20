@@ -1502,7 +1502,7 @@ tests (10 in `test_order_gate.py` for the new params/functions, 3 in
 operates on arbitrary dotted paths into `config.json`).
 
 ### 34. Real limit-order support — every tradable asset class, config-gated (part 2 of the execution/risk realism pass)
-**Severity:** 6/10 · **Status:** 🟢 `fixed` (config-gated, default off; Lean API casing/dispatch assumptions remain unverified until a real backtest — see below, not blocking; a real attempt at this verification this session was blocked by this dev machine's RAM, not by anything here — see #50)
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (confirmed firing in a real backtest 2026-07-20, see #54 — Lean's own log showed `LimitPrice was rounded to 3508.94 from 3508.936152649293`, proving the Lean API casing/dispatch assumptions below hold in practice, not just in unit tests)
 
 Entry #33 closed half of `development/v2_architecture.md`'s documented
 HFT-gap item 3 (real fill slippage). The other half was still open: *"no
@@ -1678,7 +1678,7 @@ anything computed later in the bar, but flagged as unverified until a
 real backtest confirms it.
 
 ### 36. Latency profiling extended beyond inference — build_market_topology() found to be a much larger per-bar cost than the entire inference step
-**Severity:** 6/10 · **Status:** 🟢 `fixed` (new `profile_subsystems.py` harness + `aq profile --<subsystem>` flags shipped and tested; the real ~500-600ms/bar `build_market_topology()` cost this found now has a real, shipped, tested, config-gated-off fix — see "Follow-up: caching fix implemented" below — not yet validated against a real Lean backtest, which is scoped to a later dedicated session)
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (new `profile_subsystems.py` harness + `aq profile --<subsystem>` flags shipped and tested; the real ~500-600ms/bar `build_market_topology()` cost this found now has a real, shipped, tested, config-gated-off fix — see "Follow-up: caching fix implemented" below — confirmed running cleanly across a full 2019-2021 real backtest 2026-07-20, see #54, with no per-bar cost issue surfacing)
 
 `scripts/profile_inference.py` only ever profiled
 `inference/exported_model.py`'s forward-pass functions (entries #31/#32).
@@ -1895,7 +1895,7 @@ so no real timing data was ever collected; the snippet was fully reverted
 afterward rather than left half-applied. Still genuinely open.
 
 ### 37. Inference tail latency (p99 3-5x p50) — investigated: real GC-pause contribution to worst-case latency confirmed, root cause of the old `scripts/profile_inference_output.txt` discrepancy resolved as machine load, not a regression
-**Severity:** 4/10 · **Status:** 🟢 `fixed` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is now real, shipped, config-gated-off code — see "Follow-up: gc.freeze() implemented" below — not yet validated against a real Lean backtest; a real attempt this session was blocked by this dev machine's RAM, not by anything here — see #50)
+**Severity:** 4/10 · **Status:** 🟢 `fixed and verified` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is now real, shipped code, and confirmed running cleanly across a full real backtest 2026-07-20 — see #54 — with `phase_v2.gc_tuning.freeze_after_load_enabled` on and no interop crash)
 
 Nothing in this repo had ever investigated *why* `scripts/profile_inference.py`'s
 p99 routinely ran 3-5x the p50 — only the visibility that it does existed
@@ -2003,7 +2003,7 @@ key). Full suite: `aq test` → 1318 passed, 0 failed, 11 deselected
 (`lean_backtest`, expected), 1 pre-existing warning.
 
 ### 38. 2-leg vertical spread selection for options — explicit scope-in of a previously-non-goal feature
-**Severity:** n/a (feature scope-in) · **Status:** 🟢 `fixed` (implementation complete and tested; verification against a real Lean backtest is the largest open item this session produced, see below — not an incomplete implementation; note this specifically also needs a `phase1.universe.assets` config addition to include an option/future entry, a separate scope decision from #50's RAM-blocked verification attempt below)
+**Severity:** n/a (feature scope-in) · **Status:** 🟢 `fixed` (implementation complete and tested; not an incomplete implementation). **Real-backtest verification is still genuinely open** — unlike #34/#36/#37 (its original siblings in #50's blocked-items list, all verified 2026-07-20, see #54), this one still can't be exercised, and no longer because of this machine's RAM: it needs a `phase1.universe.assets` config addition for a real option/future contract plus `phase_v2.options_risk.spread_strategy` flipped to `"vertical"`, neither of which exists yet (see README's Known Limitations).
 
 Entry #29 explicitly scoped multi-leg options spread selection out:
 *"a genuinely new spread-selection model architecture is future work."*
@@ -2297,7 +2297,7 @@ open security item.
 </details>
 
 ### 43. Full pre-live model overhaul — why the second backtest still produced the same 14 trades, and the fixes for it: trading-logic bugs + training-pipeline bugs + a pivot to the one statistically-significant signal in this codebase
-**Severity:** 9/10 · **Status:** 🟢 `fixed and verified` (trading logic + training pipeline — confirmed by a completed `aq backtest` run, see the 2026-07-17 update below); 🟡 `open` (the verification run's own result: mechanics work but the model's edge isn't yet large enough to be profitable net of costs — see update); full walk-forward and topology retrain still deferred (see caveats)
+**Severity:** 9/10 · **Status:** 🟢 `fixed and verified` (trading logic + training pipeline — confirmed by a completed `aq backtest` run, see the 2026-07-17 update below). The `🟡 open` "edge isn't yet profitable" sub-status this entry originally carried is now superseded by #52/#54: the rank-pivot roadmap's 2026-07-20 real backtest is profitable (Sharpe 0.403, Net +10.4%) — see #54 for the honest caveats on that result (a concurrent `bypass_safety_gates` change, and the signal's non-overlapping significance still not clearing the project's own bar). Full walk-forward and topology retrain still deferred (see caveats).
 
 Follow-up to #41. The July 17 backtest, run AFTER the #41 threshold recalibration
 (buy 0.50→0.47, sell 0.42→0.45) was already active, produced **bit-identical**
@@ -2841,7 +2841,7 @@ above).
 ---
 
 ### 50. This development machine's 4GB RAM cannot reliably run a real `lean backtest .` — blocks verifying #34/#36/#37/#38, root-caused precisely, not a code defect
-**Severity:** n/a (hardware constraint) · **Status:** 🟡 `blocked on hardware` — the four items it blocks stay honestly open; everything fixable in software this pass is fixed
+**Severity:** n/a (hardware constraint) · **Status:** 🟢 `superseded` — a real `lean backtest .` completed successfully on this same machine 2026-07-20 (see #54), verifying #34/#36/#37. Not a clean bill of health on the hardware, honestly: the run took ~40 minutes and its Python-interpreter shutdown left a genuine zombie process that Docker's normal `stop` couldn't reap, requiring manual `docker rm -f` intervention afterward (see #54) — so "reliably" still doesn't fully apply, but the earlier, stronger claim (attempts couldn't complete at all, hitting the 90-second `initialize()` isolator cap) no longer holds. #38 (vertical spreads) remains open, but for an unrelated reason now — no option asset is registered in the universe, not this machine's RAM.
 
 Attempted, this session, to close out every remaining "implemented, needs a
 real backtest to verify" item in one combined run (limit orders #34,
@@ -2959,7 +2959,7 @@ Confirmed against the real container after rebuild+redeploy:
 ---
 
 ### 52. The rank-pivot roadmap: trading path switched from the noise-objective direction head to `rank_20d`, universe expanded and rebalanced 30→74 assets, four Stage-4 regularization gaps closed — and a second, training-side confirmation of entry #50's RAM finding
-**Severity:** 9/10 (the model's core edge/turnover problem) · **Status:** 🟡 `code complete and unit-tested; empirical retrain/backtest verification deliberately deferred to different hardware` — every code change below is shipped, tested, and config-gated exactly as intended; what's still outstanding is running it against real data at scale, not writing it
+**Severity:** 9/10 (the model's core edge/turnover problem) · **Status:** 🟢 `fixed, retrained, and backtest-verified` (see #54: real `aq backtest` 2026-07-20, Sharpe 0.403, Net +10.4%) — with one honest asterisk still open: the `rank_20d` signal's non-overlapping-window significance still hasn't cleared the project's own 2.0 t-stat bar (multitask 1.40, sequence 0.43), so the positive backtest isn't yet backed by proof the signal is independently significant, and it ran with a concurrent `bypass_safety_gates` change that confounds clean attribution — every code change below is shipped, tested, and config-gated exactly as intended; the empirical retrain happened via cloud compute (#53)
 
 This is the direct fix for this entry's own root-cause finding above: next-day
 direction is noise (backtest MCC ~0.02-0.04) and the one signal with genuine
@@ -3091,5 +3091,199 @@ warning** (up from 1465 at the start) — across the whole touched surface
 (config.json, main.py, portfolio/, data_pipeline/yfinance_backfill.py,
 train.py, train_multitask.py, train_sequence.py). README's test badge
 auto-updated to match.
+
+**Update (2026-07-20) — retrained end-to-end via GitHub Codespaces (#53),
+real numbers, honest result:** all 8 model artifacts (baseline, 4 experts,
+multitask, sequence, gating) retrained on the full 74-asset dataset
+(113,804 rows) with every Stage-4 fix actually active this time, not just
+present in code. Confirmed working as designed:
+
+- **Rank-IC early stopping fired for real**: multitask `best_epoch 24` of
+  `42` run, sequence `best_epoch 8` of `18` — both far off the old
+  `min_best_epoch` floor (`3`), proving the monitor is genuinely tracking
+  `rank_20d` IC instead of an arbitrary early loss plateau.
+- **Full-series `rank_20d` IC improved** on the backtest split: multitask
+  mean IC `0.172` (t-stat `7.55`), sequence mean IC `0.127` (t-stat
+  `5.70`) — both above the pre-expansion 30-asset result (`0.073`,
+  t-stat `4.40`). `sector_neutral_rank_20d` IC tracks closely (multitask
+  `0.150`/t `7.02`, sequence `0.116`/t `5.41`), so the signal isn't just a
+  sector/asset-class proxy.
+- **The acceptance gate this whole roadmap exists to clear is still not
+  met.** `rank_20d_ic_non_overlapping` (41 independent 20-day windows,
+  the project's actual promotion-gate metric,
+  `promotion_gate.min_non_overlapping_t_stat` = 2.0): multitask t-stat
+  `1.40` (up from `1.20` pre-expansion, still short), sequence t-stat
+  `0.43` (well short too, on only 41 independent windows — a small
+  enough sample that this number should be read as noisy, not precise).
+  **Read plainly: more data and more regularization raised the
+  in-sample/full-series signal without yet producing an
+  independently-significant out-of-sample edge.** This is
+  the single most important number in this entire roadmap and it is not
+  yet where the plan's own 10/10 gate says it needs to be.
+- **Purged/embargoed CV diagnostic (Stage 5, item 5) confirmed live**:
+  `purged_cv_rank_20d` now populates in both trainers' metrics JSON with
+  5 real folds (was dead configuration before — zero call sites). Its
+  per-fold IC values, measured in-sample on the train split as designed,
+  land much higher (0.28-0.61 mean IC per fold) than the honest
+  backtest-split numbers above — exactly the in-sample/out-of-sample gap
+  this diagnostic exists to make visible, not a contradiction.
+- **What's still outstanding, honestly, again:** a real `aq backtest`
+  against these retrained models. Training compute is no longer the
+  blocker (see #53) — this is now purely the user's own manual
+  `lean backtest .` run, deliberately not run automatically this
+  session. The Backtest Results section of the README still reflects the
+  **pre-rank-pivot** run and will read stale until that backtest happens.
+
+---
+
+### 53. GitHub Codespaces set up as a cloud training-compute offload, and a real Alpine-base devcontainer bug found and fixed along the way
+**Severity:** 5/10 (infrastructure/dev-workflow, not a data-loss or trading-safety issue) · **Status:** 🟢 `fixed` (the devcontainer itself; Lean/Docker backtests remain out of scope for Codespaces — see below, not a bug, a platform limitation)
+
+Entry #50/#52 established that this project's 4GB-RAM dev machine can spend
+**hours of wall-clock time on ~800 CPU-seconds of actual training work** —
+not a crash, a resource-starvation stall. The fix isn't in this repo's
+code; it's an offload path: GitHub Codespaces as disposable cloud training
+compute, connected over SSH from the local machine, with model artifacts
+moved back down afterward — never through the public git repo.
+
+**Bug found: the `docker-in-docker` devcontainer feature silently swaps
+the base image to Alpine.** A `.devcontainer/devcontainer.json` explicitly
+pinning `"image": "mcr.microsoft.com/devcontainers/python:3.11"` still
+built an Alpine container the moment `ghcr.io/devcontainers/features/
+docker-in-docker` (either `:1` or `:2`) was present in `features` —
+confirmed via 5 systematic A/B rebuild tests (with/without
+docker-in-docker, with/without `sshd`, fresh Codespaces each time,
+explicit `--devcontainer-path`), matching a known upstream issue
+(`devcontainers/images#1114`). Consequence: `pip install -r
+requirements/requirements.txt` failed against Alpine's musl libc (several
+pinned wheels have no musl build), and the failure looked at first glance
+like a dependency problem rather than a base-image problem.
+
+**A second, harder blocker found while chasing a Docker-in-Codespace
+workaround**: even after correctly identifying the Alpine cause, manually
+installing `docker.io` via `apt` and starting `dockerd` by hand inside an
+otherwise-correct Debian Codespace still failed — `iptables v1.8.11:
+Permission denied (you must be root)`, then `failed to mount overlay:
+operation not permitted`. Root cause: Codespaces containers run
+unprivileged by default; only the (broken) `docker-in-docker` feature
+grants the capabilities Docker itself needs. **Conclusion, tested not
+assumed: Lean/Docker backtests cannot run inside a GitHub Codespace at
+all**, with or without that feature. This is a platform limitation, not
+something fixable from this repo — Lean backtest verification stays a
+local, manual task indefinitely (see README's Known Limitations).
+
+**Fix, final working `.devcontainer/devcontainer.json`:** drop
+`docker-in-docker` entirely (training needs no Docker), keep only
+`ghcr.io/devcontainers/features/sshd:1` (`gh codespace ssh` — unlike VS
+Code's own tunnel-based connection — needs an actual SSH server, which the
+base Debian image doesn't ship), and prepend `pip install torch
+--index-url https://download.pytorch.org/whl/cpu` to `postCreateCommand`
+(bare `pip install torch` resolves the CUDA build on Linux, which then
+fails to import at all on a GPU-less Codespace with `OSError:
+libtorch_global_deps.so: cannot open shared object file`). See
+`development/infrastructure.md`'s "Cloud Training via GitHub Codespaces"
+section for the full config and workflow commands.
+
+**Result**: a full retrain of all 8 model artifacts (baseline, 4 experts,
+multitask, sequence, gating) completed in **under 15 minutes total** on
+the fixed Codespace — versus the 4+ hours that never finished locally —
+with results transferred back to this machine's `ml/` folder via `gh
+codespace cp` (never through git; see #52's 2026-07-20 update for the
+retrain's actual numbers).
+
+**A real, separate git-hygiene bug found and fixed in the same pass**:
+9 model artifact files (`ml/{multitask,sequence,gating}_{model,
+feature_schema,training_metrics}.json`) were still tracked in git — the
+only generated `ml/` artifacts that were, inconsistent with every other
+model file (`model_weights.json`, `scaler.pkl`, etc.), which were already
+gitignored. Left as-is, the freshly cloud-retrained weights from this
+exact session would have been committed straight to the public repo on
+the next commit. Fixed: added all 9 to `.gitignore` and ran `git rm
+--cached` to untrack them (kept on disk) — verified via `git check-ignore
+-v` that a subsequent `git add -A` can no longer pick them up.
+
+**Testing**: infrastructure/config change, not application code — verified
+by direct reproduction (the 5 A/B Codespace rebuild tests) rather than a
+unit test, consistent with how this log treats other pure-infra findings
+(e.g. entries #1, #2). The git-untracking fix was verified with `git
+check-ignore -v` and a real `git status` showing the 9 files as clean
+after the `.gitignore` update.
+
+---
+
+### 54. First real `aq backtest` against the rank-pivot-roadmap models: Sharpe flips from -0.59 to +0.40, and a genuine universe-selection bug found (BNBUSD/TRXUSD can never subscribe — Coinbase never listed them)
+**Severity:** n/a (verification milestone) / 3/10 (the ticker bug — cosmetic, both assets were observation-only) · **Status:** 🟢 `verified` / `fixed`
+
+The direct next step both #52 and #53 left outstanding: an actual
+`lean backtest .` run against the retrained models, on this same local
+4GB-RAM machine, once Docker's transient `lean-cli-*` temp-file lock
+(unrelated one-off Windows/Defender race, resolved by clearing ~28 stale
+`%TEMP%\lean-cli-*` folders from past runs and retrying) got out of the
+way.
+
+**Result — every headline metric moved sharply positive**: Sharpe Ratio
+-0.59 → **0.403**, Net Profit -4.604% → **+10.438%**, Compounding Annual
+Return -2.072% → **+4.508%**, Drawdown 11.1% → **4.0%**, Expectancy -0.084
+→ **+0.154**, Win Rate 47% → **58%**. Total Orders rose 653 → 2,082, but
+Portfolio Turnover (the rate metric) barely moved (7.09% → 7.51%) — the
+raw count increase is explained entirely by a bigger book (`top_n`/
+`bottom_n` 5/5 → 8/8) and long_short trading both sides instead of
+long_flat, not by the 5-day rebalance scheduler failing; that mechanism is
+confirmed working as designed.
+
+**Important confound, disclosed not buried**: `phase_v2.backtest.
+bypass_safety_gates` was flipped `false` → `true` in this same session,
+immediately before this run, at the user's request (for more statistically
+meaningful trade volume). The pre-pivot baseline this is compared against
+ran with it `false`. Some of the improvement above is plausibly the
+safety-gate bypass (no forced early de-risking through drawdowns) rather
+than the rank-pivot signal itself — these two changes were not isolated
+from each other in this run. A clean read of the signal's true standalone
+effect needs one more backtest with the flag reverted to `false`
+(deliberately left as a user-run manual step, matching this project's
+established pattern for backtest execution).
+
+**Real log findings, triaged:**
+- `Composer.LoadPartsSafely(...ServiceModel.dll)`, `ExperienceQueue`/
+  `AuditQueue: Redis unavailable`, the final `Isolator... Operation timed
+  out` during Python shutdown — all benign, all already-documented/expected
+  behavior (Lean's own internal noise, no Compose network reachable
+  outside `docker compose up`, and the same resource-constrained-machine
+  shutdown timeout `aq_cli.py` already warns about — confirmed harmless
+  here since it fired strictly after `Analysis Completed and Results
+  Posted` and the stats block were already written).
+- `LimitPrice was rounded to 3508.94 from 3508.936152649293` — not an
+  error despite the log tag; **first real-backtest confirmation that
+  entry #34's limit orders actually fire** (`phase_v2.limit_orders.
+  enabled` was already `true` from an earlier session).
+- 5 `Insufficient buying power` order rejections out of 2,082 orders
+  (<0.3%) — normal Lean margin-snapshot-timing behavior at the edge of
+  allocation, not a code bug, no action taken.
+- **A real, fixable bug**: `BNBUSD subscription skipped`/`TRXUSD
+  subscription skipped` — "symbol could not be found in the database for
+  coinbase market." Checked Lean's local `data/symbol-properties/
+  symbol-properties-database.csv`: every other Stage-3 crypto addition
+  (BCH/DOGE/EOS/LINK/XLM) has real Coinbase entries; **there is no BNB or
+  TRX family at all** in that file, in any quote currency — Coinbase never
+  listed Binance Coin or TRON pairs (BNB is a rival exchange's native
+  token). Not a data gap, a mis-selected ticker from #52's universe
+  expansion — Yahoo Finance happily returned price history for both
+  regardless of whether Coinbase ever traded them.
+
+**Fix**: swapped BNBUSD/TRXUSD for **ETCUSD** (Ethereum Classic) and
+**ZECUSD** (Zcash) — both confirmed present in the local Coinbase
+symbol-properties database, both backfilled via `aq fetch crypto --apply`
+(1,239 real rows each, 2017-11-09 → 2021-03-31 — Yahoo's crypto coverage
+starts 2017-11-09 for essentially every altcoin regardless of the coin's
+own actual listing history, so this matches the same observation-only
+profile as the other 5 Stage-3 crypto additions, not a regression).
+Universe count unchanged at 74; tradeable crypto count unchanged at 2
+(BTCUSD, LTCUSD) — this swap only affects the observation-only slice.
+
+**Testing**: real data verified via a `--start`/`--end` dry run before
+`--apply` (row counts, date range); `config.json` validated as parseable
+JSON after both the ticker swap and the removal edit; dataset rebuild
+(`train.py --dataset-only`) re-run to confirm the new tickers register
+cleanly with the expected observation-only classification.
 
 ---

@@ -3685,3 +3685,94 @@ step and need no further code changes first.
 Problems.md #52 for the full per-item breakdown). Full `aq test` green
 (1497 passed, 0 failed, 11 deselected `lean_backtest`, 1 pre-existing
 warning) at the end of this session — README's test badge auto-updated.
+
+## 2026-07-20 — GitHub Codespaces cloud-training offload, and the rank-pivot roadmap's actual empirical retrain
+
+The direct next step this Changelog's previous entry left outstanding:
+moving the stuck-on-4GB-RAM retrain to cloud compute, then running it for
+real. Full detail (including the Alpine-devcontainer bug and its fix) in
+Problems.md #53; the retrain's own numbers in #52's 2026-07-20 update.
+
+**GitHub Codespaces set up as disposable training compute**, reachable
+over `gh codespace ssh`, with model artifacts moved back to this machine
+via `gh codespace cp` — never through the public repo (`ml/`'s generated
+artifacts are all gitignored). Found and fixed a real bug along the way:
+the `docker-in-docker` devcontainer feature silently swaps the Codespace's
+base image to Alpine regardless of the `image` field, confirmed via 5
+systematic A/B rebuild tests and a matching upstream issue. Also confirmed,
+by direct failed experimentation rather than assumption, that Docker
+cannot run inside a Codespace at all without that (broken) feature —
+Codespaces containers are unprivileged by default — so Lean/Docker
+backtests stay a local-only task going forward; only training moved to the
+cloud. Final working config: base Debian image, only the `sshd` feature
+(needed for `gh codespace ssh` specifically), and CPU-only PyTorch
+(`--index-url https://download.pytorch.org/whl/cpu`, avoiding a CUDA-build
+import failure on the GPU-less Codespace). See
+`development/infrastructure.md`'s new "Cloud Training via GitHub
+Codespaces" section for the full workflow.
+
+**All 8 model artifacts retrained end-to-end** (baseline, 4 experts,
+multitask, sequence, gating) on the full 74-asset/113,804-row dataset —
+in under 15 minutes total on the fixed Codespace, versus the 4+ hours that
+never completed locally. Rank-IC early stopping fired as designed
+(multitask best_epoch 24/42, sequence 8/18 — both well off the old
+floor-epoch behavior). Full-series `rank_20d` IC improved on the backtest
+split (multitask 0.172/t=7.55, sequence 0.127/t=5.70, both up from the
+pre-expansion 0.073/t=4.40). **The project's own non-overlapping
+significance gate (t-stat ≥ 2.0) is still not cleared** — multitask 1.40,
+sequence 0.43 — so this is a real, honest partial result: more data and
+regularization raised the in-sample/full-series signal without yet
+producing an independently-significant out-of-sample edge. A fresh
+`aq backtest` against these retrained models — left as a manual step for
+the user to run themselves — is the direct next step; the README's
+Backtest Results section still reflects the older pre-rank-pivot run until
+that happens.
+
+**A real git-hygiene bug found and fixed in the same pass**: 9 model
+artifact files (`ml/{multitask,sequence,gating}_{model,feature_schema,
+training_metrics}.json`) were still tracked in git, inconsistent with
+every other generated `ml/` artifact (already gitignored) — meaning the
+freshly cloud-retrained weights from this exact session would otherwise
+have been committed straight to the public repo on the next commit. Fixed
+by adding all 9 to `.gitignore` and running `git rm --cached` to untrack
+them (kept on disk), verified via `git check-ignore -v`.
+
+**Verification**: infrastructure change verified by direct reproduction
+(5 A/B Codespace rebuild tests, a real failed dockerd-in-Codespace
+attempt) rather than a unit test, matching how this log treats other
+pure-infra findings. The retrain's numbers come directly from the 8
+regenerated `ml/*_training_metrics.json` files, not estimated. The
+git-untracking fix was verified with `git check-ignore -v` and a clean
+`git status` after the `.gitignore` update.
+
+## 2026-07-20 — First real backtest against the rank-pivot-roadmap models: Sharpe -0.59 → +0.40, and a universe-selection bug found and fixed
+
+The direct next step the last two entries left outstanding: an actual
+`lean backtest .` run against the models retrained via Codespaces. Full
+detail in Problems.md #54.
+
+**Headline result**: Sharpe Ratio -0.59 → **0.403**, Net Profit -4.604% →
+**+10.438%**, Drawdown 11.1% → **4.0%**, Expectancy -0.084 → **+0.154**,
+Win Rate 47% → **58%**. Order count rose (653 → 2,082) but Portfolio
+Turnover — the rate metric — barely moved (7.09% → 7.51%), confirming the
+5-day rebalance scheduler is working as designed; the raw count increase
+is fully explained by the bigger book (`top_n`/`bottom_n` 8/8 vs 5/5) and
+long/short trading both sides. One important disclosed confound:
+`bypass_safety_gates` was also flipped on in this same session immediately
+before this run, so this result isn't a clean isolation of the rank-pivot
+signal's standalone effect — a follow-up run with it back off would be
+needed for that.
+
+**A real bug found via the log**: BNBUSD/TRXUSD (2 of the Stage-3 crypto
+additions) could never actually subscribe in Lean — Coinbase never
+listed Binance Coin or TRON pairs at all, confirmed by grepping Lean's
+local symbol-properties database. Swapped for ETCUSD/ZECUSD, both real
+Coinbase-listed pairs, backfilled with 1,239 real rows each via `aq fetch
+crypto --apply`. Universe count stays 74; tradeable crypto count
+unchanged at 2 (BTCUSD, LTCUSD) — both swapped tickers are
+observation-only, same as the 5 that worked the first time.
+
+**Verification**: dry-run fetch previewed row counts/date ranges before
+`--apply`; `config.json` validated as parseable JSON after both edits;
+`train.py --dataset-only` re-run to confirm the swapped tickers register
+with the expected observation-only classification.

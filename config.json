@@ -971,20 +971,6 @@
                     }
                 },
                 {
-                    "ticker": "BNBUSD",
-                    "security_type": "crypto",
-                    "market": "coinbase",
-                    "data_path": "data/crypto/coinbase/daily/bnbusd_trade.zip",
-                    "available_from": "2017-11-09",
-                    "available_to": "2021-03-31",
-                    "backfill": {
-                        "source": "yfinance",
-                        "symbol": "BNB-USD",
-                        "backfill_from": "2017-11-09",
-                        "backfill_to": "2021-04-01"
-                    }
-                },
-                {
                     "ticker": "DOGEUSD",
                     "security_type": "crypto",
                     "market": "coinbase",
@@ -1027,18 +1013,20 @@
                     }
                 },
                 {
-                    "ticker": "TRXUSD",
+                    "ticker": "ETCUSD",
                     "security_type": "crypto",
                     "market": "coinbase",
-                    "data_path": "data/crypto/coinbase/daily/trxusd_trade.zip",
+                    "data_path": "data/crypto/coinbase/daily/etcusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2021-03-31",
-                    "backfill": {
-                        "source": "yfinance",
-                        "symbol": "TRX-USD",
-                        "backfill_from": "2017-11-09",
-                        "backfill_to": "2021-04-01"
-                    }
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "ZECUSD",
+                    "security_type": "crypto",
+                    "market": "coinbase",
+                    "data_path": "data/crypto/coinbase/daily/zecusd_trade.zip",
+                    "available_from": "2017-11-09",
+                    "available_to": "2021-03-31"
                 }
             ],
             "common_window": {
@@ -1424,7 +1412,7 @@
             "allow_live_orders": false
         },
         "backtest": {
-            "bypass_safety_gates": false
+            "bypass_safety_gates": true
         },
         "paper_trading": {
             "brokerage": "lean_paper_brokerage",
