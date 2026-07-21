@@ -3776,3 +3776,127 @@ observation-only, same as the 5 that worked the first time.
 `--apply`; `config.json` validated as parseable JSON after both edits;
 `train.py --dataset-only` re-run to confirm the swapped tickers register
 with the expected observation-only classification.
+
+## V4 Webui — Overview/Operations split, Tracing reflow, genuinely 3D topology (V4-W1 / V4-W2 / V4-W3)
+
+The first V4 work item. V4's roadmap is an unnumbered themed bullet list
+(unlike V2's `V2-n` build order), so the three `**Webui**` bullets are
+tracked here as **V4-W1/W2/W3**.
+
+Two roadmap corrections found while scoping, both of which changed the
+shape of the work:
+
+- The roadmap pointed at `topology/learned_topology.py`'s
+  `_stress_majorize_2d()`. That function lives in
+  `topology/market_topology.py:150`; `learned_topology.py` only applies
+  bounded *offsets* to already-embedded coordinates.
+- z was not a free axis. It encoded volatility
+  (`clamp(0.25 + annualized_volatility, 0.1, 0.95)`), deliberately, and
+  documented as such. Going 3D necessarily replaces that meaning — which
+  is acceptable only because `TopologyScene3D.tsx` **already** encodes
+  volatility as node radius, making z the redundant second copy.
+
+**V4-W1 — Overview split.** Overview had grown to 11 panels stacked in
+one right-hand column. The seven operational/health panels (Performance
+Triggers, Retraining Status, Paper Readiness, Assets Status, Audit Log,
+Monitoring Feeds, Raw State) moved to a new `webui/src/pages/
+OperationsPage.tsx` at `/operations`, in a balanced two-column layout.
+Overview keeps the trading-side view (scorecards, 3D scene, heatmap +
+Observation, Signal Board, Positions, Strategy/Risk). Pure relocation —
+every panel is already a self-contained `Panel`-wrapped component taking
+a single prop, so no panel component changed. `AppShell.tsx`'s five
+hand-duplicated `NavLink` blocks collapsed into a `NAV_ITEMS` map while
+adding the sixth (with `end` on `/`, so Overview no longer stays
+highlighted on every sub-route).
+
+**V4-W2 — Tracing reflow.** `TracingPage.tsx` used `lg:grid-cols-2` with
+row-major flow, giving `[Metrics | AssetPerf] / [Backtest | Observation]`.
+Now two explicit flex columns at `lg:grid-cols-[1.6fr_1fr]` — the three
+interactive charts stacked left, Asset Performance alone right, so the
+asset table (which gains a row per asset) has room to grow downward.
+Same two-column pattern `Overview.tsx` and `RiskPage.tsx` already used.
+
+**V4-W3 — genuinely 3D topology embedding.** Gated behind a new
+`phase_v2.topology.embedding_dimensions` (default `2`).
+
+- `_stress_majorize_2d` → `_stress_majorize`, made dimension-agnostic by
+  **inferring dimensionality from the seed tuple width** rather than
+  taking a flag, so 2-tuple seeds reproduce the original behavior
+  exactly. The numpy body was already axis-generic apart from the
+  coincident-point nudge, which was hardcoded to two axes.
+  `_distance_2d` → `_distance` and `_rescale_positions_to_bounds`
+  likewise generalized — the latter keeping its single isometric scale
+  factor, which is load-bearing (per-axis normalization would distort the
+  very distances the embedding preserves).
+- At `3`: z becomes a correlation-distance axis on the same `0..100`
+  scale as x/y, `dimensions.depth` reports `100` instead of `1`, and the
+  z seed derives from the same volatility value 2D mode encodes directly,
+  spread to a range comparable to the x/y seed. That spread matters —
+  SMACOF only separates points along directions its seed already
+  separates them on, so a flat seed (or the raw `0.1..0.95` volatility
+  scale, ~1/100th of the x/y spread) would collapse the third axis and
+  leave the layout visually 2D while claiming three dimensions.
+- **Two real breakages caught and fixed rather than shipped:**
+  `main.py`'s `_previous_topology_positions` stored 2-tuples, which would
+  have silently disabled warm start on every bar in 3D mode; and
+  `_build_scene_payload()` copied `topology_node["z"]` raw into a payload
+  whose z is a `0..1` scale, which would have collapsed the Overview
+  scene onto a plane. The latter now divides by the topology's own
+  declared `dimensions.depth`. Mismatched-width positions carried between
+  bars are discarded like an unseen symbol, so flipping the flag mid-run
+  degrades to a cold start instead of crashing.
+- `TopologyScene3D.tsx`'s `toVec3()` mapped x/y at `*20-10` but z at
+  `*12-6`; that anisotropic squash is fine for a volatility encoding and
+  wrong for an embedding, so z now maps with the same factor as x/y when
+  `depth > 1`. The in-scene legend switches text with the mode.
+
+**Found during manual verification, fixed here** (Problems.md #55): every
+webui tab except `/` 404'd on a direct load or hard refresh whenever the
+SPA was served from FastAPI — `StaticFiles(html=True)` is not an SPA
+catch-all, it only maps directory paths to `index.html`. Pre-existing and
+affecting all five existing tabs, not just the new one; hidden because
+vite's dev server has its own fallback. Fixed with a `SpaStaticFiles`
+subclass. See #55 for the two non-obvious details (Starlette *raises*
+rather than returns its 404, and it raises Starlette's `HTTPException`,
+of which fastapi's is a subclass).
+
+**Logged, not fixed** (Problems.md #56): `train_topology.py` learns
+prototype z offsets on the pre-V4 `0..1` scale, so in 3D mode the learned
+overlay would move nodes on x/y but effectively not on z. `main.py`
+raises `max_offset_z` to the xy cap in 3D mode, but that only removes a
+ceiling nothing is pushing against. Latent rather than active: **no
+topology model has ever been trained** — `ml/topology_model.json` does
+not exist in `ml/` or any `ml/versions/*` — so `apply_learned_topology()`
+takes its `learned_topology_model_missing` path on every bar and every
+node reports `topology_source: "fallback"`. The deterministic embedding,
+including all of V4-W3's 3D work, is unaffected.
+
+**Testing**: 1497 → **1515 tests, all passing**.
+
+- `tests/test_market_topology.py` +9: 2D-default byte-identity, 3D
+  non-degenerate z, 3D determinism, 3D correlation-distance preservation
+  in full 3-space, 3-tuple warm start, mismatched-width tolerance,
+  `insufficient_data` z scale, and a parametrized `z / depth ∈ [0,1]`
+  invariant standing in for `_build_scene_payload()` (which is not
+  directly testable — `main.py` subclasses `QCAlgorithm` and is not
+  importable outside Lean; no test in the suite imports it).
+- `tests/test_learned_topology.py` +1: the raised `max_offset_z` still
+  binds.
+- `tests/test_api_server.py` +8: the six client routes, missing-asset
+  404, and `/api/*` not being shadowed.
+- The existing `test_stress_majorize_matches_pure_python_reference`
+  parity guard — hardcoded expected values captured from the original
+  pure-Python implementation — **passes unchanged**, which is what proves
+  2D mode did not move a single coordinate.
+- **First frontend test infrastructure in the project**: Vitest +
+  Testing Library (`webui/src/test/setup.ts` stubs
+  `@react-three/fiber`/`drei`, since jsdom has no WebGL), 10 tests across
+  `src/pages/pages.test.tsx` and
+  `src/components/topology/TopologyScene3D.test.tsx`. `npm run test`.
+
+**Verification**: `aq test` (1515/1515), `npm run lint` (clean — the 2
+remaining warnings are pre-existing in `DerivativesMacroPanel.tsx`),
+`npm run build` (tsc + vite, clean), and a live `uvicorn` run sweeping
+all 15 API routes and all 6 SPA routes. `/api/audit-log` 404s on a fresh
+checkout as documented — `audit_log.json` needs its Postgres worker to
+have run — which is pre-existing, not a regression.

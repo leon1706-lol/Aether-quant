@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1497%2F1497%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1497 of 1497 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1515%2F1515%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1515 of 1515 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -73,10 +73,21 @@ full setup.
 
 ## Current Status
 
-**V3 complete.** Multi-asset-class trading (equities, crypto, bonds,
-futures, options), the full ML stack, and the retraining loop are all
-built, tested (<!-- AQ:TEST_COUNT_START -->1497<!-- AQ:TEST_COUNT_END -->
+**V3 complete. V4 initialised with V4.1, the visualisation update.**
+Multi-asset-class trading (equities, crypto, bonds, futures, options),
+the full ML stack, and the retraining loop are all built, tested
+(<!-- AQ:TEST_COUNT_START -->1515<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
+
+- **V4.1 (visualisation), shipped:** the first V4 work item — a new
+  **Operations** tab splitting the operational/health panels off an
+  overloaded Overview (V4-W1), a reflowed **Tracing** layout giving the
+  asset table room to grow (V4-W2), and a **genuinely 3D market topology**
+  embedding, opt-in via `phase_v2.topology.embedding_dimensions: 3`
+  (V4-W3). Also brought the project's first frontend test suite (Vitest)
+  and fixed a pre-existing bug where every webui tab except `/` 404'd on
+  a direct load in the Docker/production serving path
+  (`development/Problems.md` #55).
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
@@ -88,8 +99,8 @@ tests) and wired end-to-end inside Lean.
   project's own t-stat ≥ 2.0 bar. Encouraging, not yet settled.
 - **Not paper/live-deployable yet**: Interactive Brokers has never been
   tested against a real Gateway (see [Known Limitations](#known-limitations)).
-- **Next:** V4 (walk-forward validation, model fine-tuning, more asset
-  classes, IB testing), see [Roadmap](#roadmap).
+- **Next:** the rest of V4 (walk-forward validation, model fine-tuning,
+  more asset classes, IB testing), see [Roadmap](#roadmap).
 
 ## Known Limitations
 
@@ -407,10 +418,10 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1497<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1515<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
-| `webui/` | React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
+| `webui/` | React/Vite dashboard (Overview, Operations, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
 | `Aether-quant-Obsidian-Vault/` | Auto-generated Obsidian vault mirroring the repo's architecture/code graph | [README](Aether-quant-Obsidian-Vault/README.md) |
 
 ## Development Documentation
@@ -493,7 +504,7 @@ last backtest.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1497<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1515<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -795,10 +806,10 @@ All finished phases and changes can be found in
 **Functionality**
 - Allow adding to an existing position, today, if the model already holds SPY and the signal says to buy more SPY, it should be able to scale the position up rather than being blocked just because a position already exists.
 
-**Webui**
-- Consider moving some of the Overview tab's content into its own, larger tab for better organization.
-- Tracing tab: move the backtest equity curve under "Runtime Metrics Snapshot" and the observation-mode equity curve under "Backtest Equity Curve", so interactive tabs sit on the left and asset performance (which grows with more assets) has room to grow on the right.
-- Make the webui topology genuinely 3D instead of 2D, `topology/learned_topology.py`'s `_stress_majorize_2d()` is the function to extend.
+**Webui** — ✅ **V4.1, the visualisation update — shipped**, see `development/Changelog.md`
+- ~~Consider moving some of the Overview tab's content into its own, larger tab for better organization.~~ Done (V4-W1): the operational/health panels moved to a new **Operations** tab, leaving Overview with the trading-side view.
+- ~~Tracing tab: move the backtest equity curve under "Runtime Metrics Snapshot" and the observation-mode equity curve under "Backtest Equity Curve", so interactive tabs sit on the left and asset performance (which grows with more assets) has room to grow on the right.~~ Done (V4-W2).
+- ~~Make the webui topology genuinely 3D instead of 2D.~~ Done (V4-W3), opt-in via `phase_v2.topology.embedding_dimensions: 3` (default `2` keeps existing coordinates byte-identical). Note the function to extend was `topology/market_topology.py`'s `_stress_majorize_2d()`, not `learned_topology.py`'s — now renamed `_stress_majorize()` since it is dimension-agnostic.
 
 **Tests / production readiness**
 - Real IB API key insertion and testing, the one blocker behind #29/#38's unverified items and the README's Known Limitations.

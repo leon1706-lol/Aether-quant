@@ -3,7 +3,7 @@ import math
 import pytest
 
 from topology import build_market_topology
-from topology.market_topology import _stress_majorize_2d, rank_correlated_peers
+from topology.market_topology import _stress_majorize, rank_correlated_peers
 
 
 def _series(values: list[float], length: int = 8) -> list[float]:
@@ -154,8 +154,8 @@ def test_regime_labels_aggregate_to_dominant_cluster_label():
     assert topology.clusters[0].dominant_regime_label == "bullish"
 
 
-def test_stress_majorize_2d_matches_pure_python_reference():
-    """Parity guard for the numpy vectorization of `_stress_majorize_2d`
+def test_stress_majorize_matches_pure_python_reference():
+    """Parity guard for the numpy vectorization of `_stress_majorize`
     (Part D1 of the latency-optimization pass): these expected values were
     captured from the original pure-Python nested-loop implementation on
     this exact input, run once as a throwaway script before the
@@ -191,7 +191,7 @@ def test_stress_majorize_2d_matches_pure_python_reference():
         "DDD": (6.141238770042861, 16.402173000904398),
     }
 
-    result = _stress_majorize_2d(symbols, distance_fn, initial_positions, iterations=100)
+    result = _stress_majorize(symbols, distance_fn, initial_positions, iterations=100)
 
     for symbol in symbols:
         assert result[symbol] == pytest.approx(expected[symbol], abs=1e-6)
@@ -229,10 +229,10 @@ def test_warm_started_seed_needs_far_fewer_iterations_to_stay_near_the_fixed_poi
         "DDD": (0.0, 0.0),
     }
 
-    converged = _stress_majorize_2d(symbols, distance_fn, cold_seed, iterations=200, convergence_tolerance=1e-9)
+    converged = _stress_majorize(symbols, distance_fn, cold_seed, iterations=200, convergence_tolerance=1e-9)
 
-    cold_start_few_iterations = _stress_majorize_2d(symbols, distance_fn, cold_seed, iterations=2)
-    warm_start_few_iterations = _stress_majorize_2d(symbols, distance_fn, converged, iterations=2)
+    cold_start_few_iterations = _stress_majorize(symbols, distance_fn, cold_seed, iterations=2)
+    warm_start_few_iterations = _stress_majorize(symbols, distance_fn, converged, iterations=2)
 
     def total_distance_to_converged(candidate: dict) -> float:
         return sum(math.dist(candidate[symbol], converged[symbol]) for symbol in symbols)
@@ -340,7 +340,7 @@ def test_topology_cache_reuses_previous_positions_when_correlations_stable():
     assert "topology_embedding_reused_stable_correlations" in second.reasons
 
 
-def test_topology_cache_skips_stress_majorize_2d_when_reusing(monkeypatch):
+def test_topology_cache_skips_stress_majorize_when_reusing(monkeypatch):
     """Proves the expensive embedding call was actually skipped, not just
     that the result happens to match (SMACOF re-converging to an identical
     fixed point would look the same from the output alone)."""
@@ -351,13 +351,13 @@ def test_topology_cache_skips_stress_majorize_2d_when_reusing(monkeypatch):
     previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
 
     call_count = {"n": 0}
-    real_stress_majorize_2d = market_topology_module._stress_majorize_2d
+    real_stress_majorize = market_topology_module._stress_majorize
 
-    def _counting_stress_majorize_2d(*args, **kwargs):
+    def _counting_stress_majorize(*args, **kwargs):
         call_count["n"] += 1
-        return real_stress_majorize_2d(*args, **kwargs)
+        return real_stress_majorize(*args, **kwargs)
 
-    monkeypatch.setattr(market_topology_module, "_stress_majorize_2d", _counting_stress_majorize_2d)
+    monkeypatch.setattr(market_topology_module, "_stress_majorize", _counting_stress_majorize)
 
     market_topology_module.build_market_topology(
         returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
@@ -529,3 +529,164 @@ def test_build_market_topology_peers_are_not_filtered_by_asset_class():
     aapl_node = next(node for node in topology.nodes if node.symbol == "AAPL")
     assert aapl_node.top_peers[0] == "TLT"  # a bond ETF ranked as the equity's top peer
     assert "BTCUSD" in aapl_node.top_peers  # the crypto asset also eligible, just ranked lower
+
+
+# ---------------------------------------------------------------------------
+# V4-W3: embedding_dimensions - genuine 3D SMACOF embedding.
+#
+# The contract these guard: at the default embedding_dimensions=2 nothing
+# whatsoever changes (z stays the volatility encoding, depth stays 1, every
+# coordinate is byte-identical), and at 3 z becomes a real distance-
+# preserving axis on the same 0..100 scale as x/y. The pure-Python parity
+# test above is the other half of the 2D guarantee.
+# ---------------------------------------------------------------------------
+
+
+def _three_dimensional_returns() -> dict[str, list[float]]:
+    base = _series([0.01, -0.02, 0.015, 0.005, -0.01, 0.02, 0.03, -0.025], length=24)
+    return {
+        "AAA": base,
+        "BBB": [value * 1.05 for value in base],  # near-perfectly correlated with AAA
+        "CCC": [-value for value in base],  # anti-correlated with AAA
+        "DDD": _series([-0.04, 0.05, -0.06, 0.07, -0.03, 0.02, -0.05, 0.04], length=24),
+    }
+
+
+def test_embedding_dimensions_two_matches_omitting_the_parameter():
+    """The default must be a no-op: same posture as
+    test_warm_start_disabled_matches_omitting_previous_positions, so
+    shipping this feature cannot move a single existing coordinate."""
+    returns = _three_dimensional_returns()
+
+    without_param = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    with_explicit_two = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5, embedding_dimensions=2
+    )
+
+    assert without_param.to_dict() == with_explicit_two.to_dict()
+    assert without_param.dimensions["depth"] == 1
+
+
+def test_embedding_dimensions_three_produces_a_non_degenerate_z_axis():
+    """The whole point of the feature: z must actually vary. Seeding the
+    third axis flat (or on the raw 0.1..0.95 volatility scale, ~1/100th of
+    the x/y spread) would leave SMACOF unable to separate points along z
+    and the layout would stay visually 2D despite claiming 3 dimensions."""
+    returns = _three_dimensional_returns()
+
+    topology = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5, embedding_dimensions=3
+    )
+
+    z_values = [node.z for node in topology.nodes]
+    assert topology.dimensions["depth"] == 100
+    assert max(z_values) - min(z_values) > 1.0  # genuinely spread, not a flat plane
+    assert all(0.0 <= z <= 100.0 for z in z_values)  # on the same scale as x/y
+
+
+def test_embedding_dimensions_three_is_deterministic():
+    """Same guarantee test_stable_coordinates_are_deterministic makes for
+    2D - SMACOF is seeded, never randomized, in either dimensionality."""
+    returns = _three_dimensional_returns()
+    kwargs = dict(correlation_threshold=0.6, link_threshold=0.4, min_observations=5, embedding_dimensions=3)
+
+    assert build_market_topology(returns, **kwargs).to_dict() == build_market_topology(returns, **kwargs).to_dict()
+
+
+def test_embedding_dimensions_three_preserves_correlation_distance_in_3d():
+    """Positions must be meaningful in all three axes, not just x/y: the
+    near-perfectly correlated pair has to end up closer in full 3D space
+    than the anti-correlated pair does."""
+    returns = _three_dimensional_returns()
+
+    topology = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5, embedding_dimensions=3
+    )
+    node_by_symbol = {node.symbol: node for node in topology.nodes}
+
+    def distance_3d(a, b) -> float:
+        return math.dist((a.x, a.y, a.z), (b.x, b.y, b.z))
+
+    correlated = distance_3d(node_by_symbol["AAA"], node_by_symbol["BBB"])
+    anti_correlated = distance_3d(node_by_symbol["AAA"], node_by_symbol["CCC"])
+
+    assert correlated < anti_correlated
+
+
+def test_embedding_dimensions_three_warm_starts_from_three_tuples():
+    """main.py stores 3-tuples when running in 3D. Feeding them back in as
+    previous_positions must work - a crash or a silent dimensionality drop
+    here would disable warm start on every bar."""
+    returns = _three_dimensional_returns()
+    kwargs = dict(correlation_threshold=0.6, link_threshold=0.4, min_observations=5, embedding_dimensions=3)
+
+    first = build_market_topology(returns, **kwargs)
+    previous_positions = {node.symbol: (node.x, node.y, node.z) for node in first.nodes}
+
+    second = build_market_topology(returns, previous_positions=previous_positions, **kwargs)
+
+    assert {node.symbol for node in second.nodes} == {node.symbol for node in first.nodes}
+    assert all(0.0 <= node.z <= 100.0 for node in second.nodes)
+
+
+def test_mismatched_previous_position_width_is_ignored_not_fatal():
+    """Flipping embedding_dimensions between bars (or resuming a run under
+    a changed config) leaves stale positions of the wrong tuple width in
+    hand. They must be dropped like an unseen symbol - stacking them into
+    numpy alongside correct-width tuples would raise."""
+    returns = _three_dimensional_returns()
+    stale_two_dimensional = {symbol: (60.0, 40.0) for symbol in returns}
+
+    topology = build_market_topology(
+        returns,
+        correlation_threshold=0.6,
+        link_threshold=0.4,
+        min_observations=5,
+        embedding_dimensions=3,
+        previous_positions=stale_two_dimensional,
+    )
+
+    assert {node.symbol for node in topology.nodes} == set(returns)
+    assert all(0.0 <= node.z <= 100.0 for node in topology.nodes)
+
+
+def test_embedding_dimensions_three_insufficient_data_centres_z():
+    """The <2-eligible-symbols early return builds nodes via _isolated_node,
+    which has its own z branch - it must follow the active mode's scale,
+    not emit a 0..1 volatility z into a 0..100 scene."""
+    topology = build_market_topology(
+        {"AAA": [0.01, -0.02, 0.015]}, min_observations=5, embedding_dimensions=3
+    )
+
+    assert topology.state == "insufficient_data"
+    assert topology.dimensions["depth"] == 100
+    assert all(0.0 <= node.z <= 100.0 for node in topology.nodes)
+
+
+@pytest.mark.parametrize("embedding_dimensions", [2, 3])
+def test_node_z_over_declared_depth_is_a_zero_to_one_fraction(embedding_dimensions):
+    """The invariant main.py::_build_scene_payload() relies on.
+
+    That payload's z is a 0..1 scale (portfolio_core sits at 0.95), but it
+    sources asset z straight from topology - which is 0..1 only in 2D
+    mode and 0..100 in 3D. It divides by the topology's own declared
+    `dimensions.depth` to reconcile the two, so `z / depth` must land in
+    [0, 1] in BOTH modes or the Overview scene collapses onto a plane.
+
+    Asserted here rather than against _build_scene_payload directly
+    because main.py subclasses QCAlgorithm and is not importable outside
+    the Lean runtime - no test in this suite imports it.
+    """
+    returns = _three_dimensional_returns()
+
+    topology = build_market_topology(
+        returns,
+        correlation_threshold=0.6,
+        link_threshold=0.4,
+        min_observations=5,
+        embedding_dimensions=embedding_dimensions,
+    )
+
+    depth = topology.dimensions["depth"]
+    assert depth >= 1
+    assert all(0.0 <= node.z / depth <= 1.0 for node in topology.nodes)

@@ -587,6 +587,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
         self.topology_embedding_iterations = int(phase_v2_topology.get("embedding_iterations", 100))
+        # V4-W3: 2 (default) keeps the pre-V4 behavior byte-identical, with
+        # z carrying the volatility encoding. 3 makes SMACOF embed a real
+        # third correlation-distance axis and moves volatility onto node
+        # radius in the webui. Anything else falls back to 2 rather than
+        # producing a silently malformed scene.
+        self.topology_embedding_dimensions = 3 if int(phase_v2_topology.get("embedding_dimensions", 2)) == 3 else 2
         self.topology_warm_start_enabled = bool(phase_v2_topology.get("warm_start_enabled", True))
         self.topology_convergence_tolerance = float(phase_v2_topology.get("convergence_tolerance", 0.01))
         self.topology_top_peers_n = int(phase_v2_topology.get("top_peers_n", 3))
@@ -877,7 +883,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_options_chains_payload = {}
         self.latest_futures_chains_payload = {}
         self.latest_derivatives_macro_payload = {}
-        self._previous_topology_positions: dict[str, tuple[float, float]] = {}
+        self._previous_topology_positions: dict[str, tuple[float, ...]] = {}
         self._previous_topology_correlations: dict[tuple[str, str], float] = {}
 
         self._ready = True
@@ -2186,10 +2192,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
             correlation_stability_tolerance=(
                 self.topology_correlation_stability_tolerance if self.topology_cache_enabled else None
             ),
+            embedding_dimensions=self.topology_embedding_dimensions,
         )
         deterministic_topology = deterministic_topology_result.to_dict()
+        # Tuple width must match the active embedding dimensionality - a
+        # 2-tuple carried into a 3D run would silently drop the z axis on
+        # every warm start (build_market_topology discards mismatched
+        # widths defensively, which would disable warm start entirely).
         self._previous_topology_positions = {
-            node["symbol"]: (node["x"], node["y"]) for node in deterministic_topology["nodes"]
+            node["symbol"]: (
+                (node["x"], node["y"], node["z"])
+                if self.topology_embedding_dimensions == 3
+                else (node["x"], node["y"])
+            )
+            for node in deterministic_topology["nodes"]
         }
         # Stored unconditionally (cheap) regardless of topology_cache_enabled,
         # so flipping the flag on mid-run has a valid baseline from the very
@@ -2226,7 +2242,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
             top_n_neighbors=self.topology_learning_top_n_neighbors,
             min_confidence_for_learned=self.topology_learning_min_confidence,
             max_offset_xy=self.topology_learning_max_offset_xy,
-            max_offset_z=self.topology_learning_max_offset_z,
+            # V4-W3: the configured max_offset_z is tuned for 2D mode's
+            # 0..1 volatility z. On 3D mode's 0..100 spatial z the same
+            # cap is effectively zero, silently disabling learned z
+            # adjustment - so match the xy cap there instead. See
+            # development/Problems.md #56: train_topology.py learns z
+            # offsets on the 0..1 scale, so 3D learned z would stay small
+            # even with the cap raised. Latent, not active - no topology
+            # model has ever been trained, so the overlay is dormant.
+            max_offset_z=(
+                self.topology_learning_max_offset_xy
+                if self.topology_embedding_dimensions == 3
+                else self.topology_learning_max_offset_z
+            ),
         )
         self.latest_learned_neighbors_by_symbol = learned_topology.get("learned_neighbors_by_symbol", {})
         return learned_topology
@@ -3910,6 +3938,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         topology = state.get("topology") or {}
         topology_ready = topology.get("state") == "ready"
         topology_nodes_by_symbol = {node["symbol"]: node for node in topology.get("nodes", [])}
+        # V4-W3: this payload's z is a 0..1 scale (portfolio_core sits at
+        # 0.95, the fallback ring at 0.45..0.81), but topology z is 0..1
+        # only in 2D mode - in 3D mode it is a spatial axis over 0..100.
+        # Divide by the topology's own declared depth so both modes land
+        # on this payload's scale and the Overview scene stays undistorted.
+        topology_depth = float((topology.get("dimensions") or {}).get("depth", 1) or 1)
 
         nodes = [
             {
@@ -3933,7 +3967,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if topology_ready and topology_node is not None:
                 x = topology_node["x"]
                 y = topology_node["y"]
-                z = topology_node["z"]
+                z = topology_node["z"] / topology_depth
             else:
                 angle = (2 * math.pi * index) / asset_count
                 x = 50 + math.cos(angle) * 32

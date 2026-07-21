@@ -1280,6 +1280,7 @@
             "link_threshold": 0.5,
             "min_observations": 5,
             "embedding_iterations": 100,
+            "embedding_dimensions": 2,
             "warm_start_enabled": true,
             "convergence_tolerance": 0.01,
             "top_peers_n": 3,

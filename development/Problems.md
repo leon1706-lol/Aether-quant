@@ -3287,3 +3287,95 @@ JSON after both the ticker swap and the removal edit; dataset rebuild
 cleanly with the expected observation-only classification.
 
 ---
+
+### 55. Every webui tab except `/` 404'd on a direct load whenever the SPA was served by FastAPI (found during V4-W1 manual verification)
+
+**Severity:** 6/10 (production-path only, but it broke every deep link and every hard refresh) · **Status:** 🟢 `fixed`
+
+**Symptom**: `curl http://localhost:8001/risk` → `404`. Same for
+`/topology`, `/neural-network`, `/tracing`, and the new `/operations`.
+Only `/` returned the app. Navigating *within* the app worked fine, since
+that never leaves the client-side router.
+
+**Cause**: `monitoring/api_server.py` mounted the built bundle as
+`StaticFiles(directory=WEBUI_DIST, html=True)`. `html=True` is commonly
+assumed to mean "SPA catch-all" — it does not. It only maps *directory*
+paths to `index.html`; an unknown path still raises `404`. The React
+router owns those paths, so nothing ever served them.
+
+**Why it stayed hidden**: the vite dev server has its own SPA fallback,
+so `npm run dev` (how the webui is developed) always worked. The broken
+path was the Docker image and any bare-uvicorn run — exactly the paths
+nobody reloads a deep link on during development. No test covered it
+either: `tests/test_api_server.py` only exercised `/api/audit-log`.
+
+**Fix**: a `SpaStaticFiles(StaticFiles)` subclass overriding
+`get_response()` to fall back to `index.html` on a 404. Two details that
+are easy to get wrong and were both hit while implementing this:
+
+- Starlette signals a missing file by **raising** `HTTPException(404)`,
+  not by returning a 404 response — checking `response.status_code` never
+  fires, the exception has to be caught.
+- It raises **Starlette's** `HTTPException`, of which `fastapi`'s is a
+  *subclass*. Catching `fastapi.HTTPException` misses it entirely; the
+  import has to be `starlette.exceptions.HTTPException`.
+
+The fallback is deliberately limited to extensionless paths, so a missing
+`/assets/*.js` still 404s rather than silently returning `index.html` —
+that would turn a broken build into a blank page with no error to trace.
+
+**Testing**: `tests/test_api_server.py` gained a parametrized case
+covering all six client routes, plus one asserting a missing asset still
+404s and one asserting `/api/*` is not shadowed by the catch-all (the
+mount is registered last on purpose). Driven through the ASGI app with a
+minimal in-file driver, keeping the module's existing no-TestClient/
+no-httpx convention.
+
+---
+
+### 56. `train_topology.py` learns prototype z offsets on the pre-V4 `0..1` scale — latent, and currently unreachable because no topology model has ever been trained
+
+**Severity:** 1/10 (latent; currently unreachable) · **Status:** 🟡 `known, deferred`
+
+V4-W3 made `phase_v2.topology.embedding_dimensions: 3` turn z into a real
+correlation-distance axis on a `0..100` scale. Two z-related constants
+were tuned for the old `0..1` volatility z:
+
+- `learned_topology.py`'s `DEFAULT_MAX_OFFSET_Z = 0.1` — **handled**:
+  `main.py` passes `max_offset_z = max_offset_xy` in 3D mode, since a
+  `0.1` cap on a `0..100` axis is effectively zero and would silently
+  disable learned z adjustment entirely.
+- `train_topology.py:205`'s `"z": (win_rate - 0.5) * 0.2` (range ±0.1,
+  against x's ±2.0 and y's ±1.0) — **not handled**. Raising the cap only
+  removes a ceiling nothing is pushing against, so in 3D mode the learned
+  overlay would move nodes on x/y but effectively not on z.
+
+**The overlay is entirely dormant today**, which is why this is latent
+rather than active: `ml/topology_model.json` and
+`ml/topology_feature_schema.json` **do not exist** — no topology model has
+ever been trained, in `ml/` or in any `ml/versions/*` directory.
+`apply_learned_topology()` therefore takes its documented
+`learned_topology_model_missing` path on every bar and every node reports
+`topology_source: "fallback"`. The deterministic embedding — including all
+of V4-W3's 3D work — is unaffected, since the overlay only ever adds
+bounded offsets and diagnostic fields on top of it, and never feeds
+trading decisions (the analyzer consumes only `topology_risk`/`state`).
+
+**What it takes to close:**
+
+1. Scale the `z` expression to match x/y — e.g. `(win_rate - 0.5) * 4.0`
+   for a ±2.0 range matching x. Note z is *graded* by win rate while x/y
+   use a binary `offset_sign`; the graded form is arguably the better one,
+   it just needs the larger multiplier. Ideally make it follow the active
+   embedding mode rather than hardcoding one scale.
+2. Train a topology model for the first time (`aq train topology`),
+   producing `ml/topology_model.json` + `ml/topology_feature_schema.json`.
+3. Update `tests/test_train_topology.py`'s offset-shape assertions, and
+   verify against a real backtest that the overlay improves the picture
+   rather than just moving nodes around.
+
+Deferred because steps 2–3 are the real cost, and neither the learned
+overlay nor 3D mode is currently adopted as a default — closing this only
+pays off once one of them is.
+
+---

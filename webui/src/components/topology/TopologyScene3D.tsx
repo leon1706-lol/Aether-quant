@@ -14,7 +14,14 @@ const ACTION_COLORS: Record<string, string> = {
 function toVec3(node: TopologyNode, dims: { width: number; height: number; depth: number }): [number, number, number] {
   const x = (node.x / dims.width) * 20 - 10
   const y = (node.y / dims.height) * 20 - 10
-  const z = (node.z / Math.max(dims.depth, 1)) * 12 - 6
+  // V4-W3: when the backend embeds in 3D it reports depth on the same
+  // 0..100 scale as width/height, and z is a real correlation-distance
+  // axis - so it must map with the same factor as x/y, or the embedding
+  // is visibly squashed and the distances it exists to preserve are lost.
+  // depth === 1 means 2D mode, where z is the volatility encoding and
+  // keeps its original shallower mapping.
+  const is3d = dims.depth > 1
+  const z = is3d ? (node.z / dims.depth) * 20 - 10 : (node.z / Math.max(dims.depth, 1)) * 12 - 6
   return [x, y, z]
 }
 
@@ -86,6 +93,7 @@ export function TopologyScene3D({
   signals: Record<string, Signal> | undefined
 }) {
   const dims = topology?.dimensions ?? { width: 100, height: 100, depth: 1 }
+  const is3d = dims.depth > 1
   const actionBySymbol = Object.fromEntries(
     Object.values(signals ?? {}).map((signal) => [signal.ticker ?? '', signal.market_analysis?.action]),
   )
@@ -117,6 +125,12 @@ export function TopologyScene3D({
         )}
         <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 text-xs text-white/60">
           <span>Node color = trade / reduce_risk / retrain_candidate / simulate / observe</span>
+          <span>Node size = volatility pressure</span>
+          <span>
+            {is3d
+              ? 'Position = 3D correlation-distance embedding — all three axes are distance-preserving'
+              : 'Position = x/y correlation-distance embedding, z = volatility pressure'}
+          </span>
           <span>Links = pairwise return correlation above the display threshold</span>
         </div>
       </div>

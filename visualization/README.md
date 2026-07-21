@@ -27,6 +27,18 @@ code lives here anymore — the React webui (`webui/`) replaced the old
     by `main.py`/`train.py` from in-process state).
 
 Every file here is served under `GET /api/grafana/<name>` by
-`monitoring/api_server.py` for external Grafana dashboards; the webui itself
-only ever fetches `/api/state`/`/api/scene`/`/api/topology` and reads the
-nested fields those already contain.
+`monitoring/api_server.py`. The `/api/grafana/` prefix is historical —
+Grafana was removed from `docker-compose.yml` in V2-18 and the webui's own
+Tracing tab is now the consumer: `TracingPage.tsx` fetches
+`/api/grafana/metrics-snapshot`, `/equity-curves`, `/asset-performance`
+and `/observation-equity-curve` directly, alongside `/api/neural-network`,
+`/api/assets-status` and `/api/audit-log` elsewhere in the app. (This
+paragraph previously claimed the webui only ever fetched
+`/api/state`/`/api/scene`/`/api/topology`; that stopped being true at
+V2-18 — corrected in V4.1.)
+
+`observation_summary.json` and `performance_triggers.json` are served but
+have no direct frontend consumer — the latter reaches the UI nested inside
+`/api/state` instead. Note also that `metrics_snapshot.json` in this folder
+is orphaned: `/api/grafana/metrics-snapshot` serves
+`runtime_metrics_snapshot.json`.

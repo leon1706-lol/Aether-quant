@@ -342,3 +342,43 @@ def test_cluster_dominant_regime_label_present_in_fallback():
     for node in result["nodes"]:
         assert "cluster_dominant_regime_label" in node
         assert node["cluster_dominant_regime_label"]
+
+
+def test_learned_offset_bounded_when_max_offset_z_is_raised_to_the_xy_scale():
+    """V4-W3: in 3D mode main.py passes max_offset_z = max_offset_xy,
+    because the configured 0.1 cap is tuned for 2D mode's 0..1 volatility
+    z and would be effectively zero on 3D's 0..100 spatial axis. The
+    bound must still actually bind at the larger value - raising the cap
+    must not turn into "unbounded"."""
+    topology = _sample_deterministic_topology()
+    features = _sample_symbol_features(topology)
+    model = {
+        "version_id": "v-offset-3d",
+        "distance_scale": 5.0,
+        "prototypes": [
+            {
+                "label": "only",
+                "centroid": {
+                    "volatility": 0.0,
+                    "momentum": 0.0,
+                    "correlation_strength": 0.0,
+                    "liquidity_score": 0.0,
+                    "regime_risk_score": 0.0,
+                },
+                "dominant_regime_label": "unknown",
+                "offset": {"x": 999.0, "y": -999.0, "z": 999.0},
+            }
+        ],
+    }
+    original_by_symbol = {node["symbol"]: node for node in topology["nodes"]}
+
+    result = apply_learned_topology(
+        topology, features, {}, model, _sample_feature_schema(), max_offset_xy=6.0, max_offset_z=6.0
+    )
+
+    for node in result["nodes"]:
+        base = original_by_symbol[node["symbol"]]
+        assert node["topology_source"] == "learned"
+        assert abs(node["z"] - base["z"]) <= 6.0 + 1e-9
+        # and the raised cap genuinely lets z move further than the 2D 0.1
+        assert abs(node["z"] - base["z"]) > 0.1

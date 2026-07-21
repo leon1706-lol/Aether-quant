@@ -14,6 +14,9 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+# StaticFiles raises Starlette's HTTPException, of which fastapi's is a
+# *subclass* - catching the fastapi one would miss it entirely.
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monitoring.assets_status import build_assets_status_from_disk
 from monitoring.neural_network_state import build_neural_network_state
@@ -141,5 +144,34 @@ def get_paper_readiness() -> dict:
     return _read_json(GRAFANA_DIR / "paper_readiness_report.json")
 
 
+class SpaStaticFiles(StaticFiles):
+    """Serves the built webui with a client-side-routing fallback.
+
+    `StaticFiles(html=True)` alone only maps *directory* paths to
+    index.html - an unknown path like /risk or /operations still 404s. The
+    React router owns those paths, so every tab except / broke on a direct
+    load or hard refresh whenever the SPA was served from here (the Docker
+    image and any bare-uvicorn run; the vite dev server has its own
+    fallback, which is why this never showed up in local development).
+
+    Only extensionless paths fall back. A missing /assets/*.js must keep
+    404ing rather than silently returning index.html, which would turn a
+    broken build into a blank page with no error.
+    """
+
+    async def get_response(self, path: str, scope):
+        # Starlette signals a missing file by *raising* HTTPException(404),
+        # not by returning a 404 response - catching is the only way to
+        # intercept it.
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and not Path(path).suffix:
+                return await super().get_response("index.html", scope)
+            raise
+
+
+# Mounted last on purpose: "/" is a catch-all, so any route registered
+# below it would be shadowed by the SPA.
 if WEBUI_DIST.exists():
-    app.mount("/", StaticFiles(directory=WEBUI_DIST, html=True), name="static")
+    app.mount("/", SpaStaticFiles(directory=WEBUI_DIST, html=True), name="static")

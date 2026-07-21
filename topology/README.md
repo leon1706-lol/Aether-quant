@@ -18,22 +18,59 @@ The goal is to make market structure useful for analysis, not only visual.
   assets separate on the z-axis. Deterministic given the same inputs, but
   no longer numpy-free — see the vectorization note below.
 - **x/y placement is a real distance-preserving embedding**, not a cosmetic
-  layout: `_stress_majorize_2d(...)` runs SMACOF (Scaling by MAjorizing a
+  layout: `_stress_majorize(...)` runs SMACOF (Scaling by MAjorizing a
   COmplicated Function) — an iterative stress-majorization algorithm,
   seeded from a deterministic circular layout (for reproducibility and fast
   convergence, never randomness) — over the full pairwise correlation
   distance matrix across all eligible symbols, so two assets end up
   spatially closer only when they're actually more correlated, not merely
   because of index ordering or shared cluster membership. Iteration count
-  is `phase_v2.topology.embedding_iterations` (default 100). The z-axis
-  (volatility encoding) is unchanged by this — it's a separate, deliberate
-  encoding, not part of the spatial embedding.
+  is `phase_v2.topology.embedding_iterations` (default 100). In the
+  default 2D mode the z-axis (volatility encoding) is unchanged by this —
+  it's a separate, deliberate encoding, not part of the spatial
+  embedding. See the V4-W3 section below for the 3D mode, where z
+  *becomes* part of the embedding.
+- **Genuinely 3D embedding, opt-in** (V4-W3) —
+  `phase_v2.topology.embedding_dimensions` (default `2`) selects how many
+  axes SMACOF embeds. `_stress_majorize(...)` (renamed from
+  `_stress_majorize_2d` when it became dimension-agnostic) infers
+  dimensionality from the width of its seed tuples rather than taking a
+  flag, so 2-tuples reproduce the original behavior exactly — the parity
+  test below is what holds that guarantee.
+  - At `3`, z stops being the volatility encoding and becomes a real
+    correlation-distance axis on the same `0..100` scale as x/y, and
+    `dimensions.depth` reports `100` instead of `1` so every consumer can
+    tell the modes apart. Volatility is still visible: the webui already
+    encoded it as node radius, which is why z was the redundant copy and
+    is the axis that could be reclaimed.
+  - The z seed is derived from that same volatility value, spread across
+    a range comparable to the x/y seed. This matters: SMACOF can only
+    separate points along directions its seed already separates them on,
+    so seeding z flat — or on the raw `0.1..0.95` volatility scale, about
+    1/100th of the x/y spread — would collapse the third axis and leave
+    the layout visually 2D despite claiming three dimensions.
+  - Positions carried between bars (warm start, correlation cache) whose
+    tuple width doesn't match the active mode are discarded like an
+    unseen symbol, so flipping the flag mid-run degrades to a cold start
+    instead of crashing.
+  - **Known follow-up (latent):** `train_topology.py` learns prototype z
+    offsets on the old `0..1` scale (`(win_rate - 0.5) * 0.2`), so in 3D
+    mode the learned overlay would move nodes on x/y but effectively not
+    on z. `main.py` raises `max_offset_z` to the xy cap in 3D mode (the
+    configured `0.1` would be a no-op on a `0..100` axis), but that only
+    removes the ceiling — it can't enlarge offsets the model never
+    learned. **Currently unreachable**: no topology model has ever been
+    trained (`ml/topology_model.json` does not exist), so
+    `apply_learned_topology()` takes its `learned_topology_model_missing`
+    path on every bar and every node reports `topology_source:
+    "fallback"`. See `development/Problems.md` #56 for what closing it
+    takes.
 - **Vectorized with numpy** (latency-optimization pass, post-V2-23) —
-  `_stress_majorize_2d` was pure Python, an `O(N² × iterations)` nested
+  `_stress_majorize` was pure Python, an `O(N² × iterations)` nested
   loop and the dominant per-bar cost in this whole module. Same
   inputs/outputs/iteration count/seeding as the pure-Python version it
   replaced; `tests/test_market_topology.py`'s
-  `test_stress_majorize_2d_matches_pure_python_reference` is the parity
+  `test_stress_majorize_matches_pure_python_reference` is the parity
   guard. The pairwise-correlation loop above stays pure Python on
   purpose — eligible symbols don't share a common window length in
   practice (staggered asset onboarding, thin markets like
@@ -50,7 +87,7 @@ The goal is to make market structure useful for analysis, not only visual.
   node positions and feeds them back in, gated by
   `phase_v2.topology.warm_start_enabled` (default `true`). A new
   `convergence_tolerance` parameter (`phase_v2.topology.convergence_tolerance`,
-  default `0.01`) lets `_stress_majorize_2d` exit before the full iteration
+  default `0.01`) lets `_stress_majorize` exit before the full iteration
   budget once movement drops below it — the actual source of the speedup,
   since a warm start alone saves nothing if every iteration still runs
   regardless. **This changes bar-by-bar topology coordinate values** —

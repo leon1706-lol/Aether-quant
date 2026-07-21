@@ -7,16 +7,24 @@ TanStack React Query (`src/api/hooks.ts`'s `useRuntimeState()`).
 
 Pages (`src/pages/`):
 
-- `Overview.tsx` — scorecards, 3D market scene, asset heatmap, signal board,
-  positions, strategy/risk cards, monitoring feeds, and the right-column
-  monitoring stack: Performance Triggers, Retraining Status (V2-17),
-  Observation Mode, raw state viewer.
+- `Overview.tsx` — scorecards, 3D market scene, asset heatmap (left) and the
+  trading-side stack: Observation Mode, signal board, positions,
+  strategy/risk cards (right). V4-W1 moved the operational/health panels
+  out to `OperationsPage.tsx`; this page had grown to 11 stacked panels in
+  a single column.
+- `OperationsPage.tsx` (V4-W1) — the operational/health half of the old
+  Overview, in a balanced two-column layout: Performance Triggers,
+  Retraining Status (V2-17), Paper Trading Readiness, Multi-Asset-Class
+  Readiness (left); Audit Log, Monitoring Feeds, Raw State (right).
 - `RiskPage.tsx` — risk core panel, asset volatility/sizing table, liquidity
   and execution-impact panel.
 - `TopologyPage.tsx` — 3D cluster view with regime/risk colouring.
-- `TracingPage.tsx` (V2-18) — runtime metrics snapshot, asset performance
-  (diverging Sharpe bars), backtest equity curve (per-ticker selector,
-  strategy vs buy-and-hold) and observation-mode equity/drawdown curves.
+- `TracingPage.tsx` (V2-18) — runtime metrics snapshot, backtest equity
+  curve (per-ticker selector, strategy vs buy-and-hold) and
+  observation-mode equity/drawdown curves stacked in the wider left
+  column; asset performance (diverging Sharpe bars) alone in the right.
+  V4-W2 chose that split so the interactive charts get the width while the
+  asset table — which grows a row per asset — has room to grow downward.
   Replaces the Grafana instance that used to be the only consumer of these
   feeds — Grafana has been removed from `docker-compose.yml` entirely.
 - `NeuralNetworkPage.tsx` (V2-20) — interactive 3D diagram
@@ -71,9 +79,34 @@ In Docker, the same build is instead bundled into and served by the
 `aether-quant-engine` container (the `engine` service) itself on port
 8001 — no separate webui container or port.
 
-## Build / lint
+## Build / lint / test
 
 ```powershell
 npm run build   # tsc -b && vite build
 npm run lint    # oxlint
+npm run test    # vitest run
 ```
+
+Vitest + Testing Library were added in V4-W1 (this was the first frontend
+test infrastructure in the project). `src/test/setup.ts` globally stubs
+`@react-three/fiber` and `@react-three/drei`, since jsdom has no WebGL and
+the page-composition tests care about which panels render, not about the
+renderer. Current suites: `src/pages/pages.test.tsx` (V4-W1/W2 — which
+panels live on which page, nav-pill routing) and
+`src/components/topology/TopologyScene3D.test.tsx` (V4-W3 — the 2D/3D
+embedding-mode legend switch).
+
+## Topology 3D modes (V4-W3)
+
+`TopologyScene3D.tsx`'s `toVec3()` reads the backend's declared
+`dimensions.depth` to tell the two embedding modes apart:
+
+- `depth === 1` — 2D mode (the default). x/y are the SMACOF
+  correlation-distance embedding, z is the volatility encoding, mapped on
+  a deliberately shallower scale.
+- `depth === 100` — 3D mode
+  (`phase_v2.topology.embedding_dimensions: 3`). All three axes are a real
+  distance-preserving embedding, so z maps with the *same* factor as x/y —
+  scaling it differently would squash the very distances the embedding
+  exists to preserve. Volatility is carried by node radius, which already
+  encoded it in both modes.

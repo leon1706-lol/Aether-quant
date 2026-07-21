@@ -16,6 +16,19 @@ ELEVATED_VOLATILITY_THRESHOLD = 0.45
 NEUTRAL_DIMENSIONS = {"width": 100, "height": 100, "depth": 1}
 EMBEDDING_CENTER = 50.0
 EMBEDDING_MAX_RADIUS = 42.0
+# V4-W3: how far the volatility-derived z seed spreads around
+# EMBEDDING_CENTER before SMACOF runs. Only used in 3D mode - a flat seed
+# plane would leave the z axis degenerate, since SMACOF can only move
+# points along directions its seed already separates them on.
+EMBEDDING_Z_SEED_SPREAD = 40.0
+
+
+def _dimensions_for(embedding_dimensions: int) -> dict:
+    """Scene bounds for the active embedding mode. depth stays 1 in 2D
+    mode - there z is the volatility encoding on a 0..1 scale, not a
+    spatial axis - and becomes 100 in 3D mode, matching width/height so
+    the webui's `dimensions`-relative normalization stays isotropic."""
+    return {"width": 100, "height": 100, "depth": 100 if embedding_dimensions == 3 else 1}
 
 
 @dataclass(frozen=True)
@@ -143,17 +156,17 @@ class _UnionFind:
             self._parent[max(root_a, root_b)] = min(root_a, root_b)
 
 
-def _distance_2d(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+def _distance(a: tuple[float, ...], b: tuple[float, ...]) -> float:
+    return math.sqrt(sum((component_a - component_b) ** 2 for component_a, component_b in zip(a, b)))
 
 
-def _stress_majorize_2d(
+def _stress_majorize(
     symbols: list[str],
     distance_fn: Callable[[str, str], float],
-    initial_positions: dict[str, tuple[float, float]],
+    initial_positions: dict[str, tuple[float, ...]],
     iterations: int = 100,
     convergence_tolerance: float | None = None,
-) -> dict[str, tuple[float, float]]:
+) -> dict[str, tuple[float, ...]]:
     """Deterministic SMACOF (Scaling by MAjorizing a COmplicated Function):
     iteratively moves each point toward the position implied by every other
     point's target distance (the classical Guttman transform), so the final
@@ -169,6 +182,13 @@ def _stress_majorize_2d(
     pure-Python version when `convergence_tolerance` is None; see
     tests/test_market_topology.py's parity test.
 
+    Dimension-agnostic (V4-W3): the embedding dimensionality is inferred
+    from the length of the seed tuples rather than passed as a flag, so
+    2-tuple seeds reproduce the original 2D behavior exactly (the parity
+    test above is what holds that guarantee) and 3-tuple seeds produce a
+    genuine 3D embedding. Every step below is already axis-generic except
+    the coincident-point nudge, which is handled explicitly.
+
     `convergence_tolerance`, when set, exits before `iterations` once every
     point's per-iteration movement drops below it - this is what lets a
     warm start (already close to this bar's stationary point) actually
@@ -181,6 +201,7 @@ def _stress_majorize_2d(
     n = len(symbols)
     denominator = n - 1
     positions = np.array([initial_positions[symbol] for symbol in symbols], dtype=np.float64)
+    dimensions = positions.shape[1]
     target_distances = np.array(
         [[distance_fn(symbol_a, symbol_b) for symbol_b in symbols] for symbol_a in symbols],
         dtype=np.float64,
@@ -197,10 +218,13 @@ def _stress_majorize_2d(
         # Coincident points (including the i==j diagonal, always coincident
         # with itself): nudge apart along a fixed axis rather than dividing
         # by zero. target_distances' diagonal is 0, so the i==j case
-        # naturally contributes (0, 0), matching the original loop's
-        # `if other == symbol: continue` skip.
+        # naturally contributes an all-zero vector, matching the original
+        # loop's `if other == symbol: continue` skip. The nudge goes along
+        # axis 0 only, in every dimensionality - identical to the 2D
+        # original, which set axis 0 to target_distances and axis 1 to 0.
         direction[..., 0] = np.where(coincident, target_distances, direction[..., 0])
-        direction[..., 1] = np.where(coincident, 0.0, direction[..., 1])
+        for axis in range(1, dimensions):
+            direction[..., axis] = np.where(coincident, 0.0, direction[..., axis])
 
         sum_positions = positions.sum(axis=0)
         direction_sum = direction.sum(axis=1)
@@ -214,47 +238,64 @@ def _stress_majorize_2d(
         else:
             positions = new_positions
 
-    return {symbol: (float(positions[index, 0]), float(positions[index, 1])) for index, symbol in enumerate(symbols)}
+    return {
+        symbol: tuple(float(component) for component in positions[index]) for index, symbol in enumerate(symbols)
+    }
 
 
 def _rescale_positions_to_bounds(
-    positions: dict[str, tuple[float, float]],
+    positions: dict[str, tuple[float, ...]],
     center: float = EMBEDDING_CENTER,
     max_radius: float = EMBEDDING_MAX_RADIUS,
-) -> dict[str, tuple[float, float]]:
+) -> dict[str, tuple[float, ...]]:
     """Uniformly scale and re-center the embedding to fit within the
-    existing NEUTRAL_DIMENSIONS [0,100]x[0,100] bounds.
+    existing NEUTRAL_DIMENSIONS [0,100]^d bounds.
 
     A single isometric scale factor (not independent per-axis min-max
-    normalization) -- stretching x and y independently would distort the
-    very relative distances this embedding exists to preserve.
+    normalization) -- stretching axes independently would distort the very
+    relative distances this embedding exists to preserve. Dimension-
+    agnostic (V4-W3): the same single factor now covers z too when the
+    embedding runs in 3D.
     """
     if not positions:
         return {}
 
-    mean_x = _mean([point[0] for point in positions.values()])
-    mean_y = _mean([point[1] for point in positions.values()])
+    dimensions = len(next(iter(positions.values())))
+    centroid = tuple(_mean([point[axis] for point in positions.values()]) for axis in range(dimensions))
     max_extent = max(
-        (_distance_2d(point, (mean_x, mean_y)) for point in positions.values()),
+        (_distance(point, centroid) for point in positions.values()),
         default=0.0,
     )
     if max_extent <= 1e-9:
-        return {symbol: (center, center) for symbol in positions}
+        return {symbol: (center,) * dimensions for symbol in positions}
 
     scale = max_radius / max_extent
     return {
-        symbol: (center + (x - mean_x) * scale, center + (y - mean_y) * scale)
-        for symbol, (x, y) in positions.items()
+        symbol: tuple(center + (point[axis] - centroid[axis]) * scale for axis in range(dimensions))
+        for symbol, point in positions.items()
     }
 
 
-def _isolated_node(symbol: str, returns: list[float], cluster_id: str, regime_label: str) -> TopologyNode:
+def _isolated_node(
+    symbol: str,
+    returns: list[float],
+    cluster_id: str,
+    regime_label: str,
+    embedding_dimensions: int = 2,
+) -> TopologyNode:
     return TopologyNode(
         symbol=symbol,
         cluster_id=cluster_id,
         x=50.0,
         y=50.0,
-        z=max(0.1, min(0.95, 0.25 + _annualized_volatility(returns))),
+        # In 3D mode z is a spatial axis on the same 0..100 scale as x/y,
+        # so an isolated node sits at the centre like it already does on
+        # x/y. In 2D mode z keeps its volatility-encoding meaning.
+        z=(
+            EMBEDDING_CENTER
+            if embedding_dimensions == 3
+            else max(0.1, min(0.95, 0.25 + _annualized_volatility(returns)))
+        ),
         market_distance=1.0,
         correlation_strength=0.0,
         volatility_pressure=_annualized_volatility(returns),
@@ -289,14 +330,22 @@ def build_market_topology(
     link_threshold: float = 0.5,
     min_observations: int = 5,
     embedding_iterations: int = 100,
-    previous_positions: dict[str, tuple[float, float]] | None = None,
+    previous_positions: dict[str, tuple[float, ...]] | None = None,
     convergence_tolerance: float | None = None,
     top_peers_n: int = 3,
     previous_correlations: dict[tuple[str, str], float] | None = None,
     correlation_stability_tolerance: float | None = None,
+    embedding_dimensions: int = 2,
 ) -> MarketTopology:
+    """`embedding_dimensions` (V4-W3, `phase_v2.topology.embedding_dimensions`,
+    default 2) selects how many axes SMACOF embeds. At 2 - the default -
+    every coordinate, reason string and dimension is byte-identical to the
+    pre-V4 behavior, and z stays the volatility encoding. At 3, z becomes
+    a real correlation-distance axis on the same 0..100 scale as x/y, and
+    volatility is carried by node radius in the webui instead."""
     regime_labels_by_symbol = regime_labels_by_symbol or {}
     reasons: list[str] = []
+    embed_3d = embedding_dimensions == 3
 
     eligible_symbols = sorted(
         symbol for symbol, returns in returns_by_symbol.items() if len(returns) >= min_observations
@@ -313,6 +362,7 @@ def build_market_topology(
                 returns_by_symbol.get(symbol, []),
                 f"cluster_{index}",
                 regime_labels_by_symbol.get(symbol, "unknown"),
+                embedding_dimensions,
             )
             for index, symbol in enumerate(sorted(returns_by_symbol))
         ]
@@ -321,7 +371,7 @@ def build_market_topology(
             nodes=isolated_nodes,
             links=[],
             clusters=[],
-            dimensions=dict(NEUTRAL_DIMENSIONS),
+            dimensions=_dimensions_for(embedding_dimensions),
             reasons=reasons,
             correlations={},
         )
@@ -362,7 +412,11 @@ def build_market_topology(
     correlation_strength_by_symbol: dict[str, float] = {}
     market_distance_by_symbol: dict[str, float] = {}
     member_count_by_symbol: dict[str, int] = {}
-    seed_positions: dict[str, tuple[float, float]] = {}
+    seed_positions: dict[str, tuple[float, ...]] = {}
+    # Hoisted out of Pass 3 (where it used to be computed) because the 3D
+    # seed below needs it too - computing it once keeps the two uses from
+    # drifting apart and saves a second pass over every return series.
+    volatility_by_symbol = {symbol: _annualized_volatility(returns_by_symbol[symbol]) for symbol in eligible_symbols}
 
     for cluster_index, root in enumerate(sorted_roots):
         members = sorted(members_by_root[root])
@@ -405,7 +459,19 @@ def build_market_topology(
             correlation_strength_by_symbol[symbol] = correlation_strength
             market_distance_by_symbol[symbol] = market_distance
             member_count_by_symbol[symbol] = len(members)
-            seed_positions[symbol] = (seed_x, seed_y)
+            if embed_3d:
+                # Seed z from the same volatility value 2D mode encodes
+                # there directly, spread across a range comparable to the
+                # x/y seed. SMACOF only separates points along directions
+                # its seed already separates them on, so seeding z flat
+                # (or on the raw 0.1..0.95 volatility scale, which is
+                # ~1/100th of the x/y spread) would collapse the third
+                # axis - the layout would stay visually 2D.
+                volatility_z = max(0.1, min(0.95, 0.25 + volatility_by_symbol[symbol]))
+                seed_z = EMBEDDING_CENTER + (volatility_z - 0.5) * EMBEDDING_Z_SEED_SPREAD
+                seed_positions[symbol] = (seed_x, seed_y, seed_z)
+            else:
+                seed_positions[symbol] = (seed_x, seed_y)
 
     # development/Problems.md#36: skip re-running the expensive Pass 2
     # embedding entirely when correlation structure hasn't materially
@@ -423,6 +489,18 @@ def build_market_topology(
     # correlation_stability_tolerance both being None reproduces today's
     # exact always-fresh-compute behavior, byte-identical, same contract
     # the Part D2 warm-start feature below already guarantees.
+    # V4-W3: positions carried over from a run at a different
+    # embedding_dimensions (the flag flipped between bars, or a resumed
+    # run) have the wrong tuple width - reusing or seeding from them would
+    # either drop the z axis or blow up the numpy stack. Treat them as
+    # absent, exactly like a symbol the previous bar never saw.
+    if previous_positions is not None:
+        previous_positions = {
+            symbol: point for symbol, point in previous_positions.items() if len(point) == embedding_dimensions
+        }
+        if not previous_positions:
+            previous_positions = None
+
     can_reuse_previous_embedding = (
         correlation_stability_tolerance is not None
         and previous_correlations is not None
@@ -462,7 +540,7 @@ def build_market_topology(
         # is what makes spatial distance actually reflect correlation
         # distance instead of arbitrary index-based placement.
         final_positions = _rescale_positions_to_bounds(
-            _stress_majorize_2d(
+            _stress_majorize(
                 eligible_symbols,
                 lambda symbol_a, symbol_b: max(0.0, 1.0 - correlation_between(symbol_a, symbol_b)),
                 seed_positions,
@@ -472,10 +550,14 @@ def build_market_topology(
         )
 
     # Pass 3: build nodes from the real embedding + per-symbol metadata.
+    default_position = (EMBEDDING_CENTER,) * embedding_dimensions
     for symbol in eligible_symbols:
-        x, y = final_positions.get(symbol, (EMBEDDING_CENTER, EMBEDDING_CENTER))
-        volatility_pressure = _annualized_volatility(returns_by_symbol[symbol])
-        z = max(0.1, min(0.95, 0.25 + volatility_pressure))
+        position = final_positions.get(symbol, default_position)
+        x, y = position[0], position[1]
+        volatility_pressure = volatility_by_symbol[symbol]
+        # 3D mode: z is the embedding's third axis. 2D mode: z keeps its
+        # original volatility encoding, untouched.
+        z = position[2] if embed_3d else max(0.1, min(0.95, 0.25 + volatility_pressure))
 
         if member_count_by_symbol[symbol] == 1:
             topology_risk = "isolated"
@@ -522,6 +604,7 @@ def build_market_topology(
                 returns_by_symbol.get(symbol, []),
                 "cluster_unassigned",
                 regime_labels_by_symbol.get(symbol, "unknown"),
+                embedding_dimensions,
             )
         )
 
@@ -533,7 +616,7 @@ def build_market_topology(
         nodes=nodes,
         links=links,
         clusters=clusters,
-        dimensions=dict(NEUTRAL_DIMENSIONS),
+        dimensions=_dimensions_for(embedding_dimensions),
         reasons=reasons,
         correlations=correlations,
     )

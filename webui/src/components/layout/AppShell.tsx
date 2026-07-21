@@ -4,6 +4,15 @@ import type { RuntimeState } from '../../types/state'
 
 const REFRESH_LABEL = 'refresh: 5s'
 
+const NAV_ITEMS: { to: string; label: string }[] = [
+  { to: '/', label: 'Overview' },
+  { to: '/operations', label: 'Operations' },
+  { to: '/risk', label: 'Risk' },
+  { to: '/topology', label: 'Topology' },
+  { to: '/neural-network', label: 'Neural Network' },
+  { to: '/tracing', label: 'Tracing' },
+]
+
 function StatusChip({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
   return (
     <span
@@ -36,57 +45,21 @@ export function AppShell({
             <p className="mt-2 max-w-xl text-sm text-white/60">
               Unified runtime console for portfolio state, risk and the market scene.
             </p>
-            <nav className="mt-4 flex gap-2">
-              <NavLink
-                to="/"
-                className={({ isActive }) =>
-                  `rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                    isActive ? 'bg-orange-400/15 text-orange-300' : 'text-white/60 hover:text-white'
-                  }`
-                }
-              >
-                Overview
-              </NavLink>
-              <NavLink
-                to="/risk"
-                className={({ isActive }) =>
-                  `rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                    isActive ? 'bg-orange-400/15 text-orange-300' : 'text-white/60 hover:text-white'
-                  }`
-                }
-              >
-                Risk
-              </NavLink>
-              <NavLink
-                to="/topology"
-                className={({ isActive }) =>
-                  `rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                    isActive ? 'bg-orange-400/15 text-orange-300' : 'text-white/60 hover:text-white'
-                  }`
-                }
-              >
-                Topology
-              </NavLink>
-              <NavLink
-                to="/neural-network"
-                className={({ isActive }) =>
-                  `rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                    isActive ? 'bg-orange-400/15 text-orange-300' : 'text-white/60 hover:text-white'
-                  }`
-                }
-              >
-                Neural Network
-              </NavLink>
-              <NavLink
-                to="/tracing"
-                className={({ isActive }) =>
-                  `rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                    isActive ? 'bg-orange-400/15 text-orange-300' : 'text-white/60 hover:text-white'
-                  }`
-                }
-              >
-                Tracing
-              </NavLink>
+            <nav className="mt-4 flex flex-wrap gap-2">
+              {NAV_ITEMS.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  className={({ isActive }) =>
+                    `rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                      isActive ? 'bg-orange-400/15 text-orange-300' : 'text-white/60 hover:text-white'
+                    }`
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
             </nav>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
