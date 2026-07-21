@@ -128,6 +128,20 @@ def test_fit_prototypes_produces_expected_schema():
         assert prototype["sample_count"] > 0
         assert 0.0 <= prototype["win_rate"] <= 1.0
         assert set(prototype["offset"].keys()) == {"x", "y", "z"}
+        # development/Problems.md #56: z is normalized to [-1, 1]
+        # (topology.learned_topology scales it by max_offset_z at apply
+        # time), unlike x/y which stay absolute scene units - assert the
+        # value, not just the key, so a regression back to the old raw
+        # 0..1-scaled formula would be caught here.
+        assert -1.0 <= prototype["offset"]["z"] <= 1.0
+        expected_z = (prototype["win_rate"] - 0.5) * 2.0
+        assert prototype["offset"]["z"] == expected_z
+
+    # The two clusters have win rates on opposite sides of 0.5 (all-win vs
+    # all-loss samples) - their z offsets must actually differ, guarding
+    # against z collapsing to a binary sign like x/y's offset_sign.
+    z_values = {prototype["offset"]["z"] for prototype in result["prototypes"]}
+    assert len(z_values) == 2
 
 
 def test_fit_prototypes_caps_cluster_count_at_sample_count():
@@ -143,6 +157,7 @@ def test_fit_prototypes_caps_cluster_count_at_sample_count():
     assert result["n_clusters"] <= 3
     for prototype in result["prototypes"]:
         assert prototype["win_rate"] is None
+        assert prototype["offset"]["z"] == 0.0
 
 
 def test_topology_candidate_output_paths_shape():

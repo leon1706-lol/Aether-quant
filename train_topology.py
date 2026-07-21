@@ -155,7 +155,11 @@ def fit_prototypes(
     max_offset_xy/z at inference time - never a full replacement embedding),
     per-feature normalization stats, and a distance_scale (p`distance_scale_percentile`
     of within-cluster nearest-centroid distances) used as the novelty/stress
-    reference scale."""
+    reference scale.
+
+    The offset's x/y components are absolute scene units; z is normalized
+    to [-1, 1] and scaled by max_offset_z at apply time - see the offset
+    construction below for why z's contract differs from x/y's."""
     matrix = np.array([[vector[key] for key in FEATURE_KEYS] for vector in feature_vectors], dtype=float)
     means = matrix.mean(axis=0)
     stds = matrix.std(axis=0)
@@ -187,12 +191,23 @@ def fit_prototypes(
         total_labeled = len(member_outcomes)
         win_rate = (sum(1 for label in member_outcomes if label == "win") / total_labeled) if total_labeled else None
 
-        # Offset direction is a coarse, bounded nudge signed by win rate -
-        # apply_learned_topology() clamps the applied shift to
-        # max_offset_xy/max_offset_z regardless, so these raw values only
-        # need to encode direction/relative magnitude, not final scale.
+        # Offset direction is a coarse, bounded nudge signed by win rate.
+        # x/y are absolute scene units: apply_learned_topology() clamps the
+        # applied shift to max_offset_xy regardless, so these raw values
+        # only need to encode direction/relative magnitude, not final
+        # scale - true in both the 2D and 3D (V4-W3) embedding modes,
+        # since x/y's scale never changes between them.
         offset_sign = 0.0 if win_rate is None else (1.0 if win_rate >= 0.5 else -1.0)
 
+        # z is normalized to [-1, 1] instead (development/Problems.md #56):
+        # unlike x/y, z's scene scale itself changes between the 2D
+        # (volatility encoding, 0..1) and 3D (spatial embedding, 0..100)
+        # modes, so a raw offset tuned for one scale is meaningless on the
+        # other. apply_learned_topology() multiplies this by the active
+        # max_offset_z before clamping, the same way confidence already
+        # scales it - see _score_node()'s z line. Graded by win rate
+        # (unlike x/y's binary sign) since z was already a graded encoding
+        # before V4-W3 and there is no reason to lose that resolution.
         centroid = kmeans.cluster_centers_[cluster_index]
         prototypes.append(
             {
@@ -202,7 +217,7 @@ def fit_prototypes(
                 "offset": {
                     "x": offset_sign * 2.0,
                     "y": offset_sign * 1.0,
-                    "z": 0.0 if win_rate is None else (win_rate - 0.5) * 0.2,
+                    "z": 0.0 if win_rate is None else (win_rate - 0.5) * 2.0,
                 },
                 "sample_count": len(member_indices),
                 "win_rate": win_rate,
@@ -266,6 +281,14 @@ def main() -> int:
 
         model_payload = {
             "version_id": args.version_id,
+            # development/Problems.md #56: format identity for the
+            # prototypes[].offset contract, distinct from version_id
+            # (a pipeline run identity, not a schema version). 2 = z
+            # normalized to [-1, 1] (V4.1); no schema 1 model has ever
+            # existed to migrate from, so apply_learned_topology() has no
+            # legacy branch - this is purely a detection hook for any
+            # future contract change.
+            "offset_schema": 2,
             "trained_at": trained_at,
             "prototypes": fit_result["prototypes"],
             "distance_scale": fit_result["distance_scale"],

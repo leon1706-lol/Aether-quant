@@ -101,6 +101,7 @@ _REQUIRED_TOP_LEVEL_KEYS = {
     "topology_source",
     "model_loaded",
     "model_version_id",
+    "model_offset_schema",
     "learned_neighbors_by_symbol",
 }
 _REQUIRED_NODE_KEYS = {
@@ -264,7 +265,104 @@ def test_stress_score_clamped_to_one_when_far_from_all_prototypes():
         assert node["stress_score"] == 1.0
 
 
+def _single_prototype_model(offset_z: float, version_id: str = "v-z") -> dict:
+    """A model with exactly one prototype pins topology_confidence to
+    1.0 (softmax over a single value), isolating the z-scaling math below
+    from confidence weighting."""
+    return {
+        "version_id": version_id,
+        "distance_scale": 5.0,
+        "prototypes": [
+            {
+                "label": "only",
+                "centroid": {
+                    "volatility": 0.0,
+                    "momentum": 0.0,
+                    "correlation_strength": 0.0,
+                    "liquidity_score": 0.0,
+                    "regime_risk_score": 0.0,
+                },
+                "dominant_regime_label": "unknown",
+                "offset": {"x": 0.0, "y": 0.0, "z": offset_z},
+            }
+        ],
+    }
+
+
+def test_z_offset_reproduces_the_pre_v4_1_raw_formula_exactly_in_2d_mode():
+    """development/Problems.md #56: train_topology.py now emits z
+    normalized to [-1, 1] and apply_learned_topology() scales it by
+    max_offset_z before clamping. In 2D mode's default max_offset_z=0.1,
+    this must reproduce the pre-V4.1 raw ((win_rate - 0.5) * 0.2) formula
+    byte-for-byte - proven here across several win rates, the same role
+    the SMACOF pure-Python parity test plays for V4-W3's 2D guarantee."""
+    topology = _sample_deterministic_topology()
+    features = _sample_symbol_features(topology)
+    original_by_symbol = {node["symbol"]: node for node in topology["nodes"]}
+
+    for win_rate in (0.10, 0.30, 0.45, 0.55, 0.70, 0.90):
+        pre_v4_1_raw_offset = (win_rate - 0.5) * 0.2
+        normalized_offset = (win_rate - 0.5) * 2.0
+        model = _single_prototype_model(normalized_offset)
+
+        result = apply_learned_topology(topology, features, {}, model, _sample_feature_schema())
+
+        for node in result["nodes"]:
+            base = original_by_symbol[node["symbol"]]
+            expected_shift = max(-0.1, min(0.1, pre_v4_1_raw_offset))  # confidence == 1.0
+            assert abs((node["z"] - base["z"]) - expected_shift) <= 1e-9
+
+
+def test_z_offset_scales_proportionally_with_the_raised_3d_cap():
+    """The entire point of normalizing z instead of leaving it on the
+    pre-V4.1 raw 0..1 scale: the same normalized offset must move z
+    proportionally to whichever max_offset_z is active, not stay pinned
+    near the old formula's tiny 2D magnitude. 0.5 is deliberately small
+    so neither the 2D nor the 3D cap saturates, making the 60x ratio
+    (6.0 / 0.1) an exact check rather than two clamped ceilings."""
+    topology = _sample_deterministic_topology()
+    features = _sample_symbol_features(topology)
+    original_by_symbol = {node["symbol"]: node for node in topology["nodes"]}
+    model = _single_prototype_model(offset_z=0.5)
+
+    result_2d = apply_learned_topology(topology, features, {}, model, _sample_feature_schema(), max_offset_z=0.1)
+    result_3d = apply_learned_topology(topology, features, {}, model, _sample_feature_schema(), max_offset_z=6.0)
+
+    for node_2d, node_3d in zip(result_2d["nodes"], result_3d["nodes"]):
+        base = original_by_symbol[node_2d["symbol"]]
+        shift_2d = node_2d["z"] - base["z"]
+        shift_3d = node_3d["z"] - base["z"]
+        assert abs(shift_2d - 0.05) <= 1e-9  # 0.5 * 0.1, unsaturated
+        assert abs(shift_3d - 3.0) <= 1e-9  # 0.5 * 6.0, unsaturated
+        assert abs((shift_3d / shift_2d) - 60.0) <= 1e-9  # 6.0 / 0.1
+
+
+def test_model_offset_schema_surfaced_from_model_and_none_when_absent():
+    """development/Problems.md #56: offset_schema is a detection hook for
+    the prototypes[].offset format, distinct from model_version_id (a
+    pipeline run identity). None for any model trained before this field
+    existed - which, per #56, is every model that currently exists,
+    since none has ever been trained."""
+    topology = _sample_deterministic_topology()
+    features = _sample_symbol_features(topology)
+
+    model_with_schema = _sample_model()
+    model_with_schema["offset_schema"] = 2
+    result = apply_learned_topology(topology, features, {}, model_with_schema, _sample_feature_schema())
+    assert result["model_offset_schema"] == 2
+
+    result_without = apply_learned_topology(topology, features, {}, _sample_model(), _sample_feature_schema())
+    assert result_without["model_offset_schema"] is None
+
+
 def test_learned_offset_bounded_by_max_shift():
+    """Robustness case, deliberately outside any real contract: a
+    malformed or corrupted model could carry an out-of-range offset (raw
+    or normalized - 999.0 saturates the clamp either way), and the safety
+    bound must hold regardless. See
+    test_z_offset_reproduces_the_pre_v4_1_raw_formula_exactly_in_2d_mode
+    and test_z_offset_scales_proportionally_with_the_raised_3d_cap above
+    for the actual normalized-z contract with realistic values."""
     topology = _sample_deterministic_topology()
     features = _sample_symbol_features(topology)
     model = {
@@ -349,7 +447,11 @@ def test_learned_offset_bounded_when_max_offset_z_is_raised_to_the_xy_scale():
     because the configured 0.1 cap is tuned for 2D mode's 0..1 volatility
     z and would be effectively zero on 3D's 0..100 spatial axis. The
     bound must still actually bind at the larger value - raising the cap
-    must not turn into "unbounded"."""
+    must not turn into "unbounded". Robustness case like the test above:
+    999.0 saturates regardless of scale, so this only proves the clamp
+    holds - test_z_offset_scales_proportionally_with_the_raised_3d_cap
+    proves the actual proportional-scaling contract with a realistic,
+    unsaturated offset."""
     topology = _sample_deterministic_topology()
     features = _sample_symbol_features(topology)
     model = {

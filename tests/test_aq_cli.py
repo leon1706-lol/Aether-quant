@@ -233,6 +233,54 @@ def test_train_sequence_only_leaves_active_ml_unchanged_when_trainer_skips_artif
     copy_mock.assert_not_called()
 
 
+def test_train_topology_only_invokes_train_topology_py_with_generated_version_id():
+    # --topology-only mirrors --sequence-only/--multitask-only/--gating-only
+    # exactly (see aq_cli._train_topology_only).
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--topology-only"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli.uuid.uuid4", return_value="fixed-uuid"), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("shutil.copy2") as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    argv = run_mock.call_args.args[0]
+    assert argv[:2] == [sys.executable, "train_topology.py"]
+    assert argv[2:] == ["--version-id", "topology-only-fixed-uuid"]
+    assert copy_mock.call_count == 3
+
+
+def test_train_topology_only_propagates_trainer_failure_without_copying():
+    run_mock = MagicMock(return_value=1)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--topology-only"])
+
+    with patch("aq_cli._run", run_mock), patch("shutil.copy2") as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 1
+    copy_mock.assert_not_called()
+
+
+def test_train_topology_only_leaves_active_ml_unchanged_when_trainer_skips_artifacts():
+    # The realistic case on a fresh checkout: no Postgres / not enough
+    # accumulated audit events yet, so train_topology.py exits 0 without
+    # writing any of the three artifacts (development/Problems.md #56).
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--topology-only"])
+
+    with patch("aq_cli._run", run_mock), patch("pathlib.Path.exists", return_value=False), patch(
+        "shutil.copy2"
+    ) as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    copy_mock.assert_not_called()
+
+
 def test_test_wraps_pytest_tests_dir_excluding_lean_backtest_by_default():
     # Deliberately NOT using _parse_and_dispatch: cmd_test funnels through
     # _run_captured, not _run - see this file's module docstring. Also mocks

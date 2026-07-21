@@ -15,6 +15,16 @@ behavior: every function is a deterministic function of its inputs (no RNG).
 Trading actions never read the new fields this module adds -
 analyzer/market_analyzer.py continues to consume only topology_risk/state,
 exactly as produced by the unchanged deterministic layer.
+
+Prototype offsets (development/Problems.md #56) have an intentionally
+asymmetric contract: x/y are absolute scene units, clamped straight to
+max_offset_xy, because x/y's scale never changes between
+market_topology.py's 2D and 3D (V4-W3) embedding modes. z is normalized
+to [-1, 1] and multiplied by max_offset_z before clamping, because z is
+the one axis whose scene scale *does* change between modes (a 0..1
+volatility encoding in 2D, a 0..100 spatial axis in 3D) - a raw offset
+tuned for one scale would be meaningless, or effectively zero, on the
+other.
 """
 
 from __future__ import annotations
@@ -160,7 +170,13 @@ def _score_node(
         offset = nearest_prototype.get("offset") or {}
         node["x"] = _apply_offset(float(node.get("x", 0.0)), float(offset.get("x", 0.0)), confidence, max_offset_xy)
         node["y"] = _apply_offset(float(node.get("y", 0.0)), float(offset.get("y", 0.0)), confidence, max_offset_xy)
-        node["z"] = _apply_offset(float(node.get("z", 0.0)), float(offset.get("z", 0.0)), confidence, max_offset_z)
+        # z is normalized to [-1, 1] by train_topology.py (module
+        # docstring above), unlike x/y's already-absolute scene units -
+        # scale it into scene units by max_offset_z before the same
+        # confidence-weighted clamp x/y already go through.
+        node["z"] = _apply_offset(
+            float(node.get("z", 0.0)), float(offset.get("z", 0.0)) * max_offset_z, confidence, max_offset_z
+        )
     else:
         node["topology_source"] = "fallback"
 
@@ -210,6 +226,10 @@ def apply_learned_topology(
     prototypes = (model or {}).get("prototypes") or []
     distance_scale = float((model or {}).get("distance_scale") or 0.0) or 1.0
     model_version_id = (model or {}).get("version_id")
+    # development/Problems.md #56: detection hook for the prototypes[].offset
+    # format, distinct from model_version_id (a pipeline run identity, not a
+    # schema version). None for any model trained before this field existed.
+    model_offset_schema = (model or {}).get("offset_schema")
 
     model_loaded = bool(model) and bool(feature_schema) and bool(prototypes) and bool(feature_stats)
     if not model_loaded:
@@ -276,5 +296,6 @@ def apply_learned_topology(
     result["topology_source"] = topology_source
     result["model_loaded"] = model_loaded
     result["model_version_id"] = model_version_id
+    result["model_offset_schema"] = model_offset_schema
     result["learned_neighbors_by_symbol"] = learned_neighbors_by_symbol
     return result

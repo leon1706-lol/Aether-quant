@@ -3900,3 +3900,72 @@ remaining warnings are pre-existing in `DerivativesMacroPanel.tsx`),
 all 15 API routes and all 6 SPA routes. `/api/audit-log` 404s on a fresh
 checkout as documented — `audit_log.json` needs its Postgres worker to
 have run — which is pre-existing, not a regression.
+
+## V4.1 completion — normalized topology z offset, `aq train --topology-only` (Problems.md #56)
+
+Closes the one loose end V4-W3 left open. `phase_v2.topology.embedding_dimensions: 3`
+put z on a real `0..100` correlation-distance scale, but `train_topology.py`
+still emitted prototype z offsets on the old `0..1`-scaled formula
+(`(win_rate - 0.5) * 0.2`, range ±0.1) — so the learned overlay would have
+moved nodes on x/y in 3D mode but effectively not on z.
+
+**The obvious fix was wrong and caught before shipping.** Naively raising the
+multiplier to `* 4.0` regresses 2D mode: with `max_offset_z = 0.1`, the
+apply-time clamp saturates for every win rate, collapsing today's graded z
+nudge into a binary ±0.1. Verified before writing the real fix (win_rate 0.45:
+old gives −0.0050, naive gives −0.1000 — a 20× distortion).
+
+**The actual fix**: `train_topology.py` now emits z **normalized** to
+`[-1, 1]` instead of a raw scaled value; `topology/learned_topology.py`'s
+`_score_node()` multiplies it by the active `max_offset_z` before the same
+confidence-weighted clamp x/y already go through. This makes z's offset
+contract deliberately asymmetric from x/y (absolute scene units) — the right
+tradeoff, since z is the only axis whose scene scale changes between the 2D
+and 3D embedding modes; x/y's never does.
+
+**Provably identity-preserving in 2D**:
+`(win_rate − 0.5) × 2.0 × 0.1 ≡ (win_rate − 0.5) × 0.2` for every win rate and
+confidence, so 2D output is unaffected — proven by a new test that checks
+byte-identical output against the old raw formula, the same role the SMACOF
+pure-Python parity test plays for V4-W3's own 2D guarantee. In 3D mode the
+same normalized offset now produces exactly 60× more z travel under the
+raised cap (`6.0 / 0.1`) instead of staying pinned near the old ±0.1 ceiling —
+also directly tested.
+
+Also added an `offset_schema` field to the model payload (a format-identity
+detection hook, distinct from `version_id`) and surfaced it as
+`model_offset_schema` from `apply_learned_topology()`. No legacy-format branch
+was added to read it — no model of the old format has ever existed to migrate
+from.
+
+**`aq train --topology-only`** added, mirroring `--multitask-only`/
+`--gating-only`/`--sequence-only` exactly: trains via
+`train_topology.py --version-id <uuid>` and installs straight into active
+`ml/`. Its "skipped" message is more informative than the others', since
+skipping is the realistic outcome today — `train_topology.py` needs
+`min_training_events` (default 500) realized-outcome events pulled from
+Postgres, and none exist yet on this machine (no Postgres container running,
+no `audit_log.json` export).
+
+**The overlay itself remains entirely dormant** — this was a code fix, not a
+training run. `ml/topology_model.json` does not exist anywhere, including
+every `ml/versions/*`. Training the first model, and validating the 3D
+learned overlay against a real backtest, is a separate milestone for the
+project owner to run once enough audit history has accumulated.
+
+**Testing**: 1515 → **1521 tests, all passing** (+6: 3 new
+`test_learned_topology.py` cases proving the 2D identity, the 3D
+proportional scaling, and the `model_offset_schema` surfacing;
+`test_train_topology.py`'s existing offset-shape test gained value
+assertions on the normalized z range, gradedness, and the
+`win_rate is None → z == 0.0` case (no new test functions there); 3 new
+`test_aq_cli.py` cases for `--topology-only`'s happy path, failure
+propagation, and skip path — mirroring the existing `--sequence-only` trio
+exactly; the two existing V4-W3 saturation tests were kept as deliberate
+robustness cases, with comments clarifying they test the safety clamp under
+an out-of-range value, not the normalized-z contract itself).
+
+Documentation updated to match: `development/Problems.md` #56 now `🟢
+fixed`, `topology/README.md`'s learned-overlay section describes the
+normalized-z contract, `README.md`'s Webui roadmap block and `aq train` CLI
+reference both current.

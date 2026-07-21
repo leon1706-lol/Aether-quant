@@ -3333,49 +3333,79 @@ no-httpx convention.
 
 ---
 
-### 56. `train_topology.py` learns prototype z offsets on the pre-V4 `0..1` scale — latent, and currently unreachable because no topology model has ever been trained
+### 56. `train_topology.py` learned prototype z offsets on the pre-V4 `0..1` scale — fixed in code; the first real model is a separate, user-run milestone
 
-**Severity:** 1/10 (latent; currently unreachable) · **Status:** 🟡 `known, deferred`
+**Severity:** 1/10 (latent; unreachable until a model exists) · **Status:** 🟢 `fixed` (code) / training itself deferred, not a defect
 
 V4-W3 made `phase_v2.topology.embedding_dimensions: 3` turn z into a real
-correlation-distance axis on a `0..100` scale. Two z-related constants
-were tuned for the old `0..1` volatility z:
+correlation-distance axis on a `0..100` scale, but `train_topology.py` still
+emitted prototype z offsets on the old `0..1`-scaled formula
+(`(win_rate - 0.5) * 0.2`, range ±0.1, against x's ±2.0 and y's ±1.0).
+`main.py` already raised `max_offset_z` to the xy cap in 3D mode, but that
+only removed a ceiling — nothing was pushing against it, so the learned
+overlay would have moved nodes on x/y and effectively not on z.
 
-- `learned_topology.py`'s `DEFAULT_MAX_OFFSET_Z = 0.1` — **handled**:
-  `main.py` passes `max_offset_z = max_offset_xy` in 3D mode, since a
-  `0.1` cap on a `0..100` axis is effectively zero and would silently
-  disable learned z adjustment entirely.
-- `train_topology.py:205`'s `"z": (win_rate - 0.5) * 0.2` (range ±0.1,
-  against x's ±2.0 and y's ±1.0) — **not handled**. Raising the cap only
-  removes a ceiling nothing is pushing against, so in 3D mode the learned
-  overlay would move nodes on x/y but effectively not on z.
+**The naive fix would have been wrong.** Raising the multiplier to
+`(win_rate - 0.5) * 4.0` regresses 2D mode: with `max_offset_z = 0.1`,
+`_apply_offset()`'s clamp saturates for every win rate, collapsing the
+existing *graded* z nudge into a binary ±0.1. Verified before writing the
+real fix:
 
-**The overlay is entirely dormant today**, which is why this is latent
-rather than active: `ml/topology_model.json` and
-`ml/topology_feature_schema.json` **do not exist** — no topology model has
-ever been trained, in `ml/` or in any `ml/versions/*` directory.
-`apply_learned_topology()` therefore takes its documented
-`learned_topology_model_missing` path on every bar and every node reports
-`topology_source: "fallback"`. The deterministic embedding — including all
-of V4-W3's 3D work — is unaffected, since the overlay only ever adds
-bounded offsets and diagnostic fields on top of it, and never feeds
-trading decisions (the analyzer consumes only `topology_risk`/`state`).
+| `win_rate` | old (`* 0.2`) | naive (`* 4.0`) |
+|---|---|---|
+| 0.30 | −0.0200 | −0.1000 |
+| 0.45 | −0.0050 | −0.1000 |
+| 0.70 | +0.0200 | +0.1000 |
 
-**What it takes to close:**
+**The actual fix**: `train_topology.py` now emits z **normalized** to
+`[−1, 1]` (`(win_rate - 0.5) * 2.0`), and `topology/learned_topology.py`'s
+`_score_node()` multiplies it by the active `max_offset_z` before the same
+confidence-weighted clamp x/y already go through. This makes z's contract
+deliberately asymmetric from x/y (which stay absolute scene units) —
+defensible because z is the *only* axis whose scene scale changes between
+the 2D and 3D embedding modes, documented in both modules' docstrings.
 
-1. Scale the `z` expression to match x/y — e.g. `(win_rate - 0.5) * 4.0`
-   for a ±2.0 range matching x. Note z is *graded* by win rate while x/y
-   use a binary `offset_sign`; the graded form is arguably the better one,
-   it just needs the larger multiplier. Ideally make it follow the active
-   embedding mode rather than hardcoding one scale.
-2. Train a topology model for the first time (`aq train topology`),
-   producing `ml/topology_model.json` + `ml/topology_feature_schema.json`.
-3. Update `tests/test_train_topology.py`'s offset-shape assertions, and
-   verify against a real backtest that the overlay improves the picture
-   rather than just moving nodes around.
+This normalization is **provably identity-preserving in 2D**:
+`(wr − 0.5) × 2.0 × 0.1 ≡ (wr − 0.5) × 0.2` for every win rate and
+confidence — proven both by hand and by
+`tests/test_z_offset_reproduces_the_pre_v4_1_raw_formula_exactly_in_2d_mode`,
+which checks byte-identical output against the old raw formula.
+`tests/test_z_offset_scales_proportionally_with_the_raised_3d_cap` proves
+the 3D improvement: the same normalized offset now produces exactly 60×
+more z travel under the 3D cap (`6.0 / 0.1`) instead of staying pinned to
+the old ±0.1 ceiling.
 
-Deferred because steps 2–3 are the real cost, and neither the learned
-overlay nor 3D mode is currently adopted as a default — closing this only
-pays off once one of them is.
+**Also added:** an `offset_schema` field on the model payload — a detection
+hook for the `prototypes[].offset` format, distinct from `version_id` (a
+pipeline run identity, not a schema version). No legacy branch was added to
+read it, since no model of the old format has ever existed to migrate from
+— see below.
+
+**The overlay itself is still entirely dormant** — this was a code fix, not
+a training run: `ml/topology_model.json` and `ml/topology_feature_schema.json`
+**do not exist** anywhere, including every `ml/versions/*` directory. No
+topology model has ever been trained. `apply_learned_topology()` therefore
+still takes its documented `learned_topology_model_missing` path on every
+bar and every node still reports `topology_source: "fallback"`. The
+deterministic embedding — including all of V4-W3's 3D work — was never
+affected by any of this, since the overlay only ever adds bounded offsets
+and diagnostic fields on top of it, and never feeds trading decisions (the
+analyzer consumes only `topology_risk`/`state`).
+
+**Training the first model is a separate milestone, run by the project
+owner, not part of this fix:**
+
+1. Get the full stack up (Postgres + the audit worker) long enough to
+   accumulate `phase_v2.topology_learning.training.min_training_events`
+   (default 500) realized-outcome events in the `lookback_days` (default
+   90) window — none exist yet on this machine.
+2. `aq train --topology-only` (added alongside this fix, mirrors
+   `--multitask-only`/`--gating-only`/`--sequence-only` exactly — trains via
+   `train_topology.py --version-id <uuid>` and installs straight into active
+   `ml/`; correctly prints a "skipped, active ml/ left unchanged" message
+   rather than a silent success if run before enough events exist).
+3. Once trained, verify against a real 3D-mode backtest that the learned
+   overlay's z adjustment is actually improving the picture, not just
+   moving nodes around.
 
 ---

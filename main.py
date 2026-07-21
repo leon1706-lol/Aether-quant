@@ -2242,14 +2242,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
             top_n_neighbors=self.topology_learning_top_n_neighbors,
             min_confidence_for_learned=self.topology_learning_min_confidence,
             max_offset_xy=self.topology_learning_max_offset_xy,
-            # V4-W3: the configured max_offset_z is tuned for 2D mode's
-            # 0..1 volatility z. On 3D mode's 0..100 spatial z the same
-            # cap is effectively zero, silently disabling learned z
-            # adjustment - so match the xy cap there instead. See
-            # development/Problems.md #56: train_topology.py learns z
-            # offsets on the 0..1 scale, so 3D learned z would stay small
-            # even with the cap raised. Latent, not active - no topology
-            # model has ever been trained, so the overlay is dormant.
+            # V4-W3: 3D mode's z is a 0..100 spatial axis instead of 2D
+            # mode's 0..1 volatility encoding, so the configured
+            # max_offset_z (tuned for 2D) is far too small there - match
+            # the xy cap in 3D instead. Since V4.1 (development/
+            # Problems.md #56), train_topology.py emits z pre-normalized
+            # to [-1, 1] specifically so this raised cap actually produces
+            # real z movement rather than the near-zero shift a raw,
+            # 2D-scaled offset would give.
             max_offset_z=(
                 self.topology_learning_max_offset_xy
                 if self.topology_embedding_dimensions == 3

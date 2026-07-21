@@ -213,6 +213,8 @@ def cmd_train(args: argparse.Namespace) -> int:
         return _train_multitask_only()
     if args.sequence_only:
         return _train_sequence_only()
+    if args.topology_only:
+        return _train_topology_only()
     cmd = [sys.executable, "train.py"]
     if args.dataset_only:
         cmd.append("--dataset-only")
@@ -315,6 +317,47 @@ def _train_sequence_only() -> int:
     for name in artifact_names:
         shutil.copy2(version_dir / name, ml_dir / name)
     print(f"aq train --sequence-only: copied {', '.join(artifact_names)} into active ml/.")
+    return 0
+
+
+def _train_topology_only() -> int:
+    """`aq train --topology-only`: trains the learned topology overlay
+    (train_topology.py) and installs it straight into active ml/ -
+    identical shape to _train_multitask_only()/_train_gating_only()/
+    _train_sequence_only() above.
+
+    Different data source and a real prerequisite the other three
+    trainers don't have: train_topology.py fits over realized trading
+    outcomes pulled from Postgres (AETHER_POSTGRES_DSN env var, read by
+    train_topology.py itself - no DSN plumbing needed here), and needs
+    at least phase_v2.topology_learning.training.min_training_events
+    (default 500) usable events from a lookback_days (default 90) window.
+    That data only accumulates from runs with the full stack (Postgres +
+    the audit worker) up - on a fresh checkout, or before Postgres has
+    been running long enough, this is expected to hit the "skipped"
+    branch below, not the "artifacts written" one. development/
+    Problems.md #56 has the full offset-scale story this trainer feeds."""
+    version_id = f"topology-only-{uuid.uuid4()}"
+    returncode = _run([sys.executable, "train_topology.py", "--version-id", version_id])
+    if returncode != 0:
+        return returncode
+
+    version_dir = ROOT_DIR / "ml" / "versions" / version_id
+    artifact_names = ("topology_model.json", "topology_feature_schema.json", "topology_training_metrics.json")
+    if any(not (version_dir / name).exists() for name in artifact_names):
+        print(
+            "aq train --topology-only: train_topology.py exited 0 but skipped writing artifacts "
+            "(fewer than min_training_events realized-outcome events in the lookback window - needs "
+            "Postgres up and the audit worker running long enough to accumulate them) - active ml/ left "
+            "unchanged.",
+            file=sys.stderr,
+        )
+        return 0
+
+    ml_dir = ROOT_DIR / "ml"
+    for name in artifact_names:
+        shutil.copy2(version_dir / name, ml_dir / name)
+    print(f"aq train --topology-only: copied {', '.join(artifact_names)} into active ml/.")
     return 0
 
 
@@ -1089,6 +1132,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--sequence-only",
         action="store_true",
         help="Train the Phase 2 causal-TCN sequence encoder only (wraps python train_sequence.py)",
+    )
+    train_group.add_argument(
+        "--topology-only",
+        action="store_true",
+        help=(
+            "Train the learned topology overlay only (wraps python train_topology.py). Needs Postgres up "
+            "and enough accumulated realized-outcome events - see the command's own output if it skips."
+        ),
     )
     train_group.add_argument(
         "--walk-forward",

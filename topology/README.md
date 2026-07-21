@@ -53,18 +53,32 @@ The goal is to make market structure useful for analysis, not only visual.
     tuple width doesn't match the active mode are discarded like an
     unseen symbol, so flipping the flag mid-run degrades to a cold start
     instead of crashing.
-  - **Known follow-up (latent):** `train_topology.py` learns prototype z
-    offsets on the old `0..1` scale (`(win_rate - 0.5) * 0.2`), so in 3D
-    mode the learned overlay would move nodes on x/y but effectively not
-    on z. `main.py` raises `max_offset_z` to the xy cap in 3D mode (the
-    configured `0.1` would be a no-op on a `0..100` axis), but that only
-    removes the ceiling — it can't enlarge offsets the model never
-    learned. **Currently unreachable**: no topology model has ever been
-    trained (`ml/topology_model.json` does not exist), so
-    `apply_learned_topology()` takes its `learned_topology_model_missing`
-    path on every bar and every node reports `topology_source:
-    "fallback"`. See `development/Problems.md` #56 for what closing it
-    takes.
+  - **Prototype z offsets are normalized, not absolute** (development/
+    Problems.md #56): unlike x/y, whose offsets are always absolute scene
+    units clamped straight to `max_offset_xy`, `train_topology.py` emits z
+    normalized to `[-1, 1]` and `learned_topology.py`'s `_score_node()`
+    multiplies it by the active `max_offset_z` before the same
+    confidence-weighted clamp. This is deliberate, not an inconsistency —
+    z is the one axis whose scene scale changes between the 2D (`0..1`
+    volatility encoding) and 3D (`0..100` spatial axis) modes, so a raw
+    offset tuned for one scale would be meaningless on the other. The
+    normalization is provably identity-preserving in 2D
+    (`(win_rate − 0.5) × 2.0 × 0.1 ≡ (win_rate − 0.5) × 0.2` for every win
+    rate and confidence — the old raw formula), so 2D mode's output is
+    unaffected; in 3D mode the same offset now produces real z movement
+    instead of a near-zero shift. `main.py`'s existing `max_offset_z`
+    override (raising it to the xy cap in 3D mode) is what this
+    normalization is designed to actually push against — the two work
+    together, not as separate fixes.
+  - **The overlay is still entirely dormant** — no topology model has ever
+    been trained (`ml/topology_model.json` does not exist anywhere,
+    including every `ml/versions/*`), so `apply_learned_topology()` still
+    takes its `learned_topology_model_missing` path on every bar and every
+    node still reports `topology_source: "fallback"`. Training the first
+    model needs the full stack (Postgres + audit worker) up long enough to
+    accumulate `phase_v2.topology_learning.training.min_training_events`
+    (default 500) realized-outcome events, then `aq train --topology-only`.
+    See `development/Problems.md` #56 for the full story.
 - **Vectorized with numpy** (latency-optimization pass, post-V2-23) —
   `_stress_majorize` was pure Python, an `O(N² × iterations)` nested
   loop and the dominant per-bar cost in this whole module. Same

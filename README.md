@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1515%2F1515%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1515 of 1515 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1521%2F1521%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1521 of 1521 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -76,18 +76,14 @@ full setup.
 **V3 complete. V4 initialised with V4.1, the visualisation update.**
 Multi-asset-class trading (equities, crypto, bonds, futures, options),
 the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->1515<!-- AQ:TEST_COUNT_END -->
+(<!-- AQ:TEST_COUNT_START -->1521<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
-- **V4.1 (visualisation), shipped:** the first V4 work item — a new
-  **Operations** tab splitting the operational/health panels off an
-  overloaded Overview (V4-W1), a reflowed **Tracing** layout giving the
-  asset table room to grow (V4-W2), and a **genuinely 3D market topology**
-  embedding, opt-in via `phase_v2.topology.embedding_dimensions: 3`
-  (V4-W3). Also brought the project's first frontend test suite (Vitest)
-  and fixed a pre-existing bug where every webui tab except `/` 404'd on
-  a direct load in the Docker/production serving path
-  (`development/Problems.md` #55).
+- **V4.1 (visualisation), shipped:** the first V4 work item — see
+  [Roadmap](#roadmap) for the full breakdown (V4-W1/W2/W3). Still needs
+  validation: a real backtest with `phase_v2.topology.embedding_dimensions: 3`
+  turned on, and — separately, once trained — the learned topology
+  overlay checked against one too.
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
@@ -418,7 +414,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1515<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1521<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -504,7 +500,7 @@ last backtest.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1515<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1521<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -537,7 +533,7 @@ command already documented elsewhere in this README:
 
 #### `aq train`
 ```text
-aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--walk-forward] [--step-days N] [--mode rolling|expanding]
+aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--topology-only|--walk-forward] [--step-days N] [--mode rolling|expanding]
 ```
 **Builds the dataset and trains the models** (`train.py`). With no flags,
 trains everything (baseline + experts + gating + multitask + sequence) and
@@ -549,6 +545,7 @@ Scope flags (each trains just one piece, installs straight into `ml/`):
 - `--gating-only`: the learned gating blend (`train_gating.py`, `moe/README.md`).
 - `--multitask-only`: the joint direction/magnitude/volatility + rank model (`train_multitask.py`, `risk/README.md`).
 - `--sequence-only`: the causal-TCN sequence encoder (`train_sequence.py`, `inference/README.md`).
+- `--topology-only`: the learned topology overlay (`train_topology.py`, `topology/README.md`). Different data source from every other flag here — fits over realized trading outcomes pulled from Postgres, needs `phase_v2.topology_learning.training.min_training_events` (default 500) accumulated events, and correctly no-ops ("skipped, active `ml/` left unchanged") rather than training on too little data.
 
 Walk-forward (diagnostic, **never** touches active `ml/`):
 - `--walk-forward`: runs the whole pipeline once per rolling/expanding window instead of on the fixed `phase1.windows`; each window writes to `ml/versions/<run-id>/window_<i>/`.
@@ -807,9 +804,9 @@ All finished phases and changes can be found in
 - Allow adding to an existing position, today, if the model already holds SPY and the signal says to buy more SPY, it should be able to scale the position up rather than being blocked just because a position already exists.
 
 **Webui** — ✅ **V4.1, the visualisation update — shipped**, see `development/Changelog.md`
-- ~~Consider moving some of the Overview tab's content into its own, larger tab for better organization.~~ Done (V4-W1): the operational/health panels moved to a new **Operations** tab, leaving Overview with the trading-side view.
-- ~~Tracing tab: move the backtest equity curve under "Runtime Metrics Snapshot" and the observation-mode equity curve under "Backtest Equity Curve", so interactive tabs sit on the left and asset performance (which grows with more assets) has room to grow on the right.~~ Done (V4-W2).
-- ~~Make the webui topology genuinely 3D instead of 2D.~~ Done (V4-W3), opt-in via `phase_v2.topology.embedding_dimensions: 3` (default `2` keeps existing coordinates byte-identical). Note the function to extend was `topology/market_topology.py`'s `_stress_majorize_2d()`, not `learned_topology.py`'s — now renamed `_stress_majorize()` since it is dimension-agnostic.
+- ~~Consider moving some of the Overview tab's content into its own, larger tab for better organization.~~ ~~Done (V4-W1): the operational/health panels moved to a new **Operations** tab, leaving Overview with the trading-side view.~~
+- ~~Tracing tab: move the backtest equity curve under "Runtime Metrics Snapshot" and the observation-mode equity curve under "Backtest Equity Curve", so interactive tabs sit on the left and asset performance (which grows with more assets) has room to grow on the right.~~ ~~Done (V4-W2).~~
+- ~~Make the webui topology genuinely 3D instead of 2D.~~ ~~Done (V4-W3), opt-in via `phase_v2.topology.embedding_dimensions: 3` (default `2` keeps existing coordinates byte-identical). Note the function to extend was `topology/market_topology.py`'s `_stress_majorize_2d()`, not `learned_topology.py`'s — now renamed `_stress_majorize()` since it is dimension-agnostic. Follow-up closed in the same phase: the learned topology overlay's prototype z offset was still on the pre-V4 `0..1` scale, which would have silently under-driven z movement in 3D mode — normalized to `[-1, 1]` instead (provably identity-preserving in 2D), `aq train --topology-only` added, `development/Problems.md` #56 now 🟢 fixed. The overlay itself stays dormant until a topology model is actually trained — a separate, user-run milestone, not a blocker on this item.~~
 
 **Tests / production readiness**
 - Real IB API key insertion and testing, the one blocker behind #29/#38's unverified items and the README's Known Limitations.
