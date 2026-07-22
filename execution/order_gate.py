@@ -257,11 +257,17 @@ _NO_OP_EXECUTION_NOTES = frozenset(
         "kept_short_futures",
         "futures_zero_delta_kept",
         "options_kept",
-        "options_zero_or_negative_delta_kept",
         "options_contract_drifted_kept",
         "options_spread_kept",
-        "options_spread_shrink_unsupported",
         "options_spread_legs_mismatch_kept",
+        # V4.4 - architecturally-sound options (development/Problems.md):
+        # single-leg/spread scale-down replaced "options_zero_or_negative_
+        # delta_kept"/"options_spread_shrink_unsupported" (both retired -
+        # a negative delta is now a REAL reduce order, never a no-op) with
+        # a delta==0-only no-op; the multi-position book adds two more.
+        "options_zero_delta_kept",
+        "options_at_position_cap_kept",
+        "options_held_contract_not_in_chain_kept",
     }
 )
 _NO_OP_EXECUTION_NOTE_SUFFIXES = ("_exposure_cap_reached",)

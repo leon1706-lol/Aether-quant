@@ -4034,3 +4034,55 @@ every new no-op note is a plain constant, never an f-string).
 
 See `development/Problems.md` #57 for the full writeup, including the
 deferred anti-thrashing-guard follow-up for `rotate_on_drift`.
+
+## V4.4 — architecturally-sound options: multi-position book, symmetric scale-down, held-contract sizing, spread combo orders (Problems.md #58)
+
+Closes six architectural gaps a critical review found in V4.3.0's options
+paths, all independent of there being zero option assets and no IB key
+today: single-leg options only scaled up, never down; spreads couldn't
+scale down at all (no `Sell`-combo primitive existed); a drifted contract
+with `rotate_on_drift` off was a total freeze rather than being managed
+on its own greeks; single-slot tracking capped the book at one position
+per underlying; rotation's same-bar liquidate+reenter had no netting;
+spreads had no limit-order path. Confirmed scope, per the user: build the
+**full multi-position book**, and include the **new spread combo API
+now** (Sell-combo scale-down, combo limit orders) rather than deferring
+it — both land code-complete but IB-unverified, the same status the
+pre-existing Buy-combo entry path already carried.
+
+`portfolio/options_strategy.py` gained two additive, fully unit-tested
+pure functions — `build_options_position_sizing_for_contract()` and
+`build_vertical_spread_position_sizing_for_legs()` — that size an
+already-held contract/legs on their own current greeks instead of
+re-selecting from the chain; the budget arithmetic was already cleanly
+separable from selection, so the existing chain-first sizers needed zero
+changes (all 41 pre-existing tests pass unchanged).
+
+`main.py`'s single-slot tracking dicts became
+`self.option_positions_by_symbol: dict[str, list[dict]]`, capped at
+`phase_v2.options_risk.max_positions_per_underlying` (default `1`,
+byte-identical to the pre-V4.4 shape). A matching held record scales
+both directions; a novel selection under the cap opens an additional
+position; at cap, `rotate_on_drift` liquidates the oldest to make room,
+or the nearest held record is re-sized on its own greeks instead of
+frozen. `_liquidate_position()` (full close) vs. the new
+`_liquidate_option_record()` (close one) now cleanly separate "get flat
+entirely" from "make room for rotation/trimming without disturbing other
+held positions." `pending_limit_orders` re-keyed from chain `symbol_key`
+to the actual order-target Symbol so two concurrent option positions on
+one underlying don't collide on one in-flight-order slot; records
+normalized to `"tickets"`/`"target_symbols"` lists so single-leg and
+2-leg spread orders are handled by the same iteration logic.
+
+**A real gap caught during the byte-identical-default verification, not
+shipped**: the initial at-cap re-pricing branch placed a real order
+regardless of `position_scaling_enabled` — fixed before landing to
+return the same no-op V4.3.0 always did there when scaling is off,
+exactly mirroring the discipline that already caught V4.3.0's own
+eager-write ordering bug.
+
+**Testing**: 1558 → **1591 tests, all passing** (10 new held-contract-sizer
+cases, 23 new execution-note classifications). See `development/Problems.md`
+#58 for the full writeup, including the deferred rotation-netting and
+anti-thrashing follow-ups, and exactly which combo-API pieces remain
+IB-unverified.

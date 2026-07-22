@@ -258,18 +258,81 @@ Gated by two independent, both-off-by-default flags under
   instrument top-up never has, so it's never implied by merely enabling
   scale-up.
 
-Vertical spreads only ever scale **up** when legs match (no `Sell`-side
-combo-order primitive exists in this codebase — a same-legs shrink
-request degrades to the auditable no-op `"options_spread_shrink_unsupported"`,
-same accepted trade-off category as this file's #38 leg-by-leg close
-above). `build_futures_position_sizing()`/`build_options_position_sizing()`/
+`build_futures_position_sizing()`/`build_options_position_sizing()`/
 `build_vertical_spread_position_sizing()` needed **no signature changes**
-— each already produces a correct absolute target; the bug was purely in
-`main.py`'s execution layer treating that target as incremental.
+for this pass — each already produces a correct absolute target; the bug
+was purely in `main.py`'s execution layer treating that target as
+incremental. (V4.4, next section, closed spreads' scale-up-only
+limitation and gave both single-leg and spread positions genuine
+scale-down.)
 
 `active_position_limit_reached()`'s existing already-invested exemption
 and `asset_class_router.py`'s exclude-the-symbol's-own-holding exposure-
 cap math both needed zero changes — already safe for a resize.
+
+## Architecturally-sound options: multi-position book, symmetric scale-down, held-contract sizing, spread combo orders (V4.4, development/Problems.md #58)
+
+A critical review of the V4.3.0 options paths above found they still
+weren't at parity with equity/crypto/bond/futures. Six gaps, all closed
+here — independent of there being zero option assets and no IB
+connection today (these land code-complete but IB-unverified, same
+status the pre-existing Buy-combo entry path already carried):
+
+- **Single-leg scale-down** — the old `delta <= 0` no-op is now
+  `delta == 0` only; a negative delta sells via `MarketOrder(contract_symbol,
+  delta)` to reduce, the exact primitive futures already used for shorts.
+- **Spread scale-down via a new Sell-combo primitive** —
+  `self.Sell(strategy, abs(delta))`, the Sell-side sibling of the
+  existing `self.Buy(strategy, quantity)` entry path. `"options_spread_shrink_unsupported"`
+  no longer fires (retired); a same-legs shrink is now a real reduce
+  order.
+- **Held-contract/held-legs sizing** — two new, additive pure functions
+  in `portfolio/options_strategy.py`:
+  `build_options_position_sizing_for_contract(held_contract, portfolio_value,
+  max_vega_budget_pct_of_equity)` and `build_vertical_spread_position_sizing_for_legs(
+  held_long, held_short, portfolio_value, max_vega_budget_pct_of_equity)`.
+  Both skip `select_single_leg_contract()`/`select_vertical_spread_legs()`
+  entirely and size the contract/legs **actually held**, on their own
+  current greeks — the budget arithmetic was already cleanly separable
+  from selection, factored into shared `_size_single_leg_contract()`/
+  `_size_vertical_spread()` helpers, so the existing chain-first sizers
+  needed zero behavior changes. This is what lets `main.py` keep managing
+  a drifted position instead of freezing it (`options_contract_drifted_kept`/
+  `options_spread_legs_mismatch_kept` now only fire when
+  `position_scaling.enabled` is `false` — with it `true`, the nearest
+  held position is re-sized on its own greeks instead).
+- **Multi-position book** — `phase_v2.options_risk.max_positions_per_underlying`
+  (default `1`, byte-identical to before) lets up to N simultaneous
+  positions be held per underlying instead of a single slot silently
+  clobbering itself on drift. `main.py`'s tracking dict became
+  `self.option_positions_by_symbol: dict[str, list[dict]]`; see
+  `main.py::_apply_option_order()`/`_apply_option_spread_order()` for the
+  match/append/rotate-or-reprice decision tree, and
+  `_liquidate_option_record()` (closes one tracked position) vs.
+  `_liquidate_position()` (closes all of them — the sell branch/disabled-
+  asset-class sweep still mean "get flat entirely").
+- **Spread combo limit orders** — `_try_submit_spread_limit_order()`,
+  the multi-leg analogue of `_try_submit_limit_order()`, via Lean's
+  `ComboLimitOrder`. `pending_limit_orders` is now keyed by the actual
+  order-target Symbol string (not the chain symbol_key), so two
+  different concurrent option positions on one underlying never collide
+  on one in-flight-order slot.
+
+**A real gap caught during the byte-identical-default verification, not
+shipped**: the initial at-cap "re-price the nearest held position"
+branch placed a real order regardless of `position_scaling.enabled`.
+Fixed before landing — it now returns the exact same no-op V4.3.0 always
+returned there when scaling is off, and only engages the new held-
+contract sizer when the user has explicitly opted into adjusting open
+positions.
+
+**Deferred, documented**: rotation's same-bar liquidate+reenter still
+isn't netted against post-liquidation buying power (would need re-running
+contract/leg selection mid-bar, a larger pipeline change); no anti-
+thrashing guard exists yet for repeated rotation/additional-position
+opens (contained today by `rotate_on_drift`/`max_positions_per_underlying`
+both defaulting to the safe/off state). See `development/Problems.md`
+#58 for the full writeup.
 
 ## Liquidating positions when an asset class gets disabled
 

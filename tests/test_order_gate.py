@@ -361,6 +361,33 @@ def test_classify_order_status_unknown_string_returns_unknown_not_raises():
         "scaled_option_spread_bear_put_spread",
         "rotated_option_spread_bull_call_spread",
         "rotated_option_spread_bear_put_spread",
+        # V4.4 - architecturally-sound options (development/Problems.md):
+        # single-leg/spread scale-DOWN (a negative delta reduces an
+        # already-open position, no longer a no-op), the multi-position
+        # book's "additional position opened under the cap" case, and the
+        # new spread combo-limit submission notes.
+        "reduced_option_call",
+        "reduced_option_put",
+        "submitted_limit_reduced_option_call",
+        "submitted_limit_reduced_option_put",
+        "reduced_option_spread_bull_call_spread",
+        "reduced_option_spread_bear_put_spread",
+        "opened_additional_option_call",
+        "opened_additional_option_put",
+        "submitted_limit_opened_additional_option_call",
+        "submitted_limit_opened_additional_option_put",
+        "opened_additional_option_spread_bull_call_spread",
+        "opened_additional_option_spread_bear_put_spread",
+        "submitted_limit_option_spread_bull_call_spread",
+        "submitted_limit_option_spread_bear_put_spread",
+        "submitted_limit_scaled_option_spread_bull_call_spread",
+        "submitted_limit_scaled_option_spread_bear_put_spread",
+        "submitted_limit_reduced_option_spread_bull_call_spread",
+        "submitted_limit_reduced_option_spread_bear_put_spread",
+        "submitted_limit_rotated_option_spread_bull_call_spread",
+        "submitted_limit_rotated_option_spread_bear_put_spread",
+        "submitted_limit_opened_additional_option_spread_bull_call_spread",
+        "submitted_limit_opened_additional_option_spread_bear_put_spread",
     ],
 )
 def test_is_real_order_placement_true_for_real_outcomes(execution_note):
@@ -383,17 +410,22 @@ def test_is_real_order_placement_true_for_real_outcomes(execution_note):
         "short_exposure_cap_reached",
         # V4.3.0 - allow adding to an existing position (development/
         # Changelog.md). All safe no-ops: scaling disabled while already
-        # invested same-direction, delta rounds to zero/negative, or a
-        # drifted contract/spread held with rotate_on_drift off.
+        # invested same-direction, delta rounds to zero, or a drifted
+        # contract/spread held with rotate_on_drift off.
         "kept_long_futures",
         "kept_short_futures",
         "futures_zero_delta_kept",
         "options_kept",
-        "options_zero_or_negative_delta_kept",
         "options_contract_drifted_kept",
         "options_spread_kept",
-        "options_spread_shrink_unsupported",
         "options_spread_legs_mismatch_kept",
+        # V4.4 - architecturally-sound options (development/Problems.md):
+        # "options_zero_or_negative_delta_kept"/"options_spread_shrink_
+        # unsupported" retired - a negative delta is now a REAL reduce
+        # order (see the real-outcomes list above), never a no-op.
+        "options_zero_delta_kept",
+        "options_at_position_cap_kept",
+        "options_held_contract_not_in_chain_kept",
     ],
 )
 def test_is_real_order_placement_false_for_no_op_outcomes(execution_note):

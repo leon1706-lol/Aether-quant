@@ -206,17 +206,47 @@ condors/butterflies) remains an explicit non-goal
 (`development/Problems.md` #29/#38).
 
 **Adding to an already-open position (V4.3.0)**: `main.py::_apply_option_order()`/
-`_apply_option_spread_order()` now compare this bar's freshly-selected
+`_apply_option_spread_order()` compare this bar's freshly-selected
 contract/legs against whatever's currently held for the chain symbol. A
-match scales up (delta-based, `phase_v2.functionality.position_scaling.enabled`,
-default off); a mismatch (the confidence-scaled target delta selected a
-different strike/expiry than what's held) only rotates — liquidate the
-old, enter the new, same bar — behind a second, independent
-`rotate_on_drift` flag, since same-bar liquidate+reenter carries real
-transient margin/vega-timing exposure a same-instrument top-up doesn't.
-See `risk/README.md`'s "Allow adding to an existing position" section and
-`development/Problems.md` #57 for the full design, including why neither
-of these sizing functions needed a signature change.
+match scales the position (`phase_v2.functionality.position_scaling.enabled`,
+default off) — **both directions since V4.4**, not just up. See
+`risk/README.md`'s "Allow adding to an existing position" section and
+`development/Problems.md` #57 for the full design.
+
+**Architecturally-sound options, multi-position book (V4.4)**: a
+mismatch (the confidence-scaled target delta selected a different
+strike/expiry than what's held) no longer means only "rotate or freeze."
+Three additive pure functions/behaviors close the gap:
+
+- `build_options_position_sizing_for_contract(held_contract, portfolio_value,
+  max_vega_budget_pct_of_equity)` and `build_vertical_spread_position_sizing_for_legs(
+  held_long, held_short, portfolio_value, max_vega_budget_pct_of_equity)` —
+  new, additive siblings of `build_options_position_sizing()`/
+  `build_vertical_spread_position_sizing()` above. Instead of re-running
+  `select_single_leg_contract()`/`select_vertical_spread_legs()`, they
+  size the contract/legs **actually held** on their own current greeks —
+  what lets a drifted position keep being managed instead of frozen when
+  `main.py` chooses not to rotate. Both are pure re-uses of the identical
+  vega-budget arithmetic the chain-first sizers already had (factored
+  into shared `_size_single_leg_contract()`/`_size_vertical_spread()`
+  helpers) — neither existing sizer needed a signature or behavior
+  change.
+- **Spread scale-down** via a new `self.Sell(strategy, quantity)` combo
+  primitive (the Sell-side sibling of the existing `self.Buy(strategy,
+  quantity)` entry path) — spreads could previously only ever scale up.
+- **Multi-position book** — `phase_v2.options_risk.max_positions_per_underlying`
+  (default `1`, byte-identical to before) lets `main.py` hold more than
+  one position per underlying at once instead of one slot always
+  clobbering itself on drift; rotation now liquidates the *oldest* held
+  position specifically (`main.py::_liquidate_option_record()`), not
+  "whatever was there."
+
+Both the spread Sell-combo and the new combo-limit-order path
+(`main.py::_try_submit_spread_limit_order()`) are new Lean API surface
+this codebase has never exercised before — code-complete but
+IB-unverified, the same status the original Buy-combo entry path already
+carried. See `development/Problems.md` #58 for the full design and what
+remains deferred (rotation netting, anti-thrashing).
 
 ## Webui visibility
 

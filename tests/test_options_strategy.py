@@ -5,7 +5,9 @@ from portfolio.options_strategy import (
     OptionsSpreadLeg,
     OptionsSpreadPositionDecision,
     build_options_position_sizing,
+    build_options_position_sizing_for_contract,
     build_vertical_spread_position_sizing,
+    build_vertical_spread_position_sizing_for_legs,
     select_single_leg_contract,
     select_vertical_spread_legs,
 )
@@ -416,3 +418,107 @@ def test_options_spread_position_decision_to_dict_emits_none_for_absent_contract
     result = decision.to_dict()
     assert result["legs"][0]["contract_symbol"] is None
     assert result["legs"][1]["contract_symbol"] is None
+
+
+# ---------------------------------------------------------------------------
+# V4.4 - held-contract sizing (development/Problems.md): sizes an ALREADY-HELD
+# contract/spread on its own current greeks instead of re-selecting from the
+# chain. Closes the architectural gap where a position whose ideal strike
+# drifted away from what's held could only be handled by a binary rotate-or-
+# freeze choice - these let main.py keep managing what it actually holds.
+# ---------------------------------------------------------------------------
+
+
+def _held_call_contract() -> dict:
+    return {"strike": 500, "expiry": "2026-08-21", "right": "call", "delta": 0.45, "vega": 45.0, "symbol": "HELD_CALL"}
+
+
+def test_build_options_position_sizing_for_contract_sizes_by_own_greeks():
+    decision = build_options_position_sizing_for_contract(
+        _held_call_contract(), portfolio_value=100_000.0, max_vega_budget_pct_of_equity=0.02
+    )
+
+    assert decision is not None
+    assert decision.right == "call"
+    assert decision.strike == 500.0
+    assert decision.target_delta == 0.45  # the held contract's OWN delta, not a fresh confidence-scaled target
+    assert decision.actual_delta == 0.45
+    assert decision.contracts == int((0.02 * 100_000.0) // 45.0)
+    assert decision.sizing_reason == "held_contract_own_greeks_sizing"
+    assert decision.contract_symbol == "HELD_CALL"
+
+
+def test_build_options_position_sizing_for_contract_scales_down_when_budget_shrinks():
+    # A smaller vega budget must size FEWER contracts for the identical
+    # held position - this is what lets a held contract scale down.
+    larger = build_options_position_sizing_for_contract(_held_call_contract(), 100_000.0, 0.02)
+    smaller = build_options_position_sizing_for_contract(_held_call_contract(), 100_000.0, 0.005)
+
+    assert smaller.contracts < larger.contracts
+
+
+def test_build_options_position_sizing_for_contract_derives_right_from_row():
+    put_contract = {"strike": 480, "expiry": "2026-08-21", "right": "PUT", "delta": -0.3, "vega": 30.0, "symbol": "HELD_PUT"}
+
+    decision = build_options_position_sizing_for_contract(put_contract, 100_000.0)
+
+    assert decision.right == "put"  # normalized to lowercase, matching select_single_leg_contract()'s convention
+
+
+def test_build_options_position_sizing_for_contract_none_when_vega_non_positive():
+    zero_vega_contract = {**_held_call_contract(), "vega": 0.0}
+
+    assert build_options_position_sizing_for_contract(zero_vega_contract, 100_000.0) is None
+
+
+def test_build_options_position_sizing_for_contract_none_when_portfolio_value_non_positive():
+    assert build_options_position_sizing_for_contract(_held_call_contract(), portfolio_value=0.0) is None
+    assert build_options_position_sizing_for_contract(_held_call_contract(), portfolio_value=-1.0) is None
+
+
+def test_build_options_position_sizing_for_contract_none_when_budget_rounds_to_zero():
+    tiny_budget_contract = _held_call_contract()
+
+    assert build_options_position_sizing_for_contract(tiny_budget_contract, 1_000.0, max_vega_budget_pct_of_equity=0.001) is None
+
+
+def _held_call_vertical_legs() -> tuple[dict, dict]:
+    held_long = {"strike": 500, "expiry": "2026-08-21", "right": "call", "delta": 0.45, "vega": 45.0, "symbol": "HELD_LONG"}
+    held_short = {"strike": 520, "expiry": "2026-08-21", "right": "call", "delta": 0.20, "vega": 35.0, "symbol": "HELD_SHORT"}
+    return held_long, held_short
+
+
+def test_build_vertical_spread_position_sizing_for_legs_sizes_by_net_vega():
+    held_long, held_short = _held_call_vertical_legs()
+
+    decision = build_vertical_spread_position_sizing_for_legs(held_long, held_short, portfolio_value=100_000.0)
+
+    assert decision is not None
+    assert decision.strategy_name == "bull_call_spread"  # derived from held_long's own "call" right
+    assert decision.net_delta == 0.45 - 0.20
+    assert decision.contracts == int((0.02 * 100_000.0) // (45.0 - 35.0))
+    assert decision.sizing_reason == "held_legs_own_greeks_sizing"
+    assert decision.legs[0].contract_symbol == "HELD_LONG"
+    assert decision.legs[1].contract_symbol == "HELD_SHORT"
+
+
+def test_build_vertical_spread_position_sizing_for_legs_derives_put_strategy():
+    held_long = {"strike": 500, "expiry": "2026-08-21", "right": "put", "delta": -0.45, "vega": 45.0, "symbol": "HL"}
+    held_short = {"strike": 480, "expiry": "2026-08-21", "right": "put", "delta": -0.20, "vega": 35.0, "symbol": "HS"}
+
+    decision = build_vertical_spread_position_sizing_for_legs(held_long, held_short, 100_000.0)
+
+    assert decision.strategy_name == "bear_put_spread"
+
+
+def test_build_vertical_spread_position_sizing_for_legs_none_when_net_vega_non_positive():
+    held_long, held_short = _held_call_vertical_legs()
+    held_long_thin_vega = {**held_long, "vega": 10.0}  # short leg vega (35.0) now exceeds long leg vega
+
+    assert build_vertical_spread_position_sizing_for_legs(held_long_thin_vega, held_short, 100_000.0) is None
+
+
+def test_build_vertical_spread_position_sizing_for_legs_none_when_portfolio_value_non_positive():
+    held_long, held_short = _held_call_vertical_legs()
+
+    assert build_vertical_spread_position_sizing_for_legs(held_long, held_short, portfolio_value=0.0) is None

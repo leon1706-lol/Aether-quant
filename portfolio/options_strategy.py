@@ -88,6 +88,43 @@ def select_single_leg_contract(available_chain: list[dict], target_delta: float,
     return min(candidates, key=lambda row: abs(abs(row["delta"]) - abs(target_delta)))
 
 
+def _size_single_leg_contract(
+    contract: dict,
+    right: str,
+    target_delta: float,
+    portfolio_value: float,
+    max_vega_budget_pct_of_equity: float,
+    sizing_reason: str,
+) -> OptionsPositionDecision | None:
+    """Shared vega-budget arithmetic for a single ALREADY-RESOLVED contract
+    row - factored out of build_options_position_sizing() so
+    build_options_position_sizing_for_contract() (V4.4, sizes an
+    already-HELD contract on its own greeks instead of re-selecting one)
+    reuses the identical budget math rather than duplicating it. Returns
+    None when the contract's vega is non-positive or the budget rounds
+    down to zero contracts - never raises."""
+    contract_vega = float(contract.get("vega", 0.0) or 0.0)
+    if contract_vega <= 0.0:
+        return None
+
+    vega_budget = max_vega_budget_pct_of_equity * portfolio_value
+    contracts = int(vega_budget // contract_vega)
+    if contracts <= 0:
+        return None
+
+    return OptionsPositionDecision(
+        contracts=contracts,
+        right=right,
+        strike=float(contract["strike"]),
+        expiry=str(contract["expiry"]),
+        target_delta=target_delta,
+        actual_delta=float(contract["delta"]),
+        vega_budget_used=(contracts * contract_vega) / portfolio_value,
+        sizing_reason=sizing_reason,
+        contract_symbol=contract.get("symbol"),
+    )
+
+
 def build_options_position_sizing(
     signal_direction: str,
     confidence: float,
@@ -135,25 +172,47 @@ def build_options_position_sizing(
     if contract is None:
         return None
 
-    contract_vega = float(contract.get("vega", 0.0) or 0.0)
-    if contract_vega <= 0.0:
+    return _size_single_leg_contract(
+        contract, right, target_delta, portfolio_value, max_vega_budget_pct_of_equity,
+        "delta_targeted_vega_budgeted_sizing",
+    )
+
+
+def build_options_position_sizing_for_contract(
+    held_contract: dict,
+    portfolio_value: float,
+    max_vega_budget_pct_of_equity: float = 0.02,
+) -> OptionsPositionDecision | None:
+    """V4.4 - sizes the EXACT held contract on its own current greeks,
+    skipping select_single_leg_contract() entirely (no re-selection).
+
+    Closes a real architectural gap: without this, a position whose ideal
+    strike has drifted away from what main.py is currently holding could
+    only ever be handled by RE-SELECTING a contract (which picks a
+    DIFFERENT one, forcing a binary rotate-or-freeze choice) - this lets
+    the held position keep being managed - scaled up or down - on its own
+    delta/vega, on bars where main.py chooses not to rotate.
+
+    held_contract is a live chain row for the currently-held contract -
+    same shape select_single_leg_contract() returns (must carry
+    right/strike/expiry/delta/vega/symbol, e.g. found by matching the
+    held contract_symbol against this bar's available_chain). There is no
+    fresh confidence-scaled target here - the position already exists -
+    so target_delta/actual_delta are both just the held contract's own
+    current delta.
+
+    Same degrade-to-None contract as build_options_position_sizing():
+    non-positive portfolio_value, missing/non-positive vega, or a budget
+    that rounds to zero contracts all return None, never raise."""
+    portfolio_value = max(float(portfolio_value), 0.0)
+    if portfolio_value <= 0.0:
         return None
 
-    vega_budget = max_vega_budget_pct_of_equity * portfolio_value
-    contracts = int(vega_budget // contract_vega)
-    if contracts <= 0:
-        return None
-
-    return OptionsPositionDecision(
-        contracts=contracts,
-        right=right,
-        strike=float(contract["strike"]),
-        expiry=str(contract["expiry"]),
-        target_delta=target_delta,
-        actual_delta=float(contract["delta"]),
-        vega_budget_used=(contracts * contract_vega) / portfolio_value,
-        sizing_reason="delta_targeted_vega_budgeted_sizing",
-        contract_symbol=contract.get("symbol"),
+    right = str(held_contract.get("right", "")).lower()
+    held_delta = float(held_contract.get("delta", 0.0) or 0.0)
+    return _size_single_leg_contract(
+        held_contract, right, held_delta, portfolio_value, max_vega_budget_pct_of_equity,
+        "held_contract_own_greeks_sizing",
     )
 
 
@@ -275,6 +334,54 @@ def select_vertical_spread_legs(
     return long_leg, short_leg
 
 
+def _size_vertical_spread(
+    long_row: dict,
+    short_row: dict,
+    right: str,
+    strategy_name: str,
+    portfolio_value: float,
+    max_vega_budget_pct_of_equity: float,
+    sizing_reason: str,
+) -> OptionsSpreadPositionDecision | None:
+    """Shared net-vega-budget arithmetic for an already-resolved leg pair -
+    factored out of build_vertical_spread_position_sizing() so
+    build_vertical_spread_position_sizing_for_legs() (V4.4, sizes an
+    already-HELD spread on its own greeks instead of re-selecting legs)
+    reuses the identical budget math. Returns None when net_vega is
+    non-positive or the budget rounds down to zero spread units."""
+    long_vega = float(long_row.get("vega", 0.0) or 0.0)
+    short_vega = float(short_row.get("vega", 0.0) or 0.0)
+    net_vega_per_spread = long_vega - short_vega
+    if net_vega_per_spread <= 0.0:
+        return None
+
+    vega_budget = max_vega_budget_pct_of_equity * portfolio_value
+    contracts = int(vega_budget // net_vega_per_spread)
+    if contracts <= 0:
+        return None
+
+    long_ask = long_row.get("ask")
+    short_bid = short_row.get("bid")
+    net_debit_or_credit = (
+        float(long_ask) - float(short_bid) if long_ask is not None and short_bid is not None else 0.0
+    )
+    net_delta = float(long_row.get("delta", 0.0) or 0.0) - float(short_row.get("delta", 0.0) or 0.0)
+
+    return OptionsSpreadPositionDecision(
+        strategy_name=strategy_name,
+        legs=(
+            OptionsSpreadLeg(strike=float(long_row["strike"]), right=right, side="long", contract_symbol=long_row.get("symbol")),
+            OptionsSpreadLeg(strike=float(short_row["strike"]), right=right, side="short", contract_symbol=short_row.get("symbol")),
+        ),
+        expiry=str(long_row["expiry"]),
+        contracts=contracts,
+        net_debit_or_credit=net_debit_or_credit,
+        net_delta=net_delta,
+        net_vega=(contracts * net_vega_per_spread) / portfolio_value,
+        sizing_reason=sizing_reason,
+    )
+
+
 def build_vertical_spread_position_sizing(
     signal_direction: str,
     confidence: float,
@@ -316,34 +423,34 @@ def build_vertical_spread_position_sizing(
         return None
     long_row, short_row = legs
 
-    long_vega = float(long_row.get("vega", 0.0) or 0.0)
-    short_vega = float(short_row.get("vega", 0.0) or 0.0)
-    net_vega_per_spread = long_vega - short_vega
-    if net_vega_per_spread <= 0.0:
-        return None
-
-    vega_budget = max_vega_budget_pct_of_equity * portfolio_value
-    contracts = int(vega_budget // net_vega_per_spread)
-    if contracts <= 0:
-        return None
-
-    long_ask = long_row.get("ask")
-    short_bid = short_row.get("bid")
-    net_debit_or_credit = (
-        float(long_ask) - float(short_bid) if long_ask is not None and short_bid is not None else 0.0
+    return _size_vertical_spread(
+        long_row, short_row, right, strategy_name, portfolio_value, max_vega_budget_pct_of_equity,
+        "delta_targeted_net_vega_budgeted_vertical_spread_sizing",
     )
-    net_delta = float(long_row.get("delta", 0.0) or 0.0) - float(short_row.get("delta", 0.0) or 0.0)
 
-    return OptionsSpreadPositionDecision(
-        strategy_name=strategy_name,
-        legs=(
-            OptionsSpreadLeg(strike=float(long_row["strike"]), right=right, side="long", contract_symbol=long_row.get("symbol")),
-            OptionsSpreadLeg(strike=float(short_row["strike"]), right=right, side="short", contract_symbol=short_row.get("symbol")),
-        ),
-        expiry=str(long_row["expiry"]),
-        contracts=contracts,
-        net_debit_or_credit=net_debit_or_credit,
-        net_delta=net_delta,
-        net_vega=(contracts * net_vega_per_spread) / portfolio_value,
-        sizing_reason="delta_targeted_net_vega_budgeted_vertical_spread_sizing",
+
+def build_vertical_spread_position_sizing_for_legs(
+    held_long: dict,
+    held_short: dict,
+    portfolio_value: float,
+    max_vega_budget_pct_of_equity: float = 0.02,
+) -> OptionsSpreadPositionDecision | None:
+    """V4.4 - net-vega sibling of build_options_position_sizing_for_contract()
+    for a held 2-leg vertical spread: sizes the EXACT held long/short legs
+    on their own current greeks, skipping select_vertical_spread_legs()
+    entirely. held_long/held_short are live chain rows for the currently-
+    held legs (same shape select_vertical_spread_legs() returns each of
+    its pair). strategy_name/right are derived from held_long's own
+    "right" field rather than passed in - there is no fresh signal here,
+    the spread already exists. Same degrade-to-None contract as
+    build_vertical_spread_position_sizing()."""
+    portfolio_value = max(float(portfolio_value), 0.0)
+    if portfolio_value <= 0.0:
+        return None
+
+    right = str(held_long.get("right", "")).lower()
+    strategy_name = "bull_call_spread" if right == "call" else "bear_put_spread"
+    return _size_vertical_spread(
+        held_long, held_short, right, strategy_name, portfolio_value, max_vega_budget_pct_of_equity,
+        "held_legs_own_greeks_sizing",
     )

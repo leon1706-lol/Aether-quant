@@ -61,6 +61,16 @@ from risk.futures_risk import load_futures_contract_specs
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
 from portfolio import build_rank_based_book, normalize_per_asset_class_slots, should_rebalance_this_bar
+# V4.4 - held-contract/held-legs sizing (development/Problems.md): sizes an
+# ALREADY-HELD contract/spread on its own current greeks. Imported directly
+# (not routed through risk/asset_class_router.py::route_position_sizing(),
+# which is chain-first/always-re-selects) since these are called from
+# main.py's option order-placement branches on a SPECIFIC held position,
+# never as part of this bar's fresh signal->sizing pipeline.
+from portfolio.options_strategy import (
+    build_options_position_sizing_for_contract,
+    build_vertical_spread_position_sizing_for_legs,
+)
 from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 # Imports directly from audit.redis_queue (not the audit package's own
@@ -275,35 +285,46 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._position_peak_price_since_entry: dict[str, float] = {}
         self._position_direction_by_symbol: dict[str, str] = {}
         self.latest_non_model_exit_reason_by_symbol: dict[str, str] = {}
-        # Position-close/exposure tracking for options (A7): main.py's
-        # canonical chain Symbol (self.ticker_to_symbol[asset["ticker"]])
-        # is what every other per-symbol dict here is keyed by, but a real
-        # options ORDER executes on a specific CONTRACT Symbol
-        # (OptionsPositionDecision.contract_symbol) - a different Lean
-        # object. Without this pair of maps, _is_invested()/the sell and
-        # hold-liquidate branches/_asset_class_exposure() would all still
-        # look at the (never-invested) chain Symbol and never find the
-        # real position - see _apply_signal()'s "option" branches.
-        self.option_contract_symbol_by_symbol: dict[str, object] = {}
+        # Position-close/exposure tracking for options (A7, reworked V4.4
+        # for a multi-position book): main.py's canonical chain Symbol
+        # (self.ticker_to_symbol[asset["ticker"]]) is what every other
+        # per-symbol dict here is keyed by, but a real options ORDER
+        # executes on a specific CONTRACT Symbol (or a leg pair, for a
+        # spread) - a different Lean object. Without these maps,
+        # _is_invested()/the sell and hold-liquidate branches/
+        # _asset_class_exposure() would all still look at the (never-
+        # invested) chain Symbol and never find the real position(s) - see
+        # _apply_signal()'s "option" branches.
+        #
+        # option_positions_by_symbol: chain symbol_key -> list of held
+        # position records, in the order they were opened (oldest first -
+        # rotation-at-cap liquidates index 0). At most
+        # self.options_max_positions_per_underlying records per key (1 by
+        # default - byte-identical to the pre-V4.4 single-slot behavior).
+        # Each record is one of:
+        #   {"kind": "single_leg", "contract_symbol": Symbol, "right": str,
+        #    "strike": float, "expiry": str}
+        #   {"kind": "spread", "strategy_name": str,
+        #    "legs": [long_symbol, short_symbol], "long_strike": float,
+        #    "short_strike": float, "expiry": str}
+        # symbol_key_by_option_contract_symbol is the reverse map (every
+        # held contract/leg Symbol -> its chain symbol_key) and MUST stay
+        # complete, stamped BEFORE any order is placed - on_order_event()/
+        # _asset_class_exposure() both depend on it (see their own
+        # docstrings).
+        self.option_positions_by_symbol: dict[str, list[dict]] = {}
         self.symbol_key_by_option_contract_symbol: dict[str, str] = {}
-        # 2-leg vertical spread support (execution/risk realism pass, part
-        # 3): a NEW, additive, plural sibling of the dict above - never
-        # repurposes option_contract_symbol_by_symbol's value type, which
-        # would force every one of its existing read sites to branch even
-        # on the default single-leg path. Only ever populated by
-        # _apply_option_spread_order() below; empty for every non-spread
-        # position, always. See _order_target_symbols()'s docstring for
-        # how this and the singular dict above are reconciled.
-        self.option_contract_symbols_by_symbol: dict[str, list] = {}
         # Real limit-order support (execution/risk realism pass, part 2):
         # in-flight limit orders this algorithm is currently waiting to
-        # fill, keyed by str(symbol) - the canonical chain-Symbol string
-        # (deliberately NOT last_trade_bar_by_symbol's raw-Symbol-object
-        # keying just above - that inconsistency is a pre-existing
-        # landmine, not a pattern to copy). For options, keyed by the
-        # CHAIN symbol_key (matching every other per-symbol dict here)
-        # even though the real order/OrderTicket targets the CONTRACT
-        # symbol - see _try_submit_limit_order()'s docstring. See
+        # fill, keyed by str(the actual order-target Symbol) - the CONTRACT
+        # Symbol for a single-leg option (or, V4.4, one of the two per-leg
+        # keys a spread combo limit order is filed under - see
+        # _try_submit_spread_limit_order()), else the plain chain Symbol
+        # (identical to symbol_key) for every other asset class. Keying by
+        # the order-target Symbol rather than the chain symbol_key (pre-
+        # V4.4) is what lets two DIFFERENT concurrent option positions on
+        # the same underlying each track their own in-flight limit order
+        # without colliding on one dict slot. See
         # execution/README.md's "Real limit orders" section for the full
         # design; empty/unused whenever phase_v2.limit_orders.enabled is
         # False (the default).
@@ -661,6 +682,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # section and development/Problems.md #38.
         self.options_spread_strategy = str(phase_v2_options_risk.get("spread_strategy", "single_leg"))
         self.options_short_leg_delta_offset = float(phase_v2_options_risk.get("short_leg_delta_offset", 0.20))
+        # V4.4 - how many simultaneous positions (contracts, or spreads) may
+        # be held per underlying chain symbol at once. 1 (default) is
+        # byte-identical to V4.3.0's single-slot behavior - a drifted
+        # contract/spread is managed in place (held-contract sizing) or
+        # rotated, never held ALONGSIDE the old one. >1 allows a genuinely
+        # new position to be opened (appended) instead of forcing an
+        # immediate rotate-or-freeze choice the moment room exists. See
+        # development/Problems.md and portfolio/README.md.
+        self.options_max_positions_per_underlying = max(1, int(phase_v2_options_risk.get("max_positions_per_underlying", 1)))
         # V4.3.0 - allow adding to an existing position instead of being
         # blocked purely because one already exists (development/Changelog.md).
         # Off by default: with position_scaling_enabled=False the equity/
@@ -2647,36 +2677,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # here, unlike the real-order path above.
         return str(symbol) in self._simulated_portfolio.holdings
 
-    def _order_target_symbol(self, symbol):
-        """The actual Lean Symbol a real order/Liquidate/Invested-check
-        should target for `symbol` - the tracked option CONTRACT Symbol
-        (self.option_contract_symbol_by_symbol) when one exists for this
-        chain Symbol, else `symbol` itself unchanged (every non-option
-        asset class, and an option asset with no currently-open contract
-        position)."""
-        return self.option_contract_symbol_by_symbol.get(str(symbol), symbol)
-
     def _order_target_symbols(self, symbol) -> list:
-        """Plural sibling of _order_target_symbol() above, for 2-leg
-        vertical spread positions (execution/risk realism pass, part 3):
-        every real Lean Symbol a Liquidate()/Invested-check should target
-        for `symbol` - both leg contract Symbols
-        (self.option_contract_symbols_by_symbol) when this chain symbol
-        currently holds a spread, else a single-element list wrapping
-        _order_target_symbol()'s own result (every non-spread position -
-        single-leg option, future, equity/crypto/bond - unchanged).
+        """Every real Lean Symbol a Liquidate()/Invested-check should
+        target for `symbol` - V4.4, reworked for the multi-position options
+        book: every leg/contract Symbol of every currently-tracked option
+        position for this chain Symbol (self.option_positions_by_symbol),
+        else a single-element list wrapping `symbol` itself unchanged
+        (every non-option asset class, and an option asset with no
+        currently-tracked position).
 
-        Provably byte-identical to [_order_target_symbol(symbol)] for
-        every position that isn't a spread, by construction:
-        option_contract_symbols_by_symbol is only ever populated by
-        _apply_option_spread_order() below, so it has no entry for any
-        other position, and this falls straight through to the existing,
-        unchanged single-symbol path."""
+        Provably byte-identical to [symbol] for every non-option position,
+        by construction: option_positions_by_symbol is only ever populated
+        by _apply_option_order()/_apply_option_spread_order() below, so it
+        has no entry for any other asset class."""
         symbol_key = str(symbol)
-        spread_targets = self.option_contract_symbols_by_symbol.get(symbol_key)
-        if spread_targets:
-            return list(spread_targets)
-        return [self._order_target_symbol(symbol)]
+        records = self.option_positions_by_symbol.get(symbol_key)
+        if not records:
+            return [symbol]
+        targets = []
+        for record in records:
+            if record["kind"] == "spread":
+                targets.extend(record["legs"])
+            else:
+                targets.append(record["contract_symbol"])
+        return targets
 
     def _try_submit_limit_order(
         self,
@@ -2718,11 +2742,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
         Limit price via resolve_limit_price(), reusing this bar's already-
         computed liquidity spread_proxy (self.latest_liquidity_by_symbol)
         rather than a new estimate. On success, records the OrderTicket in
-        self.pending_limit_orders keyed by symbol_key and returns True -
-        callers must NOT also stamp last_trade_bar_by_symbol in this
-        branch (cooldown is stamped at confirmed-fill time via
-        on_order_event(), not here - see execution/README.md's "Real
-        limit orders" section).
+        self.pending_limit_orders keyed by str(symbol) - the actual
+        order-target Symbol, NOT symbol_key (V4.4: this is what lets two
+        DIFFERENT concurrent option positions on the same underlying each
+        track their own in-flight limit order without colliding on one
+        dict slot, since symbol_key is shared but the contract Symbol
+        isn't) - and returns True. Callers must NOT also stamp
+        last_trade_bar_by_symbol in this branch (cooldown is stamped at
+        confirmed-fill time via on_order_event(), not here - see
+        execution/README.md's "Real limit orders" section).
+
+        The pending record's "tickets"/"target_symbols" are single-element
+        lists - uniform with _try_submit_spread_limit_order()'s 2-element
+        records, so on_order_event()/_process_pending_limit_order_timeouts()
+        can iterate either shape identically without branching.
 
         chain_symbol is only needed when it differs from `symbol` - i.e.
         options, where `symbol` is the tradeable CONTRACT Symbol (what
@@ -2744,9 +2777,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         limit_price = resolve_limit_price(close_price, spread_fraction, is_buy, self.limit_order_offset_multiplier)
 
         ticket = self.LimitOrder(symbol, quantity, limit_price)
-        self.pending_limit_orders[symbol_key] = {
-            "ticket": ticket,
-            "symbol": symbol,
+        self.pending_limit_orders[str(symbol)] = {
+            "tickets": [ticket],
+            "target_symbols": [symbol],
             "chain_symbol": chain_symbol if chain_symbol is not None else symbol,
             "symbol_key": symbol_key,
             "asset_class": asset_class,
@@ -2755,6 +2788,151 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "target_weight": target_weight,
         }
         return True
+
+    def _try_submit_spread_limit_order(
+        self,
+        symbol,
+        symbol_key: str,
+        long_leg_symbol,
+        short_leg_symbol,
+        strategy_name: str,
+        expiry: str,
+        long_strike: float,
+        short_strike: float,
+        quantity: int,
+        target_weight: float,
+        close_price: float,
+    ) -> bool:
+        """V4.4 - spread sibling of _try_submit_limit_order() above
+        (execution/risk realism pass, part 3 follow-up): a 2-leg vertical
+        combo limit order via Lean's ComboLimitOrder, the multi-leg
+        analogue of LimitOrder(). NEW, IB-unverified combo API
+        (development/Problems.md) - zero prior combo-LIMIT-order usage in
+        this codebase before this pass (the existing entry/scale paths
+        only ever market-order a combo via self.Buy()/self.Sell()).
+
+        `quantity` is signed - positive buys/scales the spread up,
+        negative sells/reduces it - the same signed-quantity convention
+        every other order primitive in this file already uses
+        (MarketOrder(symbol, signed_quantity)), rather than a separate
+        is_buy flag plus an always-positive quantity.
+
+        Same config-gated no-op contract as _try_submit_limit_order():
+        returns False immediately whenever phase_v2.limit_orders is
+        disabled or "option" isn't in the configured asset-class subset,
+        so every caller's existing Buy/Sell-combo MarketOrder fallback
+        (unchanged) is what actually executes when this feature is off.
+
+        Stores ONE pending record under BOTH leg Symbol-string keys
+        (pointing at the same dict) - a fill event on EITHER leg resolves
+        to the same record, and on_order_event()/
+        _process_pending_limit_order_timeouts() already iterate
+        "tickets"/"target_symbols" generically per-leg (see their own
+        docstrings), so neither needs to know a spread's record has 2
+        entries where a single-leg one has 1."""
+        if not self.limit_orders_enabled or "option" not in self.limit_orders_asset_classes:
+            return False
+
+        is_buy = quantity > 0
+        factory = OptionStrategies.bull_call_spread if strategy_name == "bull_call_spread" else OptionStrategies.bear_put_spread
+        expiration = datetime.fromisoformat(expiry)
+        strategy = factory(symbol, long_strike, short_strike, expiration)
+
+        liquidity_payload = self.latest_liquidity_by_symbol.get(symbol_key, {})
+        spread_fraction = float(liquidity_payload.get("spread_proxy", 0.0) or 0.0)
+        limit_price = resolve_limit_price(close_price, spread_fraction, is_buy, self.limit_order_offset_multiplier)
+
+        tickets = list(self.ComboLimitOrder(strategy, quantity, limit_price))
+        record = {
+            "tickets": tickets,
+            "target_symbols": [long_leg_symbol, short_leg_symbol],
+            "chain_symbol": symbol,
+            "symbol_key": symbol_key,
+            "asset_class": "option",
+            "submitted_bar": self.bar_index,
+            "direction": "buy" if is_buy else "sell",
+            "target_weight": target_weight,
+        }
+        self.pending_limit_orders[str(long_leg_symbol)] = record
+        self.pending_limit_orders[str(short_leg_symbol)] = record
+        return True
+
+    def _option_chain_row_for_contract(self, symbol_key: str, contract_symbol) -> dict | None:
+        """V4.4 - finds this bar's live chain row for an ALREADY-HELD
+        contract Symbol, so its own current greeks (not a fresh
+        confidence-scaled target) can re-size it via
+        portfolio.options_strategy.build_options_position_sizing_for_contract()/
+        build_vertical_spread_position_sizing_for_legs(). Returns None
+        when the held contract has fallen out of this bar's chain
+        entirely (expired, or drifted outside the ±5-strike/0-60-DTE
+        filter _add_asset() subscribes with) - callers must treat that as
+        "can't re-price this bar", never a crash."""
+        underlying_ticker = self.asset_lookup.get(symbol_key, {}).get("underlying_ticker")
+        for row in self.latest_options_chains_payload.get(underlying_ticker, []):
+            if str(row.get("symbol")) == str(contract_symbol):
+                return row
+        return None
+
+    def _place_option_single_leg_delta_order(
+        self, symbol, symbol_key: str, contract_symbol, right: str, delta: int,
+        target_weight: float, close_price: float,
+    ) -> str:
+        """Places the signed delta computed against an already-tracked
+        single-leg option position - a positive delta buys more, a
+        NEGATIVE delta sells to reduce (V4.4 closes the old scale-up-only
+        restriction: options_decision.contracts itself is always positive
+        per portfolio/options_strategy.py's own contract, but the DELTA
+        against what's currently held can go either way) - via limit-or-
+        market, exactly like every other real-order branch in this file.
+        No option_positions_by_symbol/reverse-map write needed here - the
+        record for this exact contract_symbol already exists; only its
+        Lean-held QUANTITY changes, which self.Portfolio tracks natively."""
+        is_buy = delta > 0
+        note_stem = "scaled" if is_buy else "reduced"
+        if self._try_submit_limit_order(
+            contract_symbol, symbol_key, "option", is_buy=is_buy, target_weight=target_weight,
+            close_price=close_price, contract_quantity=delta, chain_symbol=symbol,
+        ):
+            return f"submitted_limit_{note_stem}_option_{right}"
+        self.MarketOrder(contract_symbol, delta)
+        self.last_trade_bar_by_symbol[symbol] = self.bar_index
+        return f"{note_stem}_option_{right}"
+
+    def _enter_option_single_leg(
+        self, symbol, symbol_key: str, contract_symbol, options_decision,
+        target_weight: float, close_price: float, *, is_rotation: bool, is_additional: bool,
+    ) -> str:
+        """Opens a brand-new single-leg position record - a genuinely
+        first entry, an additional position appended under the multi-
+        position cap (V4.4, phase_v2.options_risk.max_positions_per_underlying),
+        or a rotation entry immediately after _liquidate_option_record()
+        made room. Always places the FULL options_decision.contracts (an
+        absolute vega-budgeted target) since this Symbol is not currently
+        held. Stamps the reverse map BEFORE the order - required for
+        on_order_event() to resolve a fill on the CONTRACT symbol back to
+        this chain symbol_key even when the limit-order path below is
+        taken. Harmless if the limit order is later canceled with no
+        fallback fill: _is_invested()/_asset_class_exposure() both key
+        off Lean's own Portfolio holdings (ground truth), never this
+        record directly."""
+        self.option_positions_by_symbol.setdefault(symbol_key, []).append({
+            "kind": "single_leg",
+            "contract_symbol": contract_symbol,
+            "right": options_decision.right,
+            "strike": options_decision.strike,
+            "expiry": options_decision.expiry,
+        })
+        self.symbol_key_by_option_contract_symbol[str(contract_symbol)] = symbol_key
+
+        note_stem = "rotated" if is_rotation else ("opened_additional" if is_additional else "entered")
+        if self._try_submit_limit_order(
+            contract_symbol, symbol_key, "option", is_buy=True, target_weight=target_weight,
+            close_price=close_price, contract_quantity=options_decision.contracts, chain_symbol=symbol,
+        ):
+            return f"submitted_limit_{note_stem}_option_{options_decision.right}"
+        self.MarketOrder(contract_symbol, options_decision.contracts)
+        self.last_trade_bar_by_symbol[symbol] = self.bar_index
+        return f"{note_stem}_option_{options_decision.right}"
 
     def _apply_option_order(
         self, symbol, symbol_key: str, sizing_payload: dict | None, target_weight: float,
@@ -2773,20 +2951,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
         field and getattr(..., "contract_symbol", None) would otherwise
         silently reject every spread decision as "no usable contract").
 
+        V4.4 - multi-position book (development/Problems.md): up to
+        self.options_max_positions_per_underlying (default 1 - byte-
+        identical to the pre-V4.4 single-slot behavior) simultaneous
+        single-leg positions may be tracked per underlying in
+        self.option_positions_by_symbol, so a drifted contract can be
+        opened ALONGSIDE what's already held (room under the cap) instead
+        of forcing an immediate rotate-or-freeze choice. When at cap and
+        not rotating, the NEAREST held position is instead re-sized on
+        its OWN current greeks (build_options_position_sizing_for_contract())
+        rather than frozen - the position keeps being managed even on
+        bars where main.py chooses not to chase a different strike.
+
         Single-leg: places a real order on the resolved CONTRACT Symbol -
         never the canonical chain Symbol main.py subscribes to
         (self.add_option()'s return value is not itself a tradable
-        contract). Records the contract in
-        self.option_contract_symbol_by_symbol/
-        self.symbol_key_by_option_contract_symbol (A7) so
-        _is_invested()/the sell and hold-liquidate branches/
-        _asset_class_exposure() can find this position again.
-
-        options_decision.contracts is always a positive quantity for the
-        single-leg case - direction is encoded by which right (call vs
-        put) was selected, never by order sign, since
-        portfolio/options_strategy.py never shorts a single-leg option
-        (see that module's docstring)."""
+        contract). See _enter_option_single_leg()/
+        _place_option_single_leg_delta_order() for the bookkeeping this
+        needs to find the position again."""
         options_decision = ((sizing_payload or {}).get("asset_class_routing_extra") or {}).get("options_decision")
         if options_decision is None:
             return "options_no_usable_contract"
@@ -2800,101 +2982,158 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if contract_symbol is None:
             return "options_no_usable_contract"
 
-        if orders_allowed:
-            # V4.3.0 - the eager bookkeeping write below MUST happen after
-            # the already-holding/match check, never before: writing it
-            # first and then refusing/rotating would orphan the TRUE held
-            # position from _is_invested()'s tracking before it's actually
-            # closed - the same bug this feature exists to fix, just
-            # reintroduced one line earlier.
-            is_rotation = False
-            held_contract_symbol = self.option_contract_symbol_by_symbol.get(symbol_key)
-            if held_contract_symbol is not None and self.Portfolio[held_contract_symbol].Invested:
-                if str(held_contract_symbol) == str(contract_symbol):
-                    # Same contract already held - options_decision.contracts
-                    # is an ABSOLUTE vega-budgeted target recomputed fresh
-                    # every bar; MarketOrder() is INCREMENTAL. Scale toward
-                    # it via a delta, same unconditional-bug-fix-plus-flag-
-                    # gated-capability shape as the futures branches above.
-                    if not self.position_scaling_enabled:
-                        return "options_kept"
-                    current_quantity = float(self.Portfolio[held_contract_symbol].Quantity)
-                    delta = int(round(compute_incremental_order_quantity(options_decision.contracts, current_quantity)))
-                    if delta <= 0:
-                        # options_decision.contracts is always positive (this
-                        # module never shorts a single-leg option), so
-                        # delta<=0 covers both "already at target" and an
-                        # unsupported shrink request in one no-op.
-                        return "options_zero_or_negative_delta_kept"
-                    self.option_contract_symbol_by_symbol[symbol_key] = contract_symbol
-                    self.symbol_key_by_option_contract_symbol[str(contract_symbol)] = symbol_key
-                    if self._try_submit_limit_order(
-                        contract_symbol, symbol_key, "option", is_buy=True, target_weight=target_weight,
-                        close_price=close_price, contract_quantity=delta, chain_symbol=symbol,
-                    ):
-                        return f"submitted_limit_scaled_option_{options_decision.right}"
-                    self.MarketOrder(contract_symbol, delta)
-                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
-                    return f"scaled_option_{options_decision.right}"
-                # Different contract than currently held (this bar's
-                # confidence-scaled target delta selected a different
-                # strike/expiry) - only rotate (liquidate the old contract,
-                # fall through to a fresh entry below) when explicitly
-                # opted into via rotate_on_drift; a same-bar liquidate+
-                # reenter carries real margin-timing exposure a same-
-                # instrument top-up never does, so it is never implied by
-                # position_scaling_enabled alone.
-                if not self.position_scaling_rotate_on_drift:
-                    return "options_contract_drifted_kept"
-                self.Liquidate(held_contract_symbol)
-                self.symbol_key_by_option_contract_symbol.pop(str(held_contract_symbol), None)
-                self.option_contract_symbol_by_symbol.pop(symbol_key, None)
-                is_rotation = True
-
-            # Fresh entry, or a rotation entry immediately after the
-            # liquidate above. Set eagerly (before attempting either order
-            # type) - required for on_order_event() to resolve a fill on
-            # the CONTRACT symbol back to this chain symbol_key even when
-            # the limit-order path below is taken. Harmless if the limit
-            # order is later canceled with no fallback fill: _is_invested()/
-            # _asset_class_exposure() both key off Lean's own Portfolio
-            # holdings (ground truth), never this dict directly, and any
-            # later real order on this symbol unconditionally overwrites
-            # it anyway.
-            self.option_contract_symbol_by_symbol[symbol_key] = contract_symbol
-            self.symbol_key_by_option_contract_symbol[str(contract_symbol)] = symbol_key
-            entered_note = f"rotated_option_{options_decision.right}" if is_rotation else f"entered_option_{options_decision.right}"
-            limit_note = (
-                f"submitted_limit_rotated_option_{options_decision.right}"
-                if is_rotation
-                else f"submitted_limit_option_{options_decision.right}"
-            )
-            if self._try_submit_limit_order(
-                contract_symbol,
+        if not orders_allowed:
+            self._simulated_portfolio.enter_long(
                 symbol_key,
-                "option",
-                is_buy=True,
-                target_weight=target_weight,
-                close_price=close_price,
-                contract_quantity=options_decision.contracts,
-                chain_symbol=symbol,
-            ):
-                return limit_note
-            self.MarketOrder(contract_symbol, options_decision.contracts)
+                close_price,
+                target_weight,
+                self.bar_index,
+                slippage_bps=resolve_slippage_bps(
+                    symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                ),
+            )
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
-            return entered_note
+            return f"simulated_entered_option_{options_decision.right}:{permission_reason}"
 
-        self._simulated_portfolio.enter_long(
-            symbol_key,
-            close_price,
-            target_weight,
-            self.bar_index,
-            slippage_bps=resolve_slippage_bps(
-                symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
-            ),
+        # live_records: every currently-tracked single-leg position for
+        # this underlying Lean still actually reports as Invested (a
+        # record can go stale if closed some other way - e.g. the
+        # disabled-asset-class sweep - without this method running since).
+        held_records = self.option_positions_by_symbol.get(symbol_key, [])
+        live_records = [
+            record for record in held_records
+            if record["kind"] == "single_leg" and self.Portfolio[record["contract_symbol"]].Invested
+        ]
+        matching_record = next(
+            (record for record in live_records if str(record["contract_symbol"]) == str(contract_symbol)), None
         )
+
+        if matching_record is not None:
+            if not self.position_scaling_enabled:
+                return "options_kept"
+            current_quantity = float(self.Portfolio[contract_symbol].Quantity)
+            delta = int(round(compute_incremental_order_quantity(options_decision.contracts, current_quantity)))
+            if delta == 0:
+                return "options_zero_delta_kept"
+            return self._place_option_single_leg_delta_order(
+                symbol, symbol_key, contract_symbol, options_decision.right, delta, target_weight, close_price,
+            )
+
+        if len(live_records) < self.options_max_positions_per_underlying:
+            return self._enter_option_single_leg(
+                symbol, symbol_key, contract_symbol, options_decision, target_weight, close_price,
+                is_rotation=False, is_additional=bool(live_records),
+            )
+
+        # At cap, this bar's freshly-selected contract differs from every
+        # held one. rotate_on_drift decides: liquidate the OLDEST record
+        # to make room (V4.4 Problems.md: same-bar liquidate+reenter, not
+        # netted against post-liquidation buying power - a documented,
+        # deferred approximation), or instead keep managing the NEAREST
+        # held position on its own greeks rather than freezing.
+        if self.position_scaling_rotate_on_drift:
+            self._liquidate_option_record(symbol_key, live_records[0])
+            return self._enter_option_single_leg(
+                symbol, symbol_key, contract_symbol, options_decision, target_weight, close_price,
+                is_rotation=True, is_additional=False,
+            )
+
+        # Re-pricing the nearest held position is itself a position
+        # ADJUSTMENT (gap-3 fix: manage what's held instead of freezing),
+        # so it must respect position_scaling_enabled exactly like the
+        # matching-contract scale path above - byte-identical to V4.3.0's
+        # unconditional "options_contract_drifted_kept" no-op when
+        # scaling is off, only engaging build_options_position_sizing_for_contract()
+        # when the user has explicitly opted into adjusting open positions.
+        if not self.position_scaling_enabled:
+            return "options_contract_drifted_kept"
+
+        nearest_record = min(live_records, key=lambda record: abs(record["strike"] - options_decision.strike))
+        chain_row = self._option_chain_row_for_contract(symbol_key, nearest_record["contract_symbol"])
+        if chain_row is None:
+            return "options_held_contract_not_in_chain_kept"
+        resized_decision = build_options_position_sizing_for_contract(
+            chain_row, float(self.Portfolio.TotalPortfolioValue), self.options_max_vega_budget_pct_of_equity,
+        )
+        if resized_decision is None:
+            return "options_at_position_cap_kept"
+        current_quantity = float(self.Portfolio[nearest_record["contract_symbol"]].Quantity)
+        delta = int(round(compute_incremental_order_quantity(resized_decision.contracts, current_quantity)))
+        if delta == 0:
+            return "options_at_position_cap_kept"
+        return self._place_option_single_leg_delta_order(
+            symbol, symbol_key, nearest_record["contract_symbol"], nearest_record["right"], delta,
+            target_weight, close_price,
+        )
+
+    def _place_option_spread_delta_order(
+        self, symbol, symbol_key: str, long_leg_symbol, short_leg_symbol, long_strike: float, short_strike: float,
+        strategy_name: str, expiry: str, delta: int, target_weight: float, close_price: float,
+    ) -> str:
+        """Places the signed delta computed against an already-tracked
+        vertical spread position: positive scales UP, NEGATIVE reduces
+        (V4.4 - self.Sell(strategy, ...) is a NEW combo primitive this
+        codebase has never used before, the Sell-side sibling of the
+        Buy-combo entry path; both this and the combo LIMIT path below
+        are unverified until a real backtest, see development/Problems.md).
+        No option_positions_by_symbol/reverse-map write needed - the
+        record for these exact legs already exists; only the held
+        QUANTITY changes."""
+        note_stem = "scaled" if delta > 0 else "reduced"
+        if self._try_submit_spread_limit_order(
+            symbol, symbol_key, long_leg_symbol, short_leg_symbol, strategy_name, expiry, long_strike, short_strike,
+            delta, target_weight, close_price,
+        ):
+            return f"submitted_limit_{note_stem}_option_spread_{strategy_name}"
+        factory = OptionStrategies.bull_call_spread if strategy_name == "bull_call_spread" else OptionStrategies.bear_put_spread
+        expiration = datetime.fromisoformat(expiry)
+        strategy = factory(symbol, long_strike, short_strike, expiration)
+        if delta > 0:
+            self.Buy(strategy, delta)
+        else:
+            self.Sell(strategy, abs(delta))
         self.last_trade_bar_by_symbol[symbol] = self.bar_index
-        return f"simulated_entered_option_{options_decision.right}:{permission_reason}"
+        return f"{note_stem}_option_spread_{strategy_name}"
+
+    def _enter_option_spread(
+        self, symbol, symbol_key: str, options_decision, target_weight: float, close_price: float,
+        *, is_rotation: bool, is_additional: bool,
+    ) -> str:
+        """Opens a brand-new 2-leg vertical spread record - first entry,
+        an additional position under the multi-position cap (V4.4), or a
+        rotation entry immediately after _liquidate_option_record() made
+        room. ATOMIC via Lean's OptionStrategies + self.Buy() (or the new
+        combo-limit path) - never as two independent single-leg orders
+        (see _apply_option_spread_order()'s docstring for why)."""
+        long_leg, short_leg = options_decision.legs
+        self.option_positions_by_symbol.setdefault(symbol_key, []).append({
+            "kind": "spread",
+            "strategy_name": options_decision.strategy_name,
+            "legs": [long_leg.contract_symbol, short_leg.contract_symbol],
+            "long_strike": long_leg.strike,
+            "short_strike": short_leg.strike,
+            "expiry": options_decision.expiry,
+        })
+        for leg in options_decision.legs:
+            self.symbol_key_by_option_contract_symbol[str(leg.contract_symbol)] = symbol_key
+
+        note_stem = "rotated" if is_rotation else ("opened_additional" if is_additional else "entered")
+        if self._try_submit_spread_limit_order(
+            symbol, symbol_key, long_leg.contract_symbol, short_leg.contract_symbol, options_decision.strategy_name,
+            options_decision.expiry, long_leg.strike, short_leg.strike, options_decision.contracts,
+            target_weight, close_price,
+        ):
+            return f"submitted_limit_{note_stem}_option_spread_{options_decision.strategy_name}"
+        factory = (
+            OptionStrategies.bull_call_spread
+            if options_decision.strategy_name == "bull_call_spread"
+            else OptionStrategies.bear_put_spread
+        )
+        expiration = datetime.fromisoformat(options_decision.expiry)
+        strategy = factory(symbol, long_leg.strike, short_leg.strike, expiration)
+        self.Buy(strategy, options_decision.contracts)
+        self.last_trade_bar_by_symbol[symbol] = self.bar_index
+        return f"{note_stem}_option_spread_{options_decision.strategy_name}"
 
     def _apply_option_spread_order(
         self,
@@ -2910,7 +3149,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         part 3 - phase_v2.options_risk.spread_strategy == "vertical"),
         delegated to from _apply_option_order() above. options_decision
         is an OptionsSpreadPositionDecision (portfolio/options_strategy.py) -
-        exactly 2 legs (long, short), placed ATOMICALLY via Lean's own
+        exactly 2 legs (long, short), entered ATOMICALLY via Lean's own
         OptionStrategies.bull_call_spread()/bear_put_spread() +
         self.Buy(strategy, quantity), never as two independent single-leg
         orders - avoiding the partial-fill/leg-slippage risk of an
@@ -2918,19 +3157,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
         side but not on the close side - see _liquidate_position()'s own
         docstring for why closing goes leg-by-leg instead).
 
+        V4.4 - same multi-position-book shape as _apply_option_order()
+        above: up to max_positions_per_underlying spreads may be tracked
+        per underlying; scaling now goes both directions (Buy-combo up,
+        the NEW Sell-combo down - see _place_option_spread_delta_order());
+        at cap without rotation, the nearest held spread is re-sized on
+        its own net-vega greeks (build_vertical_spread_position_sizing_for_legs())
+        instead of frozen.
+
         Matches this codebase's proven mixed Lean-API-casing convention
         (PascalCase for calls, OptionStrategies bare from `from
         AlgorithmImports import *`) - genuinely unverified until a real
         backtest, see risk/README.md's verification list: whether
         OptionStrategies.* actually accepts the canonical chain Symbol
-        this codebase already holds, whether self.Buy(strategy, quantity)
-        returns one ticket per leg in a matchable order, and general
-        real fill/margin behavior for a debit spread (zero prior combo-
-        order usage in this codebase before this pass).
-
-        No limit-order support for spreads this pass (_try_submit_limit_order()
-        is single-Symbol-shaped) - always a market-priced combo order when
-        real orders are allowed."""
+        this codebase already holds, whether self.Buy(strategy, quantity)/
+        self.Sell(strategy, quantity) return one ticket per leg in a
+        matchable order, and general real fill/margin behavior for a
+        debit spread (zero prior combo-order usage in this codebase
+        before this pass)."""
         if any(leg.contract_symbol is None for leg in options_decision.legs):
             return "options_spread_no_usable_legs"
 
@@ -2948,82 +3192,89 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return f"simulated_entered_option_spread_{options_decision.strategy_name}:{permission_reason}"
 
         long_leg, short_leg = options_decision.legs
-        # V4.3.0 - same "move the eager write past the check" fix as
-        # _apply_option_order() above, at the leg-pair level.
-        is_rotation = False
-        held_legs = self.option_contract_symbols_by_symbol.get(symbol_key)
-        if held_legs and any(self.Portfolio[target].Invested for target in held_legs):
-            legs_match = [str(long_leg.contract_symbol), str(short_leg.contract_symbol)] == [
-                str(target) for target in held_legs
-            ]
-            if legs_match:
-                # Same spread already held - options_decision.contracts is
-                # an ABSOLUTE net-vega-budgeted target recomputed fresh
-                # every bar; self.Buy(strategy, quantity) is INCREMENTAL.
-                # Only ever scales UP (delta > 0): no Sell-side combo-order
-                # primitive exists anywhere in this codebase, so a same-
-                # legs shrink request degrades to a real, auditable no-op
-                # rather than silent - mirrors _liquidate_position()'s own
-                # documented leg-by-leg-not-atomic close trade-off
-                # (development/Problems.md #38).
-                if not self.position_scaling_enabled:
-                    return "options_spread_kept"
-                current_units = min(
-                    abs(float(self.Portfolio[held_legs[0]].Quantity)),
-                    abs(float(self.Portfolio[held_legs[1]].Quantity)),
-                )
-                delta = int(round(compute_incremental_order_quantity(options_decision.contracts, current_units)))
-                if delta <= 0:
-                    return "options_spread_shrink_unsupported" if delta < 0 else "options_spread_kept"
-                factory = (
-                    OptionStrategies.bull_call_spread
-                    if options_decision.strategy_name == "bull_call_spread"
-                    else OptionStrategies.bear_put_spread
-                )
-                expiration = datetime.fromisoformat(options_decision.expiry)
-                strategy = factory(symbol, long_leg.strike, short_leg.strike, expiration)
-                self.Buy(strategy, delta)
-                self.last_trade_bar_by_symbol[symbol] = self.bar_index
-                return f"scaled_option_spread_{options_decision.strategy_name}"
-            # Legs differ from what's currently held - only rotate
-            # (liquidate the old spread leg-by-leg, fall through to a fresh
-            # entry below) when explicitly opted into via rotate_on_drift;
-            # same-bar liquidate+reenter carries real margin-timing
-            # exposure, never implied by position_scaling_enabled alone.
-            if not self.position_scaling_rotate_on_drift:
-                return "options_spread_legs_mismatch_kept"
-            for target in held_legs:
-                self.Liquidate(target)
-                self.symbol_key_by_option_contract_symbol.pop(str(target), None)
-            self.option_contract_symbols_by_symbol.pop(symbol_key, None)
-            is_rotation = True
-
-        self.option_contract_symbols_by_symbol[symbol_key] = [long_leg.contract_symbol, short_leg.contract_symbol]
-        for leg in options_decision.legs:
-            self.symbol_key_by_option_contract_symbol[str(leg.contract_symbol)] = symbol_key
-
-        factory = (
-            OptionStrategies.bull_call_spread
-            if options_decision.strategy_name == "bull_call_spread"
-            else OptionStrategies.bear_put_spread
+        held_records = self.option_positions_by_symbol.get(symbol_key, [])
+        live_records = [
+            record for record in held_records
+            if record["kind"] == "spread" and any(self.Portfolio[target].Invested for target in record["legs"])
+        ]
+        matching_record = next(
+            (
+                record for record in live_records
+                if [str(target) for target in record["legs"]]
+                == [str(long_leg.contract_symbol), str(short_leg.contract_symbol)]
+            ),
+            None,
         )
-        expiration = datetime.fromisoformat(options_decision.expiry)
-        strategy = factory(symbol, long_leg.strike, short_leg.strike, expiration)
-        self.Buy(strategy, options_decision.contracts)
-        self.last_trade_bar_by_symbol[symbol] = self.bar_index
-        return (
-            f"rotated_option_spread_{options_decision.strategy_name}"
-            if is_rotation
-            else f"entered_option_spread_{options_decision.strategy_name}"
+
+        if matching_record is not None:
+            if not self.position_scaling_enabled:
+                return "options_spread_kept"
+            current_units = min(abs(float(self.Portfolio[target].Quantity)) for target in matching_record["legs"])
+            delta = int(round(compute_incremental_order_quantity(options_decision.contracts, current_units)))
+            if delta == 0:
+                return "options_spread_kept"
+            return self._place_option_spread_delta_order(
+                symbol, symbol_key, long_leg.contract_symbol, short_leg.contract_symbol, long_leg.strike,
+                short_leg.strike, options_decision.strategy_name, options_decision.expiry, delta,
+                target_weight, close_price,
+            )
+
+        if len(live_records) < self.options_max_positions_per_underlying:
+            return self._enter_option_spread(
+                symbol, symbol_key, options_decision, target_weight, close_price,
+                is_rotation=False, is_additional=bool(live_records),
+            )
+
+        # At cap. Same rotate-vs-manage-in-place choice as the single-leg
+        # branch above; see its comment for the deferred rotation-netting
+        # caveat, which applies identically here.
+        if self.position_scaling_rotate_on_drift:
+            self._liquidate_option_record(symbol_key, live_records[0])
+            return self._enter_option_spread(
+                symbol, symbol_key, options_decision, target_weight, close_price,
+                is_rotation=True, is_additional=False,
+            )
+
+        # Re-pricing the nearest held spread is itself a position
+        # ADJUSTMENT, so it must respect position_scaling_enabled exactly
+        # like the matching-legs scale path above - byte-identical to
+        # V4.3.0's unconditional "options_spread_legs_mismatch_kept"
+        # no-op when scaling is off.
+        if not self.position_scaling_enabled:
+            return "options_spread_legs_mismatch_kept"
+
+        nearest_record = min(live_records, key=lambda record: abs(record["long_strike"] - long_leg.strike))
+        held_long_row = self._option_chain_row_for_contract(symbol_key, nearest_record["legs"][0])
+        held_short_row = self._option_chain_row_for_contract(symbol_key, nearest_record["legs"][1])
+        if held_long_row is None or held_short_row is None:
+            return "options_held_contract_not_in_chain_kept"
+        resized_decision = build_vertical_spread_position_sizing_for_legs(
+            held_long_row, held_short_row, float(self.Portfolio.TotalPortfolioValue),
+            self.options_max_vega_budget_pct_of_equity,
+        )
+        if resized_decision is None:
+            return "options_at_position_cap_kept"
+        current_units = min(abs(float(self.Portfolio[target].Quantity)) for target in nearest_record["legs"])
+        delta = int(round(compute_incremental_order_quantity(resized_decision.contracts, current_units)))
+        if delta == 0:
+            return "options_at_position_cap_kept"
+        return self._place_option_spread_delta_order(
+            symbol, symbol_key, nearest_record["legs"][0], nearest_record["legs"][1],
+            nearest_record["long_strike"], nearest_record["short_strike"],
+            nearest_record["strategy_name"], nearest_record["expiry"], delta, target_weight, close_price,
         )
 
     def _liquidate_position(self, symbol) -> None:
-        """self.Liquidate() targeting every real Lean Symbol this position
-        holds (A7 - the tracked option contract Symbol(s) when one/two
-        exist, else `symbol` itself; see _order_target_symbols()), then
-        clears the option-contract-tracking maps so a subsequent
-        _is_invested()/_asset_class_exposure() call correctly sees the
-        position as closed.
+        """self.Liquidate() targeting every real Lean Symbol EVERY tracked
+        position for this chain Symbol holds (V4.4 - every leg/contract of
+        every record in self.option_positions_by_symbol, else `symbol`
+        itself; see _order_target_symbols()), then clears ALL of that
+        bookkeeping so a subsequent _is_invested()/_asset_class_exposure()
+        call correctly sees the underlying as fully closed. Called from
+        the "sell" signal branch and the disabled-asset-class sweep -
+        both mean "get flat entirely", never "close just one of several
+        held positions" (see _liquidate_option_record() for that case,
+        used by rotation/at-cap trimming instead).
 
         A 2-leg vertical spread closes leg-by-leg here (two independent
         Liquidate() calls), NOT an atomic combo unwind - a deliberate,
@@ -3037,13 +3288,33 @@ class AetherQuantAlgorithm(QCAlgorithm):
         symbol_key = str(symbol)
         for target in self._order_target_symbols(symbol):
             self.Liquidate(target)
-        contract_symbol = self.option_contract_symbol_by_symbol.pop(symbol_key, None)
-        if contract_symbol is not None:
-            self.symbol_key_by_option_contract_symbol.pop(str(contract_symbol), None)
-        spread_targets = self.option_contract_symbols_by_symbol.pop(symbol_key, None)
-        if spread_targets:
-            for target in spread_targets:
-                self.symbol_key_by_option_contract_symbol.pop(str(target), None)
+        records = self.option_positions_by_symbol.pop(symbol_key, None)
+        if records:
+            for record in records:
+                for target in (record["legs"] if record["kind"] == "spread" else [record["contract_symbol"]]):
+                    self.symbol_key_by_option_contract_symbol.pop(str(target), None)
+
+    def _liquidate_option_record(self, symbol_key: str, record: dict) -> None:
+        """Closes exactly ONE tracked option position for a chain symbol -
+        V4.4, the multi-position sibling of _liquidate_position() above,
+        used when rotation or at-cap trimming needs to make room for a
+        NEW position without disturbing any OTHER position still held for
+        the same underlying. Liquidates the record's leg(s), removes it
+        from self.option_positions_by_symbol's list (popping the now-empty
+        list entirely, matching _order_target_symbols()'s `if not
+        records: return [symbol]` no-entry convention), and un-maps its
+        leg(s) from the reverse map - the same bookkeeping
+        _liquidate_position() does, just scoped to one record instead of
+        all of them."""
+        targets = record["legs"] if record["kind"] == "spread" else [record["contract_symbol"]]
+        for target in targets:
+            self.Liquidate(target)
+            self.symbol_key_by_option_contract_symbol.pop(str(target), None)
+        records = self.option_positions_by_symbol.get(symbol_key)
+        if records is not None:
+            records.remove(record)
+            if not records:
+                self.option_positions_by_symbol.pop(symbol_key, None)
 
     def _apply_signal(
         self, symbol, signal_name: str, target_weight: float, close_price: float, sizing_payload: dict | None = None
@@ -3433,9 +3704,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if orders_allowed:
             total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
             exposure = 0.0
-            exclude_target = self._order_target_symbol(exclude_symbol) if exclude_symbol is not None else None
+            # V4.4 - exclude EVERY target Symbol of exclude_symbol (all
+            # legs of every held option position), not just one - a
+            # multi-position underlying's second/third position would
+            # otherwise leak back into its own class's exposure check.
+            exclude_targets = (
+                {str(target) for target in self._order_target_symbols(exclude_symbol)}
+                if exclude_symbol is not None
+                else frozenset()
+            )
             for holding in self.Portfolio.Values:
-                if exclude_target is not None and holding.Symbol == exclude_target:
+                if str(holding.Symbol) in exclude_targets:
                     continue
                 # A7: a real option position is held on the CONTRACT Symbol,
                 # not the canonical chain Symbol self.asset_lookup is keyed
@@ -3666,43 +3945,59 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         No-op instantly whenever phase_v2.limit_orders.enabled is False
         or self.pending_limit_orders is empty - zero cost in the
-        default-off configuration beyond one dict-emptiness check."""
+        default-off configuration beyond one dict-emptiness check.
+
+        V4.4: a record's "tickets"/"target_symbols" are parallel lists -
+        length 1 for equity/crypto/bond/future/single-leg-option, length 2
+        for a spread combo (_try_submit_spread_limit_order()), handled
+        uniformly here via one zip() loop instead of branching on shape.
+        A spread record is stored under BOTH leg Symbol-string keys
+        pointing at the SAME dict, so processed_record_ids (keyed by
+        id(), not by dict content) is what stops it from being resolved
+        twice in one pass."""
         if not self.limit_orders_enabled or not self.pending_limit_orders:
             return
 
-        for symbol_key in list(self.pending_limit_orders.keys()):
-            pending = self.pending_limit_orders[symbol_key]
+        processed_record_ids: set[int] = set()
+        for pending_key in list(self.pending_limit_orders.keys()):
+            pending = self.pending_limit_orders.get(pending_key)
+            if pending is None or id(pending) in processed_record_ids:
+                continue
+            processed_record_ids.add(id(pending))
+
             if self.bar_index - pending["submitted_bar"] < self.limit_order_unfilled_timeout_bars:
                 continue
 
-            ticket = pending["ticket"]
-            status = classify_order_status(getattr(ticket.Status, "name", str(ticket.Status)))
-            if status in ("filled", "canceled"):
-                # Already resolved (filled/canceled) by on_order_event()
-                # this bar or an earlier one - just clear the stale
-                # bookkeeping entry, no cancel/fallback needed.
-                self.pending_limit_orders.pop(symbol_key, None)
-                continue
-            # status is "pending" or "unknown" here - classify_order_status()'s
-            # own docstring says "unknown" must be treated as still-pending
-            # (conservative: never mistakes an unrecognized status for a
-            # resolved order). Falling through to the cancel/fallback path
-            # below for both cases means an order Lean reports with a status
-            # name this codebase doesn't yet recognize still gets a real
-            # ticket.Cancel() instead of silently losing tracking of a
-            # possibly-still-open order. See development/Problems.md.
-
-            ticket.Cancel()
-            # Per-asset-class, not a single global flag - see
-            # limit_order_fallback_to_market_by_asset_class's own comment
-            # in _ensure_ready() for the equity/crypto/bond-vs-future/
-            # option rationale.
-            if self.limit_order_fallback_to_market_by_asset_class.get(pending["asset_class"], True):
-                remaining = ticket.QuantityRemaining
-                if remaining != 0:
-                    self.MarketOrder(pending["symbol"], remaining)
-                    self.last_trade_bar_by_symbol[pending["chain_symbol"]] = self.bar_index
-            self.pending_limit_orders.pop(symbol_key, None)
+            fell_back = False
+            for ticket, target_symbol in zip(pending["tickets"], pending["target_symbols"]):
+                status = classify_order_status(getattr(ticket.Status, "name", str(ticket.Status)))
+                if status in ("filled", "canceled"):
+                    # Already resolved (filled/canceled) by on_order_event()
+                    # this bar or an earlier one - no cancel/fallback needed
+                    # for this leg.
+                    continue
+                # status is "pending" or "unknown" here - classify_order_status()'s
+                # own docstring says "unknown" must be treated as still-pending
+                # (conservative: never mistakes an unrecognized status for a
+                # resolved order). Falling through to the cancel/fallback path
+                # below for both cases means an order Lean reports with a status
+                # name this codebase doesn't yet recognize still gets a real
+                # ticket.Cancel() instead of silently losing tracking of a
+                # possibly-still-open order. See development/Problems.md.
+                ticket.Cancel()
+                # Per-asset-class, not a single global flag - see
+                # limit_order_fallback_to_market_by_asset_class's own comment
+                # in _ensure_ready() for the equity/crypto/bond-vs-future/
+                # option rationale.
+                if self.limit_order_fallback_to_market_by_asset_class.get(pending["asset_class"], True):
+                    remaining = ticket.QuantityRemaining
+                    if remaining != 0:
+                        self.MarketOrder(target_symbol, remaining)
+                        fell_back = True
+            if fell_back:
+                self.last_trade_bar_by_symbol[pending["chain_symbol"]] = self.bar_index
+            for target_symbol in pending["target_symbols"]:
+                self.pending_limit_orders.pop(str(target_symbol), None)
 
     def on_order_event(self, order_event) -> None:
         """Real limit-order support (execution/risk realism pass, part 2):
@@ -3719,34 +4014,40 @@ class AetherQuantAlgorithm(QCAlgorithm):
         there and is silently ignored here; Lean still calls this hook for
         those too, there is just nothing for it to do.
 
-        Maps order_event.Symbol back to a pending_limit_orders entry via
-        self.symbol_key_by_option_contract_symbol for options (the event's
-        Symbol is the CONTRACT symbol, not the chain symbol
-        pending_limit_orders is keyed by - the same indirection
-        _order_target_symbol()/_liquidate_position() already need), else
-        str(order_event.Symbol) directly for every other asset class.
+        V4.4: pending_limit_orders is keyed by the actual order-target
+        Symbol string directly - order_event.Symbol IS a key into it
+        (the CONTRACT Symbol for a single-leg option, one of two leg
+        Symbols for a spread combo record, else the plain chain Symbol) -
+        no reverse-map indirection needed for this lookup at all.
 
-        On a "filled" status: stamps last_trade_bar_by_symbol at
-        CONFIRMED fill time (not submission time, unlike every
-        synchronous market-order branch - see the cooldown-timing note in
-        execution/README.md) and clears the pending entry. On
-        "canceled": clears the entry only, no cooldown stamp - nothing
-        was actually filled. "pending"/"unknown" (e.g. a partial fill):
-        left alone, the entry stays tracked for
+        On a "filled" status: a spread combo record has TWO tickets, and
+        cooldown must only stamp once BOTH legs have actually filled -
+        stamping on the first leg's fill event would let a new signal act
+        on a still-partially-filled combo position. Single-leg/equity/
+        futures records have exactly one ticket, so this check is always
+        immediately true for them - byte-identical to stamping on that
+        one fill directly. On "canceled": clears the entry only, no
+        cooldown stamp - nothing was actually filled. "pending"/"unknown"
+        (e.g. a partial fill): left alone, the entry stays tracked for
         _process_pending_limit_order_timeouts() to eventually resolve."""
-        symbol_key = self.symbol_key_by_option_contract_symbol.get(
-            str(order_event.Symbol), str(order_event.Symbol)
-        )
-        pending = self.pending_limit_orders.get(symbol_key)
+        pending = self.pending_limit_orders.get(str(order_event.Symbol))
         if pending is None:
             return
 
         status = classify_order_status(getattr(order_event.Status, "name", str(order_event.Status)))
         if status == "filled":
+            all_legs_filled = all(
+                classify_order_status(getattr(ticket.Status, "name", str(ticket.Status))) == "filled"
+                for ticket in pending["tickets"]
+            )
+            if not all_legs_filled:
+                return
             self.last_trade_bar_by_symbol[pending["chain_symbol"]] = self.bar_index
-            self.pending_limit_orders.pop(symbol_key, None)
+            for target_symbol in pending["target_symbols"]:
+                self.pending_limit_orders.pop(str(target_symbol), None)
         elif status == "canceled":
-            self.pending_limit_orders.pop(symbol_key, None)
+            for target_symbol in pending["target_symbols"]:
+                self.pending_limit_orders.pop(str(target_symbol), None)
 
     def _write_state(self, mode: str, insight: str, signals: dict | None = None) -> None:
         now = self.Time if hasattr(self, "Time") else datetime.utcnow()
