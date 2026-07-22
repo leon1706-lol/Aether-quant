@@ -215,6 +215,62 @@ stays asset-class-agnostic.
   directly — same return shape, so every existing equity/crypto/bond call
   site downstream is unaffected.
 
+## Allow adding to an existing position (V4.3.0, development/Problems.md #57)
+
+Closes the roadmap's Functionality item: a "buy" signal repeated while
+already invested used to either fully block (equity/crypto/bond) or —
+worse — silently restack an absolute sizing target as an incremental
+order every bar (futures/options, a real dormant bug reachable only when
+`futures_risk`/`options_risk` are enabled). `risk_controls.py` (repo
+root, not this package) gained the two pure helpers this closes on:
+
+- `should_scale_position(current_weight, target_weight,
+  rebalance_threshold_weight)` — the equity/crypto/bond churn guard: only
+  resubmit `SetHoldings()` when the target has moved at least
+  `rebalance_threshold_weight` (default `0.03`) from the current weight,
+  so trivial confidence wiggle doesn't resubmit every bar.
+- `compute_incremental_order_quantity(target_quantity, current_quantity)` —
+  the signed delta an incremental order (`MarketOrder`/`self.Buy`) must
+  submit to converge a discrete-contract instrument (futures, options,
+  spreads) toward its freshly-computed absolute target, instead of firing
+  that absolute target every bar and overshooting whatever's already
+  held. This is the actual bug fix for futures/options and is applied
+  **unconditionally** — a fractional weight threshold doesn't apply here;
+  a futures/options target_weight is a derived margin/vega-budget
+  reconciliation value, not a cash-equity notional weight, so the natural
+  churn guard is simply "the integer delta rounds to nonzero."
+
+Gated by two independent, both-off-by-default flags under
+`phase_v2.functionality.position_scaling`:
+- `enabled` — whether an already-open, *matching* position may actually
+  be topped up. `false` reproduces today's exact equity/crypto/bond
+  behavior (`kept_long`/`kept_short`) byte-for-byte, and makes
+  futures/options a safe no-op on an already-held same-direction position
+  instead of the bug above.
+- `rotate_on_drift` — whether a drifted option contract/spread (a
+  different strike/expiry than what's currently held, since single-leg/
+  spread contract selection re-runs every bar from that bar's confidence-
+  scaled target delta) gets rotated: `Liquidate()` the old, fall through
+  to a fresh entry for the new, same bar. Deliberately independent of
+  `enabled` — same-bar liquidate-then-reenter is sized against a
+  portfolio_value/vega budget that still includes the not-yet-liquidated
+  position, a real (if transient) margin/buying-power exposure a same-
+  instrument top-up never has, so it's never implied by merely enabling
+  scale-up.
+
+Vertical spreads only ever scale **up** when legs match (no `Sell`-side
+combo-order primitive exists in this codebase — a same-legs shrink
+request degrades to the auditable no-op `"options_spread_shrink_unsupported"`,
+same accepted trade-off category as this file's #38 leg-by-leg close
+above). `build_futures_position_sizing()`/`build_options_position_sizing()`/
+`build_vertical_spread_position_sizing()` needed **no signature changes**
+— each already produces a correct absolute target; the bug was purely in
+`main.py`'s execution layer treating that target as incremental.
+
+`active_position_limit_reached()`'s existing already-invested exemption
+and `asset_class_router.py`'s exclude-the-symbol's-own-holding exposure-
+cap math both needed zero changes — already safe for a resize.
+
 ## Liquidating positions when an asset class gets disabled
 
 Closes a real gap: `phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled`

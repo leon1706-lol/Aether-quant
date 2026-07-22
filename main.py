@@ -45,7 +45,9 @@ from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
     cap_target_weight,
+    compute_incremental_order_quantity,
     is_backtest_safety_bypass_active,
+    should_scale_position,
 )
 from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
@@ -659,6 +661,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # section and development/Problems.md #38.
         self.options_spread_strategy = str(phase_v2_options_risk.get("spread_strategy", "single_leg"))
         self.options_short_leg_delta_offset = float(phase_v2_options_risk.get("short_leg_delta_offset", 0.20))
+        # V4.3.0 - allow adding to an existing position instead of being
+        # blocked purely because one already exists (development/Changelog.md).
+        # Off by default: with position_scaling_enabled=False the equity/
+        # crypto/bond path is byte-identical to before this feature
+        # (kept_long/kept_short), and futures/options become a safe no-op on
+        # an already-open same-direction position rather than the silent
+        # incremental-restacking bug this feature also fixes unconditionally
+        # (see _apply_signal()'s futures/option branches). rotate_on_drift
+        # is a SEPARATE opt-in gating whether a drifted option contract/
+        # spread (a different strike/expiry than what's held) is rotated
+        # (liquidate + re-enter, same bar) rather than left untouched -
+        # deliberately not implied by position_scaling_enabled alone, since
+        # same-bar liquidate+reenter carries real margin/vega-timing
+        # exposure that a same-instrument top-up never does.
+        phase_v2_functionality = self.phase_v2.get("functionality", {})
+        phase_v2_position_scaling = phase_v2_functionality.get("position_scaling", {})
+        self.position_scaling_enabled = bool(phase_v2_position_scaling.get("enabled", False))
+        self.position_scaling_rotate_on_drift = bool(phase_v2_position_scaling.get("rotate_on_drift", False))
+        self.position_scaling_rebalance_threshold_weight = float(
+            phase_v2_position_scaling.get("rebalance_threshold_weight", 0.03)
+        )
         phase_v2_topology_learning = self.phase_v2.get("topology_learning", {})
         self.topology_learning_enabled = bool(phase_v2_topology_learning.get("enabled", True))
         self.topology_learning_temperature = float(phase_v2_topology_learning.get("temperature", 0.35))
@@ -2778,17 +2801,74 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return "options_no_usable_contract"
 
         if orders_allowed:
-            # Set eagerly (before attempting either order type) - required
-            # for on_order_event() to resolve a fill on the CONTRACT
-            # symbol back to this chain symbol_key even when the limit-
-            # order path below is taken. Harmless if the limit order is
-            # later canceled with no fallback fill: _is_invested()/
+            # V4.3.0 - the eager bookkeeping write below MUST happen after
+            # the already-holding/match check, never before: writing it
+            # first and then refusing/rotating would orphan the TRUE held
+            # position from _is_invested()'s tracking before it's actually
+            # closed - the same bug this feature exists to fix, just
+            # reintroduced one line earlier.
+            is_rotation = False
+            held_contract_symbol = self.option_contract_symbol_by_symbol.get(symbol_key)
+            if held_contract_symbol is not None and self.Portfolio[held_contract_symbol].Invested:
+                if str(held_contract_symbol) == str(contract_symbol):
+                    # Same contract already held - options_decision.contracts
+                    # is an ABSOLUTE vega-budgeted target recomputed fresh
+                    # every bar; MarketOrder() is INCREMENTAL. Scale toward
+                    # it via a delta, same unconditional-bug-fix-plus-flag-
+                    # gated-capability shape as the futures branches above.
+                    if not self.position_scaling_enabled:
+                        return "options_kept"
+                    current_quantity = float(self.Portfolio[held_contract_symbol].Quantity)
+                    delta = int(round(compute_incremental_order_quantity(options_decision.contracts, current_quantity)))
+                    if delta <= 0:
+                        # options_decision.contracts is always positive (this
+                        # module never shorts a single-leg option), so
+                        # delta<=0 covers both "already at target" and an
+                        # unsupported shrink request in one no-op.
+                        return "options_zero_or_negative_delta_kept"
+                    self.option_contract_symbol_by_symbol[symbol_key] = contract_symbol
+                    self.symbol_key_by_option_contract_symbol[str(contract_symbol)] = symbol_key
+                    if self._try_submit_limit_order(
+                        contract_symbol, symbol_key, "option", is_buy=True, target_weight=target_weight,
+                        close_price=close_price, contract_quantity=delta, chain_symbol=symbol,
+                    ):
+                        return f"submitted_limit_scaled_option_{options_decision.right}"
+                    self.MarketOrder(contract_symbol, delta)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return f"scaled_option_{options_decision.right}"
+                # Different contract than currently held (this bar's
+                # confidence-scaled target delta selected a different
+                # strike/expiry) - only rotate (liquidate the old contract,
+                # fall through to a fresh entry below) when explicitly
+                # opted into via rotate_on_drift; a same-bar liquidate+
+                # reenter carries real margin-timing exposure a same-
+                # instrument top-up never does, so it is never implied by
+                # position_scaling_enabled alone.
+                if not self.position_scaling_rotate_on_drift:
+                    return "options_contract_drifted_kept"
+                self.Liquidate(held_contract_symbol)
+                self.symbol_key_by_option_contract_symbol.pop(str(held_contract_symbol), None)
+                self.option_contract_symbol_by_symbol.pop(symbol_key, None)
+                is_rotation = True
+
+            # Fresh entry, or a rotation entry immediately after the
+            # liquidate above. Set eagerly (before attempting either order
+            # type) - required for on_order_event() to resolve a fill on
+            # the CONTRACT symbol back to this chain symbol_key even when
+            # the limit-order path below is taken. Harmless if the limit
+            # order is later canceled with no fallback fill: _is_invested()/
             # _asset_class_exposure() both key off Lean's own Portfolio
             # holdings (ground truth), never this dict directly, and any
             # later real order on this symbol unconditionally overwrites
             # it anyway.
             self.option_contract_symbol_by_symbol[symbol_key] = contract_symbol
             self.symbol_key_by_option_contract_symbol[str(contract_symbol)] = symbol_key
+            entered_note = f"rotated_option_{options_decision.right}" if is_rotation else f"entered_option_{options_decision.right}"
+            limit_note = (
+                f"submitted_limit_rotated_option_{options_decision.right}"
+                if is_rotation
+                else f"submitted_limit_option_{options_decision.right}"
+            )
             if self._try_submit_limit_order(
                 contract_symbol,
                 symbol_key,
@@ -2799,10 +2879,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 contract_quantity=options_decision.contracts,
                 chain_symbol=symbol,
             ):
-                return f"submitted_limit_option_{options_decision.right}"
+                return limit_note
             self.MarketOrder(contract_symbol, options_decision.contracts)
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
-            return f"entered_option_{options_decision.right}"
+            return entered_note
 
         self._simulated_portfolio.enter_long(
             symbol_key,
@@ -2868,6 +2948,56 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return f"simulated_entered_option_spread_{options_decision.strategy_name}:{permission_reason}"
 
         long_leg, short_leg = options_decision.legs
+        # V4.3.0 - same "move the eager write past the check" fix as
+        # _apply_option_order() above, at the leg-pair level.
+        is_rotation = False
+        held_legs = self.option_contract_symbols_by_symbol.get(symbol_key)
+        if held_legs and any(self.Portfolio[target].Invested for target in held_legs):
+            legs_match = [str(long_leg.contract_symbol), str(short_leg.contract_symbol)] == [
+                str(target) for target in held_legs
+            ]
+            if legs_match:
+                # Same spread already held - options_decision.contracts is
+                # an ABSOLUTE net-vega-budgeted target recomputed fresh
+                # every bar; self.Buy(strategy, quantity) is INCREMENTAL.
+                # Only ever scales UP (delta > 0): no Sell-side combo-order
+                # primitive exists anywhere in this codebase, so a same-
+                # legs shrink request degrades to a real, auditable no-op
+                # rather than silent - mirrors _liquidate_position()'s own
+                # documented leg-by-leg-not-atomic close trade-off
+                # (development/Problems.md #38).
+                if not self.position_scaling_enabled:
+                    return "options_spread_kept"
+                current_units = min(
+                    abs(float(self.Portfolio[held_legs[0]].Quantity)),
+                    abs(float(self.Portfolio[held_legs[1]].Quantity)),
+                )
+                delta = int(round(compute_incremental_order_quantity(options_decision.contracts, current_units)))
+                if delta <= 0:
+                    return "options_spread_shrink_unsupported" if delta < 0 else "options_spread_kept"
+                factory = (
+                    OptionStrategies.bull_call_spread
+                    if options_decision.strategy_name == "bull_call_spread"
+                    else OptionStrategies.bear_put_spread
+                )
+                expiration = datetime.fromisoformat(options_decision.expiry)
+                strategy = factory(symbol, long_leg.strike, short_leg.strike, expiration)
+                self.Buy(strategy, delta)
+                self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                return f"scaled_option_spread_{options_decision.strategy_name}"
+            # Legs differ from what's currently held - only rotate
+            # (liquidate the old spread leg-by-leg, fall through to a fresh
+            # entry below) when explicitly opted into via rotate_on_drift;
+            # same-bar liquidate+reenter carries real margin-timing
+            # exposure, never implied by position_scaling_enabled alone.
+            if not self.position_scaling_rotate_on_drift:
+                return "options_spread_legs_mismatch_kept"
+            for target in held_legs:
+                self.Liquidate(target)
+                self.symbol_key_by_option_contract_symbol.pop(str(target), None)
+            self.option_contract_symbols_by_symbol.pop(symbol_key, None)
+            is_rotation = True
+
         self.option_contract_symbols_by_symbol[symbol_key] = [long_leg.contract_symbol, short_leg.contract_symbol]
         for leg in options_decision.legs:
             self.symbol_key_by_option_contract_symbol[str(leg.contract_symbol)] = symbol_key
@@ -2881,7 +3011,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         strategy = factory(symbol, long_leg.strike, short_leg.strike, expiration)
         self.Buy(strategy, options_decision.contracts)
         self.last_trade_bar_by_symbol[symbol] = self.bar_index
-        return f"entered_option_spread_{options_decision.strategy_name}"
+        return (
+            f"rotated_option_spread_{options_decision.strategy_name}"
+            if is_rotation
+            else f"entered_option_spread_{options_decision.strategy_name}"
+        )
 
     def _liquidate_position(self, symbol) -> None:
         """self.Liquidate() targeting every real Lean Symbol this position
@@ -2960,14 +3094,37 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if contract_count == 0:
                     return "futures_zero_contract_count"
                 if orders_allowed:
+                    # V4.3.0 - contract_count is an ABSOLUTE target
+                    # recomputed fresh every bar; MarketOrder() is an
+                    # INCREMENTAL Lean primitive. Firing contract_count
+                    # itself every bar the signal stays "buy" would silently
+                    # stack more contracts on top of whatever is already
+                    # held, unbounded by the margin-budgeted sizing math -
+                    # a real bug, fixed unconditionally here regardless of
+                    # position_scaling_enabled. The flag only controls
+                    # whether an already-open same-direction position may
+                    # be topped up at all (vs. held at its current size).
+                    current_quantity = float(self.Portfolio[symbol].Quantity)
+                    already_same_direction = current_quantity != 0 and (current_quantity > 0) == (contract_count > 0)
+                    if already_same_direction:
+                        if not self.position_scaling_enabled:
+                            return "kept_long_futures"
+                        delta = int(round(compute_incremental_order_quantity(contract_count, current_quantity)))
+                        if delta == 0:
+                            return "futures_zero_delta_kept"
+                        order_quantity = delta
+                        entered_note, limit_note = "scaled_long_futures", "submitted_limit_scaled_long_futures"
+                    else:
+                        order_quantity = contract_count
+                        entered_note, limit_note = "entered_long_futures", "submitted_limit_long_futures"
                     if self._try_submit_limit_order(
                         symbol, symbol_key, "future", is_buy=True, target_weight=target_weight,
-                        close_price=close_price, contract_quantity=contract_count,
+                        close_price=close_price, contract_quantity=order_quantity,
                     ):
-                        return "submitted_limit_long_futures"
-                    self.MarketOrder(symbol, contract_count)
+                        return limit_note
+                    self.MarketOrder(symbol, order_quantity)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
-                    return "entered_long_futures"
+                    return entered_note
                 self._simulated_portfolio.enter_long(
                     symbol_key,
                     close_price,
@@ -3001,7 +3158,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_long:{permission_reason}"
-            return "kept_long" if orders_allowed else "simulated_kept_long"
+            # V4.3.0 - already invested, same direction as last bar: rather
+            # than a blanket no-op, allow scaling toward the (possibly
+            # since-changed) target_weight when position_scaling is enabled
+            # and the move clears the rebalance-churn threshold.
+            # SetHoldings() is Lean's own delta-computing rebalance-to-
+            # target primitive, so no separate quantity math is needed here
+            # - it's already safe for a resize, not just a fresh entry.
+            if orders_allowed:
+                current_weight = float(self.Portfolio[symbol].HoldingsValue) / max(
+                    float(self.Portfolio.TotalPortfolioValue), 1.0
+                )
+                if self.position_scaling_enabled and should_scale_position(
+                    current_weight, target_weight, self.position_scaling_rebalance_threshold_weight
+                ):
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, asset_class, is_buy=True, target_weight=target_weight,
+                        close_price=close_price,
+                    ):
+                        return "submitted_limit_scaled_long"
+                    self.SetHoldings(symbol, target_weight)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return "scaled_long"
+                return "kept_long"
+            return "simulated_kept_long"
 
         if signal_name == "sell":
             if self._is_invested(symbol, orders_allowed):
@@ -3049,14 +3229,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if contract_count == 0:
                     return "futures_zero_contract_count"
                 if orders_allowed:
+                    # V4.3.0 - symmetric to the "buy" branch's fix above.
+                    current_quantity = float(self.Portfolio[symbol].Quantity)
+                    already_same_direction = current_quantity != 0 and (current_quantity > 0) == (contract_count > 0)
+                    if already_same_direction:
+                        if not self.position_scaling_enabled:
+                            return "kept_short_futures"
+                        delta = int(round(compute_incremental_order_quantity(contract_count, current_quantity)))
+                        if delta == 0:
+                            return "futures_zero_delta_kept"
+                        order_quantity = delta
+                        entered_note, limit_note = "scaled_short_futures", "submitted_limit_scaled_short_futures"
+                    else:
+                        order_quantity = contract_count
+                        entered_note, limit_note = "entered_short_futures", "submitted_limit_short_futures"
                     if self._try_submit_limit_order(
                         symbol, symbol_key, "future", is_buy=False, target_weight=target_weight,
-                        close_price=close_price, contract_quantity=contract_count,
+                        close_price=close_price, contract_quantity=order_quantity,
                     ):
-                        return "submitted_limit_short_futures"
-                    self.MarketOrder(symbol, contract_count)
+                        return limit_note
+                    self.MarketOrder(symbol, order_quantity)
                     self.last_trade_bar_by_symbol[symbol] = self.bar_index
-                    return "entered_short_futures"
+                    return entered_note
                 self._simulated_portfolio.enter_long(
                     symbol_key,
                     close_price,
@@ -3090,7 +3284,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_short:{permission_reason}"
-            return "kept_short" if orders_allowed else "simulated_kept_short"
+            # V4.3.0 - symmetric to the "buy" branch above.
+            if orders_allowed:
+                current_weight = float(self.Portfolio[symbol].HoldingsValue) / max(
+                    float(self.Portfolio.TotalPortfolioValue), 1.0
+                )
+                if self.position_scaling_enabled and should_scale_position(
+                    current_weight, target_weight, self.position_scaling_rebalance_threshold_weight
+                ):
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, asset_class, is_buy=False, target_weight=target_weight,
+                        close_price=close_price,
+                    ):
+                        return "submitted_limit_scaled_short"
+                    self.SetHoldings(symbol, target_weight)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return "scaled_short"
+                return "kept_short"
+            return "simulated_kept_short"
 
         return "no_action"
 

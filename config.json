@@ -1251,6 +1251,13 @@
             "spread_strategy": "single_leg",
             "short_leg_delta_offset": 0.2
         },
+        "functionality": {
+            "position_scaling": {
+                "enabled": false,
+                "rotate_on_drift": false,
+                "rebalance_threshold_weight": 0.03
+            }
+        },
         "regime_detection": {
             "bullish_threshold": 0.02,
             "bearish_threshold": -0.02,

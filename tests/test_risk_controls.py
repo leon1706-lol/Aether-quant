@@ -2,7 +2,9 @@ from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
     cap_target_weight,
+    compute_incremental_order_quantity,
     is_backtest_safety_bypass_active,
+    should_scale_position,
 )
 
 
@@ -73,3 +75,51 @@ def test_backtest_safety_bypass_never_active_in_paper_mode():
 def test_backtest_safety_bypass_never_active_in_live_mode():
     assert is_backtest_safety_bypass_active("live", True) is False
     assert is_backtest_safety_bypass_active("live", False) is False
+
+
+# ---------------------------------------------------------------------------
+# V4.3.0 - allow adding to an existing position (development/Changelog.md).
+# should_scale_position() is the equity/crypto/bond churn guard (weight
+# threshold); compute_incremental_order_quantity() is the discrete-contract
+# (futures/options/spreads) delta primitive that converts an ABSOLUTE
+# sizing target into the signed quantity an incremental order (MarketOrder/
+# Buy) must submit.
+# ---------------------------------------------------------------------------
+
+
+def test_should_scale_position_true_when_delta_meets_threshold():
+    assert should_scale_position(current_weight=0.10, target_weight=0.14, rebalance_threshold_weight=0.03) is True
+
+
+def test_should_scale_position_false_when_delta_below_threshold():
+    assert should_scale_position(current_weight=0.10, target_weight=0.115, rebalance_threshold_weight=0.03) is False
+
+
+def test_should_scale_position_treats_threshold_as_inclusive_boundary():
+    assert should_scale_position(current_weight=0.10, target_weight=0.13, rebalance_threshold_weight=0.03) is True
+
+
+def test_should_scale_position_handles_negative_target_weight_for_shorts():
+    # Both weights negative (an open short growing more negative) - abs()
+    # must measure the magnitude of the move, not be confused by sign.
+    assert should_scale_position(current_weight=-0.10, target_weight=-0.14, rebalance_threshold_weight=0.03) is True
+    assert should_scale_position(current_weight=-0.10, target_weight=-0.115, rebalance_threshold_weight=0.03) is False
+
+
+def test_compute_incremental_order_quantity_positive_delta_when_target_exceeds_current():
+    assert compute_incremental_order_quantity(target_quantity=10, current_quantity=6) == 4
+
+
+def test_compute_incremental_order_quantity_negative_delta_when_target_below_current():
+    assert compute_incremental_order_quantity(target_quantity=6, current_quantity=10) == -4
+
+
+def test_compute_incremental_order_quantity_zero_when_already_at_target():
+    assert compute_incremental_order_quantity(target_quantity=10, current_quantity=10) == 0
+
+
+def test_compute_incremental_order_quantity_handles_negative_current_and_target_quantities():
+    # A short futures position growing more negative (target -8 from -5) -
+    # the delta itself must be signed correctly for MarketOrder(delta) to
+    # sell 3 more, not buy back toward flat.
+    assert compute_incremental_order_quantity(target_quantity=-8, current_quantity=-5) == -3

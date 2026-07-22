@@ -205,6 +205,19 @@ selection of anything beyond a vertical (straddles/strangles/iron
 condors/butterflies) remains an explicit non-goal
 (`development/Problems.md` #29/#38).
 
+**Adding to an already-open position (V4.3.0)**: `main.py::_apply_option_order()`/
+`_apply_option_spread_order()` now compare this bar's freshly-selected
+contract/legs against whatever's currently held for the chain symbol. A
+match scales up (delta-based, `phase_v2.functionality.position_scaling.enabled`,
+default off); a mismatch (the confidence-scaled target delta selected a
+different strike/expiry than what's held) only rotates — liquidate the
+old, enter the new, same bar — behind a second, independent
+`rotate_on_drift` flag, since same-bar liquidate+reenter carries real
+transient margin/vega-timing exposure a same-instrument top-up doesn't.
+See `risk/README.md`'s "Allow adding to an existing position" section and
+`development/Problems.md` #57 for the full design, including why neither
+of these sizing functions needed a signature change.
+
 ## Webui visibility
 
 `signal_payload["portfolio_book_role"]` (set in `main.py`, see above) is

@@ -3969,3 +3969,68 @@ Documentation updated to match: `development/Problems.md` #56 now `🟢
 fixed`, `topology/README.md`'s learned-overlay section describes the
 normalized-z contract, `README.md`'s Webui roadmap block and `aq train` CLI
 reference both current.
+
+## V4.3.0 — Functionality: allow adding to an existing position, all 5 asset classes (Problems.md #57)
+
+Closes the roadmap's Functionality item: *"if the model already holds SPY
+and the signal says to buy more SPY, it should be able to scale the
+position up rather than being blocked just because a position already
+exists."* Exploration found three distinct problems rather than one gate:
+equity/crypto/bond were genuinely blocked by a single `previous_signal !=
+"buy" or not invested` gate in `main.py::_apply_signal()`; futures and
+options had **no gate at all**, and that absence was a live bug — each
+bar's absolute margin/vega-budgeted sizing target was fired through
+`MarketOrder()`/`self.Buy(strategy, ...)`, incremental Lean primitives,
+silently stacking more contracts every bar the signal stayed the same
+(reachable only when `futures_risk`/`options_risk` are enabled, both
+default off); options additionally re-select which contract/spread legs
+to hold every bar, so a repeated "buy" could target a different strike/
+expiry and buy it on top of the old one, orphaning the original position
+from `_is_invested()`'s tracking.
+
+Fixed in three tiers: (1) an unconditional bug fix — a new
+`risk_controls.py::compute_incremental_order_quantity()` computes the
+signed delta an incremental order must submit to converge toward an
+absolute target, instead of overshooting it every bar; (2) a scale-up
+capability behind `phase_v2.functionality.position_scaling.enabled`
+(default `false`) — equity/crypto/bond gain a
+`risk_controls.py::should_scale_position()` weight-threshold churn guard,
+futures/options/spreads use "delta rounds to nonzero"; (3) a rotation
+capability behind its own `rotate_on_drift` flag (default `false`,
+independent of `enabled`) — a drifted option contract/spread is only
+liquidated-and-reentered same-bar when explicitly opted into, since that
+carries real transient margin/vega-timing exposure a same-instrument
+top-up never has.
+
+Two Lean sign conventions the fix depends on were verified from the
+codebase's own existing usage before writing the delta logic (never
+assumed): `_futures_contract_count_for_weight()`'s signed contract count,
+and `HoldingsValue`'s signed-for-shorts convention (both confirmed via
+existing call sites, `_short_exposure()` for the latter).
+
+**Default config is byte-identical to today** — confirmed by grep that
+every new branch sits strictly behind `position_scaling_enabled`/
+`rotate_on_drift`, and that futures/options's bug-fix code is itself
+unreachable at the true default (`futures_risk_enabled=false` forces
+`contract_count=0`, `options_risk_enabled=false` forces
+`options_decision is None`, both returning their existing no-op notes
+before any new code runs). Vertical spreads only ever scale up, never
+down (no `Sell`-side combo-order primitive exists in this codebase,
+same accepted trade-off as #38's leg-by-leg close).
+
+`analyzer/market_analyzer.py`'s veto tiers, `active_position_limit_reached()`'s
+already-invested exemption, and `cap_target_weight()`'s exposure-cap math
+all needed zero changes — confirmed safe by call-graph tracing, not
+assumed. `risk/futures_risk.py`, `portfolio/options_strategy.py`,
+`risk/asset_class_router.py` needed no signature changes either — each
+already produced a correct absolute target; the bug was purely in
+`main.py`'s execution layer.
+
+**Testing**: 1521 → **1558 tests, all passing**. New pure, unit-testable
+coverage in `tests/test_risk_controls.py` (both new helpers) and
+`tests/test_order_gate.py` (every new execution-note string correctly
+classified real vs. no-op — the denylist is exact-string matching, so
+every new no-op note is a plain constant, never an f-string).
+
+See `development/Problems.md` #57 for the full writeup, including the
+deferred anti-thrashing-guard follow-up for `rotate_on_drift`.

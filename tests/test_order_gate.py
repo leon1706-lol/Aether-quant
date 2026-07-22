@@ -337,6 +337,30 @@ def test_classify_order_status_unknown_string_returns_unknown_not_raises():
         "submitted_limit_long_futures",
         "submitted_limit_short_futures",
         "liquidated_on_sell",
+        # V4.3.0 - allow adding to an existing position (development/
+        # Changelog.md). All real order placements: equity/crypto/bond
+        # scale-up, futures scale-up, options single-leg scale-up and
+        # rotation, options spread scale-up and rotation.
+        "scaled_long",
+        "scaled_short",
+        "submitted_limit_scaled_long",
+        "submitted_limit_scaled_short",
+        "scaled_long_futures",
+        "scaled_short_futures",
+        "submitted_limit_scaled_long_futures",
+        "submitted_limit_scaled_short_futures",
+        "scaled_option_call",
+        "scaled_option_put",
+        "submitted_limit_scaled_option_call",
+        "submitted_limit_scaled_option_put",
+        "rotated_option_call",
+        "rotated_option_put",
+        "submitted_limit_rotated_option_call",
+        "submitted_limit_rotated_option_put",
+        "scaled_option_spread_bull_call_spread",
+        "scaled_option_spread_bear_put_spread",
+        "rotated_option_spread_bull_call_spread",
+        "rotated_option_spread_bear_put_spread",
     ],
 )
 def test_is_real_order_placement_true_for_real_outcomes(execution_note):
@@ -357,6 +381,19 @@ def test_is_real_order_placement_true_for_real_outcomes(execution_note):
         "options_spread_no_usable_legs",
         "equity_exposure_cap_reached",
         "short_exposure_cap_reached",
+        # V4.3.0 - allow adding to an existing position (development/
+        # Changelog.md). All safe no-ops: scaling disabled while already
+        # invested same-direction, delta rounds to zero/negative, or a
+        # drifted contract/spread held with rotate_on_drift off.
+        "kept_long_futures",
+        "kept_short_futures",
+        "futures_zero_delta_kept",
+        "options_kept",
+        "options_zero_or_negative_delta_kept",
+        "options_contract_drifted_kept",
+        "options_spread_kept",
+        "options_spread_shrink_unsupported",
+        "options_spread_legs_mismatch_kept",
     ],
 )
 def test_is_real_order_placement_false_for_no_op_outcomes(execution_note):

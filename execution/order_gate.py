@@ -248,6 +248,20 @@ _NO_OP_EXECUTION_NOTES = frozenset(
         "futures_zero_contract_count",
         "options_no_usable_contract",
         "options_spread_no_usable_legs",
+        # V4.3.0 - allow adding to an existing position (development/
+        # Changelog.md). Plain constants only, never f-strings - this
+        # denylist is exact-string matching, and an f-string note would
+        # silently misclassify as a REAL placement, the wrong-direction
+        # failure mode this module's own docstring warns about.
+        "kept_long_futures",
+        "kept_short_futures",
+        "futures_zero_delta_kept",
+        "options_kept",
+        "options_zero_or_negative_delta_kept",
+        "options_contract_drifted_kept",
+        "options_spread_kept",
+        "options_spread_shrink_unsupported",
+        "options_spread_legs_mismatch_kept",
     }
 )
 _NO_OP_EXECUTION_NOTE_SUFFIXES = ("_exposure_cap_reached",)

@@ -53,3 +53,31 @@ def cap_target_weight(
 
     direction = 1.0 if target_weight >= 0.0 else -1.0
     return direction * remaining_exposure, False
+
+
+def should_scale_position(
+    current_weight: float,
+    target_weight: float,
+    rebalance_threshold_weight: float,
+) -> bool:
+    """True iff an already-open, same-direction position's target has moved
+    far enough (>= threshold) to warrant resubmitting an order, rather than
+    treating trivial confidence wiggle as churn. Direction-agnostic (abs) -
+    callers only invoke this once a same-direction hold is already
+    established via the unchanged previous_signal gate."""
+    return abs(target_weight - current_weight) >= rebalance_threshold_weight
+
+
+def compute_incremental_order_quantity(
+    target_quantity: float,
+    current_quantity: float,
+) -> float:
+    """target_quantity is an ABSOLUTE, already-signed sizing target
+    (futures contract count, or a matched option contract's/spread's
+    target quantity), recomputed fresh every bar; current_quantity is
+    whatever is actually held right now. Returns the signed delta an
+    incremental order primitive (MarketOrder/Buy) must submit to converge
+    toward target_quantity, instead of firing the absolute target every
+    bar and silently overshooting it. Pure arithmetic, never raises -
+    callers round/zero-check the result themselves."""
+    return target_quantity - current_quantity
