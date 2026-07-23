@@ -405,6 +405,63 @@ dedicated sizing functions only). See `development/Problems.md` #59 for
 the full writeup, including the expiry-day auto-close safety net and
 what remains deferred.
 
+## Bounded options follow-ups, arbitrage mispricing detector, Forex/FX (V4.6, development/Problems.md #60)
+
+Closes V4.5's own deferred items and adds Forex as a new asset class.
+
+- **`_active_position_count()` bug fix** — was counting every LEG of a
+  multi-leg position toward `max_active_positions`, not the position once
+  (a 4-leg iron condor cost 4 of a user's budget). Fixed by resolving
+  each invested Symbol to its chain-level identity (via the same reverse
+  map `_asset_class_exposure()` uses) before counting distinct
+  identities - also fixed a second bug where the old exclude filter
+  never actually excluded any option holding.
+- **Rotation anti-thrashing** (`phase_v2.options_risk.rotation_cooldown_bars`,
+  default `5`) and **same-bar netting** (re-sizes the newly-selected legs
+  against a freshly-read `Portfolio.TotalPortfolioValue` after
+  liquidating, instead of the stale pre-liquidation decision) — both
+  close deferred items from #57/#58/#59.
+- **Per-asset `enabled_strategy_names` override** —
+  `"options_strategy_override": {"enabled_strategy_names": [...]}` on an
+  option's `phase1.universe.assets` entry, resolved via
+  `portfolio/options_strategy.py::resolve_enabled_strategy_names()`.
+- **Arbitrage mispricing detector** — new `portfolio/options_arbitrage_detector.py`
+  makes the 6 previously-permanently-stubbed arbitrage strategies
+  conditionally reachable for the first time: standard textbook
+  fair-value formulas (box-spread discounted payoff, put-call parity,
+  jelly-roll cost-of-carry) compared against the chain's actual market
+  price via a configurable bps threshold
+  (`phase_v2.options_risk.arbitrage_detector`, default `enabled: false`).
+  Role names (e.g. `"long_put"`) encode leg SIDE consistently across a
+  strategy and its inverted `short_*` sibling but NOT which strike role
+  they map to — the detector resolves strike/expiry roles from
+  `MULTI_LEG_STRATEGY_REGISTRY` directly rather than hardcoding
+  per-strategy assumptions, the fix for a real bug an earlier draft had.
+
+**Forex/FX** (new asset class) — confirmed via direct Lean source
+inspection to be fully first-class in this Lean version
+(`SecurityType.Forex`, `self.add_forex()`, real pip-size/lot-size symbol
+properties). New `risk/forex_risk.py` mirrors `risk/futures_risk.py`'s
+exact soft-target/hard-ceiling shape, leverage-utilization-targeted
+instead of margin-utilization-targeted (margin scales with the pair's
+current price: `lot_size * price * margin_pct`). New
+`data/reference/forex_pair_specs.json`. `risk/asset_class_router.py`
+gained a `"forex"` branch and `_forex_decision_to_position_sizing()`
+adapter; `resolve_asset_class_enabled()` gained a `forex_risk_enabled`
+parameter. One structural wrinkle: forex brokerage feeds are quote-bar
+(bid/ask), not trade-bar, data — `main.py::on_data()`'s per-symbol loop
+gained a strictly additive fallback consulting `slice.quote_bars` only
+for `security_type == "forex"` with no `TradeBar` this bar, never
+touching any other asset class. Code-complete, IB-unverified, zero live
+forex tickers configured — the same shipping posture futures/options
+themselves established.
+
+Individual-bond trading was investigated and found **infeasible** under
+this Lean version (no `SecurityType.Bond` anywhere in the real Lean
+source) — reframed into real analytic bond-ETF duration/convexity
+instead; see `portfolio/README.md`'s own V4.6 section and
+`features/bond_features.py`'s module docstring.
+
 ## Liquidating positions when an asset class gets disabled
 
 Closes a real gap: `phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled`

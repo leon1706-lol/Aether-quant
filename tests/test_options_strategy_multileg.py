@@ -15,6 +15,8 @@ from portfolio.options_strategy import (
     classify_volatility_view,
     option_auto_close_due,
     order_enabled_strategies,
+    resolve_enabled_strategy_names,
+    rotation_cooldown_active,
     select_strategy_legs,
     strategies_for_volatility_view,
 )
@@ -357,3 +359,54 @@ def test_option_auto_close_due_fires_on_expiry_day_itself():
 def test_option_auto_close_due_none_inputs_return_false():
     assert option_auto_close_due(None, date(2026, 8, 21)) is False
     assert option_auto_close_due(date(2026, 8, 21), None) is False
+
+
+# ---------------------------------------------------------------------------
+# resolve_enabled_strategy_names (V4.6, development/Problems.md #59)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_enabled_strategy_names_returns_global_default_when_no_override():
+    asset = {"ticker": "SPY_OPT", "security_type": "option"}
+    assert resolve_enabled_strategy_names(asset, ["single_leg", "bull_call_spread"]) == ["single_leg", "bull_call_spread"]
+
+
+def test_resolve_enabled_strategy_names_uses_override_when_present():
+    asset = {"ticker": "SPY_OPT", "options_strategy_override": {"enabled_strategy_names": ["iron_condor"]}}
+    assert resolve_enabled_strategy_names(asset, ["single_leg"]) == ["iron_condor"]
+
+
+def test_resolve_enabled_strategy_names_ignores_empty_override_list():
+    asset = {"ticker": "SPY_OPT", "options_strategy_override": {"enabled_strategy_names": []}}
+    assert resolve_enabled_strategy_names(asset, ["single_leg"]) == ["single_leg"]
+
+
+def test_resolve_enabled_strategy_names_ignores_malformed_override():
+    asset = {"ticker": "SPY_OPT", "options_strategy_override": {"enabled_strategy_names": "not_a_list"}}
+    assert resolve_enabled_strategy_names(asset, ["single_leg"]) == ["single_leg"]
+
+
+def test_resolve_enabled_strategy_names_no_override_key_at_all():
+    assert resolve_enabled_strategy_names({}, ["single_leg"]) == ["single_leg"]
+
+
+# ---------------------------------------------------------------------------
+# rotation_cooldown_active (V4.6, development/Problems.md #57/#58/#59)
+# ---------------------------------------------------------------------------
+
+
+def test_rotation_cooldown_active_true_within_window():
+    assert rotation_cooldown_active(current_bar_index=103, last_rotation_bar=100, cooldown_bars=5) is True
+
+
+def test_rotation_cooldown_active_false_outside_window():
+    assert rotation_cooldown_active(current_bar_index=106, last_rotation_bar=100, cooldown_bars=5) is False
+
+
+def test_rotation_cooldown_active_false_when_never_rotated():
+    assert rotation_cooldown_active(current_bar_index=103, last_rotation_bar=None, cooldown_bars=5) is False
+
+
+def test_rotation_cooldown_active_boundary_at_exact_cooldown_bars():
+    # exactly cooldown_bars later - no longer active (strict less-than)
+    assert rotation_cooldown_active(current_bar_index=105, last_rotation_bar=100, cooldown_bars=5) is False

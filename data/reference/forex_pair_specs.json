@@ -1,0 +1,52 @@
+{
+    "_comment": "Static reference pair specs (pip size/lot size/max leverage/margin pct) for a small seed set of liquid FX pairs. Approximate as of file authoring - for offline sizing math only, NOT a live broker margin feed. When phase_v2.ib.enabled and IB is reachable, prefer IB's live margin/leverage over these static numbers (documented future enhancement, not implemented in this pass) - this file is the offline/backtest/IB-disabled fallback risk/forex_risk.py::load_forex_pair_specs() reads. leverage_max/margin_pct move with regulatory regime (US retail forex is capped far lower than this file's defaults, which assume a non-US-regulated account) and will drift from these numbers over time; refresh by hand periodically.",
+    "EURUSD": {
+        "description": "Euro / US Dollar",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 50,
+        "margin_pct": 0.02
+    },
+    "GBPUSD": {
+        "description": "British Pound / US Dollar",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 50,
+        "margin_pct": 0.02
+    },
+    "USDJPY": {
+        "description": "US Dollar / Japanese Yen",
+        "pip_size": 0.01,
+        "lot_size": 100000,
+        "leverage_max": 50,
+        "margin_pct": 0.02
+    },
+    "AUDUSD": {
+        "description": "Australian Dollar / US Dollar",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 33,
+        "margin_pct": 0.03
+    },
+    "USDCAD": {
+        "description": "US Dollar / Canadian Dollar",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 33,
+        "margin_pct": 0.03
+    },
+    "USDCHF": {
+        "description": "US Dollar / Swiss Franc",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 33,
+        "margin_pct": 0.03
+    },
+    "NZDUSD": {
+        "description": "New Zealand Dollar / US Dollar",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 20,
+        "margin_pct": 0.05
+    }
+}

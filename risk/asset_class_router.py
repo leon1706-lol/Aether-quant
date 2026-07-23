@@ -25,6 +25,7 @@ the PositionSizingDecision stay completely unaffected.
 
 from __future__ import annotations
 
+from risk.forex_risk import ForexSizingDecision, build_forex_position_sizing
 from risk.futures_risk import FuturesSizingDecision, build_futures_position_sizing
 from risk.position_sizing import PositionSizingDecision, build_dynamic_position_sizing
 
@@ -54,6 +55,11 @@ try:
 except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
     build_margin_position_sizing = None
 
+try:
+    from portfolio.options_arbitrage_detector import build_arbitrage_position_sizing
+except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
+    build_arbitrage_position_sizing = None
+
 FUTURES_OPTIONS_SENTINEL_VOLATILITY_REGIME = "not_applicable_non_volatility_sizing"
 
 
@@ -80,6 +86,32 @@ def _futures_decision_to_position_sizing(decision: FuturesSizingDecision) -> Pos
         volatility_source="not_applicable",
         rank_multiplier=1.0,
         rank_sizing_reason="not_applicable_futures",
+    )
+
+
+def _forex_decision_to_position_sizing(decision: ForexSizingDecision) -> PositionSizingDecision:
+    """V4.6 - the Forex sibling of _futures_decision_to_position_sizing()
+    above, same mapping shape (volatility fields sentinel/zeroed - forex
+    sizing here isn't volatility-driven either; leverage_factor repurposes
+    "how much of the cap did we use" as margin_utilization /
+    max_leverage_utilization)."""
+    max_leverage_utilization = decision.max_leverage_utilization or 1.0
+    return PositionSizingDecision(
+        base_target_weight=decision.base_target_weight,
+        target_weight=decision.target_weight,
+        rolling_volatility=0.0,
+        annualized_volatility=0.0,
+        volatility_regime=FUTURES_OPTIONS_SENTINEL_VOLATILITY_REGIME,
+        volatility_multiplier=0.0,
+        confidence_multiplier=decision.confidence_multiplier,
+        topology_multiplier=1.0,
+        leverage_factor=decision.margin_utilization / max_leverage_utilization,
+        max_leverage=max_leverage_utilization,
+        sizing_reason=decision.sizing_reason,
+        topology_sizing_reason="not_applicable_forex",
+        volatility_source="not_applicable",
+        rank_multiplier=1.0,
+        rank_sizing_reason="not_applicable_forex",
     )
 
 
@@ -218,6 +250,11 @@ def route_multi_leg_option_sizing(
     max_margin_utilization: float,
     pct_of_underlying_value: float,
     min_pct_of_underlying_value: float,
+    current_date=None,
+    risk_free_rate: float = 0.045,
+    arbitrage_detector_enabled: bool = False,
+    min_mispricing_bps: float = 15.0,
+    arbitrage_max_contracts_per_signal: int = 1,
 ) -> tuple[PositionSizingDecision, dict] | None:
     """V4.5 - the full-coverage sibling of route_position_sizing()'s
     option branch: tries `enabled_strategy_names`, reordered by
@@ -279,7 +316,27 @@ def route_multi_leg_option_sizing(
             continue
 
         spec = MULTI_LEG_STRATEGY_REGISTRY.get(strategy_name)
-        if spec is None or spec.risk_tier in ("covered_protective", "unreachable_arbitrage"):
+        if spec is None or spec.risk_tier == "covered_protective":
+            continue
+        if spec.risk_tier == "unreachable_arbitrage":
+            # V4.6 (development/Problems.md #59/Roadmap) - the mispricing
+            # detector is the ONLY way one of the 6 arbitrage strategies
+            # ever becomes reachable: off by default
+            # (arbitrage_detector_enabled), and even when on, only fires
+            # for THIS bar's chain when select_arbitrage_signal() confirms
+            # a real, threshold-exceeding mispricing - never unconditionally
+            # just because the strategy_name is enabled.
+            if not arbitrage_detector_enabled or build_arbitrage_position_sizing is None:
+                continue
+            decision = build_arbitrage_position_sizing(
+                strategy_name, available_chain or [], current_date, risk_free_rate, min_mispricing_bps,
+                arbitrage_max_contracts_per_signal,
+            )
+            if decision is not None:
+                return (
+                    _multi_leg_decision_to_position_sizing(decision, portfolio_value, max_vega_budget_pct_of_equity),
+                    {"options_decision": decision},
+                )
             continue
         if spec.shape_family in view_gated_families and strategy_name not in eligible_view_names:
             continue
@@ -337,6 +394,7 @@ def resolve_asset_class_enabled(
     asset_class: str | None,
     futures_risk_enabled: bool,
     options_risk_enabled: bool,
+    forex_risk_enabled: bool = True,
 ) -> bool:
     """True iff main.py may open/maintain a position in `asset_class`
     right now (used by main.py's per-bar
@@ -347,12 +405,17 @@ def resolve_asset_class_enabled(
     by construction, matching route_position_sizing()'s own "fall back to
     equity behavior for anything unrecognized" default above. future ->
     futures_risk_enabled (phase_v2.futures_risk.enabled); option ->
-    options_risk_enabled (phase_v2.options_risk.enabled). Pure lookup,
-    never raises."""
+    options_risk_enabled (phase_v2.options_risk.enabled); forex ->
+    forex_risk_enabled (phase_v2.forex_risk.enabled, V4.6). Pure lookup,
+    never raises. forex_risk_enabled defaults True only to keep this
+    signature backward-compatible for any caller that hasn't been updated
+    to pass it explicitly - main.py's own call site always passes it."""
     if asset_class == "future":
         return futures_risk_enabled
     if asset_class == "option":
         return options_risk_enabled
+    if asset_class == "forex":
+        return forex_risk_enabled
     return True
 
 
@@ -379,13 +442,16 @@ def route_position_sizing(
     portfolio_value: float = 0.0,
     contract_spec: dict | None = None,
     futures_kwargs: dict | None = None,
+    pair_spec: dict | None = None,
+    forex_kwargs: dict | None = None,
     available_chain: list[dict] | None = None,
     options_kwargs: dict | None = None,
 ) -> tuple[PositionSizingDecision, dict]:
     """Dispatches on asset_class (falls back to "equity" behavior for any
     unrecognized value - the existing, safest, most-tested path). Returns
     (PositionSizingDecision, extra) - extra is {} for equity/crypto/bond,
-    {"contract_count": int} for future,
+    {"contract_count": int} for future, {"lot_count": int} for forex
+    (V4.6),
     {"options_decision": OptionsPositionDecision | OptionsSpreadPositionDecision}
     for option (only when a position was actually sized; {} when the
     asset-class-specific sizer returned no position, e.g. an empty options
@@ -403,6 +469,17 @@ def route_position_sizing(
             **(futures_kwargs or {}),
         )
         return _futures_decision_to_position_sizing(decision), {"contract_count": decision.contract_count}
+
+    if asset_class == "forex":
+        decision = build_forex_position_sizing(
+            base_target_weight=base_target_weight,
+            confidence=confidence,
+            price=price,
+            pair_spec=pair_spec,
+            portfolio_value=portfolio_value,
+            **(forex_kwargs or {}),
+        )
+        return _forex_decision_to_position_sizing(decision), {"lot_count": decision.lot_count}
 
     if asset_class == "option":
         if build_options_position_sizing is None:

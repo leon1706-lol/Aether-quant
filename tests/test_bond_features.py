@@ -1,11 +1,16 @@
+import math
 import random
 
 from features.bond_features import (
     CREDIT_SPREAD_LEVEL_NEUTRAL,
     YIELD_CURVE_CURVATURE_NEUTRAL,
     YIELD_CURVE_LEVEL_NEUTRAL,
+    analytic_convexity,
+    analytic_modified_duration,
+    bond_dv01,
     credit_spread_level,
     empirical_duration_beta,
+    nearest_yield_curve_point,
     yield_curve_curvature,
     yield_curve_level,
     yield_curve_slope,
@@ -115,3 +120,101 @@ def test_empirical_duration_beta_long_duration_beta_exceeds_short_duration_beta_
     short_beta = empirical_duration_beta(short_duration_returns, delta_yield, min_observations=60)
 
     assert abs(long_beta) > abs(short_beta)
+
+
+# ---------------------------------------------------------------------------
+# analytic_modified_duration / analytic_convexity / bond_dv01 (V4.6,
+# development/Problems.md #60, Roadmap "single-bond trading" reframed)
+# ---------------------------------------------------------------------------
+
+
+def test_analytic_modified_duration_zero_coupon_bond_equals_maturity_over_one_plus_period_yield():
+    # A zero-coupon bond's Macaulay duration is EXACTLY its maturity (only
+    # one cash flow, at maturity) - modified duration is then exactly
+    # maturity / (1 + y/m), a precise analytic cross-check, not just a
+    # plausibility range.
+    md = analytic_modified_duration(yield_to_maturity=0.05, coupon_rate=0.0, years_to_maturity=5, payments_per_year=2)
+    assert math.isclose(md, 5 / (1 + 0.05 / 2))
+
+
+def test_analytic_modified_duration_par_bond_10y_5pct_matches_textbook_reference():
+    # A 10-year, 5% semi-annual coupon bond priced at par (yield == coupon)
+    # has a well-known textbook modified duration figure (~7.79 years).
+    md = analytic_modified_duration(yield_to_maturity=0.05, coupon_rate=0.05, years_to_maturity=10, payments_per_year=2)
+    assert 7.7 < md < 7.9
+
+
+def test_analytic_modified_duration_longer_maturity_gives_longer_duration():
+    short_md = analytic_modified_duration(0.05, 0.05, 2, payments_per_year=2)
+    long_md = analytic_modified_duration(0.05, 0.05, 20, payments_per_year=2)
+    assert long_md > short_md
+
+
+def test_analytic_modified_duration_none_on_missing_input():
+    assert analytic_modified_duration(None, 0.05, 10) is None
+    assert analytic_modified_duration(0.05, None, 10) is None
+    assert analytic_modified_duration(0.05, 0.05, None) is None
+
+
+def test_analytic_modified_duration_none_on_non_positive_maturity():
+    assert analytic_modified_duration(0.05, 0.05, 0) is None
+    assert analytic_modified_duration(0.05, 0.05, -1) is None
+
+
+def test_analytic_convexity_positive_for_a_normal_bond():
+    convexity = analytic_convexity(0.05, 0.05, 10, payments_per_year=2)
+    assert convexity is not None
+    assert convexity > 0.0
+
+
+def test_analytic_convexity_none_on_missing_input():
+    assert analytic_convexity(None, 0.05, 10) is None
+
+
+def test_analytic_convexity_longer_maturity_gives_higher_convexity():
+    short_convexity = analytic_convexity(0.05, 0.05, 2, payments_per_year=2)
+    long_convexity = analytic_convexity(0.05, 0.05, 20, payments_per_year=2)
+    assert long_convexity > short_convexity
+
+
+def test_bond_dv01_scales_linearly_with_notional():
+    single = bond_dv01(price=100.0, modified_duration=7.8, notional=1.0)
+    scaled = bond_dv01(price=100.0, modified_duration=7.8, notional=1_000_000.0)
+    assert single is not None and scaled is not None
+    assert math.isclose(scaled, single * 1_000_000.0)
+
+
+def test_bond_dv01_matches_formula():
+    dv01 = bond_dv01(price=100.0, modified_duration=7.8, notional=1_000_000.0)
+    assert math.isclose(dv01, 100.0 * 7.8 * 0.0001 * 1_000_000.0)
+
+
+def test_bond_dv01_none_on_missing_or_non_positive_input():
+    assert bond_dv01(None, 7.8) is None
+    assert bond_dv01(100.0, None) is None
+    assert bond_dv01(0.0, 7.8) is None
+    assert bond_dv01(100.0, 7.8, notional=0.0) is None
+
+
+# ---------------------------------------------------------------------------
+# nearest_yield_curve_point
+# ---------------------------------------------------------------------------
+
+
+def test_nearest_yield_curve_point_picks_closest_maturity():
+    curve = {0.25: 0.05, 2.0: 0.045, 5.0: 0.043, 10.0: 0.042}
+    assert nearest_yield_curve_point(17.5, curve) == 0.042  # nearest to 10.0 (the longest available point)
+    assert nearest_yield_curve_point(6.0, curve) == 0.043  # |6-5|=1.0 < |6-10|=4.0 -> nearest to 5.0
+
+
+def test_nearest_yield_curve_point_skips_none_valued_points():
+    curve = {0.25: None, 2.0: 0.045, 5.0: None, 10.0: 0.042}
+    assert nearest_yield_curve_point(9.0, curve) == 0.042
+
+
+def test_nearest_yield_curve_point_none_when_no_points_have_values():
+    assert nearest_yield_curve_point(5.0, {0.25: None, 2.0: None}) is None
+
+
+def test_nearest_yield_curve_point_none_when_years_to_maturity_is_none():
+    assert nearest_yield_curve_point(None, {0.25: 0.05}) is None

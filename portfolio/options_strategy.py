@@ -1768,6 +1768,23 @@ def order_enabled_strategies(enabled_strategy_names: list[str], risk_tier_prefer
     return primary_names + secondary_names + other_names
 
 
+def resolve_enabled_strategy_names(asset: dict, global_default: list[str]) -> list[str]:
+    """V4.6 (development/Problems.md #59's own deferred item) - per-asset
+    `enabled_strategy_names` override: an option asset's `phase1.universe.
+    assets` entry may carry an optional
+    `"options_strategy_override": {"enabled_strategy_names": [...]}` key
+    to trade a DIFFERENT strategy set than the global default (e.g. one
+    ticker trades iron condors, another trades covered calls). Returns
+    the override when present and non-empty, else `global_default`
+    unchanged - byte-identical to every asset with no override key at
+    all, which is every asset today (V4.6 adds no default overrides).
+    Never raises on a malformed override (falls back to global_default)."""
+    override = (asset.get("options_strategy_override") or {}).get("enabled_strategy_names")
+    if isinstance(override, list) and override:
+        return override
+    return global_default
+
+
 # ---------------------------------------------------------------------------
 # Covered/protective/collar sizing (§6/§9.3/§9.6) - a THIRD sizing paradigm
 # alongside vega-budget and margin: the option leg(s) are sized as a ratio
@@ -1850,3 +1867,19 @@ def option_auto_close_due(current_date, expiry_date, auto_close_days_before_expi
     if current_date is None or expiry_date is None:
         return False
     return (expiry_date - current_date).days <= auto_close_days_before_expiry
+
+
+def rotation_cooldown_active(current_bar_index: int, last_rotation_bar: int | None, cooldown_bars: int) -> bool:
+    """V4.6 (development/Problems.md #57/#58/#59) - anti-thrashing guard
+    for options rotation: True while `current_bar_index` is within
+    `cooldown_bars` of the last bar a rotation (liquidate + re-enter)
+    actually executed for this symbol_key. Pure bar-index arithmetic,
+    mirroring option_auto_close_due()'s own pure-predicate-only pattern -
+    main.py's rotate_on_drift branch is what actually degrades to the
+    "manage nearest position in place" fallback when this returns True,
+    never a hard block. Returns False (cooldown never active) when
+    `last_rotation_bar` is None - no rotation has ever fired for this
+    symbol_key yet, never a crash on the first-ever rotation."""
+    if last_rotation_bar is None:
+        return False
+    return (current_bar_index - last_rotation_bar) < cooldown_bars

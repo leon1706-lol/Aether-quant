@@ -9,9 +9,9 @@ function sortedSignals(signals: Record<string, Signal> | undefined) {
     .sort((a, b) => String(a.ticker || a.symbol).localeCompare(String(b.ticker || b.symbol)))
 }
 
-// asset_class_routing_extra is only present for future/option assets
-// (risk/asset_class_router.py::route_position_sizing()) - equity/crypto/
-// bond sizing has nothing to show here.
+// asset_class_routing_extra is only present for future/option/forex
+// assets (risk/asset_class_router.py::route_position_sizing()) -
+// equity/crypto/bond sizing has nothing to show here.
 function AssetClassDetail({ sizing }: { sizing: DynamicSizing }) {
   const extra = sizing.asset_class_routing_extra
   if (!extra) return null
@@ -50,6 +50,9 @@ function AssetClassDetail({ sizing }: { sizing: DynamicSizing }) {
   }
   if (typeof extra.contract_count === 'number') {
     return <div className="mt-1 text-[0.74rem] text-white/50">{extra.contract_count} futures contracts</div>
+  }
+  if (typeof extra.lot_count === 'number') {
+    return <div className="mt-1 text-[0.74rem] text-white/50">{extra.lot_count} forex lots</div>
   }
   return null
 }

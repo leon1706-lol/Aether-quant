@@ -12,11 +12,17 @@ export interface Position {
 }
 
 // risk/asset_class_router.py::route_position_sizing()'s "extra" payload -
-// {} for equity/crypto/bond, {contract_count} for future, {options_decision}
-// for option (only once a position was actually sized). Present under
-// dynamic_sizing.asset_class_routing_extra.
+// {} for equity/crypto/bond, {contract_count} for future, {lot_count} for
+// forex (V4.6), {options_decision} for option (only once a position was
+// actually sized). Present under dynamic_sizing.asset_class_routing_extra.
 export interface FuturesRoutingExtra {
   contract_count: number
+}
+
+// Mirrors risk/forex_risk.py::ForexSizingDecision - the Forex sibling of
+// FuturesRoutingExtra above.
+export interface ForexRoutingExtra {
+  lot_count: number
 }
 
 // Mirrors portfolio/options_strategy.py::OptionsPositionDecision.to_dict() -
@@ -77,6 +83,7 @@ export interface OptionsMarginDecision {
 
 export interface AssetClassRoutingExtra {
   contract_count?: number
+  lot_count?: number
   options_decision?: OptionsDecision | OptionsMultiLegDecision | OptionsMarginDecision
 }
 
@@ -507,12 +514,16 @@ export interface AssetsStatus {
   ib_status: 'disabled' | 'enabled_but_lean_credentials_missing' | 'ready' | string
   futures_risk_enabled: boolean
   options_risk_enabled: boolean
+  forex_risk_enabled: boolean
   futures_contract_specs_loaded: number
   futures_contract_specs_tickers: string[]
+  forex_pair_specs_loaded: number
+  forex_pair_specs_tickers: string[]
   fred_cache_series_count: number
   fred_cache_most_recent_date: string | null
   configured_futures_assets: number
   configured_options_assets: number
+  configured_forex_assets: number
 }
 
 // One options-chain row - mirrors main.py::_build_options_chains_payload()'s

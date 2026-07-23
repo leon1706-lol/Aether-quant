@@ -288,9 +288,25 @@ not to express a fresh directional view.
 
 Entirely gated behind `phase_v2.options_risk.multi_leg_strategies_enabled`
 (default `false`, byte-identical to V4.4 when off). See
-`development/Problems.md` #59 for the full design and what remains
-deferred (a mispricing detector for the 6 stubbed arbitrage strategies,
-per-asset strategy overrides, full assignment/corporate-action modeling).
+`development/Problems.md` #59 for the full design.
+
+**V4.6 update**: the 6 arbitrage strategies are no longer *permanently*
+stubbed — a new `portfolio/options_arbitrage_detector.py` (standard
+put-call-parity/box-spread/cost-of-carry fair-value formulas, gated
+behind off-by-default `phase_v2.options_risk.arbitrage_detector`) makes
+them conditionally reachable when it confirms a real mispricing this
+bar. A per-asset `options_strategy_override` (resolved via
+`resolve_enabled_strategy_names()`) also shipped, along with an
+anti-thrashing rotation cooldown and same-bar netting closing #58/#59's
+own deferred items. Full early-assignment/corporate-action modeling
+remains explicitly out of scope. See `development/Problems.md` #60.
+
+Separately, "single-bond trading" was investigated and found
+**infeasible** under this Lean version (no `SecurityType.Bond` anywhere
+in the real Lean source tree) — `features/bond_features.py` gained real
+analytic duration/convexity/DV01 for the existing bond-ETF sleeve
+instead, deliberately informational only (never merged into the trained
+model's feature vector). See `risk/README.md`'s own V4.6 section.
 
 ## Webui visibility
 

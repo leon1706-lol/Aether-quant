@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1656%2F1656%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1656 of 1656 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1722%2F1722%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1722 of 1722 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -73,54 +73,17 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), and V4.5 (full `OptionStrategies` coverage) shipped.**
-Multi-asset-class trading (equities, crypto, bonds, futures, options),
+**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), and V4.6 (bounded follow-ups, Forex, bond analytics) shipped.**
+Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
 the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->1656<!-- AQ:TEST_COUNT_END -->
+(<!-- AQ:TEST_COUNT_START -->1722<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
-- **V4.1 (visualisation), shipped:** the first V4 work item — see
-  [Roadmap](#roadmap) for the full breakdown (V4-W1/W2/W3). Still needs
-  validation: a real backtest with `phase_v2.topology.embedding_dimensions: 3`
-  turned on, and — separately, once trained — the learned topology
-  overlay checked against one too.
-
-- **V4.3.0 (add to an existing position), shipped:** all 5 asset classes
-  can now scale up an already-open position instead of being blocked, plus
-  a real (dormant, opt-in-only) futures/options order-sizing bug fixed
-  unconditionally along the way — see [Roadmap](#roadmap)'s Functionality
-  section and `development/Problems.md` #57. Off by default
-  (`phase_v2.functionality.position_scaling.enabled: false`, byte-identical
-  to today); still needs a real backtest with it — and separately,
-  `rotate_on_drift` — turned on before either becomes the default.
-
-- **V4.4 (options architecture), shipped:** closes six architectural gaps
-  V4.3.0 left in the options paths — single-leg **and** spread positions
-  now scale down (not just up, via a new Sell-combo primitive for
-  spreads), a drifted contract is re-sized on its own greeks instead of
-  frozen, and a genuine **multi-position book**
-  (`phase_v2.options_risk.max_positions_per_underlying`, default `1`,
-  byte-identical to before) lets more than one position be held per
-  underlying. See `development/Problems.md` #58. Code-complete but
-  **IB-unverified** — zero option assets exist in the universe today and
-  the new Sell-combo/combo-limit-order paths need a real backtest with an
-  option asset connected before they're anything more than reviewed code.
-
-- **V4.5 (full `OptionStrategies` coverage), shipped:** all 43 of
-  QuantConnect's option factories are now registry-driven and reachable
-  (up from 2) — straddles/strangles/butterflies/iron condors & butterflies/
-  calendar spreads/backspreads/ladders/naked shorts/covered-protective-
-  collar, plus the 6 arbitrage strategies wired but deliberately
-  unreachable pending a future mispricing detector. New margin-based
-  sizing for genuinely unbounded-risk shapes, a volatility-view signal
-  (predicted vol vs. chain IV) driving straddle/strangle/iron-condor
-  selection, and corrected cross-asset equity+option coordination for
-  covered/protective positions (the option leg is never bundled into the
-  same order as the equity leg). Off by default
-  (`phase_v2.options_risk.multi_leg_strategies_enabled: false`,
-  byte-identical to V4.4 when off). See `development/Problems.md` #59.
-  Code-complete but **IB-unverified**, same status every options pass
-  before this one carries.
+- **V4.1 (visualisation), shipped:** webui Overview/Operations split, Tracing reflow, genuinely 3D topology. Still needs a real backtest with 3D embedding turned on to validate.
+- **V4.3.0 (add to an existing position), shipped:** all 5 asset classes can now scale up an already-open position instead of being blocked. Off by default, byte-identical to today until enabled. See `development/Problems.md` #57.
+- **V4.4 (options architecture), shipped:** multi-position book, symmetric scale-down, held-contract re-sizing on drift instead of freezing. Code-complete but **IB-unverified** — zero option assets exist in the universe today. See `development/Problems.md` #58.
+- **V4.5 (full `OptionStrategies` coverage), shipped:** all 43 of QuantConnect's option factories now registry-driven and reachable (up from 2), margin-based sizing, a volatility-view signal, and cross-asset covered/protective coordination. Off by default, code-complete but IB-unverified. See `development/Problems.md` #59.
+- **V4.6 (bounded follow-ups, Forex, bond analytics), shipped:** an arbitrage mispricing detector, a per-asset strategy override, rotation anti-thrashing/netting, a new Forex/FX asset class, and real analytic bond duration/convexity. Off by default, code-complete but IB-unverified. See `development/Problems.md` #60.
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
@@ -451,7 +414,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1656<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1722<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -537,7 +500,7 @@ last backtest.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1656<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1722<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -830,23 +793,12 @@ All finished phases and changes can be found in
 - Model fine-tuning, a critical 1-10 review of the retrained model's actual performance (development/Problems.md #52/#54), and a concrete plan to close the gap to a 10/10 signal (clearing the non-overlapping significance bar, not just the full-series one).
 
 **Training**
-- Walk-forward training, Stage 6 of the rank-pivot roadmap (`phase_v2.retraining.walk_forward`, `aq train --walk-forward`), still deferred after this session's single-window retrain.
+- Walk-forward training, Stage 6 of the rank-pivot roadmap (`phase_v2.retraining.walk_forward`, `aq train --walk-forward`) — **fully implemented in code** (`train.py::_run_walk_forward()`/`generate_walk_forward_windows()`, the CLI flag itself) since the rank-pivot session; the ~27-window, multi-hour run just hasn't been executed in this environment yet. Running it (no Docker/IB needed, pure local compute) would let `rank_20d`'s promotion-quality/significance numbers actually update — see development/Problems.md #43/#56.
 
-**Assets**
-- ~~More complex option strategies, straddles, strangles, iron condors, butterflies, and general multi-leg spreads beyond today's 2-leg verticals (#38)~~ — **shipped as V4.5**: all 43 of `QuantConnect.Securities.Option.OptionStrategies`' factories are now registry-driven and reachable (up from 2), plus margin-based sizing, a volatility-view signal, and covered/protective/collar cross-asset coordination. Off by default, code-complete but IB-unverified. See `development/Problems.md` #59.
-  - A mispricing detector to actually drive the 6 stubbed arbitrage strategies (box/conversion/jelly-roll spreads) remains a separate, undone follow-up project.
-  - A per-asset `enabled_strategy_names` override and full early-assignment/corporate-action modeling are also deferred, see #59's own writeup.
-- Forex/FX as a tradable asset class, plus any other major asset classes still missing.
-- Single-bond trading (individual bonds, not just bond ETFs), today's fixed-income sleeve is entirely ETF-based (see the Universe Size section above).
-
-**Functionality** — ✅ **V4.3.0 + V4.4 — shipped**, see `development/Changelog.md`
-- ~~Allow adding to an existing position, today, if the model already holds SPY and the signal says to buy more SPY, it should be able to scale the position up rather than being blocked just because a position already exists.~~ ~~Done (V4.3.0), all 5 asset classes. Opt-in via `phase_v2.functionality.position_scaling.enabled` (default `false`, byte-identical to today) — equity/crypto/bond scale via `SetHoldings()` past a rebalance-weight threshold; futures/options/spreads scale via a signed delta against the currently-held quantity, which also unconditionally fixes a real (dormant, opt-in-only) bug where an absolute sizing target was fired as an incremental order every bar. A drifted option contract/spread (different strike/expiry than held) only rotates — liquidate + same-bar re-enter — behind a second, independent `rotate_on_drift` flag (also default `false`), since that carries real transient margin-timing exposure a same-instrument top-up doesn't. See `development/Problems.md` #57.~~
-  - ~~Follow-up closed the same phase (V4.4): a critical review found options still weren't at parity with the other 4 asset classes — single-leg/spread positions could only scale UP, a drifted contract froze instead of being managed, and only ONE position could ever be tracked per underlying. All three closed: symmetric scale-down (spreads via a new Sell-combo primitive), held-contract re-sizing on drift instead of freezing, and a genuine multi-position book (`phase_v2.options_risk.max_positions_per_underlying`, default `1` — byte-identical to before). Code-complete but **IB-unverified** — no option assets exist in the universe yet. See `development/Problems.md` #58.~~
-
-**Webui** — ✅ **V4.1, the visualisation update — shipped**, see `development/Changelog.md`
-- ~~Consider moving some of the Overview tab's content into its own, larger tab for better organization.~~ ~~Done (V4-W1): the operational/health panels moved to a new **Operations** tab, leaving Overview with the trading-side view.~~
-- ~~Tracing tab: move the backtest equity curve under "Runtime Metrics Snapshot" and the observation-mode equity curve under "Backtest Equity Curve", so interactive tabs sit on the left and asset performance (which grows with more assets) has room to grow on the right.~~ ~~Done (V4-W2).~~
-- ~~Make the webui topology genuinely 3D instead of 2D.~~ ~~Done (V4-W3), opt-in via `phase_v2.topology.embedding_dimensions: 3` (default `2` keeps existing coordinates byte-identical). Note the function to extend was `topology/market_topology.py`'s `_stress_majorize_2d()`, not `learned_topology.py`'s — now renamed `_stress_majorize()` since it is dimension-agnostic. Follow-up closed in the same phase: the learned topology overlay's prototype z offset was still on the pre-V4 `0..1` scale, which would have silently under-driven z movement in 3D mode — normalized to `[-1, 1]` instead (provably identity-preserving in 2D), `aq train --topology-only` added, `development/Problems.md` #56 now 🟢 fixed. The overlay itself stays dormant until a topology model is actually trained — a separate, user-run milestone, not a blocker on this item.~~
+**Assets** — ✅ full `OptionStrategies` coverage (V4.5), arbitrage mispricing detector + per-asset strategy override + Forex + bond-ETF analytics (V4.6) shipped, see `development/Changelog.md` / `development/Problems.md` #59/#60
+- Full early-assignment probability/pricing and corporate-action (splits, special dividends) modeling remains explicitly out of scope — narrowed to the expiry-day auto-close safety net only (V4.5), a large separate quant-modeling project.
+- A learned, ML-driven model to automatically PICK which multi-leg strategy to use (replacing/augmenting today's rule-based volatility-view selector) — trained from realized per-strategy P&L once real option positions have traded history. Explicitly a separate, not-yet-started future project (development/Problems.md #29's own framing).
+- Any other major asset classes still missing.
 
 **Tests / production readiness**
 - Real IB API key insertion and testing, the one blocker behind #29/#38's unverified items and the README's Known Limitations.

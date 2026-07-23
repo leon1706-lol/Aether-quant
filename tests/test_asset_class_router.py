@@ -1,3 +1,5 @@
+from datetime import date
+
 from risk.asset_class_router import (
     resolve_asset_class_enabled,
     route_multi_leg_option_sizing,
@@ -13,6 +15,10 @@ def _equity_crypto_kwargs() -> dict:
 
 def _es_spec() -> dict:
     return {"multiplier": 50, "tick_size": 0.25, "initial_margin_usd": 13200, "exchange": "CME"}
+
+
+def _eurusd_spec() -> dict:
+    return {"pip_size": 0.0001, "lot_size": 100000, "leverage_max": 50, "margin_pct": 0.02}
 
 
 def _sample_chain() -> list[dict]:
@@ -105,6 +111,42 @@ def test_future_missing_contract_spec_gives_zero_position():
 
 
 # ---------------------------------------------------------------------------
+# forex (V4.6)
+# ---------------------------------------------------------------------------
+
+
+def test_forex_returns_positive_lot_count_in_extra():
+    decision, extra = route_position_sizing(
+        "forex", "buy", 1.0, 0.1, price=1.10, portfolio_value=1_000_000, pair_spec=_eurusd_spec()
+    )
+    assert "lot_count" in extra
+    assert extra["lot_count"] > 0
+    assert decision.target_weight > 0.0
+
+
+def test_forex_short_gives_negative_lot_count():
+    decision, extra = route_position_sizing(
+        "forex", "short", 1.0, -0.1, price=1.10, portfolio_value=1_000_000, pair_spec=_eurusd_spec()
+    )
+    assert extra["lot_count"] < 0
+    assert decision.target_weight < 0.0
+
+
+def test_forex_leverage_factor_is_margin_utilization_ratio():
+    decision, _ = route_position_sizing(
+        "forex", "buy", 1.0, 0.1, price=1.10, portfolio_value=1_000_000, pair_spec=_eurusd_spec(),
+        forex_kwargs=dict(target_leverage_utilization=0.20, max_leverage_utilization=0.40),
+    )
+    assert 0.0 <= decision.leverage_factor <= 1.0 + 1e-9
+
+
+def test_forex_missing_pair_spec_gives_zero_position():
+    decision, extra = route_position_sizing("forex", "buy", 1.0, 0.1, price=1.10, portfolio_value=1_000_000, pair_spec=None)
+    assert extra["lot_count"] == 0
+    assert decision.target_weight == 0.0
+
+
+# ---------------------------------------------------------------------------
 # option
 # ---------------------------------------------------------------------------
 
@@ -151,6 +193,11 @@ def test_resolve_asset_class_enabled_future_follows_futures_risk_flag():
 def test_resolve_asset_class_enabled_option_follows_options_risk_flag():
     assert resolve_asset_class_enabled("option", futures_risk_enabled=False, options_risk_enabled=True) is True
     assert resolve_asset_class_enabled("option", futures_risk_enabled=True, options_risk_enabled=False) is False
+
+
+def test_resolve_asset_class_enabled_forex_follows_forex_risk_flag():
+    assert resolve_asset_class_enabled("forex", False, False, forex_risk_enabled=True) is True
+    assert resolve_asset_class_enabled("forex", False, False, forex_risk_enabled=False) is False
 
 
 def test_should_liquidate_disabled_asset_class_position_truth_table():
@@ -325,5 +372,44 @@ def test_route_multi_leg_option_sizing_empty_enabled_list_returns_none():
     result = route_multi_leg_option_sizing(
         [], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
         "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# route_multi_leg_option_sizing - arbitrage mispricing detector (V4.6,
+# development/Problems.md #60)
+# ---------------------------------------------------------------------------
+
+
+def test_route_multi_leg_option_sizing_arbitrage_disabled_by_default_stays_unreachable():
+    # _multi_leg_kwargs() doesn't set arbitrage_detector_enabled - confirms
+    # the router's own default (False) keeps box_spread unreachable even
+    # when explicitly the only enabled name.
+    result = route_multi_leg_option_sizing(
+        ["box_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    assert result is None
+
+
+def test_route_multi_leg_option_sizing_arbitrage_enabled_and_mispriced_sizes():
+    result = route_multi_leg_option_sizing(
+        ["box_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False,
+        current_date=date(2026, 7, 21), risk_free_rate=0.045, arbitrage_detector_enabled=True, min_mispricing_bps=1.0,
+        **_multi_leg_kwargs(),
+    )
+    assert result is not None
+    _, extra = result
+    assert extra["options_decision"].strategy_name == "box_spread"
+
+
+def test_route_multi_leg_option_sizing_arbitrage_enabled_but_huge_threshold_stays_unreachable():
+    result = route_multi_leg_option_sizing(
+        ["box_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False,
+        current_date=date(2026, 7, 21), risk_free_rate=0.045, arbitrage_detector_enabled=True, min_mispricing_bps=1_000_000.0,
+        **_multi_leg_kwargs(),
     )
     assert result is None

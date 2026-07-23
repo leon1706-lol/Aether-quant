@@ -4154,3 +4154,59 @@ and new `tests/test_asset_class_router.py` cases). See `development/Problems.md`
 #59 for the full writeup, including both risk-tier corrections, all 5
 design-review fixes, and exactly what remains deferred (per-asset strategy
 override, full assignment/corporate-action modeling) vs. what's IB-unverified.
+
+## V4.6 — bounded options follow-ups, arbitrage mispricing detector, Forex/FX, analytic bond-ETF duration/convexity (Problems.md #60)
+
+Closes the bounded, well-defined follow-up items V4.5 (and #38/#57/#58
+before it) left open, and adds two new pieces of capability the user
+scoped in directly: a real Lean check confirmed **Forex is fully
+first-class in this Lean version** (added as a new asset class), while
+**individual-bond trading is confirmed infeasible** (no `SecurityType.Bond`
+anywhere in Lean's real source) — reframed into deepening the existing
+bond-ETF sleeve's analytics instead. The ML-driven multi-leg
+strategy-selection model (#29) and full early-assignment/corporate-action
+modeling were explicitly scoped OUT of this pass, added to the Roadmap as
+future items only.
+
+**Options fixes**: `_active_position_count()` was counting every LEG of a
+multi-leg position toward `max_active_positions` (an iron condor silently
+cost 4 of a user's budget, not 1) — fixed via chain-level identity
+dedup, which also fixed a second latent bug where the exclude filter
+never actually excluded any option holding. Rotation gained an
+anti-thrashing cooldown (`phase_v2.options_risk.rotation_cooldown_bars`)
+and same-bar netting (re-sizes against post-liquidation state instead of
+a stale pre-liquidation decision). A new optional per-asset
+`options_strategy_override` lets individual option assets trade a
+different strategy set than the global default. The 6 previously-stubbed
+arbitrage strategies (box/conversion/jelly-roll spreads) are now
+conditionally reachable for the first time, via new
+`portfolio/options_arbitrage_detector.py` — standard put-call-parity/
+box-spread/cost-of-carry fair-value formulas compared against the chain's
+actual market price, gated behind a new, off-by-default
+`phase_v2.options_risk.arbitrage_detector.enabled`.
+
+**Forex/FX**: new `risk/forex_risk.py` (leverage-utilization-targeted
+sizing, mirroring `risk/futures_risk.py`'s exact shape) and
+`data/reference/forex_pair_specs.json`, wired through
+`risk/asset_class_router.py` and `main.py::_add_asset()`
+(`self.add_forex()`). One structural wrinkle handled: forex feeds are
+quote-bar (bid/ask), not trade-bar, data, so `on_data()` gained a
+strictly additive midpoint-OHLC fallback for that one asset class only.
+Code-complete, IB-unverified, zero live tickers configured — the exact
+same shipping posture futures/options themselves established.
+
+**Bond-ETF analytics**: `features/bond_features.py` gained real
+closed-form `analytic_modified_duration()`/`analytic_convexity()`/
+`bond_dv01()`, layered on top of (not replacing) the existing
+`empirical_duration_beta()` regression proxy. Deliberately informational
+only — surfaced via a new per-symbol `main.py::_bond_analytics_for_symbol()`,
+never merged into the trained model's feature vector, so no retrain is
+required.
+
+**Testing**: 1656 → **1722 tests, all passing** (66 new, across
+`tests/test_options_strategy_multileg.py`, new `tests/test_options_arbitrage_detector.py`,
+`tests/test_asset_class_router.py`, new `tests/test_forex_risk.py`, and
+`tests/test_bond_features.py`). See `development/Problems.md` #60 for the
+full writeup, including the two real correctness subtleties found while
+building the arbitrage detector and the exact scope of what remains
+deferred vs. explicitly out of scope vs. IB-unverified.

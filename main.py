@@ -39,6 +39,7 @@ from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from AlgorithmImports import *
 from risk_controls import (
@@ -58,6 +59,7 @@ from risk.asset_class_router import (
     route_position_sizing,
     should_liquidate_disabled_asset_class_position,
 )
+from risk.forex_risk import load_forex_pair_specs
 from risk.futures_risk import load_futures_contract_specs
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
@@ -78,6 +80,8 @@ from portfolio.options_strategy import (
     build_vertical_spread_position_sizing_for_legs,
     classify_volatility_view,
     option_auto_close_due,
+    resolve_enabled_strategy_names,
+    rotation_cooldown_active,
 )
 # V4.5 - margin-tier resize sibling of build_multi_leg_position_sizing_for_legs()
 # above, same "sizes an ALREADY-HELD position on its own current greeks"
@@ -128,8 +132,11 @@ from inference import (
     run_symbol_inference,
 )
 from features import (
+    analytic_convexity,
+    analytic_modified_duration,
     average_true_range_pct,
     bollinger_pctb,
+    bond_dv01,
     bond_yield_curve_slope,
     compute_greeks,
     credit_spread_level,
@@ -141,6 +148,7 @@ from features import (
     futures_term_structure_slope,
     implied_volatility,
     macd_histogram_normalized,
+    nearest_yield_curve_point,
     options_implied_vol_skew,
     options_put_call_ratio,
     relative_strength_index,
@@ -232,6 +240,37 @@ def _record_target_symbols(record: dict) -> list:
         return list(record["legs"])
     order = sorted(range(len(spec.legs)), key=lambda index: 0 if spec.legs[index].side == "short" else 1)
     return [record["legs"][index] for index in order]
+
+
+def _distinct_position_identities(
+    invested_symbol_strs: list, symbol_key_by_option_contract_symbol: dict, exclude_key: str | None = None,
+) -> set:
+    """V4.6 (development/Problems.md #38) - resolves every invested Lean
+    Symbol string back to its LOGICAL position identity before counting:
+    an option contract/leg resolves to its chain symbol_key via the
+    reverse map (the same resolution _asset_class_exposure() already does
+    for exposure accounting); every other asset class's Symbol string IS
+    already its own identity (the reverse map has no entry for it, so
+    dict.get()'s fallback returns the string unchanged).
+
+    Used by _active_position_count() so a single multi-leg option
+    position (1-4 real Lean holdings since V4.5's iron condors/collars)
+    counts ONCE toward max_active_positions, not once per leg - the fix
+    for a real bug where a single iron condor silently consumed 4 of a
+    user's configured position budget. exclude_key is compared against
+    the RESOLVED identity, not the raw Symbol string - this also fixes a
+    second, subtler bug in the old code: `holding.Symbol == exclude_symbol`
+    could never match an option LEG symbol against the chain-level
+    exclude_symbol every call site actually passes (different Lean Symbol
+    objects), so the exclude filter silently never excluded any option
+    holding at all before this fix."""
+    identities = set()
+    for symbol_str in invested_symbol_strs:
+        identity = symbol_key_by_option_contract_symbol.get(symbol_str, symbol_str)
+        if identity == exclude_key:
+            continue
+        identities.add(identity)
+    return identities
 
 
 class AetherQuantAlgorithm(QCAlgorithm):
@@ -516,6 +555,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "bond": float(phase9_portfolio.get("max_bond_exposure", 0.30)),
             "future": float(phase9_portfolio.get("max_futures_exposure", 0.20)),
             "option": float(phase9_portfolio.get("max_options_exposure", 0.10)),
+            # V4.6 - a conservative default sleeve cap for a genuinely new,
+            # IB-unverified asset class.
+            "forex": float(phase9_portfolio.get("max_forex_exposure", 0.15)),
         }
         # Phase 3 of the 5/10 -> 9/10 roadmap: a portfolio-book-only cap -
         # short-selling doesn't exist anywhere else in this codebase, so
@@ -716,6 +758,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.futures_risk_enabled = bool(phase_v2_futures_risk.get("enabled", False))
         self.futures_target_margin_utilization = float(phase_v2_futures_risk.get("target_margin_utilization", 0.20))
         self.futures_max_margin_utilization = float(phase_v2_futures_risk.get("max_margin_utilization", 0.40))
+        # V4.6 - Forex/FX, code-complete/IB-unverified, same status
+        # futures/options shipped with (see risk/forex_risk.py's own
+        # module docstring). Static offline/backtest fallback pair specs -
+        # {} if the file is missing/unparseable, which just means
+        # build_forex_position_sizing() finds no spec for any pair and
+        # sizes it to zero lots, never a crash.
+        self.forex_pair_specs = load_forex_pair_specs()
+        phase_v2_forex_risk = self.phase_v2.get("forex_risk", {})
+        self.forex_risk_enabled = bool(phase_v2_forex_risk.get("enabled", False))
+        self.forex_target_leverage_utilization = float(phase_v2_forex_risk.get("target_leverage_utilization", 0.20))
+        self.forex_max_leverage_utilization = float(phase_v2_forex_risk.get("max_leverage_utilization", 0.40))
         phase_v2_options_risk = self.phase_v2.get("options_risk", {})
         self.options_risk_enabled = bool(phase_v2_options_risk.get("enabled", False))
         self.options_target_delta_at_full_confidence = float(phase_v2_options_risk.get("target_delta_at_full_confidence", 0.60))
@@ -794,6 +847,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # multi_leg_strategies_enabled (a real, pre-existing gap this pass
         # closes for every option position, not just the new ones).
         self.options_auto_close_days_before_expiry = int(phase_v2_options_risk.get("auto_close_days_before_expiry", 2))
+        # V4.6 (development/Problems.md #57/#58/#59) - anti-thrashing guard:
+        # a rotation (liquidate + re-enter) for the same symbol_key can't
+        # fire again within this many bars - degrades to the existing
+        # "manage nearest position in place" fallback instead. Applies
+        # regardless of the default cooldown value, since rotate_on_drift
+        # itself defaults off (self.last_rotation_bar_by_symbol, populated
+        # in main.py's rotation branches, starts empty every run).
+        self.options_rotation_cooldown_bars = int(phase_v2_options_risk.get("rotation_cooldown_bars", 5))
+        self.last_rotation_bar_by_symbol: dict[str, int] = {}
+        # V4.6 (development/Problems.md #59/Roadmap) - the mispricing
+        # detector that makes the 6 stubbed arbitrage strategies
+        # (box/short_box/conversion/reverse_conversion/jelly_roll/
+        # short_jelly_roll) conditionally reachable. Off by default -
+        # byte-identical to V4.5 (those 6 strategy_names are never
+        # selected regardless of enabled_strategy_names membership unless
+        # this flag is explicitly turned on).
+        phase_v2_options_arbitrage_detector = phase_v2_options_risk.get("arbitrage_detector", {})
+        self.options_arbitrage_detector_enabled = bool(phase_v2_options_arbitrage_detector.get("enabled", False))
+        self.options_arbitrage_min_mispricing_bps = float(
+            phase_v2_options_arbitrage_detector.get("min_mispricing_bps", 15.0)
+        )
         # V4.3.0 - allow adding to an existing position instead of being
         # blocked purely because one already exists (development/Changelog.md).
         # Off by default: with position_scaling_enabled=False the equity/
@@ -1036,6 +1110,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_topology_payload = {}
         self.latest_macro_payload = {}
         self.latest_bond_payload = {}
+        # V4.6 - per-symbol analytic bond duration/convexity/DV01
+        # (features/bond_features.py), informational/dashboard-only - see
+        # _bond_analytics_for_symbol()'s own docstring for why this never
+        # touches base_features/the trained model's input tensor.
+        self.latest_bond_analytics_by_symbol: dict[str, dict] = {}
         self.latest_options_chains_payload = {}
         self.latest_futures_chains_payload = {}
         self.latest_derivatives_macro_payload = {}
@@ -1097,7 +1176,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         for symbol in self.symbols:
             bar = slice.bars.get(symbol)
             if bar is None:
-                continue
+                # V4.6 - forex brokerage feeds are quote-bar (bid/ask), not
+                # trade-bar, data - Lean's Slice exposes both dicts in
+                # parallel. Strictly additive: only ever consulted for a
+                # forex asset with no TradeBar this bar; every other asset
+                # class's existing "skip when slice.Bars has no entry"
+                # behavior is completely unchanged.
+                symbol_key = str(symbol)
+                asset_for_symbol = self.asset_lookup.get(symbol_key, {})
+                if (asset_for_symbol.get("asset_class") or asset_for_symbol.get("security_type")) == "forex":
+                    bar = self._midpoint_bar_from_quote_bar(slice.quote_bars.get(symbol))
+                if bar is None:
+                    continue
 
             self.symbol_long_windows[symbol].append(float(bar.close))
             self.symbol_treasury_10yr_history[symbol].append(self.latest_bond_payload.get("treasury_10yr_level"))
@@ -1587,7 +1677,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 resolved_predicted_rank_20d=predicted_rank_20d,
                 close_price=float(bar.close),
             )
-            self._experience_queue.push(experience_event)
+            # V4.6 (development/Problems.md #14) - a real per-bar,
+            # per-symbol Redis XADD is unnecessary in backtest mode
+            # (confirmed: no downstream process reads backtest-mode
+            # experience events out of Postgres) - gated here, at the call
+            # site, not inside ExperienceQueue.push() itself, so paper/live
+            # mode's identical call keeps pushing unchanged.
+            # _observation_event_log/_session_events are LOCAL bookkeeping
+            # (session summaries, observation-mode readiness reports) and
+            # must never be skipped regardless of this gate.
+            if self.runtime_mode != "backtest":
+                self._experience_queue.push(experience_event)
             self._observation_event_log.append(experience_event)
             self._session_events.append(experience_event)
 
@@ -1737,6 +1837,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
         }
         return resolution_map.get(resolution_name, Resolution.DAILY)
 
+    def _midpoint_bar_from_quote_bar(self, quote_bar):
+        """V4.6 - forex quote-bar (bid/ask) to trade-bar-shaped midpoint
+        OHLC, so every other per-bar computation in on_data() (which reads
+        bar.open/.high/.low/.close/.volume unconditionally, the same shape
+        every other asset class's TradeBar already provides) works
+        unchanged for a forex symbol. Volume is always 0.0 - forex quote
+        data carries no trade-volume concept. Returns None (never raises)
+        when no quote bar exists either this bar, or it's missing a
+        bid/ask side."""
+        if quote_bar is None or quote_bar.Bid is None or quote_bar.Ask is None:
+            return None
+        return SimpleNamespace(
+            open=(float(quote_bar.Bid.Open) + float(quote_bar.Ask.Open)) / 2.0,
+            high=(float(quote_bar.Bid.High) + float(quote_bar.Ask.High)) / 2.0,
+            low=(float(quote_bar.Bid.Low) + float(quote_bar.Ask.Low)) / 2.0,
+            close=(float(quote_bar.Bid.Close) + float(quote_bar.Ask.Close)) / 2.0,
+            volume=0.0,
+        )
+
     def _add_asset(self, asset: dict):
         ticker = asset["ticker"]
         security_type = asset["security_type"]
@@ -1768,6 +1887,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # portfolio/options_strategy.py and risk/README.md).
                 security = self.add_option(asset.get("underlying_ticker", ticker), self.resolution)
                 security.SetFilter(-5, 5, timedelta(0), timedelta(60))
+            elif security_type == "forex":
+                # V4.6 - fully first-class in this Lean version
+                # (SecurityType.Forex, real pip-size/lot-size symbol
+                # properties) - no SetFilter needed (forex has no chain/
+                # continuous-contract concept, unlike future/option
+                # above). Forex brokerage feeds are quote-bar (bid/ask),
+                # not trade-bar, data - see on_data()'s QuoteBar fallback
+                # for why this asset class needs one.
+                security = self.add_forex(ticker, self.resolution, market=asset.get("market"))
             else:
                 self.debug(f"Unsupported asset type skipped: {security_type} {ticker}")
                 return None
@@ -1954,6 +2082,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         base_features["bond_empirical_duration_beta"] = float(
             self._bond_empirical_duration_beta_for_symbol(symbol)
         )
+        # V4.6 - real analytic duration/convexity/DV01 (features/bond_features.py),
+        # informational/dashboard-only - deliberately NEVER merged into
+        # base_features (which feeds the TRAINED model's fixed-dimensionality
+        # input tensor; adding a feature there needs a coordinated retrain,
+        # unlike this side-table). See _bond_analytics_for_symbol()'s own
+        # docstring for the ETF-level-approximation caveat.
+        self.latest_bond_analytics_by_symbol[str(symbol)] = self._bond_analytics_for_symbol(symbol)
 
         # Futures term-structure / options-sentiment cross-asset macro
         # features (features/derivatives_macro_features.py) - broadcast to
@@ -2286,8 +2421,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             available_chain = self.latest_options_chains_payload.get(asset.get("underlying_ticker"), [])
             underlying_price = float(available_chain[0]["underlying_price"]) if available_chain else float(close_price)
             volatility_view = self._options_volatility_view(available_chain, predicted_volatility)
+            # V4.6 (development/Problems.md #59) - per-asset override, falls
+            # back to the global default when this asset has none.
+            enabled_strategy_names = resolve_enabled_strategy_names(asset, self.options_enabled_strategy_names)
             result = route_multi_leg_option_sizing(
-                self.options_enabled_strategy_names,
+                enabled_strategy_names,
                 signal_name,
                 confidence,
                 available_chain,
@@ -2304,6 +2442,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 max_margin_utilization=self.options_margin_max_utilization,
                 pct_of_underlying_value=self.options_margin_pct_of_underlying_value,
                 min_pct_of_underlying_value=self.options_margin_min_pct_of_underlying_value,
+                current_date=self.Time.date(),
+                risk_free_rate=self.options_risk_free_rate,
+                arbitrage_detector_enabled=self.options_arbitrage_detector_enabled,
+                min_mispricing_bps=self.options_arbitrage_min_mispricing_bps,
             )
             if result is not None:
                 decision, extra = result
@@ -2340,6 +2482,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
             )
             if self.futures_risk_enabled
             else {"target_margin_utilization": 0.0, "max_margin_utilization": 0.0},
+            # V4.6 - Forex/FX, same "zeroed kwargs when disabled" shape as
+            # futures above (build_forex_position_sizing() returns an
+            # all-zero decision when leverage utilization is 0.0,
+            # regardless of pair_spec).
+            pair_spec=self.forex_pair_specs.get(asset.get("ticker"), {}),
+            forex_kwargs=dict(
+                target_leverage_utilization=self.forex_target_leverage_utilization,
+                max_leverage_utilization=self.forex_max_leverage_utilization,
+            )
+            if self.forex_risk_enabled
+            else {"target_leverage_utilization": 0.0, "max_leverage_utilization": 0.0},
             # Real chain rows once IB is connected and an option asset is
             # configured (self.latest_options_chains_payload, built once
             # per bar in on_data() - see _build_options_chains_payload()).
@@ -2568,7 +2721,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         Also returns the raw treasury_10yr_level so on_data() can append it
         to self.symbol_treasury_10yr_history[symbol] - the per-symbol,
         index-aligned-with-symbol_long_windows series
-        bond_empirical_duration_beta regresses against."""
+        bond_empirical_duration_beta regresses against. V4.6 - also
+        returns each individual raw curve point (treasury_3mo_level etc.),
+        additive, for _bond_analytics_for_symbol()'s
+        nearest_yield_curve_point() lookup (the only consumer of the
+        3mo/2yr/5yr points individually - everything else here only ever
+        used them combined into level/slope/curvature)."""
         current_date = self.Time.date()
         t3mo = self._fred_series_asof("treasury_3mo", current_date)
         t2yr = self._fred_series_asof("treasury_2yr", current_date)
@@ -2582,6 +2740,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "yield_curve_curvature": yield_curve_curvature(t2yr, t5yr, t10yr),
             "credit_spread_level": credit_spread_level(baa10y),
             "treasury_10yr_level": t10yr,
+            "treasury_3mo_level": t3mo,
+            "treasury_2yr_level": t2yr,
+            "treasury_5yr_level": t5yr,
         }
 
     def _bond_empirical_duration_beta_for_symbol(self, symbol) -> float:
@@ -2614,6 +2775,61 @@ class AetherQuantAlgorithm(QCAlgorithm):
         ]
         beta = empirical_duration_beta(returns, delta_yield)
         return beta if beta is not None else 0.0
+
+    def _bond_analytics_for_symbol(self, symbol) -> dict:
+        """V4.6 (development/Problems.md, Roadmap "Assets" - "single-bond
+        trading" reframed) - real analytic duration/convexity/DV01
+        (features/bond_features.py) for a bond-tagged symbol, using
+        bond_metadata.duration_proxy_years (already configured per-ETF in
+        config.json) as an assumed maturity and
+        bond_metadata.assumed_coupon_rate (or, when absent, the nearest
+        available treasury yield-curve point, via
+        nearest_yield_curve_point()) as an assumed coupon/yield - an
+        explicitly documented ETF-level APPROXIMATION, not real per-bond
+        cash-flow data (see features/bond_features.py's own module
+        docstring).
+
+        Deliberately informational only - stored in
+        self.latest_bond_analytics_by_symbol for dashboard/state
+        visibility, NEVER merged into base_features (which feeds the
+        TRAINED model's fixed-dimensionality input tensor - adding a
+        feature there needs a coordinated retrain). Every value is None
+        (not 0.0) for a non-bond symbol or when required inputs are
+        missing - an unknown/undefined analytic figure must never be
+        indistinguishable from a genuinely-zero one, the same convention
+        _bond_empirical_duration_beta_for_symbol()'s own
+        empirical_duration_beta() call already established."""
+        asset = self.asset_lookup.get(str(symbol), {})
+        is_bond = (asset.get("asset_class") or asset.get("security_type")) == "bond"
+        if not is_bond:
+            return {"analytic_modified_duration": None, "analytic_convexity": None, "bond_dv01": None}
+
+        bond_metadata = asset.get("bond_metadata", {})
+        years_to_maturity = bond_metadata.get("duration_proxy_years")
+        coupon_rate = bond_metadata.get("assumed_coupon_rate")
+        if coupon_rate is None:
+            coupon_rate = nearest_yield_curve_point(
+                years_to_maturity,
+                {
+                    0.25: self.latest_bond_payload.get("treasury_3mo_level"),
+                    2.0: self.latest_bond_payload.get("treasury_2yr_level"),
+                    5.0: self.latest_bond_payload.get("treasury_5yr_level"),
+                    10.0: self.latest_bond_payload.get("treasury_10yr_level"),
+                },
+            )
+        yield_to_maturity = coupon_rate  # at-par-pricing proxy: assumed coupon == assumed yield
+
+        modified_duration = analytic_modified_duration(yield_to_maturity, coupon_rate, years_to_maturity)
+        convexity = analytic_convexity(yield_to_maturity, coupon_rate, years_to_maturity)
+        closes = self.symbol_long_windows.get(symbol)
+        current_price = float(closes[-1]) if closes else None
+        dv01 = bond_dv01(current_price, modified_duration)
+
+        return {
+            "analytic_modified_duration": modified_duration,
+            "analytic_convexity": convexity,
+            "bond_dv01": dv01,
+        }
 
     def _build_options_chains_payload(self, slice: Slice) -> dict[str, list[dict]]:
         """Once-per-bar sibling of _build_topology_payload()/_build_macro_payload()/
@@ -3244,14 +3460,36 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         # At cap, this bar's freshly-selected contract differs from every
         # held one. rotate_on_drift decides: liquidate the OLDEST record
-        # to make room (V4.4 Problems.md: same-bar liquidate+reenter, not
-        # netted against post-liquidation buying power - a documented,
-        # deferred approximation), or instead keep managing the NEAREST
-        # held position on its own greeks rather than freezing.
-        if self.position_scaling_rotate_on_drift:
+        # to make room, or instead keep managing the NEAREST held position
+        # on its own greeks rather than freezing. V4.6 (development/
+        # Problems.md #57/#58): gated by a rotation cooldown (anti-
+        # thrashing - a contract oscillating between two adjacent strikes
+        # bar-to-bar would otherwise rotate every single bar); when the
+        # cooldown is active, falls through to the "manage nearest
+        # position in place" branch below exactly as if rotate_on_drift
+        # were off for this bar only.
+        if self.position_scaling_rotate_on_drift and not rotation_cooldown_active(
+            self.bar_index, self.last_rotation_bar_by_symbol.get(symbol_key), self.options_rotation_cooldown_bars,
+        ):
             self._liquidate_option_record(symbol_key, live_records[0])
+            self.last_rotation_bar_by_symbol[symbol_key] = self.bar_index
+            # V4.6 (development/Problems.md #58 gap 5) - same-bar netting:
+            # re-fetch the newly-selected contract's chain row and re-size
+            # against a freshly-read post-liquidation portfolio value,
+            # instead of entering with the options_decision computed
+            # earlier this bar (before the liquidation). Falls back to the
+            # original decision only if the fresh chain lookup/resize
+            # itself comes back empty - never silently skips the entry.
+            fresh_chain_row = self._option_chain_row_for_contract(symbol_key, contract_symbol)
+            fresh_decision = (
+                build_options_position_sizing_for_contract(
+                    fresh_chain_row, float(self.Portfolio.TotalPortfolioValue), self.options_max_vega_budget_pct_of_equity,
+                )
+                if fresh_chain_row is not None
+                else None
+            )
             return self._enter_option_single_leg(
-                symbol, symbol_key, contract_symbol, options_decision, target_weight, close_price,
+                symbol, symbol_key, contract_symbol, fresh_decision or options_decision, target_weight, close_price,
                 is_rotation=True, is_additional=False,
             )
 
@@ -3486,12 +3724,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
             )
 
         # At cap. Same rotate-vs-manage-in-place choice as the single-leg
-        # branch above; see its comment for the deferred rotation-netting
-        # caveat, which applies identically here.
-        if self.position_scaling_rotate_on_drift:
+        # branch above, with the same V4.6 anti-thrashing cooldown and
+        # same-bar netting fixes (development/Problems.md #57/#58/#59).
+        if self.position_scaling_rotate_on_drift and not rotation_cooldown_active(
+            self.bar_index, self.last_rotation_bar_by_symbol.get(symbol_key), self.options_rotation_cooldown_bars,
+        ):
             self._liquidate_option_record(symbol_key, live_records[0])
+            self.last_rotation_bar_by_symbol[symbol_key] = self.bar_index
+            # Same-bar netting: re-size the newly-selected legs against a
+            # freshly-read post-liquidation portfolio value/margin state
+            # instead of entering with the pre-liquidation options_decision
+            # directly - reuses _resize_multi_leg_record() unchanged (it
+            # only needs strategy_name + leg Symbols, both already on
+            # options_decision), the same resize path the "manage nearest
+            # position" branch below already uses for a HELD record.
+            fresh_decision = self._resize_multi_leg_record(
+                symbol_key,
+                {
+                    "strategy_name": options_decision.strategy_name,
+                    "legs": [leg.contract_symbol for leg in options_decision.legs],
+                },
+            )
             return self._enter_option_multi_leg(
-                symbol, symbol_key, options_decision, target_weight, close_price,
+                symbol, symbol_key, fresh_decision or options_decision, target_weight, close_price,
                 is_rotation=True, is_additional=False,
             )
 
@@ -3678,6 +3933,48 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_long_futures:{permission_reason}"
 
+            if asset_class == "forex":
+                # V4.6 - mirrors the "future" branch above exactly (same
+                # V4.3.0 incremental-vs-absolute quantity fix, same
+                # same-direction scaling shape), lots instead of contracts.
+                pair_spec = self.forex_pair_specs.get(asset.get("ticker"), {})
+                lot_count = self._forex_lot_count_for_weight(target_weight, pair_spec, close_price, orders_allowed)
+                if lot_count == 0:
+                    return "forex_zero_lot_count"
+                if orders_allowed:
+                    current_quantity = float(self.Portfolio[symbol].Quantity)
+                    already_same_direction = current_quantity != 0 and (current_quantity > 0) == (lot_count > 0)
+                    if already_same_direction:
+                        if not self.position_scaling_enabled:
+                            return "kept_long_forex"
+                        delta = int(round(compute_incremental_order_quantity(lot_count, current_quantity)))
+                        if delta == 0:
+                            return "forex_zero_delta_kept"
+                        order_quantity = delta
+                        entered_note, limit_note = "scaled_long_forex", "submitted_limit_scaled_long_forex"
+                    else:
+                        order_quantity = lot_count
+                        entered_note, limit_note = "entered_long_forex", "submitted_limit_long_forex"
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, "forex", is_buy=True, target_weight=target_weight,
+                        close_price=close_price, contract_quantity=order_quantity,
+                    ):
+                        return limit_note
+                    self.MarketOrder(symbol, order_quantity)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return entered_note
+                self._simulated_portfolio.enter_long(
+                    symbol_key,
+                    close_price,
+                    target_weight,
+                    self.bar_index,
+                    slippage_bps=resolve_slippage_bps(
+                        symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                    ),
+                )
+                self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                return f"simulated_entered_long_forex:{permission_reason}"
+
             if previous_signal != "buy" or not self._is_invested(symbol, orders_allowed):
                 if orders_allowed:
                     if self._try_submit_limit_order(
@@ -3803,6 +4100,46 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return f"simulated_entered_short_futures:{permission_reason}"
+
+            if asset_class == "forex":
+                # V4.6 - symmetric to the "buy" branch's forex sibling above.
+                pair_spec = self.forex_pair_specs.get(asset.get("ticker"), {})
+                lot_count = self._forex_lot_count_for_weight(target_weight, pair_spec, close_price, orders_allowed)
+                if lot_count == 0:
+                    return "forex_zero_lot_count"
+                if orders_allowed:
+                    current_quantity = float(self.Portfolio[symbol].Quantity)
+                    already_same_direction = current_quantity != 0 and (current_quantity > 0) == (lot_count > 0)
+                    if already_same_direction:
+                        if not self.position_scaling_enabled:
+                            return "kept_short_forex"
+                        delta = int(round(compute_incremental_order_quantity(lot_count, current_quantity)))
+                        if delta == 0:
+                            return "forex_zero_delta_kept"
+                        order_quantity = delta
+                        entered_note, limit_note = "scaled_short_forex", "submitted_limit_scaled_short_forex"
+                    else:
+                        order_quantity = lot_count
+                        entered_note, limit_note = "entered_short_forex", "submitted_limit_short_forex"
+                    if self._try_submit_limit_order(
+                        symbol, symbol_key, "forex", is_buy=False, target_weight=target_weight,
+                        close_price=close_price, contract_quantity=order_quantity,
+                    ):
+                        return limit_note
+                    self.MarketOrder(symbol, order_quantity)
+                    self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                    return entered_note
+                self._simulated_portfolio.enter_long(
+                    symbol_key,
+                    close_price,
+                    target_weight,
+                    self.bar_index,
+                    slippage_bps=resolve_slippage_bps(
+                        symbol_key, self.latest_liquidity_slippage_bps, max_bps=self._liquidity_slippage_max_bps
+                    ),
+                )
+                self.last_trade_bar_by_symbol[symbol] = self.bar_index
+                return f"simulated_entered_short_forex:{permission_reason}"
 
             if previous_signal != "short" or not self._is_invested(symbol, orders_allowed):
                 if orders_allowed:
@@ -3938,6 +4275,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._position_direction_by_symbol.pop(symbol_key, None)
 
     def _active_position_count(self, exclude_symbol=None, orders_allowed: bool = True) -> int:
+        """V4.6 (development/Problems.md #38) - counts DISTINCT positions,
+        not raw Lean holdings: since V4.4/V4.5, one logical option
+        position can be 1-4 real Lean Symbols (an iron condor is 4
+        independently-Invested contract Symbols) - the old holding-count
+        loop below silently let a single iron condor consume 4 of
+        max_active_positions' budget. _distinct_position_identities()
+        resolves each invested Symbol back to its chain symbol_key (via
+        the same reverse map _asset_class_exposure() already uses) before
+        counting, so any multi-leg position counts once regardless of
+        leg count. This also fixes a second bug: comparing
+        `holding.Symbol == exclude_symbol` could never match an option
+        LEG symbol against the chain-level exclude_symbol every call site
+        passes (different Lean Symbol objects) - the old exclude filter
+        silently never excluded any option holding at all."""
         exclude_key = str(exclude_symbol) if exclude_symbol is not None else None
         # self._pending_entries_this_bar (reset once per bar in on_data())
         # holds symbols that already reserved a slot THIS bar via a "buy"/
@@ -3949,13 +4300,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         pending_count = sum(1 for symbol_key in self._pending_entries_this_bar if symbol_key != exclude_key)
 
         if orders_allowed:
-            count = 0
-            for holding in self.Portfolio.Values:
-                if exclude_symbol is not None and holding.Symbol == exclude_symbol:
-                    continue
-                if holding.Invested:
-                    count += 1
-            return count + pending_count
+            invested_symbol_strs = [str(holding.Symbol) for holding in self.Portfolio.Values if holding.Invested]
+            distinct_identities = _distinct_position_identities(
+                invested_symbol_strs, self.symbol_key_by_option_contract_symbol, exclude_key,
+            )
+            return len(distinct_identities) + pending_count
 
         return sum(1 for symbol_key in self._simulated_portfolio.holdings if symbol_key != exclude_key) + pending_count
 
@@ -4058,6 +4407,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
         notional = target_weight * portfolio_value
         return int(round(notional / (multiplier * close_price)))
 
+    def _forex_lot_count_for_weight(self, target_weight: float, pair_spec: dict, close_price: float, orders_allowed: bool) -> int:
+        """V4.6 - the Forex sibling of _futures_contract_count_for_weight()
+        above, identical rationale (re-derives from the FINAL, post-
+        liquidity/analyzer target_weight rather than threading the
+        originally-computed lot count through unchanged). Returns 0
+        (never raises) when the pair spec is missing or price/portfolio
+        value are non-positive."""
+        lot_size = float(pair_spec.get("lot_size", 0.0) or 0.0)
+        if lot_size <= 0.0 or close_price <= 0.0:
+            return 0
+        portfolio_value = (
+            float(self.Portfolio.TotalPortfolioValue)
+            if orders_allowed
+            else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
+        )
+        if portfolio_value <= 0.0:
+            return 0
+        notional = target_weight * portfolio_value
+        return int(round(notional / (lot_size * close_price)))
+
     def _short_exposure(self, orders_allowed: bool = True, exclude_symbol=None) -> float:
         """Phase 3 of the 5/10 -> 9/10 roadmap: total exposure currently
         held SHORT (negative quantity), across every asset class - a new
@@ -4106,7 +4475,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     session_end_equity=portfolio_value,
                     events=self._session_events,
                 )
-                self._experience_queue.push(session_summary_event)
+                # V4.6 (development/Problems.md #14) - same backtest-mode
+                # push gate as the per-symbol push above; this fires once
+                # per session rollover, which per #13 is every bar at
+                # Daily resolution in a backtest.
+                if self.runtime_mode != "backtest":
+                    self._experience_queue.push(session_summary_event)
             self._session_events = []
             self.current_session_date = current_date
             self.session_start_equity = portfolio_value
@@ -4210,7 +4584,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             symbol_key = str(symbol)
             asset = self.asset_lookup.get(symbol_key, {})
             asset_class = asset.get("asset_class") or asset.get("security_type")
-            enabled = resolve_asset_class_enabled(asset_class, self.futures_risk_enabled, self.options_risk_enabled)
+            enabled = resolve_asset_class_enabled(
+                asset_class, self.futures_risk_enabled, self.options_risk_enabled, self.forex_risk_enabled,
+            )
             is_invested = self._is_invested(symbol, orders_allowed)
             if not should_liquidate_disabled_asset_class_position(enabled, is_invested):
                 continue
@@ -4312,12 +4688,6 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if not orders_allowed:
             return
 
-        covered_protective_names = [
-            name for name in self.options_enabled_strategy_names
-            if MULTI_LEG_STRATEGY_REGISTRY.get(name) is not None
-            and MULTI_LEG_STRATEGY_REGISTRY[name].risk_tier == "covered_protective"
-        ]
-
         for asset in self.phase1["universe"]["assets"]:
             asset_class = asset.get("asset_class") or asset.get("security_type")
             if asset_class != "option":
@@ -4325,6 +4695,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
             underlying_ticker = asset.get("underlying_ticker")
             if not underlying_ticker:
                 continue
+            # V4.6 (development/Problems.md #59) - per-asset override,
+            # resolved per-asset (not hoisted above the loop) so each
+            # option asset's own enabled_strategy_names is respected here
+            # too, not just in the signal-driven sizing path above.
+            covered_protective_names = [
+                name for name in resolve_enabled_strategy_names(asset, self.options_enabled_strategy_names)
+                if MULTI_LEG_STRATEGY_REGISTRY.get(name) is not None
+                and MULTI_LEG_STRATEGY_REGISTRY[name].risk_tier == "covered_protective"
+            ]
             symbol = self.ticker_to_symbol.get(asset["ticker"])
             if symbol is None:
                 continue

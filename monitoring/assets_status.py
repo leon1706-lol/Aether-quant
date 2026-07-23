@@ -18,6 +18,7 @@ from pathlib import Path
 
 from data_pipeline.fred_backfill import load_cached_fred_series
 from data_pipeline.ib_backfill import ib_readiness_status, load_futures_contract_specs
+from risk.forex_risk import load_forex_pair_specs
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT_DIR / "config.json"
@@ -31,6 +32,7 @@ def build_assets_status(config: dict, lean_config: dict) -> dict:
     futures/options assets are configured in the universe."""
     phase_v2 = config.get("phase_v2", {})
     specs = load_futures_contract_specs()
+    forex_specs = load_forex_pair_specs()
     fred_series = load_cached_fred_series()
     all_dates = [row["date"] for rows in fred_series.values() for row in rows]
     assets = config.get("phase1", {}).get("universe", {}).get("assets", [])
@@ -39,8 +41,12 @@ def build_assets_status(config: dict, lean_config: dict) -> dict:
         "ib_status": ib_readiness_status(config, lean_config),
         "futures_risk_enabled": bool(phase_v2.get("futures_risk", {}).get("enabled", False)),
         "options_risk_enabled": bool(phase_v2.get("options_risk", {}).get("enabled", False)),
+        # V4.6 - Forex/FX, same reporting shape as futures above.
+        "forex_risk_enabled": bool(phase_v2.get("forex_risk", {}).get("enabled", False)),
         "futures_contract_specs_loaded": len(specs),
         "futures_contract_specs_tickers": sorted(specs),
+        "forex_pair_specs_loaded": len(forex_specs),
+        "forex_pair_specs_tickers": sorted(forex_specs),
         "fred_cache_series_count": len(fred_series),
         "fred_cache_most_recent_date": max(all_dates).isoformat() if all_dates else None,
         "configured_futures_assets": sum(
@@ -48,6 +54,9 @@ def build_assets_status(config: dict, lean_config: dict) -> dict:
         ),
         "configured_options_assets": sum(
             1 for asset in assets if (asset.get("asset_class") or asset.get("security_type")) == "option"
+        ),
+        "configured_forex_assets": sum(
+            1 for asset in assets if (asset.get("asset_class") or asset.get("security_type")) == "forex"
         ),
     }
 
