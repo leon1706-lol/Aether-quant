@@ -34,9 +34,50 @@ export interface OptionsDecision {
   contract_symbol: string | null
 }
 
+// One leg of a multi-leg options position - mirrors
+// portfolio/options_strategy.py::OptionsSpreadLeg.to_dict() (reused
+// identically by OptionsMultiLegPositionDecision and
+// portfolio/options_margin_sizing.py::MarginSizingDecision).
+export interface OptionsSpreadLeg {
+  strike: number
+  right: 'call' | 'put' | string
+  side: 'long' | 'short' | string
+  contract_symbol: string | null
+}
+
+// Mirrors OptionsSpreadPositionDecision.to_dict() (legacy 2-leg vertical,
+// `expiry` singular) AND OptionsMultiLegPositionDecision.to_dict() (V4.5,
+// any leg count, `expiries` a tuple - 2 entries only for the calendar
+// family) - both share every other field, distinguished here by which of
+// `expiry`/`expiries` is present.
+export interface OptionsMultiLegDecision {
+  strategy_name: string
+  legs: OptionsSpreadLeg[]
+  expiry?: string
+  expiries?: string[]
+  contracts: number
+  net_debit_or_credit: number
+  net_delta: number
+  net_vega: number
+  sizing_reason: string
+}
+
+// Mirrors portfolio/options_margin_sizing.py::MarginSizingDecision.to_dict()
+// - the margin-tier sibling of OptionsMultiLegDecision (naked/uncovered-
+// leg/bounded-backspread strategies a vega budget can't safely size).
+export interface OptionsMarginDecision {
+  strategy_name: string
+  legs: OptionsSpreadLeg[]
+  expiries: string[]
+  contracts: number
+  margin_required: number
+  margin_utilization: number
+  sizing_reason: string
+}
+
 export interface AssetClassRoutingExtra {
   contract_count?: number
-  options_decision?: OptionsDecision
+  options_decision?: OptionsDecision | OptionsMultiLegDecision | OptionsMarginDecision
 }
 
 export interface DynamicSizing {

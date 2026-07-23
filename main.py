@@ -54,6 +54,7 @@ from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.asset_class_router import (
     resolve_asset_class_enabled,
+    route_multi_leg_option_sizing,
     route_position_sizing,
     should_liquidate_disabled_asset_class_position,
 )
@@ -68,9 +69,20 @@ from portfolio import build_rank_based_book, normalize_per_asset_class_slots, sh
 # main.py's option order-placement branches on a SPECIFIC held position,
 # never as part of this bar's fresh signal->sizing pipeline.
 from portfolio.options_strategy import (
+    ANNUALIZATION_FACTOR_DAILY_TO_ANNUAL,
+    MULTI_LEG_STRATEGY_REGISTRY,
+    atm_implied_volatility,
+    build_covered_protective_position_sizing,
+    build_multi_leg_position_sizing_for_legs,
     build_options_position_sizing_for_contract,
     build_vertical_spread_position_sizing_for_legs,
+    classify_volatility_view,
+    option_auto_close_due,
 )
+# V4.5 - margin-tier resize sibling of build_multi_leg_position_sizing_for_legs()
+# above, same "sizes an ALREADY-HELD position on its own current greeks"
+# rationale, imported directly for the identical reason.
+from portfolio.options_margin_sizing import build_margin_position_sizing_for_legs
 from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
 from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
 # Imports directly from audit.redis_queue (not the audit package's own
@@ -193,6 +205,35 @@ class _LiquidityAwareSlippageModel:
         )
 
 
+def _record_target_symbols(record: dict) -> list:
+    """V4.5 - every real Lean Symbol one option_positions_by_symbol record
+    targets: "multi_leg" (any leg count/ratio, replacing V4.4's 2-leg-only
+    "spread" kind) -> record["legs"], SHORT legs first; "single_leg" ->
+    [record["contract_symbol"]]. Pure/module-level (no self needed) so
+    _order_target_symbols(), _liquidate_position(), and
+    _liquidate_option_record() share ONE implementation instead of three
+    independently-duplicated `if record["kind"] == ... else ...` branches
+    - the fix for a real latent bug (a bare `else` silently assuming only
+    2 kinds could ever exist).
+
+    Short-before-long ordering (the fix for a second real bug V4.4's
+    2-leg unwind already had, worse the more short legs a structure
+    carries): _liquidate_position()/_liquidate_option_record() issue one
+    Liquidate() call per target IN THIS ORDER - closing every short leg
+    before any long leg minimizes the window where a partial, still-in-
+    flight unwind is left holding a naked short (e.g. an iron condor's 2
+    short legs, or a butterfly's 2x-ratio short body) mid-liquidation.
+    Falls back to record["legs"]'s own order when the strategy_name isn't
+    in the registry (never expected in practice - degrade-safe only)."""
+    if record["kind"] != "multi_leg":
+        return [record["contract_symbol"]]
+    spec = MULTI_LEG_STRATEGY_REGISTRY.get(record["strategy_name"])
+    if spec is None or len(spec.legs) != len(record["legs"]):
+        return list(record["legs"])
+    order = sorted(range(len(spec.legs)), key=lambda index: 0 if spec.legs[index].side == "short" else 1)
+    return [record["legs"][index] for index in order]
+
+
 class AetherQuantAlgorithm(QCAlgorithm):
     """Lean algorithm with JSON-model inference and a basic signal engine."""
 
@@ -304,9 +345,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # Each record is one of:
         #   {"kind": "single_leg", "contract_symbol": Symbol, "right": str,
         #    "strike": float, "expiry": str}
-        #   {"kind": "spread", "strategy_name": str,
-        #    "legs": [long_symbol, short_symbol], "long_strike": float,
-        #    "short_strike": float, "expiry": str}
+        #   {"kind": "multi_leg", "strategy_name": str,
+        #    "legs": [Symbol, ...], "strikes": [float, ...],
+        #    "expiries": (str,) or (str, str)}
+        # V4.5 - "multi_leg" replaces V4.4's 2-leg-hardcoded "spread" kind
+        # (any leg count/ratio - MULTI_LEG_STRATEGY_REGISTRY in
+        # portfolio/options_strategy.py bakes each leg's own ratio into the
+        # real OptionStrategies object, so main.py only ever places ONE
+        # scalar spread-unit quantity regardless of leg count, exactly
+        # like the 2-leg vertical already did). "legs"/"strikes" are
+        # parallel, in MULTI_LEG_STRATEGY_REGISTRY[strategy_name].legs
+        # order; "expiries" has 2 entries only for the calendar family.
         # symbol_key_by_option_contract_symbol is the reverse map (every
         # held contract/leg Symbol -> its chain symbol_key) and MUST stay
         # complete, stamped BEFORE any order is placed - on_order_event()/
@@ -317,9 +366,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # Real limit-order support (execution/risk realism pass, part 2):
         # in-flight limit orders this algorithm is currently waiting to
         # fill, keyed by str(the actual order-target Symbol) - the CONTRACT
-        # Symbol for a single-leg option (or, V4.4, one of the two per-leg
-        # keys a spread combo limit order is filed under - see
-        # _try_submit_spread_limit_order()), else the plain chain Symbol
+        # Symbol for a single-leg option (or, V4.4/V4.5, one of the N
+        # per-leg keys a multi-leg combo limit order is filed under - see
+        # _try_submit_multi_leg_limit_order()), else the plain chain Symbol
         # (identical to symbol_key) for every other asset class. Keying by
         # the order-target Symbol rather than the chain symbol_key (pre-
         # V4.4) is what lets two DIFFERENT concurrent option positions on
@@ -691,6 +740,60 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # immediate rotate-or-freeze choice the moment room exists. See
         # development/Problems.md and portfolio/README.md.
         self.options_max_positions_per_underlying = max(1, int(phase_v2_options_risk.get("max_positions_per_underlying", 1)))
+        # V4.5 - full OptionStrategies coverage, master gate. False (default)
+        # is BYTE-IDENTICAL to pre-V4.5 behavior: option routing stays on
+        # the options_spread_strategy single_leg/vertical switch above and
+        # the 2 dedicated sizing functions only - none of the new registry-
+        # driven multi-leg selection, margin family, covered/protective
+        # coordination, or expiry auto-close sweep ever executes. True
+        # activates route_multi_leg_option_sizing() (risk/asset_class_router.py)
+        # instead of the legacy single_leg/vertical branch in
+        # _build_dynamic_sizing_payload() below. See development/Problems.md
+        # and portfolio/README.md's full strategy registry writeup.
+        self.options_multi_leg_strategies_enabled = bool(phase_v2_options_risk.get("multi_leg_strategies_enabled", False))
+        # Ordered PRIORITY list (§9.2 of the V4.5 plan) - the first enabled
+        # name (in list order, reordered by risk_tier_preference below) that
+        # matches the current volatility_view bucket and successfully sizes
+        # wins. Default reproduces today's exact 3-value single_leg/vertical
+        # behavior byte-for-byte when multi_leg_strategies_enabled is off;
+        # when on, this list alone (not options_spread_strategy) drives
+        # selection.
+        self.options_enabled_strategy_names = list(
+            phase_v2_options_risk.get("enabled_strategy_names", ["single_leg", "bull_call_spread", "bear_put_spread"])
+        )
+        phase_v2_options_volatility_view = phase_v2_options_risk.get("volatility_view", {})
+        self.options_annualize_predicted_volatility = bool(
+            phase_v2_options_volatility_view.get("annualize_predicted_volatility", True)
+        )
+        self.options_volatility_view_margin = float(phase_v2_options_volatility_view.get("margin", 0.05))
+        self.options_atm_iv_lookup_tolerance = float(phase_v2_options_volatility_view.get("atm_iv_lookup_tolerance", 0.02))
+        # "defined_risk_first" (default) prefers iron condor/butterfly over
+        # short straddle/strangle when multiple enabled strategies match one
+        # volatility bucket - a safety-oriented default, not arbitrary (see
+        # portfolio/options_strategy.py::order_enabled_strategies()).
+        self.options_risk_tier_preference = str(
+            phase_v2_options_volatility_view.get("risk_tier_preference", "defined_risk_first")
+        )
+        phase_v2_options_margin_family = phase_v2_options_risk.get("margin_family", {})
+        # Hard-gated below (code-level invariant, not just this flag) to
+        # runtime_mode == "backtest" - genuinely unbounded-risk positions
+        # sized by a simplified, non-broker-accurate margin formula must
+        # never be reachable in paper/live mode. See development/Problems.md.
+        self.options_margin_family_enabled = bool(phase_v2_options_margin_family.get("enabled", False))
+        self.options_margin_target_utilization = float(phase_v2_options_margin_family.get("target_margin_utilization", 0.20))
+        self.options_margin_max_utilization = float(phase_v2_options_margin_family.get("max_margin_utilization", 0.40))
+        self.options_margin_pct_of_underlying_value = float(phase_v2_options_margin_family.get("pct_of_underlying_value", 0.20))
+        self.options_margin_min_pct_of_underlying_value = float(
+            phase_v2_options_margin_family.get("min_pct_of_underlying_value", 0.10)
+        )
+        # §9.5 - the narrow expiry-day safety net (force-liquidate ANY held
+        # option position, single_leg or multi_leg, within this many
+        # calendar days of expiry) - mirrors risk/futures_risk.py::
+        # rollover_due()'s own diagnostic-date-check pattern, generalized
+        # from futures rollover to options expiry. Applies regardless of
+        # multi_leg_strategies_enabled (a real, pre-existing gap this pass
+        # closes for every option position, not just the new ones).
+        self.options_auto_close_days_before_expiry = int(phase_v2_options_risk.get("auto_close_days_before_expiry", 2))
         # V4.3.0 - allow adding to an existing position instead of being
         # blocked purely because one already exists (development/Changelog.md).
         # Off by default: with position_scaling_enabled=False the equity/
@@ -953,6 +1056,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._pending_entries_this_bar.clear()
         self._refresh_risk_state()
         self._liquidate_positions_for_disabled_asset_classes()
+        self._apply_option_expiry_auto_close_sweep()
         self._process_pending_limit_order_timeouts()
         self.latest_topology_payload = self._build_topology_payload()
         self.latest_macro_payload = self._build_macro_payload()
@@ -960,6 +1064,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_options_chains_payload = self._build_options_chains_payload(slice)
         self.latest_futures_chains_payload = self._build_futures_chains_payload(slice)
         self.latest_derivatives_macro_payload = self._build_derivatives_macro_payload()
+        # V4.5 §6/§9.3/§9.6 - covered/protective/collar equity-lifecycle
+        # coordination, needs this bar's just-built chain payload above;
+        # entirely independent of Pass 1/Pass 2's signal-driven flow below
+        # (see its own docstring for why).
+        self._manage_covered_protective_positions()
         topology_by_symbol = {node["symbol"]: node for node in self.latest_topology_payload.get("nodes", [])}
         signals: dict[str, dict] = {}
         close_prices_by_symbol: dict[str, float] = {}
@@ -2165,6 +2274,57 @@ class AetherQuantAlgorithm(QCAlgorithm):
             else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
         )
 
+        # V4.5 - full OptionStrategies coverage, gated to
+        # options_multi_leg_strategies_enabled (default False, byte-
+        # identical to pre-V4.5 behavior - see that flag's own docstring).
+        # Tried BEFORE route_position_sizing() below and, on any result
+        # (including "nothing sized"), used INSTEAD of it for this option
+        # asset this bar - the legacy single_leg/vertical branch inside
+        # route_position_sizing() never runs at all once this flag is on,
+        # avoiding two option sizing paths silently disagreeing bar to bar.
+        if asset_class == "option" and self.options_risk_enabled and self.options_multi_leg_strategies_enabled:
+            available_chain = self.latest_options_chains_payload.get(asset.get("underlying_ticker"), [])
+            underlying_price = float(available_chain[0]["underlying_price"]) if available_chain else float(close_price)
+            volatility_view = self._options_volatility_view(available_chain, predicted_volatility)
+            result = route_multi_leg_option_sizing(
+                self.options_enabled_strategy_names,
+                signal_name,
+                confidence,
+                available_chain,
+                portfolio_value,
+                underlying_price,
+                volatility_view,
+                self.options_risk_tier_preference,
+                self.options_margin_family_enabled and self.runtime_mode == "backtest",
+                target_delta_at_full_confidence=self.options_target_delta_at_full_confidence,
+                max_vega_budget_pct_of_equity=self.options_max_vega_budget_pct_of_equity,
+                short_leg_delta_offset=self.options_short_leg_delta_offset,
+                contract_multiplier=100.0,
+                target_margin_utilization=self.options_margin_target_utilization,
+                max_margin_utilization=self.options_margin_max_utilization,
+                pct_of_underlying_value=self.options_margin_pct_of_underlying_value,
+                min_pct_of_underlying_value=self.options_margin_min_pct_of_underlying_value,
+            )
+            if result is not None:
+                decision, extra = result
+                payload = decision.to_dict()
+                payload["asset_class_routing_extra"] = extra
+                return payload
+            # Nothing enabled sized this bar (empty chain, no enabled
+            # strategy matched the volatility bucket, etc.) - fall through
+            # to a clean zero decision via the existing single_leg path
+            # rather than duplicating _zero_position_sizing()'s construction
+            # here.
+            decision, extra = route_position_sizing(
+                asset_class, signal_name, confidence, base_target_weight,
+                equity_crypto_kwargs=equity_crypto_kwargs, price=close_price, portfolio_value=portfolio_value,
+                available_chain=available_chain,
+                options_kwargs={"target_delta_at_full_confidence": 0.0, "max_vega_budget_pct_of_equity": 0.0},
+            )
+            payload = decision.to_dict()
+            payload["asset_class_routing_extra"] = extra
+            return payload
+
         decision, extra = route_position_sizing(
             asset_class,
             signal_name,
@@ -2204,6 +2364,33 @@ class AetherQuantAlgorithm(QCAlgorithm):
         payload = decision.to_dict()
         payload["asset_class_routing_extra"] = extra
         return payload
+
+    def _options_volatility_view(self, available_chain: list, predicted_volatility: float | None) -> str:
+        """V4.5 §4 - annualizes this bar's already-computed
+        predicted_volatility (train.py's target_volatility_next_day is a
+        DAILY, non-annualized, high-low-range proxy - the annualization
+        MUST happen here, at the call site, never inside
+        classify_volatility_view() itself, so the unit contract stays
+        explicit) and compares it against the chain's own ATM implied
+        vol. Returns "neutral" (never crashes/raises) when
+        predicted_volatility is None or the chain has no usable ATM row -
+        a "neutral" view simply means no straddle/strangle/iron-condor/
+        butterfly candidate is eligible this bar (see
+        strategies_for_volatility_view()), not an error."""
+        if predicted_volatility is None or not available_chain:
+            return "neutral"
+        near_expiry = min((row.get("expiry") for row in available_chain if row.get("expiry") is not None), default=None)
+        if near_expiry is None:
+            return "neutral"
+        atm_iv = atm_implied_volatility(available_chain, near_expiry)
+        if atm_iv is None:
+            return "neutral"
+        annualized = (
+            float(predicted_volatility) * ANNUALIZATION_FACTOR_DAILY_TO_ANNUAL
+            if self.options_annualize_predicted_volatility
+            else float(predicted_volatility)
+        )
+        return classify_volatility_view(annualized, atm_iv, self.options_volatility_view_margin)
 
     def _build_topology_payload(self) -> dict:
         returns_by_symbol = {}
@@ -2516,6 +2703,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "open_interest": float(contract.open_interest or 0.0),
                         "delta": delta_value, "gamma": gamma_value, "theta": theta_value,
                         "vega": vega_value, "rho": rho_value, "iv": iv_value,
+                        # V4.5 - the margin family (portfolio/options_margin_sizing.py)
+                        # and covered/protective sizing both need the
+                        # underlying's own spot price, not just this
+                        # contract's own greeks - carried per-row (same
+                        # value for every row this bar) rather than a
+                        # separate lookup structure.
+                        "underlying_price": float(contract.underlying_last_price or 0.0),
                     })
                 payload[underlying_ticker] = rows
             except Exception as error:
@@ -2688,18 +2882,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         Provably byte-identical to [symbol] for every non-option position,
         by construction: option_positions_by_symbol is only ever populated
-        by _apply_option_order()/_apply_option_spread_order() below, so it
-        has no entry for any other asset class."""
+        by _apply_option_order()/_apply_option_multi_leg_order() below, so
+        it has no entry for any other asset class."""
         symbol_key = str(symbol)
         records = self.option_positions_by_symbol.get(symbol_key)
         if not records:
             return [symbol]
         targets = []
         for record in records:
-            if record["kind"] == "spread":
-                targets.extend(record["legs"])
-            else:
-                targets.append(record["contract_symbol"])
+            targets.extend(_record_target_symbols(record))
         return targets
 
     def _try_submit_limit_order(
@@ -2789,54 +2980,75 @@ class AetherQuantAlgorithm(QCAlgorithm):
         }
         return True
 
-    def _try_submit_spread_limit_order(
+    def _build_option_strategy_object(self, strategy_name: str, canonical_symbol, strikes: list, expiries: tuple):
+        """V4.5 - resolves and constructs the real Lean OptionStrategy
+        object for ANY of the 43 registered strategies, generically, via
+        MULTI_LEG_STRATEGY_REGISTRY - replaces the old hardcoded
+        `OptionStrategies.bull_call_spread if ... else
+        OptionStrategies.bear_put_spread` ternary with an O(1)
+        getattr(OptionStrategies, spec.factory_name) lookup, the same
+        "registry, not a 41-branch if/elif chain" design goal
+        portfolio/options_strategy.py's own docstring states. `strikes` is
+        parallel to MULTI_LEG_STRATEGY_REGISTRY[strategy_name].legs (each
+        leg's OWN strike, in registry order - see options_decision.legs'
+        construction); strikes_by_role de-duplicates naturally when 2 legs
+        share one strike_role (e.g. an iron butterfly's 2 ATM legs), since
+        both entries are the SAME value by construction of the selector
+        that produced them. Mixed Lean-API casing (PascalCase Buy/Sell/
+        ComboLimitOrder calls, bare OptionStrategies. factory names) is
+        this codebase's own established, if IB-unverified, convention -
+        unchanged from V4.4."""
+        spec = MULTI_LEG_STRATEGY_REGISTRY[strategy_name]
+        factory = getattr(OptionStrategies, spec.factory_name)
+        strikes_by_role = {leg.strike_role: strike for leg, strike in zip(spec.legs, strikes)}
+        strike_args = [strikes_by_role[role] for role in spec.arg_order]
+        if spec.has_expiry_pair:
+            near_expiration = datetime.fromisoformat(expiries[0])
+            far_expiration = datetime.fromisoformat(expiries[1])
+            return factory(canonical_symbol, *strike_args, near_expiration, far_expiration)
+        expiration = datetime.fromisoformat(expiries[0])
+        return factory(canonical_symbol, *strike_args, expiration)
+
+    def _try_submit_multi_leg_limit_order(
         self,
         symbol,
         symbol_key: str,
-        long_leg_symbol,
-        short_leg_symbol,
         strategy_name: str,
-        expiry: str,
-        long_strike: float,
-        short_strike: float,
+        leg_symbols: list,
+        strikes: list,
+        expiries: tuple,
         quantity: int,
         target_weight: float,
         close_price: float,
     ) -> bool:
-        """V4.4 - spread sibling of _try_submit_limit_order() above
-        (execution/risk realism pass, part 3 follow-up): a 2-leg vertical
-        combo limit order via Lean's ComboLimitOrder, the multi-leg
-        analogue of LimitOrder(). NEW, IB-unverified combo API
+        """V4.5 - N-leg generalization of V4.4's
+        _try_submit_spread_limit_order() (renamed - "spread" retired,
+        folded into "multi_leg", see main.py's own record-shape note):
+        a multi-leg combo limit order via Lean's ComboLimitOrder, now
+        correct for any of the 43 registered strategies via
+        _build_option_strategy_object() instead of the old 2-leg-only
+        hardcoded factory choice. NEW, IB-unverified combo API
         (development/Problems.md) - zero prior combo-LIMIT-order usage in
-        this codebase before this pass (the existing entry/scale paths
-        only ever market-order a combo via self.Buy()/self.Sell()).
+        this codebase before V4.4 introduced it for exactly 2 strategies.
 
-        `quantity` is signed - positive buys/scales the spread up,
-        negative sells/reduces it - the same signed-quantity convention
-        every other order primitive in this file already uses
-        (MarketOrder(symbol, signed_quantity)), rather than a separate
-        is_buy flag plus an always-positive quantity.
+        `quantity` is signed - positive buys/scales up, negative sells/
+        reduces - the same signed-quantity convention every other order
+        primitive in this file already uses. Same config-gated no-op
+        contract as _try_submit_limit_order(): returns False immediately
+        whenever phase_v2.limit_orders is disabled or "option" isn't in
+        the configured asset-class subset.
 
-        Same config-gated no-op contract as _try_submit_limit_order():
-        returns False immediately whenever phase_v2.limit_orders is
-        disabled or "option" isn't in the configured asset-class subset,
-        so every caller's existing Buy/Sell-combo MarketOrder fallback
-        (unchanged) is what actually executes when this feature is off.
-
-        Stores ONE pending record under BOTH leg Symbol-string keys
-        (pointing at the same dict) - a fill event on EITHER leg resolves
-        to the same record, and on_order_event()/
+        Stores ONE pending record under EVERY leg's Symbol-string key
+        (pointing at the same dict) - a fill event on ANY leg resolves to
+        the same record, and on_order_event()/
         _process_pending_limit_order_timeouts() already iterate
-        "tickets"/"target_symbols" generically per-leg (see their own
-        docstrings), so neither needs to know a spread's record has 2
-        entries where a single-leg one has 1."""
+        "tickets"/"target_symbols" generically per-leg, so neither needs
+        to know how many entries a given record's leg list has."""
         if not self.limit_orders_enabled or "option" not in self.limit_orders_asset_classes:
             return False
 
         is_buy = quantity > 0
-        factory = OptionStrategies.bull_call_spread if strategy_name == "bull_call_spread" else OptionStrategies.bear_put_spread
-        expiration = datetime.fromisoformat(expiry)
-        strategy = factory(symbol, long_strike, short_strike, expiration)
+        strategy = self._build_option_strategy_object(strategy_name, symbol, strikes, expiries)
 
         liquidity_payload = self.latest_liquidity_by_symbol.get(symbol_key, {})
         spread_fraction = float(liquidity_payload.get("spread_proxy", 0.0) or 0.0)
@@ -2845,7 +3057,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         tickets = list(self.ComboLimitOrder(strategy, quantity, limit_price))
         record = {
             "tickets": tickets,
-            "target_symbols": [long_leg_symbol, short_leg_symbol],
+            "target_symbols": list(leg_symbols),
             "chain_symbol": symbol,
             "symbol_key": symbol_key,
             "asset_class": "option",
@@ -2853,8 +3065,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "direction": "buy" if is_buy else "sell",
             "target_weight": target_weight,
         }
-        self.pending_limit_orders[str(long_leg_symbol)] = record
-        self.pending_limit_orders[str(short_leg_symbol)] = record
+        for leg_symbol in leg_symbols:
+            self.pending_limit_orders[str(leg_symbol)] = record
         return True
 
     def _option_chain_row_for_contract(self, symbol_key: str, contract_symbol) -> dict | None:
@@ -2943,13 +3155,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         this bar (risk/asset_class_router.py, surfaced via
         sizing_payload["asset_class_routing_extra"]["options_decision"] -
         see _build_dynamic_sizing_payload()) - either a single-leg
-        OptionsPositionDecision (default, handled below) or a 2-leg
-        OptionsSpreadPositionDecision (phase_v2.options_risk.spread_strategy
-        == "vertical", delegated to _apply_option_spread_order() - checked
-        FIRST via hasattr(options_decision, "legs"), before touching
-        contract_symbol, since OptionsSpreadPositionDecision has no such
-        field and getattr(..., "contract_symbol", None) would otherwise
-        silently reject every spread decision as "no usable contract").
+        OptionsPositionDecision (default, handled below) or any N-leg
+        decision (OptionsSpreadPositionDecision - legacy
+        phase_v2.options_risk.spread_strategy == "vertical" path;
+        OptionsMultiLegPositionDecision/MarginSizingDecision - V4.5's
+        options_multi_leg_strategies_enabled path; ALL 3 share the same
+        `.legs`/`.strategy_name`/`.contracts` shape - see
+        _apply_option_multi_leg_order()) - checked FIRST via
+        hasattr(options_decision, "legs"), before touching
+        contract_symbol, since none of the 3 multi-leg decision types has
+        that field and getattr(..., "contract_symbol", None) would
+        otherwise silently reject every one of them as "no usable
+        contract").
 
         V4.4 - multi-position book (development/Problems.md): up to
         self.options_max_positions_per_underlying (default 1 - byte-
@@ -2974,7 +3191,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return "options_no_usable_contract"
 
         if hasattr(options_decision, "legs"):
-            return self._apply_option_spread_order(
+            return self._apply_option_multi_leg_order(
                 symbol, symbol_key, options_decision, target_weight, close_price, orders_allowed, permission_reason
             )
 
@@ -3066,76 +3283,125 @@ class AetherQuantAlgorithm(QCAlgorithm):
             target_weight, close_price,
         )
 
-    def _place_option_spread_delta_order(
-        self, symbol, symbol_key: str, long_leg_symbol, short_leg_symbol, long_strike: float, short_strike: float,
-        strategy_name: str, expiry: str, delta: int, target_weight: float, close_price: float,
+    def _place_option_multi_leg_delta_order(
+        self, symbol, symbol_key: str, strategy_name: str, leg_symbols: list, strikes: list, expiries: tuple,
+        delta: int, target_weight: float, close_price: float,
     ) -> str:
-        """Places the signed delta computed against an already-tracked
-        vertical spread position: positive scales UP, NEGATIVE reduces
-        (V4.4 - self.Sell(strategy, ...) is a NEW combo primitive this
-        codebase has never used before, the Sell-side sibling of the
-        Buy-combo entry path; both this and the combo LIMIT path below
-        are unverified until a real backtest, see development/Problems.md).
+        """N-leg generalization of V4.4's _place_option_spread_delta_order()
+        (renamed - "spread" retired, folded into "multi_leg"): places the
+        signed delta computed against an already-tracked multi-leg
+        position - positive scales UP, NEGATIVE reduces (self.Sell(strategy,
+        ...) unverified until a real backtest, see development/Problems.md).
         No option_positions_by_symbol/reverse-map write needed - the
         record for these exact legs already exists; only the held
         QUANTITY changes."""
         note_stem = "scaled" if delta > 0 else "reduced"
-        if self._try_submit_spread_limit_order(
-            symbol, symbol_key, long_leg_symbol, short_leg_symbol, strategy_name, expiry, long_strike, short_strike,
-            delta, target_weight, close_price,
+        if self._try_submit_multi_leg_limit_order(
+            symbol, symbol_key, strategy_name, leg_symbols, strikes, expiries, delta, target_weight, close_price,
         ):
-            return f"submitted_limit_{note_stem}_option_spread_{strategy_name}"
-        factory = OptionStrategies.bull_call_spread if strategy_name == "bull_call_spread" else OptionStrategies.bear_put_spread
-        expiration = datetime.fromisoformat(expiry)
-        strategy = factory(symbol, long_strike, short_strike, expiration)
+            return f"submitted_limit_{note_stem}_option_multi_leg_{strategy_name}"
+        strategy = self._build_option_strategy_object(strategy_name, symbol, strikes, expiries)
         if delta > 0:
             self.Buy(strategy, delta)
         else:
             self.Sell(strategy, abs(delta))
         self.last_trade_bar_by_symbol[symbol] = self.bar_index
-        return f"{note_stem}_option_spread_{strategy_name}"
+        return f"{note_stem}_option_multi_leg_{strategy_name}"
 
-    def _enter_option_spread(
+    def _enter_option_multi_leg(
         self, symbol, symbol_key: str, options_decision, target_weight: float, close_price: float,
         *, is_rotation: bool, is_additional: bool,
     ) -> str:
-        """Opens a brand-new 2-leg vertical spread record - first entry,
-        an additional position under the multi-position cap (V4.4), or a
-        rotation entry immediately after _liquidate_option_record() made
-        room. ATOMIC via Lean's OptionStrategies + self.Buy() (or the new
-        combo-limit path) - never as two independent single-leg orders
-        (see _apply_option_spread_order()'s docstring for why)."""
-        long_leg, short_leg = options_decision.legs
-        self.option_positions_by_symbol.setdefault(symbol_key, []).append({
-            "kind": "spread",
+        """Opens a brand-new multi-leg position record (any of the 43
+        registered strategies, any leg count/ratio) - first entry, an
+        additional position under the multi-position cap, or a rotation
+        entry immediately after _liquidate_option_record() made room.
+        ATOMIC via Lean's OptionStrategies + self.Buy() (or the new
+        combo-limit path) - never as independent single-leg orders (see
+        _apply_option_multi_leg_order()'s docstring for why).
+        options_decision must expose `.legs` (tuple of OptionsSpreadLeg,
+        registry order), `.strategy_name`, `.contracts`, and either
+        `.expiries` (tuple) or `.expiry` (singular, the legacy
+        OptionsSpreadPositionDecision shape) - all 3 decision types this
+        codebase produces satisfy this."""
+        leg_symbols = [leg.contract_symbol for leg in options_decision.legs]
+        strikes = [leg.strike for leg in options_decision.legs]
+        expiries = tuple(options_decision.expiries) if hasattr(options_decision, "expiries") else (options_decision.expiry,)
+        record = {
+            "kind": "multi_leg",
             "strategy_name": options_decision.strategy_name,
-            "legs": [long_leg.contract_symbol, short_leg.contract_symbol],
-            "long_strike": long_leg.strike,
-            "short_strike": short_leg.strike,
-            "expiry": options_decision.expiry,
-        })
-        for leg in options_decision.legs:
-            self.symbol_key_by_option_contract_symbol[str(leg.contract_symbol)] = symbol_key
+            "legs": leg_symbols,
+            "strikes": strikes,
+            "expiries": expiries,
+        }
+        # §9.4 - margin-tier records carry their own margin_required, so
+        # _asset_class_exposure() can bucket them by real margin consumed
+        # instead of abs(HoldingsValue) (a poor proxy for genuinely
+        # unbounded-risk positions). Only present on MarginSizingDecision -
+        # absent (not 0.0) for every vega-budget/legacy-vertical decision,
+        # so _asset_class_exposure() can tell "not a margin-tier record"
+        # apart from "zero margin consumed".
+        if hasattr(options_decision, "margin_required"):
+            record["margin_required"] = options_decision.margin_required
+        self.option_positions_by_symbol.setdefault(symbol_key, []).append(record)
+        for leg_symbol in leg_symbols:
+            self.symbol_key_by_option_contract_symbol[str(leg_symbol)] = symbol_key
 
         note_stem = "rotated" if is_rotation else ("opened_additional" if is_additional else "entered")
-        if self._try_submit_spread_limit_order(
-            symbol, symbol_key, long_leg.contract_symbol, short_leg.contract_symbol, options_decision.strategy_name,
-            options_decision.expiry, long_leg.strike, short_leg.strike, options_decision.contracts,
-            target_weight, close_price,
+        if self._try_submit_multi_leg_limit_order(
+            symbol, symbol_key, options_decision.strategy_name, leg_symbols, strikes, expiries,
+            options_decision.contracts, target_weight, close_price,
         ):
-            return f"submitted_limit_{note_stem}_option_spread_{options_decision.strategy_name}"
-        factory = (
-            OptionStrategies.bull_call_spread
-            if options_decision.strategy_name == "bull_call_spread"
-            else OptionStrategies.bear_put_spread
-        )
-        expiration = datetime.fromisoformat(options_decision.expiry)
-        strategy = factory(symbol, long_leg.strike, short_leg.strike, expiration)
+            return f"submitted_limit_{note_stem}_option_multi_leg_{options_decision.strategy_name}"
+        strategy = self._build_option_strategy_object(options_decision.strategy_name, symbol, strikes, expiries)
         self.Buy(strategy, options_decision.contracts)
         self.last_trade_bar_by_symbol[symbol] = self.bar_index
-        return f"{note_stem}_option_spread_{options_decision.strategy_name}"
+        return f"{note_stem}_option_multi_leg_{options_decision.strategy_name}"
 
-    def _apply_option_spread_order(
+    def _resize_multi_leg_record(self, symbol_key: str, record: dict):
+        """Resolves EVERY leg's current chain row for an already-held
+        multi_leg record (by role, via MULTI_LEG_STRATEGY_REGISTRY) and
+        re-sizes on those own current greeks - the N-leg generalization of
+        V4.4's held_long_row/held_short_row pair. Dispatches to
+        build_multi_leg_position_sizing_for_legs() (risk_tier ==
+        "vega_budget", covers the legacy 2-leg verticals too - see that
+        function's own docstring for why the registry-driven selector is
+        provably identical geometry) or
+        build_margin_position_sizing_for_legs() (margin tiers - only
+        reachable when options_margin_family_enabled AND
+        runtime_mode == "backtest", the same hard gate _apply_option_order()
+        never bypasses). Returns None when any leg has fallen out of this
+        bar's chain, or the strategy's own risk_tier isn't resizeable this
+        way (e.g. covered_protective, managed by its own dedicated sweep)."""
+        spec = MULTI_LEG_STRATEGY_REGISTRY.get(record["strategy_name"])
+        if spec is None:
+            return None
+        held_rows_by_role = {}
+        for leg_spec, leg_symbol in zip(spec.legs, record["legs"]):
+            row = self._option_chain_row_for_contract(symbol_key, leg_symbol)
+            if row is None:
+                return None
+            held_rows_by_role[leg_spec.role] = row
+
+        if spec.risk_tier == "vega_budget":
+            return build_multi_leg_position_sizing_for_legs(
+                record["strategy_name"], held_rows_by_role, float(self.Portfolio.TotalPortfolioValue),
+                self.options_max_vega_budget_pct_of_equity,
+            )
+        if spec.risk_tier in ("margin_naked", "margin_uncovered_leg", "margin_bounded_backspread"):
+            if not (self.options_margin_family_enabled and self.runtime_mode == "backtest"):
+                return None
+            underlying_price = held_rows_by_role[spec.legs[0].role].get("underlying_price") or 0.0
+            return build_margin_position_sizing_for_legs(
+                record["strategy_name"], held_rows_by_role, float(underlying_price),
+                float(self.Portfolio.TotalPortfolioValue), contract_multiplier=100.0,
+                max_margin_utilization=self.options_margin_max_utilization,
+                pct_of_underlying_value=self.options_margin_pct_of_underlying_value,
+                min_pct_of_underlying_value=self.options_margin_min_pct_of_underlying_value,
+            )
+        return None
+
+    def _apply_option_multi_leg_order(
         self,
         symbol,
         symbol_key: str,
@@ -3145,38 +3411,31 @@ class AetherQuantAlgorithm(QCAlgorithm):
         orders_allowed: bool,
         permission_reason: str,
     ) -> str:
-        """2-leg vertical spread placement (execution/risk realism pass,
-        part 3 - phase_v2.options_risk.spread_strategy == "vertical"),
-        delegated to from _apply_option_order() above. options_decision
-        is an OptionsSpreadPositionDecision (portfolio/options_strategy.py) -
-        exactly 2 legs (long, short), entered ATOMICALLY via Lean's own
-        OptionStrategies.bull_call_spread()/bear_put_spread() +
-        self.Buy(strategy, quantity), never as two independent single-leg
-        orders - avoiding the partial-fill/leg-slippage risk of an
-        unhedged half-fill on entry (the reason atomicity matters on this
-        side but not on the close side - see _liquidate_position()'s own
-        docstring for why closing goes leg-by-leg instead).
+        """N-leg generalization of V4.4's _apply_option_spread_order()
+        (renamed - "spread" retired, folded into "multi_leg"; execution/
+        risk realism pass part 3, extended by V4.5 to all 43 registered
+        strategies). options_decision is any of OptionsSpreadPositionDecision
+        (legacy 2-leg vertical path)/OptionsMultiLegPositionDecision/
+        MarginSizingDecision - entered ATOMICALLY via Lean's own
+        OptionStrategies.* + self.Buy(strategy, quantity), never as
+        independent single-leg orders - avoiding the partial-fill/leg-
+        slippage risk of an unhedged half-fill on entry (the reason
+        atomicity matters on this side but not on the close side - see
+        _liquidate_position()'s own docstring for why closing goes
+        leg-by-leg instead).
 
-        V4.4 - same multi-position-book shape as _apply_option_order()
-        above: up to max_positions_per_underlying spreads may be tracked
-        per underlying; scaling now goes both directions (Buy-combo up,
-        the NEW Sell-combo down - see _place_option_spread_delta_order());
-        at cap without rotation, the nearest held spread is re-sized on
-        its own net-vega greeks (build_vertical_spread_position_sizing_for_legs())
-        instead of frozen.
-
-        Matches this codebase's proven mixed Lean-API-casing convention
-        (PascalCase for calls, OptionStrategies bare from `from
-        AlgorithmImports import *`) - genuinely unverified until a real
-        backtest, see risk/README.md's verification list: whether
-        OptionStrategies.* actually accepts the canonical chain Symbol
-        this codebase already holds, whether self.Buy(strategy, quantity)/
-        self.Sell(strategy, quantity) return one ticket per leg in a
-        matchable order, and general real fill/margin behavior for a
-        debit spread (zero prior combo-order usage in this codebase
-        before this pass)."""
+        Same multi-position-book shape as _apply_option_order() above: up
+        to max_positions_per_underlying multi-leg positions may be tracked
+        per underlying; at cap without rotation, the nearest held position
+        of the SAME strategy_name is re-sized on its own current greeks
+        (_resize_multi_leg_record()) instead of frozen - scoped to the
+        same strategy_name (not just any multi_leg record) since a
+        4-strike iron condor and a 1-strike straddle aren't comparable by
+        strike distance (§9.1 of the V4.5 plan) - when no held record
+        shares this bar's strategy_name, there is nothing sensible to
+        re-price, a distinct no-op from "held but not comparable"."""
         if any(leg.contract_symbol is None for leg in options_decision.legs):
-            return "options_spread_no_usable_legs"
+            return "options_multi_leg_no_usable_legs"
 
         if not orders_allowed:
             self._simulated_portfolio.enter_long(
@@ -3189,38 +3448,39 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 ),
             )
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
-            return f"simulated_entered_option_spread_{options_decision.strategy_name}:{permission_reason}"
+            return f"simulated_entered_option_multi_leg_{options_decision.strategy_name}:{permission_reason}"
 
-        long_leg, short_leg = options_decision.legs
+        target_leg_symbols = [str(leg.contract_symbol) for leg in options_decision.legs]
         held_records = self.option_positions_by_symbol.get(symbol_key, [])
         live_records = [
             record for record in held_records
-            if record["kind"] == "spread" and any(self.Portfolio[target].Invested for target in record["legs"])
+            if record["kind"] == "multi_leg" and any(self.Portfolio[target].Invested for target in record["legs"])
         ]
         matching_record = next(
-            (
-                record for record in live_records
-                if [str(target) for target in record["legs"]]
-                == [str(long_leg.contract_symbol), str(short_leg.contract_symbol)]
-            ),
+            (record for record in live_records if [str(target) for target in record["legs"]] == target_leg_symbols),
             None,
         )
 
         if matching_record is not None:
             if not self.position_scaling_enabled:
-                return "options_spread_kept"
+                return "options_multi_leg_kept"
             current_units = min(abs(float(self.Portfolio[target].Quantity)) for target in matching_record["legs"])
             delta = int(round(compute_incremental_order_quantity(options_decision.contracts, current_units)))
             if delta == 0:
-                return "options_spread_kept"
-            return self._place_option_spread_delta_order(
-                symbol, symbol_key, long_leg.contract_symbol, short_leg.contract_symbol, long_leg.strike,
-                short_leg.strike, options_decision.strategy_name, options_decision.expiry, delta,
-                target_weight, close_price,
+                return "options_multi_leg_kept"
+            # §9.4 - refresh the record's margin_required alongside its
+            # quantity, so _asset_class_exposure()'s margin-tier bucket
+            # stays current rather than pinned to entry-time margin.
+            if hasattr(options_decision, "margin_required"):
+                matching_record["margin_required"] = options_decision.margin_required
+            expiries = tuple(options_decision.expiries) if hasattr(options_decision, "expiries") else (options_decision.expiry,)
+            return self._place_option_multi_leg_delta_order(
+                symbol, symbol_key, options_decision.strategy_name, matching_record["legs"],
+                [leg.strike for leg in options_decision.legs], expiries, delta, target_weight, close_price,
             )
 
         if len(live_records) < self.options_max_positions_per_underlying:
-            return self._enter_option_spread(
+            return self._enter_option_multi_leg(
                 symbol, symbol_key, options_decision, target_weight, close_price,
                 is_rotation=False, is_additional=bool(live_records),
             )
@@ -3230,38 +3490,47 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # caveat, which applies identically here.
         if self.position_scaling_rotate_on_drift:
             self._liquidate_option_record(symbol_key, live_records[0])
-            return self._enter_option_spread(
+            return self._enter_option_multi_leg(
                 symbol, symbol_key, options_decision, target_weight, close_price,
                 is_rotation=True, is_additional=False,
             )
 
-        # Re-pricing the nearest held spread is itself a position
+        # Re-pricing the nearest held position is itself a position
         # ADJUSTMENT, so it must respect position_scaling_enabled exactly
         # like the matching-legs scale path above - byte-identical to
-        # V4.3.0's unconditional "options_spread_legs_mismatch_kept"
-        # no-op when scaling is off.
+        # V4.3.0's unconditional "options_multi_leg_mismatch_kept" no-op
+        # when scaling is off.
         if not self.position_scaling_enabled:
-            return "options_spread_legs_mismatch_kept"
+            return "options_multi_leg_mismatch_kept"
 
-        nearest_record = min(live_records, key=lambda record: abs(record["long_strike"] - long_leg.strike))
-        held_long_row = self._option_chain_row_for_contract(symbol_key, nearest_record["legs"][0])
-        held_short_row = self._option_chain_row_for_contract(symbol_key, nearest_record["legs"][1])
-        if held_long_row is None or held_short_row is None:
-            return "options_held_contract_not_in_chain_kept"
-        resized_decision = build_vertical_spread_position_sizing_for_legs(
-            held_long_row, held_short_row, float(self.Portfolio.TotalPortfolioValue),
-            self.options_max_vega_budget_pct_of_equity,
+        # §9.1 - scope the "nearest" comparison to records of the SAME
+        # strategy_name only; their strikes lists are directly comparable
+        # (parallel, identically ordered, by construction of the
+        # registry's fixed arg_order). A record of a different shape
+        # (different strategy_name) is never a sensible comparison target.
+        comparable_records = [
+            record for record in live_records if record["strategy_name"] == options_decision.strategy_name
+        ]
+        if not comparable_records:
+            return "options_no_comparable_position_to_reprice_kept"
+
+        target_strikes = [leg.strike for leg in options_decision.legs]
+        nearest_record = min(
+            comparable_records,
+            key=lambda record: sum(abs(a - b) for a, b in zip(record["strikes"], target_strikes)) / len(target_strikes),
         )
+        resized_decision = self._resize_multi_leg_record(symbol_key, nearest_record)
         if resized_decision is None:
-            return "options_at_position_cap_kept"
+            return "options_held_contract_not_in_chain_kept"
+        if hasattr(resized_decision, "margin_required"):
+            nearest_record["margin_required"] = resized_decision.margin_required
         current_units = min(abs(float(self.Portfolio[target].Quantity)) for target in nearest_record["legs"])
         delta = int(round(compute_incremental_order_quantity(resized_decision.contracts, current_units)))
         if delta == 0:
             return "options_at_position_cap_kept"
-        return self._place_option_spread_delta_order(
-            symbol, symbol_key, nearest_record["legs"][0], nearest_record["legs"][1],
-            nearest_record["long_strike"], nearest_record["short_strike"],
-            nearest_record["strategy_name"], nearest_record["expiry"], delta, target_weight, close_price,
+        return self._place_option_multi_leg_delta_order(
+            symbol, symbol_key, nearest_record["strategy_name"], nearest_record["legs"],
+            nearest_record["strikes"], nearest_record["expiries"], delta, target_weight, close_price,
         )
 
     def _liquidate_position(self, symbol) -> None:
@@ -3276,22 +3545,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
         held positions" (see _liquidate_option_record() for that case,
         used by rotation/at-cap trimming instead).
 
-        A 2-leg vertical spread closes leg-by-leg here (two independent
-        Liquidate() calls), NOT an atomic combo unwind - a deliberate,
-        documented scope trade-off (development/Problems.md #38): an
-        already-open, already-hedged position unwinding leg-by-leg is a
-        materially smaller risk than the entry side (which needed
-        atomicity via OptionStrategies to avoid an unhedged half-fill).
-        Reconstructing the exact OptionStrategy at close time would need
-        persisting strategy_name + both strikes + expiration per open
-        spread position - real bookkeeping this pass doesn't add."""
+        A multi-leg position closes leg-by-leg here (independent
+        Liquidate() calls, SHORT legs first via _record_target_symbols() -
+        see its own docstring for why), NOT an atomic combo unwind - a
+        deliberate, documented scope trade-off (development/Problems.md
+        #38): an already-open, already-hedged position unwinding leg-by-
+        leg is a materially smaller risk than the entry side (which
+        needed atomicity via OptionStrategies to avoid an unhedged
+        half-fill). Reconstructing the exact OptionStrategy at close time
+        would need persisting strategy_name + every strike + expiration
+        per open position - real bookkeeping this pass doesn't add."""
         symbol_key = str(symbol)
         for target in self._order_target_symbols(symbol):
             self.Liquidate(target)
         records = self.option_positions_by_symbol.pop(symbol_key, None)
         if records:
             for record in records:
-                for target in (record["legs"] if record["kind"] == "spread" else [record["contract_symbol"]]):
+                for target in _record_target_symbols(record):
                     self.symbol_key_by_option_contract_symbol.pop(str(target), None)
 
     def _liquidate_option_record(self, symbol_key: str, record: dict) -> None:
@@ -3299,15 +3569,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         V4.4, the multi-position sibling of _liquidate_position() above,
         used when rotation or at-cap trimming needs to make room for a
         NEW position without disturbing any OTHER position still held for
-        the same underlying. Liquidates the record's leg(s), removes it
-        from self.option_positions_by_symbol's list (popping the now-empty
+        the same underlying. Liquidates the record's leg(s) SHORT-first
+        (_record_target_symbols()), removes it from
+        self.option_positions_by_symbol's list (popping the now-empty
         list entirely, matching _order_target_symbols()'s `if not
         records: return [symbol]` no-entry convention), and un-maps its
         leg(s) from the reverse map - the same bookkeeping
         _liquidate_position() does, just scoped to one record instead of
         all of them."""
-        targets = record["legs"] if record["kind"] == "spread" else [record["contract_symbol"]]
-        for target in targets:
+        for target in _record_target_symbols(record):
             self.Liquidate(target)
             self.symbol_key_by_option_contract_symbol.pop(str(target), None)
         records = self.option_positions_by_symbol.get(symbol_key)
@@ -3713,8 +3983,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if exclude_symbol is not None
                 else frozenset()
             )
+            # §9.4 - margin-tier records are counted ONCE via their own
+            # stored margin_required (a genuinely unbounded-risk position's
+            # real capital consumption, not abs(HoldingsValue) - a poor
+            # proxy there, unlike for bounded vega-budget structures where
+            # market value IS a reasonable risk proxy). margin_tier_leg_keys
+            # is used below to skip those same legs in the per-holding
+            # loop, so a margin-tier position is never double-counted.
+            margin_tier_leg_keys: set = set()
+            for records in self.option_positions_by_symbol.values():
+                for record in records:
+                    if record.get("kind") != "multi_leg" or "margin_required" not in record:
+                        continue
+                    leg_keys = {str(target) for target in record["legs"]}
+                    if leg_keys & exclude_targets:
+                        continue
+                    margin_tier_leg_keys |= leg_keys
+                    holding_symbol_key = self.symbol_key_by_option_contract_symbol.get(str(record["legs"][0]), "")
+                    asset = self.asset_lookup.get(holding_symbol_key, {})
+                    if _matches(asset):
+                        exposure += abs(float(record["margin_required"])) / total_value
             for holding in self.Portfolio.Values:
-                if str(holding.Symbol) in exclude_targets:
+                if str(holding.Symbol) in exclude_targets or str(holding.Symbol) in margin_tier_leg_keys:
                     continue
                 # A7: a real option position is held on the CONTRACT Symbol,
                 # not the canonical chain Symbol self.asset_lookup is keyed
@@ -3933,6 +4223,182 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.latest_signal_state[symbol_key] = "hold"
             self.Debug(f"asset_class_disabled_liquidation: {symbol_key} ({asset_class})")
 
+    def _apply_option_expiry_auto_close_sweep(self) -> None:
+        """§9.5 of the V4.5 plan - force-liquidates ANY held option
+        position (single_leg or multi_leg) within
+        self.options_auto_close_days_before_expiry calendar days of its
+        NEAREST leg's expiry (a calendar-family position has 2 distinct
+        expiries - the near one is what matters for pin/assignment risk).
+        Runs once per bar, right after the disabled-asset-class sweep -
+        same "resolve stale state before this bar's fresh Pass 1/Pass 2
+        signal computation" anchor point.
+
+        Pure date arithmetic (option_auto_close_due(), mirroring
+        risk/futures_risk.py::rollover_due()'s own diagnostic-date-check
+        pattern, generalized from futures rollover to options expiry)
+        drives the trigger; this method is the thin iterate-and-call
+        adapter, same split every other sweep in this file already uses.
+
+        Deliberately unconditional (not gated behind
+        options_multi_leg_strategies_enabled) - this gap (zero expiry-day
+        management) pre-dates V4.5 and applies identically to the 2
+        pre-existing verticals; it only ever fires for a position ALREADY
+        within the configured window of expiry, changes no entry
+        behavior, and only ever REDUCES risk - the same unconditional-
+        safety-net precedent the disabled-asset-class sweep above already
+        established. option_positions_by_symbol is only ever populated on
+        the real-order path (see _apply_option_order()'s "not
+        orders_allowed" early return), so this loop is naturally empty
+        in observation mode - no explicit orders_allowed branch needed."""
+        current_date = self.Time.date()
+        for symbol_key, records in list(self.option_positions_by_symbol.items()):
+            for record in list(records):
+                expiries = record["expiries"] if record["kind"] == "multi_leg" else (record["expiry"],)
+                nearest_expiry = min(datetime.fromisoformat(expiry).date() for expiry in expiries)
+                if option_auto_close_due(current_date, nearest_expiry, self.options_auto_close_days_before_expiry):
+                    self._liquidate_option_record(symbol_key, record)
+
+    def _covered_protective_equity_quantity(self, underlying_ticker: str | None) -> float:
+        """§6/§9.3 - the equity leg's CURRENTLY HELD quantity for a
+        covered/protective option's underlying (one-bar lag: fills are
+        asynchronous, the same limitation _active_position_count()'s
+        pending-reservation workaround already documents). Reuses
+        self.ticker_to_symbol (built once at startup, permanent) rather
+        than a new per-bar lookup structure - it already maps ANY asset's
+        ticker, equity included, to its real Lean Symbol, so no new state
+        is needed to satisfy this read-only lookup. Real-order-only (see
+        _manage_covered_protective_positions()'s own gate) - always reads
+        self.Portfolio directly. Returns 0.0 (a covering_equity_side check
+        against 0.0 always fails, correctly forcing a liquidate/no-entry)
+        when no equity asset is configured for this underlying at all."""
+        if not underlying_ticker:
+            return 0.0
+        symbol = self.ticker_to_symbol.get(underlying_ticker)
+        if symbol is None:
+            return 0.0
+        return float(self.Portfolio[symbol].Quantity)
+
+    def _manage_covered_protective_positions(self) -> None:
+        """§6/§9.3/§9.6 of the V4.5 plan - covered/protective/collar's
+        option leg(s), sized as a RATIO against the equity leg's
+        currently-held quantity, entirely independent of the option
+        asset's own buy/sell/short signal (this overlay exists to manage
+        risk against an EXISTING equity position, not to express a fresh
+        directional view on the option itself) - never routed through
+        _apply_signal()/_build_dynamic_sizing_payload() at all. Runs once
+        per bar, after self.latest_options_chains_payload is built (needs
+        this bar's live chain to select/resize the option leg(s)).
+
+        Gated to real orders only (real-money margin/assignment
+        consequences make this too risky to approximate in the simulated
+        observation-mode portfolio, which has no cross-asset equity/option
+        coordination concept at all) and to
+        options_multi_leg_strategies_enabled (byte-identical-default: this
+        entire method is a no-op when the flag is off, same gate every
+        other V4.5 addition in this file respects).
+
+        Force-liquidates a held record FIRST if the equity leg no longer
+        covers it (§9.3's fix - prevents a covered call silently becoming
+        an accidental naked call the instant the stock is sold elsewhere,
+        via a different signal or a disabled-asset-class sweep), before
+        any new sizing/entry is attempted. protective_collar's 2 option
+        legs (§9.6) are both checked/tracked as ONE record here, exactly
+        like every other covered/protective strategy - build_covered_
+        protective_position_sizing() and the registry already treat it
+        uniformly, no collar-specific branch needed."""
+        if not (self.options_risk_enabled and self.options_multi_leg_strategies_enabled):
+            return
+        orders_allowed, _ = self._order_permission()
+        if not orders_allowed:
+            return
+
+        covered_protective_names = [
+            name for name in self.options_enabled_strategy_names
+            if MULTI_LEG_STRATEGY_REGISTRY.get(name) is not None
+            and MULTI_LEG_STRATEGY_REGISTRY[name].risk_tier == "covered_protective"
+        ]
+
+        for asset in self.phase1["universe"]["assets"]:
+            asset_class = asset.get("asset_class") or asset.get("security_type")
+            if asset_class != "option":
+                continue
+            underlying_ticker = asset.get("underlying_ticker")
+            if not underlying_ticker:
+                continue
+            symbol = self.ticker_to_symbol.get(asset["ticker"])
+            if symbol is None:
+                continue
+            symbol_key = str(symbol)
+            equity_quantity = self._covered_protective_equity_quantity(underlying_ticker)
+
+            held_records = self.option_positions_by_symbol.get(symbol_key, [])
+            live_covered_protective_records = [
+                record for record in held_records
+                if record["kind"] == "multi_leg"
+                and MULTI_LEG_STRATEGY_REGISTRY.get(record["strategy_name"]) is not None
+                and MULTI_LEG_STRATEGY_REGISTRY[record["strategy_name"]].risk_tier == "covered_protective"
+                and any(self.Portfolio[target].Invested for target in record["legs"])
+            ]
+            for record in live_covered_protective_records:
+                spec = MULTI_LEG_STRATEGY_REGISTRY[record["strategy_name"]]
+                covering_side_ok = (
+                    (spec.covering_equity_side == "long" and equity_quantity > 0.0)
+                    or (spec.covering_equity_side == "short" and equity_quantity < 0.0)
+                )
+                contracts_covered = int(math.floor(abs(equity_quantity) / 100.0)) if covering_side_ok else 0
+                if contracts_covered <= 0:
+                    self._liquidate_option_record(symbol_key, record)
+
+            if not covered_protective_names:
+                continue
+            strategy_name = covered_protective_names[0]
+            held_records = self.option_positions_by_symbol.get(symbol_key, [])  # re-fetch: may have just shrunk above
+            live_record = next(
+                (
+                    record for record in held_records
+                    if record["kind"] == "multi_leg" and record["strategy_name"] == strategy_name
+                    and any(self.Portfolio[target].Invested for target in record["legs"])
+                ),
+                None,
+            )
+
+            available_chain = self.latest_options_chains_payload.get(underlying_ticker, [])
+            decision = build_covered_protective_position_sizing(
+                strategy_name, confidence=1.0, available_chain=available_chain, equity_quantity=equity_quantity,
+                contract_multiplier=100.0,
+            )
+            if decision is None:
+                # No coverage this bar, or no usable chain row - the
+                # force-liquidate check above already handled "was
+                # covered, now isn't"; nothing new to size.
+                continue
+
+            # No real "target weight" concept for a ratio-sized overlay -
+            # 0.0 (N/A) is carried through purely for the pending-limit-
+            # order bookkeeping shape, matching this file's existing
+            # "not_applicable" sentinel convention for non-directional
+            # fields elsewhere (e.g. risk/asset_class_router.py's
+            # topology_sizing_reason for futures/options).
+            target_weight = 0.0
+            close_price = float(available_chain[0]["underlying_price"]) if available_chain else 0.0
+
+            if live_record is not None:
+                if not self.position_scaling_enabled:
+                    continue
+                current_units = min(abs(float(self.Portfolio[target].Quantity)) for target in live_record["legs"])
+                delta = int(round(compute_incremental_order_quantity(decision.contracts, current_units)))
+                if delta == 0:
+                    continue
+                self._place_option_multi_leg_delta_order(
+                    symbol, symbol_key, strategy_name, live_record["legs"], live_record["strikes"],
+                    live_record["expiries"], delta, target_weight, close_price,
+                )
+                continue
+
+            self._enter_option_multi_leg(
+                symbol, symbol_key, decision, target_weight, close_price, is_rotation=False, is_additional=False,
+            )
+
     def _process_pending_limit_order_timeouts(self) -> None:
         """Real limit-order support (execution/risk realism pass, part 2):
         runs once per bar, immediately after _refresh_risk_state() above -
@@ -3947,14 +4413,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         or self.pending_limit_orders is empty - zero cost in the
         default-off configuration beyond one dict-emptiness check.
 
-        V4.4: a record's "tickets"/"target_symbols" are parallel lists -
-        length 1 for equity/crypto/bond/future/single-leg-option, length 2
-        for a spread combo (_try_submit_spread_limit_order()), handled
-        uniformly here via one zip() loop instead of branching on shape.
-        A spread record is stored under BOTH leg Symbol-string keys
-        pointing at the SAME dict, so processed_record_ids (keyed by
-        id(), not by dict content) is what stops it from being resolved
-        twice in one pass."""
+        V4.4/V4.5: a record's "tickets"/"target_symbols" are parallel
+        lists - length 1 for equity/crypto/bond/future/single-leg-option,
+        length N for a multi-leg combo (_try_submit_multi_leg_limit_order()),
+        handled uniformly here via one zip() loop instead of branching on
+        shape. A multi-leg record is stored under EVERY leg's Symbol-
+        string key pointing at the SAME dict, so processed_record_ids
+        (keyed by id(), not by dict content) is what stops it from being
+        resolved twice in one pass."""
         if not self.limit_orders_enabled or not self.pending_limit_orders:
             return
 

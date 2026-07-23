@@ -30,16 +30,29 @@ from risk.position_sizing import PositionSizingDecision, build_dynamic_position_
 
 try:
     from portfolio.options_strategy import (
+        MULTI_LEG_STRATEGY_REGISTRY,
         OptionsPositionDecision,
         OptionsSpreadPositionDecision,
+        build_multi_leg_position_sizing,
         build_options_position_sizing,
         build_vertical_spread_position_sizing,
+        order_enabled_strategies,
+        strategies_for_volatility_view,
     )
 except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
+    MULTI_LEG_STRATEGY_REGISTRY = {}
     OptionsPositionDecision = None
     OptionsSpreadPositionDecision = None
     build_options_position_sizing = None
     build_vertical_spread_position_sizing = None
+    build_multi_leg_position_sizing = None
+    order_enabled_strategies = None
+    strategies_for_volatility_view = None
+
+try:
+    from portfolio.options_margin_sizing import build_margin_position_sizing
+except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
+    build_margin_position_sizing = None
 
 FUTURES_OPTIONS_SENTINEL_VOLATILITY_REGIME = "not_applicable_non_volatility_sizing"
 
@@ -126,6 +139,178 @@ def _options_spread_decision_to_position_sizing(
         rank_multiplier=1.0,
         rank_sizing_reason="not_applicable_options",
     )
+
+
+def _multi_leg_decision_to_position_sizing(
+    decision, portfolio_value: float, max_vega_budget_pct_of_equity: float
+) -> PositionSizingDecision:
+    """OptionsMultiLegPositionDecision sibling of
+    _options_spread_decision_to_position_sizing() above - N-leg
+    generalization of the identical net-delta/net-vega mapping. Direction
+    is read off the FIRST leg's right (matches the 2-leg adapter's own
+    "legs[0].right" convention) - a reasonable single-scalar proxy for a
+    decision this codebase's shared PositionSizingDecision shape can't
+    fully represent regardless of leg count, exactly the same limitation
+    the 2-leg adapter already documents."""
+    max_budget = max_vega_budget_pct_of_equity or 1.0
+    direction = 1.0 if decision.legs[0].right == "call" else -1.0
+    return PositionSizingDecision(
+        base_target_weight=direction * decision.net_delta,
+        target_weight=direction * decision.net_vega,
+        rolling_volatility=0.0,
+        annualized_volatility=0.0,
+        volatility_regime=FUTURES_OPTIONS_SENTINEL_VOLATILITY_REGIME,
+        volatility_multiplier=decision.net_delta,
+        confidence_multiplier=1.0,
+        topology_multiplier=1.0,
+        leverage_factor=decision.net_vega / max_budget,
+        max_leverage=max_budget,
+        sizing_reason=decision.sizing_reason,
+        topology_sizing_reason="not_applicable_options",
+        volatility_source="not_applicable",
+        rank_multiplier=1.0,
+        rank_sizing_reason="not_applicable_options",
+    )
+
+
+def _margin_decision_to_position_sizing(decision, portfolio_value: float) -> PositionSizingDecision:
+    """MarginSizingDecision adapter - margin_utilization (already a
+    budget-used FRACTION, see options_margin_sizing.py) maps onto
+    leverage_factor/max_leverage exactly like the futures adapter's
+    margin_utilization/max_margin_utilization mapping above, since both
+    are genuinely margin-based sizing, not vega-based."""
+    direction = 1.0 if decision.legs[0].right == "call" else -1.0
+    return PositionSizingDecision(
+        base_target_weight=direction * decision.margin_utilization,
+        target_weight=direction * decision.margin_utilization,
+        rolling_volatility=0.0,
+        annualized_volatility=0.0,
+        volatility_regime=FUTURES_OPTIONS_SENTINEL_VOLATILITY_REGIME,
+        volatility_multiplier=0.0,
+        confidence_multiplier=1.0,
+        topology_multiplier=1.0,
+        leverage_factor=decision.margin_utilization,
+        max_leverage=1.0,
+        sizing_reason=decision.sizing_reason,
+        topology_sizing_reason="not_applicable_options",
+        volatility_source="not_applicable",
+        rank_multiplier=1.0,
+        rank_sizing_reason="not_applicable_options",
+    )
+
+
+def route_multi_leg_option_sizing(
+    enabled_strategy_names: list,
+    signal_name: str,
+    confidence: float,
+    available_chain: list,
+    portfolio_value: float,
+    underlying_price: float,
+    volatility_view: str,
+    risk_tier_preference: str,
+    margin_family_enabled: bool,
+    *,
+    target_delta_at_full_confidence: float,
+    max_vega_budget_pct_of_equity: float,
+    short_leg_delta_offset: float,
+    contract_multiplier: float,
+    target_margin_utilization: float,
+    max_margin_utilization: float,
+    pct_of_underlying_value: float,
+    min_pct_of_underlying_value: float,
+) -> tuple[PositionSizingDecision, dict] | None:
+    """V4.5 - the full-coverage sibling of route_position_sizing()'s
+    option branch: tries `enabled_strategy_names`, reordered by
+    order_enabled_strategies() (§9.2's priority-list semantic), stopping
+    at the FIRST candidate that actually sizes. "single_leg" has no
+    MULTI_LEG_STRATEGY_REGISTRY entry (it's not an OptionStrategies
+    factory) and is special-cased to the existing
+    build_options_position_sizing() path; every other name is looked up
+    in the registry and dispatched by risk_tier:
+      - "vega_budget" -> build_multi_leg_position_sizing() (this includes
+        bull_call_spread/bear_put_spread too when reached via this NEW
+        router - the registry-driven selector is provably identical
+        geometry to the OLD dedicated build_vertical_spread_position_sizing()
+        for those 2, see options_strategy.py's select_vertical_legs()).
+      - margin tiers -> build_margin_position_sizing(), but ONLY when
+        margin_family_enabled (§5's hard gate - main.py additionally
+        requires runtime_mode == "backtest" before ever setting this True,
+        see main.py's own gate).
+      - "covered_protective" -> skipped here entirely; main.py's
+        corrected cross-asset design sizes these separately (needs the
+        held EQUITY quantity, not available_chain alone - see
+        build_covered_protective_position_sizing()).
+      - "unreachable_arbitrage" -> always skipped, by design (§8).
+
+    straddle/strangle/iron_condor/iron_butterfly shape families are
+    additionally gated to strategies_for_volatility_view(volatility_view)
+    - every other shape family (vertical, butterfly, calendar, backspread,
+    ladder, naked) is NOT volatility-gated at all, firing whenever it's
+    the enabled candidate and its own selector finds a usable chain
+    (§4's "within-bucket selection follows directly from the allowlist").
+
+    Returns None when nothing in the (possibly empty) enabled list sizes
+    - callers must treat that as "no option position this bar", same
+    degrade-to-absent contract as every other branch in this module."""
+    if order_enabled_strategies is None or strategies_for_volatility_view is None:
+        return None
+
+    ordered_names = order_enabled_strategies(enabled_strategy_names, risk_tier_preference)
+    view_gated_families = {"straddle", "strangle", "iron_condor", "iron_butterfly"}
+    eligible_view_names = strategies_for_volatility_view(volatility_view)
+
+    for strategy_name in ordered_names:
+        if strategy_name == "single_leg":
+            if build_options_position_sizing is None:
+                continue
+            decision = build_options_position_sizing(
+                signal_direction=signal_name,
+                confidence=confidence,
+                available_chain=available_chain or [],
+                portfolio_value=portfolio_value,
+                target_delta_at_full_confidence=target_delta_at_full_confidence,
+                max_vega_budget_pct_of_equity=max_vega_budget_pct_of_equity,
+            )
+            if decision is not None:
+                return (
+                    _options_decision_to_position_sizing(decision, portfolio_value, max_vega_budget_pct_of_equity),
+                    {"options_decision": decision},
+                )
+            continue
+
+        spec = MULTI_LEG_STRATEGY_REGISTRY.get(strategy_name)
+        if spec is None or spec.risk_tier in ("covered_protective", "unreachable_arbitrage"):
+            continue
+        if spec.shape_family in view_gated_families and strategy_name not in eligible_view_names:
+            continue
+
+        if spec.risk_tier == "vega_budget":
+            if build_multi_leg_position_sizing is None:
+                continue
+            selector_kwargs = {"short_leg_delta_offset": short_leg_delta_offset} if spec.shape_family == "vertical" else {}
+            decision = build_multi_leg_position_sizing(
+                strategy_name, signal_name, confidence, available_chain or [], portfolio_value,
+                target_delta_at_full_confidence, max_vega_budget_pct_of_equity, **selector_kwargs,
+            )
+            if decision is not None:
+                return (
+                    _multi_leg_decision_to_position_sizing(decision, portfolio_value, max_vega_budget_pct_of_equity),
+                    {"options_decision": decision},
+                )
+            continue
+
+        # margin tiers (margin_naked / margin_uncovered_leg / margin_bounded_backspread)
+        if not margin_family_enabled or build_margin_position_sizing is None:
+            continue
+        decision = build_margin_position_sizing(
+            strategy_name, signal_name, confidence, available_chain or [], underlying_price, portfolio_value,
+            contract_multiplier, target_delta_at_full_confidence, target_margin_utilization, max_margin_utilization,
+            pct_of_underlying_value, min_pct_of_underlying_value,
+        )
+        if decision is not None:
+            return _margin_decision_to_position_sizing(decision, portfolio_value), {"options_decision": decision}
+
+    return None
 
 
 def _zero_position_sizing(reason: str) -> PositionSizingDecision:

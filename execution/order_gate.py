@@ -247,7 +247,7 @@ _NO_OP_EXECUTION_NOTES = frozenset(
         "max_active_positions_reached",
         "futures_zero_contract_count",
         "options_no_usable_contract",
-        "options_spread_no_usable_legs",
+        "options_multi_leg_no_usable_legs",
         # V4.3.0 - allow adding to an existing position (development/
         # Changelog.md). Plain constants only, never f-strings - this
         # denylist is exact-string matching, and an f-string note would
@@ -258,8 +258,8 @@ _NO_OP_EXECUTION_NOTES = frozenset(
         "futures_zero_delta_kept",
         "options_kept",
         "options_contract_drifted_kept",
-        "options_spread_kept",
-        "options_spread_legs_mismatch_kept",
+        "options_multi_leg_kept",
+        "options_multi_leg_mismatch_kept",
         # V4.4 - architecturally-sound options (development/Problems.md):
         # single-leg/spread scale-down replaced "options_zero_or_negative_
         # delta_kept"/"options_spread_shrink_unsupported" (both retired -
@@ -268,6 +268,13 @@ _NO_OP_EXECUTION_NOTES = frozenset(
         "options_zero_delta_kept",
         "options_at_position_cap_kept",
         "options_held_contract_not_in_chain_kept",
+        # V4.5 (full OptionStrategies coverage, §9.1): the at-cap re-price
+        # search is scoped to records sharing this bar's strategy_name -
+        # when no held record is a comparable shape, there's nothing
+        # sensible to re-price, a distinct no-op from every "kept" reason
+        # above (renamed from V4.4's "spread"-suffixed strings - "spread"
+        # retired as a record kind, folded into "multi_leg", see main.py).
+        "options_no_comparable_position_to_reprice_kept",
     }
 )
 _NO_OP_EXECUTION_NOTE_SUFFIXES = ("_exposure_cap_reached",)

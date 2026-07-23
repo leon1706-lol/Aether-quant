@@ -16,12 +16,35 @@ function AssetClassDetail({ sizing }: { sizing: DynamicSizing }) {
   const extra = sizing.asset_class_routing_extra
   if (!extra) return null
 
-  if (extra.options_decision) {
-    const d = extra.options_decision
+  const decision = extra.options_decision
+  if (decision && 'legs' in decision) {
+    // V4.5 - a multi-leg decision (legacy 2-leg vertical, any of the 41
+    // new registry-driven strategies, or a margin-tier decision) - never
+    // has `right`/`strike`/`actual_delta` at the top level like the
+    // single-leg OptionsDecision below, distinguished by the presence of
+    // `legs` instead.
+    const expiry = 'expiry' in decision && decision.expiry ? decision.expiry : decision.expiries?.join(' / ')
+    const legsSummary = decision.legs.map((leg) => `${leg.side} ${leg.right} ${formatNumber(leg.strike)}`).join(', ')
+    if ('margin_required' in decision) {
+      return (
+        <div className="mt-1 text-[0.74rem] text-white/50">
+          {decision.contracts}x {decision.strategy_name} ({legsSummary}) exp {expiry} · margin{' '}
+          {formatPercent(decision.margin_utilization)}
+        </div>
+      )
+    }
     return (
       <div className="mt-1 text-[0.74rem] text-white/50">
-        {d.contracts}x {d.right} {formatNumber(d.strike)} exp {d.expiry} · Δ {formatNumber(d.actual_delta)} · vega
-        budget {formatPercent(d.vega_budget_used)}
+        {decision.contracts}x {decision.strategy_name} ({legsSummary}) exp {expiry} · net Δ{' '}
+        {formatNumber(decision.net_delta)} · vega budget {formatPercent(decision.net_vega)}
+      </div>
+    )
+  }
+  if (decision) {
+    return (
+      <div className="mt-1 text-[0.74rem] text-white/50">
+        {decision.contracts}x {decision.right} {formatNumber(decision.strike)} exp {decision.expiry} · Δ{' '}
+        {formatNumber(decision.actual_delta)} · vega budget {formatPercent(decision.vega_budget_used)}
       </div>
     )
   }

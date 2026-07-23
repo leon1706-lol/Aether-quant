@@ -1,5 +1,6 @@
 from risk.asset_class_router import (
     resolve_asset_class_enabled,
+    route_multi_leg_option_sizing,
     route_position_sizing,
     should_liquidate_disabled_asset_class_position,
 )
@@ -233,3 +234,96 @@ def test_option_vertical_spread_no_usable_spread_degrades_to_zero_no_crash():
     assert extra == {}
     assert decision.target_weight == 0.0
     assert decision.sizing_reason == "no_usable_vertical_spread_or_zero_signal"
+
+
+# ---------------------------------------------------------------------------
+# route_multi_leg_option_sizing (V4.5 - full OptionStrategies coverage)
+# ---------------------------------------------------------------------------
+
+
+def _full_coverage_chain() -> list[dict]:
+    rows = []
+    for strike in range(70, 131, 5):
+        call_delta = max(0.02, min(0.98, 0.5 + (100 - strike) * 0.02))
+        put_delta = call_delta - 1.0
+        distance = abs(strike - 100)
+        vega = max(0.1, 3.0 - distance * 0.15)
+        rows.append({"symbol": f"C{strike}", "right": "call", "strike": float(strike), "expiry": "2026-08-21", "delta": call_delta, "vega": vega, "bid": 1.0, "ask": 1.1})
+        rows.append({"symbol": f"P{strike}", "right": "put", "strike": float(strike), "expiry": "2026-08-21", "delta": put_delta, "vega": vega, "bid": 1.0, "ask": 1.1})
+    return rows
+
+
+def _multi_leg_kwargs(**overrides) -> dict:
+    base = dict(
+        target_delta_at_full_confidence=0.6, max_vega_budget_pct_of_equity=0.02, short_leg_delta_offset=0.20,
+        contract_multiplier=100.0, target_margin_utilization=0.20, max_margin_utilization=0.40,
+        pct_of_underlying_value=0.20, min_pct_of_underlying_value=0.10,
+    )
+    base.update(overrides)
+    return base
+
+
+def test_route_multi_leg_option_sizing_default_list_single_leg_wins():
+    result = route_multi_leg_option_sizing(
+        ["single_leg", "bull_call_spread", "bear_put_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    assert result is not None
+    decision, extra = result
+    assert extra["options_decision"].right == "call"
+
+
+def test_route_multi_leg_option_sizing_short_vol_prefers_iron_condor_over_short_straddle():
+    result = route_multi_leg_option_sizing(
+        ["short_straddle", "iron_condor"], "sell", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "short_vol", "defined_risk_first", True, **_multi_leg_kwargs(),
+    )
+    assert result is not None
+    _, extra = result
+    assert extra["options_decision"].strategy_name == "iron_condor"
+
+
+def test_route_multi_leg_option_sizing_neutral_view_excludes_straddle_and_iron_condor():
+    result = route_multi_leg_option_sizing(
+        ["short_straddle", "iron_condor"], "sell", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", True, **_multi_leg_kwargs(),
+    )
+    assert result is None
+
+
+def test_route_multi_leg_option_sizing_margin_tier_requires_margin_family_enabled():
+    disabled = route_multi_leg_option_sizing(
+        ["naked_call"], "sell", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    assert disabled is None
+    enabled = route_multi_leg_option_sizing(
+        ["naked_call"], "sell", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", True, **_multi_leg_kwargs(),
+    )
+    assert enabled is not None
+    assert enabled[1]["options_decision"].strategy_name == "naked_call"
+
+
+def test_route_multi_leg_option_sizing_covered_protective_never_selected():
+    result = route_multi_leg_option_sizing(
+        ["covered_call"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", True, **_multi_leg_kwargs(),
+    )
+    assert result is None
+
+
+def test_route_multi_leg_option_sizing_arbitrage_never_selected():
+    result = route_multi_leg_option_sizing(
+        ["box_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", True, **_multi_leg_kwargs(),
+    )
+    assert result is None
+
+
+def test_route_multi_leg_option_sizing_empty_enabled_list_returns_none():
+    result = route_multi_leg_option_sizing(
+        [], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    assert result is None

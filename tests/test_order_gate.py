@@ -357,10 +357,10 @@ def test_classify_order_status_unknown_string_returns_unknown_not_raises():
         "rotated_option_put",
         "submitted_limit_rotated_option_call",
         "submitted_limit_rotated_option_put",
-        "scaled_option_spread_bull_call_spread",
-        "scaled_option_spread_bear_put_spread",
-        "rotated_option_spread_bull_call_spread",
-        "rotated_option_spread_bear_put_spread",
+        "scaled_option_multi_leg_bull_call_spread",
+        "scaled_option_multi_leg_bear_put_spread",
+        "rotated_option_multi_leg_bull_call_spread",
+        "rotated_option_multi_leg_bear_put_spread",
         # V4.4 - architecturally-sound options (development/Problems.md):
         # single-leg/spread scale-DOWN (a negative delta reduces an
         # already-open position, no longer a no-op), the multi-position
@@ -370,24 +370,24 @@ def test_classify_order_status_unknown_string_returns_unknown_not_raises():
         "reduced_option_put",
         "submitted_limit_reduced_option_call",
         "submitted_limit_reduced_option_put",
-        "reduced_option_spread_bull_call_spread",
-        "reduced_option_spread_bear_put_spread",
+        "reduced_option_multi_leg_bull_call_spread",
+        "reduced_option_multi_leg_bear_put_spread",
         "opened_additional_option_call",
         "opened_additional_option_put",
         "submitted_limit_opened_additional_option_call",
         "submitted_limit_opened_additional_option_put",
-        "opened_additional_option_spread_bull_call_spread",
-        "opened_additional_option_spread_bear_put_spread",
-        "submitted_limit_option_spread_bull_call_spread",
-        "submitted_limit_option_spread_bear_put_spread",
-        "submitted_limit_scaled_option_spread_bull_call_spread",
-        "submitted_limit_scaled_option_spread_bear_put_spread",
-        "submitted_limit_reduced_option_spread_bull_call_spread",
-        "submitted_limit_reduced_option_spread_bear_put_spread",
-        "submitted_limit_rotated_option_spread_bull_call_spread",
-        "submitted_limit_rotated_option_spread_bear_put_spread",
-        "submitted_limit_opened_additional_option_spread_bull_call_spread",
-        "submitted_limit_opened_additional_option_spread_bear_put_spread",
+        "opened_additional_option_multi_leg_bull_call_spread",
+        "opened_additional_option_multi_leg_bear_put_spread",
+        "submitted_limit_option_multi_leg_bull_call_spread",
+        "submitted_limit_option_multi_leg_bear_put_spread",
+        "submitted_limit_scaled_option_multi_leg_bull_call_spread",
+        "submitted_limit_scaled_option_multi_leg_bear_put_spread",
+        "submitted_limit_reduced_option_multi_leg_bull_call_spread",
+        "submitted_limit_reduced_option_multi_leg_bear_put_spread",
+        "submitted_limit_rotated_option_multi_leg_bull_call_spread",
+        "submitted_limit_rotated_option_multi_leg_bear_put_spread",
+        "submitted_limit_opened_additional_option_multi_leg_bull_call_spread",
+        "submitted_limit_opened_additional_option_multi_leg_bear_put_spread",
     ],
 )
 def test_is_real_order_placement_true_for_real_outcomes(execution_note):
@@ -405,7 +405,7 @@ def test_is_real_order_placement_true_for_real_outcomes(execution_note):
         "max_active_positions_reached",
         "futures_zero_contract_count",
         "options_no_usable_contract",
-        "options_spread_no_usable_legs",
+        "options_multi_leg_no_usable_legs",
         "equity_exposure_cap_reached",
         "short_exposure_cap_reached",
         # V4.3.0 - allow adding to an existing position (development/
@@ -417,8 +417,8 @@ def test_is_real_order_placement_true_for_real_outcomes(execution_note):
         "futures_zero_delta_kept",
         "options_kept",
         "options_contract_drifted_kept",
-        "options_spread_kept",
-        "options_spread_legs_mismatch_kept",
+        "options_multi_leg_kept",
+        "options_multi_leg_mismatch_kept",
         # V4.4 - architecturally-sound options (development/Problems.md):
         # "options_zero_or_negative_delta_kept"/"options_spread_shrink_
         # unsupported" retired - a negative delta is now a REAL reduce
@@ -426,6 +426,11 @@ def test_is_real_order_placement_true_for_real_outcomes(execution_note):
         "options_zero_delta_kept",
         "options_at_position_cap_kept",
         "options_held_contract_not_in_chain_kept",
+        # V4.5 (full OptionStrategies coverage, §9.1) - "spread" retired as
+        # a record kind (folded into "multi_leg"); the at-cap re-price
+        # search now scopes to same-strategy_name records only, degrading
+        # to this distinct no-op when nothing comparable is held.
+        "options_no_comparable_position_to_reprice_kept",
     ],
 )
 def test_is_real_order_placement_false_for_no_op_outcomes(execution_note):

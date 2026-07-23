@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1591%2F1591%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1591 of 1591 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1656%2F1656%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1656 of 1656 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -73,10 +73,10 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position) and V4.4 (options architecture) shipped.**
+**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), and V4.5 (full `OptionStrategies` coverage) shipped.**
 Multi-asset-class trading (equities, crypto, bonds, futures, options),
 the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->1591<!-- AQ:TEST_COUNT_END -->
+(<!-- AQ:TEST_COUNT_START -->1656<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
 - **V4.1 (visualisation), shipped:** the first V4 work item — see
@@ -106,6 +106,22 @@ tests) and wired end-to-end inside Lean.
   the new Sell-combo/combo-limit-order paths need a real backtest with an
   option asset connected before they're anything more than reviewed code.
 
+- **V4.5 (full `OptionStrategies` coverage), shipped:** all 43 of
+  QuantConnect's option factories are now registry-driven and reachable
+  (up from 2) — straddles/strangles/butterflies/iron condors & butterflies/
+  calendar spreads/backspreads/ladders/naked shorts/covered-protective-
+  collar, plus the 6 arbitrage strategies wired but deliberately
+  unreachable pending a future mispricing detector. New margin-based
+  sizing for genuinely unbounded-risk shapes, a volatility-view signal
+  (predicted vol vs. chain IV) driving straddle/strangle/iron-condor
+  selection, and corrected cross-asset equity+option coordination for
+  covered/protective positions (the option leg is never bundled into the
+  same order as the equity leg). Off by default
+  (`phase_v2.options_risk.multi_leg_strategies_enabled: false`,
+  byte-identical to V4.4 when off). See `development/Problems.md` #59.
+  Code-complete but **IB-unverified**, same status every options pass
+  before this one carries.
+
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
   [Backtest Results](#backtest-results)). This is a real flip from the
@@ -128,7 +144,7 @@ features) but remain **data-empty until an Interactive Brokers key is
 connected** (`phase_v2.ib.enabled`, see `aq ib status`/`aq assets
 status`). Remaining, still-open items:
 
-- **IB is unverified end-to-end**: futures margin uses a static reference file rather than live IB margin, and the connection itself has never been tested against a real Gateway. Vertical spreads (#38) are unverified for the same reason, no option/future asset exists in the universe yet, and adding a real one goes through the IB-backed `aq fetch options --apply` path.
+- **IB is unverified end-to-end**: futures margin uses a static reference file rather than live IB margin, and the connection itself has never been tested against a real Gateway. All 43 option structures (#38, #59) are unverified for the same reason, no option/future asset exists in the universe yet, and adding a real one goes through the IB-backed `aq fetch options --apply` path.
 
 ## Table of Contents
 
@@ -435,7 +451,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1591<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1656<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -521,7 +537,7 @@ last backtest.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1591<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1656<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -817,7 +833,9 @@ All finished phases and changes can be found in
 - Walk-forward training, Stage 6 of the rank-pivot roadmap (`phase_v2.retraining.walk_forward`, `aq train --walk-forward`), still deferred after this session's single-window retrain.
 
 **Assets**
-- More complex option strategies, straddles, strangles, iron condors, butterflies, and general multi-leg spreads beyond today's 2-leg verticals (#38), using the rest of what `QuantConnect.Securities.Option.OptionStrategies` already offers.
+- ~~More complex option strategies, straddles, strangles, iron condors, butterflies, and general multi-leg spreads beyond today's 2-leg verticals (#38)~~ — **shipped as V4.5**: all 43 of `QuantConnect.Securities.Option.OptionStrategies`' factories are now registry-driven and reachable (up from 2), plus margin-based sizing, a volatility-view signal, and covered/protective/collar cross-asset coordination. Off by default, code-complete but IB-unverified. See `development/Problems.md` #59.
+  - A mispricing detector to actually drive the 6 stubbed arbitrage strategies (box/conversion/jelly-roll spreads) remains a separate, undone follow-up project.
+  - A per-asset `enabled_strategy_names` override and full early-assignment/corporate-action modeling are also deferred, see #59's own writeup.
 - Forex/FX as a tradable asset class, plus any other major asset classes still missing.
 - Single-bond trading (individual bonds, not just bond ETFs), today's fixed-income sleeve is entirely ETF-based (see the Universe Size section above).
 

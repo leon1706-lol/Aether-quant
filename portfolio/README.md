@@ -182,7 +182,7 @@ selection, in `main.py::_apply_signal()`'s existing per-symbol cap check —
 a book-selected bond/future/option symbol is not exempt from its class's
 exposure ceiling just because the book picked it.
 
-## `options_strategy.py` — greeks-sized options positions (single-leg default, optional 2-leg vertical spread)
+## `options_strategy.py` — greeks-sized options positions (single-leg default; optional 2-leg vertical, or all 43 `OptionStrategies` factories via V4.5)
 
 A second, narrower "sets direction/instrument, not just magnitude"
 decision layer, alongside `book_construction.py` above but for a different
@@ -200,10 +200,13 @@ contract `Symbol` from Lean's `slice.OptionChains` and places a real
 `development/Problems.md` #34. A 2-leg vertical call/put spread is
 available via `phase_v2.options_risk.spread_strategy: "vertical"`
 (`select_vertical_spread_legs()`/`build_vertical_spread_position_sizing()`
-below `build_options_position_sizing()` in this same file) — automatic
-selection of anything beyond a vertical (straddles/strangles/iron
-condors/butterflies) remains an explicit non-goal
-(`development/Problems.md` #29/#38).
+below `build_options_position_sizing()` in this same file) — both this
+and single-leg remain fully untouched, byte-identical dedicated code
+paths. Automatic selection of anything beyond these 2 (straddles/
+strangles/iron condors/butterflies/calendars/backspreads/ladders/naked
+shorts/covered-protective/collar) — previously an explicit non-goal
+(`development/Problems.md` #29/#38) — **shipped as V4.5**, see below and
+`development/Problems.md` #59.
 
 **Adding to an already-open position (V4.3.0)**: `main.py::_apply_option_order()`/
 `_apply_option_spread_order()` compare this bar's freshly-selected
@@ -247,6 +250,47 @@ this codebase has never exercised before — code-complete but
 IB-unverified, the same status the original Buy-combo entry path already
 carried. See `development/Problems.md` #58 for the full design and what
 remains deferred (rotation netting, anti-thrashing).
+
+**Full `OptionStrategies` coverage, all 43 factories (V4.5)**: the 2-leg
+vertical above is now one of 43 entries in `MULTI_LEG_STRATEGY_REGISTRY`,
+a `StrategySpec` per strategy (factory name, exact positional `arg_order`,
+per-leg `side`/`ratio`/`right` transcribed from Lean's real
+`OptionStrategies.cs` source, `risk_tier`) resolved through ~10 shared
+shape-family selectors (`select_straddle_legs`, `select_iron_condor_legs`,
+`select_ladder_legs`, etc., dispatched via one `select_strategy_legs()`)
+instead of 41 near-duplicate functions. `main.py`'s record shape
+generalized from the 2-leg-hardcoded `"kind": "spread"`
+(`legs`/`long_strike`/`short_strike`/`expiry`) to fully general
+`"kind": "multi_leg"` (`legs`/`strikes`/`expiries` — any leg count/ratio,
+1 or 2 expiries); `_apply_option_spread_order()`/`_enter_option_spread()`/
+`_place_option_spread_delta_order()`/`_try_submit_spread_limit_order()`
+generalized to their `_multi_leg` siblings, resolving the real
+`OptionStrategy` via one registry lookup (`_build_option_strategy_object()`)
+instead of a hardcoded 2-strategy ternary — the legacy vertical config
+path now flows through this same generalized machinery (confirmed
+byte-identical via the full pre-existing test suite passing unchanged).
+
+New `portfolio/options_margin_sizing.py` sizes the strategies a vega
+budget can't safely represent (naked shorts, short straddles/strangles,
+ladders' uncovered leg, backspreads' defined max loss) — see
+`risk/README.md`'s own V4.5 section for the full 3-sizing-paradigm
+breakdown, the volatility-view signal, and the 2 real risk-tier
+corrections found transcribing Lean's actual leg quantities (only
+`bull_call_ladder`/`bear_put_ladder` are genuinely unbounded of the 4
+ladders; only the inverted `short_*` backspreads are genuinely unbounded
+of the 4 backspreads). Covered/protective/collar's option leg(s) are
+sized as a ratio against the equity leg's held quantity
+(`build_covered_protective_position_sizing()`) and managed by a dedicated
+per-bar sweep (`main.py::_manage_covered_protective_positions()`) —
+entirely independent of the option asset's own buy/sell signal, since
+this overlay exists to manage risk against an *existing* equity position,
+not to express a fresh directional view.
+
+Entirely gated behind `phase_v2.options_risk.multi_leg_strategies_enabled`
+(default `false`, byte-identical to V4.4 when off). See
+`development/Problems.md` #59 for the full design and what remains
+deferred (a mispricing detector for the 6 stubbed arbitrage strategies,
+per-asset strategy overrides, full assignment/corporate-action modeling).
 
 ## Webui visibility
 

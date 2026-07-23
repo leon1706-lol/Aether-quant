@@ -334,6 +334,77 @@ opens (contained today by `rotate_on_drift`/`max_positions_per_underlying`
 both defaulting to the safe/off state). See `development/Problems.md`
 #58 for the full writeup.
 
+## Full `OptionStrategies` coverage: all 43 factories, registry-driven (V4.5, development/Problems.md #59)
+
+V4.4 above implemented exactly 2 of QuantConnect's 43 `OptionStrategies`
+factories. `portfolio/options_strategy.py`'s `MULTI_LEG_STRATEGY_REGISTRY`
+now covers all 43, each a `StrategySpec` (factory name, exact positional
+`arg_order`, per-leg `side`/`ratio`/`right`/`strike_role` transcribed
+directly from Lean's `OptionStrategies.cs` — not guessed from the
+factory's positional strike names, which don't reveal a leg's direction),
+grouped into shape families (vertical, straddle, strangle, butterfly,
+iron condor/butterfly, calendar, backspread, ladder, naked,
+covered/protective, collar, and 3 arbitrage families) each served by ONE
+shared selector instead of 41 near-duplicate functions.
+
+**Three sizing paradigms, kept deliberately separate:**
+- **Vega budget** (bounded-risk shapes) — `build_multi_leg_position_sizing()`,
+  the N-leg generalization of the existing single-leg/vertical vega
+  budget. Sizes by `abs(net_vega)`, not requiring positivity — a credit
+  structure's anchor leg is the higher-vega SHORT leg, so net_vega is
+  structurally negative by construction, a real bug caught before it
+  shipped.
+- **Margin** (`portfolio/options_margin_sizing.py`, new file) — Reg-T-style
+  naked margin (`naked_call`/`naked_put`/`short_straddle`/`short_strangle`
+  and the 2 genuinely-inverted-to-unbounded backspreads), uncovered-leg
+  margin (only the 2 ladder variants that invert to net-short), bounded-
+  max-loss margin (the 2 un-inverted, genuinely bounded backspreads).
+  Mirrors `risk/futures_risk.py`'s soft-target/hard-ceiling shape.
+  Explicitly documented as a first approximation, not broker-accurate.
+  Hard-gated in `main.py` to `runtime_mode == "backtest"` as a code-level
+  invariant, not just `phase_v2.options_risk.margin_family.enabled`.
+- **Equity-ratio** (`build_covered_protective_position_sizing()`) —
+  covered/protective/collar's option leg(s), floor-rounded from the
+  equity leg's currently-held quantity, never a vega/margin budget of
+  their own. `main.py` never submits QuantConnect's bundled
+  `covered_call`/`protective_put`/`protective_collar` factory as an order
+  (it bundles the equity trade INSIDE the combo, which would fight an
+  independently-traded equity asset for the same Security) — only the
+  option leg(s) are placed, via the existing single-leg/multi-leg order
+  machinery, and force-liquidated the instant the equity leg no longer
+  covers them.
+
+**Volatility-view signal** — `atm_implied_volatility()`/
+`classify_volatility_view()` classify `predicted_volatility` (annualized,
+`× √252`, at the `main.py` call site — never inside the classifier, since
+the raw daily high-low-range proxy and chain IV are unit-mismatched
+otherwise) against the chain's ATM IV into long_vol/short_vol/neutral,
+gating straddle/strangle/iron-condor/butterfly selection only — every
+other shape family isn't volatility-gated at all.
+
+**Strategy selection** — `phase_v2.options_risk.enabled_strategy_names` is
+an ORDERED priority list (not just a membership set); the first enabled
+name that matches the current volatility bucket and successfully sizes
+wins. `risk_tier_preference` (`"defined_risk_first"` default) reorders
+defined-risk names (iron condor/butterfly) ahead of unbounded-risk ones
+(short straddle/strangle) regardless of the list's own order — a safety-
+oriented default a user can invert explicitly.
+
+**Two real risk-tier corrections found transcribing the actual Lean leg
+quantities** (contradicting this feature's own initial plan): of the 4
+ladder strategies, only `bull_call_ladder`/`bear_put_ladder` are
+genuinely net-short and unbounded (`bear_call_ladder`/`bull_put_ladder`
+are net-long, bounded, and stay in the vega-budget tier); of the 4
+backspreads, only the inverted `short_*` variants are genuinely unbounded
+(the un-inverted originals are bounded-max-loss).
+
+Entirely gated behind `phase_v2.options_risk.multi_leg_strategies_enabled`
+(default `false`) — off, `main.py`'s option routing is byte-identical to
+V4.4 (the `spread_strategy` single_leg/vertical switch and the 2
+dedicated sizing functions only). See `development/Problems.md` #59 for
+the full writeup, including the expiry-day auto-close safety net and
+what remains deferred.
+
 ## Liquidating positions when an asset class gets disabled
 
 Closes a real gap: `phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled`

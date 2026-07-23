@@ -1250,7 +1250,23 @@
             "iv_solver_tolerance": 1e-06,
             "spread_strategy": "single_leg",
             "short_leg_delta_offset": 0.2,
-            "max_positions_per_underlying": 1
+            "max_positions_per_underlying": 1,
+            "multi_leg_strategies_enabled": false,
+            "enabled_strategy_names": ["single_leg", "bull_call_spread", "bear_put_spread"],
+            "volatility_view": {
+                "annualize_predicted_volatility": true,
+                "margin": 0.05,
+                "atm_iv_lookup_tolerance": 0.02,
+                "risk_tier_preference": "defined_risk_first"
+            },
+            "margin_family": {
+                "enabled": false,
+                "target_margin_utilization": 0.2,
+                "max_margin_utilization": 0.4,
+                "pct_of_underlying_value": 0.2,
+                "min_pct_of_underlying_value": 0.1
+            },
+            "auto_close_days_before_expiry": 2
         },
         "functionality": {
             "position_scaling": {

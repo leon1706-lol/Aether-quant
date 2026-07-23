@@ -4086,3 +4086,71 @@ cases, 23 new execution-note classifications). See `development/Problems.md`
 #58 for the full writeup, including the deferred rotation-netting and
 anti-thrashing follow-ups, and exactly which combo-API pieces remain
 IB-unverified.
+
+## V4.5 — full `OptionStrategies` coverage: all 43 QuantConnect option structures, registry-driven (Problems.md #59)
+
+V4.4 implemented exactly 2 of QuantConnect's 43 `OptionStrategies` factories
+(`bull_call_spread`/`bear_put_spread`). The user asked for a full inventory,
+then for a complete, end-to-end implementation of the remaining 41 so the NN
+can drive any structure Lean supports — no gaps. Confirmed scope: **all 43**;
+the 6 arbitrage strategies **stubbed for a future mispricing detector**
+(wired/unit-tested, never invoked live — the detector itself is a separate
+project); covered/protective/collar **included now**, needing a genuinely new
+cross-asset equity+option coordination layer.
+
+Two real corrections were found transcribing the ACTUAL Lean C# leg
+quantities (not just factory signatures): of the 4 ladder strategies, only
+`bull_call_ladder`/`bear_put_ladder` are genuinely net-short and unbounded
+(the other 2 are net-long and bounded, staying in the vega-budget tier); of
+the 4 backspreads, only the inverted `short_*` variants are genuinely
+unbounded (the originals are bounded-max-loss). A prior design-review pass
+also found and this pass fixes: expiry drift (every selector now anchors on
+ONE expiry before picking any other leg), the debit/credit leg-role
+inversion (role assignment now comes from the registry, not the selector's
+own hardcoded "anchor = long" assumption), the volatility-signal unit
+mismatch (`predicted_volatility` is a daily, non-annualized proxy —
+annualized at the `main.py` call site, `× √252`, never inside the
+classifier), the margin family's missing `short_straddle`/`short_strangle`,
+and covered/protective's bundled-order risk (QuantConnect's factories bundle
+the equity trade INSIDE the combo — this codebase never submits that,
+placing only the option leg(s), ratio-sized against the equity leg's own
+held quantity).
+
+`portfolio/options_strategy.py` gained `MULTI_LEG_STRATEGY_REGISTRY` (one
+`StrategySpec` per strategy — factory name, exact positional arg order
+including the 2 genuinely asymmetric cases, per-leg side/ratio/right
+transcribed straight from Lean's C# source, risk tier) and ~10 shared
+shape-family selectors dispatched through one `select_strategy_legs()` entry
+point, replacing what would otherwise be 41 near-duplicate functions. New
+`OptionsMultiLegPositionDecision`/`build_multi_leg_position_sizing()` size
+by `abs(net_vega)` (a credit structure's net vega is structurally negative
+by construction — a real bug caught before shipping). New
+`portfolio/options_margin_sizing.py` holds the 3 margin sub-models
+(Reg-T-style naked, uncovered-leg, bounded-max-loss), mirroring
+`risk/futures_risk.py`'s soft-target/hard-ceiling shape.
+`risk/asset_class_router.py` gained `route_multi_leg_option_sizing()` — an
+ordered-priority-list strategy selector, volatility-gated for
+straddle/strangle/iron-condor/butterfly only.
+
+`main.py`'s 2-leg-hardcoded `"spread"` record kind is retired, folded into a
+fully general `"multi_leg"` (any leg count/ratio, 1 or 2 expiries) — fixing
+a real latent bug along the way (a bare `else` assumed only 2 record kinds
+could ever exist) and a second one found during the rewrite (liquidation
+now closes every SHORT leg before any long leg, closing a partial-unwind
+naked-short window that gets worse the more short legs a structure has).
+The generalized order-placement path also now carries the legacy vertical
+config path unchanged (confirmed: the full pre-existing test suite passes
+without modification). Two new per-bar sweeps: an expiry-day auto-close
+safety net (mirrors `risk/futures_risk.py::rollover_due()`'s pattern,
+deliberately unconditional — this gap pre-dates V4.5) and covered/protective
+equity-lifecycle management (force-liquidates the option overlay the instant
+its equity leg no longer covers it). New config, all additive under
+`phase_v2.options_risk`, gated behind `multi_leg_strategies_enabled`
+(default `false`, byte-identical to pre-V4.5 behavior when off).
+
+**Testing**: 1589 → **1656 tests, all passing** (67 new, across
+`tests/test_options_strategy_multileg.py`, `tests/test_options_margin_sizing.py`,
+and new `tests/test_asset_class_router.py` cases). See `development/Problems.md`
+#59 for the full writeup, including both risk-tier corrections, all 5
+design-review fixes, and exactly what remains deferred (per-asset strategy
+override, full assignment/corporate-action modeling) vs. what's IB-unverified.
