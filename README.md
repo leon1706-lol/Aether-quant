@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1818%2F1818%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1818 of 1818 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1857%2F1857%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1857 of 1857 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -73,10 +73,10 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), and Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes) shipped.**
+**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), and V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling) shipped.**
 Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
 the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->1818<!-- AQ:TEST_COUNT_END -->
+(<!-- AQ:TEST_COUNT_START -->1857<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
 - **V4.1 (visualisation), shipped:** webui Overview/Operations split, Tracing reflow, genuinely 3D topology. Still needs a real backtest with 3D embedding turned on to validate.
@@ -86,6 +86,7 @@ tests) and wired end-to-end inside Lean.
 - **V4.6 (bounded follow-ups, Forex, bond analytics), shipped:** an arbitrage mispricing detector, a per-asset strategy override, rotation anti-thrashing/netting, a new Forex/FX asset class, and real analytic bond duration/convexity. Off by default, code-complete but IB-unverified. See `development/Problems.md` #60.
 - **V4.7 (early-assignment modeling, learned strategy selector, bond analytics as real signals), shipped:** a dividend-cadence data pipeline + American-exercise (BAW) pricer + dividend-driven assignment-risk sweep; a learned multi-leg strategy-selector model (`train_strategy_selector.py`) with its own data-capture prerequisite, dormant until real option positions actually trade; the 3 analytic bond features merged into the trained model's feature schema — code-complete, but the retrain itself was deliberately left for the user to run separately. All off by default. See `development/Problems.md` #61.
 - **Phase 4.8 (closing a full-stack completeness audit's gaps), shipped:** `lean` CLI now usable inside the retraining-worker container (pip install + Docker-socket mount); two docker-compose.yml staleness fixes; a new `aq backfill` CLI command and a stale test-group fix; a genuine `main.py` scoping bug found and fixed (a corporate-action event could be attributed to the wrong symbol); the V4.7 features that were computed but never reached `state.json` now do; and a new webui "Options & Strategy" page surfacing all of it, including a 43-strategy catalog browser. See `development/Problems.md` #62.
+- **V4.9 (major latency-optimization pass), shipped:** a genuinely live per-bar disk-I/O bug found and removed (a stale doc claimed it was already reverted, it wasn't); sequence-encoder symbol-batching for the largest remaining inference cost; a self-relative percentile-tolerance mode for the topology correlation-stability cache; an options chain-grouping hoist; non-blocking `ExperienceQueue.push()` in live/paper mode; a real `ProcessPoolExecutor` IPC-overhead benchmark (confirmed the pool is slower at this project's scale on Windows); a new `aq profile --options` workload plus `--parallel` wiring; and an honest documentation split of what latency work actually transfers to a future HFT fork vs. what doesn't. All off by default except the pure bug fix. See `development/Problems.md` #63/#64.
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
@@ -417,7 +418,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1818<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1857<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -503,7 +504,7 @@ last backtest.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1818<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1857<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -579,16 +580,16 @@ aq backtest [--image quantconnect/lean:<tag>]
 
 #### `aq profile`
 ```text
-aq profile [--iterations N] [--sort cumulative] [--batched]
-aq profile [--iterations N] [--sort cumulative] [--regime] [--topology] [--learned-topology] [--liquidity] [--gating] [--analyzer] [--indicators]
+aq profile [--iterations N] [--sort cumulative] [--batched] [--symbols-per-bar N] [--parallel] [--pool-workers N] [--no-gc] [--bucket-report]
+aq profile [--iterations N] [--sort cumulative] [--regime] [--topology] [--learned-topology] [--liquidity] [--gating] [--analyzer] [--indicators] [--options]
 ```
 **Profiles the per-bar hot path** without needing a real backtest (which
 takes over an hour), reports a `pstats` breakdown plus wall-clock
 tail-latency percentiles (p50/p95/p99/max).
 
-- **Default (no subsystem flag)**: profiles the inference path (`inference/exported_model.py`) against real exported weights, writing to `scripts/profile_inference_output.txt`. Add `--batched` to profile the optimized production path (precomputed weight/stack caches) instead of a per-expert loop.
-- **Subsystem flags**: `--regime`, `--topology`, `--learned-topology`, `--liquidity`, `--gating`, `--analyzer`, `--indicators` profile the per-bar subsystems inference profiling never covered (combinable, e.g. `--regime --gating`). Writes to `scripts/profile_subsystems_output.txt`.
-- `--iterations N`: default 10000 for inference, 200 for subsystems (`build_market_topology()` alone costs ~500-600ms/call, so 10k iterations would take over an hour). `--batched` with a subsystem flag is rejected, batching is meaningless for those pure functions.
+- **Default (no subsystem flag)**: profiles the inference path (`inference/exported_model.py`) against real exported weights, writing to `scripts/profile_inference_output.txt`. Add `--batched` to profile the optimized production path (precomputed weight/stack caches, plus the sequence-encoder symbol-batching comparison, V4.9) instead of a per-expert loop. `--symbols-per-bar N` (default 74) controls the batching group size for both `--batched`'s sequence comparison and `--parallel` below. `--parallel` (V4.9) runs a real `ProcessPoolExecutor` benchmark of `inference/parallel_inference.py`'s `run_symbol_inference()` against a sequential baseline, answering that module's own never-measured IPC/pickling break-even question (`--pool-workers N`, default 4).
+- **Subsystem flags**: `--regime`, `--topology`, `--learned-topology`, `--liquidity`, `--gating`, `--analyzer`, `--indicators`, `--options` (V4.9 — `risk/asset_class_router.py::route_multi_leg_option_sizing()` end-to-end) profile the per-bar subsystems inference profiling never covered (combinable, e.g. `--regime --gating`). Writes to `scripts/profile_subsystems_output.txt`.
+- `--iterations N`: default 10000 for inference, 200 for subsystems (`build_market_topology()` alone costs ~500-600ms/call, so 10k iterations would take over an hour). `--batched`/`--parallel` with a subsystem flag is rejected — batching/pooling is meaningless for those pure functions.
 
 Why this exists: it found `build_market_topology()`'s per-bar cost rivaling
 the *entire* inference step, and drove a combined −89.2% reduction (weight
@@ -812,8 +813,7 @@ All finished phases and changes can be found in
 
 ### V4, 🔜 Next Up
 
-**Optimization**
-- More latency passes, continue the profiling/optimization work beyond `build_market_topology()` and the inference hot path.
+**Optimization** — ✅ V4.9's major latency pass shipped: a live per-bar disk-I/O bug removed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling (`--parallel`, `--options`). See `development/Problems.md` #63+.
 - Model fine-tuning, a critical 1-10 review of the retrained model's actual performance (development/Problems.md #52/#54), and a concrete plan to close the gap to a 10/10 signal (clearing the non-overlapping significance bar, not just the full-series one).
 
 **Training**

@@ -3,7 +3,7 @@ import math
 import pytest
 
 from topology import build_market_topology
-from topology.market_topology import _stress_majorize, rank_correlated_peers
+from topology.market_topology import _percentile, _stress_majorize, rank_correlated_peers
 
 
 def _series(values: list[float], length: int = 8) -> list[float]:
@@ -416,6 +416,167 @@ def test_topology_cache_recomputes_when_previous_correlations_missing():
     )
 
     assert "topology_embedding_reused_stable_correlations" not in second.reasons
+
+
+# ---------------------------------------------------------------------------
+# correlation_stability_tolerance_percentile / correlation_change_history
+# (V4.9 Priority 1 - self-relative alternative to the fixed
+# correlation_stability_tolerance above, development/Problems.md#36's
+# follow-up: the fixed default was found poorly calibrated against
+# synthetic data, and this environment can't run a real backtest to derive
+# a better fixed number)
+# ---------------------------------------------------------------------------
+
+
+def test_percentile_nearest_rank_hand_computed():
+    values = [10.0, 20.0, 30.0, 40.0, 50.0]
+    assert _percentile(values, 0) == 10.0
+    assert _percentile(values, 50) == 30.0
+    assert _percentile(values, 100) == 50.0
+
+
+def test_percentile_empty_list_returns_zero():
+    assert _percentile([], 50) == 0.0
+
+
+def test_correlation_stability_tolerance_percentile_omitted_matches_fixed_tolerance_mode():
+    """correlation_stability_tolerance_percentile=None (the default) must
+    reproduce the exact fixed-tolerance behavior byte-identically, even
+    when correlation_change_history is also omitted - same
+    byte-identical-default contract every other optional V4.9 knob in this
+    pass guarantees."""
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    without_percentile = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance=0.001,
+    )
+    with_percentile_explicit_none = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance=0.001, correlation_stability_tolerance_percentile=None,
+    )
+
+    assert without_percentile.to_dict() == with_percentile_explicit_none.to_dict()
+
+
+def test_correlation_stability_tolerance_percentile_reuses_when_change_within_percentile_of_history():
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+    # Identical returns -> this bar's own max_correlation_change is 0.0,
+    # well within any nonzero percentile of a history of larger past changes.
+    history = [0.05, 0.08, 0.10, 0.12, 0.15]
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance_percentile=50.0,
+        correlation_change_history=history,
+    )
+
+    assert "topology_embedding_reused_stable_correlations" in second.reasons
+
+
+def test_correlation_stability_tolerance_percentile_never_reuses_with_empty_history():
+    """No history yet (bootstrap bar) -> effective_tolerance stays None ->
+    reuse never fires, regardless of how generous the requested percentile
+    is - there is nothing yet to compute a percentile over."""
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance_percentile=99.0,
+        correlation_change_history=None,
+    )
+
+    assert "topology_embedding_reused_stable_correlations" not in second.reasons
+
+
+def test_correlation_stability_tolerance_percentile_takes_priority_over_fixed_tolerance():
+    """When both are given, the percentile-derived tolerance wins - a
+    fixed tolerance that would BLOCK reuse must not stop a generous
+    percentile-derived tolerance from allowing it."""
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance=-1.0,  # would block reuse in fixed mode (nothing is <= -1.0)
+        correlation_stability_tolerance_percentile=50.0,
+        correlation_change_history=[10.0],  # percentile(50) == 10.0, generous
+    )
+
+    assert "topology_embedding_reused_stable_correlations" in second.reasons
+
+
+def test_correlation_change_history_accumulates_in_call_order():
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance_percentile=50.0,
+        correlation_change_history=[0.05, 0.08],
+    )
+
+    # Identical returns -> this bar's own max_correlation_change is 0.0,
+    # appended to the END of the passed-in history, in order.
+    assert second.correlation_change_history == [0.05, 0.08, 0.0]
+
+
+def test_correlation_change_history_respects_max_len_cap():
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+
+    second = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance_percentile=50.0,
+        correlation_change_history=[1.0, 2.0, 3.0],
+        correlation_change_history_max_len=3,
+    )
+
+    assert second.correlation_change_history == [2.0, 3.0, 0.0]  # oldest (1.0) dropped
+
+
+def test_correlation_change_history_input_not_mutated():
+    returns = _three_symbol_returns()
+    first = build_market_topology(returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5)
+    previous_positions = {node.symbol: (node.x, node.y) for node in first.nodes}
+    original_history = [0.05, 0.08]
+
+    build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        previous_positions=previous_positions, previous_correlations=first.correlations,
+        correlation_stability_tolerance_percentile=50.0,
+        correlation_change_history=original_history,
+    )
+
+    assert original_history == [0.05, 0.08]
+
+
+def test_correlation_change_history_not_updated_when_no_previous_correlations():
+    """No previous_correlations at all -> nothing comparable this bar ->
+    history passed through unchanged (no None/placeholder entry added)."""
+    returns = _three_symbol_returns()
+    first = build_market_topology(
+        returns, correlation_threshold=0.6, link_threshold=0.4, min_observations=5,
+        correlation_change_history=[0.05],
+    )
+
+    assert first.correlation_change_history == [0.05]
 
 
 def test_topology_correlations_field_populated_on_ready_state_and_empty_on_insufficient_data():

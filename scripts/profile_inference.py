@@ -32,7 +32,25 @@ optimized production path, not just "batched but rebuilding stacks every
 call."
 
 Usage:
-    python scripts/profile_inference.py [--iterations N] [--sort cumulative] [--batched]
+    python scripts/profile_inference.py [--iterations N] [--sort cumulative] [--batched] [--symbols-per-bar N] [--parallel] [--pool-workers N]
+
+--batched also runs a separate, additive sequence-encoder symbol-batching
+comparison (run_sequence_unbatched_workload() vs
+run_sequence_batched_workload(), V4.9 Priority 1) - see their own
+docstrings. This is a wall-clock-only comparison outside cProfile's
+profiled region, reported as its own section; it never changes the
+primary tail-latency numbers above, which always time the sequence step
+unbatched (matching run_workload()'s own per-symbol-bar call pattern).
+
+--parallel (V4.9 Priority 6) runs a further additive section: a real
+ProcessPoolExecutor benchmark of inference/parallel_inference.py's
+run_symbol_inference() (phase_v2.inference_parallelism) against an
+identical sequential baseline calling the exact same function, answering
+that module's own long-standing, never-measured IPC/pickling break-even
+warning. See run_parallel_workload()/run_parallel_baseline_workload().
+Degrades to a reported "FAILED" line (never crashes the whole run) on any
+pool creation/spawn/submit failure, matching main.py's own
+permanent-fallback-to-sequential philosophy for this same failure mode.
 
 Writes a pstats dump (plus the tail-latency report) to
 scripts/profile_inference_output.txt (overwritten each run) and prints
@@ -49,6 +67,7 @@ import pstats
 import random
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -56,9 +75,11 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from inference import (  # noqa: E402
     convert_state_dict_arrays,
+    init_worker,
     run_exported_model,
     run_exported_multitask_model,
     run_exported_sequence_multitask_model,
+    run_symbol_inference,
 )
 
 try:
@@ -67,12 +88,14 @@ try:
         build_multitask_models_batched_cache,
         run_exported_models_batched,
         run_exported_multitask_models_batched,
+        run_exported_sequence_multitask_model_batched,
     )
 except ImportError:
     run_exported_models_batched = None
     run_exported_multitask_models_batched = None
     build_models_batched_cache = None
     build_multitask_models_batched_cache = None
+    run_exported_sequence_multitask_model_batched = None
 
 EXPERT_NAMES = ["bullish", "bearish", "sideways", "volatility"]
 OUTPUT_PATH = Path(__file__).resolve().parent / "profile_inference_output.txt"
@@ -244,6 +267,130 @@ def run_workload(
     return durations
 
 
+def run_sequence_unbatched_workload(sequence_export: dict, pregenerated_sequences: list[list[list[float]]]) -> list[float]:
+    """Isolated per-symbol sequence-model timing - the exact same
+    run_exported_sequence_multitask_model() call run_workload() above
+    already makes as part of a full symbol-bar's inference, pulled out on
+    its own so it can be compared apples-to-apples against
+    run_sequence_batched_workload() below without any other model's cost
+    mixed in. One duration entry per symbol."""
+    durations: list[float] = []
+    for sequence in pregenerated_sequences:
+        start = time.perf_counter()
+        run_exported_sequence_multitask_model(sequence_export, sequence)
+        durations.append(time.perf_counter() - start)
+    return durations
+
+
+def run_sequence_batched_workload(
+    sequence_export: dict, pregenerated_sequences: list[list[list[float]]], symbols_per_bar: int
+) -> list[float]:
+    """Bar-grouped sibling of run_sequence_unbatched_workload() above -
+    main.py's V4.9 symbol-batching (on_data()'s Phase 1b,
+    inference/exported_model.py::run_exported_sequence_multitask_model_batched())
+    batches the sequence encoder across every PENDING SYMBOL IN ONE BAR,
+    not across per-symbol model variants the way the expert/multitask
+    --batched flag above does. Groups `pregenerated_sequences` (one entry
+    per symbol) into chunks of `symbols_per_bar`, running ONE
+    run_exported_sequence_multitask_model_batched() call per chunk.
+    Returns one wall-clock duration PER BAR (per chunk), not per symbol,
+    since that's the real unit of work main.py's own batching performs -
+    divide by symbols_per_bar for a rough per-symbol-equivalent figure.
+    Chunks with fewer than 2 symbols are skipped, matching main.py's own
+    <2-present fallback threshold (not worth timing as "a batch" - the
+    batched function itself would just degrade to the same individual
+    calls run_sequence_unbatched_workload() already measures)."""
+    durations: list[float] = []
+    for start_index in range(0, len(pregenerated_sequences), symbols_per_bar):
+        chunk = pregenerated_sequences[start_index : start_index + symbols_per_bar]
+        if len(chunk) < 2:
+            continue
+        start = time.perf_counter()
+        run_exported_sequence_multitask_model_batched(sequence_export, chunk)
+        durations.append(time.perf_counter() - start)
+    return durations
+
+
+def run_parallel_baseline_workload(
+    exports_for_workers: dict,
+    pregenerated_inputs: list[tuple[list[float], list[list[float]]]],
+    sequence_window_size: int,
+    symbols_per_bar: int,
+) -> list[float]:
+    """Sequential sibling of run_parallel_workload() below, calling the
+    EXACT SAME inference/parallel_inference.py::run_symbol_inference()
+    function in a plain per-symbol loop instead of through a process pool
+    - isolates IPC/pickling overhead specifically (both paths run
+    identical inference work per symbol; only the submission mechanism
+    differs), rather than conflating it with some other per-symbol cost
+    difference a less careful comparison might introduce. Groups into
+    chunks of symbols_per_bar purely so its per-bar duration list lines up
+    one-to-one with run_parallel_workload()'s own bar grouping."""
+    durations: list[float] = []
+    for start_index in range(0, len(pregenerated_inputs), symbols_per_bar):
+        chunk = pregenerated_inputs[start_index : start_index + symbols_per_bar]
+        if not chunk:
+            continue
+        start = time.perf_counter()
+        for flat_inputs, sequence_inputs in chunk:
+            run_symbol_inference(flat_inputs, sequence_inputs, sequence_window_size)
+        durations.append(time.perf_counter() - start)
+    return durations
+
+
+def run_parallel_workload(
+    exports_for_workers: dict,
+    pregenerated_inputs: list[tuple[list[float], list[list[float]]]],
+    sequence_window_size: int,
+    symbols_per_bar: int,
+    max_workers: int = 4,
+) -> list[float] | None:
+    """V4.9 Priority 6 - real ProcessPoolExecutor benchmark for
+    phase_v2.inference_parallelism (inference/parallel_inference.py),
+    answering that module's own long-standing, never-measured break-even
+    warning: does IPC/pickling overhead for submitting
+    run_symbol_inference() calls to a separate process exceed the win at
+    this project's real per-symbol inference cost (~4.8ms mean, post the
+    weight-caching/batching pass)? Groups pregenerated_inputs into chunks
+    of symbols_per_bar (one ProcessPoolExecutor.submit() burst per chunk,
+    matching main.py::on_data()'s own per-bar fan-out shape via
+    init_worker()/run_symbol_inference() - see that module's docstring),
+    timing wall-clock submit-through-gather for each chunk.
+
+    Returns None (never raises) on ANY pool creation/spawn/submit failure
+    - matches main.py's own "any pool failure permanently falls back to
+    the sequential path" philosophy exactly, including on this dev
+    machine's own Windows 'spawn' start method, which re-bootstraps a full
+    new interpreter per worker and has never been verified inside Lean's
+    embedded-Python runtime (inference/parallel_inference.py's own module
+    docstring)."""
+    try:
+        pool = ProcessPoolExecutor(max_workers=max_workers, initializer=init_worker, initargs=(exports_for_workers,))
+    except Exception:
+        return None
+
+    durations: list[float] = []
+    try:
+        for start_index in range(0, len(pregenerated_inputs), symbols_per_bar):
+            chunk = pregenerated_inputs[start_index : start_index + symbols_per_bar]
+            if not chunk:
+                continue
+            start = time.perf_counter()
+            try:
+                futures = [
+                    pool.submit(run_symbol_inference, flat_inputs, sequence_inputs, sequence_window_size)
+                    for flat_inputs, sequence_inputs in chunk
+                ]
+                for future in futures:
+                    future.result(timeout=30)
+            except Exception:
+                return None
+            durations.append(time.perf_counter() - start)
+    finally:
+        pool.shutdown(wait=True)
+    return durations
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--iterations", type=int, default=10_000, help="Symbol-bar iterations to profile (default: 10000)")
@@ -259,6 +406,18 @@ def main() -> None:
     parser.add_argument(
         "--no-gc", action="store_true",
         help="Disable Python's garbage collector for the profiled region only (gc.disable()/gc.enable() around run_workload()) - isolates whether GC pauses are a material tail-latency contributor. Compare a --no-gc run against a normal run, back-to-back, to see if p99/max drop while p50 stays flat.",
+    )
+    parser.add_argument(
+        "--symbols-per-bar", type=int, default=74,
+        help="V4.9 Priority 1/6: symbols-per-bar grouping for the sequence-encoder symbol-batching comparison (--batched, see run_sequence_batched_workload()) AND the --parallel IPC-overhead benchmark below (see run_parallel_workload()). Default 74 matches this repo's real universe size (development/v2_architecture.md).",
+    )
+    parser.add_argument(
+        "--parallel", action="store_true",
+        help="V4.9 Priority 6: run a real ProcessPoolExecutor benchmark of inference/parallel_inference.py's run_symbol_inference() (phase_v2.inference_parallelism) against an identical sequential baseline, answering that module's own never-measured IPC/pickling break-even warning. Independent of --batched (each stack_cache built here is reused if --batched is also passed).",
+    )
+    parser.add_argument(
+        "--pool-workers", type=int, default=4,
+        help="Worker process count for --parallel's ProcessPoolExecutor (default: 4).",
     )
     args = parser.parse_args()
 
@@ -301,6 +460,95 @@ def main() -> None:
                 f"  bucket {index}: p50={bucket['p50_ms']:.4f}ms p99={bucket['p99_ms']:.4f}ms max={bucket['max_ms']:.4f}ms"
             )
 
+    # V4.9 Priority 1 - sequence-encoder symbol-batching comparison,
+    # additional/additive: run OUTSIDE cProfile's own profiled region
+    # (this is a wall-clock-only comparison, not a hotspot breakdown) and
+    # reported as its own separate section - never mixed into the primary
+    # tail_latency numbers above, which stay exactly what they always
+    # measured (a full symbol-bar's worth of every model, sequence always
+    # unbatched, see run_workload()'s own sequence step). Only runs with
+    # --batched and a real sequence export on disk.
+    sequence_batch_lines: list[str] = []
+    if args.batched and exports["sequence"] and run_exported_sequence_multitask_model_batched is not None:
+        sequence_only_inputs = [sequence_inputs for _, sequence_inputs in pregenerated_inputs]
+        unbatched_sequence_durations = run_sequence_unbatched_workload(exports["sequence"], sequence_only_inputs)
+        batched_sequence_durations = run_sequence_batched_workload(
+            exports["sequence"], sequence_only_inputs, symbols_per_bar=args.symbols_per_bar
+        )
+        unbatched_summary = summarize_durations(unbatched_sequence_durations)
+        batched_summary = summarize_durations(batched_sequence_durations)
+        per_symbol_equivalent_ms = (
+            batched_summary["mean_ms"] / args.symbols_per_bar if batched_summary["mean_ms"] else 0.0
+        )
+        sequence_batch_lines.append(
+            f"Sequence-encoder symbol-batching comparison (--symbols-per-bar {args.symbols_per_bar}, "
+            f"isolated to JUST the sequence-model call, no other model's cost included):"
+        )
+        sequence_batch_lines.append(
+            f"  unbatched, per symbol   ({len(unbatched_sequence_durations)} symbols): "
+            f"p50={unbatched_summary['p50_ms']:.4f}ms p99={unbatched_summary['p99_ms']:.4f}ms mean={unbatched_summary['mean_ms']:.4f}ms"
+        )
+        sequence_batch_lines.append(
+            f"  batched, per BAR        ({len(batched_sequence_durations)} bars): "
+            f"p50={batched_summary['p50_ms']:.4f}ms p99={batched_summary['p99_ms']:.4f}ms mean={batched_summary['mean_ms']:.4f}ms"
+        )
+        sequence_batch_lines.append(
+            f"  batched, per-symbol-equivalent (mean bar duration / symbols_per_bar): {per_symbol_equivalent_ms:.4f}ms "
+            f"(vs {unbatched_summary['mean_ms']:.4f}ms unbatched mean)"
+        )
+
+    # V4.9 Priority 6 - real ProcessPoolExecutor IPC-overhead benchmark,
+    # additional/additive, run OUTSIDE cProfile's own profiled region (a
+    # ProcessPoolExecutor's own worker processes wouldn't be captured by
+    # this process's cProfile instance anyway). Independent of --batched -
+    # reuses stack_cache/multitask_stack_cache when --batched was ALSO
+    # passed (a more realistic worker payload matching main.py's real
+    # optimized path), but runs fine without them either way, same
+    # graceful degrade run_exported_models_batched(stack_cache=None)
+    # already has.
+    parallel_lines: list[str] = []
+    if args.parallel:
+        exports_for_workers = {
+            "expert_names": EXPERT_NAMES,
+            "baseline": exports["baseline"],
+            "sequence": exports["sequence"],
+            "experts": exports["experts"],
+            "multitask": exports["multitask"],
+            "expert_multitask": exports["expert_multitask"],
+            "expert_stack_cache": stack_cache,
+            "expert_multitask_stack_cache": multitask_stack_cache,
+        }
+        sequential_baseline_durations = run_parallel_baseline_workload(
+            exports_for_workers, pregenerated_inputs, sequence_window_size=30, symbols_per_bar=args.symbols_per_bar,
+        )
+        parallel_durations = run_parallel_workload(
+            exports_for_workers, pregenerated_inputs, sequence_window_size=30,
+            symbols_per_bar=args.symbols_per_bar, max_workers=args.pool_workers,
+        )
+        baseline_summary = summarize_durations(sequential_baseline_durations)
+        parallel_lines.append(
+            f"ProcessPoolExecutor IPC-overhead comparison (--symbols-per-bar {args.symbols_per_bar}, "
+            f"--pool-workers {args.pool_workers}, same run_symbol_inference() call both ways):"
+        )
+        parallel_lines.append(
+            f"  sequential baseline, per BAR ({len(sequential_baseline_durations)} bars): "
+            f"p50={baseline_summary['p50_ms']:.4f}ms p99={baseline_summary['p99_ms']:.4f}ms mean={baseline_summary['mean_ms']:.4f}ms"
+        )
+        if parallel_durations is None:
+            parallel_lines.append(
+                "  process-pool: FAILED (pool creation/spawn/submit error - see "
+                "inference/parallel_inference.py's own module docstring on Windows 'spawn'-start-method risk; "
+                "main.py's own pool would fall back to the sequential path permanently on this same failure)"
+            )
+        else:
+            pool_summary = summarize_durations(parallel_durations)
+            verdict = "FASTER" if pool_summary["mean_ms"] < baseline_summary["mean_ms"] else "SLOWER (IPC overhead exceeds the win)"
+            parallel_lines.append(
+                f"  process-pool, per BAR        ({len(parallel_durations)} bars): "
+                f"p50={pool_summary['p50_ms']:.4f}ms p99={pool_summary['p99_ms']:.4f}ms mean={pool_summary['mean_ms']:.4f}ms"
+            )
+            parallel_lines.append(f"  verdict at this symbols-per-bar/worker-count: pool is {verdict}")
+
     header = f"--iterations {args.iterations} --batched {args.batched} --no-gc {args.no_gc}"
     stats = pstats.Stats(profiler).sort_stats(args.sort)
     with OUTPUT_PATH.open("w", encoding="utf-8") as f:
@@ -309,6 +557,10 @@ def main() -> None:
         f.write("\n".join(tail_latency_lines) + "\n\n")
         if bucket_lines:
             f.write("\n".join(bucket_lines) + "\n\n")
+        if sequence_batch_lines:
+            f.write("\n".join(sequence_batch_lines) + "\n\n")
+        if parallel_lines:
+            f.write("\n".join(parallel_lines) + "\n\n")
         stats_out = pstats.Stats(profiler, stream=f).sort_stats(args.sort)
         stats_out.print_stats(40)
 
@@ -318,6 +570,12 @@ def main() -> None:
     if bucket_lines:
         print()
         print("\n".join(bucket_lines))
+    if sequence_batch_lines:
+        print()
+        print("\n".join(sequence_batch_lines))
+    if parallel_lines:
+        print()
+        print("\n".join(parallel_lines))
     print()
     stats.print_stats(25)
     print(f"\nFull pstats + tail-latency dump written to {OUTPUT_PATH}")

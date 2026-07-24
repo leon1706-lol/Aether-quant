@@ -646,7 +646,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 # iteration pattern below reads identically to _SUBSYSTEM_TEST_FILES's.
 _PROFILE_SUBSYSTEM_FLAGS: dict[str, None] = {
     "regime": None, "topology": None, "topology-cached": None, "learned-topology": None, "liquidity": None,
-    "gating": None, "analyzer": None, "indicators": None,
+    "gating": None, "analyzer": None, "indicators": None, "options": None,
 }
 
 
@@ -657,25 +657,30 @@ def cmd_profile(args: argparse.Namespace) -> int:
     caching, expert-loop batching, and _conv1d_causal vectorization,
     -89.2% total profiled cost) - or, when any --<subsystem> flag is set,
     scripts/profile_subsystems.py instead (regime/topology/topology-cached/
-    liquidity/gating/analyzer/indicators - everything else main.py calls
-    per bar that inference profiling never covered; --topology-cached
+    liquidity/gating/analyzer/indicators/options - everything else main.py
+    calls per bar that inference profiling never covered; --topology-cached
     exercises development/Problems.md#36's correlation-stability cache
     against slowly-drifting synthetic data, since --topology's fully
     independent per-iteration returns can never show that cache's
-    benefit). Same subprocess-wrapper
-    convention every other non-`trade-lock`/`fetch` command follows
-    (_run(), not an in-process import).
+    benefit; --options exercises risk/asset_class_router.py::
+    route_multi_leg_option_sizing() end-to-end, V4.9 Priority 7). Same
+    subprocess-wrapper convention every other non-`trade-lock`/`fetch`
+    command follows (_run(), not an in-process import).
 
-    --batched/--no-gc/--bucket-report only have meaning for the inference
-    path (no batched variant, and no GC-isolation/bucketing diagnostic,
-    exists for these pure functions) - combining any of them with a
-    subsystem flag is a user error, rejected loudly rather than silently
-    ignored."""
+    --batched/--no-gc/--bucket-report/--parallel/--pool-workers/
+    --symbols-per-bar only have meaning for the inference path (no batched
+    variant, GC-isolation/bucketing diagnostic, or process-pool benchmark
+    exists for these pure subsystem functions) - combining any of them
+    with a subsystem flag is a user error, rejected loudly rather than
+    silently ignored. --parallel (V4.9 Priority 6) runs a real
+    ProcessPoolExecutor benchmark of inference/parallel_inference.py's
+    run_symbol_inference() against a sequential baseline, answering that
+    module's own never-measured IPC/pickling break-even warning."""
     subsystem_flags = [name for name in _PROFILE_SUBSYSTEM_FLAGS if getattr(args, name.replace("-", "_"), False)]
-    inference_only_flags = args.batched or args.no_gc or args.bucket_report
+    inference_only_flags = args.batched or args.no_gc or args.bucket_report or args.parallel
     if subsystem_flags and inference_only_flags:
         print(
-            "error: --batched/--no-gc/--bucket-report only apply to inference profiling, not --<subsystem> flags",
+            "error: --batched/--no-gc/--bucket-report/--parallel only apply to inference profiling, not --<subsystem> flags",
             file=sys.stderr,
         )
         return 1
@@ -698,6 +703,12 @@ def cmd_profile(args: argparse.Namespace) -> int:
         cmd.append("--no-gc")
     if args.bucket_report:
         cmd.append("--bucket-report")
+    if args.parallel:
+        cmd.append("--parallel")
+    if args.pool_workers is not None:
+        cmd.extend(["--pool-workers", str(args.pool_workers)])
+    if args.symbols_per_bar is not None:
+        cmd.extend(["--symbols-per-bar", str(args.symbols_per_bar)])
     return _run(cmd)
 
 
@@ -1302,6 +1313,18 @@ def build_parser() -> argparse.ArgumentParser:
     profile_parser.add_argument(
         "--bucket-report", action="store_true",
         help="Print a 10-bucket-by-iteration-index duration breakdown, to check for a warmup effect (inference only)",
+    )
+    profile_parser.add_argument(
+        "--parallel", action="store_true",
+        help="V4.9 Priority 6: run the ProcessPoolExecutor IPC-overhead benchmark against run_symbol_inference() (inference only)",
+    )
+    profile_parser.add_argument(
+        "--pool-workers", type=int, default=None,
+        help="Worker process count for --parallel (default: profile_inference.py's own default, 4)",
+    )
+    profile_parser.add_argument(
+        "--symbols-per-bar", type=int, default=None,
+        help="Symbols-per-bar grouping for --batched's sequence-batching comparison and --parallel's benchmark (default: profile_inference.py's own default, 74)",
     )
     for _profile_subsystem_name in _PROFILE_SUBSYSTEM_FLAGS:
         profile_parser.add_argument(

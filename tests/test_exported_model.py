@@ -9,10 +9,12 @@ import numpy as np
 from inference.exported_model import (
     _architectures_match,
     _conv1d_causal,
+    _conv1d_causal_batched,
     _layernorm,
     _layernorm_axis,
     _linear,
     _linear_batched,
+    _linear_shared_batched,
     _multihead_attention,
     _sigmoid,
     _softmax,
@@ -27,6 +29,7 @@ from inference.exported_model import (
     run_exported_multitask_models_batched,
     run_exported_models_batched,
     run_exported_sequence_multitask_model,
+    run_exported_sequence_multitask_model_batched,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -496,6 +499,102 @@ def test_resolve_sequence_window_size_falls_back_to_config_when_schema_missing()
 
 def test_resolve_sequence_window_size_falls_back_to_config_when_schema_lacks_key():
     assert resolve_sequence_window_size({"model_input_names": []}, 30) == 30
+
+
+# ---------------------------------------------------------------------------
+# Sequence-encoder symbol-batching (run_exported_sequence_multitask_model_batched,
+# V4.9 Priority 1) - the opposite shape from run_exported_models_batched()
+# below: ONE shared model, N symbols' own different sequence inputs, rather
+# than N different models sharing one input. Parity net: every batched
+# result must exactly match calling run_exported_sequence_multitask_model()
+# once per symbol, since this feeds real trading decisions.
+# ---------------------------------------------------------------------------
+
+
+def test_linear_shared_batched_matches_hand_computed_reference():
+    current = np.array([[1.0, -0.5], [2.0, 0.5]])  # (N=2, in_features=2)
+    weights = [[0.3, -0.4], [0.1, 0.2]]  # (out_features=2, in_features=2)
+    bias = [0.05, -0.05]
+
+    result = _linear_shared_batched(current, weights, bias)
+
+    expected_row0 = [0.3 * 1.0 + -0.4 * -0.5 + 0.05, 0.1 * 1.0 + 0.2 * -0.5 - 0.05]
+    expected_row1 = [0.3 * 2.0 + -0.4 * 0.5 + 0.05, 0.1 * 2.0 + 0.2 * 0.5 - 0.05]
+    assert np.allclose(result, [expected_row0, expected_row1], atol=1e-9)
+
+
+def test_conv1d_causal_batched_matches_per_row_unbatched_calls():
+    weights = [[[0.5, -0.5], [0.2, 0.1]], [[-0.3, 0.4], [0.1, -0.2]]]
+    bias = [0.05, -0.05]
+    sequences = [
+        [[1.0, -0.5], [0.5, 0.2]],
+        [[9.0, -9.0], [0.5, 0.2]],
+        [[0.1, 0.1], [0.2, -0.3]],
+    ]
+
+    batched = _conv1d_causal_batched(sequences, weights, bias, dilation=1)
+    individual = [_conv1d_causal(seq, weights, bias, dilation=1) for seq in sequences]
+
+    assert batched.shape == (3, 2, 2)
+    for row, expected in zip(batched, individual):
+        assert np.allclose(row, expected, atol=1e-9)
+
+
+def test_run_exported_sequence_multitask_model_batched_matches_individual_calls():
+    model_export = _synthetic_sequence_model_export()
+    sequences = [
+        [[1.0, -0.5], [0.5, 0.2]],
+        [[9.0, -9.0], [0.5, 0.2]],
+        [[0.1, 0.1], [0.2, -0.3]],
+    ]
+
+    batched = run_exported_sequence_multitask_model_batched(model_export, sequences)
+    individual = [run_exported_sequence_multitask_model(model_export, seq) for seq in sequences]
+
+    assert len(batched) == len(individual)
+    for actual, expected in zip(batched, individual):
+        assert actual == pytest.approx(expected, abs=1e-9)
+
+
+def test_run_exported_sequence_multitask_model_batched_preserves_none_at_missing_indices():
+    model_export = _synthetic_sequence_model_export()
+    sequences = [
+        [[1.0, -0.5], [0.5, 0.2]],
+        None,
+        [[0.1, 0.1], [0.2, -0.3]],
+    ]
+
+    batched = run_exported_sequence_multitask_model_batched(model_export, sequences)
+
+    assert batched[1] is None
+    assert batched[0] == pytest.approx(run_exported_sequence_multitask_model(model_export, sequences[0]), abs=1e-9)
+    assert batched[2] == pytest.approx(run_exported_sequence_multitask_model(model_export, sequences[2]), abs=1e-9)
+
+
+def test_run_exported_sequence_multitask_model_batched_falls_back_when_fewer_than_two_present():
+    model_export = _synthetic_sequence_model_export()
+    sequences = [[[1.0, -0.5], [0.5, 0.2]], None, None]
+
+    batched = run_exported_sequence_multitask_model_batched(model_export, sequences)
+
+    assert batched[0] == pytest.approx(run_exported_sequence_multitask_model(model_export, sequences[0]), abs=1e-9)
+    assert batched[1] is None and batched[2] is None
+
+
+def test_run_exported_sequence_multitask_model_batched_falls_back_on_ragged_sequences_without_crashing():
+    """Symbols with inconsistent window lengths can't form a rectangular
+    (N, window, features) array - np.asarray() itself raises inside the
+    try/except, must degrade to the individual-calls fallback, never raise."""
+    model_export = _synthetic_sequence_model_export()
+    sequences = [
+        [[1.0, -0.5], [0.5, 0.2]],
+        [[9.0, -9.0], [0.5, 0.2], [0.1, 0.1]],  # one extra timestep - ragged
+    ]
+
+    batched = run_exported_sequence_multitask_model_batched(model_export, sequences)
+
+    assert batched[0] == pytest.approx(run_exported_sequence_multitask_model(model_export, sequences[0]), abs=1e-9)
+    assert batched[1] == pytest.approx(run_exported_sequence_multitask_model(model_export, sequences[1]), abs=1e-9)
 
 
 # ---------------------------------------------------------------------------

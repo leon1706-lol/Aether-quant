@@ -145,6 +145,26 @@ The goal is to make market structure useful for analysis, not only visual.
   iteration by design and can never show this cache's benefit). **Not yet
   validated against a real Lean backtest** — that happens in a later
   session's health-check pass, not this one.
+- **Percentile-tolerance mode** (V4.9 Priority 2, self-relative alternative
+  to the fixed tolerance above): `build_market_topology(...)` also accepts
+  `correlation_stability_tolerance_percentile`/`correlation_change_history` —
+  when the percentile param is set, the effective tolerance each bar is
+  that percentile of a rolling window of RECENT PRIOR bars' own
+  max-pairwise-correlation-change values (never including the current
+  bar's own, avoiding self-referential judging), instead of the fixed
+  `correlation_stability_tolerance` value. Exists because the fixed
+  default was found poorly calibrated against synthetic data (the skip
+  "essentially never fires" at 0.02) with no way to derive a better fixed
+  number without a real backtest this environment can't run — the
+  percentile mode sidesteps that by making the skip rate a mathematically
+  guaranteed function of the chosen percentile instead of a guessed
+  constant. `main.py` gates it via the same `phase_v2.topology.cache_enabled`
+  flag and threads the rolling window bar-to-bar via
+  `self._topology_correlation_change_history` (same pattern as
+  `_previous_topology_positions`/`_previous_topology_correlations`).
+  `correlation_stability_tolerance_percentile: null` (the default)
+  reproduces the fixed-tolerance behavior byte-identically. Recommended
+  over the fixed value once caching is enabled at all.
 - `main.py` calls it once per bar (before the per-symbol loop) from
   `self.symbol_windows`, writes the result to `visualization/topology_state.json`
   and `state["topology"]`, and replaces `_build_scene_payload`'s orbit

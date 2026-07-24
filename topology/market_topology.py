@@ -5,7 +5,7 @@ structure layer consumed by the dashboard and the central market analyzer."""
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Callable
 
 import numpy as np
@@ -97,6 +97,18 @@ class MarketTopology:
     # `previous_correlations` - see build_market_topology()'s
     # correlation_stability_tolerance parameter, development/Problems.md#36.
     correlations: dict[tuple[str, str], float]
+    # V4.9 Priority 1 (development/Problems.md#36's percentile-tolerance
+    # follow-up) - rolling window of recent per-bar max-pairwise-
+    # correlation-change values, updated every bar previous_correlations
+    # is available and comparable. NOT part of to_dict()'s output (same
+    # reason as `correlations` above - internal state carryover only).
+    # Exists so a caller (main.py) can pass this bar's result back in as
+    # next bar's `correlation_change_history` - see
+    # build_market_topology()'s correlation_stability_tolerance_percentile
+    # parameter. Defaults to an empty list so every existing caller/test
+    # constructing a MarketTopology directly (not via
+    # build_market_topology()) is unaffected.
+    correlation_change_history: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -306,6 +318,20 @@ def _isolated_node(
     )
 
 
+def _percentile(values: list[float], p: float) -> float:
+    """Nearest-rank percentile over `values` (need not be pre-sorted), p in
+    [0, 100]. V4.9 Priority 1 - local to this module rather than shared
+    with scripts/profile_inference.py's own percentile() helper: same
+    nearest-rank math, but a genuinely different domain (correlation-
+    change magnitudes vs. latency durations) with no real coupling to gain
+    from sharing. Returns 0.0 for an empty list rather than raising."""
+    if not values:
+        return 0.0
+    sorted_values = sorted(values)
+    index = min(int(round(p / 100.0 * (len(sorted_values) - 1))), len(sorted_values) - 1)
+    return sorted_values[index]
+
+
 def rank_correlated_peers(
     symbol: str,
     eligible_symbols: list[str],
@@ -336,13 +362,35 @@ def build_market_topology(
     previous_correlations: dict[tuple[str, str], float] | None = None,
     correlation_stability_tolerance: float | None = None,
     embedding_dimensions: int = 2,
+    correlation_stability_tolerance_percentile: float | None = None,
+    correlation_change_history: list[float] | None = None,
+    correlation_change_history_max_len: int = 50,
 ) -> MarketTopology:
     """`embedding_dimensions` (V4-W3, `phase_v2.topology.embedding_dimensions`,
     default 2) selects how many axes SMACOF embeds. At 2 - the default -
     every coordinate, reason string and dimension is byte-identical to the
     pre-V4 behavior, and z stays the volatility encoding. At 3, z becomes
     a real correlation-distance axis on the same 0..100 scale as x/y, and
-    volatility is carried by node radius in the webui instead."""
+    volatility is carried by node radius in the webui instead.
+
+    `correlation_stability_tolerance_percentile` (V4.9 Priority 1, default
+    None) is a self-relative alternative to the fixed
+    `correlation_stability_tolerance` above - development/Problems.md#36
+    found the fixed default poorly calibrated (the skip "essentially never
+    fires" against synthetic data, and this environment can't run a real
+    backtest to calibrate a better fixed number). When set, the effective
+    tolerance each bar is the given percentile of
+    `correlation_change_history` (a rolling window of RECENT PRIOR bars'
+    own max-pairwise-correlation-change values, NOT including this bar's -
+    avoids the circularity of a bar judging itself), making the skip rate
+    a mathematically-guaranteed function of the chosen percentile
+    regardless of the real correlation-noise distribution. Takes priority
+    over `correlation_stability_tolerance` when set; None (the default)
+    reproduces the fixed-tolerance behavior byte-identically. The caller
+    (main.py) is expected to thread `correlation_change_history` through
+    bar-to-bar exactly like `previous_positions`/`previous_correlations` -
+    read this call's returned `MarketTopology.correlation_change_history`
+    and pass it back in as next bar's `correlation_change_history`."""
     regime_labels_by_symbol = regime_labels_by_symbol or {}
     reasons: list[str] = []
     embed_3d = embedding_dimensions == 3
@@ -501,19 +549,46 @@ def build_market_topology(
         if not previous_positions:
             previous_positions = None
 
-    can_reuse_previous_embedding = (
-        correlation_stability_tolerance is not None
-        and previous_correlations is not None
-        and previous_positions is not None
-        and set(correlations.keys()) == set(previous_correlations.keys())
-        and set(eligible_symbols).issubset(previous_positions.keys())
-    )
-    if can_reuse_previous_embedding:
+    # V4.9 Priority 1: max_correlation_change is computed here, OUTSIDE the
+    # can_reuse_previous_embedding gate below, whenever it's comparable at
+    # all (previous_correlations present and covering the same symbol
+    # pairs) - correlation_change_history needs every bar's value to build
+    # a meaningful rolling window, not just the bars where reuse ends up
+    # being attempted for other reasons too.
+    max_correlation_change: float | None = None
+    if previous_correlations is not None and set(correlations.keys()) == set(previous_correlations.keys()):
         max_correlation_change = max(
             (abs(correlations[key] - previous_correlations[key]) for key in correlations),
             default=0.0,
         )
-        can_reuse_previous_embedding = max_correlation_change <= correlation_stability_tolerance
+
+    updated_correlation_change_history = list(correlation_change_history or [])
+    if max_correlation_change is not None:
+        updated_correlation_change_history.append(max_correlation_change)
+        if len(updated_correlation_change_history) > correlation_change_history_max_len:
+            updated_correlation_change_history = updated_correlation_change_history[-correlation_change_history_max_len:]
+
+    if correlation_stability_tolerance_percentile is not None:
+        # Percentile of RECENT PRIOR bars only (the input history, not the
+        # just-updated one above) - a bar must never be judged against a
+        # window that already includes its own value.
+        effective_tolerance = (
+            _percentile(correlation_change_history, correlation_stability_tolerance_percentile)
+            if correlation_change_history
+            else None
+        )
+    else:
+        effective_tolerance = correlation_stability_tolerance
+
+    can_reuse_previous_embedding = (
+        effective_tolerance is not None
+        and previous_correlations is not None
+        and previous_positions is not None
+        and set(correlations.keys()) == set(previous_correlations.keys())
+        and set(eligible_symbols).issubset(previous_positions.keys())
+        and max_correlation_change is not None
+        and max_correlation_change <= effective_tolerance
+    )
 
     if can_reuse_previous_embedding:
         final_positions = {symbol: previous_positions[symbol] for symbol in eligible_symbols}
@@ -619,4 +694,5 @@ def build_market_topology(
         dimensions=_dimensions_for(embedding_dimensions),
         reasons=reasons,
         correlations=correlations,
+        correlation_change_history=updated_correlation_change_history,
     )

@@ -633,6 +633,61 @@ def test_profile_no_gc_with_subsystem_flag_errors_and_does_not_run(capsys):
     run_mock.assert_not_called()
 
 
+def test_profile_options_flag_routes_to_profile_subsystems_script():
+    # V4.9 Priority 7
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--options"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert cmd[0:2] == [sys.executable, "scripts/profile_subsystems.py"]
+    assert "--options" in cmd
+
+
+def test_profile_forwards_parallel_flag_only_when_set():
+    # V4.9 Priority 6
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--parallel"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert cmd[0:2] == [sys.executable, "scripts/profile_inference.py"]
+    assert "--parallel" in cmd
+
+
+def test_profile_omits_parallel_flag_by_default():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--parallel" not in cmd
+
+
+def test_profile_forwards_pool_workers_and_symbols_per_bar_only_when_given():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--parallel", "--pool-workers", "8", "--symbols-per-bar", "20"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert cmd[cmd.index("--pool-workers") + 1] == "8"
+    assert cmd[cmd.index("--symbols-per-bar") + 1] == "20"
+
+
+def test_profile_omits_pool_workers_and_symbols_per_bar_when_not_given():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["profile", "--parallel"], run_mock)
+
+    cmd = run_mock.call_args.args[0]
+    assert "--pool-workers" not in cmd
+    assert "--symbols-per-bar" not in cmd
+
+
+def test_profile_parallel_with_subsystem_flag_errors_and_does_not_run(capsys):
+    run_mock = MagicMock(return_value=0)
+    exit_code = _parse_and_dispatch(["profile", "--liquidity", "--parallel"], run_mock)
+
+    assert exit_code == 1
+    assert "--parallel" in capsys.readouterr().err
+    run_mock.assert_not_called()
+
+
 def test_report_builds_expected_lean_report_command():
     run_mock = MagicMock(return_value=0)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"):

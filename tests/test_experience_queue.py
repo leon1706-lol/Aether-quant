@@ -5,6 +5,7 @@ no mocking beyond fakeredis injection via _client parameter.
 """
 
 import json
+import time
 from datetime import date
 
 import fakeredis
@@ -158,6 +159,124 @@ def test_event_id_is_unique_per_call():
     event_a = _minimal_event()
     event_b = _minimal_event()
     assert event_a["event_id"] != event_b["event_id"]
+
+
+# ---------------------------------------------------------------------------
+# ExperienceQueue async_enabled (V4.9 Priority 5, development/Problems.md
+# #14's own follow-up) - push() must never block the caller in async mode,
+# even against a slow Redis client; a full background queue must soft-drop
+# rather than block; async_enabled=False (the default) must stay a
+# byte-identical parity match to the pre-V4.9 synchronous behavior.
+# ---------------------------------------------------------------------------
+
+
+class _SlowFakeClient:
+    """Wraps a real fakeredis client, but sleeps inside xadd() to simulate
+    a slow/degraded Redis connection - the exact scenario async mode
+    exists to protect the caller from. Records how long each xadd() call
+    actually took, so a test can assert those slow calls happened on the
+    background thread, not on push()'s own caller thread."""
+
+    def __init__(self, delay_seconds: float):
+        self._client = fakeredis.FakeRedis()
+        self._delay_seconds = delay_seconds
+        self.xadd_call_durations: list[float] = []
+
+    def xadd(self, *args, **kwargs):
+        start = time.perf_counter()
+        time.sleep(self._delay_seconds)
+        result = self._client.xadd(*args, **kwargs)
+        self.xadd_call_durations.append(time.perf_counter() - start)
+        return result
+
+    def xrange(self, *args, **kwargs):
+        return self._client.xrange(*args, **kwargs)
+
+
+def test_async_disabled_is_byte_identical_to_synchronous_default():
+    """async_enabled defaults to False and must reproduce the exact
+    pre-V4.9 synchronous-XADD-in-push() behavior - push() returns only
+    after the real XADD call completes, and the event is visible in the
+    stream immediately, no flush() needed."""
+    client = fakeredis.FakeRedis()
+    experience_queue = ExperienceQueue(enabled=True, _client=client)
+
+    result = experience_queue.push(_minimal_event())
+
+    assert result is True
+    assert len(client.xrange("aether:experience")) == 1
+
+
+def test_async_enabled_push_does_not_block_on_a_slow_client():
+    slow_client = _SlowFakeClient(delay_seconds=0.5)
+    experience_queue = ExperienceQueue(enabled=True, async_enabled=True, _client=slow_client)
+
+    start = time.perf_counter()
+    result = experience_queue.push(_minimal_event())
+    elapsed = time.perf_counter() - start
+
+    assert result is True
+    assert elapsed < 0.1  # push() itself must return almost instantly, well under the 0.5s xadd delay
+    experience_queue.flush()
+    assert len(slow_client.xadd_call_durations) == 1
+    assert slow_client.xadd_call_durations[0] >= 0.5  # the slow XADD really did happen, just off the caller's thread
+
+
+def test_async_enabled_eventually_delivers_to_the_stream():
+    client = fakeredis.FakeRedis()
+    experience_queue = ExperienceQueue(enabled=True, async_enabled=True, _client=client)
+
+    experience_queue.push(_minimal_event())
+    experience_queue.flush()
+
+    assert len(client.xrange("aether:experience")) == 1
+
+
+def test_async_enabled_preserves_delivery_order():
+    client = fakeredis.FakeRedis()
+    experience_queue = ExperienceQueue(enabled=True, async_enabled=True, _client=client)
+
+    for ticker in ("AAA", "BBB", "CCC"):
+        experience_queue.push(_minimal_event(ticker=ticker))
+    experience_queue.flush()
+
+    entries = client.xrange("aether:experience")
+    delivered_tickers = [json.loads(entry[1][b"payload"])["ticker"] for entry in entries]
+    assert delivered_tickers == ["AAA", "BBB", "CCC"]
+
+
+def test_async_enabled_soft_drops_when_background_queue_is_full():
+    slow_client = _SlowFakeClient(delay_seconds=0.2)
+    experience_queue = ExperienceQueue(enabled=True, async_enabled=True, _client=slow_client)
+    experience_queue._background_queue.maxsize = 1  # force a tiny queue so a real overflow is reachable in a test
+
+    first = experience_queue.push(_minimal_event())  # picked up by the drain thread almost immediately
+    time.sleep(0.05)  # let the drain thread start processing (and sleeping inside xadd) before flooding
+    second = experience_queue.push(_minimal_event())  # fills the size-1 queue while the drain thread is busy
+    third = experience_queue.push(_minimal_event())  # queue is full - must soft-drop, not block or raise
+
+    assert first is True
+    assert third is False
+    assert second in (True, False)  # timing-dependent whether this one lands before or after the queue fills
+
+
+def test_async_disabled_ignores_background_queue_attributes():
+    """async_enabled=False must never spin up a background thread/queue at
+    all - not just behave as if it didn't."""
+    experience_queue = ExperienceQueue(enabled=True, _client=fakeredis.FakeRedis())
+    assert experience_queue._background_queue is None
+    assert experience_queue._background_thread is None
+
+
+def test_flush_is_a_no_op_when_async_disabled():
+    experience_queue = ExperienceQueue(enabled=True, _client=fakeredis.FakeRedis())
+    experience_queue.flush()  # must not raise/hang
+
+
+def test_async_enabled_disabled_queue_push_returns_false_without_starting_a_thread():
+    experience_queue = ExperienceQueue(enabled=False, async_enabled=True)
+    assert experience_queue.push(_minimal_event()) is False
+    assert experience_queue._background_thread is None
 
 
 # ---------------------------------------------------------------------------

@@ -890,14 +890,22 @@ MULTI_LEG_STRATEGY_REGISTRY: dict[str, StrategySpec] = {
 }
 
 
-def _group_chain_by_expiry(available_chain: list[dict]) -> dict[str, list[dict]]:
+def group_chain_by_expiry(available_chain: list[dict]) -> dict[str, list[dict]]:
     """Single O(n) pass grouping chain rows by expiry - built ONCE per
     selector call and reused for every leg lookup within it, rather than
     re-scanning the full chain per leg (this is the "latency-efficient"
     requirement for a function that runs every bar, per candidate
     strategy, per symbol). Also the mechanism that makes expiry-anchoring
     possible: every leg after the anchor is selected ONLY from
-    grouped[anchor_expiry], never re-scanning the other expiries."""
+    grouped[anchor_expiry], never re-scanning the other expiries.
+
+    Public (V4.9 Priority 3, renamed from the original _group_chain_by_expiry)
+    since risk/asset_class_router.py::route_multi_leg_option_sizing() now
+    calls this ONCE per routing call (not per selector call) when the
+    calendar shape family is in play, avoiding a repeated regroup of the
+    same chain across multiple candidate strategies tried in the same
+    bar - see select_calendar_legs()'s/select_arbitrage_jelly_roll_legs()'s
+    own grouped_chain_by_expiry parameter."""
     grouped: dict[str, list[dict]] = {}
     for row in available_chain:
         grouped.setdefault(row.get("expiry"), []).append(row)
@@ -1170,20 +1178,32 @@ def select_iron_butterfly_legs(
     }
 
 
-def select_calendar_legs(spec: StrategySpec, available_chain: list[dict], target_delta: float) -> dict[str, dict] | None:
+def select_calendar_legs(
+    spec: StrategySpec,
+    available_chain: list[dict],
+    target_delta: float,
+    grouped_chain_by_expiry: dict[str, list[dict]] | None = None,
+) -> dict[str, dict] | None:
     """shape_family == "calendar" - a genuinely new primitive (nothing
     before this pass compares two DIFFERENT expiries): groups the chain by
-    expiry first (_group_chain_by_expiry(), O(n) once), requires at least
+    expiry first (group_chain_by_expiry(), O(n) once), requires at least
     2 distinct expiries, picks the near leg's strike by delta within the
     nearest expiry, then requires the SAME strike be present in every
     LATER expiry group - the far leg uses the closest-dated expiry that
     has it. Returns None for a chain with fewer than 2 expiries (routine
-    for a thinly configured universe, never a crash)."""
+    for a thinly configured universe, never a crash).
+
+    `grouped_chain_by_expiry` (V4.9 Priority 3), when given, is used
+    INSTEAD OF recomputing group_chain_by_expiry(available_chain) here -
+    lets a caller trying several calendar-family candidates against the
+    SAME chain in one bar (risk/asset_class_router.py::
+    route_multi_leg_option_sizing()) group it once and reuse it. Default
+    None reproduces the exact original per-call regroup behavior."""
     near_leg = next(leg for leg in spec.legs if leg.expiry_role == "near")
     far_leg = next(leg for leg in spec.legs if leg.expiry_role == "far")
     right = near_leg.right
 
-    grouped = _group_chain_by_expiry(available_chain)
+    grouped = grouped_chain_by_expiry if grouped_chain_by_expiry is not None else group_chain_by_expiry(available_chain)
     expiries = sorted(e for e in grouped if e is not None)
     if len(expiries) < 2:
         return None
@@ -1374,18 +1394,31 @@ def select_arbitrage_conversion_legs(spec: StrategySpec, available_chain: list[d
     return {anchor_leg.role: anchor_row, other_leg.role: other_row}
 
 
-def select_arbitrage_jelly_roll_legs(spec: StrategySpec, available_chain: list[dict], target_delta: float) -> dict[str, dict] | None:
+def select_arbitrage_jelly_roll_legs(
+    spec: StrategySpec,
+    available_chain: list[dict],
+    target_delta: float,
+    grouped_chain_by_expiry: dict[str, list[dict]] | None = None,
+) -> dict[str, dict] | None:
     """shape_family == "arbitrage_jelly_roll" (jelly_roll/short_jelly_roll)
     - wired-but-unreachable, same caveat as the other 2 arbitrage selectors
     above. Same expiry-grouping primitive as select_calendar_legs(), but
     requires all 4 legs (near call, far call, near put, far put) to share
-    ONE strike across both expiries."""
+    ONE strike across both expiries.
+
+    `grouped_chain_by_expiry` (V4.9 Priority 3) - same optional
+    precomputed-grouping parameter as select_calendar_legs(), same default-
+    None-reproduces-original-behavior contract. In practice never actually
+    passed today (this shape family is permanently unreachable via
+    route_multi_leg_option_sizing()'s own risk_tier routing - see its
+    "unreachable_arbitrage" branch), kept for interface symmetry with
+    select_calendar_legs() and in case a future caller reaches it directly."""
     near_call_leg = next(leg for leg in spec.legs if leg.role == "near_call")
     far_call_leg = next(leg for leg in spec.legs if leg.role == "far_call")
     near_put_leg = next(leg for leg in spec.legs if leg.role == "near_put")
     far_put_leg = next(leg for leg in spec.legs if leg.role == "far_put")
 
-    grouped = _group_chain_by_expiry(available_chain)
+    grouped = grouped_chain_by_expiry if grouped_chain_by_expiry is not None else group_chain_by_expiry(available_chain)
     expiries = sorted(e for e in grouped if e is not None)
     if len(expiries) < 2:
         return None
@@ -1429,7 +1462,16 @@ _SHAPE_FAMILY_SELECTORS = {
 }
 
 
-def select_strategy_legs(strategy_name: str, available_chain: list[dict], target_delta: float, **tuning_kwargs) -> dict[str, dict] | None:
+_GROUPED_CHAIN_SHAPE_FAMILIES = {"calendar", "arbitrage_jelly_roll"}
+
+
+def select_strategy_legs(
+    strategy_name: str,
+    available_chain: list[dict],
+    target_delta: float,
+    grouped_chain_by_expiry: dict[str, list[dict]] | None = None,
+    **tuning_kwargs,
+) -> dict[str, dict] | None:
     """Single dispatch point every caller (main.py, tests) should use
     instead of calling a shape-family selector directly - looks up
     strategy_name's StrategySpec then its shape_family's selector, a plain
@@ -1442,7 +1484,16 @@ def select_strategy_legs(strategy_name: str, available_chain: list[dict], target
     - unrecognized kwargs for a given selector are simply not in its
     signature and would raise, exactly like any other Python call; callers
     should only pass kwargs relevant to the strategy family they're
-    invoking, or none at all to accept every selector's own defaults."""
+    invoking, or none at all to accept every selector's own defaults.
+
+    `grouped_chain_by_expiry` (V4.9 Priority 3) is a DEDICATED top-level
+    parameter, not folded into tuning_kwargs - it's only meaningful for the
+    2 shape families in _GROUPED_CHAIN_SHAPE_FAMILIES (calendar,
+    arbitrage_jelly_roll) and is deliberately swallowed (never forwarded)
+    for every other strategy_name, since blindly passing it through
+    tuning_kwargs would raise a TypeError for the 12 selectors that don't
+    accept it. Default None reproduces the exact original per-call regroup
+    behavior for every strategy_name, unchanged."""
     spec = MULTI_LEG_STRATEGY_REGISTRY.get(strategy_name)
     if spec is None:
         return None
@@ -1451,6 +1502,10 @@ def select_strategy_legs(strategy_name: str, available_chain: list[dict], target
     selector = _SHAPE_FAMILY_SELECTORS.get(spec.shape_family)
     if selector is None:
         return None
+    if spec.shape_family in _GROUPED_CHAIN_SHAPE_FAMILIES:
+        return selector(
+            spec, available_chain, target_delta, grouped_chain_by_expiry=grouped_chain_by_expiry, **tuning_kwargs
+        )
     return selector(spec, available_chain, target_delta, **tuning_kwargs)
 
 
@@ -1630,6 +1685,7 @@ def build_multi_leg_position_sizing(
     portfolio_value: float,
     target_delta_at_full_confidence: float = 0.60,
     max_vega_budget_pct_of_equity: float = 0.02,
+    grouped_chain_by_expiry: dict[str, list[dict]] | None = None,
     **selector_tuning_kwargs,
 ) -> OptionsMultiLegPositionDecision | None:
     """The single public entry point for every NEW (V4.5) vega-budget-tier
@@ -1638,7 +1694,11 @@ def build_multi_leg_position_sizing(
     unreachable-arbitrage strategy_name (those are sized by
     portfolio/options_margin_sizing.py, or never sized at all,
     respectively) - a caller passing the wrong tier's strategy_name here
-    gets a clean None, not a wrong/unsafe budget calculation."""
+    gets a clean None, not a wrong/unsafe budget calculation.
+
+    `grouped_chain_by_expiry` (V4.9 Priority 3) passes straight through to
+    select_strategy_legs() - see its own docstring. Default None
+    reproduces the exact original per-call regroup behavior."""
     spec = MULTI_LEG_STRATEGY_REGISTRY.get(strategy_name)
     if spec is None or spec.risk_tier != "vega_budget":
         return None
@@ -1651,7 +1711,10 @@ def build_multi_leg_position_sizing(
         return None
 
     target_delta = target_delta_at_full_confidence * confidence
-    legs_by_role = select_strategy_legs(strategy_name, available_chain, target_delta, **selector_tuning_kwargs)
+    legs_by_role = select_strategy_legs(
+        strategy_name, available_chain, target_delta,
+        grouped_chain_by_expiry=grouped_chain_by_expiry, **selector_tuning_kwargs,
+    )
     if legs_by_role is None:
         return None
 

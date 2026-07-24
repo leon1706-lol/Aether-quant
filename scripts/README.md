@@ -24,7 +24,8 @@ codebase.
 
   ```powershell
   aq profile --iterations 10000
-  aq profile --iterations 10000 --batched   # use the batched + precomputed-stack-cached expert path
+  aq profile --iterations 10000 --batched   # use the batched + precomputed-stack-cached expert path (V4.9: also runs an additive sequence-encoder symbol-batching comparison)
+  aq profile --parallel --pool-workers 4    # V4.9: real ProcessPoolExecutor IPC-overhead benchmark vs. a sequential baseline
   ```
 
   A real `lean backtest .` run is off the table for repeated profiling on

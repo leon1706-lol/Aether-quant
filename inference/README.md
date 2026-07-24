@@ -198,7 +198,70 @@ lists into NumPy arrays on every single bar. Full writeup in
   `development/Problems.md` #32 for why this is genuinely untested
   inside Lean's own runtime (Windows' `ProcessPoolExecutor` uses the
   `spawn` start method, which has never run inside Lean's embedded-
-  Python process before this pass).
+  Python process before this pass). **V4.9 Priority 6**: this break-even
+  warning was never actually measured until `scripts/profile_inference.py`
+  gained `--parallel` — a real `ProcessPoolExecutor` benchmark of
+  `run_symbol_inference()` against an identical sequential baseline (same
+  function, only the submission mechanism differs), reported as its own
+  p50/p95/p99/max/mean section. On this dev machine's Windows `spawn`
+  start method at real universe scale, the pool measured **dramatically
+  slower** than sequential (single-digit-ms sequential bars vs. multi-
+  second pooled bars) — direct, measured confirmation of the module's own
+  long-standing suspicion, not just a suspicion anymore.
+
+## V4.9 Priority 1: sequence-encoder symbol-batching
+
+`run_exported_models_batched()`/`run_exported_multitask_models_batched()`
+above batch N *different models* (the 4 experts) sharing ONE input. The
+sequence encoder is the opposite shape: there is exactly ONE trained
+model, called once per symbol per bar with each symbol's own different
+`(window, features)` rolling-buffer input — profiling
+(`development/Problems.md` #21) found this call alone was ~48-58% of
+total profiled inference time, the single largest remaining cost after
+the weight-caching/batching pass above, entirely from Python/NumPy
+per-call dispatch overhead repeated once per symbol, not FLOPs (the same
+"call-count is what matters" finding that motivated the expert-batching
+work).
+
+- **`_conv1d_causal_batched()`** — batched sibling of `_conv1d_causal()`:
+  same left-pad-then-gather-then-einsum construction, with a leading `N`
+  (symbols) axis carried through the padding/gather and the final einsum.
+- **`_linear_shared_batched()`** — batched sibling of `_linear()` for ONE
+  shared weight matrix applied to `N` stacked input rows. Deliberately
+  distinct from `_linear_batched()` above, which is the opposite shape
+  (`N` different models' own weights over one shared input) —
+  `_layernorm_axis()` (already axis-aware, Phase 2) is reused as-is for
+  the batched layernorm case, no new primitive needed there.
+- **`run_exported_sequence_multitask_model_batched(model_export,
+  sequences)`** — stacks every present symbol's sequence into one `(N,
+  window, features)` batch, runs the causal-conv trunk once, pools each
+  symbol's own most-recent timestep, then runs each head once across all
+  `N` pooled rows. `None` entries (a symbol whose rolling buffer hasn't
+  warmed up yet) are preserved at the same index in the output. Falls
+  back to calling the unbatched function once per present symbol — never
+  raises — whenever fewer than 2 sequences are present or the batched
+  computation itself fails for any reason (e.g. symbols with
+  inconsistent window lengths, which `np.asarray()` on a ragged list
+  would itself raise on).
+- `main.py`'s `on_data()` Phase 1b gained a new branch (gated by
+  `phase_v2.sequence_model.batched_across_symbols_enabled`, default
+  `false`) that batches the sequence-model call across every pending
+  symbol in one bar, only when `self._inference_pool is None` — symbol-
+  batching and multiprocess parallelism (above) are alternative
+  optimizations this pass, not combined.
+- **C++ acceleration deliberately deferred, not part of this pass's first
+  cut** — ship the pure-NumPy batched path, re-profile with
+  `scripts/profile_inference.py`'s extended `--batched` (which now also
+  runs an additive sequence-encoder batched-vs-unbatched comparison
+  section), and only then decide whether a `conv1d_causal_batched` C++
+  function earns a place in the existing `cpp_inference_ext/` extension
+  (same module, new source file — never a second extension folder).
+
+Parity tests in `tests/test_exported_model.py` mirror the exact existing
+precedent for the flat/multitask batched functions (matches-individual-
+calls, preserves-`None`-at-missing-indices, falls-back-on-ragged-input-
+without-crashing), plus hand-computed small-example tests for the two new
+pure math primitives.
 
 ## Testing
 

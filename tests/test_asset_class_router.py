@@ -327,6 +327,37 @@ def _multi_leg_kwargs(**overrides) -> dict:
     return base
 
 
+def _calendar_chain_with_vega_term_structure() -> list[dict]:
+    """Two-expiry chain with different vega per expiry, same rationale as
+    tests/test_options_strategy_multileg.py's own fixture of the same
+    name - a flat vega curve across expiries would make a calendar's
+    near/far net vega cancel to exactly 0."""
+    rows = []
+    for expiry, vega in (("2026-08-21", 2.0), ("2026-09-18", 3.0)):
+        rows.append({
+            "symbol": f"C100_{expiry}", "right": "call", "strike": 100.0, "expiry": expiry,
+            "delta": 0.5, "vega": vega, "bid": 1.0, "ask": 1.1,
+        })
+    return rows
+
+
+def test_route_multi_leg_option_sizing_calendar_family_reachable_via_the_hoisted_chain_grouping():
+    """V4.9 Priority 3 regression guard: route_multi_leg_option_sizing()
+    now precomputes group_chain_by_expiry() once, only for calendar-family
+    candidates, and threads it through build_multi_leg_position_sizing() ->
+    select_strategy_legs(). Proves that wiring still produces a correct,
+    non-None calendar decision spanning 2 distinct expiries - the thing
+    most at risk of silently breaking from a kwarg-threading mistake."""
+    result = route_multi_leg_option_sizing(
+        ["call_calendar_spread"], "buy", 0.8, _calendar_chain_with_vega_term_structure(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    assert result is not None
+    _, extra = result
+    decision = extra["options_decision"]
+    assert len(set(decision.expiries)) == 2
+
+
 def test_route_multi_leg_option_sizing_default_list_single_leg_wins():
     result = route_multi_leg_option_sizing(
         ["single_leg", "bull_call_spread", "bear_put_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,

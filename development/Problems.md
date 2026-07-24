@@ -1838,6 +1838,49 @@ set). Full suite: `aq test` → 1318 passed, 0 failed, 11 deselected
 
 ---
 
+**Update 2026-07-24 (V4.9 Priority 2): a percentile-tolerance mode added,
+plus a scope correction.** First, the correction: `topology_warm_start_enabled`/
+`topology_convergence_tolerance` (default **on**, `_stress_majorize()`
+exiting early once warm-started movement drops below tolerance) and this
+entry's `cache_enabled`/`correlation_stability_tolerance` full-skip
+mechanism (default **off**) are **complementary, not redundant** — warm
+start still runs SMACOF but seeds it from the prior bar's converged
+positions (fast convergence, still a real computation); the cache
+mechanism above skips running SMACOF at all. Any prior wording in this
+project implying otherwise was imprecise; both exist because they solve
+different parts of the same cost (iteration count vs. call count).
+
+Second, the actual addition: rather than guess a better fixed
+`correlation_stability_tolerance` value without the real-market data
+needed to calibrate one (see "What this means, honestly" above — still
+true, still unresolved), `build_market_topology()` gained a
+self-relative, percentile-based tolerance mode instead —
+`correlation_stability_tolerance_percentile`
+(`phase_v2.topology.correlation_stability_tolerance_percentile`, default
+`null`, byte-identical to today when unset). When set, the effective
+tolerance each bar is that percentile of a rolling window of the bar's
+own recent max-pairwise-correlation-change history (threaded bar-to-bar
+via `main.py`'s new `self._topology_correlation_change_history`, same
+pattern as `_previous_topology_positions`/`_previous_topology_correlations`) —
+this makes the resulting skip rate a mathematically-guaranteed function
+of the chosen percentile, correct by construction and fully testable with
+synthetic data alone, sidestepping the "is 0.02 the right number for real
+markets" question this entry could never answer without a real backtest.
+Recommended over the fixed-value mode going forward, once the user
+chooses to enable topology caching at all — still off by default, same
+"needs a real Lean backtest to validate the actual skip rate/win at real
+universe scale" caveat as the rest of this entry.
+
+**Testing (this update)**: 13 new tests in `tests/test_market_topology.py`
+(`_percentile()` hand-computed + empty-list, percentile-omitted-matches-
+fixed-mode parity, percentile-mode reuse/no-reuse cases including the
+empty-history bootstrap case, percentile-takes-priority-over-fixed-tolerance,
+history accumulation/ordering/max-len-cap/non-mutation/no-op-when-nothing-
+comparable). `main.py` wiring: call-graph trace (unit-untestable by this
+codebase's own established convention) + full suite green.
+
+---
+
 **Update 2026-07-18 (operational-maturity pass): `_build_model_input()`'s
 scope gap re-investigated, confirmed harder than originally documented —
 prepared, not run.** Attempted to close this specific gap by constructing
@@ -1891,8 +1934,24 @@ attempt was made** (a later session, once `lean backtest .` division-of-labor
 constraints were relaxed) — see entry #50. Four real attempts all failed
 before a single bar was ever processed (Lean's 90-second `initialize()`
 isolator cap, root-caused to this dev machine's 4GB RAM, not a code issue),
-so no real timing data was ever collected; the snippet was fully reverted
-afterward rather than left half-applied. Still genuinely open.
+so no real timing data was ever collected.
+
+**Correction, 2026-07-24 (V4.9 Priority 0)**: the claim directly above —
+"the snippet was fully reverted afterward" — was false. The wrapper was
+still live in `main.py` at the start of V4.9, unconditionally writing to
+`model_input_timing.log` on disk, synchronously, on every single
+symbol-bar call, with no config gate — the single hottest path in the
+system. 45,187 accumulated lines (~983KB, last written 2026-07-20) were
+found still sitting in the repo root, confirmed gitignored/untracked, and
+deleted. The wrapper has now actually been removed in V4.9 Priority 0:
+`_build_model_input_impl` renamed back to `_build_model_input`, the
+`from time import perf_counter as _profile_perf_counter` import deleted.
+See entry #63 for the Lean-namespace `time`-shadowing gotcha the import's
+comment was preserving, kept as a standalone note since it's a real
+footgun independent of this specific snippet. Still genuinely open as far
+as ever collecting real per-call timing data goes — `scripts/
+profile_inference.py`'s in-process harness is the intended replacement
+path (no disk I/O per call, no Lean process needed at all).
 
 ### 37. Inference tail latency (p99 3-5x p50) — investigated: real GC-pause contribution to worst-case latency confirmed, root cause of the old `scripts/profile_inference_output.txt` discrepancy resolved as machine load, not a regression
 **Severity:** 4/10 · **Status:** 🟢 `fixed and verified` (investigation complete, `--bucket-report`/`--no-gc` harness additions shipped and tested; `gc.freeze()` production tuning is now real, shipped code, and confirmed running cleanly across a full real backtest 2026-07-20 — see #54 — with `phase_v2.gc_tuning.freeze_after_load_enabled` on and no interop crash)
@@ -3595,5 +3654,220 @@ After V4.7 shipped, a 3-agent audit (webui/frontend, backend/model completeness,
 **New `webui` "Options & Strategy" page** (`/options-strategy`) — the audit found no dedicated Options/Forex/Bonds page existed; everything was crammed into a thin, structurally-unchanged `RiskPage.tsx`. Six new components: held multi-leg positions with per-leg assignment-risk scores, a dividend-schedule summary, strategy-selector scores (with a critical dormant-state message — "No trained strategy-selector model loaded" — never a blank table, since this trainer realistically has no data source at all in this environment per its own module docstring), same-bar corporate-action events, a static 43-strategy catalog browser (new `monitoring/strategy_catalog.py` + `GET /api/strategies` endpoint — deliberately NOT embedded in `state.json`, since the catalog is useful independent of whether any Lean process has ever run), and a Forex pair-spec detail panel replacing the old raw `"N forex lots"` string (`risk/asset_class_router.py`'s forex branch now also returns the resolved `pair_spec` dict in `extra`, at zero extra computation cost).
 
 **Testing**: 1813 → **1818 tests, all passing** (7 new test functions added — `tests/test_strategy_catalog.py` — 5 tests confirming the 43-strategy count and entry shape; `tests/test_asset_class_router.py` — 2 new confirming `pair_spec` reaches `extra` — net delta measured at 5 via the full suite run). Webui: 13 tests across 2 files (unchanged file count, `pages.test.tsx` gained 3 new tests for the Options & Strategy page, including the critical "renders every panel with `state={undefined}`" fresh-clone/no-backtest-ever-run test and the dormant strategy-selector empty-state assertion) — `npm run build`/`npm run lint`/`npm test` all clean.
+
+---
+
+### 63. V4.9 Priority 0 — the entry #36/#50 profiling wrapper was never actually reverted: a live, unconditional per-bar disk write on the hottest path in the system, found and removed
+
+**Severity:** 6/10 (real, continuous synchronous disk I/O on every symbol-bar call in any live/paper/backtest run — not a crash, but a genuine unbounded-growth resource leak plus latency tax that entry #50 incorrectly closed out) · **Status:** 🟢 fixed and verified
+
+Entry #36's "Update 2026-07-19" note (see above, now corrected in place) claimed the `_build_model_input()` profiling wrapper "was fully reverted" after four failed real-backtest verification attempts (entry #50, root-caused to this dev machine's 4GB RAM hitting Lean's `initialize()` isolator cap). That claim was false: at the start of V4.9, `main.py` still defined `_build_model_input()` as a wrapper around a renamed `_build_model_input_impl()`, unconditionally opening `model_input_timing.log` in append mode and writing one line to it on every single symbol-bar call, with no config gate of any kind. The file had accumulated 45,187 lines (~983KB, last written 2026-07-20) sitting untracked in the repo root (confirmed gitignored, safe to delete without any git operation).
+
+**Fix**: `_build_model_input_impl` renamed back to `_build_model_input`; the wrapper deleted outright. The now-dead `from time import perf_counter as _profile_perf_counter` import (`main.py`, near the top-of-file import block) removed. `model_input_timing.log` deleted from the repo root.
+
+**The gotcha the removed import's comment was guarding against, preserved here since it's a real footgun independent of this specific snippet**: `main.py` does `from AlgorithmImports import *` after its own imports. `AlgorithmImports` re-exports a name `time` too — `datetime.time`, the time-of-day class, not the `time` module — and because the wildcard import runs later, it silently shadows a plain `import time`, breaking `time.perf_counter()` at runtime with `AttributeError: type object 'datetime.time' has no attribute 'perf_counter'`. Confirmed live in a real session. Any future profiling/timing code added to `main.py` must import `time.perf_counter` (or any other `time` module member) by name — `from time import perf_counter as x` — rather than `import time`, or must do the import before the `AlgorithmImports` wildcard import runs.
+
+**Real per-call timing data for `_build_model_input()` was never collected and remains genuinely open** — entry #50's four failed attempts still stand; this fix only removes the broken always-on collection mechanism, it doesn't replace it. `scripts/profile_inference.py`'s in-process harness (no disk I/O per call, no Lean process needed at all) is the intended path forward instead of a repeat of the disk-log approach, next time this number is actually needed.
+
+**Verification**: `python -m py_compile main.py` clean; grep-confirmed zero remaining references to `model_input_timing`, `_profile_perf_counter`, or `_build_model_input_impl` anywhere in `main.py`. `main.py` itself remains unit-untestable by this codebase's own established convention (verified via call-graph trace, not a new test) — full suite run deferred to the end of the V4.9 pass along with the rest of this priority list.
+
+---
+
+### 64. V4.9 Priority 4 — `_build_options_chains_payload()`'s gating, considered and declined
+
+**Severity:** n/a (no code change — a documented decision, not a bug) · **Status:** 🟢 considered and declined
+
+While scoping V4.9's latency pass, `main.py::_build_options_chains_payload()` (called once per bar in `on_data()`, `main.py:1269`) was flagged as a candidate for an additional gate: it currently runs for every configured `asset_class == "option"` asset regardless of `self.options_risk_enabled`, resolving `slice.option_chains` and computing/falling back to Black-Scholes greeks for every contract in the chain — real per-bar work that a second `if self.options_risk_enabled:` gate could skip entirely when options risk management is off.
+
+**Declined, on purpose.** Configuring an option asset in the universe at all is already the correct, deliberate trigger for chain data — `self.latest_options_chains_payload` feeds `state.json`/the webui's Options & Strategy page (Phase 4.8, entry #62) independently of whether multi-leg trading is actually enabled, and observation-mode users (chain visibility without live options trading) are a real, intended use case this codebase already supports elsewhere (the same "compute for visibility even when the corresponding trading path is off" pattern `latest_bond_analytics_by_symbol`/`latest_assignment_risk_by_symbol` already follow, entry #61/#62). Adding `options_risk_enabled` as a second gate here would silently break that visibility for no measured benefit — this function has never appeared as a meaningful cost in any profiling run in this codebase's history (`scripts/profile_subsystems.py` has no dedicated workload for it precisely because it needs a real `slice.option_chains`, the same Lean-only constraint `_build_model_input()` itself has — see entry #63's own "no way to even construct an uninitialized instance host-side" finding).
+
+Recorded here so this specific optimization isn't re-investigated from scratch by a future latency pass without this context.
+
+---
+
+### 65. V4.9 Priorities 1-3, 5-8 — sequence-encoder symbol-batching, topology percentile-tolerance caching, options chain-grouping hoist, non-blocking experience-event delivery, a real IPC-overhead benchmark, a new `profile_subsystems.py` options workload, and honest HFT-transfer documentation
+
+**Severity:** n/a (feature/optimization pass, all off by default) · **Status:** 🟢 code-complete, full suite green
+
+The Roadmap carried a standing item since V4.6 to continue the
+profiling/optimization work beyond `build_market_topology()` and the
+inference hot path. The user asked for a major pass across every current
+and potential-future hot path, using the existing C++-extension pattern
+where it earns its keep, and expanding profiling tooling as needed —
+explicitly framed as work that should further cement a future HFT fork.
+See entry #63 (Priority 0, the live disk-I/O bug) and entry #64
+(Priority 4, considered-and-declined) for the other 2 priorities in this
+pass, documented separately since one was a genuine bug fix and the other
+a pure documentation decision.
+
+**Priority 1 — sequence-encoder symbol-batching** (closes entry #21,
+profiling's largest remaining per-bar cost at ~48-58% of profiled
+inference time): `run_exported_sequence_multitask_model()` runs the SAME
+trained model once per symbol per bar with each symbol's own different
+`(window, features)` input — the opposite shape from the existing
+expert-batching (N different models sharing one input). New
+`run_exported_sequence_multitask_model_batched()` (`inference/exported_model.py`)
+stacks every present symbol's sequence into one `(N, window, features)`
+batch, runs the causal-conv trunk once, pools each symbol's own
+most-recent timestep, then runs each head once across all `N` pooled
+rows — backed by 2 new pure primitives, `_conv1d_causal_batched()`
+(same tap-gather-then-einsum construction as `_conv1d_causal()`, with a
+leading symbol axis) and `_linear_shared_batched()` (ONE shared weight
+matrix applied to N stacked rows — distinct from `_linear_batched()`,
+which stacks N different models' own weights over one shared input;
+`_layernorm_axis()`, already axis-aware from Phase 2, needed no new
+primitive at all). Falls back to the individual per-symbol calls
+whenever fewer than 2 sequences are present or the batched computation
+itself fails for any reason (e.g. ragged window lengths across symbols).
+Wired into `main.py`'s `on_data()` Phase 1b behind
+`phase_v2.sequence_model.batched_across_symbols_enabled` (default
+`false`), only tried when `self._inference_pool is None` — symbol-
+batching and multiprocess parallelism are alternative optimizations, not
+combined. A module-level sentinel (`_SEQUENCE_RESULT_NOT_PRECOMPUTED`)
+distinguishes "no precomputed result was passed" from "a precomputed
+result of exactly `None` was passed" in `_run_inference_cluster_sequential()`,
+since a plain `None` default can't express that distinction. C++
+acceleration deliberately deferred — ship the NumPy path, re-profile with
+the newly-extended harness, decide later whether it earns a place in the
+existing `cpp_inference_ext/` extension.
+
+**Priority 2 — topology cache percentile-tolerance mode** (closes entry
+#36's honestly-unresolved calibration question): the fixed
+`correlation_stability_tolerance` (default `0.02`) was found poorly
+calibrated against synthetic data (the skip "essentially never fires")
+with no way to derive a better fixed number without a real backtest this
+environment can't run. New `correlation_stability_tolerance_percentile`/
+`correlation_change_history` params (`topology/market_topology.py::build_market_topology()`)
+make the effective tolerance each bar the given percentile of a rolling
+window of RECENT PRIOR bars' own max-pairwise-correlation-change values
+(never including the current bar's own — avoids a bar judging itself) —
+a mathematically-guaranteed skip rate, correct by construction, testable
+with synthetic data alone, rather than a guessed fixed constant.
+`MarketTopology` gained a new `correlation_change_history` field (same
+non-serialized state-carryover convention as its existing `correlations`
+field) so `main.py` can thread the rolling window bar-to-bar via
+`self._topology_correlation_change_history`. `correlation_stability_tolerance_percentile: null`
+(the default) reproduces the fixed-tolerance behavior byte-identically;
+when set, it takes priority over the fixed value. Also corrected a
+documentation imprecision found while scoping this: warm-starting
+(`warm_start_enabled`, default on) and the correlation-stability cache
+(`cache_enabled`, default off) are complementary mechanisms solving
+different costs (iteration count vs. call count entirely), never
+redundant with each other, despite some earlier wording implying
+otherwise.
+
+**Priority 3 — options chain-grouping hoist** (real but small, corrected
+scope from initial research): `_group_chain_by_expiry()` — renamed
+`group_chain_by_expiry()` and made public since it's now called across
+module boundaries — is used by only 2 of the 14 shape-family selectors
+(`select_calendar_legs()`, `select_arbitrage_jelly_roll_legs()` — the
+latter permanently unreachable via `route_multi_leg_option_sizing()`'s
+own `"unreachable_arbitrage"` routing, corrected down from an initial
+research estimate of "up to ~40 candidates"). Both selectors gained an
+optional `grouped_chain_by_expiry` param (default `None` reproduces the
+exact original per-call regroup); `select_strategy_legs()`/
+`build_multi_leg_position_sizing()` thread it through as a dedicated
+top-level parameter (not folded into `tuning_kwargs`, since blindly
+forwarding it would raise for the 12 selectors that don't accept it).
+`risk/asset_class_router.py::route_multi_leg_option_sizing()` computes
+the grouping ONCE per routing call, only when a calendar-family strategy
+is actually among `ordered_names`, instead of once per calendar-family
+candidate tried in the same bar. Currently zero live cost (no option
+assets configured today) but closes a genuine "potential future hot
+path" the user's own framing called out.
+
+**Priority 5 — non-blocking `ExperienceQueue.push()`** (closes entry
+#14's own follow-up, live/paper mode specifically — already gated off
+entirely in backtest mode): `push()` was a synchronous, blocking `XADD`
+call. New `async_enabled` param (`experience/redis_queue.py`) spins up a
+bounded (10,000-deep) background `queue.Queue` drained by a single daemon
+thread; `push()` becomes a non-blocking `put_nowait()`, soft-dropping
+with a logged warning on `queue.Full` rather than blocking — same
+fire-and-forget `bool` return contract every caller already treats this
+way (none retry on `False`). New `flush()` method blocks until the
+background queue drains, for tests/clean-shutdown checkpoints (never
+needed in normal operation — `daemon=True` already guarantees no hang at
+interpreter exit). Gated by `phase_v2.experience_queue.async_enabled`
+(default `false`) — the one knob in this whole pass where "off" is a
+real behavior guarantee (synchronous, in-order delivery attempted every
+call), not just an unused code path, since a hard process kill while
+events sit in the background queue silently loses them, an honest
+tradeoff only acceptable for fire-and-forget telemetry.
+
+**Priority 6 — a real IPC-overhead benchmark**: `inference/parallel_inference.py`'s
+own module docstring has carried a never-measured break-even warning
+since it shipped — does IPC/pickling overhead for `ProcessPoolExecutor`
+submission exceed the win at this project's small (~30-74 symbol)
+universe, given per-symbol inference is now only ~4.8ms mean post the
+weight-caching pass? `scripts/profile_inference.py --parallel` now runs a
+real pool benchmark (`run_parallel_workload()`) against an identical
+sequential baseline calling the exact same `run_symbol_inference()`
+function (`run_parallel_baseline_workload()`), isolating IPC overhead
+specifically rather than conflating it with any other cost difference.
+Degrades to a reported "FAILED" line (never crashes the run) on any pool
+creation/spawn/submit failure, matching `main.py`'s own
+permanent-fallback-to-sequential philosophy for this exact failure mode.
+**Measured result on this dev machine** (Windows, `spawn` start method):
+the pool is dramatically slower than sequential (single-digit-ms
+sequential bars vs. multi-second, in one run five-figure-ms, pooled bars
+at small symbols-per-bar/iteration counts) — direct, measured
+confirmation of the module's own long-standing suspicion, not just
+theoretical anymore. Real-universe-scale numbers from an actual `lean
+backtest .` run are still the definitive answer; this benchmark answers
+the narrower "is the IPC overhead itself real and large" question
+without needing one.
+
+**Priority 7 — `profile_subsystems.py` gained an `"options"` workload**:
+`route_multi_leg_option_sizing()` is pure and Lean-free, exactly this
+harness's existing scope — a synthetic multi-strike/multi-expiry chain
+(vega term structure across 2 expiries so the calendar family is
+exercisable) plus a representative strategy-name mix covering all 15
+shape families (the 10 reachable vega-budget/margin-tier families, the 2
+always-skipped covered_protective/collar names, and the 3
+arbitrage-detector-gated arbitrage families — locked in by a dedicated
+test asserting the mix's shape-family coverage equals the full registry's
+own set), timing the whole per-bar dispatch loop end-to-end including its
+own skip logic, not just selector dispatch. New `aq profile --options`
+CLI flag (loop-generated, same convention as every other subsystem flag).
+Also wired `--parallel`/`--pool-workers`/`--symbols-per-bar` into `aq
+profile`'s inference path for Priorities 6/1, previously only reachable
+by invoking `scripts/profile_inference.py` directly.
+`_build_options_chains_payload()` deliberately NOT covered — same
+Lean-only constraint `_build_model_input()` itself has, see entry #64.
+
+**Priority 8 — honest HFT-transfer documentation**: no existing document
+split "genuine V5/HFT-fork prep" from "V4-daily-bar-loop-only speedups."
+New `development/v2_architecture.md` section, immediately after the
+existing "Why This Is Not HFT" advisory, explicitly categorizes: the
+C++-extension pattern and the profiling-harness methodology as genuinely
+transferable; Priorities 1-3 (all optimize *within* the daily-bar
+`on_data()` loop a real V5 would replace outright, not extend) as
+explicitly NOT meaningful HFT prep; and Priorities 0/5 as neutral general
+hygiene with no HFT-specific bearing either way. Written specifically so
+"we did a lot of latency work this pass" never silently reads as "we made
+progress toward HFT" without this document saying so plainly.
+
+**Testing**: 1818 → **1857 tests, all passing** (39 new tests — parity/
+hand-computed tests for the 2 new sequence-batching primitives plus the
+batched sequence-model function itself in `tests/test_exported_model.py`;
+`_percentile()` hand-computed tests plus the full percentile-tolerance-
+mode/history-accumulation test matrix in `tests/test_market_topology.py`;
+precomputed-grouping parity tests in
+`tests/test_options_strategy_multileg.py` and a calendar-family
+end-to-end regression guard in `tests/test_asset_class_router.py`;
+async-delivery coverage — non-blocking, eventual-delivery, ordering,
+queue-full soft-drop, byte-identical-when-disabled — in
+`tests/test_experience_queue.py`; a pool-creation-failure degradation
+test in `tests/test_profile_inference.py`; the new options workload's
+shape/duration test plus its shape-family-coverage lock-in in
+`tests/test_profile_subsystems.py`; and 6 new CLI reachability tests in
+`tests/test_aq_cli.py` covering `--options`/`--parallel`/`--pool-workers`/
+`--symbols-per-bar`). Every new config key (`phase_v2.sequence_model.batched_across_symbols_enabled`,
+`phase_v2.topology.correlation_stability_tolerance_percentile`,
+`phase_v2.experience_queue.async_enabled`) grep-verified to default to
+`false`/`null` and reproduce today's exact behavior when omitted. `main.py`
+remains unit-untestable by this codebase's own established convention —
+every `main.py` change verified via call-graph trace, not a new test,
+same methodology as every prior pass this project has used.
 
 ---

@@ -13,6 +13,7 @@ from portfolio.options_strategy import (
     build_multi_leg_position_sizing,
     build_multi_leg_position_sizing_for_legs,
     classify_volatility_view,
+    group_chain_by_expiry,
     net_debit_or_credit_for_legs,
     option_auto_close_due,
     order_enabled_strategies,
@@ -177,6 +178,73 @@ def test_expiry_drift_regression_iron_condor_stays_on_one_expiry_with_two_presen
     legs = select_strategy_legs("iron_condor", chain, 0.5)
     expiries = {row["expiry"] for row in legs.values()}
     assert len(expiries) == 1
+
+
+# ---------------------------------------------------------------------------
+# grouped_chain_by_expiry (V4.9 Priority 3) - a precomputed
+# group_chain_by_expiry() result must produce byte-identical output to the
+# default per-call regroup, for the 2 shape families that use it and be
+# harmlessly ignored (never raise) for every other shape family.
+# ---------------------------------------------------------------------------
+
+
+def test_select_strategy_legs_precomputed_grouping_matches_default_regroup_for_calendar():
+    chain = _sample_chain(("2026-08-21", "2026-09-18"))
+    precomputed = group_chain_by_expiry(chain)
+
+    default_regroup = select_strategy_legs("call_calendar_spread", chain, 0.5)
+    with_precomputed = select_strategy_legs(
+        "call_calendar_spread", chain, 0.5, grouped_chain_by_expiry=precomputed
+    )
+
+    assert with_precomputed == default_regroup
+    assert with_precomputed is not None
+
+
+def test_select_strategy_legs_ignores_grouped_chain_by_expiry_for_non_calendar_family():
+    # iron_condor's shape family doesn't use expiry grouping at all - a
+    # caller passing this kwarg anyway (e.g. a router precomputing it once
+    # for a mixed strategy list) must be silently ignored, never raise or
+    # change the result.
+    chain = _sample_chain()
+    precomputed = group_chain_by_expiry(chain)
+
+    default = select_strategy_legs("iron_condor", chain, 0.5)
+    with_ignored_kwarg = select_strategy_legs("iron_condor", chain, 0.5, grouped_chain_by_expiry=precomputed)
+
+    assert with_ignored_kwarg == default
+
+
+def _calendar_chain_with_vega_term_structure() -> list[dict]:
+    """Two-expiry chain with DIFFERENT vega per expiry (real calendars
+    have vega term structure - farther expiries carry more vega per
+    contract), unlike _sample_chain()'s flat-vega-across-expiries shape
+    (fine for the single-expiry shape families it's designed for, but
+    would make a calendar's near/far net vega cancel to exactly 0 - a
+    fixture artifact, not a real sizing failure)."""
+    rows = []
+    for expiry, vega in (("2026-08-21", 2.0), ("2026-09-18", 3.0)):
+        rows.append({
+            "symbol": f"C100_{expiry}", "right": "call", "strike": 100.0, "expiry": expiry,
+            "delta": 0.5, "vega": vega, "bid": 1.0, "ask": 1.1, "iv": 0.25,
+        })
+    return rows
+
+
+def test_build_multi_leg_position_sizing_precomputed_grouping_matches_default_for_calendar():
+    chain = _calendar_chain_with_vega_term_structure()
+    precomputed = group_chain_by_expiry(chain)
+
+    default_decision = build_multi_leg_position_sizing(
+        "call_calendar_spread", "buy", 0.8, chain, 1_000_000, max_vega_budget_pct_of_equity=0.02,
+    )
+    with_precomputed_decision = build_multi_leg_position_sizing(
+        "call_calendar_spread", "buy", 0.8, chain, 1_000_000, max_vega_budget_pct_of_equity=0.02,
+        grouped_chain_by_expiry=precomputed,
+    )
+
+    assert default_decision is not None
+    assert with_precomputed_decision == default_decision
 
 
 # ---------------------------------------------------------------------------

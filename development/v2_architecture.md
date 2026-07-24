@@ -713,6 +713,8 @@ Topology risk feeds directly into the market analyzer: `elevated` forces `reduce
 
 **Correlation-stability embedding cache (development/Problems.md#36, off by default).** Warm-starting above still runs `_stress_majorize_2d` every bar, just from a better seed — profiling found the full SMACOF call itself costs ~500-600ms/bar at this project's real universe size (the single largest per-bar cost anywhere in the system, larger than the entire per-symbol inference total across the whole universe), so a good seed alone doesn't remove that cost, only reduces its iteration count. `build_market_topology()` now also accepts `previous_correlations`/`correlation_stability_tolerance`: when both are supplied and every pairwise correlation moved by no more than the tolerance since the prior bar (checked via `set(correlations.keys()) == set(previous_correlations.keys())`, which forces a full recompute whenever the eligible-symbol universe itself changed — a new/dropped symbol always invalidates the cache), SMACOF is skipped entirely and the prior bar's already-converged, already-rescaled `(x, y)` positions are reused directly; `reasons` gains `"topology_embedding_reused_stable_correlations"` so this is visible, not silent. `main.py` gates this via `phase_v2.topology.cache_enabled` (default `false`) and `phase_v2.topology.correlation_stability_tolerance` (default `0.02`), storing `self._previous_topology_correlations` unconditionally every bar (cheap — correlation computation itself was never the bottleneck) so flipping the flag on mid-run has a valid baseline from the very next bar. Only x/y ever comes from the cache — `correlation_strength`/`market_distance`/`volatility_pressure`/`topology_risk`/`regime_label`/`top_peers`/`top_peer_returns`/`cluster_id` are all still recomputed fresh from the current bar's inputs regardless, since none of them depend on the SMACOF embedding (the same property that already makes `embedding_iterations=1` safe at dataset-build time, see the Genuine Model Input Feature section in `topology/README.md`). `cache_enabled: false` (or omitting the two new parameters entirely) reproduces the exact pre-caching behavior byte-identical — same redeploy-free rollback contract `warm_start_enabled: false` already guarantees. Validate real speedup via `aq profile --topology-cached` (`scripts/profile_subsystems.py` gained a slowly-drifting-returns workload generator specifically for this — the existing `--topology` workload draws fully independent random returns every iteration by construction and can never demonstrate any benefit from a bar-to-bar staleness cache). **Implemented and unit-tested this pass, not yet validated against a real Lean backtest** — that validation is scoped to a later dedicated health-check session, matching the same posture `phase_v2.inference_parallelism.enabled` and the new `phase_v2.gc_tuning.freeze_after_load_enabled` (development/Problems.md#37) both already carry.
 
+**Percentile-tolerance mode (V4.9 Priority 1, development/Problems.md#36).** Rather than keep guessing at a better fixed `correlation_stability_tolerance` without the real-market data to calibrate one, `build_market_topology()` also accepts `correlation_stability_tolerance_percentile`/`correlation_change_history`: when the percentile param is set, the effective tolerance each bar becomes that percentile of a rolling window of the bar's own recent max-pairwise-correlation-change history, instead of the fixed value — a mathematically-guaranteed, self-relative skip rate rather than a fixed number of unknown real-world quality. `main.py` threads the rolling window bar-to-bar via `self._topology_correlation_change_history`, same pattern as `_previous_topology_positions`/`_previous_topology_correlations`, gated by `phase_v2.topology.cache_enabled` the same way the fixed-tolerance param already is. `correlation_stability_tolerance_percentile: null` (the default) reproduces the fixed-tolerance behavior byte-identically. Recommended over the fixed value once caching is enabled at all — still needs the same real-Lean-backtest validation as the rest of this section.
+
 A dedicated `/api/topology` endpoint and `/topology` React page expose the live cluster view.
 
 ## Non-Deterministic Topology & Retrain-Trigger Contract (V2-17.5)
@@ -1690,3 +1692,69 @@ daily-bar architecture's data model, risk calibration, and infrastructure
 choices are all load-bearing assumptions the rest of V2 (MoE experts, regime
 detection, topology, liquidity engine, controlled retraining) is built on top
 of.
+
+## What V4's Latency-Optimization Passes Actually Transfer To V5 (Advisory)
+
+Analysis only, same posture as the section above — no code changed as a
+result of this section. V4.6 through V4.9 shipped several real latency
+wins (weight-array/batched-stack caching, expert-loop batching,
+`_conv1d_causal` vectorization, sequence-encoder symbol-batching,
+topology warm-starting/caching, options chain-grouping hoisting,
+non-blocking experience-event delivery). None of that work claimed to be
+HFT prep at the time it shipped, and this section exists specifically to
+say plainly which parts of it actually are, rather than let "we did a lot
+of latency work" get silently conflated with "we made progress toward
+HFT" — a real V5 fork inherits almost none of V4's specific speedups
+outright, for the same reason the section above explains: it replaces the
+daily-bar architecture, it doesn't extend it.
+
+**Genuinely transferable (real V5 prep):**
+- **The C++-extension pattern itself** (`cpp_inference_ext/` folder,
+  `cpp_inference` module — deliberately non-colliding names, a real prior
+  bug this pass's own precedent already solved; deferred `try/except
+  ImportError` at the module level plus a per-call `try/except Exception:
+  pass` fallback around every accelerated call site, never a hard
+  dependency). Whatever V5's hot loop actually ends up being — a
+  tick-driven event loop, not `on_data()` — this exact
+  deferred-import/graceful-fallback/non-colliding-name convention is
+  reusable verbatim for accelerating it, regardless of what "it" turns
+  out to be.
+- **The profiling-harness methodology**: `scripts/profile_inference.py`/
+  `scripts/profile_subsystems.py`'s percentile (p50/p95/p99/max/mean)
+  reporting, pstats-based hotspot breakdown, bucket-by-iteration-index
+  warmup detection, and — critically — the discipline of pre-generating
+  synthetic inputs OUTSIDE the profiled region so the harness's own cost
+  never contaminates the measurement (a real mistake this project's own
+  history made once and fixed, `development/Problems.md`). Any future
+  low-latency runtime, HFT or not, needs this exact kind of tooling to
+  stay honest about what's actually slow.
+- **The general "profile before optimizing, batch call-count not just
+  FLOPs" discipline.** Every real win in this pass came from reducing
+  Python/NumPy per-call dispatch overhead (fewer, larger calls) at small
+  matrix sizes where raw FLOP throughput was never the bottleneck — not
+  from a smarter algorithm. That diagnostic instinct (measure first,
+  suspect call count before suspecting compute) transfers to any future
+  hot path regardless of architecture.
+
+**NOT meaningful HFT prep, explicitly not oversold:** V4.9 Priorities 1-3
+(sequence-encoder symbol-batching, topology percentile-tolerance caching,
+options chain-grouping hoisting) all optimize cost *within* the
+daily-bar `on_data()` loop a real V5 would replace outright, not extend.
+A tick-driven V5 engine doesn't call `build_market_topology()` once per
+symbol-bar in the first place, so a faster `build_market_topology()` buys
+V5 nothing. Same for the sequence-encoder batching (V5's model/feature
+set is a new one, per the section above, not a retrained version of the
+current one) and the options chain-grouping hoist (a genuinely different
+per-bar call pattern in any tick-driven runtime). Useful, real,
+production-relevant wins for the system that exists today — just not
+HFT groundwork, and this document says so explicitly rather than letting
+that ambiguity linger.
+
+**Neutral, general hygiene, no HFT-specific bearing either way:** V4.9
+Priority 0 (removing a live per-bar disk-I/O bug) and Priority 5
+(non-blocking `ExperienceQueue.push()` in live/paper mode) are
+correctness/cleanliness wins independent of daily-bar vs. tick-driven
+architecture — a disk write on every call and a blocking Redis XADD are
+bugs/inefficiencies in any runtime, not daily-bar-specific ones, but
+fixing them isn't "HFT progress" either; they're baseline hygiene any
+production system needs regardless of trading frequency.

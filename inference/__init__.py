@@ -10,6 +10,7 @@ from .exported_model import (
     run_exported_multitask_models_batched,
     run_exported_models_batched,
     run_exported_sequence_multitask_model,
+    run_exported_sequence_multitask_model_batched,
 )
 from .parallel_inference import init_worker, run_symbol_inference
 from .strategy_selector_inference import build_strategy_selector_features, score_strategies
@@ -28,6 +29,7 @@ __all__ = [
     "run_exported_multitask_models_batched",
     "run_exported_models_batched",
     "run_exported_sequence_multitask_model",
+    "run_exported_sequence_multitask_model_batched",
     "run_symbol_inference",
     "score_strategies",
 ]

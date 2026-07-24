@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import queue
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -17,6 +19,19 @@ from typing import Any
 from .observation_metrics import compute_observation_summary
 
 logger = logging.getLogger(__name__)
+
+# V4.9 Priority 5 - bounded depth for ExperienceQueue's optional background
+# delivery queue (async_enabled=True). Large enough to absorb a real burst
+# without soft-dropping events under normal operation, small enough that a
+# permanently-stuck consumer (Redis down for an extended stretch) can't grow
+# memory unboundedly - once full, push() soft-drops with a logged warning
+# rather than blocking the caller, same fire-and-forget contract this class
+# has always had.
+_BACKGROUND_QUEUE_MAXSIZE = 10_000
+# Sentinel distinguishing "stop the drain thread" from a real event dict -
+# a plain None would work today (no call site ever pushes None), but an
+# explicit sentinel object can never collide with a real payload.
+_SHUTDOWN_SENTINEL = object()
 
 
 def build_experience_event(
@@ -208,11 +223,26 @@ class ExperienceQueue:
 
     Parameters
     ----------
-    enabled     : kill switch — if False, push() is always a no-op
-    redis_url   : connection URL; overridden by AETHER_REDIS_URL env var
-    stream_name : Redis key for XADD (default: "aether:experience")
-    maxlen      : approximate cap on stream length (MAXLEN ~)
-    _client     : pre-built Redis client for test injection
+    enabled        : kill switch — if False, push() is always a no-op
+    redis_url      : connection URL; overridden by AETHER_REDIS_URL env var
+    stream_name    : Redis key for XADD (default: "aether:experience")
+    maxlen         : approximate cap on stream length (MAXLEN ~)
+    _client        : pre-built Redis client for test injection
+    async_enabled  : V4.9 Priority 5 (development/Problems.md #14's own
+                     follow-up) - when True, push() enqueues onto a bounded
+                     background queue.Queue and returns immediately; a
+                     single daemon thread drains it and performs the real
+                     blocking XADD off the caller's hot path. Default False
+                     reproduces today's exact synchronous-XADD-in-push()
+                     behavior byte-identically - this is the one knob in
+                     this pass where "off" is a real behavior guarantee
+                     (in-order, at-least-attempted delivery every push()
+                     call), not just an unused code path, so the default
+                     matters specifically: a hard process kill while events
+                     sit in the background queue silently loses them, an
+                     honest tradeoff only acceptable for fire-and-forget
+                     telemetry, never core trading logic (which this queue
+                     has never been - see this module's own top docstring).
     """
 
     def __init__(
@@ -222,46 +252,57 @@ class ExperienceQueue:
         stream_name: str = "aether:experience",
         maxlen: int = 100_000,
         _client=None,
+        async_enabled: bool = False,
     ) -> None:
         self.enabled = enabled
         self.stream_name = stream_name
         self.maxlen = maxlen
+        self.async_enabled = async_enabled
         self._client = None
+        self._background_queue: queue.Queue | None = None
+        self._background_thread: threading.Thread | None = None
 
         if not enabled:
             return
 
         if _client is not None:
             self._client = _client
-            return
+        else:
+            url = os.environ.get("AETHER_REDIS_URL", redis_url) or "redis://localhost:6380/0"
+            try:
+                import redis as redis_lib  # deferred — not always installed in Lean environments
 
-        url = os.environ.get("AETHER_REDIS_URL", redis_url) or "redis://localhost:6380/0"
-        try:
-            import redis as redis_lib  # deferred — not always installed in Lean environments
+                client = redis_lib.from_url(url, socket_connect_timeout=2, socket_timeout=2)
+                client.ping()
+                self._client = client
+                logger.info(
+                    "ExperienceQueue connected to %s (stream=%s, maxlen=%d)",
+                    url,
+                    stream_name,
+                    maxlen,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "ExperienceQueue: Redis unavailable at %s — experience events will be skipped. (%s)",
+                    url,
+                    exc,
+                )
 
-            client = redis_lib.from_url(url, socket_connect_timeout=2, socket_timeout=2)
-            client.ping()
-            self._client = client
-            logger.info(
-                "ExperienceQueue connected to %s (stream=%s, maxlen=%d)",
-                url,
-                stream_name,
-                maxlen,
+        if self.async_enabled and self._client is not None:
+            self._background_queue = queue.Queue(maxsize=_BACKGROUND_QUEUE_MAXSIZE)
+            self._background_thread = threading.Thread(
+                target=self._drain_background_queue,
+                name="ExperienceQueue-drain",
+                daemon=True,
             )
-        except Exception as exc:
-            logger.warning(
-                "ExperienceQueue: Redis unavailable at %s — experience events will be skipped. (%s)",
-                url,
-                exc,
-            )
+            self._background_thread.start()
 
-    def push(self, event: dict) -> bool:
-        """Publish one event dict to the Redis Stream.
-
-        Returns True on success, False on any failure.  Never raises.
-        """
-        if not self.enabled or self._client is None:
-            return False
+    def _xadd_sync(self, event: dict) -> bool:
+        """The actual blocking Redis call - today's whole push() body,
+        factored out so both the synchronous path (async_enabled=False)
+        and the background drain thread (async_enabled=True) share the
+        exact same XADD call and error handling, never two slightly-
+        different implementations drifting apart."""
         try:
             self._client.xadd(
                 self.stream_name,
@@ -273,3 +314,56 @@ class ExperienceQueue:
         except Exception as exc:
             logger.warning("ExperienceQueue.push failed: %s", exc)
             return False
+
+    def _drain_background_queue(self) -> None:
+        """Runs on the single background daemon thread started in
+        __init__ when async_enabled - blocks on queue.Queue.get() (cheap,
+        no busy-polling) until an event or the shutdown sentinel arrives.
+        One event at a time, in enqueue order, so delivery ordering within
+        this process is preserved even though it's no longer synchronous
+        with push()."""
+        while True:
+            event = self._background_queue.get()
+            try:
+                if event is _SHUTDOWN_SENTINEL:
+                    return
+                self._xadd_sync(event)
+            finally:
+                self._background_queue.task_done()
+
+    def push(self, event: dict) -> bool:
+        """Publish one event dict to the Redis Stream.
+
+        Returns True on success, False on any failure. Never raises, never
+        blocks the caller.
+
+        In async mode (async_enabled=True), "success" means the event was
+        successfully HANDED OFF to the background queue for eventual
+        delivery, not that the XADD itself has completed or even
+        succeeded yet - same fire-and-forget contract every existing
+        caller already treats this return value with (none of them retry
+        on False). A full background queue soft-drops the event (logged,
+        never raises) rather than blocking - the same "never block the
+        trading loop" guarantee the synchronous path has always had.
+        """
+        if not self.enabled or self._client is None:
+            return False
+        if self.async_enabled and self._background_queue is not None:
+            try:
+                self._background_queue.put_nowait(event)
+                return True
+            except queue.Full:
+                logger.warning("ExperienceQueue.push: background queue full (%d), dropping event", _BACKGROUND_QUEUE_MAXSIZE)
+                return False
+        return self._xadd_sync(event)
+
+    def flush(self) -> None:
+        """Blocks until every currently-enqueued background event has been
+        drained - a no-op when async mode isn't active (nothing to wait
+        for). Useful for tests and for a caller that wants a delivery
+        checkpoint (e.g. before process shutdown) rather than trusting the
+        daemon thread alone; main.py never needs to call this in normal
+        operation (`daemon=True` already guarantees no hang at interpreter
+        exit, matching this class's own fire-and-forget philosophy)."""
+        if self._background_queue is not None:
+            self._background_queue.join()

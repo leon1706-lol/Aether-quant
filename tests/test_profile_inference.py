@@ -2,12 +2,22 @@
 percentile/tail-latency reporting and pre-generation of profiling inputs.
 Does not test the harness's `main()`/argparse plumbing or run a real
 profiling pass (that's what running the script itself is for) - just the
-extracted pure functions that make its numbers trustworthy."""
+extracted pure functions that make its numbers trustworthy.
 
+The one exception is run_parallel_workload()'s failure-degradation path
+(V4.9 Priority 6) below - a real ProcessPoolExecutor run is out of this
+file's scope (same reasoning as run_workload() itself never being tested
+here), but "does a broken pool degrade to None instead of crashing" is a
+pure control-flow property, cheaply testable by forcing the pool
+constructor to raise, matching this module's own established "any pool
+failure permanently falls back" philosophy (inference/parallel_inference.py)."""
+
+import scripts.profile_inference as profile_inference_module
 from scripts.profile_inference import (
     bucket_durations_by_iteration_index,
     percentile,
     pregenerate_inputs,
+    run_parallel_workload,
     summarize_durations,
 )
 
@@ -132,3 +142,20 @@ def test_bucket_durations_by_iteration_index_default_n_buckets_is_ten():
 def test_bucket_durations_by_iteration_index_non_positive_n_buckets_returns_empty():
     assert bucket_durations_by_iteration_index([0.001, 0.002], n_buckets=0) == []
     assert bucket_durations_by_iteration_index([0.001, 0.002], n_buckets=-1) == []
+
+
+def test_run_parallel_workload_degrades_to_none_on_pool_creation_failure(monkeypatch):
+    class _AlwaysFailingPoolExecutor:
+        def __init__(self, *args, **kwargs):
+            raise OSError("simulated pool spawn failure")
+
+    monkeypatch.setattr(profile_inference_module, "ProcessPoolExecutor", _AlwaysFailingPoolExecutor)
+
+    result = run_parallel_workload(
+        exports_for_workers={"expert_names": []},
+        pregenerated_inputs=[([0.1, 0.2], [[0.1, 0.2]])],
+        sequence_window_size=30,
+        symbols_per_bar=1,
+    )
+
+    assert result is None

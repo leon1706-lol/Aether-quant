@@ -1313,7 +1313,8 @@
         },
         "sequence_model": {
             "enabled": true,
-            "window_size": 30
+            "window_size": 30,
+            "batched_across_symbols_enabled": false
         },
         "market_analyzer": {
             "retrain_min_regime_confidence": 0.2,
@@ -1330,7 +1331,8 @@
             "convergence_tolerance": 0.01,
             "top_peers_n": 3,
             "cache_enabled": false,
-            "correlation_stability_tolerance": 0.02
+            "correlation_stability_tolerance": 0.02,
+            "correlation_stability_tolerance_percentile": null
         },
         "topology_learning": {
             "enabled": true,
@@ -1412,6 +1414,9 @@
                 "deadletter_stream": "aether:experience:deadletter",
                 "backoff_max": 60
             }
+        },
+        "experience_queue": {
+            "async_enabled": false
         },
         "audit_log": {
             "enabled": true,

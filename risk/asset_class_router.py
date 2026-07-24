@@ -37,6 +37,7 @@ try:
         build_multi_leg_position_sizing,
         build_options_position_sizing,
         build_vertical_spread_position_sizing,
+        group_chain_by_expiry,
         order_enabled_strategies,
         rerank_enabled_strategies_by_score,
         strategies_for_volatility_view,
@@ -48,6 +49,7 @@ except ImportError:  # pragma: no cover - portfolio package always present in th
     build_options_position_sizing = None
     build_vertical_spread_position_sizing = None
     build_multi_leg_position_sizing = None
+    group_chain_by_expiry = None
     order_enabled_strategies = None
     rerank_enabled_strategies_by_score = None
     strategies_for_volatility_view = None
@@ -314,6 +316,26 @@ def route_multi_leg_option_sizing(
     view_gated_families = {"straddle", "strangle", "iron_condor", "iron_butterfly"}
     eligible_view_names = strategies_for_volatility_view(volatility_view)
 
+    # V4.9 Priority 3 - group the chain by expiry ONCE per routing call
+    # (not once per calendar-family candidate tried below) when at least
+    # one calendar-family strategy is actually in play this bar -
+    # group_chain_by_expiry()'s own O(n) cost is cheap, but this avoids
+    # paying it again for each calendar-family name order_enabled_strategies()/
+    # rerank_enabled_strategies_by_score() might try in the same bar.
+    # arbitrage_jelly_roll is the only OTHER shape family that would use
+    # this grouping, but it's permanently unreachable via this router's own
+    # "unreachable_arbitrage" branch below - never worth precomputing for.
+    precomputed_grouped_chain_by_expiry = None
+    if group_chain_by_expiry is not None and available_chain:
+        has_calendar_candidate = False
+        for name in ordered_names:
+            candidate_spec = MULTI_LEG_STRATEGY_REGISTRY.get(name)
+            if candidate_spec is not None and candidate_spec.shape_family == "calendar":
+                has_calendar_candidate = True
+                break
+        if has_calendar_candidate:
+            precomputed_grouped_chain_by_expiry = group_chain_by_expiry(available_chain)
+
     for strategy_name in ordered_names:
         if strategy_name == "single_leg":
             if build_options_position_sizing is None:
@@ -365,7 +387,8 @@ def route_multi_leg_option_sizing(
             selector_kwargs = {"short_leg_delta_offset": short_leg_delta_offset} if spec.shape_family == "vertical" else {}
             decision = build_multi_leg_position_sizing(
                 strategy_name, signal_name, confidence, available_chain or [], portfolio_value,
-                target_delta_at_full_confidence, max_vega_budget_pct_of_equity, **selector_kwargs,
+                target_delta_at_full_confidence, max_vega_budget_pct_of_equity,
+                grouped_chain_by_expiry=precomputed_grouped_chain_by_expiry, **selector_kwargs,
             )
             if decision is not None:
                 return (

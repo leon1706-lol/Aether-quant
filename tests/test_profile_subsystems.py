@@ -6,11 +6,13 @@ plumbing or a real profiling pass, matching tests/test_profile_inference.py's
 own scope."""
 
 from scripts.profile_subsystems import (
+    _OPTIONS_STRATEGY_NAME_MIX,
     build_analyzer_workload,
     build_gating_workload,
     build_indicators_workload,
     build_learned_topology_workload,
     build_liquidity_workload,
+    build_options_workload,
     build_regime_workload,
     build_topology_cache_workload,
     build_topology_workload,
@@ -19,6 +21,7 @@ from scripts.profile_subsystems import (
     run_indicators_workload,
     run_learned_topology_workload,
     run_liquidity_workload,
+    run_options_workload,
     run_regime_workload,
     run_topology_cache_workload,
     run_topology_workload,
@@ -107,3 +110,25 @@ def test_indicators_workload_shape_and_durations():
     }
     for durations in result.values():
         _assert_non_negative_durations(durations, _N)
+
+
+def test_options_workload_shape_and_durations():
+    workload = build_options_workload(_N)
+    assert len(workload) == _N
+    assert workload[0]["enabled_strategy_names"] == _OPTIONS_STRATEGY_NAME_MIX
+    # Two distinct expiries present - required for the calendar family
+    # (the only one needing 2) to actually be exercisable, not just listed.
+    assert len({row["expiry"] for row in workload[0]["available_chain"]}) == 2
+    _assert_non_negative_durations(run_options_workload(workload), _N)
+
+
+def test_options_strategy_name_mix_covers_all_14_shape_families_plus_vertical():
+    """The whole point of this workload is end-to-end coverage of every
+    branch route_multi_leg_option_sizing() itself takes - lock in that the
+    representative name list actually spans every shape family in the
+    registry, not just a handful of easy ones."""
+    from portfolio.options_strategy import MULTI_LEG_STRATEGY_REGISTRY
+
+    covered_families = {MULTI_LEG_STRATEGY_REGISTRY[name].shape_family for name in _OPTIONS_STRATEGY_NAME_MIX}
+    all_families = {spec.shape_family for spec in MULTI_LEG_STRATEGY_REGISTRY.values()}
+    assert covered_families == all_families

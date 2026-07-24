@@ -739,6 +739,181 @@ def run_exported_sequence_multitask_model(model_export: dict, sequence: list[lis
     return outputs
 
 
+# ---------------------------------------------------------------------------
+# Batched inference for the sequence encoder across MULTIPLE SYMBOLS sharing
+# ONE model (V4.9 Priority 1, development/Problems.md #21) - the opposite
+# shape from the run_exported_models_batched()/run_exported_multitask_models_batched()
+# section above (which batch N DIFFERENT models sharing one input). Here
+# there is exactly one trained sequence model, called once per symbol per
+# bar in main.py's on_data() loop with each symbol's own (window, features)
+# rolling buffer as input - profiling (Problems.md #21) found this call the
+# single largest remaining cost in per-bar inference (~48-58% of profiled
+# time), almost entirely Python/NumPy per-call dispatch overhead across
+# `_conv1d_causal()`'s einsum, not FLOPs, the same "call-count is what
+# matters, not raw throughput" finding _linear_batched() above already
+# established for the flat/multitask experts.
+# ---------------------------------------------------------------------------
+
+
+def _linear_shared_batched(current: np.ndarray, weights, bias) -> np.ndarray:
+    """Batched sibling of _linear() for ONE shared model's weights applied
+    to N stacked input rows - the opposite of _linear_batched() above,
+    which stacks N DIFFERENT models' own weights over one shared input.
+    Here there is one sequence model, N symbols' own pooled trunk outputs
+    stacked as rows.
+
+    current: (N, in_features); weights: (out_features, in_features) (same
+    single shared matrix for every row); bias: (out_features,). Returns
+    (N, out_features)."""
+    weights_array = np.asarray(weights, dtype=np.float64)
+    bias_array = np.asarray(bias, dtype=np.float64)
+    return current @ weights_array.T + bias_array
+
+
+def _run_layer_stack_shared_batched(layers: list[dict], state_dict: dict, current: np.ndarray) -> np.ndarray:
+    """Batched sibling of _run_layer_stack() for ONE shared model applied to
+    N stacked rows (current starts as (N, features)) - used below for the
+    sequence encoder's head layers, once N symbols' pooled trunk outputs
+    are stacked. `_layernorm_axis()` (already axis-aware, Phase 2) is reused
+    as-is for the "layernorm" layer type here: with axis=-1 it normalizes
+    each row independently by its own mean/variance while still applying
+    the one shared weight/bias, exactly the semantics needed - no new
+    layernorm primitive required. relu/dropout/sigmoid/softplus are all
+    already elementwise and need no batching change."""
+    for layer in layers:
+        layer_type = layer["type"]
+        if layer_type == "linear":
+            weights = state_dict[layer["weight_key"]]
+            bias = state_dict[layer["bias_key"]]
+            current = _linear_shared_batched(current, weights, bias)
+        elif layer_type == "layernorm":
+            weights = state_dict[layer["weight_key"]]
+            bias = state_dict[layer["bias_key"]]
+            current = _layernorm_axis(current, weights, bias, float(layer.get("eps", 1e-5)), axis=-1)
+        elif layer_type == "relu":
+            current = np.maximum(current, 0.0)
+        elif layer_type == "dropout":
+            continue
+        elif layer_type == "sigmoid":
+            current = _sigmoid(current)
+        elif layer_type == "softplus":
+            current = _softplus(current)
+        else:
+            raise ValueError(f"Unsupported layer type in export: {layer_type}")
+    return current
+
+
+def _conv1d_causal_batched(sequence_batch, weights, bias, dilation: int = 1) -> np.ndarray:
+    """Batched sibling of _conv1d_causal() - sequence_batch: (N, window,
+    in_channels), ONE shared model's conv weights applied to N symbols' own
+    sequences at once. Same left-zero-pad-then-gather-then-einsum
+    construction as _conv1d_causal(), with a leading N axis carried through
+    untouched (the padding and tap-gather are per-row independent; only the
+    final einsum sums over the shared weight tensor, contracting the same
+    in_channels/kernel_size axes _conv1d_causal() contracts, plus the new
+    leading N axis passed straight through to the output)."""
+    sequence_array = np.asarray(sequence_batch, dtype=np.float64)  # (N, window, in_channels)
+    weights_array = np.asarray(weights, dtype=np.float64)  # (out_channels, in_channels, kernel_size)
+    bias_array = np.asarray(bias, dtype=np.float64)  # (out_channels,)
+
+    num_symbols, window, in_channels = sequence_array.shape
+    out_channels, weight_in_channels, kernel_size = weights_array.shape
+    if weight_in_channels != in_channels:
+        raise ValueError(f"_conv1d_causal_batched: in_channels mismatch ({in_channels} vs weight's {weight_in_channels})")
+
+    pad_left = (kernel_size - 1) * dilation
+    padded = np.zeros((num_symbols, window + pad_left, in_channels), dtype=np.float64)
+    padded[:, pad_left:, :] = sequence_array
+
+    offsets = np.arange(kernel_size - 1, -1, -1) * dilation  # (kernel_size,)
+    tap_indices = np.arange(window)[:, None] + pad_left - offsets[None, :]  # (window, kernel_size)
+    window_slices = padded[:, tap_indices, :]  # (N, window, kernel_size, in_channels)
+    return np.einsum("oik,ntki->nto", weights_array, window_slices) + bias_array
+
+
+def _run_sequence_models_individually_with_fallback(
+    model_export: dict, sequences: list[list[list[float]] | None]
+) -> list[dict[str, float] | None]:
+    """Exactly today's pre-batching behavior: one
+    run_exported_sequence_multitask_model() call per present entry, None
+    preserved for missing entries (a symbol whose rolling sequence buffer
+    hasn't warmed up yet), one symbol's failure degrading to None WITHOUT
+    taking any other symbol down with it - same per-symbol graceful-
+    degradation contract as _run_models_individually_with_fallback() above.
+    Used as run_exported_sequence_multitask_model_batched()'s fallback
+    whenever batching isn't safe/possible, so that fallback path is never a
+    behavior change, only a performance one."""
+    results: list[dict[str, float] | None] = []
+    for sequence in sequences:
+        if not sequence:
+            results.append(None)
+            continue
+        try:
+            results.append(run_exported_sequence_multitask_model(model_export, sequence))
+        except Exception:
+            results.append(None)
+    return results
+
+
+def run_exported_sequence_multitask_model_batched(
+    model_export: dict, sequences: list[list[list[float]] | None]
+) -> list[dict[str, float] | None]:
+    """Batched sibling of run_exported_sequence_multitask_model() - ONE
+    trained sequence model, N symbols' own (window, features) sequences
+    stacked into a single (N, window, features) batch, the causal-conv
+    trunk run once across all N, pooled to each symbol's own last timestep,
+    then each head run once across all N pooled rows - instead of N
+    separate run_exported_sequence_multitask_model() calls each re-entering
+    the same Python/NumPy dispatch path with the same model weights.
+
+    `sequences` entries may be None (symbol has no sequence buffer yet) -
+    preserved as None in the output at the same index. Falls back to
+    calling run_exported_sequence_multitask_model() once per present entry
+    - never raises, never silently produces a wrong answer - whenever
+    fewer than 2 sequences are present, or the batched computation itself
+    raises for any reason (e.g. symbols with inconsistent window lengths,
+    which np.asarray() on a ragged list would itself raise on, or a
+    malformed export)."""
+    present_indices = [i for i, sequence in enumerate(sequences) if sequence]
+    if len(present_indices) < 2:
+        return _run_sequence_models_individually_with_fallback(model_export, sequences)
+
+    export = model_export["export"]
+    state_dict = export["state_dict"]
+
+    try:
+        current = np.asarray([sequences[i] for i in present_indices], dtype=np.float64)
+        for layer in export["trunk"]:
+            layer_type = layer["type"]
+            if layer_type == "conv1d_causal":
+                weights = state_dict[layer["weight_key"]]
+                bias = state_dict[layer["bias_key"]]
+                current = _conv1d_causal_batched(current, weights, bias, dilation=int(layer.get("dilation", 1)))
+            elif layer_type == "relu":
+                current = np.maximum(current, 0.0)
+            elif layer_type == "layernorm_axis":
+                weights = state_dict[layer["weight_key"]]
+                bias = state_dict[layer["bias_key"]]
+                current = _layernorm_axis(current, weights, bias, float(layer.get("eps", 1e-5)), axis=-1)
+            elif layer_type == "dropout":
+                continue
+            else:
+                raise ValueError(f"Unsupported sequence trunk layer type in export: {layer_type}")
+
+        pooled_batch = current[:, -1, :]  # (N, out_channels) - each symbol's own most-recent timestep
+
+        head_outputs: dict[str, np.ndarray] = {}
+        for head_name, head_layers in export["heads"].items():
+            head_outputs[head_name] = _run_layer_stack_shared_batched(head_layers, state_dict, pooled_batch.copy())
+    except Exception:
+        return _run_sequence_models_individually_with_fallback(model_export, sequences)
+
+    results: list[dict[str, float] | None] = [None] * len(sequences)
+    for row, original_index in enumerate(present_indices):
+        results[original_index] = {head_name: float(head_outputs[head_name][row, 0]) for head_name in head_outputs}
+    return results
+
+
 def resolve_sequence_window_size(sequence_feature_schema: dict | None, configured_window_size: int) -> int:
     """The trained model's OWN window_size (sequence_feature_schema.json,
     written by train_sequence.py) wins over config.json's - a retrained

@@ -33,6 +33,21 @@ uses `.get(..., "")` defaults for those columns rather than direct indexing
 to accommodate this. `notifications/telegram_worker.py` is the consumer —
 see that package's README for the alerting side.
 
+V4.9 (Priority 5, latency pass) adds an opt-in non-blocking delivery mode
+to `ExperienceQueue.push()`: `async_enabled=True`
+(`phase_v2.experience_queue.async_enabled`, default `false`) enqueues
+onto a bounded background `queue.Queue` and returns immediately, instead
+of blocking `on_data()`'s hot path on the real `XADD` call — a single
+daemon thread drains the queue and performs the actual Redis write off
+the caller's thread. Already gated off entirely in backtest mode
+(`main.py`, see the `runtime_mode != "backtest"` check at the `push()`
+call site), so this specifically targets live/paper mode's per-bar
+latency. `async_enabled=False` (the default) reproduces the exact
+pre-V4.9 synchronous behavior byte-identically — see
+`experience/redis_queue.py::ExperienceQueue`'s own docstring for the
+honest delivery-ordering/hard-kill tradeoff this mode accepts once
+enabled.
+
 V2-15 (Observation Mode) adds two members:
 
 - `simulated_portfolio.py` (`SimulatedPortfolioState`) — an in-memory fake

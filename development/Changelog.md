@@ -4320,3 +4320,113 @@ raw `"N forex lots"` string.
 **Testing**: 1813 → **1818 tests, all passing**. Webui: 13 tests
 across 2 files, `npm run build`/`lint`/`test` all clean. See
 `development/Problems.md` #62 for the full writeup.
+
+## V4.9 — a major latency-optimization pass across every hot path, prepping the ground for a future HFT fork (Problems.md #63/#64)
+
+The Roadmap carried a standing item since V4.6 to continue the
+profiling/optimization work beyond `build_market_topology()` and the
+inference hot path. Scoped as a major pass across every current and
+potential-future hot path, plus expanded profiling tooling — 9
+priorities, most defaulting off/unchanged (byte-identical-default
+preserved), one a pure bug fix.
+
+**P0 — a genuinely live bug found and fixed**: `main.py`'s
+`_build_model_input()` profiling wrapper, which `development/Problems.md`
+#50 claimed was "fully reverted" years ago, was still live — writing to
+`model_input_timing.log` on disk, synchronously, on every single
+symbol-bar call, with no config gate, on the single hottest path in the
+system. 45,187 accumulated lines found sitting untracked in the repo
+root. Wrapper removed, dead import cleaned up, the Lean-namespace
+`time`-shadowing gotcha it was guarding against preserved as a standalone
+note, and entry #50's false claim corrected in place.
+
+**P1 — sequence-encoder symbol-batching** (`development/Problems.md`
+#21, profiling's largest remaining per-bar cost at ~48-58% of profiled
+inference time): new `run_exported_sequence_multitask_model_batched()`
+(plus 2 new pure primitives, `_conv1d_causal_batched()`/
+`_linear_shared_batched()`) batches the sequence encoder across every
+pending symbol in ONE call per bar instead of one call per symbol —
+the opposite batching shape from the existing expert-batching (one
+shared model, N different symbol inputs, vs. N different models sharing
+one input). Wired into `main.py`'s `on_data()` Phase 1b behind
+`phase_v2.sequence_model.batched_across_symbols_enabled` (default
+`false`), only tried when multiprocess inference parallelism isn't
+already active. `scripts/profile_inference.py --batched` now also runs
+an additive batched-vs-unbatched sequence-encoder comparison section.
+
+**P2 — topology cache percentile-tolerance mode** (`development/Problems.md`
+#36's follow-up): the fixed `correlation_stability_tolerance` (default
+`0.02`) was found poorly calibrated against synthetic data with no way to
+derive a better fixed number without a real backtest. New
+`correlation_stability_tolerance_percentile`/`correlation_change_history`
+params make the effective tolerance each bar a percentile of a rolling
+window of recent max-pairwise-correlation-change values instead — a
+mathematically-guaranteed skip rate, correct by construction, fully
+testable with synthetic data alone. Default `null` reproduces the fixed-
+tolerance behavior byte-identically. Also corrected a documentation
+imprecision: warm-starting and the correlation-stability cache are
+complementary mechanisms (different costs: iteration count vs. call
+count), not redundant ones.
+
+**P3 — options chain-grouping hoist**: `select_calendar_legs()`/
+`select_arbitrage_jelly_roll_legs()` (the only 2 of 14 shape-family
+selectors using expiry grouping) gained an optional
+`grouped_chain_by_expiry` param, now computed ONCE per
+`route_multi_leg_option_sizing()` call instead of once per calendar-
+family candidate tried in the same bar. `group_chain_by_expiry()` (the
+grouping helper) made public since it's now called cross-module.
+
+**P4 — options chain-payload gating, considered and declined**:
+`_build_options_chains_payload()` was flagged as a candidate for an
+`options_risk_enabled` gate; declined, since configuring an option asset
+at all is the correct trigger for dashboard chain visibility independent
+of whether multi-leg trading itself is on. Documented so it isn't
+re-investigated from scratch.
+
+**P5 — non-blocking `ExperienceQueue.push()`** (`development/Problems.md`
+#14's own follow-up, live/paper mode only — already gated off entirely
+in backtest mode): new `async_enabled` param spins up a bounded
+background-thread `queue.Queue`; `push()` becomes a non-blocking
+`put_nowait()` with a soft-drop-and-log on a full queue, same
+fire-and-forget `bool` return contract every caller already treats this
+way. Default `false` — the one knob in this pass where "off" is a real
+behavior guarantee (synchronous, in-order delivery attempted every call),
+not just an unused code path.
+
+**P6 — a real IPC-overhead benchmark**: `inference/parallel_inference.py`'s
+own module docstring has long carried a never-measured break-even
+warning about IPC/pickling overhead vs. this project's small universe
+size. `scripts/profile_inference.py --parallel` now runs a real
+`ProcessPoolExecutor` benchmark of `run_symbol_inference()` against an
+identical sequential baseline. Measured result on this dev machine's
+Windows `spawn` start method: the pool is dramatically slower — direct
+confirmation of the module's own long-standing suspicion.
+
+**P7 — `profile_subsystems.py` gained an `"options"` workload**: a
+synthetic multi-strike/multi-expiry chain plus a representative
+strategy-name mix covering every one of the 15 shape families (including
+the always-skipped covered_protective/collar and the
+arbitrage-detector-gated arbitrage families), timing
+`route_multi_leg_option_sizing()` end-to-end. New `aq profile --options`
+CLI flag, plus `--parallel`/`--pool-workers`/`--symbols-per-bar` wired
+into `aq profile`'s inference path for P6/P1.
+
+**P8 — honest HFT-transfer documentation**: a new
+`development/v2_architecture.md` section explicitly splits what from this
+pass is genuine V5/HFT-fork prep (the C++-extension pattern, the
+profiling-harness methodology, the general profile-before-optimizing
+discipline) from what is NOT (P1-P3, which all optimize cost *within* the
+daily-bar `on_data()` loop a real V5 would replace outright, not extend)
+— avoiding "we did a lot of latency work" silently reading as "we made
+HFT progress."
+
+**Testing**: 1818 → **1857 tests, all passing** (39 new tests:
+sequence-batching parity in `tests/test_exported_model.py`,
+percentile-tolerance mode in `tests/test_market_topology.py`,
+chain-grouping parity in `tests/test_options_strategy_multileg.py`/
+`tests/test_asset_class_router.py`, async-delivery coverage in
+`tests/test_experience_queue.py`, pool-failure degradation in
+`tests/test_profile_inference.py`, the options workload in
+`tests/test_profile_subsystems.py`, and CLI reachability in
+`tests/test_aq_cli.py`). See `development/Problems.md` #63/#65 for the
+full writeup.

@@ -25,16 +25,6 @@ import bisect
 import gc
 import json
 import math
-# TEMP — only used by _build_model_input()'s profiling wrapper, revert with
-# it (Problems.md #36). Imports the function directly, not the module under
-# the bare name `time` - `from AlgorithmImports import *` below re-exports a
-# name `time` too (datetime.time, the time-of-day class), and since that
-# wildcard import runs after this one, it silently shadows a plain
-# `import time`, breaking `time.perf_counter()` at runtime with
-# `AttributeError: type object 'datetime.time' has no attribute
-# 'perf_counter'` - confirmed live, a real Lean-namespace gotcha worth
-# remembering beyond just this temporary snippet.
-from time import perf_counter as _profile_perf_counter
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
@@ -138,6 +128,7 @@ from inference import (
     run_exported_multitask_models_batched,
     run_exported_models_batched,
     run_exported_sequence_multitask_model,
+    run_exported_sequence_multitask_model_batched,
     run_symbol_inference,
     score_strategies,
 )
@@ -177,6 +168,15 @@ from performance import evaluate_all_triggers
 # deps like torch/sklearn have no place in the Lean runtime).
 VOLUME_CHANGE_FLOOR = -1.0
 VOLUME_CHANGE_CEILING = 20.0
+
+# V4.9 Priority 1 - distinguishes "no precomputed sequence-model result was
+# passed" (fall back to the per-symbol call) from "a precomputed result of
+# exactly None was passed" (the batched symbol-batching call genuinely
+# produced no prediction for this symbol - use that None, don't recompute)
+# in _run_inference_cluster_sequential() below. A plain `None` default
+# can't express this distinction since None is itself a valid precomputed
+# value.
+_SEQUENCE_RESULT_NOT_PRECOMPUTED = object()
 
 
 class _LiquidityAwareSlippageModel:
@@ -748,6 +748,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.topology_correlation_stability_tolerance = float(
             phase_v2_topology.get("correlation_stability_tolerance", 0.02)
         )
+        # V4.9 Priority 1 - self-relative alternative to the fixed
+        # correlation_stability_tolerance above (development/Problems.md
+        # #36's follow-up: the fixed default was found poorly calibrated
+        # against synthetic data). None (the default) reproduces the
+        # fixed-tolerance behavior byte-identically -
+        # topology/market_topology.py::build_market_topology() itself
+        # falls back to correlation_stability_tolerance whenever this is
+        # None. self._topology_correlation_change_history is the rolling
+        # window state threaded bar-to-bar, same pattern as
+        # self._previous_topology_positions/_previous_topology_correlations
+        # below.
+        raw_correlation_stability_tolerance_percentile = phase_v2_topology.get(
+            "correlation_stability_tolerance_percentile"
+        )
+        self.topology_correlation_stability_tolerance_percentile = (
+            float(raw_correlation_stability_tolerance_percentile)
+            if raw_correlation_stability_tolerance_percentile is not None
+            else None
+        )
+        self._topology_correlation_change_history: list[float] = []
         # Phase 1b of the 5/10 -> 9/10 roadmap: deliberate, explicit
         # cross-asset "macro" features (features/macro_features.py) -
         # mirrors train.py::DEFAULT_MACRO_REFERENCE_TICKERS exactly for
@@ -1015,6 +1035,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.sequence_feature_schema, int(phase_v2_sequence.get("window_size", 30))
         )
         self.symbol_feature_history = {symbol: deque(maxlen=self.sequence_window_size) for symbol in self.symbols}
+        # V4.9 Priority 1 - batches the sequence encoder across ALL pending
+        # symbols in one call (inference/exported_model.py::
+        # run_exported_sequence_multitask_model_batched()) instead of one
+        # run_exported_sequence_multitask_model() call per symbol - closes
+        # development/Problems.md #21, profiling's largest remaining
+        # per-bar cost. Off by default (byte-identical-default); only tried
+        # when self._inference_pool is None (Phase 1b), since batching and
+        # multiprocess parallelism are alternative optimizations for this
+        # pass, not combined.
+        self.sequence_batching_enabled = bool(phase_v2_sequence.get("batched_across_symbols_enabled", False))
 
         # development/Problems.md#37: every model/expert/weight-array load
         # above is now complete - these are large, long-lived NumPy arrays
@@ -1133,6 +1163,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
             redis_url="redis://localhost:6380/0",
             stream_name=str(phase_v2_experience.get("redis_stream", "aether:experience")),
             maxlen=int(phase_v2_experience.get("maxlen", 100_000)),
+            # V4.9 Priority 5 - moves the blocking XADD off on_data()'s hot
+            # path in live/paper mode (already gated off entirely in
+            # backtest mode, development/Problems.md #14). Default False -
+            # unlike this pass's other knobs, "off" here is a real
+            # behavior guarantee (in-order, synchronous-attempted delivery
+            # every push() call), not just an unused code path - see
+            # experience/redis_queue.py::ExperienceQueue's own docstring.
+            async_enabled=bool(self.phase_v2.get("experience_queue", {}).get("async_enabled", False)),
         )
         # Tamper-evident audit trail (development/Problems.md #42) - same
         # fire-and-forget Redis Stream contract as _experience_queue above,
@@ -1193,7 +1231,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_bond_payload = {}
         # V4.6 - per-symbol analytic bond duration/convexity/DV01
         # (features/bond_features.py). V4.7 also merges this same value into
-        # base_features (see _build_model_input_impl()'s bond block) - this
+        # base_features (see _build_model_input()'s bond block) - this
         # dict remains the dashboard/state-facing copy (None-preserving, per
         # _bond_analytics_for_symbol()'s own docstring), not a duplicate
         # computation.
@@ -1427,9 +1465,40 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         item["feature_payload"]["model_inputs"], item["symbol"]
                     )
         else:
+            # V4.9 Priority 1: batch the sequence encoder across every
+            # pending symbol in ONE call (development/Problems.md #21 -
+            # profiling's largest remaining per-bar cost) instead of one
+            # run_exported_sequence_multitask_model() call per symbol
+            # inside each _run_inference_cluster_sequential() below. Only
+            # attempted here (self._inference_pool is None) - batching and
+            # multiprocess parallelism are alternative optimizations for
+            # this pass, never combined. Off by default
+            # (sequence_batching_enabled); the batched function's own
+            # internal fallback (inference/exported_model.py) never
+            # raises, so no outer try/except is needed here either, same
+            # convention as _run_expert_models()'s batched call site.
+            precomputed_sequence_results: dict[str, dict | None] = {}
+            if self.sequence_batching_enabled and self.sequence_model_enabled and self.sequence_model:
+                batch_symbol_keys = [str(item["symbol"]) for item in pending if item["sequence_history"]]
+                if len(batch_symbol_keys) >= 2:
+                    batch_sequences = [
+                        self._pad_sequence_history(item["sequence_history"])
+                        for item in pending
+                        if item["sequence_history"]
+                    ]
+                    batched_results = run_exported_sequence_multitask_model_batched(
+                        self.sequence_model, batch_sequences
+                    )
+                    precomputed_sequence_results = dict(zip(batch_symbol_keys, batched_results))
+
             for item in pending:
-                inference_results[str(item["symbol"])] = self._run_inference_cluster_sequential(
-                    item["feature_payload"]["model_inputs"], item["symbol"]
+                symbol_key = str(item["symbol"])
+                inference_results[symbol_key] = self._run_inference_cluster_sequential(
+                    item["feature_payload"]["model_inputs"],
+                    item["symbol"],
+                    precomputed_sequence_result=precomputed_sequence_results.get(
+                        symbol_key, _SEQUENCE_RESULT_NOT_PRECOMPUTED
+                    ),
                 )
 
         # Phase 1c: gating + signal derivation - cheap, stays sequential.
@@ -2108,19 +2177,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.debug(f"{ticker} subscription skipped: {error}")
             return None
 
-    # TEMP — profiling instrumentation for development/Problems.md #36, revert
-    # after this run. Elapsed time is measured BEFORE the log file is opened
-    # so the file I/O itself never contaminates the recorded duration.
     def _build_model_input(self, symbol, topology_payload: dict | None = None) -> dict:
-        _profile_t0 = _profile_perf_counter()
-        try:
-            return self._build_model_input_impl(symbol, topology_payload)
-        finally:
-            _profile_elapsed = _profile_perf_counter() - _profile_t0
-            with open(self.root_path / "model_input_timing.log", "a", encoding="utf-8") as _profile_f:
-                _profile_f.write(f"{_profile_elapsed}\n")
-
-    def _build_model_input_impl(self, symbol, topology_payload: dict | None = None) -> dict:
         """Builds the full model input vector - the original 10 price/
         volume-derived features, plus regime/liquidity/topology as genuine
         input features (Phase 1 remainder, not just downstream consumers of
@@ -2466,6 +2523,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.Debug(f"Expert multitask inference failed for {expert_name}")
         return magnitudes, volatilities
 
+    def _pad_sequence_history(self, history: list[list[float]]) -> list[list[float]]:
+        """Left-pads a rolling per-symbol feature-history buffer with zero
+        vectors up to self.sequence_window_size - the same padding
+        convention _run_sequence_model() and
+        train.py::build_sequence_tensor_dataset() both use. Pure, no side
+        effects - factored out so the per-symbol path (_run_sequence_model())
+        and the V4.9 symbol-batching precompute step (on_data()'s Phase 1b)
+        apply IDENTICAL padding, never two slightly-different
+        implementations drifting apart."""
+        input_width = len(history[0])
+        padding_needed = self.sequence_window_size - len(history)
+        return [[0.0] * input_width for _ in range(max(0, padding_needed))] + list(history)
+
     def _run_sequence_model(self, symbol) -> dict | None:
         """Phase 2: runs the optional causal-TCN sequence encoder
         (train_sequence.py/AetherNetSequenceMultiTask) over this symbol's
@@ -2488,15 +2558,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if not history:
             return None
         try:
-            input_width = len(history[0])
-            padding_needed = self.sequence_window_size - len(history)
-            sequence = [[0.0] * input_width for _ in range(max(0, padding_needed))] + list(history)
+            sequence = self._pad_sequence_history(history)
             return run_exported_sequence_multitask_model(self.sequence_model, sequence)
         except Exception as error:
             self.Debug(f"Sequence model inference failed for {symbol}: {error}")
             return None
 
-    def _run_inference_cluster_sequential(self, model_inputs: list[float], symbol) -> dict:
+    def _run_inference_cluster_sequential(
+        self, model_inputs: list[float], symbol, precomputed_sequence_result=_SEQUENCE_RESULT_NOT_PRECOMPUTED
+    ) -> dict:
         """Bundles the exact same 5 calls Pass 1 has always made
         (_run_model/_run_sequence_model/_run_expert_models/
         _run_multitask_model/_run_expert_multitask_models) into ONE return
@@ -2506,9 +2576,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
         reason. Same result-dict shape as
         inference/parallel_inference.py::run_symbol_inference(), so Pass
         1's gating/signal-derivation step (Phase 1c) can consume either
-        one identically."""
+        one identically.
+
+        `precomputed_sequence_result` (V4.9 Priority 1), when given (even
+        when the given value is itself None - see
+        _SEQUENCE_RESULT_NOT_PRECOMPUTED's own module-level docstring),
+        SKIPS the individual _run_sequence_model() call and uses this
+        value instead - on_data()'s Phase 1b passes this in only when
+        self.sequence_batching_enabled already ran
+        run_exported_sequence_multitask_model_batched() across every
+        pending symbol in one call. The default sentinel (every existing
+        caller/test that doesn't pass it) reproduces the exact original
+        per-symbol behavior."""
         baseline_probability_up = self._run_model(model_inputs)
-        sequence_prediction = self._run_sequence_model(symbol)
+        if precomputed_sequence_result is _SEQUENCE_RESULT_NOT_PRECOMPUTED:
+            sequence_prediction = self._run_sequence_model(symbol)
+        else:
+            sequence_prediction = precomputed_sequence_result
         expert_probabilities = self._run_expert_models(model_inputs)
         multitask_payload = self._run_multitask_model(model_inputs)
         expert_magnitudes, expert_volatilities = self._run_expert_multitask_models(model_inputs)
@@ -2827,6 +2911,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.topology_correlation_stability_tolerance if self.topology_cache_enabled else None
             ),
             embedding_dimensions=self.topology_embedding_dimensions,
+            # V4.9 Priority 1 - same topology_cache_enabled gate as the
+            # fixed-tolerance params above: the percentile mode is a
+            # refinement of the same reuse mechanism, meaningless without
+            # previous_correlations also being threaded through.
+            correlation_stability_tolerance_percentile=(
+                self.topology_correlation_stability_tolerance_percentile if self.topology_cache_enabled else None
+            ),
+            correlation_change_history=self._topology_correlation_change_history if self.topology_cache_enabled else None,
         )
         deterministic_topology = deterministic_topology_result.to_dict()
         # Tuple width must match the active embedding dimensionality - a
@@ -2845,6 +2937,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # so flipping the flag on mid-run has a valid baseline from the very
         # next bar - development/Problems.md#36.
         self._previous_topology_correlations = deterministic_topology_result.correlations
+        # V4.9 Priority 1 - same unconditional-storage rationale as
+        # _previous_topology_correlations above (cheap, gives the
+        # percentile mode a valid rolling window from the very next bar if
+        # topology_cache_enabled gets flipped on mid-run).
+        self._topology_correlation_change_history = deterministic_topology_result.correlation_change_history
 
         # V2-17.5 - probabilistic overlay on top of the deterministic layer
         # above (never a replacement). Liquidity/regime-risk-score inputs

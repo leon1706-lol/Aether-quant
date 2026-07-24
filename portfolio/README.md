@@ -270,6 +270,25 @@ instead of a hardcoded 2-strategy ternary — the legacy vertical config
 path now flows through this same generalized machinery (confirmed
 byte-identical via the full pre-existing test suite passing unchanged).
 
+**Chain-grouping hoist (V4.9 Priority 3)**: `select_calendar_legs()`/
+`select_arbitrage_jelly_roll_legs()` (the only 2 of the 14 shape-family
+selectors that need `group_chain_by_expiry()`'s O(n) chain-by-expiry
+grouping — the latter permanently unreachable in practice via
+`route_multi_leg_option_sizing()`'s own `unreachable_arbitrage` routing)
+now accept an optional `grouped_chain_by_expiry` param, threaded through
+`select_strategy_legs()`'s own new same-named param (deliberately a
+dedicated top-level parameter, not folded into `tuning_kwargs`, since
+blindly forwarding it would raise for the 12 selectors that don't accept
+it). `risk/asset_class_router.py::route_multi_leg_option_sizing()`
+computes the grouping ONCE per routing call — only when a calendar-family
+strategy is actually among `ordered_names` — instead of once per
+candidate calendar-family strategy tried in the same bar. `None` (the
+default, every existing caller) reproduces the exact original per-call
+regroup behavior, parity-tested in `tests/test_options_strategy_multileg.py`.
+`group_chain_by_expiry()` itself was renamed from the original private
+`_group_chain_by_expiry()` since it's now called across module
+boundaries.
+
 New `portfolio/options_margin_sizing.py` sizes the strategies a vega
 budget can't safely represent (naked shorts, short straddles/strangles,
 ladders' uncovered leg, backspreads' defined max loss) — see

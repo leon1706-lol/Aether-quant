@@ -18,6 +18,19 @@ Covers, each pure and Lean-free by construction:
 - indicators      -> the 7 pure functions in features/technical_indicators.py,
                      each timed INDEPENDENTLY (not summed) so a dominant one
                      is visible rather than averaged away
+- options         -> risk/asset_class_router.py::route_multi_leg_option_sizing()
+                     (V4.9 Priority 7) - a synthetic multi-strike/multi-
+                     expiry chain plus a representative strategy-name mix
+                     covering every shape family (including the always-
+                     skipped covered_protective/collar and the
+                     arbitrage_detector_enabled-gated arbitrage families,
+                     so the workload exercises route_multi_leg_option_sizing()'s
+                     own skip logic too, not just its selector dispatch),
+                     timing the whole per-bar dispatch loop end-to-end.
+                     Deliberately does NOT cover
+                     main.py::_build_options_chains_payload() - see the
+                     scope-decision paragraph below, same Lean-only
+                     constraint _build_model_input() itself has.
 
 Deliberate scope decision: main.py::_build_model_input() itself is NOT
 profiled here. Confirmed harder than "not cleanly synthesizable" (the
@@ -38,7 +51,7 @@ and the entry for this specific method.
 Usage:
     python scripts/profile_subsystems.py [--iterations N] [--sort cumulative]
         [--regime] [--topology] [--learned-topology] [--liquidity]
-        [--gating] [--analyzer] [--indicators]
+        [--gating] [--analyzer] [--indicators] [--options]
     (no subsystem flags -> profiles all of them)
 
 Writes a pstats dump (plus tail-latency report) per subsystem to
@@ -75,6 +88,7 @@ from features.technical_indicators import (  # noqa: E402
 from liquidity import build_liquidity_decision  # noqa: E402
 from moe import build_gating_decision  # noqa: E402
 from regime import build_market_regime_vector  # noqa: E402
+from risk.asset_class_router import route_multi_leg_option_sizing  # noqa: E402
 from topology import apply_learned_topology, build_market_topology  # noqa: E402
 
 OUTPUT_PATH = Path(__file__).resolve().parent / "profile_subsystems_output.txt"
@@ -429,6 +443,108 @@ def run_indicators_workload(pregenerated: list[dict]) -> dict[str, list[float]]:
     return per_function
 
 
+# ---------------------------------------------------------------------------
+# options (V4.9 Priority 7) - route_multi_leg_option_sizing() end-to-end.
+# ---------------------------------------------------------------------------
+
+# One representative strategy_name per shape family, covering every branch
+# route_multi_leg_option_sizing() itself takes: the 10 reachable vega_budget/
+# margin-tier families (vertical/straddle/strangle/butterfly/calendar/
+# iron_condor/iron_butterfly/backspread/ladder/naked), the 2 always-skipped
+# covered_protective/collar names (main.py sizes those separately - see
+# route_multi_leg_option_sizing()'s own docstring), and the 3
+# arbitrage_detector_enabled-gated arbitrage families (never fire here since
+# no real mispricing exists in synthetic data, but still exercise that
+# branch's own dispatch/skip logic, not just the reachable families').
+_OPTIONS_STRATEGY_NAME_MIX = [
+    "bull_call_spread",      # vertical
+    "straddle",               # straddle
+    "strangle",                # strangle
+    "butterfly_call",           # butterfly
+    "call_calendar_spread",      # calendar
+    "iron_condor",                 # iron_condor
+    "iron_butterfly",               # iron_butterfly
+    "call_backspread",               # backspread
+    "bear_call_ladder",               # ladder
+    "naked_call",                       # naked
+    "covered_call",                      # covered_protective (always skipped by design)
+    "protective_collar",                  # collar (always skipped by design)
+    "box_spread",                           # arbitrage_box (needs arbitrage_detector_enabled)
+    "conversion",                             # arbitrage_conversion
+    "jelly_roll",                               # arbitrage_jelly_roll
+]
+
+
+def _synthetic_options_chain(n_strikes: int = 13, expiries: tuple[str, ...] = ("2026-08-21", "2026-09-18")) -> list[dict]:
+    """Multi-strike, multi-expiry chain - vega peaks ATM and decays with
+    distance (same shape tests/test_options_strategy_multileg.py's own
+    fixture uses, so every reachable shape family's selector can actually
+    find a usable set of legs), with a SECOND, higher-vega expiry (unlike
+    that test fixture's single-expiry default) so the calendar family -
+    the only one needing 2 distinct expiries - is exercisable too."""
+    rows = []
+    center = 100.0
+    step = 5.0
+    start_strike = center - (n_strikes // 2) * step
+    for expiry_index, expiry in enumerate(expiries):
+        for i in range(n_strikes):
+            strike = start_strike + i * step
+            call_delta = max(0.02, min(0.98, 0.5 + (center - strike) * 0.02))
+            put_delta = call_delta - 1.0
+            distance = abs(strike - center)
+            # Farther expiry carries more vega per contract (real vega
+            # term structure) - a flat vega curve across expiries would
+            # make the calendar family's near/far net vega cancel to 0.
+            vega = max(0.1, (3.0 - distance * 0.15) * (1.0 + 0.3 * expiry_index))
+            rows.append({
+                "symbol": f"C{strike:.0f}_{expiry}", "right": "call", "strike": strike, "expiry": expiry,
+                "delta": call_delta, "vega": vega, "bid": 1.0, "ask": 1.1, "iv": 0.25,
+            })
+            rows.append({
+                "symbol": f"P{strike:.0f}_{expiry}", "right": "put", "strike": strike, "expiry": expiry,
+                "delta": put_delta, "vega": vega, "bid": 1.0, "ask": 1.1, "iv": 0.25,
+            })
+    return rows
+
+
+def build_options_workload(iterations: int, seed: int = 7) -> list[dict]:
+    rng = random.Random(seed)
+    chain = _synthetic_options_chain()
+    return [
+        {
+            "enabled_strategy_names": list(_OPTIONS_STRATEGY_NAME_MIX),
+            "signal_name": rng.choice(["buy", "sell", "short"]),
+            "confidence": rng.uniform(0.3, 1.0),
+            "available_chain": chain,
+            "portfolio_value": 1_000_000.0,
+            "underlying_price": 100.0,
+            "volatility_view": rng.choice(["short_vol", "long_vol", "neutral"]),
+            "risk_tier_preference": rng.choice(["defined_risk_first", "margin_efficient_first"]),
+            "margin_family_enabled": rng.random() < 0.5,
+            "arbitrage_detector_enabled": rng.random() < 0.5,
+        }
+        for _ in range(iterations)
+    ]
+
+
+def run_options_workload(pregenerated: list[dict]) -> list[float]:
+    durations: list[float] = []
+    for inputs in pregenerated:
+        start = time.perf_counter()
+        route_multi_leg_option_sizing(
+            inputs["enabled_strategy_names"], inputs["signal_name"], inputs["confidence"],
+            inputs["available_chain"], inputs["portfolio_value"], inputs["underlying_price"],
+            inputs["volatility_view"], inputs["risk_tier_preference"], inputs["margin_family_enabled"],
+            target_delta_at_full_confidence=0.6, max_vega_budget_pct_of_equity=0.02,
+            short_leg_delta_offset=0.20, contract_multiplier=100.0,
+            target_margin_utilization=0.20, max_margin_utilization=0.40,
+            pct_of_underlying_value=0.20, min_pct_of_underlying_value=0.10,
+            arbitrage_detector_enabled=inputs["arbitrage_detector_enabled"],
+        )
+        durations.append(time.perf_counter() - start)
+    return durations
+
+
 SUBSYSTEM_RUNNERS = {
     "regime": (build_regime_workload, run_regime_workload),
     "topology": (build_topology_workload, run_topology_workload),
@@ -438,6 +554,7 @@ SUBSYSTEM_RUNNERS = {
     "gating": (build_gating_workload, run_gating_workload),
     "analyzer": (build_analyzer_workload, run_analyzer_workload),
     "indicators": (build_indicators_workload, run_indicators_workload),
+    "options": (build_options_workload, run_options_workload),
 }
 
 
