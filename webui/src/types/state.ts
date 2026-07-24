@@ -25,6 +25,18 @@ export interface ForexRoutingExtra {
   lot_count: number
 }
 
+// data/reference/forex_pair_specs.json's per-pair shape - resolved by
+// main.py's self.forex_pair_specs.get(ticker) and threaded through
+// risk/asset_class_router.py::route_position_sizing()'s forex branch
+// (Phase 4.8) purely for webui display, no sizing-math change.
+export interface ForexPairSpec {
+  description?: string
+  pip_size: number
+  lot_size: number
+  leverage_max: number
+  margin_pct: number
+}
+
 // Mirrors portfolio/options_strategy.py::OptionsPositionDecision.to_dict() -
 // contract_symbol is already stringified there (never a raw Lean Symbol) so
 // it round-trips through JSON safely.
@@ -84,6 +96,9 @@ export interface OptionsMarginDecision {
 export interface AssetClassRoutingExtra {
   contract_count?: number
   lot_count?: number
+  // Phase 4.8 - present alongside lot_count for forex only; {} when the
+  // ticker has no entry in data/reference/forex_pair_specs.json.
+  pair_spec?: ForexPairSpec | Record<string, never>
   options_decision?: OptionsDecision | OptionsMultiLegDecision | OptionsMarginDecision
 }
 
@@ -143,6 +158,52 @@ export interface LiquidityInfo {
   reasons?: string[]
 }
 
+// features/bond_features.py's analytic duration/convexity/DV01 - mirrors
+// main.py::_bond_analytics_for_symbol()'s return shape exactly. null (not
+// 0.0) for a non-bond symbol or missing inputs, same None-vs-neutral-
+// default distinction that module's own docstring documents.
+export interface BondAnalytics {
+  analytic_modified_duration: number | null
+  analytic_convexity: number | null
+  bond_dv01: number | null
+}
+
+// portfolio/options_assignment_risk.py's per-leg score/flag, populated by
+// main.py::_apply_option_assignment_risk_sweep() - keyed by leg contract
+// symbol (string). Only ever populated for a short-call leg of a held
+// multi-leg strategy when phase_v2.options_risk.assignment_risk_detector
+// is enabled (default off) - {} / absent otherwise, not every held
+// position gets an entry.
+export interface AssignmentRiskLeg {
+  score: number
+  flag: boolean
+}
+
+export interface DividendEstimate {
+  estimated_next_ex_date: string | null
+  estimated_amount: number | null
+  cadence_days: number | null
+  confidence: 'low' | 'medium' | 'none' | string
+  method: string
+}
+
+// data_pipeline/dividend_backfill.py::dividend_schedule_payload() - loaded
+// once at main.py init into self._dividend_schedule_by_ticker, only when
+// the same assignment_risk_detector flag above is enabled.
+export interface DividendSchedule {
+  ticker: string
+  fetched_at: string
+  history: { ex_date: string; amount: number }[]
+  next_ex_dividend_estimate: DividendEstimate
+}
+
+// Lean's Slice.Splits, same-bar only (fires once, on the split event bar) -
+// mirrors main.py's corporate_action_payload shape.
+export interface CorporateActionEvent {
+  split_factor: number
+  reference_price: number
+}
+
 export interface Signal {
   ticker?: string
   symbol?: string
@@ -163,6 +224,16 @@ export interface Signal {
   // phase_v2.portfolio_book.enabled - null/absent for non-book-controlled
   // symbols or when the book overlay is off.
   portfolio_book_role?: 'long' | 'short' | 'flat' | string | null
+  // Phase 4.8 - V4.7 features that were computed but never actually
+  // reached state.json before this. Every field below is null/undefined
+  // for the common case (equity/crypto symbols, or the relevant
+  // detector/model being off/unloaded, which is this codebase's default) -
+  // any consumer must render a graceful empty state, never assume presence.
+  bond_analytics?: BondAnalytics | null
+  assignment_risk?: Record<string, AssignmentRiskLeg> | null
+  dividend_schedule?: DividendSchedule | null
+  strategy_selector_scores?: Record<string, number> | null
+  corporate_action?: CorporateActionEvent | null
 }
 
 export interface Risk {
@@ -524,6 +595,24 @@ export interface AssetsStatus {
   configured_futures_assets: number
   configured_options_assets: number
   configured_forex_assets: number
+}
+
+// monitoring/strategy_catalog.py::build_strategy_catalog() -
+// portfolio/options_strategy.py::MULTI_LEG_STRATEGY_REGISTRY's 43 entries,
+// static (never changes at runtime), served by its own /api/strategies
+// endpoint rather than embedded in RuntimeState/state.json - see that
+// endpoint's own docstring for why.
+export interface StrategyCatalogEntry {
+  name: string
+  leg_count: number
+  risk_tier: string
+  shape_family: string
+  has_expiry_pair: boolean
+}
+
+export interface StrategyCatalog {
+  strategies: StrategyCatalogEntry[]
+  total_count: number
 }
 
 // One options-chain row - mirrors main.py::_build_options_chains_payload()'s

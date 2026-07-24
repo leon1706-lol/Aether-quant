@@ -9,6 +9,7 @@ import {
   fetchObservationEquityCurve,
   fetchScene,
   fetchState,
+  fetchStrategyCatalog,
   fetchTopology,
 } from './client'
 
@@ -52,6 +53,19 @@ export function useAssetsStatus() {
     queryKey: ['assets-status'],
     queryFn: fetchAssetsStatus,
     refetchInterval: TRACING_REFRESH_MS,
+  })
+}
+
+// Phase 4.8 - the 43-strategy registry is a static, in-memory Python dict
+// that never changes at runtime (no config/state dependency at all,
+// unlike every other hook here) - staleTime: Infinity means React Query
+// treats the first successful fetch as always-fresh and never refetches
+// on its own; refetchInterval is omitted entirely for the same reason.
+export function useStrategyCatalog() {
+  return useQuery({
+    queryKey: ['strategy-catalog'],
+    queryFn: fetchStrategyCatalog,
+    staleTime: Infinity,
   })
 }
 

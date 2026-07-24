@@ -20,6 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monitoring.assets_status import build_assets_status_from_disk
 from monitoring.neural_network_state import build_neural_network_state
+from monitoring.strategy_catalog import build_strategy_catalog
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 VISUALIZATION_DIR = ROOT_DIR / "visualization"
@@ -92,6 +93,11 @@ def get_neural_network() -> dict:
 @app.get("/api/assets-status")
 def get_assets_status() -> dict:
     return build_assets_status_from_disk()
+
+
+@app.get("/api/strategies")
+def get_strategy_catalog() -> dict:
+    return build_strategy_catalog()
 
 
 @app.get("/api/grafana/metrics-snapshot")

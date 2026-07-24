@@ -66,6 +66,16 @@ services:
       # mounted read-only here instead, which never becomes part of any
       # image layer.
       - ./lean.json:/app/lean.json:ro
+      # Phase 4.8 - monitoring/assets_status.py::build_assets_status_from_disk()
+      # also reads futures_contract_specs.json/forex_pair_specs.json/the FRED
+      # series cache at runtime (GET /api/assets-status) - without this mount
+      # the engine container silently reports zero Forex/futures/FRED specs
+      # loaded (a graceful degrade, not a crash, but undocumented and wrong).
+      # Scoped to data/reference/ only, not all of ./data (which also holds
+      # the much larger OHLCV zip archives nothing in this service reads) -
+      # excluded from the build context via .dockerignore, but that only
+      # affects image layers, not a runtime bind-mount like this one.
+      - ./data/reference:/app/data/reference:ro
     environment:
       AETHER_ENV: docker
       AETHER_REDIS_URL: redis://redis:6379/0
@@ -238,9 +248,10 @@ services:
     container_name: aether-quant-retraining-worker
     # Docker's built-in tini as PID 1 - this service's own subprocess.run(...,
     # timeout=...) calls (train/train_topology/train_gating/train_multitask/
-    # train_sequence) can leave a killed child as an unreapable zombie
-    # without a real init process, which then makes even `docker stop`/
-    # recreate fail (see development/Problems.md #48's follow-up finding).
+    # train_sequence/train_strategy_selector) can leave a killed child as an
+    # unreapable zombie without a real init process, which then makes even
+    # `docker stop`/recreate fail (see development/Problems.md #48's
+    # follow-up finding).
     init: true
     command: python -m retraining.worker
     environment:
@@ -250,6 +261,21 @@ services:
       - ./ml:/app/ml
       - ./data:/app/data
       - ./backtests:/app/backtests
+      # Phase 4.8 - Docker-outside-of-Docker: retraining/lean_backtest.py's
+      # run_lean_backtest() shells out to the `lean` CLI (now installed via
+      # requirements/requirements.txt - see that file's own comment), but
+      # `lean backtest` is not self-contained - it launches a SEPARATE
+      # Docker container (quantconnect/lean:17900, same image this repo's
+      # own standalone `lean` service pins) to actually run the backtest.
+      # Mounting the host's Docker socket here is what lets that internal
+      # `docker run` succeed from inside this container. This grants
+      # root-equivalent host access - acceptable given this service is
+      # already trusted/non-internet-facing (no published ports, IB
+      # credentials already mounted read-only). This makes
+      # run_lean_backtest() MECHANICALLY able to work - it does not itself
+      # pull the multi-GB quantconnect/lean:17900 image or verify a real
+      # backtest runs; that is a separate, manual follow-up step.
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
         condition: service_healthy

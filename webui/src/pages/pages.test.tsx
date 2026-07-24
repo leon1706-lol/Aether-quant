@@ -13,6 +13,7 @@ import type { ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
 import { Overview } from './Overview'
 import { OperationsPage } from './OperationsPage'
+import { OptionsStrategyPage } from './OptionsStrategyPage'
 import { TracingPage } from './TracingPage'
 import { AppShell } from '../components/layout/AppShell'
 
@@ -27,6 +28,15 @@ const OPERATIONS_PANELS = [
   'Audit Log',
   'Monitoring Feeds',
   'Raw State',
+]
+// Phase 4.8 - every panel the Options & Strategy page renders.
+const OPTIONS_STRATEGY_PANELS = [
+  'Held Multi-Leg Positions',
+  'Dividend Schedule',
+  'Strategy Selector Scores',
+  'Corporate Actions',
+  'Strategy Catalog',
+  'Forex Pair Detail',
 ]
 
 function renderWithProviders(ui: ReactElement, { route = '/' }: { route?: string } = {}) {
@@ -98,6 +108,33 @@ describe('V4-W1: Overview / Operations split', () => {
     )
     expect(screen.getByRole('link', { name: 'Operations' }).className).toContain('text-orange-300')
     expect(screen.getByRole('link', { name: 'Overview' }).className).not.toContain('text-orange-300')
+  })
+})
+
+describe('Phase 4.8: Options & Strategy page', () => {
+  it('renders every panel even with no state at all (fresh-clone/no-backtest-ever-run case)', () => {
+    renderWithProviders(<OptionsStrategyPage state={undefined} />)
+    const titles = panelTitles()
+    for (const panel of OPTIONS_STRATEGY_PANELS) {
+      expect(titles).toContain(panel)
+    }
+  })
+
+  it('shows the dormant strategy-selector empty state, never a blank table, when no model is loaded', () => {
+    renderWithProviders(<OptionsStrategyPage state={undefined} />)
+    expect(
+      screen.getByText('No trained strategy-selector model loaded — falls back to static risk-tier ordering.'),
+    ).toBeInTheDocument()
+  })
+
+  it('AppShell exposes an Options & Strategy nav link pointing at /options-strategy', () => {
+    renderWithProviders(
+      <AppShell state={undefined} isError={false}>
+        <div />
+      </AppShell>,
+    )
+    const link = screen.getByRole('link', { name: 'Options & Strategy' })
+    expect(link).toHaveAttribute('href', '/options-strategy')
   })
 })
 

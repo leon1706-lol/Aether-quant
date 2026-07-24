@@ -4269,3 +4269,54 @@ release.
 files and additions to 5 existing ones). See `development/Problems.md` #61
 for the full writeup, including the Lean-source verification findings and
 the exact scope of what's dormant vs. what's actually live.
+
+## Phase 4.8 — closing the gaps a full-stack completeness audit found: `lean` CLI in the retraining-worker image, a new Options & Strategy webui page, a real `main.py` bug fix, and CLI/Docker discoverability fixes (Problems.md #62)
+
+A 3-agent audit rated the overall V4 implementation 7/10 and produced a
+concrete gap list; the user scoped what to fix now vs. their own manual
+follow-up (topology-model training, organic retraining promotion, real IB
+integration, walk-forward training, and a real Lean backtest are all
+explicitly deferred).
+
+**Docker/CLI**: `lean` CLI is now installed in the production image
+(`requirements/requirements.txt`), and `retraining-worker` gained a
+`/var/run/docker.sock` mount — confirmed `lean backtest` itself launches a
+separate Docker container to actually run, so a pip install alone
+wouldn't have been enough. `engine`'s docker-compose volumes gained a
+scoped `data/reference/` mount (fixes `GET /api/assets-status` silently
+reporting zero Forex/futures/FRED specs in a real deployment); the
+`retraining-worker` stage-list comment was stale (5 stages documented, 6
+actually run). New `aq backfill <target>` command (`dividends`/`fred`/
+`yfinance`) — confirmed genuinely distinct from `aq fetch` — plus a fix
+for `aq_cli.py`'s stale test-group dict (`test_forex_risk.py`/
+`test_options_arbitrage_detector.py`/`test_options_strategy_multileg.py`/
+`test_options_margin_sizing.py` were missing from their groups since
+V4.6/V4.7 shipped them).
+
+**A real bug found and fixed**: `main.py`'s `corporate_action_payload`
+(V4.7) was set inside Pass 1's per-symbol loop but read back inside Pass
+2's separate loop — Python has no block scoping, so every symbol's
+persisted experience event was silently reusing whichever value was left
+over from the last symbol Pass 1 processed, not its own. Fixed by
+threading it through `pass1_state` correctly, same as every other
+per-symbol field already does.
+
+**V4.7 features that were computed but never reached `state.json`, now
+wired in**: bond analytics (a stale code comment claimed this was already
+"stored for dashboard/state visibility" — it wasn't), assignment-risk
+score/flag, dividend schedule, and strategy-selector scores all now merge
+into `signals[symbol_key]`, following the exact pattern `regime`/
+`liquidity` already use. `GET /api/state` needed zero changes (confirmed
+pure passthrough).
+
+**New webui "Options & Strategy" page** (`/options-strategy`) — held
+multi-leg positions with per-leg assignment risk, a dividend-schedule
+summary, strategy-selector scores (with a clear dormant-state message,
+never a blank table), same-bar corporate actions, a static 43-strategy
+catalog browser (new `GET /api/strategies`, deliberately not embedded in
+`state.json`), and a real Forex pair-spec detail panel replacing the old
+raw `"N forex lots"` string.
+
+**Testing**: 1813 → **1818 tests, all passing**. Webui: 13 tests
+across 2 files, `npm run build`/`lint`/`test` all clean. See
+`development/Problems.md` #62 for the full writeup.

@@ -23,6 +23,11 @@ const TONES: Record<string, string> = {
   long: 'bg-emerald-400/15 text-emerald-300',
   short: 'bg-rose-400/15 text-rose-300',
   flat: 'bg-white/10 text-white/80',
+  // Phase 4.8 - dividend-schedule confidence tones (data_pipeline/
+  // dividend_backfill.py::estimate_next_ex_dividend_date()).
+  medium: 'bg-sky-400/15 text-sky-300',
+  low: 'bg-amber-400/15 text-amber-300',
+  none: 'bg-white/10 text-white/80',
 }
 
 export function Badge({ tone, children }: { tone?: string; children: React.ReactNode }) {

@@ -1,4 +1,4 @@
-import type { AssetsStatus, NeuralNetworkState, RuntimeState, Scene, Topology } from '../types/state'
+import type { AssetsStatus, NeuralNetworkState, RuntimeState, Scene, StrategyCatalog, Topology } from '../types/state'
 import type { CsvRow, RuntimeMetricsSnapshot } from '../types/tracing'
 import type { AuditLogStatus } from '../types/audit'
 
@@ -15,6 +15,8 @@ export const fetchScene = () => getJson<Scene>('/api/scene')
 export const fetchTopology = () => getJson<Topology>('/api/topology')
 export const fetchNeuralNetwork = () => getJson<NeuralNetworkState>('/api/neural-network')
 export const fetchAssetsStatus = () => getJson<AssetsStatus>('/api/assets-status')
+// Phase 4.8 - the 43-strategy registry, static (never changes at runtime).
+export const fetchStrategyCatalog = () => getJson<StrategyCatalog>('/api/strategies')
 
 // Tracing dashboard (V2-18) - reads the same visualization/grafana/* exports
 // that used to be Grafana's only consumer, now rendered natively in the webui.

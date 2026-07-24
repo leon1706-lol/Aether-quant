@@ -5,6 +5,10 @@
 # no direct unit tests - it requires AlgorithmImports/Lean, which no test
 # file imports), so this was never caught until a truly clean install was
 # attempted (CI, or a fresh machine) rather than an existing dev venv.
+# Phase 4.8 - this is no longer dev-only: requirements/requirements.txt
+# (the Docker image's own requirements file) now also lists it, so
+# retraining-worker's container has it too - kept here as well so a local
+# dev venv installed purely from this file still has it for `aq backtest`.
 lean>=1.0.225
 
 # Dashboard / optional local exploration

@@ -18,6 +18,20 @@ Pages (`src/pages/`):
   Readiness (left); Audit Log, Monitoring Feeds, Raw State (right).
 - `RiskPage.tsx` — risk core panel, asset volatility/sizing table, liquidity
   and execution-impact panel.
+- `OptionsStrategyPage.tsx` (Phase 4.8) — held multi-leg option positions
+  with per-leg dividend-driven assignment-risk scores, a dividend-schedule
+  summary, the learned strategy-selector model's per-symbol scores (a
+  dormant-state message when no model is loaded - realistically permanent
+  in this environment, see `train_strategy_selector.py`'s own module
+  docstring), same-bar corporate-action/split events, a static 43-strategy
+  catalog browser (`GET /api/strategies`, its own hook - not part of
+  `/api/state`, since the catalog is useful even with no backtest ever
+  run), and a Forex pair-spec detail panel. All 6 components live under
+  `components/optionsstrategy/`. Surfaces V4.7 data
+  (`main.py::_write_state()`'s `signals[symbol_key].bond_analytics`/
+  `assignment_risk`/`dividend_schedule`/`strategy_selector_scores`/
+  `corporate_action`) that was computed but never reached `state.json`
+  before this.
 - `TopologyPage.tsx` — 3D cluster view with regime/risk colouring.
 - `TracingPage.tsx` (V2-18) — runtime metrics snapshot, backtest equity
   curve (per-ticker selector, strategy vs buy-and-hold) and

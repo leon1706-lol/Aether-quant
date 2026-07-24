@@ -497,7 +497,13 @@ def route_position_sizing(
             portfolio_value=portfolio_value,
             **(forex_kwargs or {}),
         )
-        return _forex_decision_to_position_sizing(decision), {"lot_count": decision.lot_count}
+        # Phase 4.8 - pair_spec is already resolved by the caller (main.py's
+        # self.forex_pair_specs.get(...)) and passed in above purely for
+        # build_forex_position_sizing()'s own sizing math - also surfacing
+        # it here in `extra` replaces the webui's previous raw "N forex
+        # lots" string with real pip/lot/leverage detail, at zero extra
+        # computation cost (same dict, no new lookup).
+        return _forex_decision_to_position_sizing(decision), {"lot_count": decision.lot_count, "pair_spec": pair_spec}
 
     if asset_class == "option":
         if build_options_position_sizing is None:

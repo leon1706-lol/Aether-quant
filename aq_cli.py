@@ -492,11 +492,14 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "cli": ["test_aq_cli.py", "test_generate_backtest_report.py"],
     "risk": [
         "test_risk_controls.py", "test_asset_class_router.py", "test_futures_risk.py",
+        "test_forex_risk.py",
         "test_order_gate.py", "test_position_sizing.py", "test_backtest_gate.py",
         "test_validation_gate.py", "test_manual_override.py",
     ],
     "portfolio": [
         "test_portfolio_book_construction.py", "test_options_strategy.py",
+        "test_options_strategy_multileg.py", "test_options_arbitrage_detector.py",
+        "test_options_margin_sizing.py",
         "test_options_greeks.py", "test_simulated_portfolio.py", "test_options_assignment_risk.py",
     ],
     "features": [
@@ -512,7 +515,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     ],
     "webui": [
         "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
-        "test_rank_ic_monitor.py", "test_observation_metrics.py",
+        "test_rank_ic_monitor.py", "test_observation_metrics.py", "test_strategy_catalog.py",
     ],
     "ml": [
         "test_expert_models.py", "test_expert_datasets.py", "test_gating_network.py", "test_train_gating.py",
@@ -899,6 +902,24 @@ def cmd_audit_log(args: argparse.Namespace) -> int:
 
 def cmd_retrain(args: argparse.Namespace) -> int:
     return _run([sys.executable, "-m", "retraining.orchestrator", args.stage, *args.retrain_args])
+
+
+# Phase 4.8 - whole-universe bulk-backfill scripts, each its own standalone
+# argparse/__main__ module with a PLURAL filter (--tickers/--series nargs="*",
+# --apply) - genuinely different from cmd_fetch()'s single-ticker/ad-hoc IB
+# tool below, which does NOT wire to or overlap with any of these three.
+# None of them was reachable via `aq` before this - purely a discoverability
+# wrapper, zero new backfill logic (each script's own main()/argparse is
+# unchanged and still works standalone via `python -m data_pipeline.<module>`).
+_BACKFILL_MODULE_BY_TARGET: dict[str, str] = {
+    "dividends": "data_pipeline.dividend_backfill",
+    "fred": "data_pipeline.fred_backfill",
+    "yfinance": "data_pipeline.yfinance_backfill",
+}
+
+
+def cmd_backfill(args: argparse.Namespace) -> int:
+    return _run([sys.executable, "-m", _BACKFILL_MODULE_BY_TARGET[args.target], *args.backfill_args])
 
 
 def cmd_paper_readiness(_args: argparse.Namespace) -> int:
@@ -1367,6 +1388,21 @@ def build_parser() -> argparse.ArgumentParser:
     retrain_parser.add_argument("retrain_args", nargs=argparse.REMAINDER, help="Passed through verbatim, e.g. --version-id <uuid>")
     retrain_parser.set_defaults(func=cmd_retrain)
 
+    backfill_parser = subparsers.add_parser(
+        "backfill",
+        help=(
+            "Thin dispatcher to python -m data_pipeline.<target>_backfill ... (whole-universe bulk "
+            "backfills). Different from `aq fetch`, which is for one ad-hoc ticker."
+        ),
+    )
+    backfill_parser.add_argument("target", choices=["dividends", "fred", "yfinance"])
+    backfill_parser.add_argument(
+        "backfill_args",
+        nargs=argparse.REMAINDER,
+        help="Passed through verbatim, e.g. --apply --tickers AAPL MSFT (dividends/yfinance), or --series DGS10 (fred)",
+    )
+    backfill_parser.set_defaults(func=cmd_backfill)
+
     paper_readiness_parser = subparsers.add_parser(
         "paper-readiness", help="Check whether the system is ready for phase_v2.runtime.mode='paper'"
     )
@@ -1383,7 +1419,11 @@ def build_parser() -> argparse.ArgumentParser:
     trade_lock_parser.set_defaults(func=cmd_trade_lock)
 
     fetch_parser = subparsers.add_parser(
-        "fetch", help="Ad-hoc fetch of historical OHLCV from Yahoo Finance for a ticker not yet in config.json"
+        "fetch",
+        help=(
+            "Ad-hoc fetch of historical OHLCV from Yahoo Finance for a ticker not yet in config.json. "
+            "For a whole-universe bulk refresh instead (dividends/FRED series/Yahoo gaps), see `aq backfill`."
+        ),
     )
     fetch_parser.add_argument(
         "asset_class", choices=list(ASSET_CLASSES), help="Asset class (picks the Lean data_path/market convention)"

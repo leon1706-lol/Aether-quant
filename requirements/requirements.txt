@@ -1,6 +1,16 @@
 # Lean Runtime / Broker Integrations
 ibapi>=9.81
 
+# Phase 4.8 - the Lean CLI itself (distinct from Lean's own repo-root
+# requirements.txt, which is what a SPAWNED Lean engine container needs
+# installed inside itself). Needed at the image level, not just local dev,
+# so retraining/lean_backtest.py::find_lean_binary()/run_lean_backtest()
+# can find and invoke `lean backtest` from inside the retraining-worker
+# container (docker-compose.yml's retraining-worker service also mounts
+# the host Docker socket, since `lean backtest` itself launches a SEPARATE
+# Docker container to actually run - see that service's own comment).
+lean>=1.0.225
+
 # Machine Learning & Data Processing
 torch>=2.0.0
 numpy>=1.24.0

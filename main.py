@@ -1192,10 +1192,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_macro_payload = {}
         self.latest_bond_payload = {}
         # V4.6 - per-symbol analytic bond duration/convexity/DV01
-        # (features/bond_features.py), informational/dashboard-only - see
-        # _bond_analytics_for_symbol()'s own docstring for why this never
-        # touches base_features/the trained model's input tensor.
+        # (features/bond_features.py). V4.7 also merges this same value into
+        # base_features (see _build_model_input_impl()'s bond block) - this
+        # dict remains the dashboard/state-facing copy (None-preserving, per
+        # _bond_analytics_for_symbol()'s own docstring), not a duplicate
+        # computation.
         self.latest_bond_analytics_by_symbol: dict[str, dict] = {}
+        # Phase 4.8 - the V4.7 features that were computed but never
+        # actually reached state.json: per-leg dividend-driven assignment-
+        # risk score/flag (populated in _apply_option_assignment_risk_sweep(),
+        # only when phase_v2.options_risk.assignment_risk_detector.enabled),
+        # and the learned strategy-selector's per-bar scores (populated in
+        # _build_dynamic_sizing_payload(), only when a trained model is
+        # loaded - realistically never in this environment, see
+        # train_strategy_selector.py's own module docstring). Both merged
+        # into signals[symbol_key] below, same pattern as every other
+        # latest_*_by_symbol dict in this cluster.
+        self.latest_assignment_risk_by_symbol: dict[str, dict] = {}
+        self.latest_strategy_selector_scores_by_symbol: dict[str, dict] = {}
         self.latest_options_chains_payload = {}
         self.latest_futures_chains_payload = {}
         self.latest_derivatives_macro_payload = {}
@@ -1323,6 +1337,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "asset_quality": self._asset_quality_for_symbol(symbol),
                 "trading_eligible": self._is_trading_eligible(symbol),
                 "can_trade": not self.trade_lock_active and self._is_trading_eligible(symbol),
+                # Phase 4.8 - correctly scoped to THIS symbol's own Pass-1
+                # iteration (unlike the stale outer-scope variable Pass 2
+                # used to read - see pass1_state[symbol_key]'s own
+                # "corporate_action_payload" key below, and this bar's
+                # build_experience_event() call for the actual bug fix).
+                "corporate_action": corporate_action_payload,
             }
             signals[str(symbol)] = signal_payload
 
@@ -1482,6 +1502,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "signal_name": signal_name,
                 "confidence": confidence,
                 "base_target_weight": base_target_weight,
+                # Phase 4.8 bug fix - previously NOT captured here, so Pass 2
+                # below (a separate loop over pass1_state.items()) read the
+                # bare outer-scope `corporate_action_payload` variable
+                # instead - Python has no block scoping, so that variable
+                # held whatever value it was left at by the LAST symbol
+                # Pass 1 processed, not this symbol's own value. Capturing
+                # it here (still within this symbol's own Pass-1 iteration,
+                # where the variable is still correctly scoped) and reading
+                # it back per-symbol in Pass 2 fixes that.
+                "corporate_action_payload": corporate_action_payload,
             }
             asset = self.asset_lookup[str(symbol)]
             book_candidates[symbol_key] = {
@@ -1554,6 +1584,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             signal_name = state["signal_name"]
             confidence = state["confidence"]
             base_target_weight = state["base_target_weight"]
+            # Phase 4.8 bug fix - this symbol's OWN value (see
+            # pass1_state[symbol_key]'s own comment above for why reading
+            # the bare outer-scope corporate_action_payload variable here
+            # instead was wrong).
+            corporate_action_payload = state["corporate_action_payload"]
 
             orders_allowed_for_exit_check, _ = self._order_permission()
             is_currently_invested = self._is_invested(symbol, orders_allowed_for_exit_check)
@@ -1610,6 +1645,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 topology_payload,
                 predicted_volatility=predicted_volatility,
                 predicted_rank_20d=predicted_rank_20d,
+                symbol_key=symbol_key,
             )
             target_weight = float(sizing_payload["target_weight"])
             # Reuses the exact same spread estimate _build_model_input()
@@ -1724,6 +1760,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "asset_class_routing_extra": {**extra, "options_decision": options_decision_obj.to_dict()},
                 }
 
+            # Phase 4.8 - resolve this symbol's dividend-schedule ticker once
+            # (options look up their UNDERLYING's schedule, everything else
+            # its own ticker) - self._dividend_schedule_by_ticker is keyed by
+            # ticker, not symbol_key, and only ever populated when
+            # phase_v2.options_risk.assignment_risk_detector.enabled (the
+            # realistic default is an empty dict, so this degrades to None).
+            _dividend_schedule_ticker = asset.get("underlying_ticker") or asset.get("ticker")
+
             signals[symbol_key].update(
                 {
                     "signal": signal_name,
@@ -1747,6 +1791,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "topology": topology_payload or {},
                     "liquidity": liquidity_payload,
                     "portfolio_book_role": book_allocation.role if book_allocation is not None else None,
+                    # Phase 4.8 - V4.7 features that were computed but never
+                    # actually reached state.json before this. Each degrades
+                    # to None/{} for the common case (equity/crypto symbols,
+                    # or the detector/model being off/unloaded, which is the
+                    # default) - see this dict's own __init__ comment.
+                    "bond_analytics": self.latest_bond_analytics_by_symbol.get(symbol_key),
+                    "assignment_risk": self.latest_assignment_risk_by_symbol.get(symbol_key),
+                    "dividend_schedule": self._dividend_schedule_by_ticker.get(_dividend_schedule_ticker),
+                    "strategy_selector_scores": self.latest_strategy_selector_scores_by_symbol.get(symbol_key),
                 }
             )
             orders_allowed, _ = self._order_permission()
@@ -2527,7 +2580,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         topology: dict | None = None,
         predicted_volatility: float | None = None,
         predicted_rank_20d: float | None = None,
+        symbol_key: str | None = None,
     ) -> dict:
+        # symbol_key (Phase 4.8) - optional, additive: only used to stash
+        # this bar's strategy-selector scores for state.json visibility
+        # (self.latest_strategy_selector_scores_by_symbol). None is a safe
+        # default for any hypothetical other caller - confirmed today there
+        # is exactly one real call site, which always passes it.
         # {"buy", "sell", "short"} - "short" added alongside the portfolio
         # book (Phase 3 of the 5/10 -> 9/10 roadmap, see
         # portfolio/book_construction.py); the book is off by default so
@@ -2601,6 +2660,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if self.strategy_selector_model
                 else {}
             )
+            # Phase 4.8 - stash for state.json visibility (this was
+            # previously computed and immediately discarded after use below).
+            if symbol_key is not None:
+                self.latest_strategy_selector_scores_by_symbol[symbol_key] = strategy_selector_scores
             result = route_multi_leg_option_sizing(
                 enabled_strategy_names,
                 signal_name,
@@ -4970,7 +5033,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         days_to_next_ex_div=days_to_ex_div,
                         window_days=self.options_assignment_risk_lookahead_window_days,
                     )
-                    if assignment_risk_flag(score, self.options_assignment_risk_score_threshold):
+                    flag = assignment_risk_flag(score, self.options_assignment_risk_score_threshold)
+                    # Phase 4.8 - stash for state.json visibility (this was
+                    # previously computed and immediately discarded) - only
+                    # ever populated for a short-call leg of a multi_leg
+                    # record, same coverage limitation as the sweep itself.
+                    self.latest_assignment_risk_by_symbol.setdefault(symbol_key, {})[str(leg_symbol)] = {
+                        "score": score,
+                        "flag": flag,
+                    }
+                    if flag:
                         self._liquidate_option_record(symbol_key, record)
                         break  # this record is gone - don't re-check its other legs
 

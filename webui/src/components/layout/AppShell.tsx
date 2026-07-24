@@ -8,6 +8,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Overview' },
   { to: '/operations', label: 'Operations' },
   { to: '/risk', label: 'Risk' },
+  { to: '/options-strategy', label: 'Options & Strategy' },
   { to: '/topology', label: 'Topology' },
   { to: '/neural-network', label: 'Neural Network' },
   { to: '/tracing', label: 'Tracing' },

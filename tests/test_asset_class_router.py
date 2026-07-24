@@ -146,6 +146,23 @@ def test_forex_missing_pair_spec_gives_zero_position():
     assert decision.target_weight == 0.0
 
 
+def test_forex_extra_carries_pair_spec_for_webui_display():
+    # Phase 4.8 - replaces the webui's previous raw "N forex lots" string
+    # with real pip/lot/leverage detail - same dict already passed in for
+    # sizing math, no extra computation.
+    spec = _eurusd_spec()
+    decision, extra = route_position_sizing(
+        "forex", "buy", 1.0, 0.1, price=1.10, portfolio_value=1_000_000, pair_spec=spec
+    )
+    assert extra["pair_spec"] == spec
+    assert decision.target_weight > 0.0
+
+
+def test_forex_extra_pair_spec_is_none_when_not_configured():
+    decision, extra = route_position_sizing("forex", "buy", 1.0, 0.1, price=1.10, portfolio_value=1_000_000, pair_spec=None)
+    assert extra["pair_spec"] is None
+
+
 # ---------------------------------------------------------------------------
 # option
 # ---------------------------------------------------------------------------
