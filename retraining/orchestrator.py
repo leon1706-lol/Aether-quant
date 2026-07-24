@@ -114,8 +114,9 @@ def reconcile_stale_running_events(conn, config: dict) -> list[str]:
     Staleness threshold defaults to 10800s (3h) - deliberately larger than the
     *sum* of every stage's own timeout in one full cycle (train 3600s +
     train_topology 900s + train_gating 300s + train_multitask 900s +
-    train_sequence 1800s + backtest_gate 1800s + vault commit 120s ~= 9420s),
-    not just the single largest one - a genuinely still-running cycle (owned
+    train_sequence 1800s + train_strategy_selector 300s + backtest_gate 1800s +
+    vault commit 120s ~= 9720s), not just the single largest one - a
+    genuinely still-running cycle (owned
     by this worker or a concurrent manual `orchestrator train` CLI call) must
     never be falsely reconciled. Configurable via
     phase_v2.retraining.worker.stale_running_timeout_seconds.
@@ -433,6 +434,71 @@ def train_sequence(conn, retraining_id: str, version_id: str, config: dict, time
     return {"ok": True, "version_id": version_id, "stdout": result.stdout}
 
 
+def train_strategy_selector(
+    conn, retraining_id: str, version_id: str, config: dict, timeout_seconds: int | None = None
+) -> dict:
+    """Runs `python train_strategy_selector.py --version-id <id>` as a
+    sixth, independently-failable subprocess (V4.7, development/Problems.md
+    #29's own framing), right after train_sequence(). Same best-effort
+    contract as the other optional stages: a failure here is logged and
+    swallowed - it never rejects the primary candidate model_version.
+    strategy_selector_model.json etc. are optional artifacts (see
+    retraining/artifacts.py's OPTIONAL_STRATEGY_SELECTOR_FILES) precisely
+    so this stage can fail without blocking the primary model.
+
+    In practice this stage's own trainer script documents that it has no
+    data source to train from at all in this environment yet (unlike the
+    other optional stages above, which are dormant only until enough
+    Postgres experience_events VOLUME accumulates) - it will realistically
+    exit 0/skip every single retraining run until real option positions
+    actually trade. The stage still runs unconditionally (when enabled)
+    for the same reason every other optional stage does: cheap, harmless,
+    and ready the moment real data exists.
+    """
+    strategy_selector_config = config.get("strategy_selector_training", {})
+    if not strategy_selector_config.get("enabled", True):
+        return {"ok": False, "version_id": version_id, "reason": "strategy_selector_training_disabled"}
+
+    timeout_seconds = timeout_seconds or int(strategy_selector_config.get("timeout_seconds", 300))
+    train_strategy_selector_script = ROOT_DIR / "train_strategy_selector.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(train_strategy_selector_script), "--version-id", version_id],
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
+        logger.warning("train_strategy_selector: subprocess failed to launch for %s - %s", version_id, exc)
+        update_retraining_event_status(
+            conn, retraining_id, status="running", notes=[{"stage": "train_strategy_selector", "error": str(exc)}]
+        )
+        return {"ok": False, "version_id": version_id, "error": str(exc)}
+
+    if result.returncode != 0:
+        logger.warning(
+            "train_strategy_selector: candidate %s strategy-selector training failed (rc=%d) - continuing without it.",
+            version_id,
+            result.returncode,
+        )
+        update_retraining_event_status(
+            conn,
+            retraining_id,
+            status="running",
+            notes=[
+                {"stage": "train_strategy_selector", "returncode": result.returncode, "stderr": result.stderr[-2000:]}
+            ],
+        )
+        return {"ok": False, "version_id": version_id, "error": result.stderr}
+
+    logger.info(
+        "train_strategy_selector: candidate %s strategy-selector model trained (or skipped for insufficient data).",
+        version_id,
+    )
+    return {"ok": True, "version_id": version_id, "stdout": result.stdout}
+
+
 def validate(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     version_dir = candidate_dir(version_id)
     present, missing = check_required_artifacts(version_dir)
@@ -665,6 +731,10 @@ def main() -> None:
     train_sequence_parser.add_argument("--retraining-id", required=True)
     train_sequence_parser.add_argument("--version-id", required=True)
 
+    train_strategy_selector_parser = subparsers.add_parser("train_strategy_selector")
+    train_strategy_selector_parser.add_argument("--retraining-id", required=True)
+    train_strategy_selector_parser.add_argument("--version-id", required=True)
+
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--retraining-id", required=True)
     validate_parser.add_argument("--version-id", required=True)
@@ -702,6 +772,12 @@ def main() -> None:
             print(json.dumps(train_multitask(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "train_sequence":
             print(json.dumps(train_sequence(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
+        elif args.stage == "train_strategy_selector":
+            print(
+                json.dumps(
+                    train_strategy_selector(conn, args.retraining_id, args.version_id, config), indent=2, default=str
+                )
+            )
         elif args.stage == "validate":
             print(json.dumps(validate(conn, args.retraining_id, args.version_id, config), indent=2, default=str))
         elif args.stage == "backtest":

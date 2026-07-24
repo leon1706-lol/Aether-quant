@@ -462,6 +462,31 @@ source) — reframed into real analytic bond-ETF duration/convexity
 instead; see `portfolio/README.md`'s own V4.6 section and
 `features/bond_features.py`'s module docstring.
 
+## Dividend-driven assignment risk, and a learned strategy-selector's live inference plug point (V4.7, development/Problems.md #61)
+
+Brings V4.6's own deliberately-deferred items into scope. Full detail
+lives in `portfolio/README.md` (both new modules live there); this
+section covers only the pieces that touch this package.
+
+- **`route_multi_leg_option_sizing()` gained a new optional
+  `strategy_selector_scores: dict | None = None` kwarg.** Falsy (`None`
+  or `{}` — the only value ever passed until a learned strategy-selector
+  model is both trained and `phase_v2.strategy_selector.enabled=true`)
+  reproduces today's exact `order_enabled_strategies()` static ordering
+  byte-identically. When present, `portfolio/options_strategy.py::
+  rerank_enabled_strategies_by_score()` reranks the enabled names by score
+  instead — every other part of the dispatch loop (leg construction,
+  sizing, risk math) is unchanged; only which name is tried first can
+  differ. See `portfolio/README.md`'s own writeup for the model itself
+  (`train_strategy_selector.py`, `inference/strategy_selector_inference.py`)
+  and why it ships dormant.
+- The dividend-driven assignment-risk detector
+  (`portfolio/options_assignment_risk.py`, new `data_pipeline/dividend_backfill.py`)
+  and the Barone-Adesi-Whaley American-exercise pricer
+  (`features/options_greeks.py::baw_american_price()`) are pure
+  feature/signal modules with no `risk/` package involvement — see
+  `portfolio/README.md` for the full writeup.
+
 ## Liquidating positions when an asset class gets disabled
 
 Closes a real gap: `phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled`

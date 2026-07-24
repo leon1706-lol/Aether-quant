@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1722%2F1722%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1722 of 1722 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1813%2F1813%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1813 of 1813 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -73,10 +73,10 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), and V4.6 (bounded follow-ups, Forex, bond analytics) shipped.**
+**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), and V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model) shipped.**
 Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
 the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->1722<!-- AQ:TEST_COUNT_END -->
+(<!-- AQ:TEST_COUNT_START -->1813<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
 - **V4.1 (visualisation), shipped:** webui Overview/Operations split, Tracing reflow, genuinely 3D topology. Still needs a real backtest with 3D embedding turned on to validate.
@@ -84,6 +84,7 @@ tests) and wired end-to-end inside Lean.
 - **V4.4 (options architecture), shipped:** multi-position book, symmetric scale-down, held-contract re-sizing on drift instead of freezing. Code-complete but **IB-unverified** — zero option assets exist in the universe today. See `development/Problems.md` #58.
 - **V4.5 (full `OptionStrategies` coverage), shipped:** all 43 of QuantConnect's option factories now registry-driven and reachable (up from 2), margin-based sizing, a volatility-view signal, and cross-asset covered/protective coordination. Off by default, code-complete but IB-unverified. See `development/Problems.md` #59.
 - **V4.6 (bounded follow-ups, Forex, bond analytics), shipped:** an arbitrage mispricing detector, a per-asset strategy override, rotation anti-thrashing/netting, a new Forex/FX asset class, and real analytic bond duration/convexity. Off by default, code-complete but IB-unverified. See `development/Problems.md` #60.
+- **V4.7 (early-assignment modeling, learned strategy selector, bond analytics as real signals), shipped:** a dividend-cadence data pipeline + American-exercise (BAW) pricer + dividend-driven assignment-risk sweep; a learned multi-leg strategy-selector model (`train_strategy_selector.py`) with its own data-capture prerequisite, dormant until real option positions actually trade; the 3 analytic bond features merged into the trained model's feature schema — code-complete, but the retrain itself was deliberately left for the user to run separately. All off by default. See `development/Problems.md` #61.
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
@@ -414,7 +415,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1722<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1813<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -500,7 +501,7 @@ last backtest.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1722<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1813<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -795,9 +796,7 @@ All finished phases and changes can be found in
 **Training**
 - Walk-forward training, Stage 6 of the rank-pivot roadmap (`phase_v2.retraining.walk_forward`, `aq train --walk-forward`) — **fully implemented in code** (`train.py::_run_walk_forward()`/`generate_walk_forward_windows()`, the CLI flag itself) since the rank-pivot session; the ~27-window, multi-hour run just hasn't been executed in this environment yet. Running it (no Docker/IB needed, pure local compute) would let `rank_20d`'s promotion-quality/significance numbers actually update — see development/Problems.md #43/#56.
 
-**Assets** — ✅ full `OptionStrategies` coverage (V4.5), arbitrage mispricing detector + per-asset strategy override + Forex + bond-ETF analytics (V4.6) shipped, see `development/Changelog.md` / `development/Problems.md` #59/#60
-- Full early-assignment probability/pricing and corporate-action (splits, special dividends) modeling remains explicitly out of scope — narrowed to the expiry-day auto-close safety net only (V4.5), a large separate quant-modeling project.
-- A learned, ML-driven model to automatically PICK which multi-leg strategy to use (replacing/augmenting today's rule-based volatility-view selector) — trained from realized per-strategy P&L once real option positions have traded history. Explicitly a separate, not-yet-started future project (development/Problems.md #29's own framing).
+**Assets** — ✅ full `OptionStrategies` coverage (V4.5), arbitrage mispricing detector + per-asset strategy override + Forex + bond-ETF analytics (V4.6), early-assignment/corporate-action modeling + a learned multi-leg strategy-selector model + bond analytics wired into the trained model (V4.7) shipped, see `development/Changelog.md` / `development/Problems.md` #59/#60/#61
 - Any other major asset classes still missing.
 
 **Tests / production readiness**

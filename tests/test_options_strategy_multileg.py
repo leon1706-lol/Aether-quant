@@ -13,8 +13,10 @@ from portfolio.options_strategy import (
     build_multi_leg_position_sizing,
     build_multi_leg_position_sizing_for_legs,
     classify_volatility_view,
+    net_debit_or_credit_for_legs,
     option_auto_close_due,
     order_enabled_strategies,
+    rerank_enabled_strategies_by_score,
     resolve_enabled_strategy_names,
     rotation_cooldown_active,
     select_strategy_legs,
@@ -302,6 +304,96 @@ def test_order_enabled_strategies_preserves_relative_order_within_group():
 def test_order_enabled_strategies_never_drops_or_adds_names():
     names = ["single_leg", "bull_call_spread", "bear_put_spread"]
     assert sorted(order_enabled_strategies(names, "defined_risk_first")) == sorted(names)
+
+
+# ---------------------------------------------------------------------------
+# rerank_enabled_strategies_by_score - the learned strategy-selector's
+# live inference plug point (V4.7)
+# ---------------------------------------------------------------------------
+
+
+def test_rerank_enabled_strategies_by_score_orders_descending():
+    names = ["iron_condor", "short_straddle", "bull_call_spread"]
+    scores = {"iron_condor": 0.2, "short_straddle": 0.9, "bull_call_spread": 0.5}
+    assert rerank_enabled_strategies_by_score(names, scores) == ["short_straddle", "bull_call_spread", "iron_condor"]
+
+
+def test_rerank_enabled_strategies_by_score_empty_scores_sinks_everything_stably():
+    names = ["iron_condor", "short_straddle", "bull_call_spread"]
+    assert rerank_enabled_strategies_by_score(names, {}) == names
+
+
+def test_rerank_enabled_strategies_by_score_missing_name_sinks_to_end_in_original_order():
+    names = ["a", "b", "c", "d"]
+    scores = {"b": 1.0, "d": 0.5}
+    result = rerank_enabled_strategies_by_score(names, scores)
+    assert result[0] == "b"
+    assert result[1] == "d"
+    # "a" and "c" (unscored) sink to the end, in their ORIGINAL relative order.
+    assert result[2:] == ["a", "c"]
+
+
+def test_rerank_enabled_strategies_by_score_never_drops_or_adds_names():
+    names = ["single_leg", "bull_call_spread", "bear_put_spread"]
+    scores = {"bull_call_spread": 1.0}
+    assert sorted(rerank_enabled_strategies_by_score(names, scores)) == sorted(names)
+
+
+def test_rerank_enabled_strategies_by_score_empty_names_returns_empty():
+    assert rerank_enabled_strategies_by_score([], {"iron_condor": 1.0}) == []
+
+
+# ---------------------------------------------------------------------------
+# net_debit_or_credit_for_legs - the stricter, None-on-missing sibling of
+# _size_multi_leg()'s own inline net-premium computation
+# ---------------------------------------------------------------------------
+
+
+def test_net_debit_or_credit_for_legs_matches_hand_computation():
+    spec = MULTI_LEG_STRATEGY_REGISTRY["iron_condor"]
+    legs_by_role = select_strategy_legs("iron_condor", _sample_chain(), 0.5)
+    result = net_debit_or_credit_for_legs(spec, legs_by_role)
+    assert result is not None
+
+    expected = 0.0
+    for leg_spec in spec.legs:
+        row = legs_by_role[leg_spec.role]
+        price = row["ask"] if leg_spec.side == "long" else row["bid"]
+        sign = 1.0 if leg_spec.side == "long" else -1.0
+        expected += sign * leg_spec.ratio * price
+    assert math.isclose(result, expected)
+
+
+def test_net_debit_or_credit_for_legs_none_when_a_role_is_missing():
+    spec = MULTI_LEG_STRATEGY_REGISTRY["iron_condor"]
+    legs_by_role = select_strategy_legs("iron_condor", _sample_chain(), 0.5)
+    # Drop one role entirely - the corresponding leg's row.get(...) returns
+    # None from an empty dict, which must propagate to an overall None.
+    first_role = spec.legs[0].role
+    incomplete = {role: row for role, row in legs_by_role.items() if role != first_role}
+    assert net_debit_or_credit_for_legs(spec, incomplete) is None
+
+
+def test_net_debit_or_credit_for_legs_none_when_bid_ask_missing_on_a_row():
+    spec = MULTI_LEG_STRATEGY_REGISTRY["iron_condor"]
+    legs_by_role = select_strategy_legs("iron_condor", _sample_chain(), 0.5)
+    first_role = spec.legs[0].role
+    legs_by_role[first_role] = {k: v for k, v in legs_by_role[first_role].items() if k not in ("bid", "ask")}
+    assert net_debit_or_credit_for_legs(spec, legs_by_role) is None
+
+
+def test_net_debit_or_credit_for_legs_matches_resulting_sizing_decisions_net_debit_or_credit():
+    # Regression guard: build_multi_leg_position_sizing_for_legs() (via
+    # _size_multi_leg()) must produce the SAME net_debit_or_credit this
+    # extracted function computes independently, whenever every leg has a
+    # bid/ask (the only case where _size_multi_leg()'s 0.0-on-missing
+    # coercion doesn't kick in).
+    spec = MULTI_LEG_STRATEGY_REGISTRY["iron_condor"]
+    legs_by_role = select_strategy_legs("iron_condor", _sample_chain(), 0.5)
+    decision = build_multi_leg_position_sizing_for_legs("iron_condor", legs_by_role, 1_000_000, max_vega_budget_pct_of_equity=0.02)
+    assert decision is not None
+    expected = net_debit_or_credit_for_legs(spec, legs_by_role)
+    assert math.isclose(decision.net_debit_or_credit, expected)
 
 
 # ---------------------------------------------------------------------------

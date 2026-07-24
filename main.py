@@ -79,9 +79,16 @@ from portfolio.options_strategy import (
     build_options_position_sizing_for_contract,
     build_vertical_spread_position_sizing_for_legs,
     classify_volatility_view,
+    net_debit_or_credit_for_legs,
     option_auto_close_due,
     resolve_enabled_strategy_names,
     rotation_cooldown_active,
+)
+from portfolio.options_assignment_risk import (
+    assignment_risk_flag,
+    assignment_risk_score,
+    days_to_next_ex_dividend,
+    extrinsic_value,
 )
 # V4.5 - margin-tier resize sibling of build_multi_leg_position_sizing_for_legs()
 # above, same "sizes an ALREADY-HELD position on its own current greeks"
@@ -99,6 +106,7 @@ from experience import (
     ExperienceQueue,
     SimulatedPortfolioState,
     build_experience_event,
+    build_option_strategy_outcome_event,
     build_session_summary_event,
     compute_observation_summary,
 )
@@ -121,6 +129,7 @@ from execution.paper_readiness_io import read_paper_trading_config
 from inference import (
     build_models_batched_cache,
     build_multitask_models_batched_cache,
+    build_strategy_selector_features,
     convert_state_dict_arrays,
     init_worker,
     resolve_sequence_window_size,
@@ -130,6 +139,7 @@ from inference import (
     run_exported_models_batched,
     run_exported_sequence_multitask_model,
     run_symbol_inference,
+    score_strategies,
 )
 from features import (
     analytic_convexity,
@@ -158,6 +168,7 @@ from features import (
     yield_curve_slope_proxy,
 )
 from data_pipeline.fred_backfill import load_cached_fred_series
+from data_pipeline.dividend_backfill import load_cached_dividend_schedule
 from performance import evaluate_all_triggers
 
 # volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/
@@ -312,6 +323,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.multitask_feature_schema_path = self.root_path / "ml" / "multitask_feature_schema.json"
         self.sequence_model_path = self.root_path / "ml" / "sequence_model.json"
         self.sequence_feature_schema_path = self.root_path / "ml" / "sequence_feature_schema.json"
+        # V4.7 (development/Problems.md #29's own framing) - the learned
+        # multi-leg strategy-selector model. Single-artifact (unlike the
+        # model/feature_schema pairs above): train_strategy_selector.py's
+        # own strategy_selector_model.json already carries each scorer's
+        # feature-key-keyed weights inline, so no separate schema file is
+        # needed for runtime scoring.
+        self.strategy_selector_model_path = self.root_path / "ml" / "strategy_selector_model.json"
 
         self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
@@ -402,6 +420,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # docstrings).
         self.option_positions_by_symbol: dict[str, list[dict]] = {}
         self.symbol_key_by_option_contract_symbol: dict[str, str] = {}
+        # V4.7 (development/Problems.md #29's own framing) - strategy-
+        # attributed entry state, the OBSERVATION-mode-populated sibling of
+        # option_positions_by_symbol above (which only ever populates on
+        # the real-order path - see _apply_option_expiry_auto_close_sweep()'s
+        # own docstring). Populated by _apply_option_multi_leg_order()'s
+        # `not orders_allowed` branch, consumed and popped by
+        # _emit_option_strategy_outcome_if_pending() at exit. One entry
+        # per symbol_key (this codebase's simulated portfolio itself only
+        # ever tracks one scalar position per symbol_key, so there is
+        # never more than one open multi-leg record to attribute per key
+        # in observation mode).
+        self.simulated_option_strategy_entries_by_symbol_key: dict[str, dict] = {}
         # Real limit-order support (execution/risk realism pass, part 2):
         # in-flight limit orders this algorithm is currently waiting to
         # fill, keyed by str(the actual order-target Symbol) - the CONTRACT
@@ -868,6 +898,56 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.options_arbitrage_min_mispricing_bps = float(
             phase_v2_options_arbitrage_detector.get("min_mispricing_bps", 15.0)
         )
+        # V4.7 (development/Problems.md - early-assignment probability/
+        # pricing modeling) - dividend-driven early-call-assignment risk
+        # sweep (portfolio/options_assignment_risk.py). Off by default -
+        # byte-identical to before this feature: _apply_option_assignment_risk_sweep()
+        # is a complete no-op call site when disabled.
+        phase_v2_options_assignment_risk_detector = phase_v2_options_risk.get("assignment_risk_detector", {})
+        self.options_assignment_risk_detector_enabled = bool(
+            phase_v2_options_assignment_risk_detector.get("enabled", False)
+        )
+        self.options_assignment_risk_score_threshold = float(
+            phase_v2_options_assignment_risk_detector.get("score_threshold", 0.6)
+        )
+        self.options_assignment_risk_lookahead_window_days = int(
+            phase_v2_options_assignment_risk_detector.get("lookahead_window_days", 5)
+        )
+        dividend_schedule_dir_config = phase_v2_options_assignment_risk_detector.get(
+            "dividend_schedule_path", "data/reference/dividend_schedule"
+        )
+        # Static, load-once-at-init cache (same "Lean backtests are
+        # date-bounded, never a live HTTP call mid-run" rule
+        # data_pipeline/fred_backfill.py's own cache follows) - one file
+        # read per option-underlying/equity ticker, best-effort per-file,
+        # never raises. Refreshed by re-running
+        # data_pipeline/dividend_backfill.py --apply and redeploying, not
+        # intraday.
+        dividend_schedule_dir = self.root_path / dividend_schedule_dir_config
+        self._dividend_schedule_by_ticker: dict[str, dict] = {}
+        if self.options_assignment_risk_detector_enabled:
+            tickers = {
+                asset.get("underlying_ticker") or asset.get("ticker")
+                for asset in self.phase1["universe"]["assets"]
+                if (asset.get("asset_class") or asset.get("security_type")) in ("option", "equity")
+            }
+            for ticker in tickers:
+                if not ticker:
+                    continue
+                schedule = load_cached_dividend_schedule(ticker, dividend_schedule_dir)
+                if schedule:
+                    self._dividend_schedule_by_ticker[ticker] = schedule
+        # V4.7 (development/Problems.md #29's own framing) - the learned
+        # multi-leg strategy-selector model. Off by default - byte-
+        # identical to before this feature: strategy_selector_scores stays
+        # falsy at every route_multi_leg_option_sizing() call site whenever
+        # this is False, reproducing today's exact order_enabled_strategies()
+        # ordering. Realistically stays False/unloaded indefinitely in this
+        # environment - see train_strategy_selector.py's own module
+        # docstring for why (no per-strategy realized-outcome data exists
+        # yet to ever train a real model from).
+        phase_v2_strategy_selector = self.phase_v2.get("strategy_selector", {})
+        self.strategy_selector_enabled = bool(phase_v2_strategy_selector.get("enabled", False))
         # V4.3.0 - allow adding to an existing position instead of being
         # blocked purely because one already exists (development/Changelog.md).
         # Off by default: with position_scaling_enabled=False the equity/
@@ -900,6 +980,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.gating_model, self.gating_feature_schema = self._load_gating_model()
         self.multitask_model, self.multitask_feature_schema = self._load_multitask_model()
         self.expert_multitask_model_exports = self._load_expert_multitask_exports()
+        self.strategy_selector_model = self._load_strategy_selector_model()
 
         # Precomputed once here (never rebuilt per-bar) - expert exports
         # never change after this point in a run, so the same weight/bias
@@ -1136,6 +1217,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._refresh_risk_state()
         self._liquidate_positions_for_disabled_asset_classes()
         self._apply_option_expiry_auto_close_sweep()
+        self._apply_option_assignment_risk_sweep()
         self._process_pending_limit_order_timeouts()
         self.latest_topology_payload = self._build_topology_payload()
         self.latest_macro_payload = self._build_macro_payload()
@@ -1188,6 +1270,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     bar = self._midpoint_bar_from_quote_bar(slice.quote_bars.get(symbol))
                 if bar is None:
                     continue
+
+            # V4.7 (development/Problems.md - corporate-action modeling) -
+            # purely observational same-bar split logging, threaded into
+            # this bar's experience event below. Lean's own Slice.Splits
+            # fires ONLY on the event bar itself (confirmed against the
+            # real Lean source - Common/Data/Slice.cs) so this can never
+            # satisfy a forward-looking need; it just makes a split event
+            # auditable where today it silently passes through with zero
+            # record anywhere. No OCC-style strike/multiplier recompute
+            # happens here - that fact belongs to the option-chain data
+            # itself, not something main.py should second-guess.
+            corporate_action_payload = None
+            split = getattr(slice, "splits", None)
+            split_event = split.get(symbol) if split is not None else None
+            if split_event is not None:
+                try:
+                    corporate_action_payload = {
+                        "split_factor": float(split_event.split_factor),
+                        "reference_price": float(split_event.reference_price),
+                    }
+                except (TypeError, ValueError, AttributeError):
+                    corporate_action_payload = None
 
             self.symbol_long_windows[symbol].append(float(bar.close))
             self.symbol_treasury_10yr_history[symbol].append(self.latest_bond_payload.get("treasury_10yr_level"))
@@ -1676,6 +1780,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 sequence_model=sequence_prediction,
                 resolved_predicted_rank_20d=predicted_rank_20d,
                 close_price=float(bar.close),
+                corporate_action=corporate_action_payload,
             )
             # V4.6 (development/Problems.md #14) - a real per-bar,
             # per-symbol Redis XADD is unnecessary in backtest mode
@@ -1758,6 +1863,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
         except Exception as error:
             self.Debug(f"Learned topology model load failed: {error}")
             return None, None
+
+    def _load_strategy_selector_model(self) -> dict | None:
+        """V4.7 - optional single-artifact model, identical fallback
+        contract to _load_learned_topology_model()/_load_gating_model():
+        missing/malformed file means
+        inference.strategy_selector_inference.score_strategies() returns
+        {} and risk/asset_class_router.py::route_multi_leg_option_sizing()
+        falls back to order_enabled_strategies()'s static ordering - never
+        a hard failure."""
+        if not self.strategy_selector_enabled:
+            return None
+        if not self.strategy_selector_model_path.exists():
+            return None
+        try:
+            return self._load_json(self.strategy_selector_model_path)
+        except Exception as error:
+            self.Debug(f"Strategy selector model load failed: {error}")
+            return None
 
     def _load_gating_model(self) -> tuple[dict | None, dict | None]:
         """Optional artifact pair, identical fallback contract to
@@ -1887,6 +2010,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # portfolio/options_strategy.py and risk/README.md).
                 security = self.add_option(asset.get("underlying_ticker", ticker), self.resolution)
                 security.SetFilter(-5, 5, timedelta(0), timedelta(60))
+                # V4.7 - defensive/documentary check, not a functional fix:
+                # Lean's own Option security constructor
+                # (Common/Securities/Option/Option.cs) force-sets the
+                # UNDERLYING equity's DataNormalizationMode to Raw the
+                # moment an option contract is added (and actively throws
+                # if anything else is ever set on the Option security
+                # itself) - verified against the real Lean source tree, so
+                # no main.py normalization-mode call is needed or should
+                # be added here. This just logs if a future Lean version
+                # ever stops doing that, rather than silently trusting it
+                # forever.
+                try:
+                    underlying_symbol = security.Underlying.Symbol if hasattr(security, "Underlying") else None
+                    if underlying_symbol is not None:
+                        underlying_mode = self.Securities[underlying_symbol].DataNormalizationMode
+                        if str(underlying_mode) not in ("Raw", "DataNormalizationMode.Raw"):
+                            self.Debug(
+                                f"assumption_violated: option underlying {underlying_symbol} "
+                                f"DataNormalizationMode={underlying_mode} (expected Raw)"
+                            )
+                except Exception:
+                    pass
             elif security_type == "forex":
                 # V4.6 - fully first-class in this Lean version
                 # (SecurityType.Forex, real pip-size/lot-size symbol
@@ -2082,13 +2227,31 @@ class AetherQuantAlgorithm(QCAlgorithm):
         base_features["bond_empirical_duration_beta"] = float(
             self._bond_empirical_duration_beta_for_symbol(symbol)
         )
-        # V4.6 - real analytic duration/convexity/DV01 (features/bond_features.py),
-        # informational/dashboard-only - deliberately NEVER merged into
-        # base_features (which feeds the TRAINED model's fixed-dimensionality
-        # input tensor; adding a feature there needs a coordinated retrain,
-        # unlike this side-table). See _bond_analytics_for_symbol()'s own
-        # docstring for the ETF-level-approximation caveat.
-        self.latest_bond_analytics_by_symbol[str(symbol)] = self._bond_analytics_for_symbol(symbol)
+        # V4.7 - real analytic duration/convexity/DV01 (features/bond_features.py)
+        # merged into base_features as real model inputs, in addition to
+        # remaining available informationally via latest_bond_analytics_by_symbol
+        # (dashboard/state). _bond_analytics_for_symbol() returns None (not
+        # 0.0) for a non-bond symbol or missing inputs - that None/0.0
+        # distinction stays meaningful for the dashboard consumer, so the
+        # coercion to a model-neutral 0.0 happens locally here rather than
+        # inside _bond_analytics_for_symbol() itself. Computed once, reused
+        # for both consumers below.
+        # NOTE: deploying this requires config.json's phase1.features.input_set
+        # (now listing these 3 names) and a freshly retrained
+        # ml/feature_schema.json to ship together - main.py's scaling loop
+        # does a bare base_features[name] index with no default, so an
+        # un-retrained schema mismatch will KeyError every bar.
+        bond_analytics = self._bond_analytics_for_symbol(symbol)
+        base_features["bond_analytic_modified_duration"] = (
+            bond_analytics["analytic_modified_duration"]
+            if bond_analytics["analytic_modified_duration"] is not None
+            else 0.0
+        )
+        base_features["bond_analytic_convexity"] = (
+            bond_analytics["analytic_convexity"] if bond_analytics["analytic_convexity"] is not None else 0.0
+        )
+        base_features["bond_dv01"] = bond_analytics["bond_dv01"] if bond_analytics["bond_dv01"] is not None else 0.0
+        self.latest_bond_analytics_by_symbol[str(symbol)] = bond_analytics
 
         # Futures term-structure / options-sentiment cross-asset macro
         # features (features/derivatives_macro_features.py) - broadcast to
@@ -2424,6 +2587,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # V4.6 (development/Problems.md #59) - per-asset override, falls
             # back to the global default when this asset has none.
             enabled_strategy_names = resolve_enabled_strategy_names(asset, self.options_enabled_strategy_names)
+            # V4.7 (development/Problems.md #29's own framing) - {} (falsy)
+            # whenever self.strategy_selector_model is None (the flag is
+            # off, or no trained model file exists - realistically always
+            # true in this environment today), so route_multi_leg_option_sizing()
+            # falls back to its own static order_enabled_strategies()
+            # ordering byte-identically.
+            strategy_selector_scores = (
+                score_strategies(
+                    self.strategy_selector_model,
+                    build_strategy_selector_features(base_features, topology),
+                )
+                if self.strategy_selector_model
+                else {}
+            )
             result = route_multi_leg_option_sizing(
                 enabled_strategy_names,
                 signal_name,
@@ -2446,6 +2623,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 risk_free_rate=self.options_risk_free_rate,
                 arbitrage_detector_enabled=self.options_arbitrage_detector_enabled,
                 min_mispricing_bps=self.options_arbitrage_min_mispricing_bps,
+                strategy_selector_scores=strategy_selector_scores,
             )
             if result is not None:
                 decision, extra = result
@@ -3686,6 +3864,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 ),
             )
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
+            # V4.7 (development/Problems.md #29's own framing) - the
+            # strategy-selector model's data prerequisite: this branch is
+            # the one that actually runs continuously in this environment
+            # (option_positions_by_symbol only populates on the real-order
+            # path, which never fires here - see this method's own
+            # docstring precedent at _apply_option_expiry_auto_close_sweep()).
+            # Records just enough to compute a strategy-attributed
+            # realized P&L later, in _emit_option_strategy_outcome_if_pending(),
+            # reusing options_decision.net_debit_or_credit (already
+            # computed by the router, absent - not 0.0 - on a
+            # MarginSizingDecision, which has no such field at all).
+            self.simulated_option_strategy_entries_by_symbol_key[symbol_key] = {
+                "strategy_name": options_decision.strategy_name,
+                "entry_net_debit_or_credit": getattr(options_decision, "net_debit_or_credit", None),
+                "entry_contracts": options_decision.contracts,
+                "entry_bar": self.bar_index,
+                "leg_symbols": [leg.contract_symbol for leg in options_decision.legs],
+            }
             return f"simulated_entered_option_multi_leg_{options_decision.strategy_name}:{permission_reason}"
 
         target_leg_symbols = [str(leg.contract_symbol) for leg in options_decision.legs]
@@ -3840,6 +4036,75 @@ class AetherQuantAlgorithm(QCAlgorithm):
             records.remove(record)
             if not records:
                 self.option_positions_by_symbol.pop(symbol_key, None)
+
+    def _emit_option_strategy_outcome_if_pending(self, symbol_key: str) -> None:
+        """V4.7 (development/Problems.md #29's own framing) - the learned
+        strategy-selector model's data prerequisite. Called at every
+        observation-mode exit point alongside (never instead of) the
+        existing symbol_key-keyed SimulatedPortfolio.exit()/
+        exit_using_last_known_price() calls, which have no concept of
+        "strategy" at all. Pops the pending entry
+        _apply_option_multi_leg_order()'s own observation-mode branch
+        recorded - UNCONDITIONALLY, even when a clean exit price can't be
+        computed below - a stale/unresolvable entry must never linger and
+        get double-counted against a later, unrelated position opened
+        under the same symbol_key.
+
+        Re-fetches each stored leg Symbol's CURRENT chain row
+        (_option_chain_row_for_contract(), already exists) and reuses
+        portfolio/options_strategy.py::net_debit_or_credit_for_legs() -
+        the same computation _size_multi_leg() uses to size a fresh
+        entry, applied here to value a CLOSE instead. Skips (never
+        fabricates a 0.0 P&L) whenever either leg of the round trip can't
+        be priced this bar - an unresolvable outcome must not silently
+        look like a breakeven one, corrupting the training signal.
+
+        Context (regime/topology/liquidity) is read at EXIT time, not
+        entry time - a deliberate simplification (this codebase's
+        simulated-portfolio state doesn't retain a full per-symbol
+        regime/topology snapshot across bars) rather than threading 3 more
+        payload dicts through _apply_signal()/_apply_option_order()/
+        _apply_option_multi_leg_order()'s call chain for a model that -
+        per train_strategy_selector.py's own docstring - has no real data
+        to train from in this environment regardless."""
+        entry = self.simulated_option_strategy_entries_by_symbol_key.pop(symbol_key, None)
+        if entry is None:
+            return
+        spec = MULTI_LEG_STRATEGY_REGISTRY.get(entry["strategy_name"])
+        if spec is None:
+            return
+
+        legs_by_role: dict[str, dict] = {}
+        for leg_spec, leg_symbol in zip(spec.legs, entry["leg_symbols"]):
+            chain_row = self._option_chain_row_for_contract(symbol_key, leg_symbol)
+            if chain_row is not None:
+                legs_by_role[leg_spec.role] = chain_row
+
+        exit_net_debit_or_credit = net_debit_or_credit_for_legs(spec, legs_by_role)
+        entry_net_debit_or_credit = entry.get("entry_net_debit_or_credit")
+        if exit_net_debit_or_credit is None or entry_net_debit_or_credit is None:
+            return
+
+        contracts = entry.get("entry_contracts") or 0
+        realized_pnl = (entry_net_debit_or_credit + exit_net_debit_or_credit) * contracts * 100.0
+        asset = self.asset_lookup.get(symbol_key, {})
+        event = build_option_strategy_outcome_event(
+            mode=self._experience_mode,
+            symbol=symbol_key,
+            ticker=asset.get("ticker", ""),
+            strategy_name=entry["strategy_name"],
+            realized_pnl=realized_pnl,
+            entry_bar=entry["entry_bar"],
+            exit_bar=self.bar_index,
+            contracts=contracts,
+            entry_net_debit_or_credit=entry_net_debit_or_credit,
+            exit_net_debit_or_credit=exit_net_debit_or_credit,
+            regime={"risk_score": self.latest_regime_risk_score_by_symbol.get(symbol_key, 0.0)},
+            moe_gating={},
+            topology=self.latest_topology_payload or {},
+            liquidity=self.latest_liquidity_by_symbol.get(symbol_key, {}),
+        )
+        self._experience_queue.push(event)
 
     def _apply_signal(
         self, symbol, signal_name: str, target_weight: float, close_price: float, sizing_payload: dict | None = None
@@ -4027,6 +4292,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self._liquidate_position(symbol)
                 else:
                     self._simulated_portfolio.exit(symbol_key, close_price, self.bar_index)
+                    self._emit_option_strategy_outcome_if_pending(symbol_key)
                 self.last_trade_bar_by_symbol[symbol] = self.bar_index
                 return "liquidated_on_sell" if orders_allowed else f"simulated_liquidated_on_sell:{permission_reason}"
             return "already_flat"
@@ -4595,6 +4861,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self._liquidate_position(symbol)
             else:
                 self._simulated_portfolio.exit_using_last_known_price(symbol_key, self.bar_index)
+                self._emit_option_strategy_outcome_if_pending(symbol_key)
             self.last_trade_bar_by_symbol[symbol] = self.bar_index
             self.latest_signal_state[symbol_key] = "hold"
             self.Debug(f"asset_class_disabled_liquidation: {symbol_key} ({asset_class})")
@@ -4633,6 +4900,79 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 nearest_expiry = min(datetime.fromisoformat(expiry).date() for expiry in expiries)
                 if option_auto_close_due(current_date, nearest_expiry, self.options_auto_close_days_before_expiry):
                     self._liquidate_option_record(symbol_key, record)
+
+    def _apply_option_assignment_risk_sweep(self) -> None:
+        """V4.7 (development/Problems.md - early-assignment probability/
+        pricing modeling) - sibling to _apply_option_expiry_auto_close_sweep()
+        above, NOT a modification of it: force-liquidates any held SHORT
+        CALL leg whose portfolio.options_assignment_risk.assignment_risk_flag()
+        fires - an EARLIER close than the unconditional 2-day-before-expiry
+        net above, triggered by dividend-driven early-exercise economics
+        (extrinsic value vs. an upcoming ex-dividend amount) rather than
+        raw days-to-expiry.
+
+        Only multi_leg records can ever carry a short leg at all -
+        single_leg records are always long (options_decision.contracts is
+        always positive per portfolio/options_strategy.py's own contract,
+        see _enter_option_single_leg()'s docstring), so single_leg records
+        are skipped entirely; a short call can never be assigned via
+        dividend-driven early exercise from a position this codebase
+        itself doesn't write. Each multi_leg leg's role (right/side) is
+        resolved from MULTI_LEG_STRATEGY_REGISTRY[strategy_name].legs,
+        parallel-indexed with record["legs"]/record["strikes"] (see the
+        "kind": "multi_leg" record-shape comment near
+        option_positions_by_symbol's declaration).
+
+        Gated behind phase_v2.options_risk.assignment_risk_detector.enabled
+        (default False) - a complete no-op call site when off, matching
+        every other options-risk feature flag's byte-identical-default
+        convention. Same option_positions_by_symbol-only-populated-on-the-
+        real-order-path limitation as _apply_option_expiry_auto_close_sweep()
+        above (see that method's own docstring) - not a new gap this
+        method introduces."""
+        if not self.options_assignment_risk_detector_enabled:
+            return
+        current_date = self.Time.date()
+        for symbol_key, records in list(self.option_positions_by_symbol.items()):
+            asset = self.asset_lookup.get(symbol_key, {})
+            underlying_ticker = asset.get("underlying_ticker")
+            dividend_schedule = self._dividend_schedule_by_ticker.get(underlying_ticker, {})
+            estimate = dividend_schedule.get("next_ex_dividend_estimate", {})
+            next_ex_date_str = estimate.get("estimated_next_ex_date")
+            next_ex_date = datetime.fromisoformat(next_ex_date_str).date() if next_ex_date_str else None
+            expected_dividend_amount = estimate.get("estimated_amount")
+            days_to_ex_div = days_to_next_ex_dividend(current_date, next_ex_date)
+
+            for record in list(records):
+                if record["kind"] != "multi_leg":
+                    continue
+                spec = MULTI_LEG_STRATEGY_REGISTRY.get(record["strategy_name"])
+                if spec is None:
+                    continue
+                for leg_spec, leg_symbol, leg_strike in zip(spec.legs, record["legs"], record["strikes"]):
+                    if leg_spec.right != "call" or leg_spec.side != "short":
+                        continue
+                    chain_row = self._option_chain_row_for_contract(symbol_key, leg_symbol)
+                    if chain_row is None:
+                        continue
+                    bid, ask = chain_row.get("bid", 0.0), chain_row.get("ask", 0.0)
+                    option_price = (bid + ask) / 2.0 if bid > 0 and ask > 0 else None
+                    spot = chain_row.get("underlying_price")
+                    if not spot or spot <= 0 or not leg_strike:
+                        continue
+                    moneyness = spot / leg_strike
+                    leg_extrinsic_value = extrinsic_value(option_price, spot, leg_strike, "call")
+                    score = assignment_risk_score(
+                        moneyness=moneyness,
+                        right="call",
+                        extrinsic_value=leg_extrinsic_value,
+                        expected_dividend_amount=expected_dividend_amount,
+                        days_to_next_ex_div=days_to_ex_div,
+                        window_days=self.options_assignment_risk_lookahead_window_days,
+                    )
+                    if assignment_risk_flag(score, self.options_assignment_risk_score_threshold):
+                        self._liquidate_option_record(symbol_key, record)
+                        break  # this record is gone - don't re-check its other legs
 
     def _covered_protective_equity_quantity(self, underlying_ticker: str | None) -> float:
         """§6/§9.3 - the equity leg's CURRENTLY HELD quantity for a

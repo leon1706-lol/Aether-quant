@@ -12,12 +12,14 @@ from retraining.artifacts import (
     OPTIONAL_GATING_FILES,
     OPTIONAL_MULTITASK_FILES,
     OPTIONAL_SEQUENCE_FILES,
+    OPTIONAL_STRATEGY_SELECTOR_FILES,
     OPTIONAL_TOPOLOGY_FILES,
     REQUIRED_CANDIDATE_FILES,
     check_gating_artifacts,
     check_multitask_artifacts,
     check_required_artifacts,
     check_sequence_artifacts,
+    check_strategy_selector_artifacts,
     check_topology_artifacts,
     compute_artifact_hashes,
     copy_backtest_report_to_active,
@@ -172,6 +174,7 @@ def test_all_tracked_files_is_union_of_required_and_topology():
         | set(OPTIONAL_GATING_FILES)
         | set(OPTIONAL_MULTITASK_FILES)
         | set(OPTIONAL_SEQUENCE_FILES)
+        | set(OPTIONAL_STRATEGY_SELECTOR_FILES)
     )
 
 
@@ -406,6 +409,57 @@ def test_check_sequence_artifacts_all_present(tmp_path):
     _write_files(version_dir, OPTIONAL_SEQUENCE_FILES)
 
     present, missing = check_sequence_artifacts(version_dir)
+
+    assert present is True
+    assert missing == []
+
+
+# -- learned strategy-selector artifacts (V4.7) -------------------------------
+
+
+def test_active_artifact_files_includes_strategy_selector_filenames():
+    for filename in OPTIONAL_STRATEGY_SELECTOR_FILES:
+        assert filename in ACTIVE_ARTIFACT_FILES
+
+
+def test_required_candidate_files_does_not_include_strategy_selector_filenames():
+    # Strategy-selector training is best-effort - validate()'s gate must
+    # never reject a candidate purely for missing strategy-selector
+    # artifacts.
+    for filename in OPTIONAL_STRATEGY_SELECTOR_FILES:
+        assert filename not in REQUIRED_CANDIDATE_FILES
+
+
+def test_copy_candidate_to_active_skips_missing_strategy_selector_files_gracefully(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    ml_dir = tmp_path / "ml"
+    _write_files(version_dir, _SMALL_FILES)
+
+    copy_candidate_to_active(version_dir, ml_dir)
+
+    for filename in OPTIONAL_STRATEGY_SELECTOR_FILES:
+        assert not (ml_dir / filename).exists()
+    for filename in _SMALL_FILES:
+        assert (ml_dir / filename).exists()
+
+
+def test_check_strategy_selector_artifacts_reports_missing_without_failing(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    _write_files(version_dir, ["strategy_selector_model.json"])  # only one of three present
+
+    present, missing = check_strategy_selector_artifacts(version_dir)
+
+    assert present is False
+    assert "strategy_selector_training_metrics.json" in missing
+    assert "strategy_selector_feature_schema.json" in missing
+    assert "strategy_selector_model.json" not in missing
+
+
+def test_check_strategy_selector_artifacts_all_present(tmp_path):
+    version_dir = tmp_path / "versions" / "v1"
+    _write_files(version_dir, OPTIONAL_STRATEGY_SELECTOR_FILES)
+
+    present, missing = check_strategy_selector_artifacts(version_dir)
 
     assert present is True
     assert missing == []

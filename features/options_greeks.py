@@ -12,6 +12,13 @@ implementation, unit-tested against known closed-form values
 
 `right` is always "call" or "put" (case-insensitive), matching the
 vocabulary portfolio/options_strategy.py's chain rows use.
+
+V4.7 (development/Problems.md - early-assignment/corporate-action
+modeling) added baw_american_price(), a Barone-Adesi-Whaley American-
+exercise approximation built entirely from this module's own European
+bs_price()/_d1_d2()/_normal_cdf() - see its own docstring for the
+degrade-to-European safety contract. Everything above it in this file
+remains pure European BSM, unchanged.
 """
 
 from __future__ import annotations
@@ -188,3 +195,135 @@ def implied_volatility(
             sigma = (low + high) / 2.0
 
     return None
+
+
+def baw_american_price(
+    spot: float,
+    strike: float,
+    time_to_expiry_years: float,
+    risk_free_rate: float,
+    dividend_yield: float,
+    volatility: float,
+    right: str,
+    max_iterations: int = 100,
+    tolerance: float = 1e-6,
+) -> float:
+    """Barone-Adesi & Whaley (1987) quadratic approximation for American
+    option prices - "Efficient Analytic Approximation of American Option
+    Values," Journal of Finance 42(2). Built entirely from this module's
+    existing bs_price()/_d1_d2()/_normal_cdf() - the European price IS the
+    approximation's own building block, not a separately-derived formula.
+    Verified numerically against a 3000-step CRR binomial tree across
+    several call/put/ITM/OTM/dividend combinations during development
+    (differences of a few cents on option prices in the $6-14 range,
+    consistent with BAW's known ~1-2% approximation error).
+
+    Never raises. Degrades to the European bs_price() value whenever: the
+    dividend yield is non-positive for a call (a call should never be
+    exercised early with zero dividend drag - the standard textbook
+    shortcut, not an approximation gap), any input is degenerate
+    (time/vol/spot/strike non-positive - returns intrinsic value in that
+    case instead), or the critical-price search fails to find a
+    bracketing sign change / doesn't converge within max_iterations. This
+    is a SAFE direction to degrade in: the American price is always >= the
+    European price, so under-pricing by falling back to the European
+    value never overstates risk in the direction that matters for a short
+    option holder (the whole reason this function exists).
+
+    Uses a safeguarded bisection search for the critical price (rather
+    than implied_volatility()'s Newton-primary approach) - the BAW
+    matching condition has no simple closed-form derivative the way vega
+    is for the IV solve, so bisection (guaranteed convergence given a
+    verified sign-changing bracket, checked explicitly before iterating)
+    is the more directly verifiable choice for a per-bar risk signal that
+    must never silently mis-converge."""
+    right_normalized = right.lower()
+    if time_to_expiry_years <= 0.0 or volatility <= 0.0 or spot <= 0.0 or strike <= 0.0:
+        return max(spot - strike, 0.0) if right_normalized == "call" else max(strike - spot, 0.0)
+
+    european_price = bs_price(spot, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield, right_normalized)
+
+    if right_normalized == "call" and dividend_yield <= 0.0:
+        return european_price
+
+    cost_of_carry = risk_free_rate - dividend_yield
+    variance = volatility * volatility
+    big_m = 2.0 * risk_free_rate / variance
+    big_n = 2.0 * cost_of_carry / variance
+    big_k = 1.0 - math.exp(-risk_free_rate * time_to_expiry_years)
+    if big_k <= 0.0:
+        return european_price
+
+    discriminant = (big_n - 1.0) ** 2 + 4.0 * big_m / big_k
+    if discriminant < 0.0:
+        return european_price
+
+    if right_normalized == "call":
+        q_root = (-(big_n - 1.0) + math.sqrt(discriminant)) / 2.0
+        if q_root <= 0.0:
+            return european_price
+
+        def matching_residual(critical_price: float) -> float:
+            d1, _ = _d1_d2(critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield)
+            euro_at_critical = bs_price(
+                critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield, "call"
+            )
+            term = (1.0 - math.exp(-dividend_yield * time_to_expiry_years) * _normal_cdf(d1)) * critical_price / q_root
+            return critical_price - strike - euro_at_critical - term
+
+        low, high = strike, max(strike, spot) * 50.0
+    else:
+        q_root = (-(big_n - 1.0) - math.sqrt(discriminant)) / 2.0
+        if q_root >= 0.0:
+            return european_price
+
+        def matching_residual(critical_price: float) -> float:
+            d1, _ = _d1_d2(critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield)
+            euro_at_critical = bs_price(
+                critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield, "put"
+            )
+            term = (1.0 - math.exp(-dividend_yield * time_to_expiry_years) * _normal_cdf(-d1)) * critical_price / q_root
+            return strike - critical_price - euro_at_critical + term
+
+        low, high = 1e-6, strike
+
+    residual_low = matching_residual(low)
+    residual_high = matching_residual(high)
+    if residual_low == 0.0:
+        critical_price = low
+    elif residual_high == 0.0:
+        critical_price = high
+    elif (residual_low > 0.0) == (residual_high > 0.0):
+        return european_price
+    else:
+        critical_price = None
+        for _ in range(max_iterations):
+            midpoint = (low + high) / 2.0
+            residual_mid = matching_residual(midpoint)
+            if abs(residual_mid) < tolerance:
+                critical_price = midpoint
+                break
+            if (residual_mid > 0.0) == (residual_low > 0.0):
+                low = midpoint
+                residual_low = residual_mid
+            else:
+                high = midpoint
+        if critical_price is None:
+            return european_price
+
+    if right_normalized == "call":
+        if spot >= critical_price:
+            return max(spot - strike, 0.0)
+        d1, _ = _d1_d2(critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield)
+        coefficient = (critical_price / q_root) * (
+            1.0 - math.exp(-dividend_yield * time_to_expiry_years) * _normal_cdf(d1)
+        )
+        return european_price + coefficient * (spot / critical_price) ** q_root
+
+    if spot <= critical_price:
+        return max(strike - spot, 0.0)
+    d1, _ = _d1_d2(critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield)
+    coefficient = -(critical_price / q_root) * (
+        1.0 - math.exp(-dividend_yield * time_to_expiry_years) * _normal_cdf(-d1)
+    )
+    return european_price + coefficient * (spot / critical_price) ** q_root

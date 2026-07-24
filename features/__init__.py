@@ -25,6 +25,7 @@ from .derivatives_macro_features import (
     options_put_call_ratio,
 )
 from .options_greeks import (
+    baw_american_price,
     bs_price,
     compute_greeks,
     delta as option_delta,
@@ -71,6 +72,7 @@ __all__ = [
     "analytic_convexity",
     "analytic_modified_duration",
     "average_true_range_pct",
+    "baw_american_price",
     "bollinger_pctb",
     "bond_dv01",
     "bond_yield_curve_slope",

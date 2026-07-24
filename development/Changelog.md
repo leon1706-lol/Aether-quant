@@ -4210,3 +4210,62 @@ required.
 full writeup, including the two real correctness subtleties found while
 building the arbitrage detector and the exact scope of what remains
 deferred vs. explicitly out of scope vs. IB-unverified.
+
+## V4.7 — early-assignment/corporate-action modeling, a learned multi-leg strategy-selector model, and bond analytics wired into the trained model as real signals (Problems.md #61)
+
+Brings all three items V4.6 scoped OUT (#29's learned strategy selector,
+full early-assignment/corporate-action modeling, and merging bond
+analytics into the trained model) fully into scope, per the user's
+explicit choice of the largest-scope option for the first two, and a
+code-complete-but-don't-run-the-retrain choice for the third.
+
+**Early-assignment/corporate-action modeling**: a real dividend-data
+pipeline didn't exist anywhere in this codebase before this — new
+`data_pipeline/dividend_backfill.py` fetches actual ex-dividend
+dates/amounts via `yfinance` and projects the next one from historical
+**cadence** rather than yfinance's own unreliable forward calendar field.
+`features/options_greeks.py` gained a real Barone-Adesi-Whaley American-
+exercise pricer (`baw_american_price()`), verified during development
+against a CRR binomial tree. New `portfolio/options_assignment_risk.py`
+scores dividend-driven early-call-assignment risk (call-only by
+construction — puts always score 0.0), wired into a new
+`main.py::_apply_option_assignment_risk_sweep()`, off by default. A real
+Lean source check confirmed Lean itself force-sets `DataNormalizationMode.Raw`
+on option underlyings — no `main.py` normalization change was actually
+needed, just a defensive assertion. Same-bar stock splits are now logged
+into the experience event (`corporate_action` field) for auditability.
+
+**Learned multi-leg strategy-selector model**: the harder half of this
+pass — the originally-assumed data source (`option_positions_by_symbol`)
+turned out to only populate on the real-order path, which never fires in
+this environment, so the new capture logic (`main.py::_emit_option_strategy_outcome_if_pending()`,
+a new `simulated_option_strategy_entries_by_symbol_key` dict) had to
+target the observation-mode branch instead. A new event type
+(`option_strategy_outcome`) needed **zero Postgres DDL changes** — the
+existing generic payload storage already handles it, proven by a
+regression test rather than just asserted. New `train_strategy_selector.py`
+follows `train_topology.py`'s exact bolt-on-trainer shape, but is dormant
+in a stronger sense: it has no data source at all until real option
+positions actually trade, not just "not enough volume yet." New
+`inference/strategy_selector_inference.py` (pure Python) scores enabled
+strategies at runtime; `risk/asset_class_router.py::route_multi_leg_option_sizing()`
+gained an optional `strategy_selector_scores` kwarg, byte-identical to
+today's ordering when absent. Full retraining-pipeline wiring
+(`retraining/artifacts.py`/`orchestrator.py`/`worker.py`, `aq train --strategy-selector-only`)
+mirrors every other optional trainer's best-effort contract.
+
+**Bond analytics as real model features**: `config.json`'s feature list
+gained the 3 analytic bond features V4.6 shipped informational-only;
+`main.py`/`train.py` now compute them for both runtime inference and
+offline training. **Deliberately code-complete but not deployed** — the
+actual retrain was intentionally not run this pass (left for the user to
+run separately, same as walk-forward training in V4.6). Deploying the
+`config.json` change without a matching retrain would `KeyError` on every
+bar (`main.py`'s scaling loop has no `.get()` fallback) — documented
+prominently as the single most safety-critical sequencing note in this
+release.
+
+**Testing**: 1722 → **1813 tests, all passing** (91 new, across 6 new test
+files and additions to 5 existing ones). See `development/Problems.md` #61
+for the full writeup, including the Lean-source verification findings and
+the exact scope of what's dormant vs. what's actually live.

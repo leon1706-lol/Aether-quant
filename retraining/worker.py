@@ -43,6 +43,7 @@ from retraining.orchestrator import (
     train_gating,
     train_multitask,
     train_sequence,
+    train_strategy_selector,
     train_topology,
     validate,
 )
@@ -137,6 +138,15 @@ class RetrainingWorker:
         # blocks the primary candidate's own validate/backtest/commit/
         # promote path.
         train_sequence(self._conn, retraining_id, version_id, self.config)
+
+        # Best-effort learned strategy-selector training (V4.7,
+        # development/Problems.md #29's own framing) - same contract,
+        # failure is logged inside train_strategy_selector() itself and
+        # never blocks the primary candidate's own validate/backtest/
+        # commit/promote path. Realistically a no-op skip every cycle in
+        # this environment - see train_strategy_selector.py's own module
+        # docstring for why.
+        train_strategy_selector(self._conn, retraining_id, version_id, self.config)
 
         validate_result = validate(self._conn, retraining_id, version_id, self.config)
         if not validate_result["ok"]:

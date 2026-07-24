@@ -39,6 +39,7 @@ def build_experience_event(
     sequence_model: dict | None = None,
     resolved_predicted_rank_20d: float | None = None,
     close_price: float | None = None,
+    corporate_action: dict | None = None,
 ) -> dict[str, Any]:
     """Construct a standardised experience event dict.
 
@@ -63,6 +64,15 @@ def build_experience_event(
     prediction (sequence model disabled) never reached the experience
     store at all — `sequence_model` above only carries the sequence
     model's own prediction, not the resolved value main.py actually used.
+
+    `corporate_action` (V4.7, development/Problems.md - corporate-action
+    modeling): {"split_factor": float, "reference_price": float} when
+    Lean's own slice.Splits reports a same-bar split event for this
+    symbol, else None (absent, not a placeholder default - a bar with no
+    split must never be indistinguishable from one Lean reported an
+    unparseable/zero split_factor for). Purely observational auditability
+    - main.py never recomputes an OCC-style strike/multiplier adjustment
+    from this; Lean/the option-chain data itself owns that fact.
     """
     return {
         "event_id": str(uuid.uuid4()),
@@ -86,6 +96,7 @@ def build_experience_event(
         "sequence_model": sequence_model,
         "resolved_predicted_rank_20d": resolved_predicted_rank_20d,
         "close_price": close_price,
+        "corporate_action": corporate_action,
     }
 
 
@@ -119,6 +130,72 @@ def build_session_summary_event(
         "session_end_equity": session_end_equity,
         "session_return": session_return,
         "observation_summary": compute_observation_summary(events),
+    }
+
+
+def build_option_strategy_outcome_event(
+    *,
+    mode: str,
+    symbol: str,
+    ticker: str,
+    strategy_name: str,
+    realized_pnl: float,
+    entry_bar: int,
+    exit_bar: int,
+    contracts: int,
+    entry_net_debit_or_credit: float,
+    exit_net_debit_or_credit: float,
+    regime: dict,
+    moe_gating: dict,
+    topology: dict,
+    liquidity: dict,
+) -> dict[str, Any]:
+    """Construct an option_strategy_outcome experience event (V4.7,
+    development/Problems.md #29's own framing) - the prerequisite data
+    source a learned multi-leg strategy-selector model needs that does not
+    exist anywhere else in this codebase: build_experience_event()'s own
+    `portfolio.last_realized_pnl` field is symbol_key-keyed only (via
+    experience/simulated_portfolio.py's SimulatedPortfolio), with no
+    concept of "strategy" at all, so it can never be disaggregated by
+    strategy_name after the fact.
+
+    Deliberately its OWN event shape (not shoehorned into
+    build_experience_event()'s portfolio={...} sub-dict, which is keyed
+    one-per-asset-per-bar) - a strategy close is a distinct, sparser
+    occurrence than every-bar market_decision events. Pure function - no
+    side effects, no I/O; pushed via the SAME ExperienceQueue.push() as
+    every other event type here, no new Redis stream/channel.
+
+    regime/moe_gating/topology/liquidity are the SAME per-bar payload
+    dicts main.py already threads into build_experience_event() at the
+    bar this position was OPENED - train_strategy_selector.py reads these
+    back as its feature vector, matching train_topology.py's own
+    "regime.risk_score, topology.correlation_strength, liquidity score"
+    extraction pattern (see that trainer's own docstring) rather than
+    inventing a new feature vocabulary. No Postgres DDL change is needed
+    for this new event_type - experience/postgres_worker.py::event_to_row()
+    already stores the full payload generically and falls back
+    action=event_type when no "action" key is present, so
+    `WHERE action = 'option_strategy_outcome'` is already index-backed.
+    """
+    return {
+        "event_id": str(uuid.uuid4()),
+        "event_type": "option_strategy_outcome",
+        "created_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "mode": mode,
+        "symbol": symbol,
+        "ticker": ticker,
+        "strategy_name": strategy_name,
+        "realized_pnl": realized_pnl,
+        "entry_bar": entry_bar,
+        "exit_bar": exit_bar,
+        "contracts": contracts,
+        "entry_net_debit_or_credit": entry_net_debit_or_credit,
+        "exit_net_debit_or_credit": exit_net_debit_or_credit,
+        "regime": regime,
+        "moe_gating": moe_gating,
+        "topology": topology,
+        "liquidity": liquidity,
     }
 
 

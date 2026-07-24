@@ -413,3 +413,52 @@ def test_route_multi_leg_option_sizing_arbitrage_enabled_but_huge_threshold_stay
         **_multi_leg_kwargs(),
     )
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# route_multi_leg_option_sizing - strategy_selector_scores (V4.7,
+# development/Problems.md #29's own framing)
+# ---------------------------------------------------------------------------
+
+
+def test_route_multi_leg_option_sizing_no_scores_matches_static_ordering():
+    # Byte-identical-default check: omitting strategy_selector_scores (or
+    # passing None/{}) must reproduce exactly today's
+    # order_enabled_strategies() winner.
+    baseline = route_multi_leg_option_sizing(
+        ["single_leg", "bull_call_spread", "bear_put_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    with_none = route_multi_leg_option_sizing(
+        ["single_leg", "bull_call_spread", "bear_put_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, strategy_selector_scores=None, **_multi_leg_kwargs(),
+    )
+    with_empty = route_multi_leg_option_sizing(
+        ["single_leg", "bull_call_spread", "bear_put_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, strategy_selector_scores={}, **_multi_leg_kwargs(),
+    )
+    assert baseline is not None
+    assert baseline[0] == with_none[0] == with_empty[0]
+
+
+def test_route_multi_leg_option_sizing_scores_rerank_the_winner():
+    # Confirms baseline: with no scores, "single_leg" wins (its own
+    # dedicated test above already asserts this exact fixture's winner).
+    baseline = route_multi_leg_option_sizing(
+        ["single_leg", "bull_call_spread", "bear_put_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
+    )
+    assert baseline is not None
+    assert baseline[1]["options_decision"].right == "call"  # single_leg call, per the existing test above
+
+    # A strong score for bull_call_spread should make IT win instead, even
+    # though single_leg would otherwise be tried first.
+    scored = route_multi_leg_option_sizing(
+        ["single_leg", "bull_call_spread", "bear_put_spread"], "buy", 0.8, _full_coverage_chain(), 1_000_000, 100.0,
+        "neutral", "defined_risk_first", False,
+        strategy_selector_scores={"bull_call_spread": 10.0, "single_leg": -10.0, "bear_put_spread": -10.0},
+        **_multi_leg_kwargs(),
+    )
+    assert scored is not None
+    _, extra = scored
+    assert extra["options_decision"].strategy_name == "bull_call_spread"

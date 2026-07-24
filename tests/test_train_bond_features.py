@@ -12,6 +12,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
+from features import analytic_convexity, analytic_modified_duration, bond_dv01
 from train import build_bond_features_by_date
 
 
@@ -54,6 +55,9 @@ def test_build_bond_features_by_date_adds_columns_to_every_asset_frame():
             "bond_yield_curve_curvature",
             "bond_credit_spread_level",
             "bond_empirical_duration_beta",
+            "bond_analytic_modified_duration",
+            "bond_analytic_convexity",
+            "bond_dv01",
         ):
             assert name in frame.columns
         assert len(frame) == len(asset_frames[ticker])
@@ -174,3 +178,67 @@ def test_build_bond_features_by_date_asset_class_fallback_to_security_type():
     # rows to produce a non-zero beta.
     result = build_bond_features_by_date(asset_frames, config, _fred_series())
     assert (result["TLT"]["bond_empirical_duration_beta"] == 0.0).all()
+
+
+def test_build_bond_features_by_date_analytic_duration_uses_assumed_coupon_rate():
+    dates = ["2020-01-02", "2020-01-03"]
+    asset_frames = {"TLT": _price_frame(dates, [140.0, 141.0])}
+    config = _config(
+        [
+            {
+                "ticker": "TLT",
+                "asset_class": "bond",
+                "bond_metadata": {"duration_proxy_years": 17.5, "assumed_coupon_rate": 0.03},
+            }
+        ]
+    )
+
+    result = build_bond_features_by_date(asset_frames, config, _fred_series())
+    row = result["TLT"].iloc[0]
+
+    expected_duration = analytic_modified_duration(0.03, 0.03, 17.5)
+    expected_convexity = analytic_convexity(0.03, 0.03, 17.5)
+    expected_dv01 = bond_dv01(140.0, expected_duration)
+    assert np.isclose(row["bond_analytic_modified_duration"], expected_duration)
+    assert np.isclose(row["bond_analytic_convexity"], expected_convexity)
+    assert np.isclose(row["bond_dv01"], expected_dv01)
+
+
+def test_build_bond_features_by_date_analytic_duration_falls_back_to_yield_curve():
+    dates = ["2020-01-02"]
+    asset_frames = {"TLT": _price_frame(dates, [140.0])}
+    fred_series = _fred_series(treasury_10yr=[{"date": date(2020, 1, 1), "value": 0.02}])
+    config = _config(
+        [{"ticker": "TLT", "asset_class": "bond", "bond_metadata": {"duration_proxy_years": 10.0}}]
+    )
+
+    result = build_bond_features_by_date(asset_frames, config, fred_series)
+    row = result["TLT"].iloc[0]
+
+    expected_duration = analytic_modified_duration(0.02, 0.02, 10.0)
+    assert np.isclose(row["bond_analytic_modified_duration"], expected_duration)
+    assert row["bond_dv01"] > 0.0
+
+
+def test_build_bond_features_by_date_analytic_duration_non_bond_ticker_is_zero():
+    dates = ["2020-01-02", "2020-01-03"]
+    asset_frames = {"AAPL": _price_frame(dates, [300.0, 301.0])}
+    config = _config([{"ticker": "AAPL", "asset_class": "equity"}])
+
+    result = build_bond_features_by_date(asset_frames, config, _fred_series())
+
+    assert (result["AAPL"]["bond_analytic_modified_duration"] == 0.0).all()
+    assert (result["AAPL"]["bond_analytic_convexity"] == 0.0).all()
+    assert (result["AAPL"]["bond_dv01"] == 0.0).all()
+
+
+def test_build_bond_features_by_date_analytic_duration_missing_metadata_is_zero_not_raise():
+    dates = ["2020-01-02", "2020-01-03"]
+    asset_frames = {"TLT": _price_frame(dates, [140.0, 141.0])}
+    config = _config([{"ticker": "TLT", "asset_class": "bond"}])  # no bond_metadata at all
+
+    result = build_bond_features_by_date(asset_frames, config, _fred_series())
+
+    assert (result["TLT"]["bond_analytic_modified_duration"] == 0.0).all()
+    assert (result["TLT"]["bond_analytic_convexity"] == 0.0).all()
+    assert (result["TLT"]["bond_dv01"] == 0.0).all()

@@ -138,6 +138,49 @@ def test_event_to_row_still_uses_explicit_action_when_present():
     assert row["action"] == "trade"
 
 
+def _sample_option_strategy_outcome_event(**overrides) -> dict:
+    """An option_strategy_outcome event (V4.7, development/Problems.md #29's
+    own framing) - the learned strategy-selector model's data prerequisite.
+    Like session_summary, carries no "action" key - event_to_row() must
+    round-trip it through the SAME generic payload/action-fallback path
+    with zero Postgres DDL change, confirming the design decision that no
+    new table/column is needed for this new event_type."""
+    defaults = {
+        "event_id": "00000000-0000-0000-0000-000000000042",
+        "event_type": "option_strategy_outcome",
+        "created_at": "2026-07-24T00:00:00Z",
+        "mode": "observation",
+        "symbol": "AAPL R735QTJ8XC9X",
+        "ticker": "AAPL",
+        "strategy_name": "iron_condor",
+        "realized_pnl": 125.50,
+        "entry_bar": 10,
+        "exit_bar": 25,
+        "contracts": 2,
+        "entry_net_debit_or_credit": -1.20,
+        "exit_net_debit_or_credit": 0.55,
+        "regime": {"risk_score": 0.3},
+        "moe_gating": {},
+        "topology": {"correlation_strength": 0.4},
+        "liquidity": {},
+    }
+    defaults.update(overrides)
+    return defaults
+
+
+def test_event_to_row_handles_option_strategy_outcome_event_with_zero_ddl_change():
+    event = _sample_option_strategy_outcome_event()
+    row = event_to_row(event)
+    assert row["ticker"] == "AAPL"
+    assert row["symbol"] == "AAPL R735QTJ8XC9X"
+    assert row["signal"] == ""
+    assert row["action"] == "option_strategy_outcome"  # falls back to event_type, no "action" key present
+    assert row["mode"] == "observation"
+    payload = json.loads(row["payload"])
+    assert payload["strategy_name"] == "iron_condor"
+    assert payload["realized_pnl"] == 125.50
+
+
 def test_run_once_persists_batch():
     events = [
         _sample_event(event_id=f"00000000-0000-0000-0000-00000000000{i}", ticker=f"T{i}")

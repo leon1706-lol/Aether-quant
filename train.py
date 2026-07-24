@@ -38,8 +38,11 @@ from features import (
     YIELD_CURVE_CURVATURE_NEUTRAL,
     YIELD_CURVE_LEVEL_NEUTRAL,
     YIELD_CURVE_SLOPE_NEUTRAL,
+    analytic_convexity,
+    analytic_modified_duration,
     average_true_range_pct,
     bollinger_pctb,
+    bond_dv01,
     bond_yield_curve_slope,
     compute_greeks,
     credit_spread_level,
@@ -50,6 +53,7 @@ from features import (
     futures_term_structure_slope,
     implied_volatility,
     macd_histogram_normalized,
+    nearest_yield_curve_point,
     options_implied_vol_skew,
     options_put_call_ratio,
     relative_strength_index,
@@ -1124,6 +1128,19 @@ def build_bond_features_by_date(
     also gets 0.0, same neutral-pad convention as the missing-reference
     case above.
 
+    bond_analytic_modified_duration/bond_analytic_convexity/bond_dv01
+    (V4.7) are the offline/training-time counterpart of
+    main.py::_bond_analytics_for_symbol() - real closed-form bond math
+    (features.analytic_modified_duration()/analytic_convexity()/
+    bond_dv01()) using bond_metadata.duration_proxy_years as an assumed
+    maturity and bond_metadata.assumed_coupon_rate (or, when absent, the
+    nearest available treasury yield-curve point via
+    features.nearest_yield_curve_point(), DATE-VARYING per row rather than
+    a single OLS slope) as an assumed coupon/yield - train/runtime parity
+    with the live path. Also asset_class == "bond"-only; every other asset
+    gets flat 0.0 columns, same neutral-pad convention as
+    bond_empirical_duration_beta.
+
     fred_series is a plain {series_key: [{"date": date, "value": float},
     ...]} mapping - load_cached_fred_series()'s return shape, loaded once
     by the caller (never fetched live mid-run; Lean backtests are
@@ -1159,6 +1176,9 @@ def build_bond_features_by_date(
     slope_by_date: dict = {}
     curvature_by_date: dict = {}
     credit_by_date: dict = {}
+    treasury_3mo_by_date: dict = {}
+    treasury_2yr_by_date: dict = {}
+    treasury_5yr_by_date: dict = {}
     treasury_10yr_by_date: dict = {}
     for current_date in all_dates:
         t3mo = treasury_3mo_asof(current_date)
@@ -1170,6 +1190,9 @@ def build_bond_features_by_date(
         slope_by_date[current_date] = bond_yield_curve_slope(t10yr, t3mo)
         curvature_by_date[current_date] = yield_curve_curvature(t2yr, t5yr, t10yr)
         credit_by_date[current_date] = credit_spread_level(baa10y)
+        treasury_3mo_by_date[current_date] = t3mo
+        treasury_2yr_by_date[current_date] = t2yr
+        treasury_5yr_by_date[current_date] = t5yr
         treasury_10yr_by_date[current_date] = t10yr
 
     updated_frames: dict[str, pd.DataFrame] = {}
@@ -1198,6 +1221,42 @@ def build_bond_features_by_date(
                     delta_10yr[index] = current_value - previous_value
             beta = empirical_duration_beta(result["close_to_close_return_1d"].tolist(), delta_10yr)
         result["bond_empirical_duration_beta"] = beta if beta is not None else 0.0
+
+        bond_metadata = asset_config.get("bond_metadata", {})
+        years_to_maturity = bond_metadata.get("duration_proxy_years")
+        assumed_coupon_rate = bond_metadata.get("assumed_coupon_rate")
+        modified_durations: list[float] = []
+        convexities: list[float] = []
+        dv01s: list[float] = []
+        if is_bond and "close" in result.columns:
+            dates_sorted = result["date"].tolist()
+            closes_sorted = result["close"].tolist()
+            for row_date, close_price in zip(dates_sorted, closes_sorted):
+                coupon_rate = assumed_coupon_rate
+                if coupon_rate is None:
+                    coupon_rate = nearest_yield_curve_point(
+                        years_to_maturity,
+                        {
+                            0.25: treasury_3mo_by_date.get(row_date),
+                            2.0: treasury_2yr_by_date.get(row_date),
+                            5.0: treasury_5yr_by_date.get(row_date),
+                            10.0: treasury_10yr_by_date.get(row_date),
+                        },
+                    )
+                yield_to_maturity = coupon_rate  # at-par-pricing proxy, matches main.py's runtime convention
+                modified_duration = analytic_modified_duration(yield_to_maturity, coupon_rate, years_to_maturity)
+                convexity = analytic_convexity(yield_to_maturity, coupon_rate, years_to_maturity)
+                dv01 = bond_dv01(close_price, modified_duration)
+                modified_durations.append(modified_duration if modified_duration is not None else 0.0)
+                convexities.append(convexity if convexity is not None else 0.0)
+                dv01s.append(dv01 if dv01 is not None else 0.0)
+        else:
+            modified_durations = [0.0] * len(result)
+            convexities = [0.0] * len(result)
+            dv01s = [0.0] * len(result)
+        result["bond_analytic_modified_duration"] = modified_durations
+        result["bond_analytic_convexity"] = convexities
+        result["bond_dv01"] = dv01s
 
         updated_frames[ticker] = result
     return updated_frames

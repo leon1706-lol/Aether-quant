@@ -38,6 +38,7 @@ try:
         build_options_position_sizing,
         build_vertical_spread_position_sizing,
         order_enabled_strategies,
+        rerank_enabled_strategies_by_score,
         strategies_for_volatility_view,
     )
 except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
@@ -48,6 +49,7 @@ except ImportError:  # pragma: no cover - portfolio package always present in th
     build_vertical_spread_position_sizing = None
     build_multi_leg_position_sizing = None
     order_enabled_strategies = None
+    rerank_enabled_strategies_by_score = None
     strategies_for_volatility_view = None
 
 try:
@@ -255,6 +257,7 @@ def route_multi_leg_option_sizing(
     arbitrage_detector_enabled: bool = False,
     min_mispricing_bps: float = 15.0,
     arbitrage_max_contracts_per_signal: int = 1,
+    strategy_selector_scores: dict | None = None,
 ) -> tuple[PositionSizingDecision, dict] | None:
     """V4.5 - the full-coverage sibling of route_position_sizing()'s
     option branch: tries `enabled_strategy_names`, reordered by
@@ -279,6 +282,18 @@ def route_multi_leg_option_sizing(
         build_covered_protective_position_sizing()).
       - "unreachable_arbitrage" -> always skipped, by design (§8).
 
+    strategy_selector_scores (V4.7, development/Problems.md #29's own
+    framing) - the learned strategy-selector model's live inference plug
+    point: when truthy (a trained model is loaded AND
+    phase_v2.strategy_selector.enabled), reranks enabled_strategy_names by
+    score (portfolio/options_strategy.py::rerank_enabled_strategies_by_score())
+    INSTEAD OF order_enabled_strategies()'s static risk-tier-preference
+    reordering. Defaults to None - the only value ever passed until both
+    conditions hold, reproducing today's exact ordered_names output
+    byte-identically. Either way, the actual per-strategy_name dispatch
+    loop below (leg construction, sizing, risk math) is completely
+    unchanged - only WHICH NAME IS TRIED FIRST can differ.
+
     straddle/strangle/iron_condor/iron_butterfly shape families are
     additionally gated to strategies_for_volatility_view(volatility_view)
     - every other shape family (vertical, butterfly, calendar, backspread,
@@ -292,7 +307,10 @@ def route_multi_leg_option_sizing(
     if order_enabled_strategies is None or strategies_for_volatility_view is None:
         return None
 
-    ordered_names = order_enabled_strategies(enabled_strategy_names, risk_tier_preference)
+    if strategy_selector_scores and rerank_enabled_strategies_by_score is not None:
+        ordered_names = rerank_enabled_strategies_by_score(enabled_strategy_names, strategy_selector_scores)
+    else:
+        ordered_names = order_enabled_strategies(enabled_strategy_names, risk_tier_preference)
     view_gated_families = {"straddle", "strangle", "iron_condor", "iron_butterfly"}
     eligible_view_names = strategies_for_volatility_view(volatility_view)
 

@@ -308,6 +308,58 @@ analytic duration/convexity/DV01 for the existing bond-ETF sleeve
 instead, deliberately informational only (never merged into the trained
 model's feature vector). See `risk/README.md`'s own V4.6 section.
 
+**V4.7 update**: brings V4.6's own deferred items (full early-assignment/
+corporate-action modeling, and #29's learned strategy-selector model)
+fully into scope, plus wires the V4.6 bond analytics into the trained
+model as real signals. See `development/Problems.md` #61 for the full
+writeup; summary here:
+
+- **Early-assignment/corporate-action modeling**: new
+  `portfolio/options_assignment_risk.py` scores dividend-driven
+  early-call-assignment risk (moneyness + extrinsic value vs. expected
+  dividend + days-to-next-ex-div) — call-only by construction, puts
+  always score 0.0. Sourced from a new `data_pipeline/dividend_backfill.py`
+  (real ex-dividend history via `yfinance`, projecting the next date from
+  historical cadence rather than yfinance's own unreliable forward
+  calendar field) and a new `features/options_greeks.py::baw_american_price()`
+  (Barone-Adesi-Whaley American-exercise pricer, verified during
+  development against a CRR binomial tree). Wired into a new
+  `main.py::_apply_option_assignment_risk_sweep()` — a sibling to (not a
+  modification of) the existing expiry-day auto-close sweep, gated behind
+  off-by-default `phase_v2.options_risk.assignment_risk_detector`. A real
+  Lean source check confirmed Lean itself force-sets
+  `DataNormalizationMode.Raw` on option underlyings, so no `main.py`
+  normalization change was needed for the corporate-actions half of this
+  — same-bar stock splits are now just logged (`corporate_action` field
+  on the experience event) for auditability.
+- **Learned multi-leg strategy-selector model (#29)**: the harder half.
+  `option_positions_by_symbol` (the originally-assumed data source) turns
+  out to only populate on the real-order path, which never fires in this
+  environment — so the new strategy-attributed outcome capture
+  (`main.py::_emit_option_strategy_outcome_if_pending()`, a new
+  `simulated_option_strategy_entries_by_symbol_key` dict) targets the
+  observation-mode branch instead, reusing `options_decision.net_debit_or_credit`
+  (already computed by the router). A new
+  `net_debit_or_credit_for_legs()` (extracted from `_size_multi_leg()`'s
+  own inline computation, but stricter — `None`, not `0.0`, on any
+  missing bid/ask) values the close; a new `option_strategy_outcome`
+  experience event persists the outcome with **zero Postgres DDL
+  change** (proven by a regression test, not just asserted). New
+  `train_strategy_selector.py` follows `train_topology.py`'s exact
+  bolt-on-trainer shape but is dormant in a stronger sense — it has no
+  data source at all until real option positions actually trade, not
+  just "not enough volume yet" (its own module docstring documents this).
+  New `rerank_enabled_strategies_by_score()` is the live inference plug
+  point; see `risk/README.md`'s own V4.7 section for how
+  `route_multi_leg_option_sizing()` consumes it.
+- **Bond analytics as real model features**: the 3 analytic bond
+  functions V4.6 shipped informational-only are now merged into
+  `base_features`/the trained model's feature schema (`config.json`,
+  `main.py::_build_model_input_impl()`, `train.py::build_bond_features_by_date()`).
+  Code-complete but the actual retrain was deliberately not run this
+  pass — deploying the schema change without a matching retrain first
+  would `KeyError` on every bar.
+
 ## Webui visibility
 
 `signal_payload["portfolio_book_role"]` (set in `main.py`, see above) is

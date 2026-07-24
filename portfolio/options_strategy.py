@@ -1539,6 +1539,38 @@ def _net_vega_and_delta_per_unit(spec: StrategySpec, legs_by_role: dict[str, dic
     return net_vega, net_delta
 
 
+def net_debit_or_credit_for_legs(spec: StrategySpec, legs_by_role: dict[str, dict]) -> float | None:
+    """Signed net premium to trade every leg in spec.legs at
+    legs_by_role's current bid/ask - long legs value at ask, short legs
+    at bid (the conservative/executable-price convention _size_multi_leg()
+    below already uses, and options_arbitrage_detector.py's own
+    _actual_net_cost() also uses independently). Positive = net DEBIT
+    (paying more for long legs than received for short legs), negative =
+    net CREDIT - same sign convention as OptionsMultiLegPositionDecision's
+    own net_debit_or_credit field.
+
+    Returns None (not 0.0) when any leg's role is missing a bid/ask row -
+    "cannot compute this bar" must not be indistinguishable from "computed
+    a genuine 0.0 premium", the same None-vs-neutral-default distinction
+    features/bond_features.py's module docstring and
+    features/options_greeks.py::implied_volatility() already draw.
+    _size_multi_leg() below deliberately keeps ITS OWN reset-to-0.0-on-
+    missing-price behavior (a documented best-effort SIZING diagnostic,
+    unchanged) by coercing this function's None to 0.0 at its own call
+    site - this function is the stricter sibling, extracted for a caller
+    (main.py's per-strategy realized-outcome computation, V4.7) where
+    "unknown" must never silently look like "breakeven"."""
+    net = 0.0
+    for leg_spec in spec.legs:
+        row = legs_by_role.get(leg_spec.role, {})
+        price = row.get("ask") if leg_spec.side == "long" else row.get("bid")
+        if price is None:
+            return None
+        side_sign = 1.0 if leg_spec.side == "long" else -1.0
+        net += side_sign * leg_spec.ratio * float(price)
+    return net
+
+
 def _size_multi_leg(
     strategy_name: str,
     legs_by_role: dict[str, dict],
@@ -1575,15 +1607,8 @@ def _size_multi_leg(
     legs = _legs_tuple_from_roles(spec, legs_by_role)
     expiries = _expiries_tuple_from_roles(spec, legs_by_role)
 
-    net_debit_or_credit = 0.0
-    for leg_spec in spec.legs:
-        row = legs_by_role.get(leg_spec.role, {})
-        price = row.get("ask") if leg_spec.side == "long" else row.get("bid")
-        if price is None:
-            net_debit_or_credit = 0.0
-            break
-        side_sign = 1.0 if leg_spec.side == "long" else -1.0
-        net_debit_or_credit += side_sign * leg_spec.ratio * float(price)
+    computed_net_debit_or_credit = net_debit_or_credit_for_legs(spec, legs_by_role)
+    net_debit_or_credit = computed_net_debit_or_credit if computed_net_debit_or_credit is not None else 0.0
 
     return OptionsMultiLegPositionDecision(
         strategy_name=strategy_name,
@@ -1766,6 +1791,32 @@ def order_enabled_strategies(enabled_strategy_names: list[str], risk_tier_prefer
     secondary_names = [name for name in enabled_strategy_names if name in secondary]
     other_names = [name for name in enabled_strategy_names if name not in primary and name not in secondary]
     return primary_names + secondary_names + other_names
+
+
+def rerank_enabled_strategies_by_score(
+    enabled_strategy_names: list[str], strategy_selector_scores: dict[str, float]
+) -> list[str]:
+    """V4.7 (development/Problems.md #29's own framing) - the learned
+    strategy-selector model's live inference plug point: a drop-in
+    ALTERNATIVE to order_enabled_strategies()'s static reordering above,
+    not a replacement for it. Stable-sorts enabled_strategy_names
+    descending by strategy_selector_scores.get(name, float("-inf")) -
+    names with no score (the model hasn't seen that strategy_name yet, or
+    strategy_selector_scores is a stale/partial version) sink to the end
+    in their ORIGINAL relative order, never dropped - same "only ever
+    reorders, never drops or adds a name" contract
+    order_enabled_strategies() itself keeps.
+
+    Callers must only invoke this when strategy_selector_scores is
+    truthy (non-empty) - risk/asset_class_router.py::route_multi_leg_option_sizing()
+    falls back to order_enabled_strategies() itself whenever no trained
+    model's scores are available, so this function has no fallback path
+    of its own; it is never the byte-identical default."""
+    return sorted(
+        enabled_strategy_names,
+        key=lambda name: strategy_selector_scores.get(name, float("-inf")),
+        reverse=True,
+    )
 
 
 def resolve_enabled_strategy_names(asset: dict, global_default: list[str]) -> list[str]:

@@ -9,7 +9,12 @@ from datetime import date
 
 import fakeredis
 
-from experience import ExperienceQueue, build_experience_event, build_session_summary_event
+from experience import (
+    ExperienceQueue,
+    build_experience_event,
+    build_option_strategy_outcome_event,
+    build_session_summary_event,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -230,5 +235,63 @@ def test_session_summary_event_is_json_serializable():
         session_end_equity=101_000.0,
         events=_sample_session_events(),
     )
+    serialised = json.dumps(event)
+    assert isinstance(serialised, str)
+
+
+# ---------------------------------------------------------------------------
+# build_option_strategy_outcome_event — V4.7 (development/Problems.md #29's
+# own framing), the learned strategy-selector model's data prerequisite.
+# ---------------------------------------------------------------------------
+
+
+def _sample_option_strategy_outcome_kwargs(**overrides) -> dict:
+    defaults = dict(
+        mode="observation",
+        symbol="AAPL R735QTJ8XC9X",
+        ticker="AAPL",
+        strategy_name="iron_condor",
+        realized_pnl=125.50,
+        entry_bar=10,
+        exit_bar=25,
+        contracts=2,
+        entry_net_debit_or_credit=-1.20,
+        exit_net_debit_or_credit=0.55,
+        regime={"risk_score": 0.3},
+        moe_gating={},
+        topology={"correlation_strength": 0.4},
+        liquidity={},
+    )
+    defaults.update(overrides)
+    return defaults
+
+
+def test_option_strategy_outcome_event_has_correct_event_type_and_fields():
+    event = build_option_strategy_outcome_event(**_sample_option_strategy_outcome_kwargs())
+    assert event["event_type"] == "option_strategy_outcome"
+    assert event["mode"] == "observation"
+    assert event["strategy_name"] == "iron_condor"
+    assert event["realized_pnl"] == 125.50
+    assert event["entry_bar"] == 10
+    assert event["exit_bar"] == 25
+    assert event["contracts"] == 2
+    assert event["regime"] == {"risk_score": 0.3}
+    assert event["topology"] == {"correlation_strength": 0.4}
+
+
+def test_option_strategy_outcome_event_has_required_envelope_fields():
+    event = build_option_strategy_outcome_event(**_sample_option_strategy_outcome_kwargs())
+    assert "event_id" in event
+    assert "created_at" in event
+
+
+def test_option_strategy_outcome_event_ids_are_unique():
+    event_a = build_option_strategy_outcome_event(**_sample_option_strategy_outcome_kwargs())
+    event_b = build_option_strategy_outcome_event(**_sample_option_strategy_outcome_kwargs())
+    assert event_a["event_id"] != event_b["event_id"]
+
+
+def test_option_strategy_outcome_event_is_json_serializable():
+    event = build_option_strategy_outcome_event(**_sample_option_strategy_outcome_kwargs())
     serialised = json.dumps(event)
     assert isinstance(serialised, str)

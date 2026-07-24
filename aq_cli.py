@@ -215,6 +215,8 @@ def cmd_train(args: argparse.Namespace) -> int:
         return _train_sequence_only()
     if args.topology_only:
         return _train_topology_only()
+    if args.strategy_selector_only:
+        return _train_strategy_selector_only()
     cmd = [sys.executable, "train.py"]
     if args.dataset_only:
         cmd.append("--dataset-only")
@@ -361,6 +363,55 @@ def _train_topology_only() -> int:
     return 0
 
 
+def _train_strategy_selector_only() -> int:
+    """`aq train --strategy-selector-only`: trains the learned multi-leg
+    strategy-selector model (train_strategy_selector.py, V4.7,
+    development/Problems.md #29's own framing) and installs it straight
+    into active ml/ - identical shape to _train_topology_only()/
+    _train_multitask_only()/_train_gating_only()/_train_sequence_only()
+    above.
+
+    Different, and much harder to satisfy, prerequisite than any of the
+    other four: train_strategy_selector.py fits over
+    "option_strategy_outcome" experience events (Postgres,
+    AETHER_POSTGRES_DSN env var), which only main.py::
+    _emit_option_strategy_outcome_if_pending() can ever emit - and that
+    only fires for a multi-leg OPTION position that was actually opened
+    AND closed. Unlike train_topology.py (dormant only until enough
+    Postgres VOLUME accumulates from an already-running system), this
+    trainer has NO data source at all until real option positions
+    actually trade - confirmed during scoping research that every options
+    code path in this repo is still IB-unverified with zero option assets
+    in the live universe. Expect the "skipped" branch below on every run
+    in this environment, indefinitely - see train_strategy_selector.py's
+    own module docstring for the full story."""
+    version_id = f"strategy-selector-only-{uuid.uuid4()}"
+    returncode = _run([sys.executable, "train_strategy_selector.py", "--version-id", version_id])
+    if returncode != 0:
+        return returncode
+
+    version_dir = ROOT_DIR / "ml" / "versions" / version_id
+    artifact_names = (
+        "strategy_selector_model.json",
+        "strategy_selector_feature_schema.json",
+        "strategy_selector_training_metrics.json",
+    )
+    if any(not (version_dir / name).exists() for name in artifact_names):
+        print(
+            "aq train --strategy-selector-only: train_strategy_selector.py exited 0 but skipped writing "
+            "artifacts (no option_strategy_outcome events yet - needs real option positions to have actually "
+            "traded and closed) - active ml/ left unchanged.",
+            file=sys.stderr,
+        )
+        return 0
+
+    ml_dir = ROOT_DIR / "ml"
+    for name in artifact_names:
+        shutil.copy2(version_dir / name, ml_dir / name)
+    print(f"aq train --strategy-selector-only: copied {', '.join(artifact_names)} into active ml/.")
+    return 0
+
+
 def _update_readme_test_badge(passed: int, failed: int) -> None:
     """Atomically rewrites the shields.io test-count badge AND every
     AQ:TEST_COUNT-marked "N tests" prose mention (Test Suite section,
@@ -446,7 +497,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     ],
     "portfolio": [
         "test_portfolio_book_construction.py", "test_options_strategy.py",
-        "test_options_greeks.py", "test_simulated_portfolio.py",
+        "test_options_greeks.py", "test_simulated_portfolio.py", "test_options_assignment_risk.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -455,7 +506,10 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_asset_class_context_features.py", "test_train_cross_sectional_features.py",
         "test_train_indicators.py",
     ],
-    "data-pipeline": ["test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py"],
+    "data-pipeline": [
+        "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
+        "test_dividend_backfill.py",
+    ],
     "webui": [
         "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
         "test_rank_ic_monitor.py", "test_observation_metrics.py",
@@ -467,6 +521,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_walk_forward_windows.py", "test_train_topology.py", "test_learned_topology.py",
         "test_exported_model.py", "test_market_topology.py", "test_market_regime.py",
         "test_market_analyzer.py", "test_market_liquidity.py",
+        "test_train_strategy_selector.py", "test_strategy_selector_inference.py",
     ],
     "retraining": [
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
@@ -1142,6 +1197,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     train_group.add_argument(
+        "--strategy-selector-only",
+        action="store_true",
+        help=(
+            "Train the learned multi-leg strategy-selector model only (wraps python "
+            "train_strategy_selector.py, V4.7, development/Problems.md #29's own framing). Needs real "
+            "option_strategy_outcome events (real option positions traded and closed) - expect this to "
+            "skip indefinitely in this environment, see the command's own output."
+        ),
+    )
+    train_group.add_argument(
         "--walk-forward",
         action="store_true",
         help=(
@@ -1290,6 +1355,7 @@ def build_parser() -> argparse.ArgumentParser:
             "train_gating",
             "train_multitask",
             "train_sequence",
+            "train_strategy_selector",
             "validate",
             "backtest",
             "commit",

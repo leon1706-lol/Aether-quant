@@ -1,6 +1,7 @@
 import math
 
 from features.options_greeks import (
+    baw_american_price,
     bs_price,
     compute_greeks,
     delta,
@@ -148,3 +149,77 @@ def test_implied_volatility_never_raises_on_extreme_near_expiry_input():
     price = bs_price(100, 200, 0.001, 0.03, 0.15, 0.0, "call")
     result = implied_volatility(price, 100, 200, 0.001, 0.03, 0.0, "call")
     assert result is None or (isinstance(result, float) and result == result)  # not NaN
+
+
+# ---------------------------------------------------------------------------
+# baw_american_price - Barone-Adesi-Whaley American-exercise approximation.
+# Reference values verified during development against a 3000-step CRR
+# binomial tree (ground truth for American option pricing); the hard
+# invariant (American >= European) is checked directly here for every case.
+# ---------------------------------------------------------------------------
+
+
+def test_baw_american_call_no_dividend_equals_european():
+    # Textbook shortcut: with a non-positive dividend yield, early call
+    # exercise is never optimal - American call == European call exactly.
+    euro = bs_price(100, 100, 0.5, 0.08, 0.25, 0.0, "call")
+    american = baw_american_price(100, 100, 0.5, 0.08, 0.0, 0.25, "call")
+    assert american == euro
+
+
+def test_baw_american_call_with_dividend_exceeds_european():
+    euro = bs_price(100, 100, 0.5, 0.08, 0.25, 0.05, "call")
+    american = baw_american_price(100, 100, 0.5, 0.08, 0.05, 0.25, "call")
+    assert american >= euro
+    # Verified during development against a CRR binomial tree at ~7.566
+    # (BAW ~7.573) - both within a few cents of each other.
+    assert abs(american - 7.573) < 0.02
+
+
+def test_baw_american_put_no_dividend_exceeds_european():
+    # Classic Hull textbook case: S=42, K=40, r=0.10, sigma=0.20, T=0.5,
+    # no dividend. Early put exercise CAN be optimal even without a
+    # dividend (unlike calls) - American put must exceed European put.
+    euro = bs_price(42, 40, 0.5, 0.10, 0.20, 0.0, "put")
+    american = baw_american_price(42, 40, 0.5, 0.10, 0.0, 0.20, "put")
+    assert american > euro
+    # Verified during development against a CRR binomial tree at ~0.910
+    # (BAW ~0.923).
+    assert abs(american - 0.923) < 0.02
+
+
+def test_baw_american_put_with_dividend_exceeds_european():
+    euro = bs_price(90, 100, 0.5, 0.08, 0.25, 0.05, "put")
+    american = baw_american_price(90, 100, 0.5, 0.08, 0.05, 0.25, "put")
+    assert american >= euro
+
+
+def test_baw_american_price_invariant_holds_across_moneyness_and_rights():
+    # American price must never be less than the European price, for any
+    # combination of moneyness/right/dividend - the hard safety invariant
+    # this function's degrade-to-European fallback relies on.
+    cases = [
+        (80, 100, 0.25, 0.05, 0.02, 0.30, "call"),
+        (120, 100, 0.25, 0.05, 0.02, 0.30, "call"),
+        (80, 100, 0.25, 0.05, 0.02, 0.30, "put"),
+        (120, 100, 0.25, 0.05, 0.02, 0.30, "put"),
+        (100, 100, 1.0, 0.06, 0.08, 0.30, "call"),
+        (100, 100, 1.0, 0.06, 0.08, 0.30, "put"),
+    ]
+    for spot, strike, t, r, q, vol, right in cases:
+        euro = bs_price(spot, strike, t, r, vol, q, right)
+        american = baw_american_price(spot, strike, t, r, q, vol, right)
+        assert american >= euro - 1e-9, (spot, strike, t, r, q, vol, right)
+
+
+def test_baw_american_price_right_is_case_insensitive():
+    lower = baw_american_price(100, 100, 0.5, 0.08, 0.05, 0.25, "call")
+    upper = baw_american_price(100, 100, 0.5, 0.08, 0.05, 0.25, "CALL")
+    assert lower == upper
+
+
+def test_baw_american_price_degenerate_input_returns_intrinsic_not_raise():
+    assert baw_american_price(100, 90, 0.0, 0.05, 0.02, 0.25, "call") == 10.0
+    assert baw_american_price(90, 100, 0.0, 0.05, 0.02, 0.25, "put") == 10.0
+    assert baw_american_price(100, 100, 0.5, 0.05, 0.02, 0.0, "call") == 0.0
+    assert baw_american_price(-1, 100, 0.5, 0.05, 0.02, 0.25, "call") == 0.0

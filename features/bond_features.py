@@ -33,14 +33,18 @@ bond_metadata.duration_proxy_years (already configured per-ETF in
 config.json) as an assumed maturity and bond_metadata.assumed_coupon_rate
 (or, when absent, the treasury yield-curve point nearest that maturity, as
 an at-par-pricing proxy coupon) as an assumed coupon - explicitly an
-ETF-level APPROXIMATION, not real per-bond cash-flow data. Deliberately
-informational only (not merged into base_features/BOND_FEATURE_NAMES,
-which feed the TRAINED model's fixed-dimensionality input tensor - adding
-a feature there would require a coordinated retrain); surfaced instead via
-main.py's own per-symbol bond-analytics computation for dashboard/state
-visibility, same "additive, doesn't touch the model" precedent
-_bond_empirical_duration_beta_for_symbol() already establishes for
-per-symbol (as opposed to broadcast) bond features.
+ETF-level APPROXIMATION, not real per-bond cash-flow data.
+
+V4.7 merged these 3 functions' output into base_features/BOND_FEATURE_NAMES
+as real model inputs (main.py::_build_model_input_impl(),
+train.py::build_bond_features_by_date()) - code-complete, but deploying it
+live requires running a retrain first: config.json's
+phase1.features.input_set now lists the 3 new names, and main.py's
+scaling loop indexes base_features[name] with no default, so an
+un-retrained ml/feature_schema.json (still listing only the original 34
+names) would KeyError on the very next bar. Until that retrain runs,
+main.py's own latest_bond_analytics_by_symbol side-table remains the only
+place these values are actually visible (dashboard/state), same as before.
 """
 
 from __future__ import annotations
@@ -56,6 +60,9 @@ BOND_FEATURE_NAMES = [
     "bond_yield_curve_curvature",
     "bond_credit_spread_level",
     "bond_empirical_duration_beta",
+    "bond_analytic_modified_duration",
+    "bond_analytic_convexity",
+    "bond_dv01",
 ]
 
 

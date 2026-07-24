@@ -1084,7 +1084,10 @@
                 "bond_yield_curve_slope",
                 "bond_yield_curve_curvature",
                 "bond_credit_spread_level",
-                "bond_empirical_duration_beta"
+                "bond_empirical_duration_beta",
+                "bond_analytic_modified_duration",
+                "bond_analytic_convexity",
+                "bond_dv01"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
             "winsorize_quantiles": [
@@ -1278,6 +1281,12 @@
             "arbitrage_detector": {
                 "enabled": false,
                 "min_mispricing_bps": 15.0
+            },
+            "assignment_risk_detector": {
+                "enabled": false,
+                "score_threshold": 0.6,
+                "lookahead_window_days": 5,
+                "dividend_schedule_path": "data/reference/dividend_schedule"
             }
         },
         "functionality": {
@@ -1335,6 +1344,14 @@
                 "min_training_events": 500,
                 "num_prototypes": 6,
                 "distance_scale_percentile": 90
+            }
+        },
+        "strategy_selector": {
+            "enabled": false,
+            "training": {
+                "min_training_events": 300,
+                "lookback_days": 90,
+                "min_events_per_strategy": 20
             }
         },
         "portfolio_book": {
@@ -1671,6 +1688,10 @@
                     }
                 },
                 "seed": 42
+            },
+            "strategy_selector_training": {
+                "enabled": true,
+                "timeout_seconds": 300
             }
         },
         "telegram": {

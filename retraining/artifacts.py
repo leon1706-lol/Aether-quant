@@ -67,12 +67,31 @@ OPTIONAL_SEQUENCE_FILES = (
     "sequence_training_metrics.json",
 )
 
+# Learned multi-leg strategy-selector artifacts (train_strategy_selector.py,
+# V4.7, development/Problems.md #29's own framing). Same optional,
+# best-effort, independently-failable contract as OPTIONAL_SEQUENCE_FILES -
+# never part of REQUIRED_CANDIDATE_FILES, never a validation gate. In
+# practice this trainer's own docstring documents that it has no data
+# source to train from at all in this environment - these files will
+# realistically never exist for a real candidate, but the contract stays
+# identical to every other optional artifact set regardless.
+OPTIONAL_STRATEGY_SELECTOR_FILES = (
+    "strategy_selector_model.json",
+    "strategy_selector_training_metrics.json",
+    "strategy_selector_feature_schema.json",
+)
+
 # Every filename this package will hash/copy when present - used by
-# commit()'s artifact-hashing so topology/gating/multitask/sequence files
-# (when their trainers succeeded) get sha256'd and swept into the
-# Aether-Vault commit alongside the required candidate files.
+# commit()'s artifact-hashing so topology/gating/multitask/sequence/
+# strategy_selector files (when their trainers succeeded) get sha256'd and
+# swept into the Aether-Vault commit alongside the required candidate files.
 ALL_TRACKED_FILES = (
-    REQUIRED_CANDIDATE_FILES + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES
+    REQUIRED_CANDIDATE_FILES
+    + OPTIONAL_TOPOLOGY_FILES
+    + OPTIONAL_GATING_FILES
+    + OPTIONAL_MULTITASK_FILES
+    + OPTIONAL_SEQUENCE_FILES
+    + OPTIONAL_STRATEGY_SELECTOR_FILES
 )
 
 # Files copied into the active ml/ directory on promotion/rollback. Extended
@@ -90,7 +109,7 @@ ACTIVE_ARTIFACT_FILES = (
     "scaler_stats.json",
     "training_metrics.json",
     "feature_schema.json",
-) + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES
+) + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES + OPTIONAL_STRATEGY_SELECTOR_FILES
 
 
 def candidate_dir(version_id: str, ml_dir: Path = ML_DIR) -> Path:
@@ -131,6 +150,15 @@ def check_sequence_artifacts(version_dir: Path) -> tuple[bool, list[str]]:
     optional Phase 2 sequence-encoder artifacts exist for a candidate,
     same (all_present, missing_filenames) shape as check_topology_artifacts()."""
     return check_required_artifacts(version_dir, OPTIONAL_SEQUENCE_FILES)
+
+
+def check_strategy_selector_artifacts(version_dir: Path) -> tuple[bool, list[str]]:
+    """Status/logging only - never a validation gate. Reports whether the
+    optional learned strategy-selector artifacts exist for a candidate,
+    same (all_present, missing_filenames) shape as check_topology_artifacts().
+    Realistically always (False, [...missing]) in this environment - see
+    train_strategy_selector.py's own module docstring for why."""
+    return check_required_artifacts(version_dir, OPTIONAL_STRATEGY_SELECTOR_FILES)
 
 
 def _sha256_file(path: Path) -> str:
