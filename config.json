@@ -1591,6 +1591,9 @@
         "gc_tuning": {
             "freeze_after_load_enabled": true
         },
+        "inference_parallelism": {
+            "enabled": false
+        },
         "runtime": {
             "mode": "backtest",
             "allow_live_orders": false

@@ -24,6 +24,30 @@ WORKDIR /app
 COPY requirements/requirements.txt ./requirements/
 RUN pip install --no-cache-dir -r requirements/requirements.txt
 COPY . .
+
+# Optional C++/pybind11 accelerator for inference/exported_model.py's
+# _linear_batched() (development/Problems.md #32). This was previously
+# never built for the actual container image - only ever built manually
+# on a developer's own host machine for that machine's own (ABI-
+# incompatible) local Python version, so the compiled .pyd/.so it produced
+# never reached any deployed image. python:3.11-slim ships no C++
+# compiler, so build-essential is installed just for this step and purged
+# again in the SAME RUN (a separate `apt-get purge` in a later RUN would
+# not shrink the image - Docker layers are additive). The whole extension
+# is optional by design (inference/exported_model.py deferred-imports it
+# and falls back to a pure-NumPy path on ANY import/call failure), so
+# this step is deliberately soft-fail: if anything here breaks (a future
+# base-image change, a pybind11/ABI mismatch, etc.) the `|| echo` swallows
+# it and the Docker build still succeeds, exactly like every environment
+# that has never had the accelerator built.
+RUN (apt-get update && \
+        apt-get install -y --no-install-recommends build-essential && \
+        pip install --no-cache-dir "pybind11>=2.10" && \
+        pip install --no-cache-dir ./cpp_inference_ext && \
+        apt-get purge -y --auto-remove build-essential && \
+        rm -rf /var/lib/apt/lists/*) \
+    || echo "cpp_inference_ext: optional C++ accelerator build failed or was skipped - continuing without it (see development/Problems.md #32/#68)"
+
 COPY --from=webui-builder /app/webui/dist ./webui/dist
 EXPOSE 8000
 CMD ["uvicorn", "monitoring.api_server:app", "--host", "0.0.0.0", "--port", "8000"]

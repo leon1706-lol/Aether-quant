@@ -4487,3 +4487,88 @@ asset-class/writer coverage in `tests/test_fetch.py`/
 `tests/test_yfinance_backfill.py`, zero real network access in any
 test). `webui`: build/lint/test all clean. See `development/Problems.md`
 #66 for the full writeup.
+
+## V4.10 follow-up — opt-in live (Lean/IB-calibrated) futures margin source (Problems.md #67)
+
+Futures margin sizing previously read exclusively from a static
+reference file (`data/reference/futures_contract_specs.json`) that
+drifts from real exchange SPAN requirements over time. New
+`phase_v2.futures_risk.margin_source` config toggle (`"static"` default,
+or `"live"`) switches to Lean's own `InteractiveBrokersBrokerageModel`
+`BuyingPowerModel`, attached **per-security** via `SetBuyingPowerModel()`
+— deliberately not the global `SetBrokerageModel()`, which would have
+also changed the fee/slippage model for every other asset class in the
+same algorithm. Two new pure functions in `risk/futures_risk.py`:
+`resolve_futures_margin_source()` (validates the config string, falls
+back to `"static"` on any unrecognized value — a typo must never crash
+the algorithm) and `build_live_contract_spec()` (builds the live-queried
+`contract_spec` dict in the exact shape the static-file path already
+produces, proven interchangeable by a test that feeds a live-built spec
+straight into `build_futures_position_sizing()` unchanged). `main.py`'s
+3 former raw contract-spec lookups now route through a new
+`_resolve_futures_contract_spec()`, which falls back to the static spec
+on any live-query failure. Off by default; code-complete but genuinely
+Lean-API-unverified — this project has never run a real Lean backtest
+with a futures position sized. Also not modeled: the continuous-vs-
+mapped-contract distinction, left as a known, documented gap.
+
+**Testing**: 8 new tests in `tests/test_futures_risk.py` (26 total, up
+from 18). `main.py` wiring verified via call-graph trace (main.py itself
+remains unit-untestable). See `development/Problems.md` #67 for the full
+writeup.
+
+## Backend/latency gap-closing pass — Docker-built C++ accelerator, main.py CI syntax-check, Windows inference_parallelism guard (Problems.md #68/#69)
+
+A quality rating capped `backend/models/latency` at 8/10 on 3 findings,
+all closed here:
+
+**The `cpp_inference_ext` C++ accelerator (#32) had never run inside a
+real deployed image.** The only compiled artifact that ever existed was
+built by hand on this dev machine's own Python 3.14 — permanently
+ABI-incompatible with the deployed image's `python:3.11-slim`, and the
+single `Dockerfile` never referenced the extension at all. New soft-fail
+`RUN` step installs a compiler toolchain + `pybind11`, builds the
+extension for the container's own Python 3.11, then purges the toolchain
+in the same layer — wrapped end-to-end in `|| echo ...` so any failure
+(toolchain issue, future base-image change, ABI mismatch) degrades to
+exactly today's behavior (extension absent, NumPy fallback), never a
+broken image build. `.dockerignore` also hardened with the same
+`cpp_inference_ext` build-artifact excludes `.gitignore` already had, so
+a developer's own locally-built binary can never leak into the published
+`ghcr.io` image.
+
+**`main.py` (5,943 lines) had zero CI coverage — not even a syntax
+check.** New `python -m py_compile main.py` step added to `ci.yml`'s
+`test` job, before dependency install for fail-fast speed. An advisory
+mypy/pyright pass using the locally-installed `quantconnect-stubs`
+package was considered and declined: beyond the already-documented
+PascalCase/snake_case stub mismatch (#34), `AlgorithmImports/__init__.pyi`
+itself is not a clean PEP 561 stub — it contains live runtime bootstrap
+code and wildcard-imports ~35 `QuantConnect.*` submodules, which would
+very likely produce overwhelming import-resolution noise before ever
+reaching a line of `main.py`'s own logic.
+
+**`phase_v2.inference_parallelism.enabled` had a measured Windows-only
+slowdown (#65) with no runtime guard.** Found and fixed a real latent
+bug in the process: `config.json` had no `phase_v2.inference_parallelism`
+key at all, so `aq config set phase_v2.inference_parallelism.enabled
+true` actually failed outright with `ConfigPathError` rather than
+silently succeeding. Added the missing key (reproducing the existing
+code-side default exactly — zero behavior change), a new pure
+`windows_parallelism_slowdown_warning()` in `inference/parallel_inference.py`
+that `main.py` now `self.Debug()`s once on successful pool construction
+on Windows only, and a matching `aq config set` CLI warning gated to the
+exact dotted path and to `config.json` specifically (never `aq lean
+set`). Neither of the two existing, already-correct fallback mechanisms
+(pool-construction try/except; per-call future-failure handling) was
+touched.
+
+**Testing**: 1857 → **1899 tests, all passing** (the cumulative total
+across V4.10, the futures live-margin follow-up, and this pass — resolves
+the "pending a full suite re-run" note left in the V4.10 entry above).
+New coverage: `tests/test_parallel_inference.py` extended with
+`windows_parallelism_slowdown_warning()` platform-dispatch tests;
+`tests/test_aq_cli.py` gains 4 new `set`-path tests, including one
+proving the CLI warning is gated on `json_path == CONFIG_PATH` and not
+merely on the dotted-path string matching. See `development/Problems.md`
+#68/#69 for the full writeup.

@@ -15,6 +15,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Syntax-check main.py (no Lean runtime available in CI - see development/Problems.md #69)
+        run: python -m py_compile main.py
+
       - name: Install dependencies
         run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
 

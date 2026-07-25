@@ -37,3 +37,15 @@ lean.live.json
 lean.json
 *.key
 *.pem
+
+# cpp_inference_ext/'s compiled build artifacts - mirrors .gitignore's own
+# exclusion list. Docker now builds this extension fresh for the
+# container's own Python 3.11 (see Dockerfile) - a locally-pre-built
+# stray .pyd/.so from a developer's own (ABI-incompatible) host Python
+# must never leak into the build context and get baked into the image,
+# which is published to a public ghcr registry.
+cpp_inference_ext/build/
+cpp_inference_ext/*.egg-info/
+cpp_inference_ext/*.pyd
+cpp_inference_ext/*.so
+cpp_inference_ext/install_log*.txt

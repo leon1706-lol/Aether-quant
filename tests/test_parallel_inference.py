@@ -25,7 +25,7 @@ from inference.exported_model import (
     run_exported_multitask_models_batched,
     run_exported_sequence_multitask_model,
 )
-from inference.parallel_inference import init_worker, run_symbol_inference
+from inference.parallel_inference import init_worker, run_symbol_inference, windows_parallelism_slowdown_warning
 
 EXPERT_NAMES = ["bullish", "bearish", "sideways", "volatility"]
 
@@ -254,3 +254,27 @@ def test_run_symbol_inference_via_real_process_pool_matches_direct_call():
     assert pooled_result["multitask_result"]["direction"] == pytest.approx(
         direct_result["multitask_result"]["direction"], abs=1e-9
     )
+
+
+# ---------------------------------------------------------------------------
+# windows_parallelism_slowdown_warning() - development/Problems.md #65/#69:
+# main.py self.Debug()s this once, right after the pool starts successfully,
+# only on Windows (the only platform this project has actually measured the
+# ProcessPoolExecutor slowdown on).
+# ---------------------------------------------------------------------------
+
+
+def test_windows_parallelism_slowdown_warning_fires_on_windows():
+    message = windows_parallelism_slowdown_warning("win32")
+
+    assert message is not None
+    assert "#65" in message
+    assert "Windows" in message
+
+
+def test_windows_parallelism_slowdown_warning_silent_on_linux():
+    assert windows_parallelism_slowdown_warning("linux") is None
+
+
+def test_windows_parallelism_slowdown_warning_silent_on_darwin():
+    assert windows_parallelism_slowdown_warning("darwin") is None

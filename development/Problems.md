@@ -1283,7 +1283,7 @@ collected-test count too, not just the shields.io badge.
 ---
 
 ### 32. Latency deep-dive follow-up — weight-array/stack caching, `aq profile`, opt-in per-symbol multiprocessing, C++ extension attempt
-**Severity:** n/a (optimization pass) · **Status:** 🟢 `fixed` (weight caching, harness, `aq profile`, multiprocessing, AND the C++ extension — built, compiled, verified importable, measured, tested; corrected from an earlier stale "in progress" badge, confirmed by re-checking this session: `cpp_inference_ext/cpp_inference.cp314-win_amd64.pyd` exists and `hasattr(cpp_inference, "linear_batched")` is `True` in `.venv` right now)
+**Severity:** n/a (optimization pass) · **Status:** 🟢 `fixed` (weight caching, harness, `aq profile`, multiprocessing, AND the C++ extension — built, compiled, verified importable, measured, tested locally; corrected from an earlier stale "in progress" badge, confirmed by re-checking this session: `cpp_inference_ext/cpp_inference.cp314-win_amd64.pyd` exists and `hasattr(cpp_inference, "linear_batched")` is `True` in `.venv` right now. **Docker build coverage added in entry #68** — the container image now attempts this build for its own Python 3.11 at `docker build`/`docker compose build engine` time, soft-fail, so a base-image regression degrades the image to the always-correct NumPy fallback instead of breaking the build; this is "now attempted," not "guaranteed" — see #68 for what still needs a human/agent to confirm)
 
 Direct follow-up to #31, after re-profiling the already-batched/vectorized
 hot path and finding `numpy.asarray()` conversions were now the single
@@ -4070,5 +4070,128 @@ from 18) — margin-source validation/case-insensitivity/typo-fallback,
 live-spec shape/defaults, and the interchangeability proof. `main.py`
 wiring verified via call-graph trace (same established convention —
 `main.py` itself remains unit-untestable).
+
+### 68. `cpp_inference_ext` was never built for the actual deployed image — closed via a soft-fail Docker build step
+
+**Severity:** low (silent perf-only gap, not correctness) · **Status:** 🟢 fixed, pending a human/agent `docker compose build engine` run to confirm real linkage (see verification below)
+
+`cpp_inference_ext/` (entry #32) accelerates `inference/exported_model.py::_linear_batched()`
+via an optional pybind11 C++ extension, imported as `cpp_inference` and
+protected end-to-end by a deferred import + per-call try/except fallback
+to pure NumPy on any failure. The only compiled artifact that ever
+existed, `cpp_inference_ext/cpp_inference.cp314-win_amd64.pyd`, was built
+by hand on this dev machine's own Python 3.14 — permanently ABI-
+incompatible with the deployed image's `python:3.11-slim`. The single
+`Dockerfile` never referenced `cpp_inference_ext` at all: no compiler
+install step, no `pip install ./cpp_inference_ext`, and `pybind11` was
+listed only in `requirements-dev.txt` (correctly, as build-time-only),
+never in the file the Dockerfile actually installs from. The extension
+has therefore never run inside any deployed container — a 100% silent
+gap, since `cpp_inference_ext/README.md` deliberately documents "no
+error, no warning, just a small perf difference" for the fallback path,
+which is correct and untouched here.
+
+**Fix**: one new soft-fail `RUN` step in the Dockerfile's single runtime
+stage — installs `build-essential` (absent from `python:3.11-slim`),
+`pybind11>=2.10`, then `pip install ./cpp_inference_ext`, then purges
+`build-essential` in the SAME layer (a separate later `RUN apt-get purge`
+would not shrink the image — layers are additive). The entire chain is
+wrapped in `(...) || echo "..."`, so any failure — toolchain issue, ABI
+mismatch, a future base-image change — degrades to "extension absent,
+NumPy fallback" exactly like today, never a broken image build. Also
+added matching `cpp_inference_ext/{build/,*.egg-info/,*.pyd,*.so,
+install_log*.txt}` excludes to `.dockerignore` (it previously excluded
+none of these, unlike `.gitignore`), so a developer's own locally-built,
+ABI-incompatible binary can never leak into the build context and get
+baked into the publicly-published `ghcr.io` image.
+
+**Honest framing**: this is "now attempted during every Docker build,"
+not "guaranteed to succeed" — that's the whole point of soft-fail. A
+human/agent must still run `docker compose build engine` and check the
+extension actually imports inside the built image before claiming it's
+active in any real deployment; this entry does not assert that by
+itself. Zero risk to existing CI — neither `ci.yml` job builds the
+Docker image; only `release.yml`'s `publish-docker` job does, gated on
+`v*.*.*` tag pushes, and the soft-fail wrapper protects that path too.
+
+### 69. Audit follow-up — `main.py` CI syntax-check gate, and a Windows-specific inference-parallelism slowdown guard
+
+**Severity:** low (coverage/visibility gaps, not correctness bugs) · **Status:** 🟢 fixed
+
+Two small, independent gaps a quality audit found capping this codebase's
+latency-related rating:
+
+**`main.py` had zero CI coverage — not even a syntax check.**
+`.github/workflows/ci.yml`'s `test` job installs dependencies and runs
+`pytest`, but no test file can import `main.py` (`from AlgorithmImports
+import *` at module scope means `QCAlgorithm` is undefined outside a real
+Lean process — a confirmed, permanent constraint, not something worked
+around here). New `python -m py_compile main.py` step, added before
+dependency install for fail-fast speed — stdlib-only, sub-second, proves
+the file at least parses before merge, nothing more. **Honest framing:
+this does not make `main.py` "tested"** — it only rules out "doesn't even
+parse," the one thing nothing previously proved. An advisory mypy/pyright
+pass using the locally-installed `quantconnect-stubs` package was
+considered and declined for now: beyond the already-documented
+PascalCase/snake_case stub mismatch (entry #34),
+`AlgorithmImports/__init__.pyi` itself is not a clean PEP 561
+declarations-only stub — it contains live runtime bootstrapping code
+(`clr.AddReference`, an `os.listdir` assembly-loading loop) inside a
+`.pyi` file, then wildcard-imports ~35 separate `QuantConnect.*`
+submodules, which would very likely produce overwhelming import-
+resolution noise before reaching a single line of `main.py`'s own logic —
+even as a non-blocking `continue-on-error` step, a check expected to fail
+on every run trains reviewers to ignore it rather than adding real
+signal. Revisit only if a real local stub override is built separately.
+
+**`phase_v2.inference_parallelism.enabled` had no runtime guard despite a
+measured Windows-specific slowdown.** Entry #65's Priority 6 IPC-overhead
+benchmark (`scripts/profile_inference.py --parallel`) measured this
+pool as dramatically slower than sequential on this dev machine
+(Windows, `spawn` start method): single-digit-ms sequential bars vs.
+multi-second, in one run five-figure-ms, pooled bars at small
+symbols-per-bar/iteration counts — a measured finding, not a theoretical
+one, and specific to Windows' `spawn` (Linux's `fork` has never been
+measured by this project). Two guards added, matching this project's
+"warn but never refuse" config-safety philosophy
+(`aq_cli.py::_set_config_value()`'s own stated convention):
+1. `inference/parallel_inference.py::windows_parallelism_slowdown_warning(platform)`
+   — a small, Lean-independent pure function (same "closest achievable
+   main.py test" pattern as entry #66's exit-logic extraction), returning
+   the warning message only for `"win32"`, `None` otherwise. `main.py`
+   calls it once, right after the `ProcessPoolExecutor` construction
+   that already exists (`main.py:1112-1118`), and `self.Debug()`s the
+   result only when non-`None` — fires only on Windows, only when the
+   pool actually started. Does not touch either of the two existing
+   reactive fallback `self.Debug()` calls (pool-construction failure;
+   per-symbol failure/timeout in `on_data()`'s Pass 1b), which stay
+   exactly as they were.
+2. `aq_cli.py`'s `aq config set` path gained a second, key-specific
+   stderr warning (alongside, never replacing, the existing generic
+   type-change warning) firing only for
+   `phase_v2.inference_parallelism.enabled` being set truthy — citing the
+   same #65 measurement, so the warning reaches whoever flips the flag at
+   set-time, not just buried in the next run's debug log.
+3. `config.json` gained an explicit `phase_v2.inference_parallelism:
+   {"enabled": false}` block, matching every sibling opt-in flag's
+   existing convention (`ib`/`futures_risk`/`forex_risk`/`options_risk`/
+   `gc_tuning`/`topology`) — previously this flag was pure code-side
+   default with no key in `config.json` at all, which meant `aq config
+   set phase_v2.inference_parallelism.enabled true` actually failed
+   outright with `ConfigPathError: no such config key` (confirmed this
+   session) rather than silently succeeding as originally assumed. This
+   addition reproduces the existing code-side default exactly (zero
+   behavior change) and is what makes both the CLI warning above and
+   basic `aq config get/set` discoverability of this flag possible at
+   all.
+
+New tests: `tests/test_parallel_inference.py` (existing file, extended)
+gains coverage of `windows_parallelism_slowdown_warning()` for `"win32"`
+vs. `"linux"`/`"darwin"` (real pytest coverage, unlike `main.py` itself);
+`tests/test_aq_cli.py` gains 4 new `set`-path tests asserting the new
+stderr warning fires only for this exact dotted path, only when truthy,
+and only against `config.json` (never `lean.json` — proven with a
+structurally-identical dotted path on a `lean.json` fixture, confirming
+the gate is `json_path == CONFIG_PATH`, not merely key-presence).
 
 ---

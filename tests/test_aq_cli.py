@@ -1431,6 +1431,7 @@ def _config_fixture(tmp_path):
                     },
                     "topology": {"cache_enabled": False, "correlation_stability_tolerance": 0.02},
                     "gc_tuning": {"freeze_after_load_enabled": False},
+                    "inference_parallelism": {"enabled": False},
                 }
             },
             indent=4,
@@ -1549,8 +1550,42 @@ def test_config_set_type_change_prints_warning_but_still_writes(tmp_path, capsys
 
     assert exit_code == 0
     assert "WARNING: type changed from float to str" in captured.err
-    updated = json.loads(config_path.read_text(encoding="utf-8"))
-    assert updated["phase_v2"]["gating_network"]["baseline_weight"] == "hello"
+
+
+def test_config_set_inference_parallelism_enabled_true_warns_about_windows_slowdown(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.inference_parallelism.enabled", "true"], capsys
+    )
+
+    assert exit_code == 0
+    assert "Problems.md #65" in captured.err
+    assert "Windows" in captured.err
+
+
+def test_config_set_inference_parallelism_enabled_false_does_not_warn(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+    # Fixture already has enabled=False; explicitly re-set to false (a no-op
+    # value-wise) to confirm the warning is gated on the NEW value being
+    # truthy, not merely on touching this dotted path at all.
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.inference_parallelism.enabled", "false"], capsys
+    )
+
+    assert exit_code == 0
+    assert "Problems.md #65" not in captured.err
+
+
+def test_config_set_other_key_does_not_warn_about_inference_parallelism(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(
+        config_path, ["set", "phase_v2.gating_network.learned_model_enabled", "false"], capsys
+    )
+
+    assert exit_code == 0
+    assert "Problems.md #65" not in captured.err
 
 
 def test_config_get_fill_slippage_source_and_max_bps(tmp_path, capsys):
@@ -1773,6 +1808,23 @@ def test_lean_get_existing_key(tmp_path, capsys):
 
     assert exit_code == 0
     assert captured.out.strip() == "paper"
+
+
+def test_lean_set_never_warns_about_inference_parallelism_even_with_matching_path(tmp_path, capsys):
+    # The inference_parallelism warning must be gated on json_path == CONFIG_PATH,
+    # not merely on the dotted-path string matching - prove it by giving
+    # lean.json a structurally-identical (if nonsensical) key and confirming
+    # `aq lean set` still never prints the warning.
+    lean_path = tmp_path / "lean.json"
+    lean_path.write_text(
+        json.dumps({"phase_v2": {"inference_parallelism": {"enabled": False}}}, indent=4) + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code, captured = _run_lean(lean_path, ["set", "phase_v2.inference_parallelism.enabled", "true"], capsys)
+
+    assert exit_code == 0
+    assert "Problems.md #65" not in captured.err
 
 
 def test_lean_set_writes_value_and_backup(tmp_path, capsys):

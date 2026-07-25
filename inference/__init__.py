@@ -12,7 +12,7 @@ from .exported_model import (
     run_exported_sequence_multitask_model,
     run_exported_sequence_multitask_model_batched,
 )
-from .parallel_inference import init_worker, run_symbol_inference
+from .parallel_inference import init_worker, run_symbol_inference, windows_parallelism_slowdown_warning
 from .strategy_selector_inference import build_strategy_selector_features, score_strategies
 
 __all__ = [
@@ -32,4 +32,5 @@ __all__ = [
     "run_exported_sequence_multitask_model_batched",
     "run_symbol_inference",
     "score_strategies",
+    "windows_parallelism_slowdown_warning",
 ]

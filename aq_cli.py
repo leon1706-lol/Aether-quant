@@ -1065,6 +1065,14 @@ def _dispatch_json_config_command(args: argparse.Namespace, json_path: Path, com
                     f"for {args.dotted_path}",
                     file=sys.stderr,
                 )
+            if json_path == CONFIG_PATH and args.dotted_path == "phase_v2.inference_parallelism.enabled" and new_value:
+                print(
+                    "WARNING: phase_v2.inference_parallelism.enabled=true - development/Problems.md #65 "
+                    "measured this ProcessPoolExecutor pool as dramatically slower than sequential on "
+                    "Windows' spawn start method (never measured on Linux/fork). main.py will also log "
+                    "this at startup on Windows if the pool actually starts.",
+                    file=sys.stderr,
+                )
             return 0
     except ConfigPathError as error:
         print(f"error: {error}", file=sys.stderr)

@@ -25,6 +25,7 @@ import bisect
 import gc
 import json
 import math
+import sys
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
@@ -133,6 +134,7 @@ from inference import (
     run_exported_sequence_multitask_model_batched,
     run_symbol_inference,
     score_strategies,
+    windows_parallelism_slowdown_warning,
 )
 from features import (
     analytic_convexity,
@@ -1114,6 +1116,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             except Exception as error:
                 self.Debug(f"Inference parallelism pool failed to start, falling back to sequential: {error}")
                 self._inference_pool = None
+
+            if self._inference_pool is not None:
+                windows_warning = windows_parallelism_slowdown_warning(sys.platform)
+                if windows_warning is not None:
+                    self.Debug(windows_warning)
 
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
         self._liquidity_thresholds = {

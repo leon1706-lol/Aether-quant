@@ -38,6 +38,28 @@ from __future__ import annotations
 _worker_model_exports: dict | None = None
 
 
+def windows_parallelism_slowdown_warning(platform: str) -> str | None:
+    """Returns the Windows-specific inference-parallelism slowdown warning
+    for main.py to self.Debug() once, right after the pool starts
+    successfully - None on every other platform, since this has only ever
+    been measured on Windows (development/Problems.md #65: Windows'
+    spawn-based ProcessPoolExecutor measured dramatically slower than
+    sequential - single-digit-ms sequential bars vs. multi-second, in one
+    run five-figure-ms, pooled bars). Never claims anything about
+    Linux/fork, which this project has never measured."""
+    if platform != "win32":
+        return None
+    return (
+        "phase_v2.inference_parallelism.enabled is active on Windows - "
+        "development/Problems.md #65 measured this ProcessPoolExecutor "
+        "pool as dramatically slower than sequential on Windows' spawn "
+        "start method (single-digit-ms sequential bars vs. multi-second, "
+        "in one run five-figure-ms, pooled bars). Not measured on "
+        "Linux/fork. Consider setting phase_v2.inference_parallelism.enabled "
+        "back to false unless your own measurement shows otherwise."
+    )
+
+
 def init_worker(model_exports: dict) -> None:
     """ProcessPoolExecutor `initializer` - runs once when each worker
     process starts, storing this run's model exports (baseline, experts,
