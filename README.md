@@ -865,14 +865,12 @@ All finished phases and changes can be found in
 
 ### V4, 🔜 Next Up
 
-**Optimization** — ✅ V4.9's major latency pass shipped: a live per-bar disk-I/O bug removed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling (`--parallel`, `--options`). See `development/Problems.md` #63+.
+**Optimization**
 - Model fine-tuning, a critical 1-10 review of the retrained model's actual performance (development/Problems.md #52/#54), and a concrete plan to close the gap to a 10/10 signal (clearing the non-overlapping significance bar, not just the full-series one).
 
 **Training**
 - Walk-forward training, Stage 6 of the rank-pivot roadmap (`phase_v2.retraining.walk_forward`, `aq train --walk-forward`) — **fully implemented in code** (`train.py::_run_walk_forward()`/`generate_walk_forward_windows()`, the CLI flag itself) since the rank-pivot session; the ~27-window, multi-hour run just hasn't been executed in this environment yet. Running it (no Docker/IB needed, pure local compute) would let `rank_20d`'s promotion-quality/significance numbers actually update — see development/Problems.md #43/#56.
 
-**Assets** — ✅ full `OptionStrategies` coverage (V4.5), arbitrage mispricing detector + per-asset strategy override + Forex + bond-ETF analytics (V4.6), early-assignment/corporate-action modeling + a learned multi-leg strategy-selector model + bond analytics wired into the trained model (V4.7) shipped, see `development/Changelog.md` / `development/Problems.md` #59/#60/#61
-- Any other major asset classes still missing.
 
 **Tests / production readiness**
 - Real IB API key insertion and testing, the one blocker behind #29/#38's unverified items and the README's Known Limitations.

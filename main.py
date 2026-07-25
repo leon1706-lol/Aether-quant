@@ -52,7 +52,7 @@ from risk.asset_class_router import (
     should_liquidate_disabled_asset_class_position,
 )
 from risk.forex_risk import load_forex_pair_specs
-from risk.futures_risk import load_futures_contract_specs
+from risk.futures_risk import build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
 from portfolio import build_rank_based_book, normalize_per_asset_class_slots, should_rebalance_this_bar
@@ -810,6 +810,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.futures_risk_enabled = bool(phase_v2_futures_risk.get("enabled", False))
         self.futures_target_margin_utilization = float(phase_v2_futures_risk.get("target_margin_utilization", 0.20))
         self.futures_max_margin_utilization = float(phase_v2_futures_risk.get("max_margin_utilization", 0.40))
+        # Follow-up (development/Problems.md #67) - opt-in via
+        # `aq config set phase_v2.futures_risk.margin_source live`.
+        # "live" means Lean's own LOCAL IB-calibrated BuyingPowerModel
+        # (attached per-security in _add_asset(), queried in
+        # _resolve_futures_contract_spec()), never a live network call to
+        # IB's servers - too slow for on_data(), and not what this does.
+        # Default "static" reproduces today's exact behavior (the offline
+        # reference file above) byte-identically. Code-complete but
+        # genuinely Lean-API-unverified - this project has never
+        # completed a real Lean backtest with a futures position sized,
+        # let alone one exercising this specific BuyingPowerModel query
+        # path - every live-margin call site below has a full fallback to
+        # the static spec on ANY failure, never allowed to crash or
+        # silently corrupt sizing.
+        self.futures_margin_source = resolve_futures_margin_source(phase_v2_futures_risk.get("margin_source", "static"))
         # V4.6 - Forex/FX, code-complete/IB-unverified, same status
         # futures/options shipped with (see risk/forex_risk.py's own
         # module docstring). Static offline/backtest fallback pair specs -
@@ -2121,6 +2136,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # (e.g. "ES") unless lean_future_ticker overrides it.
                 security = self.add_future(asset.get("lean_future_ticker", ticker), self.resolution)
                 security.SetFilter(0, 90)
+                # Follow-up (development/Problems.md #67) -
+                # phase_v2.futures_risk.margin_source == "live": attach
+                # Lean's own IB-calibrated margin model to THIS security
+                # only, never a global self.SetBrokerageModel() call
+                # (which would silently change equity/crypto/forex/
+                # options margin/fee/slippage models too - scoped
+                # per-security specifically to avoid that). Genuinely
+                # Lean-API-unverified (never run against a real Lean
+                # process) - any failure here just leaves the security on
+                # whatever buying-power model add_future() already gave
+                # it; _resolve_futures_contract_spec() below has its own
+                # independent fallback to the static spec regardless.
+                if self.futures_margin_source == "live":
+                    try:
+                        ib_brokerage_model = InteractiveBrokersBrokerageModel(AccountType.Margin)
+                        security.SetBuyingPowerModel(ib_brokerage_model.GetBuyingPowerModel(security))
+                    except Exception as error:
+                        self.Debug(f"Live IB margin model attach failed for {ticker}, using Lean's default: {error}")
             elif security_type == "option":
                 # Near-the-money, <=60 day chain. Chain data comes from
                 # Lean's own local backtest feed (slice.option_chains) -
@@ -2802,7 +2835,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             equity_crypto_kwargs=equity_crypto_kwargs,
             price=close_price,
             portfolio_value=portfolio_value,
-            contract_spec=self.futures_contract_specs.get(asset.get("ticker"), {}),
+            contract_spec=self._resolve_futures_contract_spec(asset),
             futures_kwargs=dict(
                 target_margin_utilization=self.futures_target_margin_utilization,
                 max_margin_utilization=self.futures_max_margin_utilization,
@@ -4312,7 +4345,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 return self._apply_option_order(symbol, symbol_key, sizing_payload, target_weight, close_price, orders_allowed, permission_reason)
 
             if asset_class == "future":
-                contract_spec = self.futures_contract_specs.get(asset.get("ticker"), {})
+                contract_spec = self._resolve_futures_contract_spec(asset)
                 contract_count = self._futures_contract_count_for_weight(target_weight, contract_spec, close_price, orders_allowed)
                 if contract_count == 0:
                     return "futures_zero_contract_count"
@@ -4490,7 +4523,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if asset_class == "option":
                 return self._apply_option_order(symbol, symbol_key, sizing_payload, target_weight, close_price, orders_allowed, permission_reason)
             if asset_class == "future":
-                contract_spec = self.futures_contract_specs.get(asset.get("ticker"), {})
+                contract_spec = self._resolve_futures_contract_spec(asset)
                 contract_count = self._futures_contract_count_for_weight(target_weight, contract_spec, close_price, orders_allowed)
                 if contract_count == 0:
                     return "futures_zero_contract_count"
@@ -4815,6 +4848,52 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 continue
             exposure += abs(self._simulated_portfolio.position_value(symbol_key)) / total_value
         return exposure
+
+    def _resolve_futures_contract_spec(self, asset: dict) -> dict:
+        """Follow-up (development/Problems.md #67) - the single resolution
+        point every futures margin/sizing call site uses, replacing the
+        previous direct self.futures_contract_specs.get(ticker, {})
+        reads. Default (phase_v2.futures_risk.margin_source == "static",
+        every existing caller/config unchanged): returns the offline
+        reference spec exactly as before, byte-identical.
+
+        "live": queries the security's own SymbolProperties/
+        BuyingPowerModel (attached in _add_asset() when this mode is on)
+        for a real IB-calibrated initial margin requirement, and builds
+        an equivalent contract_spec dict via
+        risk/futures_risk.py::build_live_contract_spec() -
+        description/exchange carried over from the static spec (if any)
+        purely for display continuity, never read by the actual sizing
+        math. Falls back to the static spec on ANY failure - missing
+        symbol mapping, an unrecognized Lean margin-API method name
+        (genuinely unverified against a real Lean process - see this
+        method's own module-level disclosure), a non-positive resolved
+        value - never raises, never silently zeroes out sizing that the
+        static file could have served instead."""
+        ticker = asset.get("ticker")
+        static_spec = self.futures_contract_specs.get(ticker, {})
+        if self.futures_margin_source != "live":
+            return static_spec
+
+        try:
+            symbol = self.ticker_to_symbol.get(ticker)
+            if symbol is None:
+                raise KeyError(f"no tracked Symbol for futures ticker {ticker}")
+            security = self.Securities[symbol]
+            multiplier = float(security.SymbolProperties.ContractMultiplier)
+            margin_parameters = InitialMarginParameters(security, 1)
+            initial_margin = float(security.BuyingPowerModel.GetInitialMarginRequirement(margin_parameters).Value)
+            if multiplier <= 0.0 or initial_margin <= 0.0:
+                raise ValueError(f"non-positive live multiplier/margin for {ticker} ({multiplier}, {initial_margin})")
+            return build_live_contract_spec(
+                multiplier=multiplier,
+                initial_margin_usd=abs(initial_margin),
+                description=static_spec.get("description", ticker),
+                exchange=static_spec.get("exchange", ""),
+            )
+        except Exception as error:
+            self.Debug(f"Live IB margin query failed for {ticker}, falling back to static spec: {error}")
+            return static_spec
 
     def _futures_contract_count_for_weight(self, target_weight: float, contract_spec: dict, close_price: float, orders_allowed: bool) -> int:
         """Derives a whole-number contract count from the FINAL target

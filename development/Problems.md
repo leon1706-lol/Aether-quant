@@ -4003,3 +4003,72 @@ convention — verified via call-graph trace, not a new test. Re-confirm
 the exact repo-wide count via `aq test` before the next phase begins.
 
 ---
+
+### 67. V4.10 follow-up — opt-in live (Lean/IB-calibrated) futures margin source, toggleable via `aq config`
+
+**Severity:** n/a (feature, off by default) · **Status:** 🟡 code-complete, genuinely Lean-API-unverified
+
+`data/reference/futures_contract_specs.json`'s own top-level comment has,
+since V4.6, explicitly flagged "prefer IB's live margin over these
+static numbers" as a "documented future enhancement, not implemented in
+this pass." Closed now, on request: `phase_v2.futures_risk.margin_source`
+(new key, default `"static"`) is settable via `aq config set
+phase_v2.futures_risk.margin_source live` with zero CLI changes needed
+(`aq config` already operates generically on any dotted `config.json`
+key path).
+
+**What "live" actually means — precision matters here.** This is Lean's
+own **local** margin-model calculation (`InteractiveBrokersBrokerageModel`'s
+bundled IB margin rules), never a real-time network round-trip to IB's
+servers on every bar — that would be far too slow inside `on_data()` and
+is not what any real Lean algorithm does for this. `main.py::_add_asset()`
+attaches the IB-calibrated `BuyingPowerModel` to each futures security
+**individually** (`security.SetBuyingPowerModel(InteractiveBrokersBrokerageModel(AccountType.Margin).GetBuyingPowerModel(security))`)
+— deliberately never a global `self.SetBrokerageModel()` call, which
+would silently change equity/crypto/forex/options margin, fee, and
+slippage models too, not just futures. A new `main.py::_resolve_futures_contract_spec()`
+is now the single resolution point all 3 existing
+`self.futures_contract_specs.get(ticker, {})` call sites route through —
+in `"static"` mode it reproduces the exact prior behavior byte-identically;
+in `"live"` mode it queries `security.SymbolProperties.ContractMultiplier`
++ `security.BuyingPowerModel.GetInitialMarginRequirement(InitialMarginParameters(security, 1)).Value`
+and builds an equivalent `contract_spec` dict
+(`risk/futures_risk.py::build_live_contract_spec()`) that
+`build_futures_position_sizing()` consumes unchanged.
+
+**Honestly, genuinely Lean-API-unverified** — same caveat this codebase
+has applied to every other Lean-API-touching feature that's never run
+against a real backtest (2-leg spread combo orders, forex quote-bar
+fallback, limit orders). `InitialMarginParameters`'/
+`GetInitialMarginRequirement()`'s exact signature has evolved across Lean
+versions; this project has never completed a real Lean backtest with a
+futures position actually sized, let alone one exercising this specific
+margin-query path. Mitigated the only way genuinely possible without a
+real Lean install to test against: **every** live-margin call site (the
+security attach in `_add_asset()`, and the query in
+`_resolve_futures_contract_spec()`) is wrapped in its own `try/except`,
+falling back to Lean's default buying-power model / the static reference
+file respectively on ANY failure — never allowed to crash the algorithm
+or silently corrupt sizing. Also not modeled: continuous-vs-mapped-
+contract distinction (`add_future()`'s continuous security is what
+`self.ticker_to_symbol` tracks and what gets queried here; the actually-
+tradable mapped contract, `security.Mapped`, may carry a more accurate
+margin figure — left as a known, undocumented-elsewhere gap rather than
+guessed at).
+
+**Two new pure functions in `risk/futures_risk.py`**:
+`resolve_futures_margin_source()` (validates the config string, falls
+back to `"static"` on any unrecognized value — a config typo must never
+crash the algorithm) and `build_live_contract_spec()` (constructs the
+`contract_spec`-shaped dict from live values, in the exact shape
+`load_futures_contract_specs()`'s static-file path already produces —
+proven interchangeable by a test that feeds a live-built spec straight
+into `build_futures_position_sizing()` unchanged).
+
+**Testing**: 8 new tests in `tests/test_futures_risk.py` (26 total, up
+from 18) — margin-source validation/case-insensitivity/typo-fallback,
+live-spec shape/defaults, and the interchangeability proof. `main.py`
+wiring verified via call-graph trace (same established convention —
+`main.py` itself remains unit-untestable).
+
+---

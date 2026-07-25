@@ -159,13 +159,26 @@ stays asset-class-agnostic.
   `contract_count` (Lean trades futures in whole contracts, never
   fractional weights). Contract specs (multiplier/tick/margin) come from
   `data/reference/futures_contract_specs.json`, a static offline/backtest
-  fallback — prefer live IB margin once connected (documented future
-  enhancement, not implemented). `rollover_due()` is a diagnostic date
-  check only — actual rollover is entirely Lean's native `add_future()` +
-  continuous-contract `SetFilter()` (`main.py::_add_asset()`); this module
-  never triggers a trade on its own. Config:
-  `phase_v2.futures_risk.{enabled,target_margin_utilization,max_margin_utilization}`,
-  off by default.
+  fallback — always available regardless of the setting below.
+  **Follow-up (development/Problems.md #67): opt-in live margin source.**
+  `phase_v2.futures_risk.margin_source` (`"static"` default, or `"live"`)
+  toggles which margin numbers feed `build_futures_position_sizing()`:
+  `"live"` attaches Lean's own IB-calibrated `BuyingPowerModel` to each
+  futures security individually (`main.py::_add_asset()`, never a global
+  `SetBrokerageModel()` call — that would silently change equity/crypto/
+  forex/options margin too), then queries it per sizing call
+  (`main.py::_resolve_futures_contract_spec()`,
+  `build_live_contract_spec()` below). "Live" means Lean's own LOCAL
+  margin-model calculation, never a live network round-trip to IB's
+  servers (far too slow for `on_data()`). Falls back to the static file
+  on ANY failure — code-complete but genuinely Lean-API-unverified (this
+  project has never run a real Lean backtest with a futures position
+  sized). `rollover_due()` is a diagnostic date check only — actual
+  rollover is entirely Lean's native `add_future()` + continuous-contract
+  `SetFilter()` (`main.py::_add_asset()`); this module never triggers a
+  trade on its own. Config:
+  `phase_v2.futures_risk.{enabled,target_margin_utilization,max_margin_utilization,margin_source}`,
+  off by default (`margin_source` too — `"static"`).
 - **`../portfolio/options_strategy.py::build_options_position_sizing()`**
   (in the `portfolio` package, not here — needs the whole option chain,
   not a scalar signal) — real Black-Scholes-Merton greeks

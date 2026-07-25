@@ -3,7 +3,9 @@ from datetime import date
 
 from risk.futures_risk import (
     build_futures_position_sizing,
+    build_live_contract_spec,
     load_futures_contract_specs,
+    resolve_futures_margin_source,
     rollover_due,
 )
 
@@ -146,3 +148,64 @@ def test_rollover_due_false_when_expiry_unknown():
 
 def test_rollover_due_true_on_expiry_day_itself():
     assert rollover_due(date(2026, 7, 12), date(2026, 7, 12), rollover_days_before_expiry=5) is True
+
+
+# ---------------------------------------------------------------------------
+# resolve_futures_margin_source / build_live_contract_spec (development/
+# Problems.md #67 - opt-in static-vs-live futures margin source)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_futures_margin_source_defaults_to_static():
+    assert resolve_futures_margin_source("static") == "static"
+
+
+def test_resolve_futures_margin_source_accepts_live():
+    assert resolve_futures_margin_source("live") == "live"
+
+
+def test_resolve_futures_margin_source_is_case_and_whitespace_insensitive():
+    assert resolve_futures_margin_source("  LIVE  ") == "live"
+    assert resolve_futures_margin_source("Static") == "static"
+
+
+def test_resolve_futures_margin_source_falls_back_to_static_on_unrecognized_value():
+    # A config typo must never crash the algorithm - degrade to the safe,
+    # always-available static reference file.
+    assert resolve_futures_margin_source("nonsense") == "static"
+    assert resolve_futures_margin_source("") == "static"
+
+
+def test_build_live_contract_spec_shape_matches_static_spec_keys():
+    spec = build_live_contract_spec(
+        multiplier=50.0, initial_margin_usd=13200.0, description="E-mini S&P 500", exchange="CME"
+    )
+    assert spec == {
+        "description": "E-mini S&P 500",
+        "multiplier": 50.0,
+        "initial_margin_usd": 13200.0,
+        "exchange": "CME",
+    }
+
+
+def test_build_live_contract_spec_defaults_description_and_exchange_to_empty_string():
+    spec = build_live_contract_spec(multiplier=50.0, initial_margin_usd=13200.0)
+    assert spec["description"] == ""
+    assert spec["exchange"] == ""
+
+
+def test_build_live_contract_spec_is_consumable_by_build_futures_position_sizing():
+    # The whole point of this function: its output must be a drop-in
+    # replacement for a static spec dict, usable by the exact same sizing
+    # function unchanged.
+    live_spec = build_live_contract_spec(multiplier=50.0, initial_margin_usd=13200.0, description="ES", exchange="CME")
+    decision = build_futures_position_sizing(
+        base_target_weight=0.1,
+        confidence=1.0,
+        price=5000.0,
+        contract_spec=live_spec,
+        portfolio_value=1_000_000,
+        target_margin_utilization=0.20,
+        max_margin_utilization=0.40,
+    )
+    assert decision.contract_count > 0

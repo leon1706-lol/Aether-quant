@@ -149,6 +149,47 @@ def build_futures_position_sizing(
     )
 
 
+def resolve_futures_margin_source(raw_value: str) -> str:
+    """Validates phase_v2.futures_risk.margin_source - "static" (default,
+    the offline data/reference/futures_contract_specs.json file) or
+    "live" (Lean's own IB-calibrated BuyingPowerModel, resolved once per
+    security at add-time and queried per sizing call - see main.py::
+    _resolve_futures_contract_spec()). "live" here means Lean's own
+    LOCAL margin-model calculation (InteractiveBrokersBrokerageModel's
+    bundled margin rules), never a live network round-trip to IB's
+    servers - that would be far too slow inside on_data() and is not
+    what this option does. Any unrecognized value (a config typo) falls
+    back to "static" rather than raising - never crashes the algorithm
+    over a bad string."""
+    normalized = str(raw_value).strip().lower()
+    return normalized if normalized in ("static", "live") else "static"
+
+
+def build_live_contract_spec(
+    multiplier: float,
+    initial_margin_usd: float,
+    description: str = "",
+    exchange: str = "",
+) -> dict:
+    """Constructs a contract_spec dict in the exact shape
+    build_futures_position_sizing() already consumes (same keys
+    load_futures_contract_specs() produces from the static JSON file),
+    from live values main.py resolves via Lean's own
+    Security.SymbolProperties/BuyingPowerModel. Pure - no Lean coupling
+    itself; only main.py's caller touches self.Securities. description/
+    exchange default to "" (informational only, never read by
+    build_futures_position_sizing()'s own sizing math) since Lean's
+    BuyingPowerModel query has no equivalent of either - callers
+    typically pass the static spec's own values through for display
+    continuity when a live spec replaces it."""
+    return {
+        "description": description,
+        "multiplier": float(multiplier),
+        "initial_margin_usd": float(initial_margin_usd),
+        "exchange": exchange,
+    }
+
+
 def rollover_due(current_date: date, contract_expiry_date: date | None, rollover_days_before_expiry: int = 5) -> bool:
     """Pure date comparison - a diagnostic/logging signal only. Actual
     contract rollover is entirely delegated to Lean's native add_future() +

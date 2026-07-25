@@ -1363,7 +1363,8 @@
             "enabled": false,
             "target_margin_utilization": 0.2,
             "max_margin_utilization": 0.4,
-            "contract_specs_path": "data/reference/futures_contract_specs.json"
+            "contract_specs_path": "data/reference/futures_contract_specs.json",
+            "margin_source": "static"
         },
         "forex_risk": {
             "enabled": false,
