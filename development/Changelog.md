@@ -4430,3 +4430,60 @@ chain-grouping parity in `tests/test_options_strategy_multileg.py`/
 `tests/test_profile_subsystems.py`, and CLI reachability in
 `tests/test_aq_cli.py`). See `development/Problems.md` #63/#65 for the
 full writeup.
+
+## V4.10 — pure-function extraction of main.py's exit logic, 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch` (Problems.md #66)
+
+**Closest achievable main.py test coverage**: a literal main.py unit test
+is confirmed impossible (re-verified this session — `AlgorithmImports`'
+wildcard import means `QCAlgorithm` is undefined outside a real Lean
+process). What's real: `_check_non_model_exit()`/
+`_update_position_exit_tracking()`'s max-holding-age/trailing-stop exit
+logic and its supporting bookkeeping were genuine, self-contained,
+Lean-decoupled business logic that had never been extracted or tested.
+New `evaluate_non_model_exit()`/`compute_position_exit_tracking_update()`
+added to the existing root-level `risk_controls.py`; `main.py`'s two
+methods are now thin call sites, verified byte-identical via static
+call-graph trace (main.py itself remains unexecutable by any test).
+
+**4 webui quality fixes**: `DerivativesMacroPanel.tsx`'s `useMemo` calls
+were silently defeated every render by inline nullish-fallback literals
+(`?? {}`/`?? []`) allocating new objects each time — fixed with stable
+module-level constants. The production bundle's single 1.27MB/348KB-gzip
+chunk is now route-level code-split via `React.lazy()`/`Suspense`
+(confirmed zero existing-test risk — `pages.test.tsx` never renders
+through `App.tsx`), splitting into small per-page chunks plus one shared
+three.js chunk only the 3 pages that need it actually download. 2 dead
+Grafana-era API routes (confirmed unreferenced by the webui) removed
+from `monitoring/api_server.py`. 24 new tests added for `format.ts` and
+the `LineChart`/`DivergingBarChart` SVG chart primitives, which had zero
+direct coverage despite being reused across every page.
+
+**15 new forex/FX assets**: forex was already fully wired in Lean since
+V4.6, blocked only by "zero live tickers configured," not an IB
+dependency. New `"forex"` `ASSET_CLASS_CONFIG` entry in
+`data_pipeline/fetch.py` (yfinance-backed, like crypto/stock). Lean's
+real forex daily CSV is a 10-column bid/ask format, not the 5-column
+mid-price shape every other asset class here uses — new
+`synthesize_forex_bid_ask_row()`/`forex_rows_to_lean_csv()`/
+`write_lean_forex_zip()` (`data_pipeline/yfinance_backfill.py`) duplicate
+OHLC into both bid/ask groups (an honest, documented zero-spread
+approximation), while carefully preserving the real historical bid≠ask
+spread already present in the local sample data on any merge.
+`data/reference/forex_pair_specs.json` extended from 7 to 15 pairs. All
+15 pairs were actually fetched via real `aq fetch forex ... --apply`
+calls against Yahoo Finance — `config.json`'s universe grew 74 → 89
+assets. `phase_v2.forex_risk.enabled` stays off by default, matching
+this project's established "code-complete but opt-in" precedent. Per the
+user's explicit direction, `python train.py --dataset-only` was **not**
+run this session — `development/asset_universe.md` marks the 15 new
+pairs "Trading (expected)" based on full-window data coverage, not a
+confirmed classification, and the real training run is left for the
+user to do manually.
+
+**Testing**: 1857 → a higher count, exact final total pending a full
+suite re-run (new exit-logic coverage in `tests/test_risk_controls.py`;
+24 new webui tests, full webui suite confirmed 37/37 passing; forex
+asset-class/writer coverage in `tests/test_fetch.py`/
+`tests/test_yfinance_backfill.py`, zero real network access in any
+test). `webui`: build/lint/test all clean. See `development/Problems.md`
+#66 for the full writeup.

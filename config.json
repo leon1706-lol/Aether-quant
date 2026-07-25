@@ -1027,6 +1027,126 @@
                     "data_path": "data/crypto/coinbase/daily/zecusd_trade.zip",
                     "available_from": "2017-11-09",
                     "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EURUSD",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/eurusd.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "GBPUSD",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/gbpusd.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "USDJPY",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/usdjpy.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "AUDUSD",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/audusd.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "USDCAD",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/usdcad.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "USDCHF",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/usdchf.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "NZDUSD",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/nzdusd.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EURGBP",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/eurgbp.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EURJPY",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/eurjpy.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "GBPJPY",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/gbpjpy.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EURCHF",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/eurchf.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "EURAUD",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/euraud.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "AUDJPY",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/audjpy.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "CADJPY",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/cadjpy.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "GBPCAD",
+                    "security_type": "forex",
+                    "market": "oanda",
+                    "data_path": "data/forex/oanda/daily/gbpcad.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-31"
                 }
             ],
             "common_window": {
@@ -1262,7 +1382,11 @@
             "short_leg_delta_offset": 0.2,
             "max_positions_per_underlying": 1,
             "multi_leg_strategies_enabled": false,
-            "enabled_strategy_names": ["single_leg", "bull_call_spread", "bear_put_spread"],
+            "enabled_strategy_names": [
+                "single_leg",
+                "bull_call_spread",
+                "bear_put_spread"
+            ],
             "volatility_view": {
                 "annualize_predicted_volatility": true,
                 "margin": 0.05,

@@ -344,6 +344,54 @@ def test_test_cli_flag_restricts_to_cli_subsystem_files():
     assert "tests/test_risk_controls.py" not in cmd
 
 
+def test_test_audit_flag_restricts_to_audit_subsystem_files():
+    # V4.9 follow-up: audit/ (test_hash_chain.py/test_audit_queue.py/
+    # test_postgres_audit.py/test_audit_postgres_worker.py/
+    # test_audit_status_export.py) had no _SUBSYSTEM_TEST_FILES bucket at
+    # all despite `aq audit-log` existing - a real coverage gap, not just
+    # a doc one, since `aq test --audit` previously matched no files.
+    captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["test", "--audit"])
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+        args.func(args)
+
+    cmd = captured_mock.call_args.args[0]
+    assert "tests/test_hash_chain.py" in cmd
+    assert "tests/test_audit_queue.py" in cmd
+    assert "tests/test_risk_controls.py" not in cmd
+
+
+def test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket():
+    # Regression guard for the exact drift this fixed: _SUBSYSTEM_TEST_FILES
+    # is hand-maintained (not derived from the filesystem), so it silently
+    # falls behind as new test files are added. Locks in "every real
+    # tests/test_*.py file (except the deliberately-excluded
+    # test_lean_backtest_ml_coverage.py, gated by marker not subsystem
+    # flag) appears in exactly one bucket" so a future new test file
+    # missing from every bucket fails CI instead of just quietly working
+    # via the flag-less default run.
+    from pathlib import Path
+
+    real_files = {
+        p.name for p in (aq_cli.ROOT_DIR / "tests").glob("test_*.py")
+        if p.name != "test_lean_backtest_ml_coverage.py"
+    }
+    mapped_files: dict[str, list[str]] = {}
+    for bucket, files in aq_cli._SUBSYSTEM_TEST_FILES.items():
+        for f in files:
+            mapped_files.setdefault(f, []).append(bucket)
+
+    missing = real_files - mapped_files.keys()
+    assert not missing, f"test files present on disk but in no _SUBSYSTEM_TEST_FILES bucket: {sorted(missing)}"
+
+    stale = mapped_files.keys() - real_files
+    assert not stale, f"_SUBSYSTEM_TEST_FILES references files no longer on disk: {sorted(stale)}"
+
+    duplicated = {f: buckets for f, buckets in mapped_files.items() if len(buckets) > 1}
+    assert not duplicated, f"test files listed in more than one bucket: {duplicated}"
+
+
 def test_test_multiple_subsystem_flags_combine():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()

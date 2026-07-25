@@ -456,6 +456,25 @@ touching any other asset class. Code-complete, IB-unverified, zero live
 forex tickers configured — the same shipping posture futures/options
 themselves established.
 
+**Follow-up (V4.10, development/Problems.md #66): the "zero live forex
+tickers configured" blocker above is now closed.** 15 real forex pairs
+(`EURUSD`, `GBPUSD`, `USDJPY`, `AUDUSD`, `USDCAD`, `USDCHF`, `NZDUSD`,
+`EURGBP`, `EURJPY`, `GBPJPY`, `EURCHF`, `EURAUD`, `AUDJPY`, `CADJPY`,
+`GBPCAD`) were fetched via a new `aq fetch forex` asset class
+(`data_pipeline/fetch.py`, yfinance-backed like crypto/stock — forex was
+never actually IB-blocked the way futures/options are, since backtest
+data doesn't need a live IB connection) and added to `config.json`'s
+universe, with `data/reference/forex_pair_specs.json` extended from 7 to
+15 pairs. `phase_v2.forex_risk.enabled` **still defaults to `false`** —
+deliberately, matching this project's own repeated precedent (V4.5's 43
+option strategies, V4.6's own arbitrage detector, V4.7's strategy-selector
+model all shipped code-complete but off by default even when nothing
+technically blocked activation). Enabling is one command away:
+`aq config set phase_v2.forex_risk.enabled true`, once the user has
+reviewed real trade behavior against these 15 pairs. See
+`development/asset_universe.md` for the full pair list and each pair's
+expected trading-vs-observation classification.
+
 Individual-bond trading was investigated and found **infeasible** under
 this Lean version (no `SecurityType.Bond` anywhere in the real Lean
 source) — reframed into real analytic bond-ETF duration/convexity

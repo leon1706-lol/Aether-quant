@@ -186,6 +186,118 @@ def write_lean_zip(output_zip: Path, ticker: str, new_rows: list[dict], *, merge
 
 
 # ---------------------------------------------------------------------------
+# V4.10 — forex sibling of the 5-column mid-price OHLCV functions above.
+# Lean's real forex daily CSV is a 10-column bid/ask format (confirmed
+# directly against the real local sample zips under
+# data/forex/{oanda,fxcm}/daily/ - see data/forex/readme.md), not the flat
+# OHLCV shape equity/crypto use. Yahoo Finance's own FX data is mid/last
+# OHLC only (no real bid/ask spread), so synthesize_forex_bid_ask_row()
+# below is an honest, documented zero-spread APPROXIMATION for backtest/
+# training purposes only, never a live spread feed (development/
+# Problems.md #66). The real local sample data (2007+) DOES carry genuine
+# historical bid != ask spread, so the merge path here preserves full
+# 10-field rows on overlap, never collapsing existing real rows to a
+# synthesized mid — same "existing/real rows always win" convention as
+# write_lean_zip() above.
+# ---------------------------------------------------------------------------
+
+
+def synthesize_forex_bid_ask_row(row: dict) -> dict:
+    """Yahoo Finance's FX data is mid/last OHLC only, no real bid/ask
+    spread — this is a documented, honest zero-spread APPROXIMATION for
+    backtest/training purposes only, never a live spread feed (see
+    development/Problems.md #66). Duplicates the same OHLC values into
+    both the bid and ask column groups, volume 0 in both — matches the
+    real Lean forex daily CSV shape (data/forex/readme.md) without
+    inventing a fake spread number."""
+    return {
+        "date": row["date"],
+        "bid_open": row["open"],
+        "bid_high": row["high"],
+        "bid_low": row["low"],
+        "bid_close": row["close"],
+        "bid_volume": 0,
+        "ask_open": row["open"],
+        "ask_high": row["high"],
+        "ask_low": row["low"],
+        "ask_close": row["close"],
+        "ask_volume": 0,
+    }
+
+
+def forex_rows_to_lean_csv(rows: list[dict]) -> str:
+    """10-column bid/ask Lean forex daily CSV — the FX sibling of
+    rows_to_lean_csv(). Rows already carry all 10 value fields (see
+    synthesize_forex_bid_ask_row()/_read_existing_lean_forex_rows() below)
+    — this function only formats and sorts, never synthesizes."""
+    ordered = sorted(rows, key=lambda row: row["date"])
+    lines = [
+        f"{row['date'].strftime('%Y%m%d')} 00:00,"
+        f"{row['bid_open']},{row['bid_high']},{row['bid_low']},{row['bid_close']},{row['bid_volume']},"
+        f"{row['ask_open']},{row['ask_high']},{row['ask_low']},{row['ask_close']},{row['ask_volume']}"
+        for row in ordered
+    ]
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def _read_existing_lean_forex_rows(path: Path) -> list[dict]:
+    """Forex sibling of _read_existing_lean_rows() — 11-field split (date
+    + 10 bid/ask values), preserves real bid/ask exactly as stored, no
+    collapsing to mid."""
+    rows: list[dict] = []
+    with ZipFile(path) as archive:
+        member = archive.namelist()[0]
+        with archive.open(member) as handle:
+            text = handle.read().decode("utf-8")
+
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        (
+            date_field, bid_open, bid_high, bid_low, bid_close, bid_volume,
+            ask_open, ask_high, ask_low, ask_close, ask_volume,
+        ) = line.split(",")
+        row_date = datetime.strptime(date_field.split()[0], "%Y%m%d").date()
+        rows.append(
+            {
+                "date": row_date,
+                "bid_open": _numeric(bid_open), "bid_high": _numeric(bid_high),
+                "bid_low": _numeric(bid_low), "bid_close": _numeric(bid_close),
+                "bid_volume": _numeric(bid_volume),
+                "ask_open": _numeric(ask_open), "ask_high": _numeric(ask_high),
+                "ask_low": _numeric(ask_low), "ask_close": _numeric(ask_close),
+                "ask_volume": _numeric(ask_volume),
+            }
+        )
+    return rows
+
+
+def write_lean_forex_zip(output_zip: Path, ticker: str, new_ohlcv_rows: list[dict], *, merge_with_existing: bool = True) -> None:
+    """Forex sibling of write_lean_zip() — same call signature (plain
+    5-field OHLCV rows, the exact shape fetch_adhoc_asset() already
+    produces via scale_for_lean()), so data_pipeline/fetch.py's
+    ASSET_CLASS_CONFIG write_fn swap needs no caller changes. Synthesizes
+    each NEW row via synthesize_forex_bid_ask_row(), merges by date
+    against _read_existing_lean_forex_rows() (existing REAL rows always
+    win — identical convention to write_lean_zip()), writes via
+    forex_rows_to_lean_csv()."""
+    merged_by_date: dict[date, dict] = {}
+    if merge_with_existing and output_zip.exists():
+        for row in _read_existing_lean_forex_rows(output_zip):
+            merged_by_date[row["date"]] = row
+
+    for row in new_ohlcv_rows:
+        merged_by_date.setdefault(row["date"], synthesize_forex_bid_ask_row(row))
+
+    csv_text = forex_rows_to_lean_csv(list(merged_by_date.values()))
+
+    output_zip.parent.mkdir(parents=True, exist_ok=True)
+    member_name = f"{ticker.lower()}.csv"
+    with ZipFile(output_zip, "w") as archive:
+        archive.writestr(member_name, csv_text)
+
+
+# ---------------------------------------------------------------------------
 # The only function that imports yfinance — deferred, mirrors
 # experience/redis_queue.py's deferred `import redis`.
 # ---------------------------------------------------------------------------

@@ -10,7 +10,8 @@ block to config.json, because adding a brand-new ticker to the universe is
 this module's entire purpose, not an accidental side effect.
 
 Reuses yfinance_backfill.py's config.json-independent pure functions
-(fetch_yahoo_ohlcv, scale_for_lean, write_lean_zip) - no duplicated logic.
+(fetch_yahoo_ohlcv, scale_for_lean, write_lean_zip, and - V4.10 - the forex
+sibling write_lean_forex_zip) - no duplicated logic.
 
 Never runs `train.py` itself - preparing a ticker for training (fetching
 its data, formatting it for Lean, wiring it into config.json's universe) is
@@ -24,7 +25,12 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from data_pipeline.yfinance_backfill import fetch_yahoo_ohlcv, scale_for_lean, write_lean_zip
+from data_pipeline.yfinance_backfill import (
+    fetch_yahoo_ohlcv,
+    scale_for_lean,
+    write_lean_forex_zip,
+    write_lean_zip,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config.json"
@@ -35,6 +41,11 @@ def _crypto_yahoo_symbol(ticker: str) -> str:
     with a hyphen, matching Yahoo Finance's crypto pair naming convention."""
     base = ticker[:-3] if ticker.upper().endswith("USD") else ticker
     return f"{base}-USD"
+
+
+def _forex_yahoo_symbol(ticker: str) -> str:
+    """EURUSD -> EURUSD=X: Yahoo Finance's FX ticker convention."""
+    return f"{ticker}=X"
 
 
 # One entry per asset class - V3's "futures"/"options" entries below prove
@@ -73,6 +84,22 @@ ASSET_CLASS_CONFIG = {
         "data_path_fn": lambda ticker: ROOT / "data" / "option" / "usa" / "daily" / f"{ticker.lower()}.zip",
         "yahoo_symbol_fn": lambda ticker: ticker,
         "extra_asset_fields": {"asset_class": "option", "data_source": "ib"},
+    },
+    "forex": {
+        # V4.10 - yfinance-backed (default fetch_fn below, no IB closure
+        # needed - forex is a fully-wired Lean asset class already, only
+        # ever blocked by "zero live tickers configured", not IB). market
+        # standardized on "oanda" - local sample data exists identically
+        # for both oanda/fxcm today, an arbitrary/low-stakes choice.
+        # write_fn overrides write_lean_zip() below: Lean's real forex
+        # daily format is a 10-column bid/ask CSV
+        # (data/forex/readme.md), not the 5-column mid-price OHLCV shape
+        # every other asset class here uses.
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path_fn": lambda ticker: ROOT / "data" / "forex" / "oanda" / "daily" / f"{ticker.lower()}.zip",
+        "yahoo_symbol_fn": _forex_yahoo_symbol,
+        "write_fn": write_lean_forex_zip,
     },
 }
 ASSET_CLASSES = tuple(ASSET_CLASS_CONFIG.keys())
@@ -139,7 +166,8 @@ def fetch_adhoc_asset(
     if not scaled_rows:
         action = "no_data_returned"
     elif apply:
-        write_lean_zip(output_zip, ticker, scaled_rows, merge_with_existing=True)
+        write_fn = class_config.get("write_fn", write_lean_zip)
+        write_fn(output_zip, ticker, scaled_rows, merge_with_existing=True)
         action = "written"
         config_status = add_asset_to_config(
             config_path,

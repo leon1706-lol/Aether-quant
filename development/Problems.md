@@ -3871,3 +3871,135 @@ every `main.py` change verified via call-graph trace, not a new test,
 same methodology as every prior pass this project has used.
 
 ---
+
+### 66. V4.10 — pure-function extraction of main.py's exit logic (the closest achievable "main.py unit test"), 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch`
+
+**Severity:** n/a (feature/extraction/data pass) · **Status:** 🟢 code-complete, full suite green
+
+Three work-streams: the closest genuinely achievable thing to a "main.py
+unit test" (a literal one is impossible — see below), 4 concrete webui
+gaps a post-V4.9 quality audit found, and adding real forex/FX assets to
+the trading universe.
+
+**Closest achievable main.py test coverage.** Re-confirmed this session:
+`main.py` cannot be imported or instantiated outside a real Lean process
+— `from AlgorithmImports import *` at module scope means `QCAlgorithm` is
+an undefined stub outside Lean, `NameError` the moment the class body is
+defined. A prior session already tried and failed to construct even a
+bare mocked instance host-side (see entry #36's "Update 2026-07-18"
+addendum) — this is a confirmed dead end, not an assumption. What *is*
+real: `_check_non_model_exit()`/`_update_position_exit_tracking()`
+(`main.py`) contained genuine, self-contained, Lean-decoupled business
+logic (max-holding-age + direction-aware trailing-stop exit decisions,
+and their supporting entry/peak/direction bookkeeping) that had never
+been extracted or tested, despite every other comparable piece of
+main.py's decision logic already living in a tested pure module. Two new
+functions, `evaluate_non_model_exit()`/`compute_position_exit_tracking_update()`,
+added to the existing root-level `risk_controls.py` (not a new `risk/`
+submodule — that package is reserved for asset-class-*specific* sizing;
+exit logic is deliberately asset-class-agnostic, the same reasoning that
+already put `active_position_limit_reached()`/`cap_target_weight()`/etc.
+there). `main.py`'s two methods are now thin call sites. Verified
+byte-identical via **static call-graph trace** (main.py itself still
+can't be executed by a test), not via execution — this distinction is
+stated plainly, not glossed over: this is the closest achievable thing to
+a main.py unit test, not an actual one.
+
+**4 webui quality fixes**, all found and precisely located during a
+post-V4.9 audit:
+1. `DerivativesMacroPanel.tsx`'s `useMemo` calls were silently defeated
+   every render — `derivatives?.options_chains ?? {}`/`optionsChains[key]
+   ?? []` allocated a brand-new object/array on every render whenever the
+   left side was nullish, so the memoization's dependency-array
+   reference-equality check never matched even when nothing real
+   changed. Fixed by hoisting stable module-level `EMPTY_CHAINS`/`EMPTY_ROWS`
+   constants instead of inline fallback literals.
+2. The production webui bundle was a single 1.27MB/348KB-gzip chunk —
+   3 of 7 pages (`Overview`, `TopologyPage`, `NeuralNetworkPage`) pull in
+   `@react-three/fiber`/three.js, the other 4 never do, but every page
+   paid for all three 3D scenes on first paint regardless. `App.tsx`
+   converted to `React.lazy()` + one shared `<Suspense>` — confirmed
+   (via `git`/direct file read) that `pages.test.tsx` never renders
+   through `App.tsx` at all, so this carried zero existing-test risk.
+   Real post-fix build: the single chunk split into small per-page
+   chunks (3-14KB gzip each) plus one shared three.js chunk (246KB gzip)
+   only downloaded by the 3 pages that actually need it.
+3. `monitoring/api_server.py` served 2 dead Grafana-era routes
+   (`GET /api/grafana/performance-triggers`, `GET /api/grafana/observation-summary`)
+   — confirmed `webui/src/api/client.ts` never calls either (the
+   equivalent data already reaches the webui embedded directly in
+   `/api/state`). Removed both route handlers; the underlying
+   `main.py`-written JSON files (which may have other consumers) were
+   left untouched.
+4. `webui/src/lib/format.ts` and the `LineChart.tsx`/`DivergingBarChart.tsx`
+   SVG chart primitives had zero direct test coverage despite being
+   reused across every page. New `format.test.ts`/`LineChart.test.tsx`/
+   `DivergingBarChart.test.tsx` (24 new tests) cover real behavior
+   (formatting edge cases, empty states, hover-tooltip interaction via
+   `fireEvent.pointerMove()` with a stubbed `getBoundingClientRect()`,
+   hand-computed positive/negative bar-growth-direction assertions), not
+   just "doesn't crash."
+
+**15 new forex/FX assets, fetched via `aq fetch forex ... --apply`.**
+Forex was already confirmed fully wired in Lean since V4.6 (real
+`SecurityType.Forex`, no IB dependency for backtest data) but had zero
+live tickers configured — `aq fetch` itself had no `"forex"` asset class
+at all. Added: a new `"forex"` entry in `data_pipeline/fetch.py`'s
+`ASSET_CLASS_CONFIG` (yfinance-backed like crypto/stock, never IB — new
+`_forex_yahoo_symbol()` helper, `EURUSD` → `EURUSD=X`), market
+standardized on `"oanda"`. **Real format wrinkle, solved properly, not
+glossed over**: Lean's real forex daily CSV is a 10-column bid/ask
+format (confirmed by directly opening the real local sample zips under
+`data/forex/{oanda,fxcm}/daily/`), not the 5-column mid-price OHLCV
+shape every other asset class here uses — and Yahoo Finance's own FX
+data is mid/last OHLC only, no real bid/ask spread. New
+`synthesize_forex_bid_ask_row()`/`forex_rows_to_lean_csv()`/
+`write_lean_forex_zip()` (`data_pipeline/yfinance_backfill.py`) duplicate
+OHLC into both bid/ask column groups — an honest, documented zero-spread
+APPROXIMATION for backtest/training purposes only, never a live spread
+feed. Critically, the real local sample data (2007+) carries genuine
+historical bid≠ask spread, so the merge path preserves full 10-field
+rows on overlap, never collapsing existing real rows to a synthesized
+mid (tested directly: a fixture row with a real, non-equal spread
+survives a merge unchanged). `data/reference/forex_pair_specs.json`
+extended from 7 to 15 pairs (8 new liquid crosses:
+`EURGBP`/`EURJPY`/`GBPJPY`/`EURCHF`/`EURAUD`/`AUDJPY`/`CADJPY`/`GBPCAD`).
+
+**All 15 pairs actually fetched and written** — real `aq fetch forex
+<TICKER> --start 2014-12-01 --end 2021-04-01 --apply` calls against real
+Yahoo Finance, one per pair. Every single pair returned data covering the
+*entire* requested window (`2014-12-01` to `2021-03-31`, exactly matching
+`phase1.universe.common_window`) — unlike the 7 crypto pairs added
+earlier (Yahoo history starting 2017-11-09, landing them
+observation-only), so all 15 forex pairs are expected to land "Trading."
+`config.json`'s universe grew 74 → **89 assets**. `phase_v2.forex_risk.enabled`
+deliberately stays **`false`** — the same "code-complete but off by
+default, let the user opt in after review" precedent V4.5/V4.6/V4.7 all
+established, even though nothing technically blocks forex trading now
+that real tickers exist.
+
+**Explicitly NOT done, by the user's own direction**: `python train.py
+--dataset-only` was NOT run to confirm the real trading-vs-observation
+classification for the 15 new pairs — the user explicitly said they'll
+run training themselves, manually, later. `development/asset_universe.md`
+marks all 15 pairs "Trading (expected)" rather than a confirmed
+"Trading," based on the full-window data-coverage signal alone, and
+flags this honestly rather than asserting a classification this session
+never actually ran.
+
+**Testing**: 1857 → a higher count, **exact final repo-wide total pending
+a full suite re-run** (this entry was written before that run completed
+— per this project's own established "trust the measured count over a
+predicted one" convention, no number is asserted here that wasn't
+actually measured). What IS confirmed, run directly this session: new
+exit-logic tests added to `tests/test_risk_controls.py`, new forex
+asset-class/writer tests added to `tests/test_fetch.py`/
+`tests/test_yfinance_backfill.py` (all using injected `fetch_fn`, zero
+real network access), and 24 new webui tests across `format.test.ts`/
+`LineChart.test.tsx`/`DivergingBarChart.test.tsx` (full webui suite
+confirmed 37/37 passing, up from 13). `webui`: `npm run build`/`lint`/
+`test` all clean. `main.py` remains unit-untestable by established
+convention — verified via call-graph trace, not a new test. Re-confirm
+the exact repo-wide count via `aq test` before the next phase begins.
+
+---

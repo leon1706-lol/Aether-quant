@@ -73,7 +73,7 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), and V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling) shipped.**
+**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling), and V4.10 (pure-function extraction of main.py's exit logic, 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch`) shipped.**
 Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
 the full ML stack, and the retraining loop are all built, tested
 (<!-- AQ:TEST_COUNT_START -->1857<!-- AQ:TEST_COUNT_END -->
@@ -87,6 +87,7 @@ tests) and wired end-to-end inside Lean.
 - **V4.7 (early-assignment modeling, learned strategy selector, bond analytics as real signals), shipped:** a dividend-cadence data pipeline + American-exercise (BAW) pricer + dividend-driven assignment-risk sweep; a learned multi-leg strategy-selector model (`train_strategy_selector.py`) with its own data-capture prerequisite, dormant until real option positions actually trade; the 3 analytic bond features merged into the trained model's feature schema — code-complete, but the retrain itself was deliberately left for the user to run separately. All off by default. See `development/Problems.md` #61.
 - **Phase 4.8 (closing a full-stack completeness audit's gaps), shipped:** `lean` CLI now usable inside the retraining-worker container (pip install + Docker-socket mount); two docker-compose.yml staleness fixes; a new `aq backfill` CLI command and a stale test-group fix; a genuine `main.py` scoping bug found and fixed (a corporate-action event could be attributed to the wrong symbol); the V4.7 features that were computed but never reached `state.json` now do; and a new webui "Options & Strategy" page surfacing all of it, including a 43-strategy catalog browser. See `development/Problems.md` #62.
 - **V4.9 (major latency-optimization pass), shipped:** a genuinely live per-bar disk-I/O bug found and removed (a stale doc claimed it was already reverted, it wasn't); sequence-encoder symbol-batching for the largest remaining inference cost; a self-relative percentile-tolerance mode for the topology correlation-stability cache; an options chain-grouping hoist; non-blocking `ExperienceQueue.push()` in live/paper mode; a real `ProcessPoolExecutor` IPC-overhead benchmark (confirmed the pool is slower at this project's scale on Windows); a new `aq profile --options` workload plus `--parallel` wiring; and an honest documentation split of what latency work actually transfers to a future HFT fork vs. what doesn't. All off by default except the pure bug fix. See `development/Problems.md` #63/#64.
+- **V4.10 (webui fixes, closest-achievable main.py test coverage, 15 new forex assets), shipped:** `main.py`'s exit-logic (`_check_non_model_exit`/`_update_position_exit_tracking`) extracted into tested pure functions in `risk_controls.py` — a literal main.py unit test is confirmed impossible, so this is the closest real thing, verified byte-identical via call-graph trace; 4 webui quality fixes (a broken-memoization bug, route-level code-splitting cutting the bundle from one 1.27MB chunk to small per-page chunks, 2 dead Grafana routes removed, 24 new tests for previously-uncovered chart/format code); and 15 real forex/FX pairs added to the trading universe via a new `aq fetch forex` asset class (89 assets total, up from 74) — `phase_v2.forex_risk.enabled` stays off by default. Per explicit user direction, `python train.py` was not run this session; the real trading-vs-observation classification for the new pairs is left for the user's own manual run. See `development/Problems.md` #66.
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
@@ -144,6 +145,9 @@ status`). Remaining, still-open items:
   - [`aq backfill`](#aq-backfill)
   - [`aq ib`](#aq-ib)
   - [`aq assets`](#aq-assets)
+  - [`aq render-lean-config`](#aq-render-lean-config)
+  - [`aq secrets-check`](#aq-secrets-check)
+  - [`aq audit-log`](#aq-audit-log)
   - [`aq status`](#aq-status)
 - [Release Process](#release-process)
 - [Runbook](#runbook)
@@ -363,13 +367,19 @@ stack was built, phase by phase.
 
 ## Universe Size
 
-The trading universe currently spans **74 assets**: 40 stocks/broad-market
-ETFs, 22 fixed-income (bond) ETFs, and 12 crypto pairs (54% equity / 30% bond
-/ 12% crypto by count), defined in `config.json`'s `phase1.universe.assets`
-and shared across training, validation, and backtesting (common window
-`2014-12-01` to `2021-03-31`). Of these, tradeable names carry real positions
-while "observation-only" names (thin history) are fed through the full model
-pipeline but never sized.
+The trading universe currently spans **89 assets**: 40 stocks/broad-market
+ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs
+(45% equity / 25% bond / 13% crypto / 17% forex by count), defined in
+`config.json`'s `phase1.universe.assets` and shared across training,
+validation, and backtesting (common window `2014-12-01` to `2021-03-31`).
+Of these, tradeable names carry real positions while "observation-only"
+names (thin history) are fed through the full model pipeline but never
+sized. The 15 forex pairs (V4.10, fetched via `aq fetch forex`) all cover
+the full common window with real Yahoo Finance history, unlike the 7
+newly-added crypto pairs — expected to land "Trading" for the same reason,
+though this hasn't been run through `train.py`'s actual asset-quality
+classifier yet (left for a manual `python train.py --dataset-only` run,
+same division of labor as this project's other deferred training steps).
 
 See **[`development/asset_universe.md`](development/asset_universe.md)** for
 the full ticker list, the trading-vs-observation split, the bond-ETF
@@ -429,7 +439,7 @@ and how it's wired in, this table is the index.
 | Document | Contents |
 |---|---|
 | [`development/README.md`](development/README.md) | Index of this folder |
-| [`development/asset_universe.md`](development/asset_universe.md) | The full 74-asset universe: ticker list, trading-vs-observation split, bond-ETF coverage, group diagram |
+| [`development/asset_universe.md`](development/asset_universe.md) | The full 89-asset universe: ticker list, trading-vs-observation split, bond-ETF coverage, group diagram |
 | [`development/project_structure.md`](development/project_structure.md) | The full annotated directory tree of the repository |
 | [`development/v2_architecture.md`](development/v2_architecture.md) | The full V2 system architecture: process-flow and tech-stack diagrams, the module map, per-phase "contract" sections, and the HFT-readiness analysis |
 | [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook, start commands for every service, SQL inspection snippets, port reference |
@@ -731,6 +741,48 @@ aq assets status
 Toggle any of these with the generic `aq config set
 phase_v2.{ib,futures_risk,options_risk}.enabled true|false`, there's no
 separate enable/disable subcommand.
+
+#### `aq render-lean-config`
+```text
+aq render-lean-config [--base lean.json] [--out lean.live.json] [--env-file .env.live]
+```
+**Renders the gitignored, secret-bearing `lean.live.json` from `.env.live`'s
+`AETHER_*` environment variables**, leaving the tracked `lean.json` template
+all-empty (`execution/lean_config_render.py`). Live/paper deploys pass Lean's
+own `--lean-config lean.live.json` to use the rendered file instead. Prints
+only the field *names* that were filled, never the secret values. Also emits
+a `credential_load` event to the tamper-evident audit log (see `aq
+audit-log` below) — a short-lived, one-shot `AuditQueue` push that never
+blocks or fails this command on a Redis hiccup.
+
+#### `aq secrets-check`
+```text
+aq secrets-check
+```
+**Fails (non-zero exit) if a secret is about to be committed** — either a
+populated secret field in the tracked `lean.json` (should be empty; secrets
+belong in the gitignored `lean.live.json` above) or a real `.env` file that's
+somehow tracked by git. Pure detection logic lives in
+`execution/secret_scan.py`. Backs `.githooks/pre-commit` — this is what
+actually stops a secret from landing in a commit, not just a suggestion.
+
+#### `aq audit-log`
+```text
+aq audit-log [--event-type order_placement|credential_load|live_mode_transition] [--since YYYY-MM-DD] [--limit N] [--verify]
+```
+**Queries the tamper-evident audit log** (order placement, credential loads,
+live-mode transitions — `development/Problems.md` #42) — a separate,
+compliance-focused hash-chained event log from the trading `experience/`
+event stream. Requires `AETHER_POSTGRES_DSN` (same var every other
+Postgres-backed `aq` command uses), and the `audit-worker` docker-compose
+service must have drained at least one batch from Redis into Postgres
+(`python -m audit.postgres_worker`) for anything to show up.
+
+- Default (no flags): prints the most recent entries (`--limit`, default
+  100), optionally filtered by `--event-type` and/or `--since`.
+- `--verify`: walks the whole hash chain instead and reports the first
+  broken link, if any — the actual tamper-detection check, not just a log
+  viewer. An empty table is trivially valid.
 
 #### `aq status`
 ```text

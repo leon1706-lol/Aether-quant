@@ -3,6 +3,8 @@ from risk_controls import (
     assess_drawdown_lock,
     cap_target_weight,
     compute_incremental_order_quantity,
+    compute_position_exit_tracking_update,
+    evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
     should_scale_position,
 )
@@ -123,3 +125,264 @@ def test_compute_incremental_order_quantity_handles_negative_current_and_target_
     # the delta itself must be signed correctly for MarketOrder(delta) to
     # sell 3 more, not buy back toward flat.
     assert compute_incremental_order_quantity(target_quantity=-8, current_quantity=-5) == -3
+
+
+# ---------------------------------------------------------------------------
+# V4.10 - pure extraction of main.py::_check_non_model_exit()/
+# _update_position_exit_tracking() (development/Problems.md #66). Backstop
+# exits independent of the model's own signal: max holding age, then a
+# direction-aware trailing stop from the best price since entry.
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_non_model_exit_returns_none_when_exits_disabled():
+    # exits_enabled=False must restore pre-fix behavior byte-for-byte, even
+    # with a stale entry well past both thresholds.
+    assert (
+        evaluate_non_model_exit(
+            bar_index=100,
+            exits_enabled=False,
+            exits_max_holding_bars=5,
+            exits_trailing_stop_pct=0.05,
+            entry_bar_index=0,
+            peak_price_since_entry=100.0,
+            direction="long",
+            close_price=50.0,
+        )
+        is None
+    )
+
+
+def test_evaluate_non_model_exit_returns_none_when_no_entry_recorded():
+    assert (
+        evaluate_non_model_exit(
+            bar_index=10,
+            exits_enabled=True,
+            exits_max_holding_bars=5,
+            exits_trailing_stop_pct=0.05,
+            entry_bar_index=None,
+            peak_price_since_entry=None,
+            direction="long",
+            close_price=50.0,
+        )
+        is None
+    )
+
+
+def test_evaluate_non_model_exit_max_holding_age_fires_at_exact_threshold():
+    result = evaluate_non_model_exit(
+        bar_index=10,
+        exits_enabled=True,
+        exits_max_holding_bars=5,
+        exits_trailing_stop_pct=0.50,  # generous, never fires on its own here
+        entry_bar_index=5,
+        peak_price_since_entry=100.0,
+        direction="long",
+        close_price=100.0,
+    )
+    assert result == "max_holding_age_exceeded"
+
+
+def test_evaluate_non_model_exit_max_holding_age_does_not_fire_one_bar_before():
+    result = evaluate_non_model_exit(
+        bar_index=9,
+        exits_enabled=True,
+        exits_max_holding_bars=5,
+        exits_trailing_stop_pct=0.50,
+        entry_bar_index=5,
+        peak_price_since_entry=100.0,
+        direction="long",
+        close_price=100.0,
+    )
+    assert result is None
+
+
+def test_evaluate_non_model_exit_max_holding_age_takes_priority_over_trailing_stop():
+    # Both conditions true simultaneously - first-match-wins order means
+    # max_holding_age_exceeded must win, not trailing_stop_triggered.
+    result = evaluate_non_model_exit(
+        bar_index=10,
+        exits_enabled=True,
+        exits_max_holding_bars=5,
+        exits_trailing_stop_pct=0.05,
+        entry_bar_index=5,
+        peak_price_since_entry=100.0,
+        direction="long",
+        close_price=50.0,  # 50% drawdown, well past the 5% trailing stop too
+    )
+    assert result == "max_holding_age_exceeded"
+
+
+def test_evaluate_non_model_exit_trailing_stop_fires_for_long_on_drawdown_from_peak():
+    result = evaluate_non_model_exit(
+        bar_index=10,
+        exits_enabled=True,
+        exits_max_holding_bars=1000,
+        exits_trailing_stop_pct=0.05,
+        entry_bar_index=5,
+        peak_price_since_entry=100.0,
+        direction="long",
+        close_price=94.0,  # 6% drawdown from peak >= 5% threshold
+    )
+    assert result == "trailing_stop_triggered"
+
+
+def test_evaluate_non_model_exit_trailing_stop_does_not_fire_below_threshold():
+    result = evaluate_non_model_exit(
+        bar_index=10,
+        exits_enabled=True,
+        exits_max_holding_bars=1000,
+        exits_trailing_stop_pct=0.05,
+        entry_bar_index=5,
+        peak_price_since_entry=100.0,
+        direction="long",
+        close_price=96.0,  # 4% drawdown, below the 5% threshold
+    )
+    assert result is None
+
+
+def test_evaluate_non_model_exit_trailing_stop_fires_for_short_on_rally_from_trough():
+    # Direction-aware inverse math: for a short, "best" is the LOWEST close
+    # since entry, and the stop measures a rally back UP from that trough.
+    result = evaluate_non_model_exit(
+        bar_index=10,
+        exits_enabled=True,
+        exits_max_holding_bars=1000,
+        exits_trailing_stop_pct=0.05,
+        entry_bar_index=5,
+        peak_price_since_entry=100.0,  # the trough price for a short
+        direction="short",
+        close_price=106.0,  # 6% rally from the trough >= 5% threshold
+    )
+    assert result == "trailing_stop_triggered"
+
+
+def test_evaluate_non_model_exit_trailing_stop_ignores_none_or_nonpositive_peak_price():
+    common_kwargs = dict(
+        bar_index=10, exits_enabled=True, exits_max_holding_bars=1000,
+        exits_trailing_stop_pct=0.05, entry_bar_index=5, direction="long", close_price=50.0,
+    )
+    assert evaluate_non_model_exit(peak_price_since_entry=None, **common_kwargs) is None
+    assert evaluate_non_model_exit(peak_price_since_entry=0.0, **common_kwargs) is None
+
+
+def test_tracking_update_enter_sets_all_four_fields_for_long():
+    update = compute_position_exit_tracking_update(
+        was_invested=False,
+        is_invested=True,
+        close_price=100.0,
+        signal_name="buy",
+        peak_price_since_entry=None,
+        direction=None,
+        bar_index=7,
+    )
+    assert update == {
+        "action": "enter",
+        "entry_bar_index": 7,
+        "entry_price": 100.0,
+        "peak_price_since_entry": 100.0,
+        "direction": "long",
+    }
+
+
+def test_tracking_update_enter_resolves_short_direction_from_signal_name():
+    update = compute_position_exit_tracking_update(
+        was_invested=False,
+        is_invested=True,
+        close_price=100.0,
+        signal_name="short",
+        peak_price_since_entry=None,
+        direction=None,
+        bar_index=7,
+    )
+    assert update["direction"] == "short"
+
+
+def test_tracking_update_hold_tracks_max_peak_for_long():
+    update = compute_position_exit_tracking_update(
+        was_invested=True,
+        is_invested=True,
+        close_price=105.0,
+        signal_name="buy",
+        peak_price_since_entry=100.0,
+        direction="long",
+        bar_index=8,
+    )
+    assert update == {"action": "hold", "peak_price_since_entry": 105.0}
+    # A lower close than the recorded peak must not lower the peak.
+    update_lower = compute_position_exit_tracking_update(
+        was_invested=True,
+        is_invested=True,
+        close_price=95.0,
+        signal_name="buy",
+        peak_price_since_entry=100.0,
+        direction="long",
+        bar_index=9,
+    )
+    assert update_lower == {"action": "hold", "peak_price_since_entry": 100.0}
+
+
+def test_tracking_update_hold_tracks_min_trough_for_short():
+    update = compute_position_exit_tracking_update(
+        was_invested=True,
+        is_invested=True,
+        close_price=95.0,
+        signal_name="short",
+        peak_price_since_entry=100.0,
+        direction="short",
+        bar_index=8,
+    )
+    assert update == {"action": "hold", "peak_price_since_entry": 95.0}
+    # A higher close than the recorded trough must not raise the trough.
+    update_higher = compute_position_exit_tracking_update(
+        was_invested=True,
+        is_invested=True,
+        close_price=105.0,
+        signal_name="short",
+        peak_price_since_entry=95.0,
+        direction="short",
+        bar_index=9,
+    )
+    assert update_higher == {"action": "hold", "peak_price_since_entry": 95.0}
+
+
+def test_tracking_update_hold_result_carries_no_entry_bar_or_price_keys():
+    # A "hold" update must never overwrite entry_bar_index/entry_price -
+    # they're simply absent from the returned dict, by design.
+    update = compute_position_exit_tracking_update(
+        was_invested=True,
+        is_invested=True,
+        close_price=105.0,
+        signal_name="buy",
+        peak_price_since_entry=100.0,
+        direction="long",
+        bar_index=8,
+    )
+    assert "entry_bar_index" not in update
+    assert "entry_price" not in update
+
+
+def test_tracking_update_clear_on_exit():
+    update = compute_position_exit_tracking_update(
+        was_invested=True,
+        is_invested=False,
+        close_price=90.0,
+        signal_name="sell",
+        peak_price_since_entry=100.0,
+        direction="long",
+        bar_index=12,
+    )
+    assert update == {"action": "clear"}
+
+
+def test_tracking_update_noop_when_never_invested():
+    update = compute_position_exit_tracking_update(
+        was_invested=False,
+        is_invested=False,
+        close_price=90.0,
+        signal_name="hold",
+        peak_price_since_entry=None,
+        direction=None,
+        bar_index=12,
+    )
+    assert update == {"action": "noop"}

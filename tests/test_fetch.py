@@ -13,6 +13,7 @@ from zipfile import ZipFile
 from data_pipeline.fetch import (
     ASSET_CLASSES,
     _crypto_yahoo_symbol,
+    _forex_yahoo_symbol,
     add_asset_to_config,
     fetch_adhoc_asset,
 )
@@ -43,13 +44,17 @@ def test_crypto_yahoo_symbol_passthrough_without_usd_suffix():
     assert _crypto_yahoo_symbol("BTC") == "BTC-USD"
 
 
+def test_forex_yahoo_symbol_appends_equals_x():
+    assert _forex_yahoo_symbol("EURUSD") == "EURUSD=X"
+
+
 # ---------------------------------------------------------------------------
 # ASSET_CLASSES / data paths
 # ---------------------------------------------------------------------------
 
 
-def test_asset_classes_currently_supports_crypto_stock_futures_options():
-    assert set(ASSET_CLASSES) == {"crypto", "stock", "futures", "options"}
+def test_asset_classes_currently_supports_crypto_stock_futures_options_forex():
+    assert set(ASSET_CLASSES) == {"crypto", "stock", "futures", "options", "forex"}
 
 
 # ---------------------------------------------------------------------------
@@ -361,3 +366,97 @@ def test_fetch_adhoc_asset_extra_metadata_none_is_a_no_op(tmp_path, monkeypatch)
     block = written["phase1"]["universe"]["assets"][0]
     assert "family_ticker" not in block
     assert "strike" not in block
+
+
+# ---------------------------------------------------------------------------
+# forex (V4.10) - yfinance-backed like crypto/stock (never IB), but writes
+# via write_lean_forex_zip() (10-column bid/ask CSV) instead of
+# write_lean_zip() (5-column mid-price OHLCV) - see
+# tests/test_yfinance_backfill.py for that writer's own unit tests.
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_adhoc_asset_apply_writes_forex_zip_via_write_fn(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        assert symbol == "EURUSD=X"  # yahoo_symbol_fn applied before fetch_fn is called
+        return _sample_yahoo_rows()
+
+    report = fetch_adhoc_asset(
+        "forex", "EURUSD", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path
+    )
+
+    expected_zip = tmp_path / "data" / "forex" / "oanda" / "daily" / "eurusd.zip"
+    assert expected_zip.exists()
+    with ZipFile(expected_zip) as archive:
+        assert archive.namelist() == ["eurusd.csv"]
+        content = archive.read("eurusd.csv").decode("utf-8")
+    # write_lean_forex_zip()'s 10-column bid/ask shape, not write_lean_zip()'s
+    # 5-column mid-price one - bid==ask==the fetched OHLC, volumes 0 in both.
+    assert "20230101 00:00,100.0,105.0,99.0,104.0,0,100.0,105.0,99.0,104.0,0" in content
+    assert report["action"] == "written"
+    assert report["config_status"] == "added"
+
+
+def test_fetch_adhoc_asset_forex_config_block_carries_security_type_forex(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    fetch_adhoc_asset("forex", "eurusd", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path)
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    block = written["phase1"]["universe"]["assets"][0]
+    assert block["ticker"] == "EURUSD"
+    assert block["security_type"] == "forex"
+    assert block["market"] == "oanda"
+    assert block["data_path"] == "data/forex/oanda/daily/eurusd.zip"
+
+
+def test_fetch_adhoc_asset_forex_config_block_carries_no_extra_fields(tmp_path, monkeypatch):
+    # forex isn't IB-backed - security_type alone is sufficient, matching
+    # crypto/stock, unlike futures/options' asset_class/data_source pair.
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    fetch_adhoc_asset("forex", "EURUSD", "2023-01-01", "2023-01-03", apply=True, fetch_fn=fake_fetch, config_path=config_path)
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    block = written["phase1"]["universe"]["assets"][0]
+    assert "asset_class" not in block
+    assert "data_source" not in block
+
+
+def test_fetch_adhoc_asset_forex_dry_run_writes_nothing(tmp_path, monkeypatch):
+    import data_pipeline.fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "ROOT", tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_sample_config(), indent=4) + "\n", encoding="utf-8")
+
+    def fake_fetch(symbol, start, end):
+        return _sample_yahoo_rows()
+
+    report = fetch_adhoc_asset(
+        "forex", "EURUSD", "2023-01-01", "2023-01-03", apply=False, fetch_fn=fake_fetch, config_path=config_path
+    )
+
+    expected_zip = tmp_path / "data" / "forex" / "oanda" / "daily" / "eurusd.zip"
+    assert not expected_zip.exists()
+    assert report["action"] == "dry_run"

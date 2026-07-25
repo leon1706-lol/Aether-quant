@@ -81,3 +81,98 @@ def compute_incremental_order_quantity(
     bar and silently overshooting it. Pure arithmetic, never raises -
     callers round/zero-check the result themselves."""
     return target_quantity - current_quantity
+
+
+def evaluate_non_model_exit(
+    bar_index: int,
+    exits_enabled: bool,
+    exits_max_holding_bars: int,
+    exits_trailing_stop_pct: float,
+    entry_bar_index: int | None,
+    peak_price_since_entry: float | None,
+    direction: str,
+    close_price: float,
+) -> str | None:
+    """V4.10 - pure extraction of main.py::_check_non_model_exit(),
+    asset-class-agnostic (same trailing-stop/max-age math for equity,
+    crypto, futures, options, forex alike). Two checks, first match wins:
+
+    1. Max holding age: fires once bar_index - entry_bar_index reaches
+       exits_max_holding_bars, regardless of price.
+    2. Trailing stop: fires once price has drawn down
+       exits_trailing_stop_pct from its best price since entry
+       (direction-aware: "best" is the highest close for a long, lowest
+       for a short).
+
+    exits_enabled=False restores pre-fix behavior byte-for-byte - no
+    non-model exit ever fires. Caller resolves the per-symbol dict
+    lookups (entry_bar_index/peak_price_since_entry/direction) before
+    calling - this function itself touches no dicts, no self."""
+    if not exits_enabled:
+        return None
+
+    if entry_bar_index is None:
+        return None
+
+    if bar_index - entry_bar_index >= exits_max_holding_bars:
+        return "max_holding_age_exceeded"
+
+    if peak_price_since_entry is not None and peak_price_since_entry > 0.0:
+        if direction == "long":
+            drawdown_from_peak = (peak_price_since_entry - close_price) / peak_price_since_entry
+        else:
+            drawdown_from_peak = (close_price - peak_price_since_entry) / peak_price_since_entry
+        if drawdown_from_peak >= exits_trailing_stop_pct:
+            return "trailing_stop_triggered"
+
+    return None
+
+
+def compute_position_exit_tracking_update(
+    was_invested: bool,
+    is_invested: bool,
+    close_price: float,
+    signal_name: str,
+    peak_price_since_entry: float | None,
+    direction: str | None,
+    bar_index: int,
+) -> dict:
+    """V4.10 - pure extraction of main.py::_update_position_exit_tracking().
+    Observes the net invested/not-invested transition (was_invested vs.
+    is_invested) rather than hooking into any asset-class-specific
+    routing - robust to every routing path by construction, since it only
+    cares about the outcome.
+
+    Returns the NEW state as a dict rather than mutating dicts in place,
+    so this stays pure/testable - the caller applies the result to its
+    own tracking dicts:
+    - {"action": "enter", "entry_bar_index":, "entry_price":,
+      "peak_price_since_entry":, "direction":} on a fresh entry.
+    - {"action": "hold", "peak_price_since_entry":} while an existing
+      position is held (entry_bar_index/entry_price are untouched by
+      design - not present in this dict).
+    - {"action": "clear"} once a held position is closed.
+    - {"action": "noop"} otherwise (was never invested and still isn't -
+      matches the original method's implicit no-op branch)."""
+    if is_invested and not was_invested:
+        return {
+            "action": "enter",
+            "entry_bar_index": bar_index,
+            "entry_price": close_price,
+            "peak_price_since_entry": close_price,
+            "direction": "short" if signal_name == "short" else "long",
+        }
+
+    if is_invested and was_invested:
+        resolved_direction = direction or "long"
+        peak_price = peak_price_since_entry if peak_price_since_entry is not None else close_price
+        if resolved_direction == "long":
+            new_peak_price = max(peak_price, close_price)
+        else:
+            new_peak_price = min(peak_price, close_price)
+        return {"action": "hold", "peak_price_since_entry": new_peak_price}
+
+    if not is_invested and was_invested:
+        return {"action": "clear"}
+
+    return {"action": "noop"}

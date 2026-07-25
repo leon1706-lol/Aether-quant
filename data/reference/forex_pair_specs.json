@@ -48,5 +48,61 @@
         "lot_size": 100000,
         "leverage_max": 20,
         "margin_pct": 0.05
+    },
+    "EURGBP": {
+        "description": "Euro / British Pound",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 33,
+        "margin_pct": 0.03
+    },
+    "EURJPY": {
+        "description": "Euro / Japanese Yen",
+        "pip_size": 0.01,
+        "lot_size": 100000,
+        "leverage_max": 33,
+        "margin_pct": 0.03
+    },
+    "GBPJPY": {
+        "description": "British Pound / Japanese Yen",
+        "pip_size": 0.01,
+        "lot_size": 100000,
+        "leverage_max": 33,
+        "margin_pct": 0.03
+    },
+    "EURCHF": {
+        "description": "Euro / Swiss Franc",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 33,
+        "margin_pct": 0.03
+    },
+    "EURAUD": {
+        "description": "Euro / Australian Dollar",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 20,
+        "margin_pct": 0.05
+    },
+    "AUDJPY": {
+        "description": "Australian Dollar / Japanese Yen",
+        "pip_size": 0.01,
+        "lot_size": 100000,
+        "leverage_max": 20,
+        "margin_pct": 0.05
+    },
+    "CADJPY": {
+        "description": "Canadian Dollar / Japanese Yen",
+        "pip_size": 0.01,
+        "lot_size": 100000,
+        "leverage_max": 20,
+        "margin_pct": 0.05
+    },
+    "GBPCAD": {
+        "description": "British Pound / Canadian Dollar",
+        "pip_size": 0.0001,
+        "lot_size": 100000,
+        "leverage_max": 20,
+        "margin_pct": 0.05
     }
 }

@@ -1,16 +1,19 @@
 # Asset Universe
 
-The trading universe currently spans **74 assets**: 40 stocks/broad-market
-ETFs, 22 fixed-income (bond) ETFs, and 12 crypto pairs. It is defined in
-`config.json`'s `phase1.universe.assets` and shared across training,
-validation, and backtesting (`phase1.universe.common_window`: `2014-12-01`
-to `2021-03-31`).
+The trading universe currently spans **89 assets**: 40 stocks/broad-market
+ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs
+(V4.10). It is defined in `config.json`'s `phase1.universe.assets` and
+shared across training, validation, and backtesting
+(`phase1.universe.common_window`: `2014-12-01` to `2021-03-31`).
 
 It was expanded from an original 30-asset universe (Phase 3 of the rank-pivot
 roadmap, `Problems.md` #52) specifically to strengthen the cross-sectional
 `rank_20d` signal, which scales with names-per-date, and deliberately
-rebalanced toward bonds/crypto (54% equity / 30% bond / 12% crypto by count)
-rather than staying equity-heavy.
+rebalanced toward bonds/crypto (54% equity / 30% bond / 12% crypto by count
+at the time) rather than staying equity-heavy. V4.10 added the 15 forex
+pairs (45% equity / 25% bond / 13% crypto / 17% forex by count today,
+`development/Problems.md` #66) — a genuinely new asset class fetched via
+`aq fetch forex`, not a rebalance of the existing three.
 
 The bond ETF sleeve (Phase 1 of the 5/10 to 9/10 roadmap, see
 [`Changelog.md`](Changelog.md)) spans the duration curve
@@ -100,6 +103,21 @@ SPY/QQQ/IWM/EEM, not a new Lean security type).
 | EOSUSD | Crypto | Observation-only (thin history) |
 | ETCUSD | Crypto | Observation-only (thin history) |
 | ZECUSD | Crypto | Observation-only (thin history) |
+| EURUSD | Forex | Trading (expected) |
+| GBPUSD | Forex | Trading (expected) |
+| USDJPY | Forex | Trading (expected) |
+| AUDUSD | Forex | Trading (expected) |
+| USDCAD | Forex | Trading (expected) |
+| USDCHF | Forex | Trading (expected) |
+| NZDUSD | Forex | Trading (expected) |
+| EURGBP | Forex | Trading (expected) |
+| EURJPY | Forex | Trading (expected) |
+| GBPJPY | Forex | Trading (expected) |
+| EURCHF | Forex | Trading (expected) |
+| EURAUD | Forex | Trading (expected) |
+| AUDJPY | Forex | Trading (expected) |
+| CADJPY | Forex | Trading (expected) |
+| GBPCAD | Forex | Trading (expected) |
 
 ## Trading vs observation-only
 
@@ -123,6 +141,18 @@ symbol-properties database confirmed it, so those two could never subscribe.
 ETCUSD/ZECUSD are real Coinbase-listed pairs with the same 2017-11-09 Yahoo
 history start as the rest of this batch.)
 
+**All 15 forex pairs (V4.10) are marked "Trading (expected)"**, not a
+confirmed "Trading" — real `aq fetch forex --apply` runs confirmed every
+pair returned Yahoo Finance data covering the FULL common window
+(`2014-12-01` to `2021-03-31`, verified via each fetch's own reported date
+range, not assumed), the same signal that puts a ticker in "Trading" for
+every other asset class here. But this hasn't actually been run through
+`train.py`'s own `asset_quality` classifier yet — that step (`python
+train.py --dataset-only`) was deliberately left for the user to run
+manually, matching this project's established division of labor for
+training-adjacent steps (see `development/Problems.md` #66). Update this
+table once that's been run.
+
 ## Group-level view
 
 Asset classes sit on opposite sides of the hub (equities/crypto feed in from
@@ -133,11 +163,12 @@ in the table above; this is the group-level view:
 flowchart TD
     Equities["Equities<br/>40 tickers"] --> DNN
     Crypto["Crypto<br/>12 tickers"] --> DNN
+    Forex["Forex<br/>15 tickers"] --> DNN
     DNN(("Baseline DNN<br/>+ MoE Experts")) --> FixedIncome["Fixed Income ETFs<br/>22 tickers"]
 
     classDef hub fill:#1A1A1A,stroke:#FF8C00,color:#FF8C00,stroke-width:2px;
     classDef group fill:#FF8C00,stroke:#1A1A1A,color:#1A1A1A,stroke-width:1px;
 
     class DNN hub;
-    class Equities,Crypto,FixedIncome group;
+    class Equities,Crypto,Forex,FixedIncome group;
 ```

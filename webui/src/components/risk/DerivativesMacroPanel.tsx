@@ -1,11 +1,22 @@
 import { useMemo, useState } from 'react'
-import type { DerivativesState } from '../../types/state'
+import type { DerivativesState, OptionsChainRow } from '../../types/state'
 import { formatNumber, formatPercent } from '../../lib/format'
 import { Panel } from '../layout/Panel'
 import { LineChart } from '../tracing/LineChart'
 
 const CALL_COLOR = '#3987e5'
 const PUT_COLOR = '#e0575b'
+
+// V4.10 - stable module-level fallback constants. `derivatives?.options_chains
+// ?? {}`/`optionsChains[key] ?? []` used to allocate a BRAND-NEW {}/[]
+// literal on every render whenever the left side was nullish/missing,
+// defeating the useMemo() calls below (their dependency array never
+// matched the previous render's object identity, even when nothing real
+// changed - e.g. a purely-local `setUnderlying` re-render). Referencing
+// these fixed constants instead restores real reference stability in
+// exactly the branch that was broken.
+const EMPTY_CHAINS: Record<string, OptionsChainRow[]> = {}
+const EMPTY_ROWS: OptionsChainRow[] = []
 
 // IV smile/skew: implied vol as a function of strike, for the nearest
 // expiry in the underlying's current chain - a single bar's snapshot (this
@@ -14,12 +25,12 @@ const PUT_COLOR = '#e0575b'
 // spaced by index, not by actual strike gap) - an accepted simplification
 // already used for date-indexed charts elsewhere in this app.
 export function DerivativesMacroPanel({ derivatives }: { derivatives: DerivativesState | undefined }) {
-  const optionsChains = derivatives?.options_chains ?? {}
+  const optionsChains = derivatives?.options_chains ?? EMPTY_CHAINS
   const underlyings = useMemo(() => Object.keys(optionsChains).sort(), [optionsChains])
   const [underlying, setUnderlying] = useState<string | undefined>(undefined)
   const activeUnderlying = underlying && underlyings.includes(underlying) ? underlying : underlyings[0]
 
-  const rows = optionsChains[activeUnderlying ?? ''] ?? []
+  const rows = optionsChains[activeUnderlying ?? ''] ?? EMPTY_ROWS
   const nearestExpiry = useMemo(() => rows.map((r) => r.expiry).sort()[0], [rows])
   const expiryRows = rows.filter((r) => r.expiry === nearestExpiry)
   const strikes = Array.from(new Set(expiryRows.map((r) => r.strike))).sort((a, b) => a - b)

@@ -18,10 +18,13 @@ from zipfile import ZipFile
 
 from data_pipeline.yfinance_backfill import (
     detect_gap,
+    forex_rows_to_lean_csv,
     plan_backfill,
     rows_to_lean_csv,
     run_backfill,
     scale_for_lean,
+    synthesize_forex_bid_ask_row,
+    write_lean_forex_zip,
     write_lean_zip,
     yahoo_symbol_for,
 )
@@ -181,6 +184,85 @@ def test_write_lean_zip_existing_rows_win_on_overlapping_dates(tmp_path):
     lines = content.splitlines()
     assert any(line.startswith("20160101 00:00,9,9,9,9,9") for line in lines), "existing row must win, not be overwritten"
     assert any(line.startswith("20160102") for line in lines), "genuinely new date must still be filled in"
+
+
+# ---------------------------------------------------------------------------
+# V4.10 - synthesize_forex_bid_ask_row / forex_rows_to_lean_csv /
+# write_lean_forex_zip - the forex sibling of rows_to_lean_csv()/
+# write_lean_zip() above, Lean's real 10-column bid/ask daily CSV shape
+# instead of the 5-column mid-price OHLCV one.
+# ---------------------------------------------------------------------------
+
+
+def test_synthesize_forex_bid_ask_row_duplicates_ohlc_into_bid_and_ask():
+    row = {"date": date(2020, 1, 2), "open": 1.1234, "high": 1.1250, "low": 1.1200, "close": 1.1240, "volume": 0}
+
+    synthesized = synthesize_forex_bid_ask_row(row)
+
+    assert synthesized["date"] == date(2020, 1, 2)
+    assert synthesized["bid_open"] == synthesized["ask_open"] == 1.1234
+    assert synthesized["bid_high"] == synthesized["ask_high"] == 1.1250
+    assert synthesized["bid_low"] == synthesized["ask_low"] == 1.1200
+    assert synthesized["bid_close"] == synthesized["ask_close"] == 1.1240
+    assert synthesized["bid_volume"] == synthesized["ask_volume"] == 0
+
+
+def test_forex_rows_to_lean_csv_produces_ten_value_columns():
+    row = synthesize_forex_bid_ask_row(
+        {"date": date(2020, 1, 2), "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.15, "volume": 0}
+    )
+
+    csv_text = forex_rows_to_lean_csv([row])
+
+    assert csv_text == "20200102 00:00,1.1,1.2,1.0,1.15,0,1.1,1.2,1.0,1.15,0\n"
+
+
+def test_forex_rows_to_lean_csv_sorts_by_date():
+    later = synthesize_forex_bid_ask_row({"date": date(2020, 1, 3), "open": 2, "high": 2, "low": 2, "close": 2, "volume": 0})
+    earlier = synthesize_forex_bid_ask_row({"date": date(2020, 1, 1), "open": 1, "high": 1, "low": 1, "close": 1, "volume": 0})
+
+    csv_text = forex_rows_to_lean_csv([later, earlier])
+
+    lines = csv_text.splitlines()
+    assert lines[0].startswith("20200101")
+    assert lines[1].startswith("20200103")
+
+
+def test_write_lean_forex_zip_creates_new_zip_with_synthesized_bid_ask(tmp_path):
+    output_zip = tmp_path / "eurusd.zip"
+    ohlcv_row = {"date": date(2020, 1, 2), "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.15, "volume": 0}
+
+    write_lean_forex_zip(output_zip, "EURUSD", [ohlcv_row], merge_with_existing=True)
+
+    assert output_zip.exists()
+    with ZipFile(output_zip) as archive:
+        assert archive.namelist() == ["eurusd.csv"]
+        content = archive.read("eurusd.csv").decode("utf-8")
+    assert content == "20200102 00:00,1.1,1.2,1.0,1.15,0,1.1,1.2,1.0,1.15,0\n"
+
+
+def test_write_lean_forex_zip_preserves_existing_real_spread_on_merge(tmp_path):
+    output_zip = tmp_path / "eurusd.zip"
+    # Seed a "real" existing row with a genuine, non-equal bid/ask spread -
+    # the exact invariant a naive collapse-to-mid writer would destroy.
+    with ZipFile(output_zip, "w") as archive:
+        archive.writestr(
+            "eurusd.csv",
+            "20200101 00:00,1.1000,1.1010,1.0990,1.1005,0,1.1002,1.1012,1.0992,1.1007,0\n",
+        )
+
+    new_row = {"date": date(2020, 1, 2), "open": 2.0, "high": 2.1, "low": 1.9, "close": 2.05, "volume": 0}
+    write_lean_forex_zip(output_zip, "EURUSD", [new_row], merge_with_existing=True)
+
+    with ZipFile(output_zip) as archive:
+        content = archive.read("eurusd.csv").decode("utf-8")
+    lines = content.splitlines()
+    real_row_line = next(line for line in lines if line.startswith("20200101"))
+    assert real_row_line == "20200101 00:00,1.1,1.101,1.099,1.1005,0,1.1002,1.1012,1.0992,1.1007,0", (
+        "existing real bid != ask spread must survive the merge unchanged, never collapsed to a synthesized mid"
+    )
+    synthesized_row_line = next(line for line in lines if line.startswith("20200102"))
+    assert synthesized_row_line == "20200102 00:00,2.0,2.1,1.9,2.05,0,2.0,2.1,1.9,2.05,0"
 
 
 # ---------------------------------------------------------------------------

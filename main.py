@@ -37,6 +37,8 @@ from risk_controls import (
     assess_drawdown_lock,
     cap_target_weight,
     compute_incremental_order_quantity,
+    compute_position_exit_tracking_update,
+    evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
     should_scale_position,
 )
@@ -4650,28 +4652,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
            _update_position_exit_tracking()).
 
         Self.exits_enabled=False (not the default) restores pre-fix
-        behavior byte-for-byte - no non-model exit ever fires."""
-        if not self.exits_enabled:
-            return None
+        behavior byte-for-byte - no non-model exit ever fires.
 
+        V4.10 - thin call site over risk_controls.py::evaluate_non_model_exit(),
+        the pure extraction of this method's own decision logic (see that
+        function's docstring for the exact contract) - resolves the
+        per-symbol dict lookups here, since the pure function itself takes
+        no self/dicts."""
         entry_bar_index = self._position_entry_bar_index.get(symbol_key)
-        if entry_bar_index is None:
-            return None
-
-        if self.bar_index - entry_bar_index >= self.exits_max_holding_bars:
-            return "max_holding_age_exceeded"
-
         peak_price = self._position_peak_price_since_entry.get(symbol_key)
         direction = self._position_direction_by_symbol.get(symbol_key, "long")
-        if peak_price is not None and peak_price > 0.0:
-            if direction == "long":
-                drawdown_from_peak = (peak_price - close_price) / peak_price
-            else:
-                drawdown_from_peak = (close_price - peak_price) / peak_price
-            if drawdown_from_peak >= self.exits_trailing_stop_pct:
-                return "trailing_stop_triggered"
-
-        return None
+        return evaluate_non_model_exit(
+            self.bar_index,
+            self.exits_enabled,
+            self.exits_max_holding_bars,
+            self.exits_trailing_stop_pct,
+            entry_bar_index,
+            peak_price,
+            direction,
+            close_price,
+        )
 
     def _update_position_exit_tracking(
         self, symbol_key: str, was_invested: bool, is_invested: bool, close_price: float, signal_name: str
@@ -4681,20 +4681,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
         transition around _apply_signal() rather than hooking into its many
         asset-class-specific branches (equity/futures/options x buy/short) -
         robust to every routing path by construction, since it only cares
-        about the outcome."""
-        if is_invested and not was_invested:
-            self._position_entry_bar_index[symbol_key] = self.bar_index
-            self._position_entry_price[symbol_key] = close_price
-            self._position_peak_price_since_entry[symbol_key] = close_price
-            self._position_direction_by_symbol[symbol_key] = "short" if signal_name == "short" else "long"
-        elif is_invested and was_invested:
-            direction = self._position_direction_by_symbol.get(symbol_key, "long")
-            peak_price = self._position_peak_price_since_entry.get(symbol_key, close_price)
-            if direction == "long":
-                self._position_peak_price_since_entry[symbol_key] = max(peak_price, close_price)
-            else:
-                self._position_peak_price_since_entry[symbol_key] = min(peak_price, close_price)
-        elif not is_invested and was_invested:
+        about the outcome.
+
+        V4.10 - thin call site over risk_controls.py::compute_position_exit_tracking_update(),
+        the pure extraction of this method's own state-transition logic -
+        applies the returned action to the 4 tracking dicts."""
+        update = compute_position_exit_tracking_update(
+            was_invested,
+            is_invested,
+            close_price,
+            signal_name,
+            self._position_peak_price_since_entry.get(symbol_key),
+            self._position_direction_by_symbol.get(symbol_key),
+            self.bar_index,
+        )
+        action = update["action"]
+        if action == "enter":
+            self._position_entry_bar_index[symbol_key] = update["entry_bar_index"]
+            self._position_entry_price[symbol_key] = update["entry_price"]
+            self._position_peak_price_since_entry[symbol_key] = update["peak_price_since_entry"]
+            self._position_direction_by_symbol[symbol_key] = update["direction"]
+        elif action == "hold":
+            self._position_peak_price_since_entry[symbol_key] = update["peak_price_since_entry"]
+        elif action == "clear":
             self._position_entry_bar_index.pop(symbol_key, None)
             self._position_entry_price.pop(symbol_key, None)
             self._position_peak_price_since_entry.pop(symbol_key, None)

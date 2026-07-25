@@ -488,8 +488,25 @@ def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
 # subsystem" one at a time. test_lean_backtest_ml_coverage.py is
 # deliberately absent from every bucket - it's gated by the lean_backtest
 # marker (see --lean/--full below), never by a subsystem flag.
+#
+# Hand-maintained, not derived from the filesystem - real drift found and
+# fixed once already (~14 files, including a whole missing "audit" bucket,
+# had silently fallen off every group). tests/test_aq_cli.py::
+# test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket()
+# now locks in "every real test file (except the one deliberate exclusion
+# above) is in exactly one bucket" so a new test file missing from every
+# bucket fails CI instead of quietly working only via the flag-less
+# default run.
 _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
-    "cli": ["test_aq_cli.py", "test_generate_backtest_report.py"],
+    "cli": [
+        "test_aq_cli.py", "test_generate_backtest_report.py",
+        "test_lean_config_render.py", "test_dockerignore_secrets.py", "test_secret_scan.py",
+        "test_profile_inference.py", "test_profile_subsystems.py",
+    ],
+    "audit": [
+        "test_hash_chain.py", "test_audit_queue.py", "test_postgres_audit.py",
+        "test_audit_postgres_worker.py", "test_audit_status_export.py",
+    ],
     "risk": [
         "test_risk_controls.py", "test_asset_class_router.py", "test_futures_risk.py",
         "test_forex_risk.py",
@@ -516,6 +533,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "webui": [
         "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
         "test_rank_ic_monitor.py", "test_observation_metrics.py", "test_strategy_catalog.py",
+        "test_api_server.py",
     ],
     "ml": [
         "test_expert_models.py", "test_expert_datasets.py", "test_gating_network.py", "test_train_gating.py",
@@ -525,6 +543,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_exported_model.py", "test_market_topology.py", "test_market_regime.py",
         "test_market_analyzer.py", "test_market_liquidity.py",
         "test_train_strategy_selector.py", "test_strategy_selector_inference.py",
+        "test_parallel_inference.py", "test_train_threshold_and_early_stop.py",
+        "test_train_select_model_context_columns.py",
     ],
     "retraining": [
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
