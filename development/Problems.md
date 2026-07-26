@@ -4195,3 +4195,123 @@ structurally-identical dotted path on a `lean.json` fixture, confirming
 the gate is `json_path == CONFIG_PATH`, not merely key-presence).
 
 ---
+
+### 70. V4.11 — the training + optimization phase: full Codespace retrain + walk-forward actually executed, three latent train.py bugs fixed, and the primary signal clears the ≥2.0 significance bar for the first time
+
+**Severity:** n/a (milestone phase) · **Status:** 🟢 training/optimization executed; signal significant-on-aggregate but not-yet-promotable (era-sign instability); Lean-backtest-gated items toggled on, pending the user's two manual runs
+
+The two roadmap items that had only ever been *coded*, never *run* — a full
+model retrain and the Stage-6 walk-forward diagnostic (#43/#56) — were
+executed for real on the pre-configured GitHub Codespace (CPU, 8 GB, the
+documented cloud-training path in `development/infrastructure.md`), then the
+trained artifacts pulled back to the local `ml/`. Being the first-ever full
+`train.py` run that included the 15 forex pairs (V4.10 #66 only *fetched*
+them; training was deferred), it surfaced **three genuine latent bugs**, all
+now fixed in `train.py`:
+
+1. **Forex was unreadable offline.** `load_lean_bars()` read every asset
+   with the 6-column trade-bar parser, but Lean forex daily bars are
+   11-field bid/ask quote bars — pandas shoved the first 5 columns into a
+   MultiIndex, misaligning `timestamp` to `0.0`, so every forex row was
+   dropped → empty frame → a downstream crash. Fix: a forex branch that
+   collapses the quote bar to a **midpoint** trade bar (`(bid+ask)/2`,
+   volume 0), byte-for-byte the same midpoint `main.py`'s runtime
+   `_quote_bar_to_trade_bar_midpoint()` already feeds the model — train/serve
+   parity. (`train.py` `FOREX_RAW_COLUMNS` + `load_lean_bars`.)
+2. **Empty-frame duplicate-column bug.** `add_regime_features()` did
+   `frame.apply(_encode_regime_row, axis=1, result_type="expand")` then an
+   `axis=1` concat. On an EMPTY frame, `apply(result_type="expand")` returns
+   a copy of the frame's OWN columns (no row to infer keys from), so the
+   concat duplicated every column incl. `date` → `frame["date"]` returned a
+   DataFrame, not a Series → `AttributeError` in
+   `build_topology_features_by_date`. Empty frames only arise in a
+   walk-forward sub-window an asset has no data in, so only the never-run
+   walk-forward path hit it. Fix: an empty-frame guard that attaches the
+   regime columns explicitly (`REGIME_ENCODED_FEATURE_NAMES`) without the
+   concat.
+3. **Walk-forward manifest `KeyError`.** `_run_walk_forward()` passes an
+   empty `{}` inventory per window; `build_dataset_manifest()` did
+   `inventory["coverage_checks"]` → `KeyError`. Fix: `.get("coverage_checks",
+   {})`. Never triggered before because walk-forward had never run.
+
+**A stale-data sync gap was also caught.** The persisted Codespace still had
+4 forex zips (EURUSD/GBPUSD/NZDUSD/EURGBP) from an old 2007–2018 sample
+vintage; a first retrain classified those 4 majors `observation_only`
+(empty 2019–2021 backtest window). Root cause: the initial data sync checked
+file *presence*, not *freshness*. Re-uploading the current 2014–2021 zips and
+retraining put **all 15 forex pairs training-eligible** (universe trainable
+set 74 → 78). Core equity/crypto/bond data was verified fresh (SPY→2021,
+BTC→2021), so only forex needed re-syncing.
+
+**The result — the primary signal clears the honest significance bar for the
+first time.** Multitask `rank_20d`, out-of-sample non-overlapping backtest
+(the project's own promotion gate, `assess_ranking_quality`):
+`non_overlapping_t_stat = 2.028` (≥ 2.0 ✅), `bootstrap_ci_lower = +0.0065`
+(≥ 0 ✅) — **both hard thresholds pass**. Verdict is still `not_promotable`,
+blocked *solely* by `era_sign_instability`: 2 of 9 non-overlapping eras have
+opposite-sign IC. Progression of that t-stat by universe size: 1.20
+(30-asset) → 1.40 (74, #52) → **2.028 (78, all forex)** — breadth is the
+confirmed lever. Sequence `rank_5d` non-overlap t = 1.996 (essentially at the
+bar). Walk-forward cross-window backtest MCC: mean 0.0259, 95% CI
+[0.0128, 0.0409] (excludes zero — a weak-but-consistent directional edge
+across all 6 expanding 2019→2021 windows, COVID crash included).
+
+**Other outcomes:**
+- **#61c bond retrain done** — the 3 analytic bond features
+  (`bond_analytic_modified_duration`/`_convexity`/`bond_dv01`) are now in the
+  freshly-regenerated `ml/feature_schema.json`; the KeyError-on-deploy risk
+  is eliminated.
+- **#66 forex classified** — all 15 pairs training-eligible (was: never
+  classified). `development/asset_universe.md` updated Trading (expected) →
+  Trading.
+- **Topology overlay (#56) still dormant** — `train_topology.py` fits over
+  realized-outcome events from Postgres; the disposable Codespace has no
+  experience DB, so it errored on connect (the predicted "can't train
+  topology here"). It stays dormant until real full-stack runs accumulate
+  ≥`min_training_events`. The deterministic SMACOF embedding is unaffected.
+- **8/9 models trained**: baseline + 4 experts + multitask + sequence +
+  gating; topology the only exception.
+
+**Lean-backtest-gated items toggled ON for the user's manual runs** (all
+default-off features that only a real backtest can verify, IB-independent):
+`phase_v2.functionality.position_scaling.{enabled,rotate_on_drift}` (#57),
+`sequence_model.batched_across_symbols_enabled` (#65), `topology.cache_enabled`
++ `correlation_stability_tolerance_percentile=75` (#65/#66),
+`market_analyzer.use_composite_signal_score`, `forex_risk.enabled` (#60/#66),
+`inference_parallelism.enabled` (#65/#69). Left OFF (IB-gated, unverifiable
+without a real key): all `options_risk.*` (#58/#59),
+`futures_risk.enabled`/`margin_source` (#67), `ib.enabled`,
+`strategy_selector.enabled`. `config.json.pre411.bak` snapshots the pre-toggle
+state. These stay 🟡 "toggled on, pending the user's manual backtest result"
+until the user reports back; the IB-gated ones remain explicitly open.
+
+**Backtest 1 result (user-run, `bypass_safety_gates` on, all toggles on,
+2019-01-01→2021-03-31 on the retrained 78-asset model):** the model runs
+**end-to-end in real Lean** — `main.py` imported, warmed up, placed 2,062
+orders over 63,653 data points, completed. Every newly-toggled feature
+executed without a crash (forex trading, position-scaling/rotation, sequence
+symbol-batching, topology cache + percentile-tolerance, composite regime
+score; limit orders confirmed firing) — so those items graduate from 🟡
+"toggled on, pending" to ✅ **verified: runs in a real backtest without
+error** (#57/#65/#66/#69's non-IB portions). Performance, honestly, is weak:
+Net **+1.04%** (0.46%/yr), Sharpe **−0.313**, max drawdown 8.9%, win rate 56%
+but profit/loss ratio 0.83, beta 0.117 (market-neutral as intended), fees
+$1,641 on 5.25% turnover. Negative Sharpe with positive net = below the
+risk-free rate — a faint real edge that doesn't yet survive costs, consistent
+with the ~6/10 signal review. Not comparable to the old +10.4%/0.40 figure
+(that was the pre-retrain model with all these features OFF). **One flag:** the
+run ended with `Failed to shutdown python … Operation timed out (10s)` at
+`PythonInitializer.Shutdown` — stats posted fine (backtest valid), but the
+hang is plausibly the `inference_parallelism` ProcessPoolExecutor not
+terminating cleanly inside Lean's embedded Python (exactly #69's flagged
+risk). Recommended next: run Backtest 2 (`bypass_safety_gates` off, drawdown
+enforced), and a toggles-off run of the same retrained model to isolate
+whether the new features or the retrain itself drove the regression, and
+whether turning `inference_parallelism` back off clears the shutdown hang.
+
+**Still open after this phase:** the signal is not promotable (era-sign
+instability is now the single blocker — see the gap-to-10/10 plan: stabilize
+the 2 opposite-sign eras via regime-conditioning / stronger neutralization,
+keep expanding breadth); the weak backtest edge; the possible
+inference_parallelism shutdown hang; topology overlay dormant; all
+option/futures/IB items unverified pending a real IB key.

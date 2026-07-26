@@ -103,21 +103,21 @@ SPY/QQQ/IWM/EEM, not a new Lean security type).
 | EOSUSD | Crypto | Observation-only (thin history) |
 | ETCUSD | Crypto | Observation-only (thin history) |
 | ZECUSD | Crypto | Observation-only (thin history) |
-| EURUSD | Forex | Trading (expected) |
-| GBPUSD | Forex | Trading (expected) |
-| USDJPY | Forex | Trading (expected) |
-| AUDUSD | Forex | Trading (expected) |
-| USDCAD | Forex | Trading (expected) |
-| USDCHF | Forex | Trading (expected) |
-| NZDUSD | Forex | Trading (expected) |
-| EURGBP | Forex | Trading (expected) |
-| EURJPY | Forex | Trading (expected) |
-| GBPJPY | Forex | Trading (expected) |
-| EURCHF | Forex | Trading (expected) |
-| EURAUD | Forex | Trading (expected) |
-| AUDJPY | Forex | Trading (expected) |
-| CADJPY | Forex | Trading (expected) |
-| GBPCAD | Forex | Trading (expected) |
+| EURUSD | Forex | Trading |
+| GBPUSD | Forex | Trading |
+| USDJPY | Forex | Trading |
+| AUDUSD | Forex | Trading |
+| USDCAD | Forex | Trading |
+| USDCHF | Forex | Trading |
+| NZDUSD | Forex | Trading |
+| EURGBP | Forex | Trading |
+| EURJPY | Forex | Trading |
+| GBPJPY | Forex | Trading |
+| EURCHF | Forex | Trading |
+| EURAUD | Forex | Trading |
+| AUDJPY | Forex | Trading |
+| CADJPY | Forex | Trading |
+| GBPCAD | Forex | Trading |
 
 ## Trading vs observation-only
 
@@ -141,17 +141,16 @@ symbol-properties database confirmed it, so those two could never subscribe.
 ETCUSD/ZECUSD are real Coinbase-listed pairs with the same 2017-11-09 Yahoo
 history start as the rest of this batch.)
 
-**All 15 forex pairs (V4.10) are marked "Trading (expected)"**, not a
-confirmed "Trading" — real `aq fetch forex --apply` runs confirmed every
-pair returned Yahoo Finance data covering the FULL common window
-(`2014-12-01` to `2021-03-31`, verified via each fetch's own reported date
-range, not assumed), the same signal that puts a ticker in "Trading" for
-every other asset class here. But this hasn't actually been run through
-`train.py`'s own `asset_quality` classifier yet — that step (`python
-train.py --dataset-only`) was deliberately left for the user to run
-manually, matching this project's established division of labor for
-training-adjacent steps (see `development/Problems.md` #66). Update this
-table once that's been run.
+**All 15 forex pairs are confirmed "Trading"** as of the V4.11 retrain
+(`development/Problems.md` #70). The first-ever full `train.py` run that
+included forex classified all 15 pairs training-eligible via the same
+`asset_quality` classifier used for every other asset class (trainable
+universe 74 → 78). This required two fixes surfaced by that run: `train.py`
+could not read the forex bid/ask quote-bar format at all (now collapsed to a
+midpoint trade bar, matching runtime), and 4 forex majors initially landed
+observation-only because the Codespace held a stale 2007–2018 data vintage —
+re-syncing the current 2014–2021 data resolved it. The "Trading (expected)"
+caveat that stood here in V4.10 is now settled.
 
 ## Group-level view
 

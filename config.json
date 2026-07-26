@@ -1367,7 +1367,7 @@
             "margin_source": "static"
         },
         "forex_risk": {
-            "enabled": false,
+            "enabled": true,
             "target_leverage_utilization": 0.2,
             "max_leverage_utilization": 0.4,
             "pair_specs_path": "data/reference/forex_pair_specs.json"
@@ -1416,8 +1416,8 @@
         },
         "functionality": {
             "position_scaling": {
-                "enabled": false,
-                "rotate_on_drift": false,
+                "enabled": true,
+                "rotate_on_drift": true,
                 "rebalance_threshold_weight": 0.03
             }
         },
@@ -1439,12 +1439,12 @@
         "sequence_model": {
             "enabled": true,
             "window_size": 30,
-            "batched_across_symbols_enabled": false
+            "batched_across_symbols_enabled": true
         },
         "market_analyzer": {
             "retrain_min_regime_confidence": 0.2,
             "low_regime_confidence_threshold": 0.35,
-            "use_composite_signal_score": false
+            "use_composite_signal_score": true
         },
         "topology": {
             "correlation_threshold": 0.6,
@@ -1455,9 +1455,9 @@
             "warm_start_enabled": true,
             "convergence_tolerance": 0.01,
             "top_peers_n": 3,
-            "cache_enabled": false,
+            "cache_enabled": true,
             "correlation_stability_tolerance": 0.02,
-            "correlation_stability_tolerance_percentile": null
+            "correlation_stability_tolerance_percentile": 75
         },
         "topology_learning": {
             "enabled": true,
@@ -1592,7 +1592,7 @@
             "freeze_after_load_enabled": true
         },
         "inference_parallelism": {
-            "enabled": false
+            "enabled": true
         },
         "runtime": {
             "mode": "backtest",

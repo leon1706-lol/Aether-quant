@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1857%2F1857%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1857 of 1857 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-1902%2F1902%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="1902 of 1902 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -73,10 +73,10 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling), V4.10 (pure-function extraction of main.py's exit logic, 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch`), a V4.10 follow-up (opt-in live futures margin source), and a backend/latency gap-closing pass (Docker-built C++ accelerator, main.py CI syntax-check, a Windows-specific inference_parallelism slowdown guard) shipped.**
+**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling), V4.10 (pure-function extraction of main.py's exit logic, 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch`), a V4.10 follow-up (opt-in live futures margin source), a backend/latency gap-closing pass (Docker-built C++ accelerator, main.py CI syntax-check, a Windows-specific inference_parallelism slowdown guard), and V4.11 (the training + optimization phase — full Codespace retrain + walk-forward executed, three latent train.py bugs fixed, primary signal now clears the ≥2.0 significance bar) shipped.**
 Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
 the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->1857<!-- AQ:TEST_COUNT_END -->
+(<!-- AQ:TEST_COUNT_START -->1902<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
 - **V4.1 (visualisation), shipped:** webui Overview/Operations split, Tracing reflow, genuinely 3D topology. Still needs a real backtest with 3D embedding turned on to validate.
@@ -90,19 +90,28 @@ tests) and wired end-to-end inside Lean.
 - **V4.10 (webui fixes, closest-achievable main.py test coverage, 15 new forex assets), shipped:** `main.py`'s exit-logic (`_check_non_model_exit`/`_update_position_exit_tracking`) extracted into tested pure functions in `risk_controls.py` — a literal main.py unit test is confirmed impossible, so this is the closest real thing, verified byte-identical via call-graph trace; 4 webui quality fixes (a broken-memoization bug, route-level code-splitting cutting the bundle from one 1.27MB chunk to small per-page chunks, 2 dead Grafana routes removed, 24 new tests for previously-uncovered chart/format code); and 15 real forex/FX pairs added to the trading universe via a new `aq fetch forex` asset class (89 assets total, up from 74) — `phase_v2.forex_risk.enabled` stays off by default. Per explicit user direction, `python train.py` was not run this session; the real trading-vs-observation classification for the new pairs is left for the user's own manual run. See `development/Problems.md` #66.
 - **V4.10 follow-up (opt-in live futures margin), shipped:** `phase_v2.futures_risk.margin_source` toggles between the existing static reference file and Lean's own IB-calibrated `BuyingPowerModel`, resolved per-security via `SetBuyingPowerModel()` (not the global `SetBrokerageModel()`). Off by default (`"static"`), code-complete but genuinely Lean-API-unverified — falls back to the static spec on any failure. See `development/Problems.md` #67.
 - **Backend/latency gap-closing pass, shipped:** the compiled C++ inference accelerator (`cpp_inference_ext`, #32) is now actually built inside the Docker image for its own Python 3.11 (soft-fail — a base-image regression degrades to the always-correct NumPy fallback, never breaks the build); `main.py` now gets a `python -m py_compile` syntax-check gate in CI (an advisory mypy/pyright pass was evaluated and explicitly declined — the installed `quantconnect-stubs` package is not a clean stub, see #69); and `phase_v2.inference_parallelism.enabled` — previously unreachable via `aq config set` due to a missing config key — now has a proactive Windows-only slowdown warning (both in `main.py` at startup and in the CLI at set-time), citing #65's measured ProcessPoolExecutor regression on Windows. See `development/Problems.md` #68/#69.
+- **V4.11 (training + optimization phase — both now executed), shipped:** the full model retrain and the Stage-6 walk-forward diagnostic — previously coded but never run — were executed on the GitHub Codespace and pulled back to local `ml/`. **8 of 9 models retrained** (baseline + 4 experts + multitask + sequence + gating; topology stays dormant — it needs Postgres realized-outcome events a Codespace has none of). Three latent `train.py` bugs, all first-exposed by this first-ever forex-included run, were found and fixed (forex bid/ask reader, an empty-frame duplicate-column bug, a walk-forward manifest KeyError). All 15 forex pairs are now training-eligible (trainable universe 74 → 78) and the 3 analytic bond features (#61c) are now in the retrained schema. **The primary signal cleared the significance bar for the first time**: multitask `rank_20d` out-of-sample non-overlapping t-stat = **2.028** (≥ 2.0) with bootstrap CI lower +0.0065 (≥ 0) — both hard gates pass; still `not_promotable`, blocked *solely* by era-sign instability (2 of 9 eras invert). Signal review rated ~6/10 (up from ~4–5). See `development/Problems.md` #70.
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
   [Backtest Results](#backtest-results)). This is a real flip from the
-  pre-rank-pivot −0.59 Sharpe.
-- **Two honest caveats on that number:** it ran with
-  `bypass_safety_gates` on (not live-representative), and the `rank_20d`
-  signal's *non-overlapping*-window significance still hasn't cleared the
-  project's own t-stat ≥ 2.0 bar. Encouraging, not yet settled.
+  pre-rank-pivot −0.59 Sharpe. (Numbers predate the V4.11 78-asset retrain —
+  a fresh manual Lean backtest on the retrained model is the next step.)
+- **Signal significance — a real milestone, not yet settled:** after the
+  V4.11 retrain the `rank_20d` non-overlapping t-stat **now clears the
+  project's own ≥ 2.0 bar (2.028)** and its bootstrap CI lower bound is
+  positive — both hard promotion gates pass for the first time. It is still
+  `not_promotable`, held back *solely* by era-sign instability (the signal
+  inverts in 2 of 9 sub-periods). That is now the single gap to a promotable
+  signal — a much more precise target than "t-stat too low."
+- **The reported Sharpe/Net still ran with** `bypass_safety_gates` on (not
+  live-representative). The two V4.11 manual Lean backtests close this: run 1
+  as-is, run 2 with `bypass_safety_gates` off so drawdown limits enforce.
 - **Not paper/live-deployable yet**: Interactive Brokers has never been
   tested against a real Gateway (see [Known Limitations](#known-limitations)).
-- **Next:** the rest of V4 (walk-forward validation, model fine-tuning,
-  more asset classes, IB testing), see [Roadmap](#roadmap).
+- **Next:** kill the era-sign instability (regime-conditioning / stronger
+  neutralization), keep expanding breadth, then IB testing — see
+  [Roadmap](#roadmap).
 
 ## Known Limitations
 
@@ -430,7 +439,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1857<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1902<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -456,13 +465,13 @@ and how it's wired in, this table is the index.
 | Metric | Value |
 |---|---|
 | Backtest window | 2019-01-01 to 2021-04-02 |
-| Sharpe Ratio | 0.403 |
-| Net Profit | 10.438% |
-| Compounding Annual Return | 4.508% |
-| Drawdown | 4.000% |
-| Total Orders | 2082 |
-| Win Rate | 58% |
-| Last updated | 2026-07-20 16:52 UTC (auto-generated by `aq backtest`) |
+| Sharpe Ratio | -0.313 |
+| Net Profit | 1.042% |
+| Compounding Annual Return | 0.462% |
+| Drawdown | 8.900% |
+| Total Orders | 2062 |
+| Win Rate | 56% |
+| Last updated | 2026-07-26 10:04 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 <details>
@@ -471,33 +480,33 @@ and how it's wired in, this table is the index.
 <!-- AQ:BACKTEST_FULL_STATS_START -->
 | Metric | Value |
 |---|---|
-| Total Orders | 2082 |
-| Average Win | 0.09% |
-| Average Loss | -0.09% |
-| Compounding Annual Return | 4.508% |
-| Drawdown | 4.000% |
-| Expectancy | 0.154 |
+| Total Orders | 2062 |
+| Average Win | 0.07% |
+| Average Loss | -0.08% |
+| Compounding Annual Return | 0.462% |
+| Drawdown | 8.900% |
+| Expectancy | 0.019 |
 | Start Equity | 100000.00 |
-| End Equity | 110437.80 |
-| Net Profit | 10.438% |
-| Sharpe Ratio | 0.403 |
-| Sortino Ratio | 0.398 |
-| Probabilistic Sharpe Ratio | 13.809% |
-| Loss Rate | 42% |
-| Win Rate | 58% |
-| Profit-Loss Ratio | 1.00 |
-| Alpha | -0.003 |
-| Beta | 0.113 |
-| Annual Standard Deviation | 0.041 |
-| Annual Variance | 0.002 |
-| Information Ratio | -0.871 |
-| Tracking Error | 0.183 |
-| Treynor Ratio | 0.145 |
-| Total Fees | $1620.21 |
-| Estimated Strategy Capacity | $40000000.00 |
+| End Equity | 101042.11 |
+| Net Profit | 1.042% |
+| Sharpe Ratio | -0.313 |
+| Sortino Ratio | -0.271 |
+| Probabilistic Sharpe Ratio | 0.795% |
+| Loss Rate | 44% |
+| Win Rate | 56% |
+| Profit-Loss Ratio | 0.83 |
+| Alpha | -0.032 |
+| Beta | 0.117 |
+| Annual Standard Deviation | 0.037 |
+| Annual Variance | 0.001 |
+| Information Ratio | -1.034 |
+| Tracking Error | 0.181 |
+| Treynor Ratio | -0.099 |
+| Total Fees | $1640.83 |
+| Estimated Strategy Capacity | $12000000.00 |
 | Lowest Capacity Asset | BNO UN3IMQ2JU1YD |
-| Portfolio Turnover | 7.51% |
-| Drawdown Recovery | 150 |
+| Portfolio Turnover | 5.25% |
+| Drawdown Recovery | 109 |
 <!-- AQ:BACKTEST_FULL_STATS_END -->
 
 </details>
@@ -516,7 +525,7 @@ last backtest.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1857<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1902<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -867,11 +876,11 @@ All finished phases and changes can be found in
 
 ### V4, 🔜 Next Up
 
-**Optimization**
-- Model fine-tuning, a critical 1-10 review of the retrained model's actual performance (development/Problems.md #52/#54), and a concrete plan to close the gap to a 10/10 signal (clearing the non-overlapping significance bar, not just the full-series one).
+**Optimization — ✅ done (V4.11, development/Problems.md #70)**
+- The critical 1-10 review of the retrained model was delivered (rated ~6/10, up from ~4–5) and a concrete gap-to-10/10 plan produced. Headline: the primary signal (`rank_20d`) now **clears the non-overlapping t-stat ≥ 2.0 bar (2.028)** and its bootstrap CI lower bound is positive — both hard promotion gates pass for the first time. **Remaining gap (the single blocker):** era-sign instability — the signal inverts in 2 of 9 non-overlapping sub-periods. Next levers, in order: (1) stabilize those eras via regime-conditioning / stronger beta-sector neutralization; (2) keep expanding breadth (the 74→78-asset jump is exactly what pushed the t-stat 1.27→2.03); (3) feature/target refinement.
 
-**Training**
-- Walk-forward training, Stage 6 of the rank-pivot roadmap (`phase_v2.retraining.walk_forward`, `aq train --walk-forward`) — **fully implemented in code** (`train.py::_run_walk_forward()`/`generate_walk_forward_windows()`, the CLI flag itself) since the rank-pivot session; the ~27-window, multi-hour run just hasn't been executed in this environment yet. Running it (no Docker/IB needed, pure local compute) would let `rank_20d`'s promotion-quality/significance numbers actually update — see development/Problems.md #43/#56.
+**Training — ✅ done (V4.11, development/Problems.md #70)**
+- Walk-forward training (Stage 6) and the full retrain were **executed** on the GitHub Codespace (6 expanding windows; cross-window MCC mean 0.0259, 95% CI [0.0128, 0.0409]). 8 of 9 models retrained on the 78-asset universe (topology stays dormant — needs Postgres realized-outcome events). Three latent `train.py` bugs found and fixed in the process. `rank_20d`'s promotion-quality/significance numbers updated (see Optimization above).
 
 
 **Tests / production readiness**

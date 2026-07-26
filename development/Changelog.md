@@ -4572,3 +4572,57 @@ New coverage: `tests/test_parallel_inference.py` extended with
 proving the CLI warning is gated on `json_path == CONFIG_PATH` and not
 merely on the dotted-path string matching. See `development/Problems.md`
 #68/#69 for the full writeup.
+
+## V4.11 — training + optimization phase: full Codespace retrain + walk-forward executed, three latent train.py bugs fixed, primary signal clears the ≥2.0 significance bar (Problems.md #70)
+
+The two roadmap items that had only ever been coded, never run — a full
+model retrain and the Stage-6 walk-forward diagnostic — were executed for
+real on the GitHub Codespace (CPU/8 GB cloud-training path), then the trained
+artifacts pulled back to the local `ml/`. **8 of 9 model families retrained**
+(baseline + 4 experts + multitask + sequence + gating); only the topology
+overlay could not — it fits over realized-outcome events from Postgres, which
+a disposable Codespace has no accumulated store of, so it stays dormant until
+real full-stack runs generate them (the deterministic SMACOF embedding is
+unaffected).
+
+**Three genuine latent bugs surfaced and were fixed in `train.py`** — all
+first-exposed by this being the first-ever full run that included the 15
+forex pairs (V4.10 only fetched them):
+1. `load_lean_bars()` couldn't read forex — Lean forex bars are 11-field
+   bid/ask quote bars, not 6-field trade bars; the mismatched parser dropped
+   every forex row. Fixed with a forex branch collapsing the quote bar to a
+   midpoint trade bar (`(bid+ask)/2`, volume 0), matching `main.py`'s runtime
+   midpoint exactly (train/serve parity).
+2. `add_regime_features()` duplicated every column (incl. `date`) on an empty
+   frame via an `apply(result_type="expand")` + `axis=1` concat — empty
+   frames only occur in walk-forward sub-windows an asset lacks data in.
+   Fixed with an empty-frame guard.
+3. `build_dataset_manifest()` KeyError'd on the walk-forward's empty `{}`
+   inventory. Fixed with `.get("coverage_checks", {})`.
+
+A **stale-data sync gap** was also caught: 4 forex zips on the persisted
+Codespace were an old 2007–2018 vintage (the initial sync checked presence,
+not freshness), which wrongly classified the EUR/USD, GBP/USD, NZD/USD,
+EUR/GBP majors observation-only. Re-uploading the current 2014–2021 data and
+retraining put **all 15 forex pairs training-eligible** (trainable universe
+74 → 78). Core equity/crypto/bond data verified fresh.
+
+**The result:** multitask `rank_20d`'s out-of-sample non-overlapping t-stat
+reached **2.028** (≥ 2.0) with bootstrap CI lower **+0.0065** (≥ 0) — both
+hard promotion gates pass for the first time (progression: 1.20 → 1.40 →
+2.028 as the universe grew, confirming breadth as the lever). Still
+`not_promotable`, blocked solely by `era_sign_instability` (2 of 9 eras
+invert sign). Sequence `rank_5d` t = 1.996. Walk-forward cross-window MCC
+mean 0.0259, 95% CI [0.0128, 0.0409] (excludes zero). The 3 bond features
+(#61c) are now in the retrained schema. A critical 1-10 signal review (rated
+~6/10, up from ~4–5) and a concrete gap-to-10/10 plan (kill the era-sign
+instability → keep expanding breadth → feature/target refinement) accompany
+this phase.
+
+**Lean-backtest-gated features toggled ON** for the user's two manual Lean
+backtests (all IB-independent, default-off-until-verified): position-scaling
++ rotation, sequence symbol-batching, topology cache + percentile-tolerance,
+composite regime score, forex trading, inference parallelism. IB-gated
+features (options/futures/strategy-selector/ib) left off. Both backtests are
+user-run: run 1 with `bypass_safety_gates` on (current), run 2 with it off so
+drawdown limits enforce. See `development/Problems.md` #70.

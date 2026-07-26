@@ -109,6 +109,15 @@ VALIDATION_DATASET_PATH = DATASET_DIR / "validation_dataset.csv"
 BACKTEST_DATASET_PATH = DATASET_DIR / "backtest_dataset.csv"
 
 RAW_COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"]
+# Lean's forex daily bars are 10-column quote bars (bid OHLCV + ask OHLCV
+# after the timestamp), not the 5-column trade-bar shape every other asset
+# class here uses - see data_pipeline/yfinance_backfill.py's forex writer.
+# load_lean_bars() collapses these to a midpoint trade bar for training.
+FOREX_RAW_COLUMNS = [
+    "timestamp",
+    "bid_open", "bid_high", "bid_low", "bid_close", "bid_volume",
+    "ask_open", "ask_high", "ask_low", "ask_close", "ask_volume",
+]
 PRICE_COLUMNS = ["open", "high", "low", "close"]
 
 
@@ -492,10 +501,24 @@ def apply_split_adjustments(frame: pd.DataFrame, ticker: str) -> pd.DataFrame:
 
 def load_lean_bars(asset: dict, common_window: dict) -> pd.DataFrame:
     path = ROOT / asset["data_path"]
+    is_forex = asset["security_type"] == "forex"
     with ZipFile(path) as archive:
         member = archive.namelist()[0]
         with archive.open(member) as handle:
-            frame = pd.read_csv(handle, header=None, names=RAW_COLUMNS)
+            frame = pd.read_csv(handle, header=None, names=FOREX_RAW_COLUMNS if is_forex else RAW_COLUMNS)
+
+    if is_forex:
+        # Collapse the 10-column bid/ask quote bar to a midpoint trade bar:
+        # open/high/low/close = (bid + ask) / 2, volume 0.0 - byte-for-byte
+        # the same midpoint main.py's runtime _quote_bar_to_trade_bar_midpoint()
+        # feeds the model for forex symbols, so offline training and live
+        # inference see the identical price series (train/serve parity).
+        for column in PRICE_COLUMNS:
+            bid = pd.to_numeric(frame[f"bid_{column}"], errors="coerce")
+            ask = pd.to_numeric(frame[f"ask_{column}"], errors="coerce")
+            frame[column] = (bid + ask) / 2.0
+        frame["volume"] = 0.0
+        frame = frame[["timestamp", *PRICE_COLUMNS, "volume"]]
 
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], format="%Y%m%d %H:%M", errors="coerce")
     for column in PRICE_COLUMNS + ["volume"]:
@@ -832,11 +855,32 @@ def _encode_regime_row(row: pd.Series) -> dict:
     }
 
 
+# The regime one-hot / score columns _encode_regime_row() emits. Kept as an
+# explicit list so add_regime_features() can attach them to an EMPTY frame
+# without a duplicate-column concat: frame.apply(..., result_type="expand")
+# on 0 rows returns a copy of the frame's OWN columns (pandas can't infer the
+# expanded keys with no row to call the function on), so concatenating that
+# back on axis=1 would duplicate every column - incl. "date" - and later
+# `frame["date"]` would return a DataFrame, not a Series. Empty asset frames
+# only arise in a walk-forward sub-window an asset has no data in.
+REGIME_ENCODED_FEATURE_NAMES = [
+    "regime_trend_bullish", "regime_trend_bearish", "regime_trend_sideways",
+    "regime_volatility_low", "regime_volatility_normal", "regime_volatility_high",
+    "regime_risk_on", "regime_risk_off", "regime_risk_neutral",
+    "regime_signal_confidence", "regime_signal_trend_score", "regime_signal_risk_score",
+]
+
+
 def add_regime_features(frame: pd.DataFrame) -> pd.DataFrame:
     """Row-wise: every surviving row already has the momentum/volatility
     features build_market_regime_vector() needs, so this never drops rows."""
-    encoded = frame.apply(_encode_regime_row, axis=1, result_type="expand")
-    return pd.concat([frame.reset_index(drop=True), encoded.reset_index(drop=True)], axis=1)
+    result = frame.reset_index(drop=True)
+    if result.empty:
+        for name in REGIME_ENCODED_FEATURE_NAMES:
+            result[name] = pd.Series(dtype=float)
+        return result
+    encoded = result.apply(_encode_regime_row, axis=1, result_type="expand")
+    return pd.concat([result, encoded.reset_index(drop=True)], axis=1)
 
 
 def add_liquidity_features(frame: pd.DataFrame, security_type: str) -> pd.DataFrame:
@@ -1956,7 +2000,11 @@ def build_dataset_manifest(
             "end": str(dataset["date"].max()) if not dataset.empty else None,
         },
         "alignment": metadata,
-        "inventory_snapshot": inventory["coverage_checks"],
+        # _run_walk_forward() passes an empty inventory ({}) per window - the
+        # data-coverage snapshot is identical across windows and not worth
+        # recomputing per fold - so tolerate a missing key rather than
+        # KeyError (the main, non-walk-forward path always passes a real one).
+        "inventory_snapshot": inventory.get("coverage_checks", {}),
     }
 
 
