@@ -34,6 +34,7 @@ from moe import EXPERT_NAMES
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 STATE_PATH = REPO_ROOT / "visualization" / "state.json"
+DATASET_MANIFEST_PATH = REPO_ROOT / "ml" / "dataset_manifest.json"
 # The old committed backtest window (2014-12-01 to 2018-08-13, 10 assets) was
 # observed taking over an hour wall-clock on this project's Docker Lean
 # runtime - main.py's per-bar model/expert inference (_run_exported_model) is
@@ -224,20 +225,25 @@ def test_topology_ran(state_after_backtest):
 
 @_skip_no_lean
 @pytest.mark.lean_backtest
-def test_model_input_dimensionality_is_52(state_after_backtest):
+def test_model_input_dimensionality_matches_dataset_manifest(state_after_backtest):
     """Proves the full regime/liquidity/topology/peer-return/technical-
     indicator-as-input feature pipeline (train.py::build_feature_dataset() /
     main.py::_build_model_input()) was actually exercised in a real
-    backtest, not just unit-tested. Was 59 (grew from an original 48 via +4
-    peer-return features + 6 technical indicators + 1 cross-sectional
-    momentum rank), then dropped to 52 in the pre-live model overhaul
-    (development/Problems.md): -3 dead futures/options features (always
-    0.0/1.0 scale in scaler_stats.json - never populated) and the 35-column
-    per-ticker asset one-hot collapsed to a 5-column asset-CLASS one-hot
-    (train.py::select_model_context_columns()) - a per-ticker identity flag
-    can only encode that ticker's own base rate, pushing the net toward a
-    constant per-asset output. 35 numeric + 12 categorical (regime/topology)
-    + 5 asset-class context = 52."""
+    backtest, not just unit-tested.
+
+    development/Problems.md #71: this test previously hardcoded a literal
+    expected count (52, itself already a rewrite of an earlier 59 after
+    the pre-live model overhaul dropped 3 dead futures/options features
+    and collapsed a 35-column per-ticker asset one-hot to a 5-column
+    asset-CLASS one-hot). That hardcoded 52 had already silently drifted
+    stale relative to the real trained model - the V4.7 bond-analytics
+    addition (35->38 features) then the V4.11 retrain brought the real
+    count to 55 (38 numeric + 12 categorical + 5 asset-class context), and
+    this @_skip_no_lean-gated test never ran anywhere to catch the drift.
+    Comparing against ml/dataset_manifest.json's own model_input_count
+    (written by the SAME train.py run that produced the model this
+    backtest actually loaded) makes the assertion self-updating instead of
+    a second hardcoded number to keep in sync by hand."""
     # main.py::_write_state() writes "model" as a top-level state key -
     # there is no top-level "config" key anywhere in that method. This was
     # previously state_after_backtest.get("config", {}).get("model", {}),
@@ -245,7 +251,9 @@ def test_model_input_dimensionality_is_52(state_after_backtest):
     # backtest actually did - a test-harness bug (wrong key path), not
     # evidence these subsystems didn't run. See development/Problems.md.
     model_config = state_after_backtest.get("model", {})
-    assert model_config.get("input_count") == 52
+    manifest = json.loads(DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))
+    expected_input_count = manifest["model_input_count"]
+    assert model_config.get("input_count") == expected_input_count
 
 
 @_skip_no_lean
@@ -254,7 +262,7 @@ def test_baseline_multitask_model_ran(state_after_backtest):
     """Proves train.py::AetherNetMultiTask (train_multitask.py,
     ml/multitask_model.json) actually loaded and produced magnitude/
     volatility predictions during a real backtest."""
-    model_config = state_after_backtest.get("model", {})  # see test_model_input_dimensionality_is_59's comment
+    model_config = state_after_backtest.get("model", {})  # see test_model_input_dimensionality_matches_dataset_manifest's comment
     assert model_config.get("multitask", {}).get("model_loaded") is True
     for signal in _signals_with_full_payload(state_after_backtest):
         assert signal.get("predicted_return_magnitude") is not None
@@ -283,7 +291,7 @@ def test_sequence_model_ran(state_after_backtest):
     (train.py::AetherNetSequenceMultiTask, ml/sequence_model.json) actually
     loaded and ran during a real backtest. Informational-only - this does
     not assert it fed any trading decision, only that it executed."""
-    model_config = state_after_backtest.get("model", {})  # see test_model_input_dimensionality_is_59's comment
+    model_config = state_after_backtest.get("model", {})  # see test_model_input_dimensionality_matches_dataset_manifest's comment
     assert model_config.get("sequence", {}).get("model_loaded") is True
     for signal in _signals_with_full_payload(state_after_backtest):
         sequence_model = signal.get("sequence_model") or {}

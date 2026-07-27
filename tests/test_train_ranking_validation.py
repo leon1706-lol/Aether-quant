@@ -241,12 +241,27 @@ def _promotable_gate_config() -> dict:
     }
 
 
+def _era(mean_ic: float, num_dates: int = 5, index: int = 0, t_stat: float = 0.0) -> dict:
+    """Builds a minimal per-era diagnostic dict (development/Problems.md
+    #71's per_era shape) for tests that only care about mean_ic/num_dates -
+    the two fields assess_ranking_quality() actually reads for the
+    sign-instability/noise-floor checks."""
+    return {
+        "era_index": index,
+        "era_start": f"2020-{index + 1:02d}-01",
+        "era_end": f"2020-{index + 1:02d}-28",
+        "num_dates": num_dates,
+        "mean_ic": mean_ic,
+        "t_stat": t_stat,
+    }
+
+
 def test_assess_ranking_quality_promotable_when_all_gates_clear():
     non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
     bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
-    per_era_mean_ics = [0.04, 0.05, 0.06]
+    per_era = [_era(0.04, index=0), _era(0.05, index=1), _era(0.06, index=2)]
 
-    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era_mean_ics, _promotable_gate_config())
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
 
     assert result["quality_status"] == "promotable"
     assert result["promotion_eligible"] is True
@@ -258,9 +273,9 @@ def test_assess_ranking_quality_fails_on_low_t_stat():
     # non-overlapping-date t-stat was 1.20, well under the 2.0 bar.
     non_overlapping_ic = {"mean_ic": 0.073, "t_stat": 1.20}
     bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
-    per_era_mean_ics = [0.07, 0.08]
+    per_era = [_era(0.07, index=0), _era(0.08, index=1)]
 
-    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era_mean_ics, _promotable_gate_config())
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
 
     assert "non_overlapping_t_stat_below_gate" in result["failures"]
     assert result["quality_status"] == "not_promotable"
@@ -270,9 +285,9 @@ def test_assess_ranking_quality_fails_on_low_t_stat():
 def test_assess_ranking_quality_fails_on_negative_bootstrap_lower_bound():
     non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
     bootstrap_result = {"lower_bound": -0.01, "upper_bound": 0.09}
-    per_era_mean_ics = [0.04, 0.05]
+    per_era = [_era(0.04, index=0), _era(0.05, index=1)]
 
-    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era_mean_ics, _promotable_gate_config())
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
 
     assert "bootstrap_ci_lower_bound_below_gate" in result["failures"]
     assert result["quality_status"] == "not_promotable"
@@ -281,9 +296,9 @@ def test_assess_ranking_quality_fails_on_negative_bootstrap_lower_bound():
 def test_assess_ranking_quality_fails_on_single_opposite_sign_era():
     non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
     bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
-    per_era_mean_ics = [0.06, 0.07, -0.02]  # one era flips sign
+    per_era = [_era(0.06, index=0), _era(0.07, index=1), _era(-0.02, index=2)]  # one era flips sign
 
-    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era_mean_ics, _promotable_gate_config())
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
 
     assert "era_sign_instability" in result["failures"]
     assert result["observed"]["num_opposite_sign_eras"] == 1
@@ -293,9 +308,9 @@ def test_assess_ranking_quality_fails_on_single_opposite_sign_era():
 def test_assess_ranking_quality_watchlist_when_t_stat_near_gate():
     non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 2.1}  # within watchlist_margin (0.3) of 2.0
     bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
-    per_era_mean_ics = [0.05, 0.05]
+    per_era = [_era(0.05, index=0), _era(0.05, index=1)]
 
-    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era_mean_ics, _promotable_gate_config())
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
 
     assert result["quality_status"] == "watchlist"
     assert result["promotion_eligible"] is True  # watchlist still gating_eligible-equivalent
@@ -310,11 +325,132 @@ def test_assess_ranking_quality_missing_config_falls_back_to_defaults():
 
     assert result["thresholds"]["min_non_overlapping_t_stat"] == 2.0
     assert result["thresholds"]["min_bootstrap_ci_lower"] == 0.0
+    assert result["thresholds"]["era_sign_min_abs_ic"] == 0.0
+    assert result["thresholds"]["era_min_observations"] == 0
+
+
+# ---------------------------------------------------------------------------
+# assess_ranking_quality - era_sign_min_abs_ic / era_min_observations noise
+# floor (development/Problems.md #71 - A3 of the Phase 4.12 era-instability
+# fix)
+# ---------------------------------------------------------------------------
+
+
+def test_assess_ranking_quality_noise_floor_defaults_are_byte_identical_to_old_behavior():
+    # era_sign_min_abs_ic=0.0 / era_min_observations=0 (the defaults when
+    # the config keys are absent) must reproduce the exact old strict-sign
+    # behavior - any era whose sign opposes the aggregate counts, no matter
+    # how small its magnitude or how few dates it has.
+    non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
+    per_era = [_era(0.06, num_dates=1, index=0), _era(-0.0001, num_dates=1, index=1)]
+
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
+
+    assert result["observed"]["num_opposite_sign_eras"] == 1
+    assert result["observed"]["num_insufficient_data_eras"] == 0
+    assert "era_sign_instability" in result["failures"]
+
+
+def _gate_config_with_noise_floor(min_abs_ic: float, min_observations: int) -> dict:
+    config = _promotable_gate_config()
+    config["phase1"]["target"]["ranking"]["promotion_gate"]["era_sign_min_abs_ic"] = min_abs_ic
+    config["phase1"]["target"]["ranking"]["promotion_gate"]["era_min_observations"] = min_observations
+    return config
+
+
+def test_assess_ranking_quality_noise_floor_excludes_a_razor_thin_era_mean():
+    # development/Problems.md #71's real example: an era mean of -0.001 from
+    # ~4 dates is statistically indistinguishable from zero and must not
+    # fail the gate the same way a real inversion would.
+    non_overlapping_ic = {"mean_ic": 0.2, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.4}
+    per_era = [_era(0.26, num_dates=5, index=0), _era(-0.001, num_dates=4, index=1)]
+
+    result = assess_ranking_quality(
+        non_overlapping_ic, bootstrap_result, per_era, _gate_config_with_noise_floor(0.05, 3)
+    )
+
+    assert result["observed"]["num_opposite_sign_eras"] == 0
+    assert "era_sign_instability" not in result["failures"]
+
+
+def test_assess_ranking_quality_noise_floor_does_not_hide_a_real_inversion():
+    # A genuine regime inversion (large magnitude, well-sampled era) must
+    # still fail the gate even with the noise floor active.
+    non_overlapping_ic = {"mean_ic": 0.2, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.4}
+    per_era = [_era(0.26, num_dates=5, index=0), _era(-0.171, num_dates=5, index=1)]
+
+    result = assess_ranking_quality(
+        non_overlapping_ic, bootstrap_result, per_era, _gate_config_with_noise_floor(0.05, 3)
+    )
+
+    assert result["observed"]["num_opposite_sign_eras"] == 1
+    assert "era_sign_instability" in result["failures"]
+
+
+def test_assess_ranking_quality_era_min_observations_excludes_thin_eras_from_sign_test():
+    non_overlapping_ic = {"mean_ic": 0.2, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.4}
+    # A large-magnitude but thin (1-date) era must be reported as
+    # insufficient data, not silently folded into the sign test either way.
+    per_era = [_era(0.26, num_dates=5, index=0), _era(-0.5, num_dates=1, index=1)]
+
+    result = assess_ranking_quality(
+        non_overlapping_ic, bootstrap_result, per_era, _gate_config_with_noise_floor(0.05, 3)
+    )
+
+    assert result["observed"]["num_insufficient_data_eras"] == 1
+    assert result["observed"]["num_opposite_sign_eras"] == 0
+    assert "era_sign_instability" not in result["failures"]
+
+
+def test_assess_ranking_quality_per_era_is_persisted_verbatim_in_observed():
+    non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
+    per_era = [_era(0.04, index=0), _era(0.05, index=1)]
+
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
+
+    assert result["observed"]["per_era"] == per_era
 
 
 # ---------------------------------------------------------------------------
 # assess_ranking_quality_from_predictions (orchestrator)
 # ---------------------------------------------------------------------------
+
+
+def test_assess_ranking_quality_from_predictions_builds_per_era_diagnostic_dicts():
+    # development/Problems.md #71: the orchestrator must build full
+    # per-era dicts (era_index/era_start/era_end/num_dates/mean_ic/t_stat),
+    # not bare floats, so a failure is traceable to which era and when.
+    rng = np.random.default_rng(3)
+    dates = np.array(
+        [d for day in range(1, 41) for d in [f"2020-01-{day:02d}" if day <= 31 else f"2020-02-{day - 31:02d}"] * 5],
+        dtype="datetime64[D]",
+    )
+    base_targets = np.tile([1.0, 0.75, 0.5, 0.25, 0.0], 40)
+    noise = rng.normal(0.0, 0.05, size=len(base_targets))
+    predictions = torch.tensor(base_targets + noise, dtype=torch.float32)
+    targets = torch.tensor(base_targets, dtype=torch.float32)
+    config = _promotable_gate_config()
+    config["phase1"]["target"]["ranking"]["promotion_gate"]["era_length_days"] = 20
+
+    result = assess_ranking_quality_from_predictions(
+        predictions, targets, dates, non_overlapping_stride=1, config=config
+    )
+
+    per_era = result["observed"]["per_era"]
+    assert len(per_era) == result["observed"]["num_eras"]
+    for era_index, era in enumerate(per_era):
+        assert era["era_index"] == era_index
+        assert set(era.keys()) == {"era_index", "era_start", "era_end", "num_dates", "mean_ic", "t_stat"}
+        assert era["num_dates"] > 0
+        # ISO date strings, not Timestamps - must be JSON-serializable
+        # as-is for ml/*_training_metrics.json.
+        assert isinstance(era["era_start"], str)
+        assert isinstance(era["era_end"], str)
 
 
 def test_assess_ranking_quality_from_predictions_end_to_end_promotable_signal():

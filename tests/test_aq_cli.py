@@ -266,8 +266,9 @@ def test_train_topology_only_propagates_trainer_failure_without_copying():
 
 def test_train_topology_only_leaves_active_ml_unchanged_when_trainer_skips_artifacts():
     # The realistic case on a fresh checkout: no Postgres / not enough
-    # accumulated audit events yet, so train_topology.py exits 0 without
-    # writing any of the three artifacts (development/Problems.md #56).
+    # accumulated experience_events yet (drained by the experience-worker,
+    # not the audit-worker - see #71's correction), so train_topology.py
+    # exits 0 without writing any of the three artifacts (Problems.md #56).
     run_mock = MagicMock(return_value=0)
     parser = aq_cli.build_parser()
     args = parser.parse_args(["train", "--topology-only"])
@@ -278,6 +279,50 @@ def test_train_topology_only_leaves_active_ml_unchanged_when_trainer_skips_artif
         exit_code = args.func(args)
 
     assert exit_code == 0
+    copy_mock.assert_not_called()
+
+
+def test_train_rl_sizing_only_skips_when_artifacts_absent():
+    # development/Problems.md #71: train_rl_sizing.py exits 0 without
+    # writing artifacts when the multitask model/dataset files are
+    # missing, or fewer than min_training_rows usable rows exist -
+    # identical "skip must never look like fail" contract as topology.
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--rl-sizing-only"])
+
+    with patch("aq_cli._run", run_mock), patch("pathlib.Path.exists", return_value=False), patch(
+        "shutil.copy2"
+    ) as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    copy_mock.assert_not_called()
+
+
+def test_train_rl_sizing_only_copies_artifacts_when_present(tmp_path):
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--rl-sizing-only"])
+
+    with patch("aq_cli._run", run_mock), patch("pathlib.Path.exists", return_value=True), patch(
+        "shutil.copy2"
+    ) as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    assert copy_mock.call_count == 3  # rl_sizing_model/feature_schema/training_metrics
+
+
+def test_train_rl_sizing_only_propagates_trainer_failure():
+    run_mock = MagicMock(return_value=1)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--rl-sizing-only"])
+
+    with patch("aq_cli._run", run_mock), patch("shutil.copy2") as copy_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 1
     copy_mock.assert_not_called()
 
 

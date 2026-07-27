@@ -22,12 +22,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import json
 import logging
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,37 @@ DEFAULT_BOND_REFERENCE_SERIES = {
     "treasury_10yr": "DGS10",
     "treasury_30yr": "DGS30",
     "credit_spread_baa10y": "BAA10Y",
+}
+
+# Phase 4.12 (development/Problems.md #71): the alternative-data trio
+# feeding features/alt_data_features.py. Chosen from a wider candidate list
+# (VIX/VXV/NFCI/STLFSI4/UMCSENT/TEDRATE/SOFR/BAMLH0A0HYM2/DTWEXBGS) after
+# live-fetching each one and checking (a) real coverage across
+# phase1.universe.common_window (2014-12-01..2021-03-31) and (b)
+# collinearity against the 8 existing bond_* features and against each
+# other. STLFSI4/NFCI-level/BAA10Y overlap too much (rho 0.67-0.88) to add
+# both; UMCSENT/TEDRATE/SOFR fail on coverage or lag; BAMLH0A0HYM2 has NO
+# usable history before 2023-07-25 through FRED's keyless endpoint (ICE
+# BofA series are license-restricted beyond a short trailing window) - do
+# not re-add it without a paid FRED API key.
+DEFAULT_ALT_DATA_REFERENCE_SERIES = {
+    "implied_volatility_vix": "VIXCLS",
+    "implied_volatility_3m": "VXVCLS",
+    "financial_conditions_nfci": "NFCI",
+}
+
+# Days to subtract from the decision date before doing the as-of lookup
+# (see series_value_asof()) - i.e. how many days after a series' own date
+# column the observation is actually PUBLISHED. VIX/VXV are same-day CBOE
+# closes (0 lag, identical convention to the Treasury/BAA10Y series
+# above). NFCI observations are Friday-dated but released the FOLLOWING
+# Wednesday (+5 calendar days); 7 is a deliberately conservative superset
+# that survives a holiday-shifted release. Verified this session: every
+# cached NFCI row falls on a Friday.
+ALT_DATA_PUBLICATION_LAG_DAYS = {
+    "implied_volatility_vix": 0,
+    "implied_volatility_3m": 0,
+    "financial_conditions_nfci": 7,
 }
 
 
@@ -108,6 +140,77 @@ def cache_csv_to_rows(text: str) -> list[dict]:
     return rows
 
 
+def series_value_asof(rows: list[dict], current_date, publication_lag_days: int = 0) -> float | None:
+    """Most recent observation whose value was PUBLISHED on or before
+    current_date - the shared, publication-lag-aware as-of lookup for
+    BOTH train.py::build_alt_data_features_by_date() and
+    main.py::_build_alt_data_payload(), so the lookahead rule below cannot
+    drift between the two callers the way build_bond_features_by_date()'s
+    inline _series_asof_lookup() and main.py::_fred_series_asof() already
+    have (both correct for a same-day series, since publication_lag_days
+    is implicitly 0 there - but that helper has no lag parameter at all,
+    so it must never be reused for a lagged series).
+
+    The lookahead this guards against: FRED dates every observation by its
+    REFERENCE period, not its release date. DGS10's 2020-03-16 row is that
+    day's close, known that evening (lag 0, safe). NFCI's 2020-03-20 row
+    is the week ENDING Friday 2020-03-20, not released until Wednesday
+    2020-03-25 (lag ~5-7 days) - a bare bisect_right(dates, current_date)
+    would hand a 2020-03-23 decision a number that did not exist for two
+    more days. effective_date = current_date - publication_lag_days
+    reproduces the exact bisect every existing 0-lag caller already does
+    when publication_lag_days=0 (see
+    test_series_value_asof_zero_lag_matches_existing_bisect_behavior).
+
+    `rows` is one series' [{"date": date, "value": float}, ...] - the same
+    per-series list load_cached_fred_series() returns. Returns None (never
+    raises) if `rows` is empty or every observation postdates
+    effective_date."""
+    if not rows:
+        return None
+    target = current_date.date() if hasattr(current_date, "date") else current_date
+    effective_date = target - timedelta(days=publication_lag_days)
+    ordered = sorted(rows, key=lambda row: row["date"])
+    dates = [row["date"] for row in ordered]
+    values = [row["value"] for row in ordered]
+    position = bisect.bisect_right(dates, effective_date)
+    if position == 0:
+        return None
+    return values[position - 1]
+
+
+def series_change_asof(
+    rows: list[dict],
+    current_date,
+    publication_lag_days: int = 0,
+    periods_back: int = 4,
+) -> float | None:
+    """value_asof(current_date) minus the observation `periods_back`
+    OBSERVATIONS (not calendar days) earlier in the same series - e.g.
+    periods_back=4 on a weekly series is a 4-week change. Both endpoints
+    are read from the same lag-adjusted, sorted index position, so the
+    change inherits series_value_asof()'s publication guard by
+    construction - there is no code path where the more-recent endpoint is
+    unpublished as of current_date.
+
+    Returns None (never 0.0 - a missing change must not look like "no
+    change") when `rows` is empty, current_date predates every
+    observation, or fewer than periods_back+1 observations precede
+    effective_date."""
+    if not rows:
+        return None
+    target = current_date.date() if hasattr(current_date, "date") else current_date
+    effective_date = target - timedelta(days=publication_lag_days)
+    ordered = sorted(rows, key=lambda row: row["date"])
+    dates = [row["date"] for row in ordered]
+    values = [row["value"] for row in ordered]
+    position = bisect.bisect_right(dates, effective_date)
+    prior_index = position - 1 - periods_back
+    if position == 0 or prior_index < 0:
+        return None
+    return values[position - 1] - values[prior_index]
+
+
 # ---------------------------------------------------------------------------
 # The only function that performs network I/O.
 # ---------------------------------------------------------------------------
@@ -160,6 +263,31 @@ def fetch_all_bond_reference_series(config: dict, start: str, end: str) -> dict[
     }
 
 
+def alt_data_reference_series(config: dict) -> dict[str, str]:
+    """Phase 4.12 (development/Problems.md #71) sibling of
+    bond_reference_series(): config["phase1"]["features"]["alt_data_reference_series"],
+    falling back to DEFAULT_ALT_DATA_REFERENCE_SERIES."""
+    return {
+        **DEFAULT_ALT_DATA_REFERENCE_SERIES,
+        **config.get("phase1", {}).get("features", {}).get("alt_data_reference_series", {}),
+    }
+
+
+def reference_series(config: dict, group: str = "all") -> dict[str, str]:
+    """Merged view over bond_reference_series()/alt_data_reference_series()
+    for the CLI's --group flag. group="bond" or "alt" returns just that
+    one map unchanged (bond_reference_series() itself is deliberately left
+    untouched by this addition - see test_bond_reference_series_unchanged_by_alt_addition);
+    "all" (default) merges both, alt_data keys taking precedence only in
+    the pathological case of an actual name collision (none exist today -
+    the two dicts' keys are disjoint by construction)."""
+    if group == "bond":
+        return bond_reference_series(config)
+    if group == "alt":
+        return alt_data_reference_series(config)
+    return {**bond_reference_series(config), **alt_data_reference_series(config)}
+
+
 def write_fred_series_cache(cache_dir: Path, series_key: str, rows: list[dict]) -> None:
     """Writes data/reference/fred_series/{series_key}.csv - a local,
     offline-readable cache (never committed as real market data the way
@@ -197,7 +325,14 @@ def main() -> None:
         description="Aether Quant FRED historical series backfill - offline/manual only, "
         "no API key required, never run inside Lean or a Docker worker."
     )
-    parser.add_argument("--series", nargs="*", default=None, help="Restrict to these series keys (default: all of phase1.features.bond_reference_series)")
+    parser.add_argument("--series", nargs="*", default=None, help="Restrict to these series keys (default: all of --group's reference series)")
+    parser.add_argument(
+        "--group",
+        choices=["bond", "alt", "all"],
+        default="all",
+        help="Which reference-series map to fetch: bond (phase1.features.bond_reference_series), "
+        "alt (phase1.features.alt_data_reference_series, Problems.md #71), or all (default, both merged)",
+    )
     parser.add_argument("--start", default="1990-01-01")
     parser.add_argument("--end", default=date.today().isoformat())
     parser.add_argument("--apply", action="store_true", help="Actually write the local cache (default: dry run, report only)")
@@ -208,7 +343,7 @@ def main() -> None:
     with args.config_path.open("r", encoding="utf-8") as f:
         config = json.load(f)
 
-    series_map = bond_reference_series(config)
+    series_map = reference_series(config, args.group)
     if args.series:
         series_map = {key: value for key, value in series_map.items() if key in args.series}
 

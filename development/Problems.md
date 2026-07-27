@@ -3454,7 +3454,10 @@ analyzer consumes only `topology_risk`/`state`).
 **Training the first model is a separate milestone, run by the project
 owner, not part of this fix:**
 
-1. Get the full stack up (Postgres + the audit worker) long enough to
+1. Get the full stack up (Postgres + the **experience-worker** - not the
+   audit-worker, which drains a different table, `audit_log`; the
+   experience-worker is what drains `experience_events`, see
+   `docker-compose.yml`'s `experience-worker` service) long enough to
    accumulate `phase_v2.topology_learning.training.min_training_events`
    (default 500) realized-outcome events in the `lookback_days` (default
    90) window — none exist yet on this machine.
@@ -4315,3 +4318,72 @@ the 2 opposite-sign eras via regime-conditioning / stronger neutralization,
 keep expanding breadth); the weak backtest edge; the possible
 inference_parallelism shutdown hang; topology overlay dormant; all
 option/futures/IB items unverified pending a real IB key.
+
+---
+
+### 71. Phase 4.12 — kill era-sign instability, close remaining non-IB items, expand breadth, alt-data + RL sizing
+
+**Severity:** n/a (milestone phase) · **Status:** 🟡 mostly complete — code streams A1-A4/C/D/E landed, tested locally (1986/1986), retrained end-to-end on the Codespace, and results honestly evaluated below. Docker-dependent verification (Docker Desktop / WSL2 was down all session) remains the one open item, with exact resume commands documented.
+
+**Retrain results (real numbers, Codespace, 2026-07-27) — the honest verdict:**
+
+| Model / head | t-stat | CI lower | Status | Opposite-sign eras |
+|---|---|---|---|---|
+| multitask `rank_20d` (primary signal) | **2.8954** (↑ from 2.028 in V4.11) | **0.0585** (↑ from 0.0065) | `not_promotable` | 2: COVID (2019-12-27→2020-03-25, mean_ic **-0.1654**) + a **newly-exposed** era (2020-12-21→2021-03-20, mean_ic **-0.0953**) |
+| multitask `rank_5d` | 3.4114 | 0.0476 | `not_promotable` | 1: COVID (mean_ic -0.0877) |
+| sequence `rank_5d` | **2.3158** | **0.0084** | **`promotable`** ✅ | 0 (COVID mean_ic -0.0007, correctly excluded as noise by A3's floor) |
+| sequence `rank_20d` | 1.7602 | n/a | `not_promotable` (fails t-stat gate itself) | 1: COVID (mean_ic -0.1562) |
+
+Both significance gates (t-stat ≥ 2.0, CI lower ≥ 0) now pass for the primary `rank_20d` head with real margin — a genuine improvement, attributable to A2 (data hygiene) since A2's cleanup of the crypto-only degenerate cross-section is exactly what let the true signal strength show through. **But the era-sign gate still fails**, and honestly so: both inversions exceed A3's noise floor (`era_sign_min_abs_ic: 0.05`) by a wide margin, so they are not noise-floor artifacts, they are real. Critically, **A2's cleanup exposed a second real inversion** (Dec 2020–Mar 2021) that was previously hidden — it wasn't fixed by anything in this phase; it was simply invisible until era 9's crypto-noise contamination was removed. Stream D (VIX/financial-stress features) and A4 part 1 (regime average-correlation fix) did **not** flip either inversion. Per this plan's own stop-rule, that is reported plainly rather than continuing to search for a transform that forces it — a signal that inverts in a liquidity-crisis regime is a real, honest property of `rank_20d`/`rank_5d` at these horizons.
+
+**The one unambiguous win: sequence `rank_5d` is now fully `promotable`** — the first model/head in this project's history to clear every promotion gate simultaneously. Its COVID-era mean_ic (-0.0007) is genuinely negligible, and A3's noise floor correctly excludes it rather than merely being tuned to allow it through — real, in-production confirmation that A3 behaves as designed, not just on its own unit tests.
+
+**Walk-forward** (6 expanding windows, `ml/versions/walk-forward-fa4d8649-.../walk_forward_summary.json`): cross-window MCC mean **0.0187**, bootstrap CI **[0.0136, 0.0239]** — entirely positive, a good sign of genuine out-of-sample generalization rather than in-sample fitting.
+
+**RL sizing layer (Stream E) — trained, honest negative result.** `train_rl_sizing.py` ran successfully (27,575 training rows from `validation_dataset.csv`, 61,676 backtest rows from `backtest_dataset.csv`), but the learned policy's backtest expected reward (**-8.542e-5**) is measurably *worse* than the trivial constant-1.0-multiplier baseline (**-8.264e-5**). Per the pre-committed abandon criterion, it ships **disabled** (`phase_v2.dynamic_risk.rl_sizing_enabled: false`, already the default) and this negative result is the documented outcome — not a bug to fix, a real "the lever didn't help" finding consistent with this stream's own 2/10 rating (RL cannot manufacture alpha; the underlying edge at these horizons doesn't clear costs enough for a sizing policy to exploit).
+
+**Topology overlay (B1, #56) — still not trained.** Codespace has no Postgres, so `aq train --topology-only` correctly no-op'd (expected, not a failure — see the `_train_topology_only()` skip-branch pattern). This remains genuinely gated on the Docker/Compose stack below.
+
+All retrained artifacts (`ml/*.json`, `ml/model.pt`, `ml/scaler.pkl`, `ml/expert_models/`, `ml/versions/walk-forward-fa4d8649-.../`) have been pulled back from the Codespace into local `ml/` and the Codespace has been stopped to halt billing.
+
+**Code-complete and locally tested (unchanged from the in-progress writeup):**
+
+**Code-complete and locally tested so far:**
+- **A1 (per-era diagnostics)** — `assess_ranking_quality()`/`assess_ranking_quality_from_predictions()` now thread full per-era dicts (`era_index`/`era_start`/`era_end`/`num_dates`/`mean_ic`/`t_stat`) instead of bare floats, so a promotion-gate failure is traceable to which era and when. Verdict-neutral by construction (new thresholds default to 0/no-op). 45/45 tests.
+- **A2 (data hygiene)** — `phase1.target.ranking.min_universe_size` raised 10→20: 255 of 801 backtest-split dates (31.8%) were an 11-12-asset crypto-only weekend cross-section, producing 13 of 41 non-overlapping rank-IC observations at exactly ±1.0, which single-handedly flipped at least one era's sign. 29/29 tests.
+- **A3 (gate noise floor)** — `era_sign_min_abs_ic: 0.05` / `era_min_observations: 3` added to `promotion_gate`, so a razor-thin era mean (e.g. -0.001 from ~4 dates) no longer fails the gate identically to a genuine inversion. 36/36 tests (combined with A4 below).
+- **A4 part 1 (regime fix)** — `average_correlation` was hardcoded to `0.0` everywhere (train.py's `_encode_regime_row()` AND `train_gating.py`'s `build_gating_training_rows()`) because regime encoding ran before any cross-asset correlation data existed. Moved `add_regime_features()` to run AFTER `build_topology_features_by_date()` so it can read each row's own real `topology_correlation_strength` — closes a real gap in the "correlated crash" risk_off rule (`classify_risk_regime()`) that could never fire offline before this.
+- **A4 part 2 (beta-neutral target, DEFERRED head-wiring, documented)** — `target_beta_neutral_rank_5d/20d` computed in `build_cross_sectional_rank_targets()` (residualizes each asset's forward return against its own static market-beta vs. `SPY` before ranking). **Deliberately NOT wired into a multitask/sequence model head this session** — a full new head is a second large, architecture-invasive change that would stack with Component D's alt-data features in the same retrain and destroy attribution (this plan's own stated discipline). The column exists, is tested, and is available for a future pass to wire and measure independently.
+- **B (non-Docker Problems.md closures)** — shutdown-hang fix for `inference_parallelism`'s pool (`on_end_of_algorithm()` now calls `.shutdown(wait=False, cancel_futures=True)`), `inference_parallelism.enabled` reset to `false` (confirmed both slower on Windows AND now carrying a shutdown-hang risk), the "audit worker" → "experience-worker" doc misnomer fixed in both Problems.md and `tests/test_aq_cli.py`, real per-call inference timing data collected for #36 (p50 3.48ms/p95 7.82ms/p99 10.75ms/mean 4.15ms at 78 symbols, matching prior estimates but now genuinely measured), the stale `test_model_input_dimensionality_is_52` test fixed (was hardcoded to a stale 52; now compares against `ml/dataset_manifest.json`'s own `model_input_count`, self-updating), `generate_backtest_report.py` re-run cleanly against the real 2026-07-26 backtest. **Correction to the original plan**: #57's "same-bar liquidate+reenter margin/buying-power timing" concern was mis-categorized as non-IB-actionable — `position_scaling_rotate_on_drift` is read ONLY at the two options-rotation call sites (`main.py`, single-leg and multi-leg), which never fire with zero option positions. It remains genuinely IB-gated, not verifiable via a non-IB backtest.
+- **D (alternative data)** — `VIXCLS`/`VXVCLS`/`NFCI` (options-implied volatility level, term structure, and 4-week financial-conditions change) added via `data_pipeline/fred_backfill.py` extensions (`series_value_asof()`/`series_change_asof()`, publication-lag-aware, lookahead-tested explicitly), `features/alt_data_features.py`, `train.py::build_alt_data_features_by_date()`, `main.py::_build_alt_data_payload()`. Real data fetched and cached (VIX 9,236 rows, VXV 4,687, NFCI 1,907, all covering well before 2014). `input_set` extended 38→41. 32 new tests. Candidate series were verified live against the real 2014-2021 window and screened for collinearity — `BAMLH0A0HYM2` (high-yield OAS) confirmed **unavailable** via FRED's free endpoint (only ~2 years of trailing history without a paid API key); `STLFSI4`/NFCI-level/`TEDRATE` rejected as redundant or discontinued.
+- **C (breadth + position caps)** — universe expanded 89→104 via 15 new liquid, sector-diversifying equities (WFC, GS, HON, CAT, BA, UNP, GE, ABT, MRK, NKE, SBUX, ORCL, ADBE, TXN, T — financials/industrials/healthcare/consumer/tech/telecom previously underrepresented), fetched via real `aq fetch stock --apply` calls. `phase9.portfolio.max_active_positions` 12→15, `phase_v2.portfolio_book.top_n`/`bottom_n` 8→10 (proportional scaling, same requested-vs-cap ratio preserved). **Lean-side re-measurement (the 90-second isolator budget, per-bar topology cost at the new size) is blocked this session — see below.** Indirect evidence only: the prior 89-asset Backtest 1 completed successfully, which is proof the isolator budget held at 89; it has not been re-proven at 104.
+- **E (RL sizing layer)** — `risk/rl_sizing.py` (pure runtime, argmax-only/never-sampled, shrink-only by default), `train_rl_sizing.py` (offline full-information contextual bandit over `ml/datasets/{validation,backtest}_dataset.csv` — explicitly NOT off-policy RL, see that module's own docstring for the honest framing), wired into `risk/position_sizing.py::build_dynamic_position_sizing()` and `main.py`, `aq train --rl-sizing-only` CLI. Default OFF (`phase_v2.dynamic_risk.rl_sizing_enabled: false`). 60+ new tests across `tests/test_rl_sizing.py`, `tests/test_train_rl_sizing.py`, `tests/test_position_sizing.py`, `tests/test_aq_cli.py` — including synthetic-data tests proving the policy-gradient optimizer actually recovers a known-optimal action and converges toward the smallest action under zero signal. **Not yet trained** (needs the retrain below to have Component D's alt-data features in the schema first) and **not yet A/B'd against the rule-based sizer** — see this entry's abandon criteria, restated from the original plan: constant-action policy (>90% one arm), <60% of walk-forward windows improving, or failing the A/B (Sharpe +0.15 / fees -20%) all mean ship disabled and document the negative result.
+
+**BLOCKED this session — Docker Desktop cannot start.** `docker info` returns `"Error response from daemon: Docker Desktop is unable to start"`; the user independently confirmed a WSL2 subsystem crash. Attempted remediation this session: relaunching Docker Desktop twice, `wsl --shutdown` + relaunch. None resolved it — this needs a system-level fix (likely a full reboot, or a manual WSL2/Docker Desktop repair/reinstall) outside what an agent can safely perform. **Exact commands to run once Docker is working again**, so this is a clean resume point:
+
+1. **#68 (`cpp_inference_ext` Docker linkage check)**:
+   ```
+   docker compose build engine
+   docker compose run --rm engine python -c "import cpp_inference; print(hasattr(cpp_inference, 'linear_batched'))"
+   ```
+   Must exit 0 regardless of the import result (soft-fail by design) — `True` confirms real linkage, `ImportError` confirms the soft-fail path, both are a valid "pass" for the build itself.
+
+2. **B1 (topology overlay training, #56)** — needs the full Compose stack, `phase_v2.runtime.mode` temporarily set to `"observation"`, and the **`lean`** Compose service specifically (not `aq backtest`, which spawns its own container without `AETHER_REDIS_URL`):
+   ```
+   docker compose up -d redis postgres experience-worker
+   # set phase_v2.runtime.mode = "observation" in config.json (temporarily)
+   docker compose run --rm lean lean backtest .
+   # verify experience_events row count >= phase_v2.topology_learning.training.min_training_events (500) before training:
+   #   SELECT COUNT(*) FROM experience_events WHERE created_at > now() - interval '90 days';
+   python aq_cli.py train --topology-only
+   # restore phase_v2.runtime.mode = "backtest"
+   docker compose down
+   ```
+
+3. **Two Lean backtests** (per the original plan, both user-run): Backtest 1 as-is (`bypass_safety_gates` stays `true`), Backtest 2 with it set `false` (drawdown enforced — expected to potentially freeze mid-run per #18's documented "lock never auto-clears" behavior, which is designed, not a bug).
+
+4. **Lean-side re-measurement for Item C** — with the 104-asset universe now live, confirm `initialize()`'s wall-clock still comfortably clears Lean's 90-second isolator budget, and re-profile `build_market_topology()`'s per-bar cost at the new size (previously measured ~500-600ms/bar at ~30 symbols).
+
+**Not yet done, still blocked on Docker**: item 1 (#68 cpp_inference_ext linkage check), item 2 (B1 topology overlay training), item 3 (the two user-run Lean backtests), and item 4 (Lean isolator/topology-cost re-measurement at 104 assets) above — all still pending a working Docker Desktop/WSL2. Everything else this plan called for (A1-A4, B non-Docker closures, C breadth, D alt-data, E RL sizing, the combined retrain, the RL trainer run, and this documentation pass) is now complete.
+
+**Explicit scope note on "10/10 accuracy":** as flagged at the start of this plan, no phase can guarantee that outcome — it is an empirical question, not an execution one. The measured, attributable outcome is: the primary `rank_20d` signal's significance improved substantially (t-stat 2.03→2.90) but remains gated by two real, honestly-reported regime inversions; a secondary head (sequence `rank_5d`) achieved genuine full promotability for the first time in the project's history. Whether/how to promote `rank_5d` as an additional live signal alongside (not instead of) `rank_20d` is a deliberate design decision left open for a future phase, not silently decided here.

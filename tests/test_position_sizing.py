@@ -4,6 +4,7 @@ from risk.position_sizing import (
     rank_sizing_multiplier,
     topology_sizing_multiplier,
 )
+from risk.rl_sizing import RL_SIZING_STATE_KEYS
 
 
 def test_classify_volatility_regime():
@@ -208,3 +209,103 @@ def test_dynamic_position_sizing_rank_disabled_by_default():
 
     assert decision.rank_multiplier == 1.0
     assert decision.rank_sizing_reason == "rank_sizing_disabled_or_absent"
+
+
+# ---------------------------------------------------------------------------
+# rl_sizing_multiplier integration (development/Problems.md #71, Phase
+# 4.12, Component E) - the whole default-OFF claim reduces to one
+# assertion: with rl_sizing disabled (the shipped default), the result
+# must be byte-identical to a build with no RL params passed at all.
+# ---------------------------------------------------------------------------
+
+
+def _rl_model(favor_index: int, actions=(0.6, 0.8, 1.0)) -> dict:
+    n_features = len(RL_SIZING_STATE_KEYS)
+    bias = [0.0] * len(actions)
+    bias[favor_index] = 10.0
+    return {
+        "state_keys": list(RL_SIZING_STATE_KEYS),
+        "actions": list(actions),
+        "weights": [[0.0] * n_features for _ in actions],
+        "bias": bias,
+        "mean": [0.0] * n_features,
+        "scale": [1.0] * n_features,
+    }
+
+
+def _rl_state() -> dict:
+    return {key: 0.0 for key in RL_SIZING_STATE_KEYS}
+
+
+def test_build_dynamic_position_sizing_rl_disabled_is_byte_identical_to_pre_rl():
+    without_rl_params = build_dynamic_position_sizing(
+        base_target_weight=0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+    )
+    with_rl_params_but_disabled = build_dynamic_position_sizing(
+        base_target_weight=0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+        rl_model=_rl_model(favor_index=0), rl_state=_rl_state(), rl_sizing_enabled=False,
+    )
+
+    assert with_rl_params_but_disabled == without_rl_params
+    assert with_rl_params_but_disabled.rl_multiplier == 1.0
+    assert with_rl_params_but_disabled.rl_sizing_reason == "rl_sizing_disabled_or_absent"
+
+
+def test_rl_multiplier_scales_weight_multiplicatively():
+    baseline = build_dynamic_position_sizing(
+        base_target_weight=0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+    )
+    with_rl = build_dynamic_position_sizing(
+        base_target_weight=0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+        rl_model=_rl_model(favor_index=0), rl_state=_rl_state(), rl_sizing_enabled=True,  # favors the 0.6 shrink action
+    )
+
+    assert with_rl.rl_multiplier == 0.6
+    assert with_rl.rl_sizing_reason == "rl_sizing_policy_scaled_sizing"
+    assert with_rl.target_weight < baseline.target_weight
+
+
+def test_rl_multiplier_never_increases_weight_past_max_position_weight():
+    decision = build_dynamic_position_sizing(
+        base_target_weight=0.20, confidence=1.0, rolling_volatility=0.005,  # low vol -> would otherwise expand
+        max_position_weight=0.20, min_volatility_multiplier=0.35, max_volatility_multiplier=1.25,
+        rl_model=_rl_model(favor_index=2), rl_state=_rl_state(), rl_sizing_enabled=True,  # favors the 1.0 (no-op) action
+    )
+
+    assert decision.target_weight <= 0.20
+
+
+def test_rl_multiplier_never_increases_weight_past_any_clamp():
+    # For every action in a representative set, the RL-scaled result must
+    # never exceed the same call with rl_sizing disabled - composes
+    # build_dynamic_position_sizing() (which internally applies
+    # min(sized_weight, max_position_weight)) across a range of
+    # multipliers, proving the clamp still binds regardless of which
+    # action the policy picks.
+    baseline = build_dynamic_position_sizing(
+        base_target_weight=0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+    )
+    for favor_index, action in enumerate([0.6, 0.8, 1.0]):
+        with_rl = build_dynamic_position_sizing(
+            base_target_weight=0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+            rl_model=_rl_model(favor_index=favor_index), rl_state=_rl_state(), rl_sizing_enabled=True,
+        )
+        assert with_rl.target_weight <= baseline.target_weight + 1e-12
+        assert with_rl.rl_multiplier == action
+
+
+def test_rl_multiplier_preserves_short_direction():
+    decision = build_dynamic_position_sizing(
+        base_target_weight=-0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+        rl_model=_rl_model(favor_index=0), rl_state=_rl_state(), rl_sizing_enabled=True,
+    )
+    assert decision.target_weight < 0.0
+
+
+def test_rl_multiplier_absent_state_is_no_op():
+    decision = build_dynamic_position_sizing(
+        base_target_weight=0.20, confidence=1.0, rolling_volatility=0.015, max_position_weight=0.20,
+        rl_model=_rl_model(favor_index=0), rl_state=None, rl_sizing_enabled=True,
+    )
+    assert decision.rl_multiplier == 1.0
+    assert decision.rl_sizing_reason == "rl_sizing_disabled_or_absent"

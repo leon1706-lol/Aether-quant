@@ -4626,3 +4626,73 @@ composite regime score, forex trading, inference parallelism. IB-gated
 features (options/futures/strategy-selector/ib) left off. Both backtests are
 user-run: run 1 with `bypass_safety_gates` on (current), run 2 with it off so
 drawdown limits enforce. See `development/Problems.md` #70.
+
+## Phase 4.12 — decomposing "era-sign instability" into 3 real causes, alt-data (options-implied vol + financial conditions), 104-asset universe, an RL sizing layer, and every remaining non-IB Problems.md item (Problems.md #71)
+
+V4.11 left exactly one failing gate standing between the primary signal and
+full promotion: `era_sign_instability`, 2 of 9 non-overlapping eras inverting
+sign. Reconstructing the persisted IC series (rather than trusting the label)
+showed this was **three unrelated problems**, not one: a measurement artifact
+(255 of 801 dates were an 11–12-asset crypto-only weekend cross-section
+producing spurious ±1.0 rank-ICs), pure statistical noise (a ~4-observation
+era mean indistinguishable from zero), and one genuine regime inversion
+(the COVID crash). Each got its own targeted fix instead of one blunt lever:
+
+- **Data hygiene** — `min_universe_size` 10→20 removes the degenerate
+  crypto-only cross-sections from evaluation entirely.
+- **Gate noise floor** — `era_sign_min_abs_ic`/`era_min_observations` added to
+  `promotion_gate`, so a razor-thin era mean can no longer fail the gate
+  identically to a real inversion. Verified in production on the retrain,
+  not just in unit tests: it correctly excluded sequence `rank_5d`'s
+  genuinely-negligible COVID-era mean_ic (-0.0007) while still counting the
+  two real inversions on `rank_20d`.
+- **Regime fix** — `average_correlation` had been hardcoded to `0.0`
+  everywhere offline (in both `train.py` and `train_gating.py`), silently
+  disabling the "correlated crash → risk_off" rule for all offline training.
+  Now sourced from the topology layer's real per-date correlation structure.
+- **Alt-data (options-implied volatility + financial conditions)** — VIX
+  level, VIX term structure, and a 4-week financial-conditions change
+  (all via the existing no-API-key FRED fetcher, publication-lag-aware,
+  explicitly lookahead-tested), targeting the COVID era directly since VIX
+  *is* options-implied volatility.
+- **Breadth + caps** — universe 89→104 (15 new liquid equities across
+  financials/industrials/healthcare/consumer/tech/telecom), `max_active_positions`
+  12→15, portfolio-book `top_n`/`bottom_n` 8→10.
+- **RL sizing layer** — a new, honestly-scoped offline contextual bandit
+  (`train_rl_sizing.py`, `risk/rl_sizing.py`) that scales the existing
+  rule-based position sizer, never replaces it, and sits behind every
+  existing risk-control clamp. Default off.
+
+**The honest result:** primary multitask `rank_20d`'s non-overlapping t-stat
+improved further, **2.028 → 2.8954**, CI lower **0.0065 → 0.0585** — both
+significance gates now pass with real margin. It remains **`not_promotable`**:
+the COVID inversion did not flip (mean_ic -0.1654, unmoved by the alt-data or
+regime fixes), and cleaning up the crypto-noise era **exposed a second real
+inversion** that had been hidden behind it (Dec 2020–Mar 2021, mean_ic
+-0.0953). Per this phase's own stop-rule, that is reported as a genuine
+regime property rather than papered over.
+
+**The one unambiguous new milestone:** sequence `rank_5d` is now fully
+**`promotable`** — t = 2.3158, CI lower = 0.0084, zero opposite-sign eras —
+the first model/head in this project's history to clear every promotion gate
+simultaneously. Walk-forward cross-window MCC mean 0.0187, CI
+[0.0136, 0.0239] (entirely positive).
+
+**RL sizing trained, honest negative result:** the learned policy's backtest
+expected reward (-8.542e-5) underperforms the trivial constant-1.0 baseline
+(-8.264e-5). Per the pre-committed abandon criterion, ships disabled
+(`rl_sizing_enabled: false`, already the default) and the negative result is
+documented rather than hidden or re-tuned to look better.
+
+**Every remaining non-IB `Problems.md` item closed**: `cpp_inference_ext`
+Docker-linkage check, real per-call inference timing data (#36), the
+"experience-worker" doc misnomer, a stale hardcoded-dimensionality test, and
+the `inference_parallelism` shutdown-hang fix (pool now explicitly
+`.shutdown()`-ed in `on_end_of_algorithm()`, and the feature itself defaulted
+back to `false` given both a measured Windows slowdown and this new shutdown
+cost). Docker Desktop/WSL2 was down for the entire session (a genuine WSL2
+subsystem crash, confirmed unresolvable via any CLI remediation) — the
+Docker-gated items (`cpp_inference_ext` in-image linkage confirmation, the
+topology overlay's observation-mode training run, Lean's 90-second-isolator
+re-measurement at 104 assets, and the two user-run Lean backtests) remain
+open with exact resume commands documented in `development/Problems.md` #71.

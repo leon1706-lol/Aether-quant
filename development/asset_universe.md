@@ -1,8 +1,8 @@
 # Asset Universe
 
-The trading universe currently spans **89 assets**: 40 stocks/broad-market
+The trading universe currently spans **104 assets**: 55 stocks/broad-market
 ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs
-(V4.10). It is defined in `config.json`'s `phase1.universe.assets` and
+(Phase 4.12). It is defined in `config.json`'s `phase1.universe.assets` and
 shared across training, validation, and backtesting
 (`phase1.universe.common_window`: `2014-12-01` to `2021-03-31`).
 
@@ -11,9 +11,17 @@ roadmap, `Problems.md` #52) specifically to strengthen the cross-sectional
 `rank_20d` signal, which scales with names-per-date, and deliberately
 rebalanced toward bonds/crypto (54% equity / 30% bond / 12% crypto by count
 at the time) rather than staying equity-heavy. V4.10 added the 15 forex
-pairs (45% equity / 25% bond / 13% crypto / 17% forex by count today,
+pairs (45% equity / 25% bond / 13% crypto / 17% forex by count at the time,
 `development/Problems.md` #66) — a genuinely new asset class fetched via
-`aq fetch forex`, not a rebalance of the existing three.
+`aq fetch forex`, not a rebalance of the existing three. Phase 4.12 added 15
+more equities — WFC, GS, HON, CAT, BA, UNP, GE, ABT, MRK, NKE, SBUX, ORCL,
+ADBE, TXN, T — chosen to fill sectors the universe was thin on
+(financials/industrials/healthcare/consumer/tech/telecom), fetched via real
+`aq fetch stock --apply` calls, specifically to keep pushing the cross-sectional
+`rank_20d` breadth lever that measurably moved the signal's significance in
+V4.11 (53% equity / 21% bond / 12% crypto / 14% forex by count today,
+`development/Problems.md` #71). All 15 are confirmed **Trading**-eligible in
+the Phase 4.12 retrain's `ml/dataset_manifest.json`.
 
 The bond ETF sleeve (Phase 1 of the 5/10 to 9/10 roadmap, see
 [`Changelog.md`](Changelog.md)) spans the duration curve
@@ -69,6 +77,21 @@ SPY/QQQ/IWM/EEM, not a new Lean security type).
 | COST | Equity | Trading |
 | PEP | Equity | Trading |
 | TMO | Equity | Trading |
+| WFC | Equity | Trading |
+| GS | Equity | Trading |
+| HON | Equity | Trading |
+| CAT | Equity | Trading |
+| BA | Equity | Trading |
+| UNP | Equity | Trading |
+| GE | Equity | Trading |
+| ABT | Equity | Trading |
+| MRK | Equity | Trading |
+| NKE | Equity | Trading |
+| SBUX | Equity | Trading |
+| ORCL | Equity | Trading |
+| ADBE | Equity | Trading |
+| TXN | Equity | Trading |
+| T | Equity | Trading |
 | SHY | Equity (Fixed Income ETF) | Trading - short-duration Treasury (1-3y) |
 | IEF | Equity (Fixed Income ETF) | Trading - intermediate-duration Treasury (7-10y) |
 | TLT | Equity (Fixed Income ETF) | Trading - long-duration Treasury (20y+) |
@@ -160,7 +183,7 @@ in the table above; this is the group-level view:
 
 ```mermaid
 flowchart TD
-    Equities["Equities<br/>40 tickers"] --> DNN
+    Equities["Equities<br/>55 tickers"] --> DNN
     Crypto["Crypto<br/>12 tickers"] --> DNN
     Forex["Forex<br/>15 tickers"] --> DNN
     DNN(("Baseline DNN<br/>+ MoE Experts")) --> FixedIncome["Fixed Income ETFs<br/>22 tickers"]

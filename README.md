@@ -73,45 +73,40 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling), V4.10 (pure-function extraction of main.py's exit logic, 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch`), a V4.10 follow-up (opt-in live futures margin source), a backend/latency gap-closing pass (Docker-built C++ accelerator, main.py CI syntax-check, a Windows-specific inference_parallelism slowdown guard), and V4.11 (the training + optimization phase — full Codespace retrain + walk-forward executed, three latent train.py bugs fixed, primary signal now clears the ≥2.0 significance bar) shipped.**
+**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling), V4.10 (pure-function extraction of main.py's exit logic, 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch`), a V4.10 follow-up (opt-in live futures margin source), a backend/latency gap-closing pass (Docker-built C++ accelerator, main.py CI syntax-check, a Windows-specific inference_parallelism slowdown guard), V4.11 (the training + optimization phase — full Codespace retrain + walk-forward executed, three latent train.py bugs fixed, primary signal now clears the ≥2.0 significance bar), and Phase 4.12 (era-sign instability decomposed into 3 causes and 2 fixed, options-implied-vol/financial-conditions alt-data, 104-asset universe, an honestly-scoped RL sizing layer, and every remaining non-IB Problems.md item closed) shipped.**
 Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
 the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->1902<!-- AQ:TEST_COUNT_END -->
+(<!-- AQ:TEST_COUNT_START -->1986<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
-- **V4.1 (visualisation), shipped:** webui Overview/Operations split, Tracing reflow, genuinely 3D topology. Still needs a real backtest with 3D embedding turned on to validate.
-- **V4.3.0 (add to an existing position), shipped:** all 5 asset classes can now scale up an already-open position instead of being blocked. Off by default, byte-identical to today until enabled. See `development/Problems.md` #57.
-- **V4.4 (options architecture), shipped:** multi-position book, symmetric scale-down, held-contract re-sizing on drift instead of freezing. Code-complete but **IB-unverified** — zero option assets exist in the universe today. See `development/Problems.md` #58.
-- **V4.5 (full `OptionStrategies` coverage), shipped:** all 43 of QuantConnect's option factories now registry-driven and reachable (up from 2), margin-based sizing, a volatility-view signal, and cross-asset covered/protective coordination. Off by default, code-complete but IB-unverified. See `development/Problems.md` #59.
-- **V4.6 (bounded follow-ups, Forex, bond analytics), shipped:** an arbitrage mispricing detector, a per-asset strategy override, rotation anti-thrashing/netting, a new Forex/FX asset class, and real analytic bond duration/convexity. Off by default, code-complete but IB-unverified. See `development/Problems.md` #60.
-- **V4.7 (early-assignment modeling, learned strategy selector, bond analytics as real signals), shipped:** a dividend-cadence data pipeline + American-exercise (BAW) pricer + dividend-driven assignment-risk sweep; a learned multi-leg strategy-selector model (`train_strategy_selector.py`) with its own data-capture prerequisite, dormant until real option positions actually trade; the 3 analytic bond features merged into the trained model's feature schema — code-complete, but the retrain itself was deliberately left for the user to run separately. All off by default. See `development/Problems.md` #61.
-- **Phase 4.8 (closing a full-stack completeness audit's gaps), shipped:** `lean` CLI now usable inside the retraining-worker container (pip install + Docker-socket mount); two docker-compose.yml staleness fixes; a new `aq backfill` CLI command and a stale test-group fix; a genuine `main.py` scoping bug found and fixed (a corporate-action event could be attributed to the wrong symbol); the V4.7 features that were computed but never reached `state.json` now do; and a new webui "Options & Strategy" page surfacing all of it, including a 43-strategy catalog browser. See `development/Problems.md` #62.
-- **V4.9 (major latency-optimization pass), shipped:** a genuinely live per-bar disk-I/O bug found and removed (a stale doc claimed it was already reverted, it wasn't); sequence-encoder symbol-batching for the largest remaining inference cost; a self-relative percentile-tolerance mode for the topology correlation-stability cache; an options chain-grouping hoist; non-blocking `ExperienceQueue.push()` in live/paper mode; a real `ProcessPoolExecutor` IPC-overhead benchmark (confirmed the pool is slower at this project's scale on Windows); a new `aq profile --options` workload plus `--parallel` wiring; and an honest documentation split of what latency work actually transfers to a future HFT fork vs. what doesn't. All off by default except the pure bug fix. See `development/Problems.md` #63/#64.
-- **V4.10 (webui fixes, closest-achievable main.py test coverage, 15 new forex assets), shipped:** `main.py`'s exit-logic (`_check_non_model_exit`/`_update_position_exit_tracking`) extracted into tested pure functions in `risk_controls.py` — a literal main.py unit test is confirmed impossible, so this is the closest real thing, verified byte-identical via call-graph trace; 4 webui quality fixes (a broken-memoization bug, route-level code-splitting cutting the bundle from one 1.27MB chunk to small per-page chunks, 2 dead Grafana routes removed, 24 new tests for previously-uncovered chart/format code); and 15 real forex/FX pairs added to the trading universe via a new `aq fetch forex` asset class (89 assets total, up from 74) — `phase_v2.forex_risk.enabled` stays off by default. Per explicit user direction, `python train.py` was not run this session; the real trading-vs-observation classification for the new pairs is left for the user's own manual run. See `development/Problems.md` #66.
-- **V4.10 follow-up (opt-in live futures margin), shipped:** `phase_v2.futures_risk.margin_source` toggles between the existing static reference file and Lean's own IB-calibrated `BuyingPowerModel`, resolved per-security via `SetBuyingPowerModel()` (not the global `SetBrokerageModel()`). Off by default (`"static"`), code-complete but genuinely Lean-API-unverified — falls back to the static spec on any failure. See `development/Problems.md` #67.
-- **Backend/latency gap-closing pass, shipped:** the compiled C++ inference accelerator (`cpp_inference_ext`, #32) is now actually built inside the Docker image for its own Python 3.11 (soft-fail — a base-image regression degrades to the always-correct NumPy fallback, never breaks the build); `main.py` now gets a `python -m py_compile` syntax-check gate in CI (an advisory mypy/pyright pass was evaluated and explicitly declined — the installed `quantconnect-stubs` package is not a clean stub, see #69); and `phase_v2.inference_parallelism.enabled` — previously unreachable via `aq config set` due to a missing config key — now has a proactive Windows-only slowdown warning (both in `main.py` at startup and in the CLI at set-time), citing #65's measured ProcessPoolExecutor regression on Windows. See `development/Problems.md` #68/#69.
-- **V4.11 (training + optimization phase — both now executed), shipped:** the full model retrain and the Stage-6 walk-forward diagnostic — previously coded but never run — were executed on the GitHub Codespace and pulled back to local `ml/`. **8 of 9 models retrained** (baseline + 4 experts + multitask + sequence + gating; topology stays dormant — it needs Postgres realized-outcome events a Codespace has none of). Three latent `train.py` bugs, all first-exposed by this first-ever forex-included run, were found and fixed (forex bid/ask reader, an empty-frame duplicate-column bug, a walk-forward manifest KeyError). All 15 forex pairs are now training-eligible (trainable universe 74 → 78) and the 3 analytic bond features (#61c) are now in the retrained schema. **The primary signal cleared the significance bar for the first time**: multitask `rank_20d` out-of-sample non-overlapping t-stat = **2.028** (≥ 2.0) with bootstrap CI lower +0.0065 (≥ 0) — both hard gates pass; still `not_promotable`, blocked *solely* by era-sign instability (2 of 9 eras invert). Signal review rated ~6/10 (up from ~4–5). See `development/Problems.md` #70.
+- **Phase 4.12 (era-sign instability decomposed + alt-data + breadth + RL sizing), shipped:** reconstructing the persisted IC series showed "era-sign instability" was 3 unrelated problems, not one — a crypto-only-weekend measurement artifact (fixed: `min_universe_size` 10→20), pure statistical noise from a ~4-observation era mean (fixed: a new gate noise floor, `era_sign_min_abs_ic`/`era_min_observations`), and one genuine COVID-crash regime inversion (targeted with options-implied-volatility/financial-conditions alt-data via the existing no-API-key FRED fetcher, plus a fix for `average_correlation` having been hardcoded to `0.0` in all offline regime encoding). Universe expanded 89→104 assets, position caps raised. A new, honestly-scoped offline RL sizing layer (`train_rl_sizing.py`) was built and trained. **Retrained on the Codespace — the honest result:** primary `rank_20d`'s t-stat improved further (2.028→**2.8954**, CI lower 0.0065→**0.0585**, both gates pass with real margin) but remains `not_promotable` — the COVID inversion didn't flip, and cleaning up the crypto-noise era **exposed a second real inversion** (Dec 2020–Mar 2021) that had been hidden behind it. **New milestone:** sequence `rank_5d` is now fully **`promotable`** — the first model/head in the project's history to clear every gate. RL sizing's honest backtest result underperformed the constant-baseline, so it ships disabled per its own pre-committed abandon criterion. Every remaining non-IB `Problems.md` item closed; Docker-gated items (Docker Desktop/WSL2 was down all session) remain open with exact resume commands documented. See `development/Problems.md` #71.
 
 - **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
   **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
   [Backtest Results](#backtest-results)). This is a real flip from the
   pre-rank-pivot −0.59 Sharpe. (Numbers predate the V4.11 78-asset retrain —
   a fresh manual Lean backtest on the retrained model is the next step.)
-- **Signal significance — a real milestone, not yet settled:** after the
-  V4.11 retrain the `rank_20d` non-overlapping t-stat **now clears the
-  project's own ≥ 2.0 bar (2.028)** and its bootstrap CI lower bound is
-  positive — both hard promotion gates pass for the first time. It is still
-  `not_promotable`, held back *solely* by era-sign instability (the signal
-  inverts in 2 of 9 sub-periods). That is now the single gap to a promotable
-  signal — a much more precise target than "t-stat too low."
-- **The reported Sharpe/Net still ran with** `bypass_safety_gates` on (not
-  live-representative). The two V4.11 manual Lean backtests close this: run 1
-  as-is, run 2 with `bypass_safety_gates` off so drawdown limits enforce.
+- **Signal significance — a real milestone, still not fully settled:** after
+  Phase 4.12's retrain the `rank_20d` non-overlapping t-stat improved further
+  to **2.8954** (≥ 2.0) with bootstrap CI lower **+0.0585** (≥ 0) — both hard
+  promotion gates pass with real margin. It is still `not_promotable`: the
+  COVID-era inversion is genuine and didn't flip, and removing the
+  crypto-noise era exposed a second real inversion (Dec 2020–Mar 2021) that
+  had been hidden behind it. **New:** sequence `rank_5d` is now fully
+  `promotable` — the first head in the project's history to clear every
+  gate — an open question for a future phase is whether/how to add it
+  alongside `rank_20d` as a second live signal.
+- **The reported Sharpe/Net still predate this retrain** (`bypass_safety_gates`
+  on, not live-representative). The two user-run Lean backtests (as-is, then
+  with `bypass_safety_gates` off so drawdown limits enforce) remain blocked
+  on Docker Desktop/WSL2, which was down all of Phase 4.12 — see
+  `development/Problems.md` #71 for exact resume commands.
 - **Not paper/live-deployable yet**: Interactive Brokers has never been
   tested against a real Gateway (see [Known Limitations](#known-limitations)).
-- **Next:** kill the era-sign instability (regime-conditioning / stronger
-  neutralization), keep expanding breadth, then IB testing — see
-  [Roadmap](#roadmap).
+- **Next:** once Docker/WSL2 is working again, close the remaining
+  Docker-gated items (topology overlay training, `cpp_inference_ext` linkage
+  confirmation, the two Lean backtests), then decide whether/how to promote
+  sequence `rank_5d`, then IB testing — see [Roadmap](#roadmap).
 
 ## Known Limitations
 
@@ -378,9 +373,9 @@ stack was built, phase by phase.
 
 ## Universe Size
 
-The trading universe currently spans **89 assets**: 40 stocks/broad-market
+The trading universe currently spans **104 assets**: 55 stocks/broad-market
 ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs
-(45% equity / 25% bond / 13% crypto / 17% forex by count), defined in
+(53% equity / 21% bond / 12% crypto / 14% forex by count), defined in
 `config.json`'s `phase1.universe.assets` and shared across training,
 validation, and backtesting (common window `2014-12-01` to `2021-03-31`).
 Of these, tradeable names carry real positions while "observation-only"
@@ -450,7 +445,7 @@ and how it's wired in, this table is the index.
 | Document | Contents |
 |---|---|
 | [`development/README.md`](development/README.md) | Index of this folder |
-| [`development/asset_universe.md`](development/asset_universe.md) | The full 89-asset universe: ticker list, trading-vs-observation split, bond-ETF coverage, group diagram |
+| [`development/asset_universe.md`](development/asset_universe.md) | The full 104-asset universe: ticker list, trading-vs-observation split, bond-ETF coverage, group diagram |
 | [`development/project_structure.md`](development/project_structure.md) | The full annotated directory tree of the repository |
 | [`development/v2_architecture.md`](development/v2_architecture.md) | The full V2 system architecture: process-flow and tech-stack diagrams, the module map, per-phase "contract" sections, and the HFT-readiness analysis |
 | [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook, start commands for every service, SQL inspection snippets, port reference |
@@ -471,7 +466,7 @@ and how it's wired in, this table is the index.
 | Drawdown | 8.900% |
 | Total Orders | 2062 |
 | Win Rate | 56% |
-| Last updated | 2026-07-26 10:04 UTC (auto-generated by `aq backtest`) |
+| Last updated | 2026-07-26 18:19 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 <details>
@@ -881,6 +876,10 @@ All finished phases and changes can be found in
 
 **Training — ✅ done (V4.11, development/Problems.md #70)**
 - Walk-forward training (Stage 6) and the full retrain were **executed** on the GitHub Codespace (6 expanding windows; cross-window MCC mean 0.0259, 95% CI [0.0128, 0.0409]). 8 of 9 models retrained on the 78-asset universe (topology stays dormant — needs Postgres realized-outcome events). Three latent `train.py` bugs found and fixed in the process. `rank_20d`'s promotion-quality/significance numbers updated (see Optimization above).
+
+**Phase 4.12 — 🟡 mostly done, Docker items open (development/Problems.md #71)**
+- Era-sign instability decomposed into 3 real causes (crypto-only-weekend measurement artifact, statistical noise, genuine COVID inversion) and 2 of 3 fixed (data hygiene + gate noise floor); the third (COVID inversion) targeted with options-implied-vol/financial-conditions alt-data + a regime-encoding fix, but **did not flip** — reported honestly rather than force-fit. `rank_20d` t-stat improved further to 2.8954 (CI lower 0.0585), still `not_promotable`; a second real inversion was exposed by the cleanup. **Sequence `rank_5d` achieved the project's first-ever fully `promotable` head.** Universe 89→104, position caps raised, an offline RL sizing layer built and trained (honest negative result, ships disabled). Every remaining non-IB `Problems.md` item closed.
+- **Still open, Docker-gated** (Docker Desktop/WSL2 down all session): `cpp_inference_ext` in-image linkage confirmation, the topology overlay's observation-mode training run, Lean's 90-second-isolator re-measurement at 104 assets, and the two user-run Lean backtests. Exact resume commands in `development/Problems.md` #71.
 
 
 **Tests / production readiness**

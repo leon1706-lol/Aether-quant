@@ -1,3 +1,12 @@
+from .alt_data_features import (
+    ALT_DATA_FEATURE_NAMES,
+    FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
+    IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL,
+    IMPLIED_VOLATILITY_LEVEL_NEUTRAL,
+    financial_conditions_change,
+    implied_vol_term_structure,
+    implied_volatility_level,
+)
 from .bond_features import (
     BOND_FEATURE_NAMES,
     CREDIT_SPREAD_LEVEL_NEUTRAL,
@@ -55,14 +64,18 @@ from .technical_indicators import (
 )
 
 __all__ = [
+    "ALT_DATA_FEATURE_NAMES",
     "BOND_FEATURE_NAMES",
     "CREDIT_SPREAD_LEVEL_NEUTRAL",
     "CREDIT_SPREAD_NEUTRAL",
     "CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL",
     "CRYPTO_RISK_APPETITE_NEUTRAL",
     "DERIVATIVES_MACRO_FEATURE_NAMES",
+    "FINANCIAL_CONDITIONS_CHANGE_NEUTRAL",
     "FUTURES_MACRO_FEATURE_NAMES",
     "FUTURES_TERM_STRUCTURE_SLOPE_NEUTRAL",
+    "IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL",
+    "IMPLIED_VOLATILITY_LEVEL_NEUTRAL",
     "OPTIONS_IMPLIED_VOL_SKEW_NEUTRAL",
     "OPTIONS_MACRO_FEATURE_NAMES",
     "OPTIONS_PUT_CALL_RATIO_NEUTRAL",
@@ -84,8 +97,11 @@ __all__ = [
     "crypto_risk_appetite_proxy",
     "distance_from_52w_high",
     "empirical_duration_beta",
+    "financial_conditions_change",
     "futures_term_structure_slope",
+    "implied_vol_term_structure",
     "implied_volatility",
+    "implied_volatility_level",
     "macd_histogram_normalized",
     "nearest_yield_curve_point",
     "option_delta",

@@ -79,6 +79,58 @@ def test_add_regime_features_matches_build_market_regime_vector_directly():
         assert result.loc[index, f"regime_trend_{expected.trend_regime}"] == 1.0
 
 
+def test_add_regime_features_uses_real_topology_correlation_strength_when_present():
+    # development/Problems.md #71 (Phase 4.12, A4): when the row already
+    # carries a real topology_correlation_strength (as it does after
+    # build_feature_dataset() moved this call to run AFTER
+    # build_topology_features_by_date()), that value - not a hardcoded
+    # 0.0 - must feed average_correlation. A high correlation reading
+    # during a high-volatility, bearish row should push risk_regime to
+    # risk_off via classify_risk_regime()'s correlation-spike rule, which
+    # a 0.0 default could never trigger.
+    frame = pd.DataFrame(
+        [{
+            "momentum_5d": -0.05, "momentum_20d": -0.06,
+            "rolling_volatility_5d": 0.04, "rolling_volatility_20d": 0.04,
+            "topology_correlation_strength": 0.9,
+        }]
+    )
+
+    result = add_regime_features(frame)
+
+    expected = build_market_regime_vector(
+        {
+            "momentum_5d": -0.05, "momentum_20d": -0.06,
+            "rolling_volatility_5d": 0.04, "rolling_volatility_20d": 0.04,
+        },
+        portfolio_drawdown=0.0,
+        average_correlation=0.9,
+    )
+    assert result.loc[0, "regime_signal_risk_score"] == expected.risk_score
+    assert result.loc[0, f"regime_{expected.risk_regime}"] == 1.0
+
+
+def test_add_regime_features_falls_back_to_zero_correlation_when_column_absent():
+    # Byte-identical to the pre-#71 behavior for any caller that doesn't
+    # provide topology_correlation_strength (e.g. a bare synthetic
+    # fixture, or add_regime_features() called out of its normal
+    # build_feature_dataset() order).
+    frame = _sample_engineered_frame()
+    result = add_regime_features(frame)
+    for index, row in frame.iterrows():
+        expected = build_market_regime_vector(
+            {
+                "momentum_5d": row["momentum_5d"],
+                "momentum_20d": row["momentum_20d"],
+                "rolling_volatility_5d": row["rolling_volatility_5d"],
+                "rolling_volatility_20d": row["rolling_volatility_20d"],
+            },
+            portfolio_drawdown=0.0,
+            average_correlation=0.0,
+        )
+        assert result.loc[index, "regime_signal_risk_score"] == expected.risk_score
+
+
 def test_add_regime_features_onehot_is_exactly_one_hot_per_row():
     frame = _sample_engineered_frame()
     result = add_regime_features(frame)
@@ -353,11 +405,125 @@ def test_build_cross_sectional_rank_targets_uses_config_default_when_ranking_con
     }
 
     # No phase1.target.ranking key at all - must fall back to
-    # DEFAULT_RANKING_MIN_UNIVERSE_SIZE (10), so a 2-asset universe never
-    # meets the bar and every rank is NaN (not an error).
+    # DEFAULT_RANKING_MIN_UNIVERSE_SIZE (20, development/Problems.md #71),
+    # so a 2-asset universe never meets the bar and every rank is NaN (not
+    # an error).
     result = build_cross_sectional_rank_targets(asset_frames, {"phase1": {"target": {}}})
 
     assert result["A"]["target_rank_5d"].isna().all()
+
+
+# ---------------------------------------------------------------------------
+# build_cross_sectional_rank_targets - target_beta_neutral_rank_5d/20d
+# (development/Problems.md #71, Phase 4.12, A4 - computed-but-unwired: no
+# model head consumes this yet, see the function's own docstring for why)
+# ---------------------------------------------------------------------------
+
+
+def _beta_neutral_config(min_universe_size: int = 2, min_observations: int = 2, market_ticker: str = "SPY") -> dict:
+    return {
+        "phase1": {
+            "target": {
+                "ranking": {
+                    "min_universe_size": min_universe_size,
+                    "beta_neutral": {"market_ticker": market_ticker, "min_observations": min_observations},
+                }
+            }
+        }
+    }
+
+
+def test_build_cross_sectional_rank_targets_beta_neutral_matches_hand_computation():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        # SPY (the market itself): beta=1 against itself -> residual 0.0 every date.
+        "SPY": _rank_target_frame(dates, [0.01, 0.02, 0.03]),
+        # A = 2x SPY exactly -> beta=2.0 -> residual = A - 2*SPY = 0.0 every date.
+        "A": _rank_target_frame(dates, [0.02, 0.04, 0.06]),
+        # B = SPY exactly -> beta=1.0 -> residual 0.0 every date.
+        "B": _rank_target_frame(dates, [0.01, 0.02, 0.03]),
+        # C = SPY + 0.02 constant -> perfect linear fit, beta=1.0 -> residual = 0.02 every date (real alpha).
+        "C": _rank_target_frame(dates, [0.03, 0.05, 0.07]),
+    }
+
+    result = build_cross_sectional_rank_targets(asset_frames, _beta_neutral_config())
+
+    # 4 assets/date: SPY, A, B tied at residual 0.0 (avg rank of a 3-way
+    # tie for positions 1-2-3 = 2, percentile = 2/4 = 0.5); C alone at
+    # residual 0.02 (rank 4, percentile 1.0).
+    assert np.allclose(result["SPY"]["target_beta_neutral_rank_5d"].to_numpy(), 0.5)
+    assert np.allclose(result["A"]["target_beta_neutral_rank_5d"].to_numpy(), 0.5)
+    assert np.allclose(result["B"]["target_beta_neutral_rank_5d"].to_numpy(), 0.5)
+    assert np.allclose(result["C"]["target_beta_neutral_rank_5d"].to_numpy(), 1.0)
+
+
+def test_build_cross_sectional_rank_targets_beta_neutral_falls_back_to_raw_return_when_beta_unavailable():
+    # min_observations high enough that no asset ever clears it -> every
+    # beta falls back to 0.0 -> residual == raw return -> beta_neutral
+    # rank must be IDENTICAL to the plain rank (same min_universe_size).
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "SPY": _rank_target_frame(dates, [0.01, 0.02, 0.03]),
+        "A": _rank_target_frame(dates, [0.05, 0.03, 0.02]),
+        "B": _rank_target_frame(dates, [0.01, 0.01, 0.01]),
+    }
+    config = _beta_neutral_config(min_universe_size=2, min_observations=1000)
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    for ticker in asset_frames:
+        assert np.allclose(
+            result[ticker]["target_beta_neutral_rank_5d"].to_numpy(),
+            result[ticker]["target_rank_5d"].to_numpy(),
+        )
+
+
+def test_build_cross_sectional_rank_targets_beta_neutral_missing_market_ticker_is_nan():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "A": _rank_target_frame(dates, [0.05, 0.03, 0.02]),
+        "B": _rank_target_frame(dates, [0.01, 0.01, 0.01]),
+    }
+    # market_ticker "SPY" does not exist in asset_frames at all.
+    config = _beta_neutral_config(min_universe_size=2, market_ticker="SPY")
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    assert result["A"]["target_beta_neutral_rank_5d"].isna().all()
+    assert result["B"]["target_beta_neutral_rank_5d"].isna().all()
+    # Plain rank is unaffected by the missing market ticker.
+    assert result["A"]["target_rank_5d"].notna().all()
+
+
+def test_build_cross_sectional_rank_targets_beta_neutral_respects_min_universe_size():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "SPY": _rank_target_frame(dates, [0.01, 0.02, 0.03]),
+        "A": _rank_target_frame(dates, [0.05, 0.03, 0.02]),
+    }
+    # Only 2 assets (SPY + A) ever have data - a min_universe_size of 3
+    # excludes every residual date too.
+    config = _beta_neutral_config(min_universe_size=3, min_observations=2)
+
+    result = build_cross_sectional_rank_targets(asset_frames, config)
+
+    assert result["A"]["target_beta_neutral_rank_5d"].isna().all()
+
+
+def test_build_cross_sectional_rank_targets_beta_neutral_both_horizons_present():
+    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    asset_frames = {
+        "SPY": _rank_target_frame(dates, [0.01, 0.02, 0.03], returns_20d=0.04),
+        "A": _rank_target_frame(dates, [0.02, 0.04, 0.06], returns_20d=0.08),
+    }
+
+    result = build_cross_sectional_rank_targets(asset_frames, _beta_neutral_config())
+
+    assert "target_beta_neutral_rank_5d" in result["A"].columns
+    assert "target_beta_neutral_rank_20d" in result["A"].columns
+    # Existing rank/sector-neutral columns must be unaffected additions.
+    assert "target_rank_5d" in result["A"].columns
+    assert "target_sector_neutral_rank_5d" in result["A"].columns
 
 
 def test_build_cross_sectional_rank_targets_computes_both_horizons_independently():

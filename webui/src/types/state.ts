@@ -412,6 +412,19 @@ export interface RankIcSummary {
 // Phase 2 of the 5/10 -> 9/10 roadmap: the code-enforced promotion-gate
 // verdict (train.py::assess_ranking_quality()) - distinct from
 // NeuralNetworkModel.quality_status (the older direction-model gate).
+// Per-era diagnostic (development/Problems.md #71) - one entry per
+// non-overlapping era from train.py::assess_ranking_quality_from_predictions(),
+// so a promotion-gate failure is traceable to which era and when, not just
+// a count.
+export interface RankingQualityEraDiagnostic {
+  era_index: number
+  era_start: string
+  era_end: string
+  num_dates: number
+  mean_ic: number
+  t_stat: number
+}
+
 export interface RankingQualitySummary {
   quality_status: 'promotable' | 'watchlist' | 'not_promotable' | string
   promotion_eligible: boolean
@@ -424,6 +437,8 @@ export interface RankingQualitySummary {
     bootstrap_ci_upper_bound: number
     num_eras: number
     num_opposite_sign_eras: number
+    num_insufficient_data_eras: number
+    per_era: RankingQualityEraDiagnostic[]
   }
 }
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass
 
+from .rl_sizing import rl_sizing_multiplier as _rl_sizing_multiplier
 
 TRADING_DAYS_PER_YEAR = 252
 
@@ -26,6 +27,8 @@ class PositionSizingDecision:
     volatility_source: str = "rolling"
     rank_multiplier: float = 1.0
     rank_sizing_reason: str = "rank_sizing_disabled_or_absent"
+    rl_multiplier: float = 1.0
+    rl_sizing_reason: str = "rl_sizing_disabled_or_absent"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -154,6 +157,11 @@ def build_dynamic_position_sizing(
     rank_sizing_enabled: bool = False,
     min_rank_multiplier: float = 0.75,
     max_rank_multiplier: float = 1.25,
+    rl_model: dict | None = None,
+    rl_state: dict | None = None,
+    rl_sizing_enabled: bool = False,
+    min_rl_multiplier: float = 0.6,
+    max_rl_multiplier: float = 1.0,
 ) -> PositionSizingDecision:
     base_target_weight = float(base_target_weight)
     confidence = max(0.0, min(float(confidence), 1.0))
@@ -181,6 +189,13 @@ def build_dynamic_position_sizing(
         min_rank_multiplier,
         max_rank_multiplier,
     )
+    rl_multiplier, rl_sizing_reason = _rl_sizing_multiplier(
+        rl_model,
+        rl_state,
+        rl_sizing_enabled,
+        min_rl_multiplier,
+        max_rl_multiplier,
+    )
 
     if abs_base_target == 0.0 or confidence == 0.0 or max_position_weight == 0.0:
         return PositionSizingDecision(
@@ -199,6 +214,8 @@ def build_dynamic_position_sizing(
             volatility_source=volatility_source,
             rank_multiplier=rank_multiplier,
             rank_sizing_reason=rank_sizing_reason,
+            rl_multiplier=rl_multiplier,
+            rl_sizing_reason=rl_sizing_reason,
         )
 
     safe_volatility = max(volatility, 1e-6)
@@ -206,7 +223,10 @@ def build_dynamic_position_sizing(
     volatility_multiplier = max(min_volatility_multiplier, min(volatility_multiplier, max_volatility_multiplier))
     confidence_multiplier = 0.5 + 0.5 * confidence
 
-    sized_weight = abs_base_target * volatility_multiplier * confidence_multiplier * topology_multiplier * rank_multiplier
+    sized_weight = (
+        abs_base_target * volatility_multiplier * confidence_multiplier
+        * topology_multiplier * rank_multiplier * rl_multiplier
+    )
     sized_weight = min(sized_weight, max_position_weight)
     if sized_weight > 0.0 and min_position_weight > 0.0:
         sized_weight = max(sized_weight, min_position_weight)
@@ -238,4 +258,6 @@ def build_dynamic_position_sizing(
         volatility_source=volatility_source,
         rank_multiplier=rank_multiplier,
         rank_sizing_reason=rank_sizing_reason,
+        rl_multiplier=rl_multiplier,
+        rl_sizing_reason=rl_sizing_reason,
     )

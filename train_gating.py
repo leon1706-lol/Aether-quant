@@ -144,11 +144,19 @@ def build_gating_training_rows(
     (run_exported_model(), the same interpreter moe/gating.py uses at
     runtime) to reconstruct the exact feature vector
     build_gating_model_features() would have produced live, paired with the
-    already-known target_direction label. Regime reconstruction uses
-    portfolio_drawdown=0.0/average_correlation=0.0 (runtime-only state not
-    recoverable offline) - an honest, documented simplification; the two
-    regime keys _regime_alignment() actually branches on (trend_regime,
-    volatility_regime) are unaffected."""
+    already-known target_direction label.
+
+    average_correlation (development/Problems.md #71, Phase 4.12) is now
+    this row's real topology_correlation_strength, read straight out of
+    raw_features (feature_schema["feature_names"] already includes it,
+    the same real value train.py::_encode_regime_row() now uses) -
+    train.py's dataset already has this column populated by
+    build_topology_features_by_date() before this trainer ever reads a
+    row, so no additional plumbing was needed here beyond reading the key.
+    portfolio_drawdown=0.0 remains an honest, documented simplification -
+    no live account-drawdown state exists at offline dataset-build time.
+    The two regime keys _regime_alignment() actually branches on
+    (trend_regime, volatility_regime) are unaffected by either default."""
     model_input_names = feature_schema["model_input_names"]
     feature_names = feature_schema["feature_names"]
 
@@ -178,7 +186,9 @@ def build_gating_training_rows(
                 baseline_probability_up = None
 
         regime = build_market_regime_vector(
-            raw_features, portfolio_drawdown=0.0, average_correlation=0.0
+            raw_features,
+            portfolio_drawdown=0.0,
+            average_correlation=raw_features.get("topology_correlation_strength", 0.0),
         ).to_dict()
 
         decision = build_gating_decision(

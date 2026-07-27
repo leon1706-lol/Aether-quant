@@ -38,6 +38,10 @@ from features import (
     YIELD_CURVE_CURVATURE_NEUTRAL,
     YIELD_CURVE_LEVEL_NEUTRAL,
     YIELD_CURVE_SLOPE_NEUTRAL,
+    ALT_DATA_FEATURE_NAMES,
+    FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
+    IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL,
+    IMPLIED_VOLATILITY_LEVEL_NEUTRAL,
     analytic_convexity,
     analytic_modified_duration,
     average_true_range_pct,
@@ -51,7 +55,9 @@ from features import (
     distance_from_52w_high,
     empirical_duration_beta,
     futures_term_structure_slope,
+    implied_vol_term_structure,
     implied_volatility,
+    implied_volatility_level,
     macd_histogram_normalized,
     nearest_yield_curve_point,
     options_implied_vol_skew,
@@ -62,7 +68,8 @@ from features import (
     yield_curve_level,
     yield_curve_slope_proxy,
 )
-from data_pipeline.fred_backfill import bond_reference_series, load_cached_fred_series
+from data_pipeline.fred_backfill import bond_reference_series, load_cached_fred_series, series_change_asof, series_value_asof
+from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
 from regime import build_market_regime_vector
@@ -825,20 +832,30 @@ TOPOLOGY_FEATURE_NAMES = TOPOLOGY_ONEHOT_FEATURE_NAMES + TOPOLOGY_CONTINUOUS_FEA
 def _encode_regime_row(row: pd.Series) -> dict:
     """Reconstructs the same MarketRegimeVector main.py's
     _build_regime_payload() computes at runtime, from this row's own
-    already-engineered momentum/volatility features. portfolio_drawdown=0.0
-    and average_correlation=0.0 are an honest, documented offline
-    simplification (no live portfolio/topology state exists at dataset-
-    build time) - the exact same simplification train_gating.py's
-    build_gating_training_rows() already established for the identical
-    reason; trend_regime/volatility_regime (the two most-used regime keys)
-    are unaffected by either default."""
+    already-engineered momentum/volatility features.
+
+    average_correlation (development/Problems.md #71, Phase 4.12) is now
+    this row's own real topology_correlation_strength - build_feature_
+    dataset() moved the add_regime_features() call to run AFTER
+    build_topology_features_by_date(), specifically so this value is
+    real, not a placeholder, by the time this function runs. Falls back
+    to 0.0 only if the column is genuinely absent (a caller bypassing the
+    normal build_feature_dataset() ordering, e.g. a unit test fixture),
+    never raises.
+
+    portfolio_drawdown=0.0 remains an honest, documented simplification -
+    no live account-drawdown state exists at offline dataset-build time,
+    the same simplification train_gating.py::build_gating_training_rows()
+    still uses for the identical reason. trend_regime/volatility_regime
+    (the two most-used regime keys) are unaffected by either default."""
     features = {
         "momentum_5d": row["momentum_5d"],
         "momentum_20d": row["momentum_20d"],
         "rolling_volatility_5d": row["rolling_volatility_5d"],
         "rolling_volatility_20d": row["rolling_volatility_20d"],
     }
-    vector = build_market_regime_vector(features, portfolio_drawdown=0.0, average_correlation=0.0)
+    average_correlation = float(row["topology_correlation_strength"]) if "topology_correlation_strength" in row else 0.0
+    vector = build_market_regime_vector(features, portfolio_drawdown=0.0, average_correlation=average_correlation)
     return {
         "regime_trend_bullish": 1.0 if vector.trend_regime == "bullish" else 0.0,
         "regime_trend_bearish": 1.0 if vector.trend_regime == "bearish" else 0.0,
@@ -1306,6 +1323,94 @@ def build_bond_features_by_date(
     return updated_frames
 
 
+def build_alt_data_features_by_date(
+    asset_frames: dict[str, pd.DataFrame],
+    config: dict,
+    fred_series: dict[str, list[dict]],
+) -> dict[str, pd.DataFrame]:
+    """Phase 4.12 (development/Problems.md #71) fourth cross-asset macro
+    sibling to build_topology_features_by_date()/build_macro_features_by_date()/
+    build_bond_features_by_date() - features/alt_data_features.py, backed by
+    the SAME fred_series mapping build_bond_features_by_date() already
+    receives (load_cached_fred_series() globs the whole cache directory,
+    so the new implied_volatility_vix/implied_volatility_3m/
+    financial_conditions_nfci series arrive in that dict with no loader
+    change needed anywhere).
+
+    Date-only, broadcast identically to every asset's row - same shape as
+    build_bond_features_by_date()'s yield-curve/credit-spread columns,
+    with no asset-specific branch (unlike that function's
+    asset_class == "bond" duration/convexity/dv01 computation - these
+    three features are macro/cross-asset by construction, not tied to any
+    one asset).
+
+    Unlike build_bond_features_by_date()'s inline _series_asof_lookup()
+    (a bare bisect, correct only for same-day series), lookups here go
+    through data_pipeline.fred_backfill.series_value_asof()/
+    series_change_asof() with each series' own
+    ALT_DATA_PUBLICATION_LAG_DAYS - NFCI is Friday-dated but not released
+    until the following Wednesday, so a bare bisect would be lookahead.
+    See those functions' own docstrings for the full reasoning.
+
+    A series absent from fred_series (fresh clone, `aq backfill fred
+    --group alt` never run) neutral-defaults every alt-data feature for
+    every date via features/alt_data_features.py's own None-handling -
+    never raises, identical contract to data_pipeline/README.md's existing
+    FRED-series documentation.
+    """
+    financial_conditions_change_periods = int(
+        config.get("phase1", {}).get("features", {}).get("alt_data_financial_conditions_change_periods", 4)
+    )
+    publication_lag = {
+        **ALT_DATA_PUBLICATION_LAG_DAYS,
+        **config.get("phase1", {}).get("features", {}).get("alt_data_publication_lag_days", {}),
+    }
+    vix_rows = fred_series.get("implied_volatility_vix", [])
+    vix_3m_rows = fred_series.get("implied_volatility_3m", [])
+    nfci_rows = fred_series.get("financial_conditions_nfci", [])
+
+    all_dates = sorted({date_value for frame in asset_frames.values() for date_value in frame["date"]})
+
+    level_by_date: dict = {}
+    term_structure_by_date: dict = {}
+    conditions_change_by_date: dict = {}
+    for current_date in all_dates:
+        vix_close = series_value_asof(vix_rows, current_date, publication_lag.get("implied_volatility_vix", 0))
+        vix_3m_close = series_value_asof(vix_3m_rows, current_date, publication_lag.get("implied_volatility_3m", 0))
+        # series_change_asof() already computes NFCI(t) - NFCI(t -
+        # periods_back observations), both endpoints lag-adjusted - this
+        # IS the final feature value, not an intermediate to feed back
+        # through financial_conditions_change() (which exists as a
+        # standalone pure utility for callers that already have two
+        # resolved values in hand, e.g. a direct unit test).
+        nfci_change = series_change_asof(
+            nfci_rows,
+            current_date,
+            publication_lag.get("financial_conditions_nfci", 7),
+            financial_conditions_change_periods,
+        )
+        level_by_date[current_date] = implied_volatility_level(vix_close)
+        term_structure_by_date[current_date] = implied_vol_term_structure(vix_close, vix_3m_close)
+        conditions_change_by_date[current_date] = (
+            nfci_change if nfci_change is not None else FINANCIAL_CONDITIONS_CHANGE_NEUTRAL
+        )
+
+    updated_frames: dict[str, pd.DataFrame] = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        result["alt_implied_volatility_level"] = [
+            level_by_date.get(d, IMPLIED_VOLATILITY_LEVEL_NEUTRAL) for d in result["date"]
+        ]
+        result["alt_implied_vol_term_structure"] = [
+            term_structure_by_date.get(d, IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL) for d in result["date"]
+        ]
+        result["alt_financial_conditions_change"] = [
+            conditions_change_by_date.get(d, FINANCIAL_CONDITIONS_CHANGE_NEUTRAL) for d in result["date"]
+        ]
+        updated_frames[ticker] = result
+    return updated_frames
+
+
 def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
     """Third cross-asset macro sibling to build_macro_features_by_date()/
     build_bond_features_by_date() - features/derivatives_macro_features.py's
@@ -1448,9 +1553,35 @@ def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFram
     return updated_frames
 
 
-DEFAULT_RANKING_MIN_UNIVERSE_SIZE = 10
+# development/Problems.md #71 (Phase 4.12 era-instability fix): raised
+# 10 -> 20. This universe is bimodal by weekday - equities don't trade on
+# weekends/holidays, so those dates fall to an 11-12-asset crypto-only
+# cross-section (verified: 255 of 801 backtest-split dates, 31.8%), vs.
+# 64-74 assets on a normal business day. A rank computed over 11-12 assets
+# is a fundamentally different, far noisier statistic than one over the
+# full universe - ranking 12 assets alone produced 13 of 41 non-overlapping
+# rank-IC observations at exactly +-1.0, which single-handedly flipped at
+# least one non-overlapping era's sign (era 9, 2021 Q1: -0.111 with those
+# dates included, +0.224 without). 20 sits with a wide margin below the
+# smallest real full-universe date count (64) and well above the largest
+# degenerate one (12), so this is a clean bimodal split, not a fragile
+# threshold. Deliberately a SINGLE floor, not a separate lower
+# training-time / higher evaluation-time pair: a noisy 12-asset rank target
+# is equally poor training signal for the rank head as it is a poor
+# evaluation sample, so there is no principled reason to admit it into
+# training and then exclude it only at evaluation.
+DEFAULT_RANKING_MIN_UNIVERSE_SIZE = 20
 DEFAULT_SECTOR_NEUTRAL_MIN_SECTOR_SIZE = 3
 UNKNOWN_SECTOR_LABEL = "Unknown"
+
+# development/Problems.md #71 (Phase 4.12, A4): the default market proxy
+# for target_beta_neutral_rank_5d/20d's residualization - a highly liquid,
+# broad-market ETF already present in this project's V1 universe and
+# already Lean's own default backtest benchmark (see
+# generate_backtest_report.py's docstring: "main.py/lean.json never call
+# SetBenchmark(...), so this is Lean's documented default - SPY".
+DEFAULT_BETA_NEUTRAL_MARKET_TICKER = "SPY"
+DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS = 60
 
 
 def load_sector_mapping(config: dict) -> dict[str, str]:
@@ -1501,12 +1632,13 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     that function's O(N^2) machinery applies).
 
     `min_universe_size` (config phase1.target.ranking.min_universe_size,
-    default 10) guards against thin dates (e.g. weekends, when only crypto
-    trades) - below that threshold the rank is NaN, not a near-meaningless
-    percentile over a handful of assets. This is free: the masked loss
-    (masked_mse_loss()) used by the rank_5d/20d training heads already
-    treats NaN as "no target this row", the same convention the
-    direction_5d/20d targets above already established.
+    default 20 as of development/Problems.md #71) guards against thin dates
+    (e.g. weekends, when only crypto trades) - below that threshold the
+    rank is NaN, not a near-meaningless percentile over a handful of
+    assets. This is free: the masked loss (masked_mse_loss()) used by the
+    rank_5d/20d training heads already treats NaN as "no target this row",
+    the same convention the direction_5d/20d targets above already
+    established.
 
     Also adds sibling `target_sector_neutral_rank_5d/20d` columns (Phase 5) -
     the SAME per-date percentile rank, but computed WITHIN each asset's
@@ -1522,18 +1654,46 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     per date. Assets whose sector can't be resolved (load_sector_mapping()
     has no entry) get UNKNOWN_SECTOR_LABEL, which naturally NaNs out unless
     enough OTHER unmapped assets exist that day to clear min_sector_size.
+
+    Also adds sibling `target_beta_neutral_rank_5d/20d` columns
+    (development/Problems.md #71, Phase 4.12, A4) - unlike sector_neutral
+    (a within-group RANK, still on raw returns), this residualizes each
+    asset's forward return against its OWN static market-beta before
+    ranking: residual_i(date) = target_return_Nd_i(date) - beta_i *
+    target_return_Nd_market(date), where beta_i is a single whole-history
+    OLS slope of asset i's forward return against the market ticker's SAME
+    forward return (features.empirical_duration_beta() - reused as a
+    generic "OLS slope of series A on series B" helper, exactly the same
+    simplicity/tractability tradeoff bond_empirical_duration_beta already
+    established: one static beta per asset, not a rolling per-date one).
+    market_ticker (config phase1.target.ranking.beta_neutral.market_ticker,
+    default "SPY") must exist in asset_frames or every beta_neutral rank
+    for that horizon is NaN (never raises - same degrade-to-missing
+    convention as an unresolved sector). An asset with too little paired
+    history for a stable beta estimate (min_observations, default 60)
+    gets beta=0.0 (residual == raw return - the safe, uninformative
+    fallback, not a crash). This is currently a computed-but-unwired
+    target: no model head consumes it yet (a full multitask/sequence head
+    is a separate, larger change deliberately deferred - see Problems.md
+    #71 - to avoid stacking two unproven interventions into one retrain
+    alongside the alt-data features above). The column exists now so a
+    future pass can wire and measure it independently.
     """
     ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
     min_universe_size = int(ranking_config.get("min_universe_size", DEFAULT_RANKING_MIN_UNIVERSE_SIZE))
     sector_neutral_config = ranking_config.get("sector_neutral", {})
     min_sector_size = int(sector_neutral_config.get("min_sector_size", DEFAULT_SECTOR_NEUTRAL_MIN_SECTOR_SIZE))
     sector_by_ticker = load_sector_mapping(config)
+    beta_neutral_config = ranking_config.get("beta_neutral", {})
+    market_ticker = beta_neutral_config.get("market_ticker", DEFAULT_BETA_NEUTRAL_MARKET_TICKER)
+    beta_min_observations = int(beta_neutral_config.get("min_observations", DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS))
 
     updated_frames: dict[str, pd.DataFrame] = dict(asset_frames)
     for horizon_days in (5, 20):
         return_column = f"target_return_{horizon_days}d"
         rank_column = f"target_rank_{horizon_days}d"
         sector_neutral_rank_column = f"target_sector_neutral_rank_{horizon_days}d"
+        beta_neutral_rank_column = f"target_beta_neutral_rank_{horizon_days}d"
 
         long_frame = pd.concat(
             [
@@ -1557,11 +1717,49 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
         )
         sector_rank_lookup = sector_eligible.set_index(["ticker", "date"])["sector_rank_value"].to_dict()
 
+        # Beta-neutral: residualize against market_ticker's own SAME-horizon
+        # forward return, then apply the identical min_universe_size gate
+        # the plain rank already uses (a residual-return cross-section is
+        # just as thin/noisy below that bar as a raw-return one).
+        market_frame = updated_frames.get(market_ticker)
+        beta_neutral_rank_lookup: dict = {}
+        if market_frame is not None and return_column in market_frame.columns:
+            market_return_by_date = dict(zip(market_frame["date"], market_frame[return_column]))
+            residual_rows = []
+            for ticker, frame in updated_frames.items():
+                dates = frame["date"].tolist()
+                asset_returns = [None if pd.isna(value) else float(value) for value in frame[return_column]]
+                market_returns = [
+                    None if pd.isna(market_return_by_date.get(current_date)) else float(market_return_by_date[current_date])
+                    for current_date in dates
+                ]
+                beta = empirical_duration_beta(asset_returns, market_returns, min_observations=beta_min_observations)
+                beta = beta if beta is not None else 0.0
+                for current_date, asset_return, market_return in zip(dates, asset_returns, market_returns):
+                    if asset_return is None or market_return is None:
+                        continue
+                    residual_rows.append(
+                        {"ticker": ticker, "date": current_date, "residual_return": asset_return - beta * market_return}
+                    )
+            if residual_rows:
+                residual_frame = pd.DataFrame(residual_rows)
+                residual_size_by_date = residual_frame.groupby("date")["residual_return"].transform("size")
+                residual_eligible = residual_frame[residual_size_by_date >= min_universe_size].copy()
+                residual_eligible["beta_neutral_rank_value"] = residual_eligible.groupby("date")[
+                    "residual_return"
+                ].rank(pct=True)
+                beta_neutral_rank_lookup = residual_eligible.set_index(["ticker", "date"])[
+                    "beta_neutral_rank_value"
+                ].to_dict()
+
         for ticker, frame in updated_frames.items():
             result = frame.copy()
             result[rank_column] = [rank_lookup.get((ticker, date), np.nan) for date in result["date"]]
             result[sector_neutral_rank_column] = [
                 sector_rank_lookup.get((ticker, date), np.nan) for date in result["date"]
+            ]
+            result[beta_neutral_rank_column] = [
+                beta_neutral_rank_lookup.get((ticker, date), np.nan) for date in result["date"]
             ]
             updated_frames[ticker] = result
 
@@ -1697,7 +1895,6 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
             max_abs_return_5d=max_abs_return_5d,
             max_abs_return_20d=max_abs_return_20d,
         )
-        engineered = add_regime_features(engineered)
         engineered_frames[ticker] = engineered
         asset_summaries.append(
             {
@@ -1714,8 +1911,29 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     # Cross-sectional (needs every asset's engineered frame simultaneously) -
     # must run after the per-asset loop above, before the final concat.
     engineered_frames = build_topology_features_by_date(engineered_frames, config)
+    # development/Problems.md #71 (Phase 4.12, A4): add_regime_features()
+    # moved here, AFTER topology, specifically so _encode_regime_row() can
+    # read each row's own just-computed topology_correlation_strength as a
+    # real average_correlation - previously hardcoded to 0.0 because this
+    # call ran inside the per-asset loop above, before any cross-asset
+    # correlation data existed for ANY asset. This closes a real gap: the
+    # risk_off-reinforcing "correlated crash" rule in
+    # regime/market_regime.py::classify_risk_regime() (correlation >= 0.75
+    # AND high_volatility) could never fire offline before this change,
+    # exactly the systemic-correlation-spike signature a genuine market
+    # crash (e.g. the 2019-12-27..2020-03-25 era) produces.
+    # portfolio_drawdown stays 0.0 - genuinely no offline analog exists
+    # (it depends on this run's own live account state, not recoverable
+    # from historical bars).
+    engineered_frames = {ticker: add_regime_features(frame) for ticker, frame in engineered_frames.items()}
     engineered_frames = build_macro_features_by_date(engineered_frames, config)
-    engineered_frames = build_bond_features_by_date(engineered_frames, config, load_cached_fred_series())
+    # Hoisted (was inline in the bond call below): both FRED-backed
+    # builders (bond, alt-data) need the same cache load, and
+    # load_cached_fred_series() just globs a directory once, so there is
+    # no reason to pay that I/O twice per build_feature_dataset() call.
+    fred_series = load_cached_fred_series()
+    engineered_frames = build_bond_features_by_date(engineered_frames, config, fred_series)
+    engineered_frames = build_alt_data_features_by_date(engineered_frames, config, fred_series)
     engineered_frames = build_derivatives_macro_features_by_date(engineered_frames, config)
     engineered_frames = build_cross_sectional_rank_targets(engineered_frames, config)
     engineered_frames = build_cross_sectional_momentum_rank_features(engineered_frames)
@@ -4088,7 +4306,7 @@ def assess_regression_quality(regression_metrics_by_split: dict, training_config
 def assess_ranking_quality(
     non_overlapping_rank_ic: dict,
     bootstrap_result: dict,
-    per_era_mean_ics: list[float],
+    per_era: list[dict],
     training_config: dict,
 ) -> dict:
     """Phase 2 of the 5/10 -> 9/10 roadmap: the code-enforced version of
@@ -4111,26 +4329,48 @@ def assess_ranking_quality(
       number this gate exists to not be fooled by).
     - `bootstrap_result`: bootstrap_ic_confidence_interval() run over that
       SAME non-overlapping series' "ic_values".
-    - `per_era_mean_ics`: one compute_rank_ic()["mean_ic"] per era from
-      split_into_non_overlapping_eras() - was the edge concentrated in one
-      regime, or stable? Even a single era whose sign contradicts the
-      overall aggregate disqualifies promotion, regardless of how strong
-      the aggregate looks - a real edge should not require throwing away
-      an inconvenient era.
+    - `per_era`: one dict per era from assess_ranking_quality_from_predictions()
+      (each {"era_index", "era_start", "era_end", "num_dates", "mean_ic",
+      "t_stat"}) - was the edge concentrated in one regime, or stable? Kept
+      as full dicts, not bare floats (development/Problems.md #71): a
+      promotion-gate failure can then be traced back to WHICH era and WHEN,
+      not just a count - the count alone made "an era mean of -0.001 from 4
+      dates" indistinguishable from "a real regime inversion."
+
+    era_sign_min_abs_ic / era_min_observations (config
+    phase1.target.ranking.promotion_gate, both default 0.0/0 - i.e. a
+    byte-identical no-op unless explicitly set): an era only counts as a
+    sign-instability failure if BOTH its |mean_ic| clears the noise floor
+    AND it has enough contributing dates to be a meaningful estimate at
+    all. Without these, a razor-thin era mean (a handful of observations
+    averaging to something indistinguishable from zero) fails this gate
+    exactly as hard as a genuine regime inversion - see Problems.md #71 for
+    the calibration data (a real COVID-era inversion of -0.171 vs. a noise
+    era of -0.001, both previously counted as one "opposite_sign_eras"
+    entry each). Eras below era_min_observations are reported separately
+    as `num_insufficient_data_eras`, never silently dropped.
     """
     gate = training_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("promotion_gate", {})
     min_non_overlapping_t_stat = float(gate.get("min_non_overlapping_t_stat", 2.0))
     min_bootstrap_ci_lower = float(gate.get("min_bootstrap_ci_lower", 0.0))
     watchlist_margin = float(gate.get("ranking_watchlist_margin", 0.3))
+    era_sign_min_abs_ic = float(gate.get("era_sign_min_abs_ic", 0.0))
+    era_min_observations = int(gate.get("era_min_observations", 0))
 
     non_overlapping_t_stat = float(non_overlapping_rank_ic.get("t_stat", 0.0) or 0.0)
     non_overlapping_mean_ic = float(non_overlapping_rank_ic.get("mean_ic", 0.0) or 0.0)
     bootstrap_lower_bound = float(bootstrap_result.get("lower_bound", 0.0) or 0.0)
 
+    eligible_eras = [era for era in per_era if int(era.get("num_dates", 0)) >= era_min_observations]
+    insufficient_data_eras = [era for era in per_era if int(era.get("num_dates", 0)) < era_min_observations]
     opposite_sign_eras = [
-        era_ic
-        for era_ic in per_era_mean_ics
-        if (non_overlapping_mean_ic > 0 and era_ic < 0) or (non_overlapping_mean_ic < 0 and era_ic > 0)
+        era
+        for era in eligible_eras
+        if abs(float(era.get("mean_ic", 0.0))) >= era_sign_min_abs_ic
+        and (
+            (non_overlapping_mean_ic > 0 and era["mean_ic"] < 0)
+            or (non_overlapping_mean_ic < 0 and era["mean_ic"] > 0)
+        )
     ]
 
     failures = []
@@ -4166,14 +4406,18 @@ def assess_ranking_quality(
             "min_non_overlapping_t_stat": min_non_overlapping_t_stat,
             "min_bootstrap_ci_lower": min_bootstrap_ci_lower,
             "watchlist_margin": watchlist_margin,
+            "era_sign_min_abs_ic": era_sign_min_abs_ic,
+            "era_min_observations": era_min_observations,
         },
         "observed": {
             "non_overlapping_t_stat": non_overlapping_t_stat,
             "non_overlapping_mean_ic": non_overlapping_mean_ic,
             "bootstrap_ci_lower_bound": bootstrap_lower_bound,
             "bootstrap_ci_upper_bound": float(bootstrap_result.get("upper_bound", 0.0) or 0.0),
-            "num_eras": len(per_era_mean_ics),
+            "num_eras": len(per_era),
             "num_opposite_sign_eras": len(opposite_sign_eras),
+            "num_insufficient_data_eras": len(insufficient_data_eras),
+            "per_era": per_era,
         },
     }
 
@@ -4215,8 +4459,8 @@ def assess_ranking_quality_from_predictions(
     # split_into_non_overlapping_eras()'s Timestamp era boundaries below
     # would raise. See that function's own identical fix/comment.
     dates_array = pd.to_datetime(np.asarray(dates))
-    per_era_mean_ics: list[float] = []
-    for era_start, era_end in split_into_non_overlapping_eras(dates_array, era_length_days):
+    per_era: list[dict] = []
+    for era_index, (era_start, era_end) in enumerate(split_into_non_overlapping_eras(dates_array, era_length_days)):
         era_mask = (dates_array >= era_start) & (dates_array <= era_end)
         if not era_mask.any():
             continue
@@ -4228,9 +4472,22 @@ def assess_ranking_quality_from_predictions(
             non_overlapping_stride=non_overlapping_stride,
         )
         if era_result["num_dates"] > 0:
-            per_era_mean_ics.append(era_result["mean_ic"])
+            per_era.append(
+                {
+                    "era_index": era_index,
+                    # pd.Timestamp(), not era_start.date(): split_into_non_
+                    # overlapping_eras() returns numpy.datetime64 scalars
+                    # (np.unique() on the dates array strips the pandas
+                    # Timestamp wrapper), which has no .date() method.
+                    "era_start": pd.Timestamp(era_start).date().isoformat(),
+                    "era_end": pd.Timestamp(era_end).date().isoformat(),
+                    "num_dates": era_result["num_dates"],
+                    "mean_ic": era_result["mean_ic"],
+                    "t_stat": era_result["t_stat"],
+                }
+            )
 
-    return assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era_mean_ics, config)
+    return assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, config)
 
 
 def generate_walk_forward_windows(

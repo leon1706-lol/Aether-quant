@@ -56,6 +56,7 @@ from risk.forex_risk import load_forex_pair_specs
 from risk.futures_risk import build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source
 from risk.manual_override import read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing
+from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
 from portfolio import build_rank_based_book, normalize_per_asset_class_slots, should_rebalance_this_bar
 # V4.4 - held-contract/held-legs sizing (development/Problems.md): sizes an
 # ALREADY-HELD contract/spread on its own current greeks. Imported directly
@@ -150,8 +151,11 @@ from features import (
     crypto_risk_appetite_proxy,
     distance_from_52w_high,
     empirical_duration_beta,
+    FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
     futures_term_structure_slope,
+    implied_vol_term_structure,
     implied_volatility,
+    implied_volatility_level,
     macd_histogram_normalized,
     nearest_yield_curve_point,
     options_implied_vol_skew,
@@ -162,7 +166,12 @@ from features import (
     yield_curve_level,
     yield_curve_slope_proxy,
 )
-from data_pipeline.fred_backfill import load_cached_fred_series
+from data_pipeline.fred_backfill import (
+    ALT_DATA_PUBLICATION_LAG_DAYS,
+    load_cached_fred_series,
+    series_change_asof,
+    series_value_asof,
+)
 from data_pipeline.dividend_backfill import load_cached_dividend_schedule
 from performance import evaluate_all_triggers
 
@@ -334,6 +343,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # feature-key-keyed weights inline, so no separate schema file is
         # needed for runtime scoring.
         self.strategy_selector_model_path = self.root_path / "ml" / "strategy_selector_model.json"
+        # development/Problems.md #71 (Phase 4.12, Component E) - single-
+        # artifact, same shape as strategy_selector_model_path above (the
+        # state_keys list IS its own schema, no separate feature_schema
+        # file needed).
+        self.rl_sizing_model_path = self.root_path / "ml" / "rl_sizing_model.json"
 
         self._validate_runtime_artifacts()
         self.config = self._load_json(self.root_path / "config.json")
@@ -711,6 +725,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.rank_sizing_enabled = bool(phase_v2_risk.get("rank_sizing_enabled", False))
         self.min_rank_multiplier = float(phase_v2_risk.get("min_rank_multiplier", 0.75))
         self.max_rank_multiplier = float(phase_v2_risk.get("max_rank_multiplier", 1.25))
+        # development/Problems.md #71 (Phase 4.12, Component E) - offline
+        # contextual-bandit sizing overlay, see risk/rl_sizing.py's own
+        # module docstring for the full honest framing (full-information
+        # bandit, NOT off-policy RL) and abandon criteria. Default OFF.
+        self.rl_sizing_enabled = bool(phase_v2_risk.get("rl_sizing_enabled", False))
+        self.min_rl_multiplier = float(phase_v2_risk.get("min_rl_multiplier", 0.6))
+        self.max_rl_multiplier = float(phase_v2_risk.get("max_rl_multiplier", 1.0))
         self.regime_bullish_threshold = float(phase_v2_regime.get("bullish_threshold", 0.02))
         self.regime_bearish_threshold = float(phase_v2_regime.get("bearish_threshold", -0.02))
         self.regime_risk_off_drawdown_threshold = float(phase_v2_regime.get("risk_off_drawdown_threshold", 0.08))
@@ -1020,6 +1041,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.multitask_model, self.multitask_feature_schema = self._load_multitask_model()
         self.expert_multitask_model_exports = self._load_expert_multitask_exports()
         self.strategy_selector_model = self._load_strategy_selector_model()
+        self.rl_sizing_model = self._load_rl_sizing_model()
 
         # Precomputed once here (never rebuilt per-bar) - expert exports
         # never change after this point in a run, so the same weight/bias
@@ -1253,6 +1275,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_topology_payload = {}
         self.latest_macro_payload = {}
         self.latest_bond_payload = {}
+        self.latest_alt_data_payload = {}
         # V4.6 - per-symbol analytic bond duration/convexity/DV01
         # (features/bond_features.py). V4.7 also merges this same value into
         # base_features (see _build_model_input()'s bond block) - this
@@ -1298,6 +1321,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_topology_payload = self._build_topology_payload()
         self.latest_macro_payload = self._build_macro_payload()
         self.latest_bond_payload = self._build_bond_payload()
+        self.latest_alt_data_payload = self._build_alt_data_payload()
         self.latest_options_chains_payload = self._build_options_chains_payload(slice)
         self.latest_futures_chains_payload = self._build_futures_chains_payload(slice)
         self.latest_derivatives_macro_payload = self._build_derivatives_macro_payload()
@@ -1952,6 +1976,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
     def on_end_of_algorithm(self) -> None:
         self._ensure_ready()
         self._write_state(mode="shutdown", insight="Algorithm finished")
+        # development/Problems.md #71: Backtest 1 (V4.11) ended with
+        # "Failed to shutdown python ... Operation timed out (10s)" at
+        # PythonInitializer.Shutdown - plausibly this pool's worker
+        # processes still running when Lean tore down the embedded
+        # interpreter, since it was never explicitly told to stop. Only
+        # relevant when phase_v2.inference_parallelism.enabled was on
+        # (self._inference_pool is None on every other run, and .shutdown()
+        # on None would raise - hence the guard). wait=False: don't block
+        # algorithm teardown on worker exit, and cancel_futures=True drops
+        # any still-queued per-symbol inference work rather than waiting
+        # for it - both irrelevant once the algorithm has already finished.
+        if self._inference_pool is not None:
+            try:
+                self._inference_pool.shutdown(wait=False, cancel_futures=True)
+            except Exception as error:
+                self.Debug(f"Inference pool shutdown failed (non-fatal, algorithm already finished): {error}")
 
     def _load_json(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -2027,6 +2067,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         except Exception as error:
             self.Debug(f"Strategy selector model load failed: {error}")
             return None
+
+    def _load_rl_sizing_model(self) -> dict | None:
+        """development/Problems.md #71 (Phase 4.12, Component E) - single-
+        artifact, identical fallback contract to
+        _load_strategy_selector_model(): missing/malformed file means
+        risk/rl_sizing.py::rl_sizing_multiplier() always returns (1.0,
+        "rl_sizing_disabled_or_absent") - never a hard failure. Uses the
+        shared risk.load_rl_sizing_model() helper (also used by
+        train_rl_sizing.py's tests) rather than self._load_json(), since
+        that helper already degrades missing/malformed to None."""
+        if not self.rl_sizing_enabled:
+            return None
+        return load_rl_sizing_model(self.rl_sizing_model_path)
 
     def _load_gating_model(self) -> tuple[dict | None, dict | None]:
         """Optional artifact pair, identical fallback contract to
@@ -2423,6 +2476,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.latest_derivatives_macro_payload.get("options_implied_vol_skew", 0.0) or 0.0
         )
 
+        # development/Problems.md #71 - self.latest_alt_data_payload, built
+        # once per bar same as latest_bond_payload above. Only reaches the
+        # scaler loop below (main.py's own KeyError-if-missing contract) if
+        # these 3 names are also present in phase1.features.input_set AND
+        # ml/feature_schema.json - see build_alt_data_features_by_date()'s
+        # docstring for the same shipped-inert-until-retrained convention
+        # bond analytics (V4.7) already established.
+        base_features["alt_implied_volatility_level"] = float(
+            self.latest_alt_data_payload.get("implied_volatility_level", 0.0) or 0.0
+        )
+        base_features["alt_implied_vol_term_structure"] = float(
+            self.latest_alt_data_payload.get("implied_vol_term_structure", 0.0) or 0.0
+        )
+        base_features["alt_financial_conditions_change"] = float(
+            self.latest_alt_data_payload.get("financial_conditions_change", 0.0) or 0.0
+        )
+
         # Safe default (10.0) for scaler_stats.json files written before
         # clip_sigma existed - see train.py::write_scaler_artifacts().
         clip_sigma = float(self.scaler_stats.get("clip_sigma", 10.0))
@@ -2727,6 +2797,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         topology = topology or {}
         asset_class = asset.get("asset_class") or asset.get("security_type")
+        # development/Problems.md #71 (Phase 4.12, Component E) - None
+        # whenever the alt-data features aren't in base_features yet (no
+        # retrain has run since Component D landed) or rl_sizing is off -
+        # build_rl_sizing_state() itself returns None on any missing key,
+        # and rl_sizing_multiplier() treats a None state identically to
+        # "no model", a strict 1.0 no-op either way.
+        rl_state = build_rl_sizing_state(base_features, confidence) if self.rl_sizing_enabled else None
         equity_crypto_kwargs = dict(
             rolling_volatility=float(base_features.get("rolling_volatility_20d", 0.0) or 0.0),
             max_position_weight=self.max_position_weight,
@@ -2748,6 +2825,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             rank_sizing_enabled=self.rank_sizing_enabled,
             min_rank_multiplier=self.min_rank_multiplier,
             max_rank_multiplier=self.max_rank_multiplier,
+            rl_model=self.rl_sizing_model,
+            rl_state=rl_state,
+            rl_sizing_enabled=self.rl_sizing_enabled,
+            min_rl_multiplier=self.min_rl_multiplier,
+            max_rl_multiplier=self.max_rl_multiplier,
         )
 
         orders_allowed, _ = self._order_permission()
@@ -3123,6 +3205,48 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "treasury_3mo_level": t3mo,
             "treasury_2yr_level": t2yr,
             "treasury_5yr_level": t5yr,
+        }
+
+    def _build_alt_data_payload(self) -> dict:
+        """Runtime sibling of train.py::build_alt_data_features_by_date()
+        (development/Problems.md #71) - features/alt_data_features.py,
+        backed by the SAME self.fred_series dict _build_bond_payload()
+        already reads (load_cached_fred_series() globs the whole cache
+        directory, so no loader change was needed at :805 or the daily
+        refresh at :5072 for the new implied_volatility_vix/
+        implied_volatility_3m/financial_conditions_nfci series to arrive).
+
+        Deliberately does NOT reuse self._fred_series_asof(): that helper
+        is a bare bisect with no publication-lag parameter, correct only
+        for a same-day series like the Treasury/BAA10Y ones. NFCI is
+        Friday-dated but not released until the following Wednesday - a
+        bare bisect would be lookahead. This routes through the shared,
+        lag-aware data_pipeline.fred_backfill.series_value_asof()/
+        series_change_asof() instead, the exact same functions
+        train.py's builder uses, so the lookahead rule cannot drift
+        between the offline and runtime paths."""
+        current_date = self.Time.date()
+        alt_data_config = self.phase1.get("features", {})
+        financial_conditions_change_periods = int(alt_data_config.get("alt_data_financial_conditions_change_periods", 4))
+        publication_lag = {**ALT_DATA_PUBLICATION_LAG_DAYS, **alt_data_config.get("alt_data_publication_lag_days", {})}
+
+        vix_close = series_value_asof(
+            self.fred_series.get("implied_volatility_vix", []), current_date,
+            publication_lag.get("implied_volatility_vix", 0),
+        )
+        vix_3m_close = series_value_asof(
+            self.fred_series.get("implied_volatility_3m", []), current_date,
+            publication_lag.get("implied_volatility_3m", 0),
+        )
+        nfci_change = series_change_asof(
+            self.fred_series.get("financial_conditions_nfci", []), current_date,
+            publication_lag.get("financial_conditions_nfci", 7), financial_conditions_change_periods,
+        )
+
+        return {
+            "implied_volatility_level": implied_volatility_level(vix_close),
+            "implied_vol_term_structure": implied_vol_term_structure(vix_close, vix_3m_close),
+            "financial_conditions_change": nfci_change if nfci_change is not None else FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
         }
 
     def _bond_empirical_duration_beta_for_symbol(self, symbol) -> float:

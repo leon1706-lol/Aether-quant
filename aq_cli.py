@@ -217,6 +217,8 @@ def cmd_train(args: argparse.Namespace) -> int:
         return _train_topology_only()
     if args.strategy_selector_only:
         return _train_strategy_selector_only()
+    if args.rl_sizing_only:
+        return _train_rl_sizing_only()
     cmd = [sys.executable, "train.py"]
     if args.dataset_only:
         cmd.append("--dataset-only")
@@ -412,6 +414,46 @@ def _train_strategy_selector_only() -> int:
     return 0
 
 
+def _train_rl_sizing_only() -> int:
+    """`aq train --rl-sizing-only`: trains the offline contextual-bandit
+    sizing overlay (train_rl_sizing.py, development/Problems.md #71) and
+    installs it straight into active ml/ - identical shape to
+    _train_topology_only()/_train_strategy_selector_only() above.
+
+    Different, but much more tractable, prerequisite than either of those
+    two: train_rl_sizing.py reads ml/datasets/{validation,backtest}_dataset.csv
+    - NOT Postgres, NOT real option trades - so this can run any time a
+    normal `python train.py` has already produced a multitask model and
+    the standard dataset files. Requires phase1.features.input_set to
+    already include Component D's 3 alt-data feature names (a retrain
+    with those in the schema) - see train_rl_sizing.py's own module
+    docstring for the full honest framing (full-information contextual
+    bandit, NOT off-policy RL) and risk/rl_sizing.py for the abandon
+    criteria this feature should be judged against before ever being
+    enabled by default."""
+    version_id = f"rl-sizing-only-{uuid.uuid4()}"
+    returncode = _run([sys.executable, "train_rl_sizing.py", "--version-id", version_id])
+    if returncode != 0:
+        return returncode
+
+    version_dir = ROOT_DIR / "ml" / "versions" / version_id
+    artifact_names = ("rl_sizing_model.json", "rl_sizing_feature_schema.json", "rl_sizing_training_metrics.json")
+    if any(not (version_dir / name).exists() for name in artifact_names):
+        print(
+            "aq train --rl-sizing-only: train_rl_sizing.py exited 0 but skipped writing artifacts "
+            "(fewer than min_training_rows usable rows, or the multitask model/dataset files are missing) - "
+            "active ml/ left unchanged.",
+            file=sys.stderr,
+        )
+        return 0
+
+    ml_dir = ROOT_DIR / "ml"
+    for name in artifact_names:
+        shutil.copy2(version_dir / name, ml_dir / name)
+    print(f"aq train --rl-sizing-only: copied {', '.join(artifact_names)} into active ml/.")
+    return 0
+
+
 def _update_readme_test_badge(passed: int, failed: int) -> None:
     """Atomically rewrites the shields.io test-count badge AND every
     AQ:TEST_COUNT-marked "N tests" prose mention (Test Suite section,
@@ -511,7 +553,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_risk_controls.py", "test_asset_class_router.py", "test_futures_risk.py",
         "test_forex_risk.py",
         "test_order_gate.py", "test_position_sizing.py", "test_backtest_gate.py",
-        "test_validation_gate.py", "test_manual_override.py",
+        "test_validation_gate.py", "test_manual_override.py", "test_rl_sizing.py",
     ],
     "portfolio": [
         "test_portfolio_book_construction.py", "test_options_strategy.py",
@@ -524,7 +566,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_technical_indicators.py", "test_train_bond_features.py",
         "test_train_derivatives_macro_features.py", "test_train_macro_features.py",
         "test_train_asset_class_context_features.py", "test_train_cross_sectional_features.py",
-        "test_train_indicators.py",
+        "test_train_indicators.py", "test_alt_data_features.py", "test_train_alt_data_features.py",
     ],
     "data-pipeline": [
         "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
@@ -544,7 +586,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_market_analyzer.py", "test_market_liquidity.py",
         "test_train_strategy_selector.py", "test_strategy_selector_inference.py",
         "test_parallel_inference.py", "test_train_threshold_and_early_stop.py",
-        "test_train_select_model_context_columns.py",
+        "test_train_select_model_context_columns.py", "test_train_rl_sizing.py",
     ],
     "retraining": [
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
@@ -1264,6 +1306,15 @@ def build_parser() -> argparse.ArgumentParser:
             "train_strategy_selector.py, V4.7, development/Problems.md #29's own framing). Needs real "
             "option_strategy_outcome events (real option positions traded and closed) - expect this to "
             "skip indefinitely in this environment, see the command's own output."
+        ),
+    )
+    train_group.add_argument(
+        "--rl-sizing-only",
+        action="store_true",
+        help=(
+            "Train the offline contextual-bandit sizing overlay only (wraps python train_rl_sizing.py, "
+            "development/Problems.md #71). Reads ml/datasets/*.csv, NOT Postgres - needs a completed "
+            "`aq train` and Component D's alt-data features in phase1.features.input_set."
         ),
     )
     train_group.add_argument(

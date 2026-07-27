@@ -1147,6 +1147,126 @@
                     "data_path": "data/forex/oanda/daily/gbpcad.zip",
                     "available_from": "2014-12-01",
                     "available_to": "2021-03-31"
+                },
+                {
+                    "ticker": "WFC",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/wfc.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "GS",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/gs.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "HON",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/hon.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "CAT",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/cat.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "BA",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/ba.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "UNP",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/unp.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "GE",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/ge.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "ABT",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/abt.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "MRK",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/mrk.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "NKE",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/nke.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "SBUX",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/sbux.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "ORCL",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/orcl.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "ADBE",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/adbe.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "TXN",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/txn.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
+                },
+                {
+                    "ticker": "T",
+                    "security_type": "equity",
+                    "market": "usa",
+                    "data_path": "data/equity/usa/daily/t.zip",
+                    "available_from": "2014-12-01",
+                    "available_to": "2021-03-30"
                 }
             ],
             "common_window": {
@@ -1207,7 +1327,10 @@
                 "bond_empirical_duration_beta",
                 "bond_analytic_modified_duration",
                 "bond_analytic_convexity",
-                "bond_dv01"
+                "bond_dv01",
+                "alt_implied_volatility_level",
+                "alt_implied_vol_term_structure",
+                "alt_financial_conditions_change"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
             "winsorize_quantiles": [
@@ -1223,6 +1346,17 @@
                 "treasury_30yr": "DGS30",
                 "credit_spread_baa10y": "BAA10Y"
             },
+            "alt_data_reference_series": {
+                "implied_volatility_vix": "VIXCLS",
+                "implied_volatility_3m": "VXVCLS",
+                "financial_conditions_nfci": "NFCI"
+            },
+            "alt_data_publication_lag_days": {
+                "implied_volatility_vix": 0,
+                "implied_volatility_3m": 0,
+                "financial_conditions_nfci": 7
+            },
+            "alt_data_financial_conditions_change_periods": 4,
             "derivatives_reference_tickers": {
                 "futures_term_structure": "ES",
                 "options_sentiment": "SPY"
@@ -1249,7 +1383,7 @@
                     5,
                     20
                 ],
-                "min_universe_size": 10,
+                "min_universe_size": 20,
                 "purged_cv": {
                     "enabled": true,
                     "n_folds": 5,
@@ -1259,10 +1393,16 @@
                     "min_non_overlapping_t_stat": 2.0,
                     "min_bootstrap_ci_lower": 0.0,
                     "ranking_watchlist_margin": 0.3,
-                    "era_length_days": 90
+                    "era_length_days": 90,
+                    "era_sign_min_abs_ic": 0.05,
+                    "era_min_observations": 3
                 },
                 "sector_neutral": {
                     "min_sector_size": 3
+                },
+                "beta_neutral": {
+                    "market_ticker": "SPY",
+                    "min_observations": 60
                 }
             }
         }
@@ -1322,7 +1462,7 @@
             "observation_only_kept_in_universe": true
         },
         "portfolio": {
-            "max_active_positions": 12,
+            "max_active_positions": 15,
             "max_equity_exposure": 0.65,
             "max_crypto_exposure": 0.35,
             "max_bond_exposure": 0.3,
@@ -1348,7 +1488,26 @@
             "use_predicted_volatility": true,
             "rank_sizing_enabled": true,
             "min_rank_multiplier": 0.75,
-            "max_rank_multiplier": 1.25
+            "max_rank_multiplier": 1.25,
+            "rl_sizing_enabled": false,
+            "min_rl_multiplier": 0.6,
+            "max_rl_multiplier": 1.0
+        },
+        "rl_sizing": {
+            "training": {
+                "action_set": [
+                    0.6,
+                    0.8,
+                    1.0
+                ],
+                "min_training_rows": 20000,
+                "learning_rate": 0.01,
+                "epochs": 200,
+                "l2": 0.001,
+                "entropy_bonus": 0.01,
+                "commission_bps": 1.0,
+                "nominal_base_weight": 0.05
+            }
         },
         "risk": {},
         "ib": {
@@ -1483,8 +1642,8 @@
         },
         "portfolio_book": {
             "enabled": true,
-            "top_n": 8,
-            "bottom_n": 8,
+            "top_n": 10,
+            "bottom_n": 10,
             "min_rank_confidence_spread": 0.15,
             "rebalance_every_bars": 5
         },
@@ -1592,7 +1751,7 @@
             "freeze_after_load_enabled": true
         },
         "inference_parallelism": {
-            "enabled": true
+            "enabled": false
         },
         "runtime": {
             "mode": "backtest",
