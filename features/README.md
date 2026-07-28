@@ -24,6 +24,19 @@ by construction, never re-derived independently in either one.
   put-call parity (`tests/test_options_greeks.py`). Consumed by
   `portfolio/options_strategy.py` for greeks-sized options position
   construction — see `risk/README.md`/`portfolio/README.md`.
+- `alt_data_features.py` (Phase 4.12, `development/Problems.md` #71) —
+  options-implied volatility level/term-structure (`VIXCLS`/`VXVCLS`, via
+  `data_pipeline/fred_backfill.py`, same no-API-key FRED endpoint as the
+  bond series) and a 4-week financial-conditions change (`NFCI`),
+  broadcast to every asset like `bond_features.py`/`macro_features.py`
+  above. Added specifically to target the COVID-crash era in the
+  cross-sectional rank-IC promotion gate's era-sign-instability diagnosis
+  — VIX *is* options-implied volatility, the most direct available
+  discriminator of that regime. Publication-lag-aware (`series_value_asof()`/
+  `series_change_asof()` in `data_pipeline/fred_backfill.py` — NFCI is
+  Friday-dated but not released until the following Wednesday; a naive
+  same-day join would be lookahead), with a dedicated test asserting a
+  feature value at date T only ever uses observations dated ≤ T.
 - `derivatives_macro_features.py` — futures term-structure slope and
   options put/call-ratio (a bounded skew, not a raw ratio)/IV-skew,
   broadcast to every asset like the macro/bond features above. Fully

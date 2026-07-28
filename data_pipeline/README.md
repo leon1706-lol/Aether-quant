@@ -122,6 +122,33 @@ established, never a crash.
 
 Usage: `python -m data_pipeline.fred_backfill [--series treasury_10yr ...] [--apply]`.
 
+### Alt-data extension (Phase 4.12, `development/Problems.md` #71)
+
+The same fetcher, generic series-ID passthrough, and cache convention
+above now also back `features/alt_data_features.py`: `VIXCLS` (CBOE VIX),
+`VXVCLS` (3-month VIX), and `NFCI` (Chicago Fed financial conditions) —
+`DEFAULT_ALT_DATA_REFERENCE_SERIES`. `--group {bond,alt,all}` selects which
+reference-series set to fetch (`reference_series(config, group="all")`,
+`alt_data_reference_series(config)`); `aq backfill fred --group alt
+--apply` fetches only the new three.
+
+**Publication lag is the one thing that matters here.** VIX/VXV are
+same-day CBOE closes (lag `0`), but NFCI is Friday-dated and not released
+until the following Wednesday — `ALT_DATA_PUBLICATION_LAG_DAYS` records
+each series' lag in days, and `series_value_asof(rows, current_date,
+publication_lag_days)`/`series_change_asof(rows, current_date,
+publication_lag_days, periods_back)` are the lag-aware lookups both
+`train.py::build_alt_data_features_by_date()` and
+`main.py::_build_alt_data_payload()` use — deliberately **not** the bare
+`_fred_series_asof()` bisect the bond features use, since that helper has
+no lag parameter and would silently look ahead on a lagged series.
+
+Candidate series were screened before adding: `BAMLH0A0HYM2` (high-yield
+OAS) was found to have only ~2 years of trailing history via FRED's free
+endpoint (unusable for this project's 2014-2021 training window without a
+paid API key) and was dropped; `STLFSI4` was rejected as
+near-collinear with `NFCI` (pick one, not both).
+
 ## Interactive Brokers historical backfill (`ib_backfill.py`) — futures/options only
 
 The futures/options sibling to `fetch.py`, but a fundamentally different

@@ -16,8 +16,14 @@ Pages (`src/pages/`):
   Overview, in a balanced two-column layout: Performance Triggers,
   Retraining Status (V2-17), Paper Trading Readiness, Multi-Asset-Class
   Readiness (left); Audit Log, Monitoring Feeds, Raw State (right).
-- `RiskPage.tsx` — risk core panel, asset volatility/sizing table, liquidity
-  and execution-impact panel.
+- `RiskPage.tsx` — risk core panel, asset volatility/sizing table (with a
+  per-multiplier chip breakdown — confidence/topology/rank/RL — added
+  V4.12.2, `development/Problems.md` #71), liquidity and execution-impact
+  panel, and a Macro & Alt-Data Snapshot panel (`MacroSnapshotPanel.tsx`,
+  V4.12.2 — real Treasury yield-curve/credit-spread and VIX-derived
+  options-implied-vol/financial-conditions numbers, `main.py::_write_state()`'s
+  `state["macro"]`, computed every bar since Phase 4.12 but never exposed
+  to the webui until this fix).
 - `OptionsStrategyPage.tsx` (Phase 4.8) — held multi-leg option positions
   with per-leg dividend-driven assignment-risk scores, a dividend-schedule
   summary, the learned strategy-selector model's per-symbol scores (a
@@ -54,6 +60,14 @@ Pages (`src/pages/`):
   only in the stats panel's list. `topology/learned_topology.py`'s KMeans
   cluster prototypes are the one thing deliberately left out entirely (not
   a layered network), shown instead as a labelled `excluded` entry.
+  `NeuralNetworkStatsPanel.tsx`'s `RankingQualityGate` sub-component
+  (V4.12.2, `development/Problems.md` #71) renders the promotion-gate
+  verdict for **all three** ranking heads (`rank_5d`/`rank_20d`/
+  `sector_neutral_rank_20d`, not just `rank_20d` as before), each with a
+  collapsible per-era diagnostic table (era window, n, mean IC, t-stat,
+  opposite-sign/insufficient-data flagged) sourced from
+  `train.py::assess_ranking_quality_from_predictions()`'s `observed.per_era`
+  — previously typed and persisted but never rendered anywhere.
 
 Monitoring panels live under `src/components/monitoring/`
 (`PerformanceTriggersPanel.tsx`, `RetrainingStatusPanel.tsx`,
@@ -105,10 +119,23 @@ Vitest + Testing Library were added in V4-W1 (this was the first frontend
 test infrastructure in the project). `src/test/setup.ts` globally stubs
 `@react-three/fiber` and `@react-three/drei`, since jsdom has no WebGL and
 the page-composition tests care about which panels render, not about the
-renderer. Current suites: `src/pages/pages.test.tsx` (V4-W1/W2 — which
-panels live on which page, nav-pill routing) and
+renderer. Suites include `src/pages/pages.test.tsx` (V4-W1/W2 — which
+panels live on which page, nav-pill routing),
 `src/components/topology/TopologyScene3D.test.tsx` (V4-W3 — the 2D/3D
-embedding-mode legend switch).
+embedding-mode legend switch), chart primitive tests
+(`LineChart.test.tsx`/`DivergingBarChart.test.tsx`), `src/lib/format.test.ts`,
+and — added V4.12.2 for `development/Problems.md` #71's webui integration
+fixes — `components/risk/AssetSizingTable.test.tsx` (the multiplier-chip
+breakdown), `components/neuralnet/NeuralNetworkStatsPanel.test.tsx` (the
+per-head ranking-quality gates + per-era table), and
+`components/risk/MacroSnapshotPanel.test.tsx` (the new macro panel's
+empty/populated states).
+
+**Local-machine note**: on a memory-constrained dev machine, `npm run test`
+(vitest's default multi-fork pool) can hit worker-spawn timeouts under RAM
+pressure — a resource symptom of this environment, not a test-correctness
+issue (see `development/Problems.md` #50/#52). `npx vitest run
+--no-file-parallelism` is the reliable fallback.
 
 ## Topology 3D modes (V4-W3)
 

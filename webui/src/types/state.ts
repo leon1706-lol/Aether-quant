@@ -102,13 +102,33 @@ export interface AssetClassRoutingExtra {
   options_decision?: OptionsDecision | OptionsMultiLegDecision | OptionsMarginDecision
 }
 
+// Mirrors risk/position_sizing.py::PositionSizingDecision field-for-field -
+// every multiplier that actually composes sized_weight (V4.12.2 closes the
+// gap where these were computed/persisted but never typed/rendered here).
 export interface DynamicSizing {
   base_target_weight?: number
   target_weight?: number
+  rolling_volatility?: number
   annualized_volatility?: number
   leverage_factor?: number
   volatility_regime?: string
+  volatility_source?: string
   sizing_reason?: string
+  volatility_multiplier?: number
+  confidence_multiplier?: number
+  // Topology-informed sizing (V2-17.5+) - 1.0/"topology_sizing_disabled_or_absent"
+  // when phase_v2.dynamic_risk.topology_sizing_enabled is off (this project's
+  // default), a real multiplier + reason otherwise.
+  topology_multiplier?: number
+  topology_sizing_reason?: string
+  // Rank-informed sizing (V4.11) - same disabled-vs-active convention as topology above.
+  rank_multiplier?: number
+  rank_sizing_reason?: string
+  // RL sizing overlay (Phase 4.12, development/Problems.md #71) - 1.0/
+  // "rl_sizing_disabled_or_absent" by default (phase_v2.dynamic_risk.rl_sizing_enabled
+  // is off), a learned multiplier + reason once enabled and a trained model is loaded.
+  rl_multiplier?: number
+  rl_sizing_reason?: string
   // Present for future/option assets only - see AssetClassRoutingExtra above.
   asset_class_routing_extra?: AssetClassRoutingExtra
 }
@@ -669,6 +689,25 @@ export interface DerivativesState {
   futures_chains?: Record<string, FuturesChainEntry>
 }
 
+// main.py::_write_state()'s "macro" block (V4.12.2, development/Problems.md
+// #71) - self.latest_bond_payload (_build_bond_payload(), real Treasury/
+// credit-spread observations) merged with self.latest_alt_data_payload
+// (_build_alt_data_payload(), VIX/VXV/NFCI-derived) - both already fed every
+// symbol's model input every bar, previously never reached state.json.
+export interface MacroSnapshot {
+  yield_curve_level?: number | null
+  yield_curve_slope?: number | null
+  yield_curve_curvature?: number | null
+  credit_spread_level?: number | null
+  treasury_10yr_level?: number | null
+  treasury_3mo_level?: number | null
+  treasury_2yr_level?: number | null
+  treasury_5yr_level?: number | null
+  implied_volatility_level?: number | null
+  implied_vol_term_structure?: number | null
+  financial_conditions_change?: number | null
+}
+
 export interface RuntimeState {
   project?: string
   mode?: string
@@ -683,6 +722,7 @@ export interface RuntimeState {
   scene?: Scene
   topology?: Topology
   derivatives?: DerivativesState
+  macro?: MacroSnapshot
   observation?: ObservationSummary
   performance_triggers?: PerformanceTriggerReport
   retraining_status?: RetrainingStatus

@@ -5701,6 +5701,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         state["regime"] = self._build_regime_summary(state["signals"])
         state["topology"] = self.latest_topology_payload
+        # V4.12.2 (development/Problems.md #71) - self.latest_bond_payload/
+        # self.latest_alt_data_payload were already rebuilt every bar
+        # (_build_bond_payload()/_build_alt_data_payload(), on_data()) purely
+        # to feed the model's base_features - neither ever reached state.json,
+        # so this global market snapshot was invisible outside the model
+        # itself. Both dicts default to {} pre-first-bar (see __init__),
+        # same safe-default convention as latest_derivatives_macro_payload
+        # below.
+        state["macro"] = {**self.latest_bond_payload, **self.latest_alt_data_payload}
         state["derivatives"] = {
             "macro": self.latest_derivatives_macro_payload,
             "options_chains": self._options_chains_payload_for_state(),

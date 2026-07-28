@@ -138,6 +138,52 @@ only, with zero influence on `target_weight`.
   `rank_sizing_reason` (default `"rank_sizing_disabled_or_absent"`, or
   `"rank_prediction_scaled_sizing"` when actively engaged).
 
+## RL sizing overlay (Phase 4.12, `development/Problems.md` #71)
+
+`rl_sizing.py::rl_sizing_multiplier(model, state, rl_sizing_enabled,
+min_rl_multiplier=0.6, max_rl_multiplier=1.0)` adds a fifth, optional
+factor to the `volatility_multiplier × confidence_multiplier ×
+topology_multiplier × rank_multiplier` chain — a small, honestly-scoped
+offline **contextual bandit**, explicitly *not* off-policy/online RL (no
+exploration data exists in this environment; see `train_rl_sizing.py`'s
+own module docstring for why a full-information bandit is the correct,
+not merely convenient, framing here).
+
+- `build_rl_sizing_state()` assembles a fixed feature vector (rank
+  confidence, predicted volatility, regime, topology risk, liquidity —
+  `RL_SIZING_STATE_KEYS`) from the same `base_features`/`confidence`
+  already available at sizing time. Returns `None` (and the multiplier
+  becomes a strict no-op) whenever any required key is missing — e.g. the
+  alt-data features aren't in the schema yet, or `rl_sizing_enabled` is
+  `False` (`phase_v2.dynamic_risk.rl_sizing_enabled`, off by default).
+- `_softmax_argmax_index()` is deterministic and **never samples** —
+  argmax over the trained policy's action scores, tie-broken toward the
+  largest (least-aggressive-shrink) action. This is inference, not
+  training; there is no exploration at runtime by design.
+- Trained by `train_rl_sizing.py` (repo root) — a softmax policy-gradient
+  fit over `ml/datasets/validation_dataset.csv` (never `train_dataset.csv`,
+  same anti-stacking-circularity reasoning as `train_gating.py`), reward =
+  realized PnL **net of fees** for each candidate sizing action, replayed
+  against actual multitask-model output via `run_exported_multitask_model()`.
+  Reported on `ml/datasets/backtest_dataset.csv`. `aq train --rl-sizing-only`
+  wires it exactly like `_train_topology_only()` — versioned artifacts
+  under `ml/versions/<id>/`, promoted into active `ml/` only if the trainer
+  actually wrote artifacts.
+- **Honest result, Phase 4.12's real retrain**: the learned policy's
+  backtest expected reward (`-8.542e-5`) underperformed the trivial
+  constant-`1.0`-multiplier baseline (`-8.264e-5`). Per this stream's own
+  pre-committed abandon criterion, it ships **disabled** and the negative
+  result is documented (`development/Problems.md` #71) rather than
+  re-tuned to look better — RL can plausibly reduce turnover/cost on top
+  of a real edge, it cannot manufacture one where the signal doesn't
+  clear costs.
+- `PositionSizingDecision` gains `rl_multiplier` (default `1.0`) and
+  `rl_sizing_reason` (default `"rl_sizing_disabled_or_absent"`). Both, plus
+  every other multiplier in this chain, are rendered in the webui's
+  `AssetSizingTable.tsx` as a compact `label ×value` chip per multiplier
+  (V4.12.2) — muted at the neutral `1.0` default, highlighted with its own
+  reason as a tooltip once actually active.
+
 ## Multi-asset-class risk dispatch (futures/options get their own risk models)
 
 Futures/derivatives fundamentally need a different risk model, not a bolt-on

@@ -3,6 +3,7 @@ import { RiskCore } from '../components/risk/RiskCore'
 import { AssetSizingTable } from '../components/risk/AssetSizingTable'
 import { LiquidityTable } from '../components/risk/LiquidityTable'
 import { DerivativesMacroPanel } from '../components/risk/DerivativesMacroPanel'
+import { MacroSnapshotPanel } from '../components/risk/MacroSnapshotPanel'
 
 export function RiskPage({ state }: { state: RuntimeState | undefined }) {
   return (
@@ -12,6 +13,7 @@ export function RiskPage({ state }: { state: RuntimeState | undefined }) {
         <AssetSizingTable signals={state?.signals} />
         <LiquidityTable signals={state?.signals} />
         <DerivativesMacroPanel derivatives={state?.derivatives} />
+        <MacroSnapshotPanel macro={state?.macro} />
       </div>
     </div>
   )

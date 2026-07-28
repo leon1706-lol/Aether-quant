@@ -57,6 +57,39 @@ function AssetClassDetail({ sizing }: { sizing: DynamicSizing }) {
   return null
 }
 
+// V4.12.2 - risk/position_sizing.py::PositionSizingDecision's multipliers all
+// compose sized_weight but previously had no webui surface at all (rank/
+// topology/confidence since V4.11, rl since Phase 4.12/#71) - a muted chip at
+// the neutral default (1.0) keeps a disabled/inactive lever visible without
+// drawing attention away from the multipliers that are actually doing
+// something this bar.
+const MULTIPLIER_NEUTRAL = 1.0
+const MULTIPLIER_EPSILON = 0.001
+
+function MultiplierChip({ label, value, reason }: { label: string; value: number | undefined; reason?: string }) {
+  const resolved = typeof value === 'number' ? value : MULTIPLIER_NEUTRAL
+  const active = Math.abs(resolved - MULTIPLIER_NEUTRAL) > MULTIPLIER_EPSILON
+  return (
+    <span
+      title={reason}
+      className={`rounded-full px-2 py-0.5 ${active ? 'bg-sky-400/15 text-sky-300' : 'text-white/35'}`}
+    >
+      {label} ×{resolved.toFixed(2)}
+    </span>
+  )
+}
+
+function MultiplierBreakdown({ sizing }: { sizing: DynamicSizing }) {
+  return (
+    <div className="mt-1 flex flex-wrap gap-1 text-[0.7rem]">
+      <MultiplierChip label="conf" value={sizing.confidence_multiplier} />
+      <MultiplierChip label="topo" value={sizing.topology_multiplier} reason={sizing.topology_sizing_reason} />
+      <MultiplierChip label="rank" value={sizing.rank_multiplier} reason={sizing.rank_sizing_reason} />
+      <MultiplierChip label="rl" value={sizing.rl_multiplier} reason={sizing.rl_sizing_reason} />
+    </div>
+  )
+}
+
 function VolatilityBar({ annualVol }: { annualVol: number }) {
   const width = Math.min(annualVol / 0.8, 1) * 100
   const tone = annualVol > 0.45 ? 'bg-rose-400' : annualVol > 0.25 ? 'bg-amber-400' : 'bg-emerald-400'
@@ -159,6 +192,7 @@ export function AssetSizingTable({ signals }: { signals: Record<string, Signal> 
                     </td>
                     <td className="border-b border-white/5 px-2.5 py-2.5 text-[0.78rem] text-white/60">
                       {sizing.sizing_reason || asset.execution_note || asset.reason || 'waiting'}
+                      <MultiplierBreakdown sizing={sizing} />
                       <AssetClassDetail sizing={sizing} />
                     </td>
                   </tr>

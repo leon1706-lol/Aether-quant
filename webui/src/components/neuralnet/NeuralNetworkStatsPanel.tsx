@@ -1,6 +1,72 @@
-import type { NeuralNetworkState } from '../../types/state'
+import type { NeuralNetworkState, RankingQualitySummary } from '../../types/state'
 import { Panel } from '../layout/Panel'
 import { Badge } from '../signals/Badge'
+
+// V4.12.2 (development/Problems.md #71) - the promotion-gate verdict was
+// only ever rendered for rank_20d, even though rank_5d/sector_neutral_rank_20d
+// are computed and typed identically. Sequence's rank_5d became the first
+// head in the project's history to reach `promotable` this phase - it was
+// invisible in the webui before this fix. Also renders the per-era
+// diagnostic (observed.per_era) that assess_ranking_quality_from_predictions()
+// already computes - previously only inspectable by reading the raw JSON.
+function RankingQualityGate({ label, summary }: { label: string; summary: RankingQualitySummary | null | undefined }) {
+  if (!summary) return null
+  const { observed } = summary
+  return (
+    <span className="col-span-2 flex flex-col gap-1">
+      <span className="flex flex-wrap items-center gap-1.5">
+        {label} promotion gate: <Badge tone={summary.quality_status}>{summary.quality_status}</Badge>
+        <span className="text-white/80">
+          CI [{observed.bootstrap_ci_lower_bound.toFixed(3)}, {observed.bootstrap_ci_upper_bound.toFixed(3)}], t=
+          {observed.non_overlapping_t_stat.toFixed(2)}, {observed.num_eras} eras (
+          {observed.num_opposite_sign_eras} opposite-sign
+          {observed.num_insufficient_data_eras ? `, ${observed.num_insufficient_data_eras} insufficient-data` : ''})
+        </span>
+      </span>
+      {observed.per_era.length > 0 ? (
+        <details className="text-[0.68rem] text-white/50">
+          <summary className="cursor-pointer select-none text-white/40">per-era detail</summary>
+          <table className="mt-1 w-full border-collapse">
+            <thead>
+              <tr className="text-left text-white/40">
+                <th className="pr-2 font-normal">Era</th>
+                <th className="pr-2 font-normal">Window</th>
+                <th className="pr-2 font-normal">n</th>
+                <th className="pr-2 font-normal">mean IC</th>
+                <th className="pr-2 font-normal">t</th>
+              </tr>
+            </thead>
+            <tbody>
+              {observed.per_era.map((era) => {
+                // per_era doesn't carry its own insufficient-data flag from the
+                // backend - this mirrors phase1.target.ranking.promotion_gate's
+                // DEFAULT era_min_observations (3, config.json), a visual-only
+                // heuristic that can drift if that config is changed.
+                const insufficient = era.num_dates < 3
+                const opposesAggregate =
+                  !insufficient &&
+                  ((observed.non_overlapping_mean_ic > 0 && era.mean_ic < 0) ||
+                    (observed.non_overlapping_mean_ic < 0 && era.mean_ic > 0))
+                const tone = insufficient ? 'text-white/30' : opposesAggregate ? 'text-rose-300' : 'text-emerald-300/80'
+                return (
+                  <tr key={era.era_index} className={tone}>
+                    <td className="pr-2">{era.era_index}</td>
+                    <td className="pr-2">
+                      {era.era_start} → {era.era_end}
+                    </td>
+                    <td className="pr-2">{era.num_dates}</td>
+                    <td className="pr-2">{era.mean_ic.toFixed(4)}</td>
+                    <td className="pr-2">{era.t_stat.toFixed(2)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </details>
+      ) : null}
+    </span>
+  )
+}
 
 function NetworkRow({ network }: { network: NeuralNetworkState['networks'][number] }) {
   const tone = network.role === 'baseline' ? 'baseline' : network.quality_status ?? undefined
@@ -71,21 +137,9 @@ function NetworkRow({ network }: { network: NeuralNetworkState['networks'][numbe
               ) : null}
             </>
           ) : null}
-          {network.ranking_quality?.rank_20d ? (
-            <span className="col-span-2 flex flex-wrap items-center gap-1.5">
-              20d promotion gate:{' '}
-              <Badge tone={network.ranking_quality.rank_20d.quality_status}>
-                {network.ranking_quality.rank_20d.quality_status}
-              </Badge>
-              <span className="text-white/80">
-                CI [{network.ranking_quality.rank_20d.observed.bootstrap_ci_lower_bound.toFixed(3)},{' '}
-                {network.ranking_quality.rank_20d.observed.bootstrap_ci_upper_bound.toFixed(3)}], t=
-                {network.ranking_quality.rank_20d.observed.non_overlapping_t_stat.toFixed(2)},{' '}
-                {network.ranking_quality.rank_20d.observed.num_eras} eras (
-                {network.ranking_quality.rank_20d.observed.num_opposite_sign_eras} opposite-sign)
-              </span>
-            </span>
-          ) : null}
+          <RankingQualityGate label="5d" summary={network.ranking_quality?.rank_5d} />
+          <RankingQualityGate label="20d" summary={network.ranking_quality?.rank_20d} />
+          <RankingQualityGate label="20d sector-neutral" summary={network.ranking_quality?.sector_neutral_rank_20d} />
           {network.regression_quality ? (
             <span className="col-span-2">
               Regression quality: mag={network.regression_quality.magnitude ?? '—'}, vol=

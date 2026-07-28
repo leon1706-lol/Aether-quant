@@ -25,10 +25,21 @@ liquidity and topology (`liquidity/README.md`, `topology/README.md`).
 
 - `train.py::add_regime_features()` calls `build_market_regime_vector()`
   row-wise on each historical row's own already-engineered momentum/
-  volatility columns (`portfolio_drawdown=0.0`/`average_correlation=0.0` —
-  the same honest offline simplification `train_gating.py` already
-  established; no live portfolio/topology state exists at dataset-build
-  time). Adds 9 one-hot columns (`regime_trend_bullish/bearish/sideways`,
+  volatility columns (`portfolio_drawdown=0.0` still — no live portfolio
+  state exists at dataset-build time). **`average_correlation` is no
+  longer hardcoded to `0.0` here** (Phase 4.12, `development/Problems.md`
+  #71, part of the era-sign-instability investigation): `add_regime_features()`
+  was moved to run *after* `build_topology_features_by_date()` in
+  `train.py::build_feature_dataset()`'s pipeline, so it can read each row's
+  own real `topology_correlation_strength` (the asset's mean pairwise
+  correlation within its topology cluster on that date) instead of a
+  constant. `train_gating.py::build_gating_training_rows()` got the
+  identical fix for the same reason. This closes a real gap in
+  `classify_risk_regime()`'s "correlated crash → risk_off" rule, which
+  could never fire in offline training before this — verified to move
+  `rank_20d`'s per-era diagnostics (it did not, on its own, flip the COVID
+  era; see Problems.md #71 for the honest result). Adds 9 one-hot columns
+  (`regime_trend_bullish/bearish/sideways`,
   `regime_volatility_low/normal/high`, `regime_risk_on/off/neutral`,
   unscaled model inputs, same treatment as asset-context one-hots) plus 3
   continuous columns — `regime_signal_confidence`/`regime_signal_trend_score`/

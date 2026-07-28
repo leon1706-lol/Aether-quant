@@ -23,6 +23,28 @@ by running the training pipeline.
 - `expert_models/<name>/`, `expert_training_metrics.json`,
   `expert_dataset_manifest.json` — the four MoE expert models (bullish,
   bearish, sideways, volatility) and their datasets.
+- `multitask_model.json`, `multitask_feature_schema.json`,
+  `multitask_training_metrics.json` — the joint direction+magnitude+
+  volatility+rank model (`train_multitask.py`/`aq train --multitask-only`),
+  including the `*_ranking_quality` promotion-gate verdicts (per-head,
+  per-era) surfaced on the webui's Neural Network page.
+- `sequence_model.json`, `sequence_feature_schema.json`,
+  `sequence_training_metrics.json` — the Phase 2 causal-TCN sequence
+  encoder (`train_sequence.py`/`aq train --sequence-only`), informational
+  by default (`phase_v2.gating_network.sequence_weight`) until blended into
+  the live decision via `moe/gating.py`.
+- `gating_model.json`, `gating_feature_schema.json`,
+  `gating_training_metrics.json` — the learned MoE gating blend
+  (`train_gating.py`/`aq train --gating-only`, `moe/README.md`), optional
+  and off by default until trained.
+- `rl_sizing_model.json`, `rl_sizing_feature_schema.json`,
+  `rl_sizing_training_metrics.json` (Phase 4.12, `development/Problems.md`
+  #71) — the offline contextual-bandit sizing overlay
+  (`train_rl_sizing.py`/`aq train --rl-sizing-only`, `risk/README.md`).
+  Off by default (`phase_v2.dynamic_risk.rl_sizing_enabled`); this
+  project's first real training run of it produced an honest negative
+  result (backtest expected reward below the constant-baseline), so it
+  ships disabled per its own pre-committed abandon criterion.
 
 **Candidate models (V2-17)** — `versions/<model_version_id>/`: the exact
 same artifact set as above (`model_weights.json`, `model.pt`,

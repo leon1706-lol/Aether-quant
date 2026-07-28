@@ -4696,3 +4696,69 @@ Docker-gated items (`cpp_inference_ext` in-image linkage confirmation, the
 topology overlay's observation-mode training run, Lean's 90-second-isolator
 re-measurement at 104 assets, and the two user-run Lean backtests) remain
 open with exact resume commands documented in `development/Problems.md` #71.
+
+## V4.12.2 — close every webui/CLI integration gap Phase 4.12 left behind (Problems.md #71)
+
+A follow-up audit (reading the actual component code and the
+state.json-building Python, not guessing) found Phase 4.12's backend and
+CLI genuinely complete, but the webui was not: several fields were
+computed, persisted to `state.json`, and in some cases already typed on
+the frontend — yet never rendered. Four gaps, all closed:
+
+1. **Position-sizing multipliers were invisible.** `PositionSizingDecision`
+   carries `volatility_multiplier`/`confidence_multiplier`/
+   `topology_multiplier`/`rank_multiplier` (V4.11) and `rl_multiplier`
+   (Phase 4.12) — all reached `state.json`, but the frontend's
+   `DynamicSizing` type never declared them and `AssetSizingTable.tsx`
+   never rendered them. Fixed: the type now mirrors the dataclass
+   field-for-field, and the table shows a `label ×value` chip per
+   multiplier, muted at the neutral `1.0` default and highlighted with its
+   own reason (as a tooltip) when actually active.
+2. **The one `promotable` head this phase produced was invisible.**
+   `NeuralNetworkStatsPanel.tsx` rendered only `ranking_quality.rank_20d`,
+   even though the type and the backend already populate `rank_5d` and
+   `sector_neutral_rank_20d` identically. Fixed: extracted a
+   `RankingQualityGate` sub-component, now called for all three heads —
+   sequence `rank_5d`'s `promotable` status (t=2.3158) is finally visible
+   without reading raw JSON.
+3. **A1's per-era diagnostic table was typed and populated but never
+   drawn.** Fixed: each `RankingQualityGate` now includes a `<details>`
+   per-era table (era window, n, mean IC, t-stat), flagging opposite-sign
+   eras (rose) and thin/insufficient-data eras (muted) — the exact
+   breakdown that previously needed an ad-hoc SSH+Python script is now a
+   standing UI feature.
+4. **Alt-data (and the bond features beside it) never reached
+   `state.json` at all — a real backend gap, not just a frontend one.**
+   `main.py` rebuilt `self.latest_bond_payload`/`self.latest_alt_data_payload`
+   every bar purely to feed the model, but `_write_state()` never touched
+   either. Fixed: a new `state["macro"]` key (mirroring the existing
+   `latest_derivatives_macro_payload` → `state["derivatives"]["macro"]`
+   precedent exactly), a new `MacroSnapshot` webui type, and a new
+   `MacroSnapshotPanel.tsx` (mounted on the Risk page) rendering a real
+   `—` — not a misleading `0.00` — for any missing value.
+
+CLI (`aq_cli.py`) was re-audited and found to have no gaps — no changes
+needed there. No new `main.py`-level backend test was added for the
+`state["macro"]` line, per this project's established precedent (V4.10,
+Problems.md #66) that a literal `main.py` unit test is infeasible without
+a live Lean host; verified instead by direct code trace (both source
+dicts default to `{}`, so the new line is safe from the first state write
+onward). Also updated: `regime/README.md` (a stale line claiming
+`average_correlation` was still hardcoded to `0.0` offline — Phase 4.12
+already fixed that, the doc just never caught up), `risk/README.md` (new
+RL sizing section), `features/README.md` (new `alt_data_features.py`
+bullet), `data_pipeline/README.md` (alt-data extension to the FRED
+backfill section), `webui/README.md` (new panels + current test-suite
+list), and `ml/README.md` (brought current — it had never listed the
+multitask/sequence/gating/rl_sizing artifacts at all, predating even the
+phases that introduced them).
+
+**Verification**: `python -m py_compile main.py` clean; full local
+`pytest -q` — 1989 passed, 11 errors, all from
+`test_lean_backtest_ml_coverage.py`'s Docker-dependent fixture (the same
+already-documented Docker/WSL2 outage, not a regression); `npm run build`
+(`tsc -b && vite build`) clean; `npx vitest run --no-file-parallelism` — 8
+files / 46 tests, all green (the default multi-fork run hit the same
+RAM-starvation worker-spawn timeouts documented elsewhere in this
+project, e.g. #50/#52 — a local-machine resource symptom, not a
+test-correctness issue).
