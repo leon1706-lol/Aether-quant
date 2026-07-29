@@ -5,7 +5,7 @@ Owns Phase V2-17, Controlled Retraining: closes the loop `performance/`
 of the durable `performance_triggers` table, trains a candidate model in
 isolation, validates and backtests it against the currently active model,
 commits it to Aether-Vault, and only then may promote it to active — with
-rollback always available. See `development/v2_architecture.md`'s
+rollback always available. See `development/architecture.md`'s
 "Controlled Retraining Contract (V2-17)" section for the full design
 writeup; this file is the short version.
 
@@ -18,7 +18,7 @@ judged safe because no live trading exists yet. The moment
 `phase_v2.retraining.worker.auto_promote_blocked_in_live_mode` (`true` by
 default) forces manual promotion regardless of `auto_promote` — see
 `execution/runtime_config_io.py` and the Live Deployment Contract in
-`development/v2_architecture.md`.
+`development/architecture.md`.
 
 Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
 
@@ -26,7 +26,7 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
   highest-priority eligible trigger (V2-17.5: severity + trigger-type
   weight + a regime-shift/topology co-occurrence bonus + a repeated-
   trigger bonus, ties broken by newest — see
-  `development/v2_architecture.md`'s V2-17.5 section), then checks minimum
+  `development/architecture.md`'s V2-17.5 section), then checks minimum
   observations, cooldown, and a daily retraining cap, in that order.
   `rank_ic_decay_trigger` (Phase 6 of the 5/10 -> 9/10 roadmap,
   `performance/rank_ic_monitor.py`) is registered in `_TYPE_BASE_SCORE` at

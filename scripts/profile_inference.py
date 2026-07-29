@@ -409,7 +409,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--symbols-per-bar", type=int, default=74,
-        help="V4.9 Priority 1/6: symbols-per-bar grouping for the sequence-encoder symbol-batching comparison (--batched, see run_sequence_batched_workload()) AND the --parallel IPC-overhead benchmark below (see run_parallel_workload()). Default 74 matches this repo's real universe size (development/v2_architecture.md).",
+        help="V4.9 Priority 1/6: symbols-per-bar grouping for the sequence-encoder symbol-batching comparison (--batched, see run_sequence_batched_workload()) AND the --parallel IPC-overhead benchmark below (see run_parallel_workload()). Default 74 matches this repo's real universe size (development/architecture.md).",
     )
     parser.add_argument(
         "--parallel", action="store_true",

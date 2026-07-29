@@ -2094,7 +2094,7 @@ def add_asset_class_context_features(dataset: pd.DataFrame, asset_class_by_ticke
     is the mechanism letting the model condition on asset class (equity vs
     crypto vs bond vs future vs option) inside one shared, unified feature
     vector rather than requiring a separate model per asset class - see
-    train.py's module-level docstring / development/v2_architecture.md for
+    train.py's module-level docstring / development/architecture.md for
     why a single shared vector was chosen over per-asset-class models
     (fragmenting the rank-IC promotion gate and MoE gating architecture
     across 5 models, and breaking cross-asset macro-feature sharing).

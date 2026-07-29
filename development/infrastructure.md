@@ -1,12 +1,12 @@
 # infrastructure
 
-Docker Compose connects the local V2 building blocks:
+Docker Compose connects the local building blocks:
 
 - `lean`: Lean runtime / backtest environment
 - `redis`: fast temporary in-memory buffer for signals, trades, and raw metrics
 - `postgres`: permanent experience database and later single source of truth for retraining
 
-Grafana used to be part of this stack, but was removed in V2-18 — the webui's tracing page (`/tracing`) now displays the same feeds natively, see `development/v2_architecture.md`.
+Grafana used to be part of this stack, but was removed — the webui's tracing page (`/tracing`) now displays the same feeds natively, see `development/architecture.md`.
 
 **Naming**: every container in this stack is `aether-quant-<name>` (e.g.
 `aether-quant-postgres`, `aether-quant-redis`, `aether-quant-lean-live`) —
@@ -96,7 +96,7 @@ $env:LEAN_IMAGE="your-lean-image:tag"   # defaults to quantconnect/lean:17900, a
 docker compose --profile lean up -d
 ```
 
-## Running Observation Mode (V2-15)
+## Running Observation Mode
 
 Observation Mode runs the algorithm as if live (signals, risk, regime,
 topology, liquidity, MoE all stay active), but never places a real order —
@@ -120,21 +120,49 @@ anyway and always blocks real orders, but it should never accidentally be
 behavior for `lean backtest .`); switch explicitly to `"observation"` for
 Observation Mode and switch it back afterward when running a normal backtest.
 
+**On a memory-constrained machine, start with just `redis` up** (not the
+full `postgres`/`experience-worker` stack) for the actual backtest run,
+then bring `postgres`/`experience-worker` up afterward to drain the
+queued Redis stream — `experience_events` uses a genuine Redis Stream
+(`XADD`/consumer-group `XREADGROUP`), so nothing is lost by draining it
+after the fact rather than during. Verified directly: running the full
+stack concurrently with a real Lean backtest caused repeated out-of-memory
+crashes on a 4GB dev machine, each one earlier than the last; redis-only
+survived a full run.
+
 **2. Startup order:**
 
 ```powershell
 docker compose up -d redis postgres experience-worker
-lean backtest .
 ```
 
-Note: a single `lean backtest .` run (Lean CLI, not a Compose service)
-starts its own Docker container without access to the host's
-`localhost:6380`. For a real Redis connection during the run, either use
-`docker compose --profile lean up -d` (container in the same Compose
-network, `AETHER_REDIS_URL=redis://redis:6379/0`) or accept that
-`ExperienceQueue` just logs a warning and skips the push when Redis is
-unreachable — the trading/simulation itself is never blocked by this, only
-the Redis/Postgres events for that run are missing.
+**A bare `lean backtest .` run's own container cannot reach Redis by
+default — and the `docker compose --profile lean` service cannot help,
+because it has no working `lean` CLI inside it at all** (verified
+directly: it's the bare `quantconnect/lean` engine image, a .NET runtime
+with no Python `lean` package — `docker compose run --rm lean lean
+backtest .` fails outright, regardless of command/entrypoint overrides).
+`lean backtest .` (the Lean CLI on your host, the same one `aq backtest`
+uses) spawns its **own**, separate Docker container that isn't joined to
+this Compose stack's network, so its `localhost` is its own loopback, not
+the host's.
+
+The verified, working fix: pass `--extra-docker-config` (a real Lean CLI
+flag — JSON in docker-py's `containers.run()` shape) to inject the
+compose-published Redis port via Docker Desktop's `host.docker.internal`
+DNS name:
+
+```powershell
+lean backtest . --image quantconnect/lean:17900 --% --extra-docker-config "{\"environment\": {\"AETHER_REDIS_URL\": \"redis://host.docker.internal:6380/0\"}}"
+```
+
+The `--%` stop-parsing token before `--extra-docker-config` and the
+backslash-escaped quotes are both load-bearing on Windows PowerShell —
+without `--%`, PowerShell's own re-quoting silently strips the embedded
+double quotes before Lean's CLI ever sees them, and the JSON fails to
+parse. If Redis is unreachable for any reason, `ExperienceQueue` just
+logs a warning and skips the push — the trading/simulation itself is
+never blocked, only the Redis/Postgres events for that run are missing.
 
 **3. PostgreSQL — inspecting observation events:**
 
@@ -164,8 +192,8 @@ data is also available as files under
 `visualization/grafana/observation_equity_curve.csv`, or via the API at
 `/api/grafana/observation-summary` and `/api/grafana/observation-equity-curve`.
 
-**5. Ready for paper trading?** Automated since V2-21 instead of a purely
-manual checklist — see "Running Paper Trading (V2-21)" below for the full
+**5. Ready for paper trading?** Automated instead of a purely
+manual checklist — see "Running Paper Trading" below for the full
 flow. Short version: `aq paper-readiness` automatically evaluates 4 of the
 following 5 points
 (`execution/paper_readiness.py::evaluate_observation_readiness()`); only
@@ -182,12 +210,12 @@ the last one deliberately remains a manual decision:
   plausible entry/exit prices — confirmed via
   `phase_v2.paper_trading.manual_review_confirmed`.
 
-## Checking Performance Triggers (V2-16)
+## Checking Performance Triggers
 
 The trigger worker watches `experience_events` (not just the current run)
 and durably writes detected warnings/retrain candidates into its own
-`performance_triggers` table. Phase 16 doesn't retrain anything itself —
-`retrain_candidate` is only a flag for Phase 17.
+`performance_triggers` table. This layer doesn't retrain anything itself —
+`retrain_candidate` is only a flag for controlled retraining.
 
 **1. Start the worker** — needs only PostgreSQL, no Redis (the worker reads
 `experience_events` but never writes to the Redis stream):
@@ -225,18 +253,18 @@ available as a file under
 `visualization/grafana/performance_triggers.json`, or via the API at
 `/api/grafana/performance-triggers`.
 
-## Running Controlled Retraining (V2-17)
+## Running Controlled Retraining
 
 `retraining/` reads `retrain_candidate = true` rows from the durable
 `performance_triggers` table, trains a candidate model in isolation under
 `ml/versions/<version_id>/` when needed, validates/backtests it against the
 active model, commits it to Aether-Vault, and only then takes it over (or
-rolls it back). Since V2-22 the worker **auto-promotes** by default —
+rolls it back). The worker **auto-promotes** by default —
 `phase_v2.retraining.worker.auto_promote` is `true` — as long as
 `phase_v2.runtime.mode` isn't `"live"`: once live trading is active,
 `phase_v2.retraining.worker.auto_promote_blocked_in_live_mode` (default
 `true`) still forces a manual promotion (see the Live Deployment Contract
-in `v2_architecture.md`). Manual promotion is always available via
+in `architecture.md`). Manual promotion is always available via
 `python -m retraining.orchestrator promote --version-id <uuid>`.
 
 **1. Start the worker** (needs only PostgreSQL, no Redis — but unlike
@@ -322,7 +350,7 @@ connection) — `visualization/grafana/retraining_status.json` is the only
 source, written by `retraining/status_export.py` and merged in via
 `/api/grafana/retraining-status` or server-side into `/api/state`.
 
-## Running Telegram Alerts (V2-19)
+## Running Telegram Alerts
 
 `notifications/telegram_worker.py` sends Telegram messages for two
 channels: every `performance_triggers` row from
@@ -372,7 +400,7 @@ SELECT * FROM telegram_alert_watermark;
 }
 ```
 
-## Running the Yahoo Finance Backfill (V2-19.5)
+## Running the Yahoo Finance Backfill
 
 `data_pipeline/yfinance_backfill.py` is a manual offline script — not a
 Docker service, never runs automatically. `yfinance` must be installed
@@ -391,7 +419,7 @@ automatically by this — the script only prints the suggested new values at
 the end; these must be entered by hand for
 `train.py::build_asset_quality()` to actually count the extra history.
 
-## Running Paper Trading (V2-21)
+## Running Paper Trading
 
 The target architecture is Lean's built-in `PaperBrokerage` (`lean.json`'s
 `live-paper` environment) — **no** real IBKR paper account needed. The
@@ -451,7 +479,7 @@ service assumes `lean live deploy . --environment
 ${LEAN_LIVE_ENVIRONMENT:-live-paper}`) — check `lean live deploy --help`
 once before production use.
 
-## Running Live Deployment (V2-22)
+## Running Live Deployment
 
 Purely structural — this phase didn't set up or test any real broker
 credentials. Flow once a real IBKR (or other Lean-supported) live account
@@ -546,7 +574,7 @@ docker compose --profile lean-live up -d
 docker compose logs -f aether-quant-lean-live
 ```
 
-**5. Monitor:** Telegram (V2-19) alerts on `critical` triggers, including
+**5. Monitor:** Telegram alerts on `critical` triggers, including
 the new `live_order_permission_blocked_trigger` — fires when `mode ==
 "live"` but `execution_note`s still show `simulated_*` (check broker
 credentials/`allow_live_orders`/risk lock). Model promotion stays forced
@@ -556,8 +584,11 @@ manual in this mode
 
 ## Cloud Training via GitHub Codespaces
 
-Model training (`aq train` / `python train.py`, all 8 model artifacts:
-baseline + 4 experts + multitask + sequence + gating) is CPU-bound and
+**Standing rule: all model training runs here, never locally**, even
+though local Docker/Lean work fine — this dev machine's RAM is the
+constraint, not a technical requirement. Model training (`aq train` /
+`python train.py`, all model artifacts: baseline + 4 experts + multitask
++ sequence + gating + topology + RL sizing) is CPU-bound and
 memory-hungry enough that it can take **hours of wall-clock time while
 barely consuming CPU-seconds** on a 4GB-RAM dev machine — the process
 isn't crashing, it's thrashing (see `development/Problems.md` #50/#52 for
@@ -565,7 +596,15 @@ the measured evidence: ~800 CPU-seconds consumed over ~4 hours of
 wall-clock). **GitHub Codespaces solves exactly this one problem** — a
 free-tier (2-core/8GB) cloud container reachable over SSH, used purely as
 disposable training compute. It does **not** replace local Lean
-backtesting (see the limitation below).
+backtesting (see the limitation below) — Lean backtests still run
+locally.
+
+**Before training, sync anything the Codespace doesn't have yet**
+(tracked-but-uncommitted changes, or gitignored-but-needed data like a
+freshly-exported experience-events dump) via `gh codespace cp`. **After
+training, pull the resulting `ml/` artifacts back** the same way. **Stop
+the Codespace** (`gh codespace stop`) whenever it isn't actively
+training — this is free-tier usage, not unlimited.
 
 **One-time setup** — `.devcontainer/devcontainer.json` at the repo root:
 
@@ -644,8 +683,7 @@ Within the Compose network, services use their service names:
 - Redis: `redis://redis:6379/0`
 - PostgreSQL: `postgresql://aether:aether_dev_password@postgres:5432/aether_quant`
 
-From Windows, you reach the ports by default like this (remapped since
-V2-17 so they don't collide with the separate Aether-Vault Compose stack):
+From Windows, you reach the ports by default like this (remapped so they don't collide with the separate Aether-Vault Compose stack):
 
 - Redis: `localhost:6380`
 - PostgreSQL: `localhost:5433`

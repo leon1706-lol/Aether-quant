@@ -67,7 +67,7 @@ def topology_sizing_multiplier(
     always a strict no-op, matching the same "a missing/degraded learned
     model never changes trading behavior" convention already established
     for the topology overlay itself (see analyzer/README.md and
-    development/v2_architecture.md's V2-17.5 safety rule: probabilistic
+    development/architecture.md's V2-17.5 safety rule: probabilistic
     scoring may only ever produce a bounded, continuous adjustment, never
     a randomized or amplified decision)."""
     if topology_source != "learned" or topology_confidence is None:

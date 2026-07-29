@@ -133,7 +133,7 @@ The new V2 fork additionally does the following:
 
 - Uses the prior V1/Phase 10 code as a stable foundation
 - Sets up the V2 module structure for MoE, experts, regime, topology, experience, risk, and monitoring
-- Documents the planned V2 process flow in `development/v2_architecture.md`
+- Documents the planned V2 process flow in `development/architecture.md`
 - Documents the planned tech stack for Docker, Lean, PyTorch, PostgreSQL, Grafana, Telegram, and the HTML dashboard
 - Keeps training and backtesting on the local Lean `data/` folder as the primary data source
 
@@ -337,7 +337,7 @@ Performance Triggers additionally does the following:
 - Extends `monitoring/api_server.py` with `/api/grafana/performance-triggers`
 - Adds the webui panel `PerformanceTriggersPanel.tsx` (retrain-candidate banner, severity distribution, last trigger, trigger-type breakdown) and places it together with `ObservationPanel` at the very top of the right column, so it isn't pushed down by a growing signal board when there are many assets
 - Adds 37 new tests (113 → 150 total): `tests/test_triggers.py` (24), `tests/test_postgres_triggers.py` (11), `tests/test_trigger_worker.py` (2)
-- Along the way: documentation reorganized — `docs/v2_architecture.md` and `infrastructure/README.md` moved to `development/` (as `v2_architecture.md`/`infrastructure.md`), new `development/Changelog.md` (this file) and `development/Problems.md` created; the webui gets a consistent black/orange/white theme with an orange hover glow on every panel
+- Along the way: documentation reorganized — `docs/architecture.md` and `infrastructure/README.md` moved to `development/` (as `architecture.md`/`infrastructure.md`), new `development/Changelog.md` (this file) and `development/Problems.md` created; the webui gets a consistent black/orange/white theme with an orange hover glow on every panel
 - Stopping point: Phase 16 doesn't retrain anything — `retrain_candidate` is only a flag for V2-17, no automatic model-weight changes
 
 ## Visualization Unification Result
@@ -397,7 +397,7 @@ Grafana removed, native React tracing dashboard:
 - Two new, dependency-free SVG chart primitives instead of a charting library: `LineChart.tsx` (crosshair+tooltip, a legend from two series on, subtle gridlines, never two Y axes) and `DivergingBarChart.tsx`, both reused by several panels
 - `src/api/client.ts`/`hooks.ts` get `fetchMetricsSnapshot`/`fetchEquityCurves`/`fetchAssetPerformance`/`fetchObservationEquityCurve` and matching `useX()` hooks (15s refresh, called only from the tracing page itself, not globally like `useRuntimeState()`); new types in `src/types/tracing.ts`
 - Deliberately NOT renamed: the `visualization/grafana/` folder, `retraining/status_export.py`, `performance/postgres_triggers.py`, and the `/api/grafana/*` route names — only the consumer changed; a rename would have been pure renaming risk with no user value
-- Docs updated: `README.md`, `development/v2_architecture.md` (including a new "Remove Grafana, React Tracing Dashboard (V2-18)" section and an updated port table without the Grafana row), `webui/README.md`
+- Docs updated: `README.md`, `development/architecture.md` (including a new "Remove Grafana, React Tracing Dashboard (V2-18)" section and an updated port table without the Grafana row), `webui/README.md`
 
 ## Phase V2-19 Result
 
@@ -506,7 +506,7 @@ Lean Backtesting Integration additionally does the following:
   neural networks (baseline model + 4 experts) side by side in a
   shared camera/orbit scene, plus a live-updated statistics box
   (layer/node/edge count per network, quality status, last change) — see
-  the Neural Network Visualization Contract (V2-20) in `v2_architecture.md` for
+  the Neural Network Visualization Contract (V2-20) in `architecture.md` for
   the full data schema and the deliberately excluded non-networks
   (MoE gating, learned topology prototypes)
 - New backend module `monitoring/neural_network_state.py`
@@ -630,7 +630,7 @@ in this phase.
   feature built — the existing `retraining/worker.py` loop plus the
   Aether-Vault commit (`retraining/vault_client.py`) already covers that;
   here only `phase_v2.retraining.worker.auto_promote` was set to `true`
-  (see the separate section in `development/v2_architecture.md`'s Controlled
+  (see the separate section in `development/architecture.md`'s Controlled
   Retraining Contract)
 
 ## Latency Optimization + Docker Image Consolidation
@@ -675,7 +675,7 @@ Docker layout cleaner.
 
 **Deliberately left open:** skipping `experience/redis_queue.py::push()`
 in backtest mode would be trivial, but would contradict
-`development/v2_architecture.md`'s documented Redis experience queue
+`development/architecture.md`'s documented Redis experience queue
 behavior, without a suspected downstream dependency being either
 confirmed or ruled out (see Problems.md #14, `open`).
 
@@ -697,7 +697,7 @@ same pattern as `risk/position_sizing.py`), then vectorized there with
 `numpy`. Safety net: `tests/test_exported_model.py` (hand-computed
 values plus a reference forward pass).
 
-**Topology vectorized + warm start (Problems.md style, `v2_architecture.md`
+**Topology vectorized + warm start (Problems.md style, `architecture.md`
 has the details):** `topology/market_topology.py::_stress_majorize_2d()`
 (the SMACOF embedding, the dominant cost factor of the topology layer) is
 now vectorized with `numpy`, with the same inputs/outputs/iteration
@@ -1638,12 +1638,12 @@ closed now (one, `requirements-retraining-worker.txt` already covering
   existing `NetworkDiagram` primitives unchanged rather than building a
   new 3D branching-tree renderer; `NETWORK_ORDER` extended with the 6 new
   names (previously a silent filter — see Problems.md #19 on why this
-  matters). Also fixed a stale claim in `v2_architecture.md`'s Neural
+  matters). Also fixed a stale claim in `architecture.md`'s Neural
   Network Visualization Contract: the "gating has no learned weight
   matrix, excluded" paragraph predated the learned-gating model and no
   longer matched the code (gating has been rendered as a real network,
   not excluded, since that work shipped).
-- **`development/v2_architecture.md` updated**: the Neural Network
+- **`development/architecture.md` updated**: the Neural Network
   Visualization Contract section now documents all 12 networks and the
   branching export shape; a new "Model input dimensionality is 48, not
   30" sub-block on the Expert Model Contract; a new Follow-up paragraph on
@@ -1729,7 +1729,7 @@ avoiding two volatility forecasts that could silently disagree).
   the pre-blend values).
 - Docs: `moe/README.md` gets the full design writeup (why gating, not
   analyzer/sizing); `inference/README.md`, `analyzer/README.md`,
-  `risk/README.md` and `development/v2_architecture.md`'s Gating Network
+  `risk/README.md` and `development/architecture.md`'s Gating Network
   Contract and Phase 2 Sequence Encoder Contract all get Follow-up notes
   correcting the now-stale "informational only, never a trading decision"
   claims each had made.
@@ -3313,7 +3313,7 @@ uses — no second, redundant pull path.
 consolidated image.
 
 **Docs updated** (current runbooks only — historical Changelog/Problems.md/
-v2_architecture.md entries left as-is, matching this project's append-only
+architecture.md entries left as-is, matching this project's append-only
 convention): `development/infrastructure.md` (container names in every
 `docker exec`, a new intro note on the naming scheme and consolidated
 image, the `LEAN_IMAGE` pin note), root `README.md` (Download section),
@@ -3552,7 +3552,7 @@ previous row's, so tampering breaks the chain from that point forward,
 detectable via `aq audit-log --verify`). Hooked into `main.py` (orders,
 credential loads, live-mode transitions) and `aq render-lean-config`.
 Queryable via `aq audit-log`, visible in the webui
-(`AuditLogPanel.tsx`/`GET /api/audit-log`). See `development/v2_architecture.md`'s
+(`AuditLogPanel.tsx`/`GET /api/audit-log`). See `development/architecture.md`'s
 new Audit Logging Contract section for the full shape.
 
 **Retraining loop, real end-to-end rehearsal**: seeded `experience_events`
@@ -4412,7 +4412,7 @@ CLI flag, plus `--parallel`/`--pool-workers`/`--symbols-per-bar` wired
 into `aq profile`'s inference path for P6/P1.
 
 **P8 — honest HFT-transfer documentation**: a new
-`development/v2_architecture.md` section explicitly splits what from this
+`development/architecture.md` section explicitly splits what from this
 pass is genuine V5/HFT-fork prep (the C++-extension pattern, the
 profiling-harness methodology, the general profile-before-optimizing
 discipline) from what is NOT (P1-P3, which all optimize cost *within* the
@@ -4762,3 +4762,53 @@ files / 46 tests, all green (the default multi-fork run hit the same
 RAM-starvation worker-spawn timeouts documented elsewhere in this
 project, e.g. #50/#52 — a local-machine resource symptom, not a
 test-correctness issue).
+
+## Phase 4.12.3 — every remaining Docker-dependent item closed, Phase 4's arc complete (Problems.md #71)
+
+Docker/WSL2 had been down all of Phase 4.12. Root-caused this session: a
+`wslinstaller.exe` process stuck since 2026-07-26 had wedged `WSLService`
+permanently in `StopPending`. A plain `wsl --shutdown` couldn't clear it
+(needed elevation the agent didn't have), and the first real fix attempt
+failed silently — Windows' Fast Startup made "Shut down → power on" resume
+the exact same broken kernel session rather than clearing it. A genuine
+Start → Power → Restart resolved it completely.
+
+With Docker working, every item Phase 4.12 had deferred got closed for
+real:
+
+- **`#68` (`cpp_inference_ext` linkage)**: positive result — the compiled
+  `.so` genuinely links and imports inside the built `engine` image.
+- **`#56` (topology overlay training)**: **trained for real for the first
+  time in this project's history** — 6 clusters from 4,937 samples. The
+  original plan's `docker compose run --rm lean` approach turned out not to
+  work at all (that image has no Python `lean` CLI); the real fix was the
+  user's own local `lean` CLI plus `--extra-docker-config` to inject
+  `AETHER_REDIS_URL=redis://host.docker.internal:6380/0` into its
+  container. Getting real experience data also meant working around 3
+  consecutive OOM crashes on this 4GB machine's full 2-year observation
+  window (each one crashing earlier than the last) by shrinking the
+  observation backtest to 3 months — which still produced 52,129 real
+  events, two orders of magnitude past the 500-event minimum. Training
+  itself ran on the GitHub Codespace, per a new standing rule adopted this
+  session (all model training goes through the Codespace CLI now, never
+  locally, even with Docker fixed — this machine's RAM is the constraint,
+  not a technical requirement).
+- **RL sizing**: re-confirmed on freshly-rebuilt Codespace datasets at the
+  user's request — identical honest negative result, stays disabled.
+- **Lean isolator timing at 104 assets**: `Initialize()` now takes ~105s,
+  above the 90s budget referenced in the original plan, but the backtest
+  completed successfully regardless — a real number now on record, not an
+  active failure.
+
+**Both planned Lean backtests ran for real, user-executed:** Backtest 1
+(observation mode, 3-month window) generated the topology training data
+above. Backtest 2 (representative, full 2019-2021 window, drawdown
+enforcement genuinely active — no bypass) completed cleanly: 3,606 orders,
+Sharpe **-0.145** (improved from V4.11's -0.313 but still negative), Net
+Profit **+3.41%** (up from 1.04%), Drawdown **6.6%** (down from 8.9%),
+fees ($2,769) still consuming nearly all of the net profit. Also the first
+backtest ever run with the learned topology overlay actually active in
+position sizing, rather than silently falling back to the deterministic
+embedding. `README.md`'s Backtest Results section updated from this run.
+
+**Nothing Interactive-Brokers-independent remains open in this project.**

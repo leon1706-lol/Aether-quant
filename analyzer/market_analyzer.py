@@ -206,7 +206,7 @@ def build_market_analysis_decision(
     # V2-17.5 added a probabilistic topology overlay (topology.learned_topology)
     # feeding the retrain-trigger/retraining pipeline, but deliberately left
     # this rule reading only the deterministic topology_risk - see
-    # analyzer/README.md and development/v2_architecture.md's V2-17.5 section.
+    # analyzer/README.md and development/architecture.md's V2-17.5 section.
     if topology_risk == "elevated" and signal_name in {"buy", "sell", "short"}:
         reasons.append("topology_elevated_volatility_pressure_overrides_directional_signal")
         return MarketAnalysisDecision(

@@ -103,6 +103,16 @@ ml/sequence_training_metrics.json
 ml/gating_model.json
 ml/gating_feature_schema.json
 ml/gating_training_metrics.json
+# Topology overlay + RL sizing artifacts (Phase 4.12/4.12.3,
+# development/Problems.md #71) - same reasoning as the multitask/sequence/
+# gating rules above: a trained model's weights must never end up
+# committed to the public repo just because it's a newer artifact type.
+ml/topology_model.json
+ml/topology_feature_schema.json
+ml/topology_training_metrics.json
+ml/rl_sizing_model.json
+ml/rl_sizing_feature_schema.json
+ml/rl_sizing_training_metrics.json
 
 # Generated visualization/runtime feeds
 visualization/state.json

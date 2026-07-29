@@ -10,7 +10,7 @@ or QCAlgorithm dependency, so it is unit-testable without a Lean runtime.
 
 ## Real fill slippage (execution/risk realism pass)
 
-Closes the gap `development/v2_architecture.md`'s own HFT-gap analysis
+Closes the gap `development/architecture.md`'s own HFT-gap analysis
 already documented: `liquidity/market_liquidity.py`'s
 `estimated_round_trip_cost` (price impact + bid-ask spread, computed every
 bar for every symbol) used to be a pre-trade sizing/routing signal only —
@@ -88,7 +88,7 @@ required.
 
 ## Real limit orders (execution/risk realism pass, part 2)
 
-Closes the other half of `development/v2_architecture.md`'s HFT-gap item
+Closes the other half of `development/architecture.md`'s HFT-gap item
 3: *"no limit-order/queue-position-aware execution exists — fills are
 still all-or-nothing market fills."* Every real order in `main.py` was a
 `MarketOrder()`/`SetHoldings()` market fill; this pass adds real `LimitOrder()`
@@ -285,7 +285,7 @@ reader's cached value leak into another's result, caught only by the real
   a separate process from `main.py`.
 
 See the Paper Trading Readiness Contract (V2-21) and Live Deployment
-Contract (V2-22) in `development/v2_architecture.md` for the full picture.
+Contract (V2-22) in `development/architecture.md` for the full picture.
 
 ## Scheduled readiness reporting (Phase 7 of the 5/10 -> 9/10 roadmap)
 

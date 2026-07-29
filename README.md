@@ -44,18 +44,18 @@ feature pipeline that folds in a **market-regime detector**, a **3D market
 topology** layer (a deterministic correlation embedding with a learned
 probabilistic overlay), and a **liquidity/market-impact engine** that
 adjusts sizing to real trading conditions. A **unified multi-asset-class
-layer** trades equities, crypto, bonds, futures, and options through one
-coherent portfolio, with real yield-curve/duration features for bonds,
+layer** trades equities, crypto, bonds, futures, options, and Forex through
+one coherent portfolio, with real yield-curve/duration features for bonds,
 margin-aware sizing for futures, Black-Scholes-greeks-based sizing for
 options, and shared cross-asset macro signals (yield curve shape, futures
-term structure, options sentiment) feeding every asset's prediction, not
+term structure, options sentiment, options-implied volatility/financial
+conditions) feeding every asset's prediction, not
 just its own. And a **controlled retraining loop** lets the model itself
 evolve as markets do, all wired together and validated end-to-end inside
 QuantConnect's Lean engine. The thesis this project exists to test is simple
 to state and hard to prove: **markets are non-stationary, so a trading model
 should be too.** Every subsystem here exists to make the model adapt to
-regime shifts, changing correlation structure, and liquidity conditions,
-rather than fit one historical window and hope it generalizes.
+regime shifts, changing correlation structure, and liquidity conditions.
 
 ## Quickstart
 
@@ -73,41 +73,27 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 in progress: V4.1 (visualisation), V4.3.0 (add-to-position), V4.4 (options architecture), V4.5 (full `OptionStrategies` coverage), V4.6 (bounded follow-ups, Forex, bond analytics), V4.7 (early-assignment modeling, learned strategy selector, bond analytics wired into the model), Phase 4.8 (`lean` CLI usable in the retraining worker, a new Options & Strategy webui page, a real bug fix, and CLI/Docker discoverability fixes), V4.9 (a major latency-optimization pass: a live disk-I/O bug fixed, sequence-encoder symbol-batching, a topology cache percentile-tolerance mode, an options chain-grouping hoist, non-blocking experience-event delivery, and expanded profiling tooling), V4.10 (pure-function extraction of main.py's exit logic, 4 webui quality fixes, and 15 new forex/FX assets fetched via `aq fetch`), a V4.10 follow-up (opt-in live futures margin source), a backend/latency gap-closing pass (Docker-built C++ accelerator, main.py CI syntax-check, a Windows-specific inference_parallelism slowdown guard), V4.11 (the training + optimization phase — full Codespace retrain + walk-forward executed, three latent train.py bugs fixed, primary signal now clears the ≥2.0 significance bar), Phase 4.12 (era-sign instability decomposed into 3 causes and 2 fixed, options-implied-vol/financial-conditions alt-data, 104-asset universe, an honestly-scoped RL sizing layer, and every remaining non-IB Problems.md item closed), and V4.12.2 (closing the webui/CLI integration gaps Phase 4.12 left behind — position-sizing multipliers, all 3 ranking-quality gates + the per-era diagnostic table, and a global macro/alt-data snapshot, all now actually rendered) shipped.**
+**V3 complete. V4 complete**, spanning visualisation, the full multi-asset-class (options/futures/Forex) architecture, a major latency pass, and the training + optimization phase. As of Phase 4.12.3, every planned Docker-dependent item is closed for real: the topology overlay trained for the first time in this project's history, `cpp_inference_ext` links correctly in the built image, and both a data-generation and a fully representative Lean backtest have run end-to-end.
 Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
 the full ML stack, and the retraining loop are all built, tested
 (<!-- AQ:TEST_COUNT_START -->1986<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
-- **Phase 4.12 (era-sign instability decomposed + alt-data + breadth + RL sizing), shipped:** reconstructing the persisted IC series showed "era-sign instability" was 3 unrelated problems, not one — a crypto-only-weekend measurement artifact (fixed: `min_universe_size` 10→20), pure statistical noise from a ~4-observation era mean (fixed: a new gate noise floor, `era_sign_min_abs_ic`/`era_min_observations`), and one genuine COVID-crash regime inversion (targeted with options-implied-volatility/financial-conditions alt-data via the existing no-API-key FRED fetcher, plus a fix for `average_correlation` having been hardcoded to `0.0` in all offline regime encoding). Universe expanded 89→104 assets, position caps raised. A new, honestly-scoped offline RL sizing layer (`train_rl_sizing.py`) was built and trained. **Retrained on the Codespace — the honest result:** primary `rank_20d`'s t-stat improved further (2.028→**2.8954**, CI lower 0.0065→**0.0585**, both gates pass with real margin) but remains `not_promotable` — the COVID inversion didn't flip, and cleaning up the crypto-noise era **exposed a second real inversion** (Dec 2020–Mar 2021) that had been hidden behind it. **New milestone:** sequence `rank_5d` is now fully **`promotable`** — the first model/head in the project's history to clear every gate. RL sizing's honest backtest result underperformed the constant-baseline, so it ships disabled per its own pre-committed abandon criterion. Every remaining non-IB `Problems.md` item closed; Docker-gated items (Docker Desktop/WSL2 was down all session) remain open with exact resume commands documented. See `development/Problems.md` #71.
-- **V4.12.2 (webui/CLI integration audit + fixes), shipped:** a follow-up audit found Phase 4.12's backend/CLI genuinely complete but the webui lagging (several fields computed and persisted, some even typed on the frontend, but never rendered). Fixed: position-sizing multipliers (confidence/topology/rank/RL) now typed and shown as chips in `AssetSizingTable.tsx`; `NeuralNetworkStatsPanel.tsx` now renders **all three** ranking-quality promotion gates (`rank_5d`/`rank_20d`/`sector_neutral_rank_20d`, not just `rank_20d`) with a collapsible per-era diagnostic table under each — sequence `rank_5d`'s `promotable` status is finally visible without reading raw JSON; and a new global macro/alt-data snapshot (`main.py::_write_state()`'s `state["macro"]`, a new `MacroSnapshotPanel.tsx`) exposes the bond/VIX numbers that were computed every bar but never reached `state.json` at all. CLI audited and found to have no gaps. 46 new webui tests, all green; full local suite and `tsc -b && vite build` clean. See `development/Problems.md` #71.
-
-- **Backtest:** the latest held-out run (2019-01-01 to 2021-03-31) is
-  **profitable**, Sharpe **0.40**, Net **+10.4%**, max drawdown 4.0% (see
-  [Backtest Results](#backtest-results)). This is a real flip from the
-  pre-rank-pivot −0.59 Sharpe. (Numbers predate the V4.11 78-asset retrain —
-  a fresh manual Lean backtest on the retrained model is the next step.)
-- **Signal significance — a real milestone, still not fully settled:** after
-  Phase 4.12's retrain the `rank_20d` non-overlapping t-stat improved further
-  to **2.8954** (≥ 2.0) with bootstrap CI lower **+0.0585** (≥ 0) — both hard
-  promotion gates pass with real margin. It is still `not_promotable`: the
-  COVID-era inversion is genuine and didn't flip, and removing the
-  crypto-noise era exposed a second real inversion (Dec 2020–Mar 2021) that
-  had been hidden behind it. **New:** sequence `rank_5d` is now fully
-  `promotable` — the first head in the project's history to clear every
-  gate — an open question for a future phase is whether/how to add it
-  alongside `rank_20d` as a second live signal.
-- **The reported Sharpe/Net still predate this retrain** (`bypass_safety_gates`
-  on, not live-representative). The two user-run Lean backtests (as-is, then
-  with `bypass_safety_gates` off so drawdown limits enforce) remain blocked
-  on Docker Desktop/WSL2, which was down all of Phase 4.12 — see
-  `development/Problems.md` #71 for exact resume commands.
+- **Backtest:** the latest representative run (2019-01-01 to 2021-03-31,
+  drawdown enforcement genuinely active) is only marginally profitable:
+  Sharpe **-0.145**, Net **+3.41%**, max drawdown 6.6% (see
+  [Backtest Results](#backtest-results)) — improved over the prior run's
+  -0.313 Sharpe, but still negative, with fees consuming nearly all of the
+  net profit.
+- **Signal significance:** `rank_20d`'s non-overlapping t-stat clears 2.0
+  with real margin (2.8954) but stays `not_promotable` — a genuine COVID-era
+  inversion. Sequence `rank_5d` is fully `promotable`, the first head ever
+  to clear every gate; whether to promote it alongside `rank_20d` is an open
+  decision.
 - **Not paper/live-deployable yet**: Interactive Brokers has never been
   tested against a real Gateway (see [Known Limitations](#known-limitations)).
-- **Next:** once Docker/WSL2 is working again, close the remaining
-  Docker-gated items (topology overlay training, `cpp_inference_ext` linkage
-  confirmation, the two Lean backtests), then decide whether/how to promote
-  sequence `rank_5d`, then IB testing — see [Roadmap](#roadmap).
+- **Next:** decide whether/how to promote sequence `rank_5d` as a second
+  live signal, then IB testing — see [Roadmap](#roadmap).
 
 ## Known Limitations
 
@@ -243,6 +229,7 @@ For local development (this repo cloned, a virtual environment active):
 - **QuantConnect Lean CLI** (`pip install lean`) for running backtests and paper/live trading.
 - **Docker & Docker Compose** for the local infrastructure (Redis, PostgreSQL, and the background workers, experience persistence, performance triggers, controlled retraining, Telegram alerts).
 - **Node.js** (for the `webui/` React/Vite dashboard).
+- **GitHub CLI (`gh`)** — optional, only needed to reproduce model training via a GitHub Codespace (this project's own convention for offloading training off a resource-constrained dev machine; see `development/Problems.md` #71).
 
 This repo splits its Python dependencies across several `requirements*.txt`
 files (full training stack vs. minimal per-Docker-image installs vs. local
@@ -253,23 +240,24 @@ dev extras) rather than one monolithic file. See
 ## Architecture
 
 Aether Quant runs a daily-bar decision pipeline entirely inside Lean's
-`on_data()` callback: features flow through regime detection and 3D topology
-modeling, both feed a gating network that routes across four specialized
-experts, the central market analyzer combines all of that with the liquidity
-engine's sizing input into one categorical action per asset per bar, and
-every decision is persisted through a Redis → PostgreSQL experience pipeline
-that a controlled retraining loop reads from to evolve the model over time.
+`on_data()` callback: features (including bond/macro and options-implied
+alt-data) flow through regime detection and 3D topology modeling (a
+deterministic embedding plus a learned overlay), both feed a gating
+network that routes across four specialized experts, an asset-class
+router sizes the decision across equities/crypto/bonds/futures/options/
+Forex, and every decision is persisted through a Redis → PostgreSQL
+experience pipeline that a controlled retraining loop reads from to
+evolve the model over time.
 
 #### System Flow
 
 ```mermaid
 flowchart LR
-    A["Lean data folder<br/>stocks, ETFs, bonds, crypto"] --> B["Feature pipeline<br/>train.py<br/>price/volume + indicators +<br/>regime + liquidity + topology + peer returns + macro<br/>(35-feat baseline / 52-input multitask)"]
+    A["Lean data folder<br/>stocks, ETFs, bonds, crypto, Forex"] --> B["Feature pipeline<br/>train.py<br/>price/volume + indicators +<br/>regime + liquidity + topology + peer returns +<br/>bond/macro + alt-data (VIX/financial conditions)"]
     B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
-    B --> D["3D topology modeling<br/>market structure and clusters"]
-    B -.-> U["Sequence encoder (Phase 2)<br/>causal-TCN, 30-bar window<br/>informational only"]
-    B --> V["Multitask heads<br/>baseline + 4 experts<br/>direction + magnitude + volatility"]
-    C --> E["Gating network<br/>the manager<br/>blends probability + magnitude/volatility"]
+    B --> D["3D topology modeling<br/>deterministic + learned overlay"]
+    B --> V["Multitask + sequence heads<br/>baseline + 4 experts<br/>direction + magnitude + volatility + rank"]
+    C --> E["Gating network<br/>the manager"]
     D --> E
     V --> E
     E --> F["Expert modules"]
@@ -284,23 +272,19 @@ flowchart LR
     C --> K
     D --> K
     L["Liquidity engine<br/>DDV, participation rate,<br/>slippage estimate"] --> K
-    K --> M["Action categorization<br/>trade / simulate / observe<br/>reduce_risk / retrain_candidate"]
-    M --> N["Lean order execution<br/>InteractiveBrokersFeeModel"]
+    K --> AC["Asset-class router<br/>equity/crypto/bond/futures/options/Forex"]
+    AC --> RK["rank_20d/rank_5d position sizing<br/>+ topology/RL sizing multipliers"]
+    RK --> M["Action categorization<br/>trade / simulate / observe<br/>reduce_risk / retrain_candidate"]
+    M --> N["Lean order execution"]
     M --> O["Observation / simulation record"]
     N --> P["Redis event stream<br/>temporary low-latency buffer"]
     O --> P
-    U -.-> P
     P --> Q["Experience worker<br/>async batch persistence"]
     Q --> R["PostgreSQL experience database<br/>single source of truth"]
     R --> S["Performance triggers<br/>100 observations, drawdown, Sharpe, regime shift"]
     S --> T["Controlled retraining<br/>versioned weights and rollback"]
     T --> E
 ```
-
-Dashed edges mark the Phase 2 sequence encoder's **informational-only**
-path, it's computed every bar and reaches the experience log, but never
-the gating network, market analyzer, or position sizing (see
-`inference/README.md`'s Phase 2 section).
 
 #### Tech Stack
 
@@ -309,7 +293,7 @@ flowchart TB
     A["Infrastructure"] --> A1["Docker Compose<br/>(Redis, Postgres, aether-quant app)"]
     A --> A2["Lean CLI<br/>(backtest + paper trading, local only)"]
     A --> A3["30-day observation phase before live mode"]
-    A --> A4["GitHub Codespaces<br/>(cloud training compute, optional)"]
+    A --> A4["GitHub Codespaces<br/>(cloud training compute)"]
     B["Development"] --> B1["VS Code + Claude Code"]
     B --> B2["GitHub"]
     C["Data and storage"] --> C1["Lean data folder for training/backtesting"]
@@ -319,18 +303,17 @@ flowchart TB
     D --> D2["scikit-learn"]
     D --> D3["NumPy / Pandas"]
     D --> D4["MoE experts and gating network"]
-    D --> D5["Multitask heads (direction/magnitude/<br/>volatility) + causal-TCN sequence encoder"]
+    D --> D5["Multitask heads (direction/magnitude/<br/>volatility/rank) + causal-TCN sequence encoder"]
     E["Monitoring and UI"] --> E1["React/Vite webui, Tracing dashboard (port 3002 dev / 8001 Docker)"]
     E --> E2["FastAPI JSON API (port 8000)"]
-    E --> E3["Telegram alerts (V2-19)<br/>notifications/telegram_worker.py"]
+    E --> E3["Telegram alerts<br/>notifications/telegram_worker.py"]
 ```
 
-These two diagrams are the high-level summary. For the full system,
-every per-phase "contract" (Observation Mode, Performance Triggers,
-Controlled Retraining, 3D Topology, Liquidity Engine, Paper/Live Deployment,
-and more), the module map, and an honest analysis of what would need to
-change for this to become a genuinely low-latency/HFT system, see
-**[`development/v2_architecture.md`](development/v2_architecture.md)**.
+These two diagrams are the high-level summary. For the full system —
+every subsystem contract, the module map, the multi-asset-class and
+signal-promotion-gate design, and an honest analysis of what would need
+to change for this to become a genuinely low-latency/HFT system — see
+**[`development/architecture.md`](development/architecture.md)**.
 
 #### The model stack
 
@@ -338,39 +321,38 @@ Three model families are trained and shipped, all reading the same
 train/runtime-parity feature pipeline (shared pure functions, never
 hand-matched formulas, `features/`, `main.py::_build_model_input()`):
 
-- **Baseline + 4 experts** (`train.py::AetherNet*`), a 35-feature
-  direction model plus bullish/bearish/sideways/volatility specialists,
-  routed by the learned gating network (`moe/gating.py`). Each also carries
-  optional multitask heads for return magnitude and volatility.
-- **Multitask model** (`AetherNetMultiTaskHorizons`, `train_multitask.py`),
-  a 52-input shared trunk with multiple heads: next-day direction,
+- **Baseline + 4 experts** (`train.py::AetherNet*`) — a direction model
+  plus bullish/bearish/sideways/volatility specialists, routed by the
+  learned gating network (`moe/gating.py`). Each also carries optional
+  multitask heads for return magnitude and volatility.
+- **Multitask model** (`AetherNetMultiTaskHorizons`, `train_multitask.py`)
+  — a shared trunk with multiple heads: next-day direction,
   `direction_5d`/`direction_20d`, and `rank_5d`/`rank_20d` (per-date
-  cross-sectional percentile rank of forward return, evaluated via rank-IC,
-  `train.py::compute_rank_ic()`). `rank_20d` is the one signal with genuine
-  cross-sectional skill and is what the trading path now runs on.
+  cross-sectional percentile rank of forward return, evaluated via
+  rank-IC). `rank_20d` is the primary trading signal.
 - **Sequence encoder** (`AetherNetSequenceMultiTaskHorizons`,
-  `train_sequence.py`), a causal-TCN over a rolling 30-bar window of the
-  same 52 inputs, adding temporal structure the flat-MLP trunk can't see.
+  `train_sequence.py`) — a causal-TCN over a rolling 30-bar window of the
+  same inputs, adding temporal structure the flat-MLP trunk can't see;
+  its own `rank_5d` head is the first in this project to clear every
+  promotion gate simultaneously.
 
-The 52 model inputs are not just price/volume: regime state (one-hot /
-confidence / trend / risk), an asset-intrinsic liquidity spread/dollar-volume
-estimate, cross-asset topology correlation/risk, 4 correlated-peer
-lagged-return channels, and 7 technical indicators (RSI, ATR%, Bollinger %B,
-volume z-score, MACD histogram, distance-from-52-week-high, cross-sectional
-momentum rank) are all computed as first-class features, computed offline
-and at runtime by the same code, with verified parity.
+**58 model inputs** — not just price/volume: regime state (one-hot /
+confidence / trend / risk), liquidity spread/dollar-volume, cross-asset
+topology correlation/risk, correlated-peer lagged returns, 7 technical
+indicators, real bond yield-curve/credit-spread features, and alt-data
+(options-implied volatility, financial-conditions change) — all computed
+offline and at runtime by the same code, with verified parity.
 
-`rank_20d` drives the long/short book and per-position sizing
-(`risk/position_sizing.py::rank_sizing_multiplier()`, bounded and
-direction-preserving); the multitask magnitude/volatility heads feed
-position sizing opt-in via `phase_v2.dynamic_risk.use_predicted_volatility`.
-All signals are visible on the `/neural-network` webui tab and in
-`ml/*_training_metrics.json`.
+`rank_20d`/`rank_5d` drive the long/short book and per-position sizing
+(`risk/position_sizing.py`, bounded and direction-preserving); the
+multitask magnitude/volatility heads feed position sizing opt-in via
+`phase_v2.dynamic_risk.use_predicted_volatility`. All signals are visible
+on the `/neural-network` webui tab and in `ml/*_training_metrics.json`.
 
 See `inference/README.md`, `moe/README.md`, `risk/README.md`,
-`regime/README.md`, `liquidity/README.md` and `topology/README.md` for the
-full per-subsystem contracts, and `development/Changelog.md` for how this
-stack was built, phase by phase.
+`regime/README.md`, `liquidity/README.md` and `topology/README.md` for
+the full per-subsystem contracts, and `development/architecture.md` for
+how it all fits together.
 
 ## Universe Size
 
@@ -435,7 +417,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1902<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->1986<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -448,7 +430,7 @@ and how it's wired in, this table is the index.
 | [`development/README.md`](development/README.md) | Index of this folder |
 | [`development/asset_universe.md`](development/asset_universe.md) | The full 104-asset universe: ticker list, trading-vs-observation split, bond-ETF coverage, group diagram |
 | [`development/project_structure.md`](development/project_structure.md) | The full annotated directory tree of the repository |
-| [`development/v2_architecture.md`](development/v2_architecture.md) | The full V2 system architecture: process-flow and tech-stack diagrams, the module map, per-phase "contract" sections, and the HFT-readiness analysis |
+| [`development/architecture.md`](development/architecture.md) | The full system architecture: process-flow and tech-stack diagrams, the module map, per-subsystem "contract" sections, the multi-asset-class/ranking design, and the HFT-readiness analysis |
 | [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook, start commands for every service, SQL inspection snippets, port reference |
 | [`development/Changelog.md`](development/Changelog.md) | Detailed, append-only, per-phase build history, what was built, when, and why |
 | [`development/Problems.md`](development/Problems.md) | Append-only audit log of bugs and infrastructure issues, each with a severity rating and fixed/open status |
@@ -461,13 +443,13 @@ and how it's wired in, this table is the index.
 | Metric | Value |
 |---|---|
 | Backtest window | 2019-01-01 to 2021-04-02 |
-| Sharpe Ratio | -0.313 |
-| Net Profit | 1.042% |
-| Compounding Annual Return | 0.462% |
-| Drawdown | 8.900% |
-| Total Orders | 2062 |
-| Win Rate | 56% |
-| Last updated | 2026-07-26 18:19 UTC (auto-generated by `aq backtest`) |
+| Sharpe Ratio | -0.145 |
+| Net Profit | 3.411% |
+| Compounding Annual Return | 1.501% |
+| Drawdown | 6.600% |
+| Total Orders | 3606 |
+| Win Rate | 50% |
+| Last updated | 2026-07-29 15:00 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 <details>
@@ -476,33 +458,33 @@ and how it's wired in, this table is the index.
 <!-- AQ:BACKTEST_FULL_STATS_START -->
 | Metric | Value |
 |---|---|
-| Total Orders | 2062 |
-| Average Win | 0.07% |
-| Average Loss | -0.08% |
-| Compounding Annual Return | 0.462% |
-| Drawdown | 8.900% |
-| Expectancy | 0.019 |
+| Total Orders | 3606 |
+| Average Win | 0.04% |
+| Average Loss | -0.04% |
+| Compounding Annual Return | 1.501% |
+| Drawdown | 6.600% |
+| Expectancy | 0.064 |
 | Start Equity | 100000.00 |
-| End Equity | 101042.11 |
-| Net Profit | 1.042% |
-| Sharpe Ratio | -0.313 |
-| Sortino Ratio | -0.271 |
-| Probabilistic Sharpe Ratio | 0.795% |
-| Loss Rate | 44% |
-| Win Rate | 56% |
-| Profit-Loss Ratio | 0.83 |
-| Alpha | -0.032 |
-| Beta | 0.117 |
-| Annual Standard Deviation | 0.037 |
+| End Equity | 103410.51 |
+| Net Profit | 3.411% |
+| Sharpe Ratio | -0.145 |
+| Sortino Ratio | -0.125 |
+| Probabilistic Sharpe Ratio | 1.839% |
+| Loss Rate | 50% |
+| Win Rate | 50% |
+| Profit-Loss Ratio | 1.13 |
+| Alpha | -0.022 |
+| Beta | 0.1 |
+| Annual Standard Deviation | 0.032 |
 | Annual Variance | 0.001 |
-| Information Ratio | -1.034 |
-| Tracking Error | 0.181 |
-| Treynor Ratio | -0.099 |
-| Total Fees | $1640.83 |
-| Estimated Strategy Capacity | $12000000.00 |
+| Information Ratio | -0.979 |
+| Tracking Error | 0.184 |
+| Treynor Ratio | -0.046 |
+| Total Fees | $2769.22 |
+| Estimated Strategy Capacity | $15000000.00 |
 | Lowest Capacity Asset | BNO UN3IMQ2JU1YD |
-| Portfolio Turnover | 5.25% |
-| Drawdown Recovery | 109 |
+| Portfolio Turnover | 6.04% |
+| Drawdown Recovery | 185 |
 <!-- AQ:BACKTEST_FULL_STATS_END -->
 
 </details>
@@ -513,15 +495,22 @@ Lean's own result JSON, chart, headline table, and full stats all
 overwritten, never hand-edited, so nothing here goes stale relative to your
 last backtest.
 
-**Read these numbers with three caveats:**
+**Read these numbers with two caveats:**
 
-- **`bypass_safety_gates` is currently `true`.** This run had the sticky drawdown lock and the regime `risk_off` override disabled, to generate enough trade volume for meaningful stats (`development/Problems.md` #18), so it shows raw signal quality, *not* live/paper-deployable behavior. Set it back to `false` and re-run for the safety-gated number.
-- **The signal isn't independently significant yet.** `rank_20d`'s full-series IC is strong (multitask `0.172`/t=`7.55`), but its *non-overlapping*-window t-stat (multitask `1.40`, sequence `0.43`) hasn't cleared the project's own ≥ 2.0 bar. The positive Sharpe is real but not yet settled (`development/Problems.md` #52/#54).
-- **Retraining isn't exercised.** A bare `lean backtest .` runs the full inference stack every bar but can't reach Redis, so the "learning while trading" loop (`main.py` → Redis → Postgres → triggers → retraining) never fires. That needs the full Compose stack up, see `development/infrastructure.md`.
+- **Signal significance:** `rank_20d`'s non-overlapping t-stat now clears the
+  project's own ≥ 2.0 bar (**2.8954**), but the signal stays `not_promotable`
+  — two genuine era-sign inversions (COVID, plus a second one data-hygiene
+  fixes exposed) haven't flipped. Sequence `rank_5d`, however, is fully
+  `promotable` — the first head ever to clear every gate.
+- **The retraining loop isn't fully automatic yet.** This backtest genuinely
+  pushed real events through Redis → PostgreSQL (52,129 of them) and that
+  data trained the topology overlay for the first time — but the full
+  performance-triggers → automatic-retrain cycle within one continuous run
+  isn't exercised here.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->1902<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->1986<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -674,7 +663,7 @@ single manual pipeline stage.
 aq trade-lock --on|--off|--auto|--status
 ```
 Manually overrides `main.py`'s sticky total-drawdown trade lock (see
-`development/v2_architecture.md`'s Manual Trade-Lock Override Contract).
+`development/architecture.md`'s Manual Trade-Lock Override Contract).
 `--off` deliberately clears an otherwise-permanent lock; `--auto` returns
 to fully automatic behavior.
 
@@ -870,21 +859,8 @@ GitHub Codespaces" section for why); those stay local.
 All finished phases and changes can be found in
 [`development/Changelog.md`](development/Changelog.md), kept separate to keep this README short.
 
-### V4, 🔜 Next Up
 
-**Optimization — ✅ done (V4.11, development/Problems.md #70)**
-- The critical 1-10 review of the retrained model was delivered (rated ~6/10, up from ~4–5) and a concrete gap-to-10/10 plan produced. Headline: the primary signal (`rank_20d`) now **clears the non-overlapping t-stat ≥ 2.0 bar (2.028)** and its bootstrap CI lower bound is positive — both hard promotion gates pass for the first time. **Remaining gap (the single blocker):** era-sign instability — the signal inverts in 2 of 9 non-overlapping sub-periods. Next levers, in order: (1) stabilize those eras via regime-conditioning / stronger beta-sector neutralization; (2) keep expanding breadth (the 74→78-asset jump is exactly what pushed the t-stat 1.27→2.03); (3) feature/target refinement.
-
-**Training — ✅ done (V4.11, development/Problems.md #70)**
-- Walk-forward training (Stage 6) and the full retrain were **executed** on the GitHub Codespace (6 expanding windows; cross-window MCC mean 0.0259, 95% CI [0.0128, 0.0409]). 8 of 9 models retrained on the 78-asset universe (topology stays dormant — needs Postgres realized-outcome events). Three latent `train.py` bugs found and fixed in the process. `rank_20d`'s promotion-quality/significance numbers updated (see Optimization above).
-
-**Phase 4.12 — 🟡 mostly done, Docker items open (development/Problems.md #71)**
-- Era-sign instability decomposed into 3 real causes (crypto-only-weekend measurement artifact, statistical noise, genuine COVID inversion) and 2 of 3 fixed (data hygiene + gate noise floor); the third (COVID inversion) targeted with options-implied-vol/financial-conditions alt-data + a regime-encoding fix, but **did not flip** — reported honestly rather than force-fit. `rank_20d` t-stat improved further to 2.8954 (CI lower 0.0585), still `not_promotable`; a second real inversion was exposed by the cleanup. **Sequence `rank_5d` achieved the project's first-ever fully `promotable` head.** Universe 89→104, position caps raised, an offline RL sizing layer built and trained (honest negative result, ships disabled). Every remaining non-IB `Problems.md` item closed.
-- **Still open, Docker-gated** (Docker Desktop/WSL2 down all session): `cpp_inference_ext` in-image linkage confirmation, the topology overlay's observation-mode training run, Lean's 90-second-isolator re-measurement at 104 assets, and the two user-run Lean backtests. Exact resume commands in `development/Problems.md` #71.
-
-**V4.12.2 — ✅ done (development/Problems.md #71)**
-- Webui/CLI integration audit of Phase 4.12's features found the backend/CLI complete but several fields computed-and-persisted (some even typed on the frontend) yet never rendered. Fixed: position-sizing multiplier chips (confidence/topology/rank/RL) in `AssetSizingTable.tsx`; all 3 ranking-quality gates (not just `rank_20d`) plus a per-era diagnostic table in `NeuralNetworkStatsPanel.tsx`; a new global macro/alt-data snapshot panel. CLI re-audited, no gaps found.
-
+### V5, Later (HFT)
 
 **Tests / production readiness**
 - Real IB API key insertion and testing, the one blocker behind #29/#38's unverified items and the README's Known Limitations.
@@ -892,9 +868,7 @@ All finished phases and changes can be found in
 **Computing**
 - Beyond GitHub Codespaces (#53): Oracle Cloud Always Free + Remote-SSH as a more powerful, persistent free compute option.
 
-### V5, Later (HFT)
-
-`development/v2_architecture.md`'s own "Why This Is Not HFT, And What It
+`development/architecture.md`'s own "Why This Is Not HFT, And What It
 Would Take" analysis is the honest starting point here, not marketing
 aspiration, but a concrete six-point gap list the system's own architecture
 docs already identify (daily bars everywhere, no tick/L1-L2 data, no

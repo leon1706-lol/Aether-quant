@@ -28,7 +28,7 @@ risk engine, and before action categorization / Lean order placement.
   original deterministic thresholds, and this is a deliberate decision,
   not an oversight.** V2-17.5 added `topology/learned_topology.py`, a
   probabilistic overlay with confidence/uncertainty scoring trained from
-  experience history (see `development/v2_architecture.md`'s
+  experience history (see `development/architecture.md`'s
   "Non-Deterministic Topology & Retrain-Trigger Contract (V2-17.5)"
   section) — but its output is consumed by the retrain-trigger/retraining
   layer only, never by this module. `analyzer/market_analyzer.py` still

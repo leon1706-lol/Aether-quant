@@ -275,5 +275,5 @@ individual parity tests for `run_exported_models_batched()`/
 `run_exported_multitask_models_batched()` using both synthetic
 multi-model fixtures and the real `ml/expert_models/*` exports. See
 `development/Changelog.md`'s latency-optimization entry and
-`development/v2_architecture.md`'s per-bar hot-path table for the fuller
+`development/architecture.md`'s per-bar hot-path table for the fuller
 extraction story.

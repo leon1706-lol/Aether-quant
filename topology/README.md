@@ -108,7 +108,7 @@ The goal is to make market structure useful for analysis, not only visual.
   historical backtests and models trained/validated against the old
   always-fresh-seed behavior won't reproduce bit-for-bit. Setting
   `warm_start_enabled: false` reproduces the exact pre-warm-start behavior
-  as a redeploy-free rollback. See `development/v2_architecture.md`'s "3D
+  as a redeploy-free rollback. See `development/architecture.md`'s "3D
   Topology Contract" section and `development/Problems.md` for the full
   writeup.
 - **Correlation-stability embedding cache** (`development/Problems.md#36`,
@@ -200,7 +200,7 @@ The goal is to make market structure useful for analysis, not only visual.
   is trained offline by the root-level `train_topology.py` script from
   historical `experience_events`, and versioned through the same
   `ml/versions/<id>/` candidate pipeline V2-17 built — see
-  `development/v2_architecture.md`'s "Non-Deterministic Topology &
+  `development/architecture.md`'s "Non-Deterministic Topology &
   Retrain-Trigger Contract (V2-17.5)" section for the full design.
 - `main.py` loads the model gracefully (missing file ⇒ `None`, never a
   hard failure) and never lets these new fields influence

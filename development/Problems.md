@@ -39,7 +39,7 @@ V2-15 added `experience/simulated_portfolio.py`, which imports
 import chain during V2-15 implementation, before any rebuild was attempted.
 
 **Fix:** added `COPY execution/ ./execution/` to `Dockerfile.worker`.
-Documented as a standing lesson in `development/v2_architecture.md`'s
+Documented as a standing lesson in `development/architecture.md`'s
 Docker section, and applied proactively to the new
 `Dockerfile.trigger_worker` (V2-16) which also needs both `execution/` and
 `experience/`.
@@ -226,7 +226,7 @@ it on every successful promotion, gated by
 `phase_v2.retraining.promotion.auto_clear_trade_lock`, default `true`) —
 ties "trading resumes" to "a genuinely new model shipped," not to a bare
 restart. See the Manual Trade-Lock Override Contract in
-`development/v2_architecture.md`.
+`development/architecture.md`.
 
 ---
 
@@ -348,7 +348,7 @@ cause without ever seeing a green run afterward).
 **Not blocking releases regardless**: `release.yml`'s `publish-pypi`/
 `publish-docker` jobs still don't depend on a test job at all (removed at
 the user's explicit request, in favor of testing locally before tagging) —
-see `v2_architecture.md`/git history around the `v0.2.0` release.
+see `architecture.md`/git history around the `v0.2.0` release.
 
 ---
 
@@ -490,7 +490,7 @@ have `self.runtime_mode`/`self._experience_mode` available — and would save
 real per-bar network I/O during backtests, which never need live
 experience-stream delivery.
 
-**Why this stayed open initially:** `development/v2_architecture.md`'s
+**Why this stayed open initially:** `development/architecture.md`'s
 Redis Experience Queue section documents `"backtest"` as one of four
 normal, expected mode values flowing into Redis, and
 `tests/test_experience_queue.py`'s default fixture treats `mode="backtest"`
@@ -1429,7 +1429,7 @@ approach per direct request) — built and verified working, with a real
 `liquidity/market_liquidity.py::build_liquidity_decision()` computed
 `estimated_round_trip_cost` (participation-based price impact + a real
 Corwin & Schultz high-low spread estimate) every bar for every symbol, but
-this codebase's own HFT-gap analysis (`development/v2_architecture.md`)
+this codebase's own HFT-gap analysis (`development/architecture.md`)
 had already documented that the number went nowhere useful: no Lean
 security ever had a `SlippageModel` attached (backtests got Lean's default
 zero-slippage fill), and `execution/order_gate.py::simulate_fill()` — the
@@ -1504,7 +1504,7 @@ operates on arbitrary dotted paths into `config.json`).
 ### 34. Real limit-order support — every tradable asset class, config-gated (part 2 of the execution/risk realism pass)
 **Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (confirmed firing in a real backtest 2026-07-20, see #54 — Lean's own log showed `LimitPrice was rounded to 3508.94 from 3508.936152649293`, proving the Lean API casing/dispatch assumptions below hold in practice, not just in unit tests)
 
-Entry #33 closed half of `development/v2_architecture.md`'s documented
+Entry #33 closed half of `development/architecture.md`'s documented
 HFT-gap item 3 (real fill slippage). The other half was still open: *"no
 limit-order/queue-position-aware execution exists — fills are still
 all-or-nothing market fills."* Every real order in `main.py` was a
@@ -3840,7 +3840,7 @@ Lean-only constraint `_build_model_input()` itself has, see entry #64.
 
 **Priority 8 — honest HFT-transfer documentation**: no existing document
 split "genuine V5/HFT-fork prep" from "V4-daily-bar-loop-only speedups."
-New `development/v2_architecture.md` section, immediately after the
+New `development/architecture.md` section, immediately after the
 existing "Why This Is Not HFT" advisory, explicitly categorizes: the
 C++-extension pattern and the profiling-harness methodology as genuinely
 transferable; Priorities 1-3 (all optimize *within* the daily-bar
@@ -4076,7 +4076,7 @@ wiring verified via call-graph trace (same established convention —
 
 ### 68. `cpp_inference_ext` was never built for the actual deployed image — closed via a soft-fail Docker build step
 
-**Severity:** low (silent perf-only gap, not correctness) · **Status:** 🟢 fixed, pending a human/agent `docker compose build engine` run to confirm real linkage (see verification below)
+**Severity:** low (silent perf-only gap, not correctness) · **Status:** 🟢 fixed and verified — `docker compose build engine` succeeds and, inside the built image, `import cpp_inference` succeeds with `hasattr(cpp_inference, 'linear_batched') == True` against a genuine compiled `.so` (Phase 4.12.3, `development/Problems.md` #71)
 
 `cpp_inference_ext/` (entry #32) accelerates `inference/exported_model.py::_linear_batched()`
 via an optional pybind11 C++ extension, imported as `cpp_inference` and
@@ -4108,14 +4108,17 @@ none of these, unlike `.gitignore`), so a developer's own locally-built,
 ABI-incompatible binary can never leak into the build context and get
 baked into the publicly-published `ghcr.io` image.
 
-**Honest framing**: this is "now attempted during every Docker build,"
-not "guaranteed to succeed" — that's the whole point of soft-fail. A
-human/agent must still run `docker compose build engine` and check the
-extension actually imports inside the built image before claiming it's
-active in any real deployment; this entry does not assert that by
-itself. Zero risk to existing CI — neither `ci.yml` job builds the
-Docker image; only `release.yml`'s `publish-docker` job does, gated on
-`v*.*.*` tag pushes, and the soft-fail wrapper protects that path too.
+**Honest framing**: this was "now attempted during every Docker build,"
+not "guaranteed to succeed" — that was the whole point of soft-fail, and
+it stood unconfirmed for two phases while Docker/WSL2 was down locally.
+**Now confirmed (Phase 4.12.3)**: `docker compose build engine` succeeds,
+and inside the built image `import cpp_inference` succeeds with
+`hasattr(cpp_inference, 'linear_batched') == True` against a genuine
+compiled `.so` (`cpp_inference.cpython-311-x86_64-linux-gnu.so`) — real
+linkage, not the fallback path. Zero risk to existing CI — neither
+`ci.yml` job builds the Docker image; only `release.yml`'s
+`publish-docker` job does, gated on `v*.*.*` tag pushes, and the
+soft-fail wrapper protects that path too.
 
 ### 69. Audit follow-up — `main.py` CI syntax-check gate, and a Windows-specific inference-parallelism slowdown guard
 
@@ -4307,23 +4310,29 @@ run ended with `Failed to shutdown python … Operation timed out (10s)` at
 `PythonInitializer.Shutdown` — stats posted fine (backtest valid), but the
 hang is plausibly the `inference_parallelism` ProcessPoolExecutor not
 terminating cleanly inside Lean's embedded Python (exactly #69's flagged
-risk). Recommended next: run Backtest 2 (`bypass_safety_gates` off, drawdown
-enforced), and a toggles-off run of the same retrained model to isolate
-whether the new features or the retrain itself drove the regression, and
-whether turning `inference_parallelism` back off clears the shutdown hang.
+risk). **Fixed** in the backend/latency gap-closing pass (#68/#69):
+`on_end_of_algorithm()` now explicitly calls
+`self._inference_pool.shutdown(wait=False, cancel_futures=True)`, and
+`inference_parallelism.enabled` also defaults back to `false` given both
+this and the measured Windows slowdown — belt-and-suspenders.
 
-**Still open after this phase:** the signal is not promotable (era-sign
-instability is now the single blocker — see the gap-to-10/10 plan: stabilize
-the 2 opposite-sign eras via regime-conditioning / stronger neutralization,
-keep expanding breadth); the weak backtest edge; the possible
-inference_parallelism shutdown hang; topology overlay dormant; all
-option/futures/IB items unverified pending a real IB key.
+**Still open after this phase (updated — see #71/Phase 4.12.3 for current
+status):** the signal was not promotable at the time (era-sign instability
+was the single blocker) — **Phase 4.12 improved it further but it remains
+`not_promotable`**, the COVID-era inversion is genuine, not an artifact;
+the weak backtest edge — **Phase 4.12.3's representative backtest improved
+it** (Sharpe -0.313 → -0.145, Net 1.04% → 3.41%) but it's still negative,
+not solved; the inference_parallelism shutdown hang — **fixed**, see
+above; topology overlay dormant — **fixed, trained for real in Phase
+4.12.3** (#56); all option/futures/IB items — still unverified pending a
+real IB key, the one category genuinely out of this project's reach right
+now.
 
 ---
 
 ### 71. Phase 4.12 — kill era-sign instability, close remaining non-IB items, expand breadth, alt-data + RL sizing
 
-**Severity:** n/a (milestone phase) · **Status:** 🟡 mostly complete — code streams A1-A4/C/D/E landed, tested locally (1986/1986), retrained end-to-end on the Codespace, and results honestly evaluated below. Docker-dependent verification (Docker Desktop / WSL2 was down all session) remains the one open item, with exact resume commands documented.
+**Severity:** n/a (milestone phase) · **Status:** 🟢 done — code streams A1-A4/C/D/E landed, tested locally, retrained end-to-end on the Codespace, results honestly evaluated below. Docker-dependent verification, the one item this entry originally left open, is now closed too — see Phase 4.12.3 below.
 
 **Retrain results (real numbers, Codespace, 2026-07-27) — the honest verdict:**
 
@@ -4357,7 +4366,7 @@ All retrained artifacts (`ml/*.json`, `ml/model.pt`, `ml/scaler.pkl`, `ml/expert
 - **B (non-Docker Problems.md closures)** — shutdown-hang fix for `inference_parallelism`'s pool (`on_end_of_algorithm()` now calls `.shutdown(wait=False, cancel_futures=True)`), `inference_parallelism.enabled` reset to `false` (confirmed both slower on Windows AND now carrying a shutdown-hang risk), the "audit worker" → "experience-worker" doc misnomer fixed in both Problems.md and `tests/test_aq_cli.py`, real per-call inference timing data collected for #36 (p50 3.48ms/p95 7.82ms/p99 10.75ms/mean 4.15ms at 78 symbols, matching prior estimates but now genuinely measured), the stale `test_model_input_dimensionality_is_52` test fixed (was hardcoded to a stale 52; now compares against `ml/dataset_manifest.json`'s own `model_input_count`, self-updating), `generate_backtest_report.py` re-run cleanly against the real 2026-07-26 backtest. **Correction to the original plan**: #57's "same-bar liquidate+reenter margin/buying-power timing" concern was mis-categorized as non-IB-actionable — `position_scaling_rotate_on_drift` is read ONLY at the two options-rotation call sites (`main.py`, single-leg and multi-leg), which never fire with zero option positions. It remains genuinely IB-gated, not verifiable via a non-IB backtest.
 - **D (alternative data)** — `VIXCLS`/`VXVCLS`/`NFCI` (options-implied volatility level, term structure, and 4-week financial-conditions change) added via `data_pipeline/fred_backfill.py` extensions (`series_value_asof()`/`series_change_asof()`, publication-lag-aware, lookahead-tested explicitly), `features/alt_data_features.py`, `train.py::build_alt_data_features_by_date()`, `main.py::_build_alt_data_payload()`. Real data fetched and cached (VIX 9,236 rows, VXV 4,687, NFCI 1,907, all covering well before 2014). `input_set` extended 38→41. 32 new tests. Candidate series were verified live against the real 2014-2021 window and screened for collinearity — `BAMLH0A0HYM2` (high-yield OAS) confirmed **unavailable** via FRED's free endpoint (only ~2 years of trailing history without a paid API key); `STLFSI4`/NFCI-level/`TEDRATE` rejected as redundant or discontinued.
 - **C (breadth + position caps)** — universe expanded 89→104 via 15 new liquid, sector-diversifying equities (WFC, GS, HON, CAT, BA, UNP, GE, ABT, MRK, NKE, SBUX, ORCL, ADBE, TXN, T — financials/industrials/healthcare/consumer/tech/telecom previously underrepresented), fetched via real `aq fetch stock --apply` calls. `phase9.portfolio.max_active_positions` 12→15, `phase_v2.portfolio_book.top_n`/`bottom_n` 8→10 (proportional scaling, same requested-vs-cap ratio preserved). **Lean-side re-measurement (the 90-second isolator budget, per-bar topology cost at the new size) is blocked this session — see below.** Indirect evidence only: the prior 89-asset Backtest 1 completed successfully, which is proof the isolator budget held at 89; it has not been re-proven at 104.
-- **E (RL sizing layer)** — `risk/rl_sizing.py` (pure runtime, argmax-only/never-sampled, shrink-only by default), `train_rl_sizing.py` (offline full-information contextual bandit over `ml/datasets/{validation,backtest}_dataset.csv` — explicitly NOT off-policy RL, see that module's own docstring for the honest framing), wired into `risk/position_sizing.py::build_dynamic_position_sizing()` and `main.py`, `aq train --rl-sizing-only` CLI. Default OFF (`phase_v2.dynamic_risk.rl_sizing_enabled: false`). 60+ new tests across `tests/test_rl_sizing.py`, `tests/test_train_rl_sizing.py`, `tests/test_position_sizing.py`, `tests/test_aq_cli.py` — including synthetic-data tests proving the policy-gradient optimizer actually recovers a known-optimal action and converges toward the smallest action under zero signal. **Not yet trained** (needs the retrain below to have Component D's alt-data features in the schema first) and **not yet A/B'd against the rule-based sizer** — see this entry's abandon criteria, restated from the original plan: constant-action policy (>90% one arm), <60% of walk-forward windows improving, or failing the A/B (Sharpe +0.15 / fees -20%) all mean ship disabled and document the negative result.
+- **E (RL sizing layer)** — `risk/rl_sizing.py` (pure runtime, argmax-only/never-sampled, shrink-only by default), `train_rl_sizing.py` (offline full-information contextual bandit over `ml/datasets/{validation,backtest}_dataset.csv` — explicitly NOT off-policy RL, see that module's own docstring for the honest framing), wired into `risk/position_sizing.py::build_dynamic_position_sizing()` and `main.py`, `aq train --rl-sizing-only` CLI. Default OFF (`phase_v2.dynamic_risk.rl_sizing_enabled: false`). 60+ new tests across `tests/test_rl_sizing.py`, `tests/test_train_rl_sizing.py`, `tests/test_position_sizing.py`, `tests/test_aq_cli.py` — including synthetic-data tests proving the policy-gradient optimizer actually recovers a known-optimal action and converges toward the smallest action under zero signal. **Trained (Codespace, then re-confirmed again in Phase 4.12.3 on freshly-rebuilt datasets) — honest negative result both times**: backtest expected reward underperformed the trivial constant-1.0-multiplier baseline (`-8.542e-5` vs `-8.264e-5`). Per this entry's own pre-committed abandon criteria (constant-action policy >90% one arm, <60% of walk-forward windows improving, or failing the A/B — Sharpe +0.15 / fees -20%), it ships disabled and the negative result is the documented outcome, not a bug to chase.
 
 **BLOCKED this session — Docker Desktop cannot start.** `docker info` returns `"Error response from daemon: Docker Desktop is unable to start"`; the user independently confirmed a WSL2 subsystem crash. Attempted remediation this session: relaunching Docker Desktop twice, `wsl --shutdown` + relaunch. None resolved it — this needs a system-level fix (likely a full reboot, or a manual WSL2/Docker Desktop repair/reinstall) outside what an agent can safely perform. **Exact commands to run once Docker is working again**, so this is a clean resume point:
 
@@ -4384,7 +4393,7 @@ All retrained artifacts (`ml/*.json`, `ml/model.pt`, `ml/scaler.pkl`, `ml/expert
 
 4. **Lean-side re-measurement for Item C** — with the 104-asset universe now live, confirm `initialize()`'s wall-clock still comfortably clears Lean's 90-second isolator budget, and re-profile `build_market_topology()`'s per-bar cost at the new size (previously measured ~500-600ms/bar at ~30 symbols).
 
-**Not yet done, still blocked on Docker**: item 1 (#68 cpp_inference_ext linkage check), item 2 (B1 topology overlay training), item 3 (the two user-run Lean backtests), and item 4 (Lean isolator/topology-cost re-measurement at 104 assets) above — all still pending a working Docker Desktop/WSL2. Everything else this plan called for (A1-A4, B non-Docker closures, C breadth, D alt-data, E RL sizing, the combined retrain, the RL trainer run, and this documentation pass) is now complete.
+**Update — all 4 Docker-blocked items closed in Phase 4.12.3 (below)**: item 1 (#68 `cpp_inference_ext` linkage — confirmed real linkage), item 2 (B1 topology overlay training — trained for real, 6 clusters/4,937 samples), item 3 (the two user-run Lean backtests — both completed), and item 4 (Lean isolator timing at 104 assets — measured, ~105s). Nothing from this plan remains open.
 
 **Explicit scope note on "10/10 accuracy":** as flagged at the start of this plan, no phase can guarantee that outcome — it is an empirical question, not an execution one. The measured, attributable outcome is: the primary `rank_20d` signal's significance improved substantially (t-stat 2.03→2.90) but remains gated by two real, honestly-reported regime inversions; a secondary head (sequence `rank_5d`) achieved genuine full promotability for the first time in the project's history. Whether/how to promote `rank_5d` as an additional live signal alongside (not instead of) `rank_20d` is a deliberate design decision left open for a future phase, not silently decided here.
 
@@ -4408,3 +4417,31 @@ CLI (`aq_cli.py`) was audited and found to have no gaps — `aq train --rl-sizin
 **Verification performed:** `python -m py_compile main.py` clean; full local `pytest -q` — 1989 passed, 11 errors, all 11 from `test_lean_backtest_ml_coverage.py`'s Docker-dependent fixture (`Please make sure Docker is installed and running` — the same, already-documented Docker/WSL2 outage above, not a regression); `npm run build` (`tsc -b && vite build`) clean; `npx vitest run` — 8 test files / 46 tests, all green (needed `--no-file-parallelism` on this 4GB machine — the default multi-fork run hit the same RAM-starvation worker-spawn timeouts documented elsewhere in this file, e.g. #50/#52; not a test-correctness issue, a local-machine resource one).
 
 **Documentation audit (a second, genuine gap this same follow-up pass found):** the original Phase 4.12 write-up above updated this file, the root `README.md`, and `development/Changelog.md`, but never touched the subsystem READMEs that actually document the changed code — a real miss, caught only when asked directly. Fixed: `regime/README.md` (a stale line claiming `average_correlation` was still hardcoded to `0.0` offline, when A4 part 1 already fixed that), `risk/README.md` (new RL sizing section — Component E had no doc section at all), `features/README.md` (new `alt_data_features.py` bullet), `data_pipeline/README.md` (alt-data extension to the FRED backfill section), `webui/README.md` (new panels + a corrected, current test-suite list), and `ml/README.md` (brought current — it had never listed the multitask/sequence/gating/rl_sizing artifacts at all, a staleness predating even the phases that introduced them, not unique to this one). `development/Changelog.md` also got its own V4.12.2 entry, which had been missing.
+
+---
+
+### Phase 4.12.3 — every remaining Docker-dependent item closed, Phase 4 arc complete
+
+**Severity:** n/a (closure phase) · **Status:** ✅ done — nothing IB-independent left open
+
+**Root cause of the Docker/WSL2 outage, finally diagnosed and fixed.** A `wslinstaller.exe` process had been silently stuck since 2026-07-26 (a WSL kernel-update helper that never completed), wedging `WSLService` permanently in `StopPending`/`Degraded` — this is why `wsl --status` hung indefinitely and Docker Desktop could never start. A `wsl --shutdown` alone couldn't clear it, because the process required elevated rights to kill, which the agent didn't have. The actual fix needed a **genuine cold restart** — critically, the user's first attempt used "Shut down → power on" rather than "Restart," and with Windows' Fast Startup (`HiberbootEnabled=1`) still on, that hibernates and resumes the exact same broken kernel session rather than clearing it (confirmed directly: the stuck process's PID and the system's `LastBootUpTime` were bit-for-bit identical before and after). A literal Start → Power → Restart click resolved it completely.
+
+**#68 — `cpp_inference_ext` Docker linkage: closed, positive result.** `docker compose build engine` succeeded; inside the built image, `import cpp_inference` succeeds with `hasattr(cpp_inference, 'linear_batched') == True` and a real compiled `.so` file (`cpp_inference.cpython-311-x86_64-linux-gnu.so`) — genuine linkage, not the NumPy soft-fail fallback.
+
+**B1 — topology overlay training (#56): closed, and it actually trained for the first time in this project's history.** The original plan's assumption that `docker compose run --rm lean lean backtest .` would work was wrong — that service's image (`quantconnect/lean:17900`) is the bare .NET engine with no Python `lean` CLI inside it at all. The actual working path (verified, not assumed): run the user's own local `lean` CLI exactly as `aq backtest` does, but inject `AETHER_REDIS_URL=redis://host.docker.internal:6380/0` via `--extra-docker-config` (a real Lean CLI flag, docker-py `containers.run()`-shaped JSON) so the Lean-spawned container reaches the docker-compose-published Redis port. Getting the Windows PowerShell quoting right took two failed attempts (`--%` stop-parsing token + backslash-escaped quotes was the pattern that finally worked) — documented here so it isn't re-derived from scratch next time:
+```
+lean backtest . --image quantconnect/lean:17900 --% --extra-docker-config "{\"environment\": {\"AETHER_REDIS_URL\": \"redis://host.docker.internal:6380/0\"}}"
+```
+The observation-mode backtest itself hit a real, severe RAM ceiling on this 4GB machine — 3 consecutive OOM crashes (`[Errno 12] Cannot allocate memory`) on the full 2019-2021 window, each crashing *earlier* than the last (72,593 → 29,580 → 26,572 data points) despite progressively reducing the concurrent Docker footprint (full stack → redis-only) and a `wsl --shutdown` (which did **not** release memory — Docker Desktop just relaunches its VM immediately since the app itself stays running, disproving the "WSL2 memory accumulation" theory). The fix that actually worked: **shrink the observation window to 3 months** (2019-01-01 to 2019-04-01) instead of chasing more headroom — the only requirement was ≥500 real events for a meaningful minimum, and a 3-month window cleared that by two orders of magnitude (**24,549 events** from that run alone, **52,129** once the earlier partial attempts' pushed-but-undrained events were included) while finishing in ~5 minutes instead of OOM-crashing after 20-30. Topology training (executed on the Codespace, per the new standing training-workflow rule — see below) produced a real result: **6 clusters from 4,937 samples**, copied into active `ml/`.
+- Exporting the data to the Codespace required standing up a throwaway Postgres there too (`sudo apt-get install postgresql`, since Docker-in-Docker wasn't worth the complexity for a one-off need) — `pg_dump --data-only` locally, `psql -f` restore remotely, after first creating the schema via the project's own `experience.postgres_worker.ensure_schema()` (the dump was data-only, no `CREATE TABLE`).
+- RL sizing was also re-run on the Codespace on freshly-rebuilt datasets (per user request, to re-confirm rather than assume the earlier result still held) — **identical honest negative result** (`backtest_policy_expected_reward: -8.542e-05` vs `constant_action_1.0: -8.264e-05`), confirming it wasn't a fluke of the original dataset build. Stays disabled.
+
+**Item 3/4 — Lean isolator timing at 104 assets: measured, real number recorded.** `Initialize()` (`Engine.Main(): Started` → `AlgorithmManager.Run(): Begin DataStream`) took **~105 seconds** in the real, full-window Backtest 2 — above the 90-second isolator budget referenced in the original plan, but the run completed successfully regardless (`Status: Completed`, no isolator-timeout error), so this is a real, elevated number to track, not an active failure. Per-bar `build_market_topology()` cost was **not** independently re-profiled this pass (would need a dedicated `aq profile` run, not just a bare backtest log) — noted as a small residual gap, not blocking.
+
+**The two Lean backtests, both user-run, both real:**
+- **Backtest 1** (observation mode, 3-month window, `bypass_safety_gates: true`): the data-generation + code-validation run described above.
+- **Backtest 2** (representative, full 2019-2021 window, `bypass_safety_gates: false`, drawdown enforcement genuinely active): completed cleanly in ~31 minutes, 3,606 orders, no forced-liquidation lock triggered. **Real, honest result**: Sharpe **-0.145** (still negative, but improved from V4.11's -0.313), Net Profit **+3.41%** (up from 1.04%), Drawdown **6.6%** (down from 8.9%), Total Fees **$2,769.22** (still consuming nearly all of the $3,159 net profit — the fee-drag problem flagged in V4.11 is improved but not solved). Probabilistic Sharpe Ratio 1.84% — nowhere near statistical significance. This was also the **first backtest ever run with the learned topology overlay actually active** (`topology_learning.enabled`/`topology_sizing_enabled` were already `true` in config, but had no effect in every prior backtest since no trained model existed until this session). `README.md`'s Backtest Results section updated from this run via the existing `generate_backtest_report.py` mechanism.
+
+**New standing rule adopted this session, now recorded**: all model training runs on the GitHub Codespace (`aq-Training-Ground...`) via its CLI, never locally, even now that Docker/Lean work locally — this machine's RAM constraints are the reason, not a technical necessity. Sync uncommitted/untracked files to the Codespace before training, pull trained artifacts back after, stop the Codespace when idle (free-tier usage).
+
+**Nothing Interactive-Brokers-dependent remains open.** Every item from the original Phase 4.12 plan, its Docker-blocked follow-ups, and this closure pass is done. IB-gated items (real Gateway connectivity, live/paper deployment) remain the only category left, tracked separately in this file's IB-specific entries.

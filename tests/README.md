@@ -1,8 +1,9 @@
 # tests
 
-Pytest suite for every non-`webui` module. 939 tests as of the 5/10 -> 9/10
-frontier-readiness roadmap (`aq test` keeps the count badge in the root
-`README.md` in sync automatically — see `aq_cli.py::cmd_test`).
+Pytest suite for every non-`webui` module. The current count lives in the
+root `README.md`'s badge (`aq test` keeps it in sync automatically — see
+`aq_cli.py::cmd_test`), not hardcoded here since it changes too often to
+keep two copies aligned.
 
 Conventions (established since the first V2 test files and followed
 throughout): one test file per source module (`tests/test_<module>.py`),

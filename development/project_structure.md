@@ -12,8 +12,8 @@ description and a link to each package's own README, is in the root README's
 aether-quant/
 ├── .github/                     # CI workflows (tests, webui build, release)
 ├── development/                 # Architecture docs, changelog, problems log, backtest chart
-├── data/                        # Local Lean data folder (equities, crypto)
-├── data_pipeline/                # Lean-data contract + Yahoo Finance historical backfill
+├── data/                        # Local Lean data folder (equities, crypto, bonds, Forex)
+├── data_pipeline/                # Lean-data contract + Yahoo Finance / FRED (bond + alt-data) / IB historical backfill
 ├── analyzer/                    # Central market analyzer (final per-asset decision layer)
 ├── moe/                         # Mixture-of-Experts gating network
 ├── experts/                     # Bullish / bearish / sideways / volatility expert models
@@ -46,7 +46,8 @@ aether-quant/
 ├── train_topology.py            # Offline trainer for the learned topology overlay
 ├── train_gating.py              # Offline trainer for the learned gating blend
 ├── train_multitask.py           # Offline trainer for the joint direction+magnitude+volatility model
-├── train_sequence.py            # Offline trainer for the Phase 2 causal-TCN sequence encoder
+├── train_sequence.py            # Offline trainer for the causal-TCN sequence encoder
+├── train_rl_sizing.py           # Offline trainer for the RL sizing overlay (contextual bandit, default off)
 ├── generate_backtest_report.py  # Regenerates the README's Backtest Results section
 ├── aq_cli.py                    # `aq` convenience CLI
 ├── config.json                  # Runtime configuration (phase1 / phase_v2 blocks)

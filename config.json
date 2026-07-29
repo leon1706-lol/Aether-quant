@@ -1758,7 +1758,7 @@
             "allow_live_orders": false
         },
         "backtest": {
-            "bypass_safety_gates": true
+            "bypass_safety_gates": false
         },
         "paper_trading": {
             "brokerage": "lean_paper_brokerage",

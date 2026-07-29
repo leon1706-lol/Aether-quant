@@ -3,12 +3,11 @@
 Development-process documentation for Aether Quant, kept separate from the
 root `README.md` so that file stays short and scannable.
 
-- `v2_architecture.md` — the V2 system architecture: process-flow and
+- `architecture.md` — the V2 system architecture: process-flow and
   tech-stack Mermaid diagrams, the module map, per-phase "contract"
   sections (one per shipped phase — regime, liquidity, observation mode,
   performance triggers, controlled retraining, ...) describing what each
-  module owns and how it's wired together, the Docker port layout, and the
-  full V2 build-order checklist.
+  module owns and how it's wired together and the Docker port layout
 - `infrastructure.md` — Docker Compose runbook: exact start commands for
   every service (`redis`, `postgres`, `experience-worker`,
   `performance-trigger-worker`, `retraining-worker`, the `lean` profile;
