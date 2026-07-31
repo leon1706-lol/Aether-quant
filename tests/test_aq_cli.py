@@ -2042,3 +2042,227 @@ def test_audit_log_connection_failure_returns_error(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "connection refused" in captured.err
+
+
+# --- `aq evaluate` (V5.1 Phase 0) ---
+
+
+def _evaluate_config(net_performance=True, presets=None):
+    config = {
+        "phase1": {
+            "target": {"ranking": {"min_universe_size": 2}},
+            "features": {},
+        },
+        "phase_v2": {"costs": {"enabled": False}},
+    }
+    if net_performance:
+        config["phase1"]["target"]["ranking"]["net_performance"] = {
+            "enabled": True, "top_n": 1, "bottom_n": 1, "rebalance_every_bars": 1,
+            "cost_bps_per_side": 0.0, "commission_bps": 0.0, "gross_exposure": 1.0,
+            "dollar_neutral": True, "sector_neutral": False, "hysteresis_rank_margin": 0.0,
+            "max_weight_per_name": 0.5, "capacity_participation_cap": 0.01,
+            "stress_cost_multipliers": [1.0, 2.0], "capacity_top_n_sweep": [1],
+        }
+    if presets is not None:
+        config["phase_v2"]["presets"] = presets
+    return config
+
+
+def _write_tiny_multitask_artifacts(ml_dir, feature_names=("f1", "f2")):
+    """A minimal real sequence-model export (conv1d_causal trunk - the only
+    trunk layer type inference/exported_model.py::run_exported_sequence_multitask_model()
+    supports, see tests/test_exported_model.py::_synthetic_sequence_model_export()
+    for the same fixture shape) - `aq evaluate --model sequence` is the CLI
+    default, so this is what most of these end-to-end tests exercise."""
+    ml_dir.mkdir(parents=True, exist_ok=True)
+    model_export = {
+        "export": {
+            "trunk": [
+                {"type": "conv1d_causal", "weight_key": "conv.weight", "bias_key": "conv.bias", "dilation": 1},
+                {"type": "relu"},
+            ],
+            "heads": {
+                "rank_20d": [
+                    {"type": "linear", "weight_key": "head_rank_20d.weight", "bias_key": "head_rank_20d.bias"},
+                ],
+            },
+            "state_dict": {
+                "conv.weight": [[[0.5, -0.5], [0.2, 0.1]]],
+                "conv.bias": [0.05],
+                "head_rank_20d.weight": [[0.3]],
+                "head_rank_20d.bias": [0.4],
+            },
+        }
+    }
+    (ml_dir / "sequence_model.json").write_text(json.dumps(model_export), encoding="utf-8")
+    (ml_dir / "sequence_feature_schema.json").write_text(
+        json.dumps({"model_input_names": list(feature_names), "window_size": 2}), encoding="utf-8"
+    )
+
+
+def _write_tiny_dataset(ml_dir, feature_names=("f1", "f2"), num_tickers=6, num_days=10):
+    import numpy as np
+    import pandas as pd
+
+    (ml_dir / "datasets").mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(0)
+    dates = pd.bdate_range("2020-01-01", periods=num_days)
+    rows = []
+    for date in dates:
+        for i in range(num_tickers):
+            row = {
+                "date": date.strftime("%Y-%m-%d"),
+                "ticker": f"T{i}",
+                "split": "backtest",
+                "target_return_1d": float(rng.normal(0, 0.01)),
+                "liquidity_log_dollar_volume": 15.0 + i,
+            }
+            for name in feature_names:
+                row[name] = float(rng.normal())
+            rows.append(row)
+    pd.DataFrame(rows).to_csv(ml_dir / "datasets" / "full_dataset.csv", index=False)
+
+
+def test_evaluate_errors_when_net_performance_not_configured(tmp_path, capsys, monkeypatch):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config(net_performance=False)), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--rank-book"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "net_performance is not configured" in captured.err
+
+
+def test_evaluate_errors_when_dataset_missing(tmp_path, capsys, monkeypatch):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", tmp_path / "ml")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--rank-book"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "full_dataset.csv" in captured.err
+    assert "aq train --dataset-only" in captured.err
+
+
+def test_evaluate_errors_on_unknown_preset(tmp_path, capsys, monkeypatch):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(_evaluate_config(presets={"active": "moderate", "moderate": {}})), encoding="utf-8"
+    )
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--rank-book", "--preset", "does-not-exist"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "unknown preset" in captured.err
+    assert "moderate" in captured.err
+
+
+def test_evaluate_rank_book_end_to_end_writes_report_and_prints_json(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--rank-book", "--model", "sequence", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert "rank_book" in payload
+    assert "net_sharpe" in payload["rank_book"]
+
+    written = json.loads((ml_dir / "evaluation" / "rank_book_simulation.json").read_text(encoding="utf-8"))
+    assert written == payload["rank_book"]
+
+
+def test_evaluate_bare_invocation_defaults_to_rank_book(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Rank book" in captured.out
+
+
+def test_evaluate_all_flag_runs_every_report(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--all", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert set(payload) == {"rank_book", "capacity", "stress", "calibrated_edge_bps_per_rank_unit"}
+    assert (ml_dir / "evaluation" / "capacity_report.json").exists()
+    assert (ml_dir / "evaluation" / "cost_stress_report.json").exists()
+
+
+def test_evaluate_preset_overlay_never_writes_config_json(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)
+
+    preset = {"phase1.target.ranking.net_performance.top_n": 2}
+    config_path = tmp_path / "config.json"
+    original_text = json.dumps(_evaluate_config(presets={"active": "aggressive", "aggressive": preset}))
+    config_path.write_text(original_text, encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--rank-book", "--preset", "aggressive", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    # config.json on disk is byte-for-byte untouched - --preset is an
+    # in-memory overlay only, never a write.
+    assert config_path.read_text(encoding="utf-8") == original_text
+
+
+def test_apply_preset_in_memory_leaves_the_original_config_dict_untouched():
+    original = _evaluate_config()
+    preset = {"phase1.target.ranking.net_performance.top_n": 99}
+
+    overlaid = aq_cli._apply_preset_in_memory(original, preset)
+
+    assert original["phase1"]["target"]["ranking"]["net_performance"]["top_n"] == 1
+    assert overlaid["phase1"]["target"]["ranking"]["net_performance"]["top_n"] == 99

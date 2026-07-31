@@ -191,6 +191,11 @@ def test_build_rank_based_book_allocation_to_dict_shape():
         "book_role_multiplier": 1.0,
         "predicted_rank_20d": 0.9,
         "book_reason": "rank_based_book_long",
+        # V5.1 Phase 0/1: rank_head/target_weight, both defaulted so every
+        # pre-V5.1 construction/consumer is unaffected - see
+        # BookAllocation's own docstring.
+        "rank_head": "blend",
+        "target_weight": None,
     }
 
 
@@ -427,3 +432,95 @@ def test_rebalance_schedule_holds_positions_between_rebalances_synthetic():
     # Concretely a 5x reduction in book-formation events, the direct driver
     # of the order-count drop this stage targets.
     assert naive_rebuild_count / scheduled_rebuild_count == rebalance_every_bars
+
+
+# --- hysteresis (V5.1 Phase 0/1, development/Problems.md - item 6) ---
+
+
+def _eight_name_pool() -> dict:
+    return {
+        "A": _candidate(0.95), "B": _candidate(0.85), "C": _candidate(0.75), "D": _candidate(0.60),
+        "E": _candidate(0.40), "F": _candidate(0.25), "G": _candidate(0.15), "H": _candidate(0.05),
+    }
+
+
+def test_default_hysteresis_params_reproduce_selection_byte_identical():
+    pool = _eight_name_pool()
+    baseline = build_rank_based_book(pool, top_n=2, bottom_n=2)
+    with_defaults = build_rank_based_book(
+        pool, top_n=2, bottom_n=2, previous_allocations=None, hysteresis_rank_margin=0.0
+    )
+    assert baseline.keys() == with_defaults.keys()
+    for symbol in baseline:
+        assert baseline[symbol] == with_defaults[symbol]
+
+
+def test_hysteresis_retains_an_incumbent_that_slipped_within_the_margin():
+    pool = _eight_name_pool()
+    previous = build_rank_based_book(pool, top_n=2, bottom_n=2)  # A, B long; G, H short
+
+    # B's rank drops from 0.85 to just below C (0.75) - close enough that a
+    # 0.10 margin should keep it.
+    drifted_pool = dict(pool)
+    drifted_pool["B"] = _candidate(0.70)
+
+    without_hysteresis = build_rank_based_book(drifted_pool, top_n=2, bottom_n=2)
+    with_hysteresis = build_rank_based_book(
+        drifted_pool, top_n=2, bottom_n=2, previous_allocations=previous, hysteresis_rank_margin=0.10
+    )
+
+    assert {s for s, a in without_hysteresis.items() if a.role == "long"} == {"A", "C"}
+    assert {s for s, a in with_hysteresis.items() if a.role == "long"} == {"A", "B"}
+
+
+def test_hysteresis_drops_an_incumbent_that_falls_outside_the_margin():
+    pool = _eight_name_pool()
+    previous = build_rank_based_book(pool, top_n=2, bottom_n=2)
+
+    # B collapses far below the natural cutoff - no margin should save it.
+    drifted_pool = dict(pool)
+    drifted_pool["B"] = _candidate(0.10)
+
+    with_hysteresis = build_rank_based_book(
+        drifted_pool, top_n=2, bottom_n=2, previous_allocations=previous, hysteresis_rank_margin=0.05
+    )
+    assert {s for s, a in with_hysteresis.items() if a.role == "long"} == {"A", "C"}
+
+
+def test_hysteresis_never_grows_the_book_past_the_requested_slot_count():
+    pool = _eight_name_pool()
+    previous = build_rank_based_book(pool, top_n=2, bottom_n=2)
+
+    with_hysteresis = build_rank_based_book(
+        pool, top_n=2, bottom_n=2, previous_allocations=previous, hysteresis_rank_margin=1.0
+    )
+    long_count = sum(1 for allocation in with_hysteresis.values() if allocation.role == "long")
+    short_count = sum(1 for allocation in with_hysteresis.values() if allocation.role == "short")
+    assert long_count == 2
+    assert short_count == 2
+
+
+def test_hysteresis_short_leg_retains_an_incumbent_symmetrically():
+    pool = _eight_name_pool()
+    previous = build_rank_based_book(pool, top_n=2, bottom_n=2)  # G, H short
+
+    # G's rank rises from 0.15 to just above F (0.25) - within margin of the
+    # short-side cutoff, should still be retained as short.
+    drifted_pool = dict(pool)
+    drifted_pool["G"] = _candidate(0.30)
+
+    without_hysteresis = build_rank_based_book(drifted_pool, top_n=2, bottom_n=2)
+    with_hysteresis = build_rank_based_book(
+        drifted_pool, top_n=2, bottom_n=2, previous_allocations=previous, hysteresis_rank_margin=0.10
+    )
+
+    assert {s for s, a in without_hysteresis.items() if a.role == "short"} == {"F", "H"}
+    assert {s for s, a in with_hysteresis.items() if a.role == "short"} == {"G", "H"}
+
+
+def test_book_allocation_gains_rank_head_and_target_weight_defaults():
+    pool = _eight_name_pool()
+    book = build_rank_based_book(pool, top_n=1, bottom_n=1)
+    allocation = next(iter(book.values()))
+    assert allocation.rank_head == "blend"
+    assert allocation.target_weight is None

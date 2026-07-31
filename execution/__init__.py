@@ -1,3 +1,9 @@
+from .cost_model import (
+    NetEdgeDecision,
+    build_net_edge_decision,
+    estimate_round_trip_cost_bps,
+    expected_edge_bps,
+)
 from .live_credentials import (
     DEFAULT_DEV_DB_PASSWORD,
     credentials_present,
@@ -33,6 +39,10 @@ from .paper_readiness import (
 )
 
 __all__ = [
+    "NetEdgeDecision",
+    "build_net_edge_decision",
+    "estimate_round_trip_cost_bps",
+    "expected_edge_bps",
     "DEFAULT_FILL_SLIPPAGE_SOURCE",
     "MAX_LIQUIDITY_SLIPPAGE_BPS",
     "PENDING_ORDER_STATUS_NAMES",

@@ -4,6 +4,7 @@ import {
   fetchAssetsStatus,
   fetchAuditLog,
   fetchEquityCurves,
+  fetchEvaluation,
   fetchMetricsSnapshot,
   fetchNeuralNetwork,
   fetchObservationEquityCurve,
@@ -52,6 +53,18 @@ export function useAssetsStatus() {
   return useQuery({
     queryKey: ['assets-status'],
     queryFn: fetchAssetsStatus,
+    refetchInterval: TRACING_REFRESH_MS,
+  })
+}
+
+// V5.1 Phase 0 - refreshed no faster than TRACING_REFRESH_MS: unlike
+// state/scene/topology/neural-network (which change every bar), evaluation
+// reports only change when someone runs `aq evaluate` - a 5s poll would
+// just be wasted requests against an unchanged file.
+export function useEvaluation() {
+  return useQuery({
+    queryKey: ['evaluation'],
+    queryFn: fetchEvaluation,
     refetchInterval: TRACING_REFRESH_MS,
   })
 }

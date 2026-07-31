@@ -8,6 +8,32 @@ and its test suite (V2-15, Observation Mode). Owns the
 by `experience/simulated_portfolio.py` (`simulate_fill`). No `AlgorithmImports`
 or QCAlgorithm dependency, so it is unit-testable without a Lean runtime.
 
+## Expected-net-edge cost model (V5.1 Phase 0/1, `cost_model.py`)
+
+The entry-DECISION side of cost-awareness, sibling to (not a replacement
+for) everything below, which is entirely the fill/pricing side. Answers
+"does this trade's expected edge clear its expected cost" — a question
+nothing in this codebase asked before V5.1, and the direct root cause of
+the fee drag ($2,769 in fees consuming nearly all of $3,159 gross profit
+in the last representative backtest).
+
+- `estimate_round_trip_cost_bps()` — reads `liquidity_payload["estimated_round_trip_cost"]`
+  (already computed by `liquidity.build_liquidity_decision()`) and **never
+  recomputes slippage**; adds a commission leg (bps of order value, with a
+  dollar floor so small orders aren't under-charged).
+- `expected_edge_bps()` — linear in rank deviation from the median (0.5),
+  scaled down when holding for fewer bars than the rank head's own forward
+  horizon.
+- `build_net_edge_decision()` — the one call `analyzer.market_analyzer`'s
+  net-edge tier and `risk.position_sizing.cost_sizing_multiplier()` both
+  consume. **Fail-open, always**: returns `passes=True` whenever the gate
+  is disabled, `edge_bps_per_rank_unit` is uncalibrated (`0.0`), or the
+  rank prediction is missing — an uncalibrated/disabled cost model must
+  never block a trade, the same "missing/degraded signal never changes
+  trading behavior" contract every other optional overlay in this
+  codebase already follows. Config: `phase_v2.costs` (`enabled: false`
+  until calibrated via `aq evaluate --calibrate-edge`).
+
 ## Real fill slippage (execution/risk realism pass)
 
 Closes the gap `development/architecture.md`'s own HFT-gap analysis

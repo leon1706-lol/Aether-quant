@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monitoring.assets_status import build_assets_status_from_disk
+from monitoring.evaluation_state import build_evaluation_state
 from monitoring.neural_network_state import build_neural_network_state
 from monitoring.strategy_catalog import build_strategy_catalog
 
@@ -88,6 +89,15 @@ def get_topology() -> dict:
 @app.get("/api/neural-network")
 def get_neural_network() -> dict:
     return build_neural_network_state()
+
+
+@app.get("/api/evaluation")
+def get_evaluation() -> dict:
+    """V5.1 Phase 0 - the cost-aware rank-book simulation/capacity/stress
+    reports `aq evaluate` writes to ml/evaluation/*.json. See
+    monitoring/evaluation_state.py::build_evaluation_state() for the
+    per-section not_evaluated degrade contract."""
+    return build_evaluation_state()
 
 
 @app.get("/api/assets-status")

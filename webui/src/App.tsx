@@ -24,6 +24,11 @@ const NeuralNetworkPage = lazy(() =>
   import('./pages/NeuralNetworkPage').then((m) => ({ default: m.NeuralNetworkPage })),
 )
 const TracingPage = lazy(() => import('./pages/TracingPage').then((m) => ({ default: m.TracingPage })))
+// V5.1 Phase 0 - the cost-aware evaluation dashboard (net Sharpe/turnover/
+// capacity/cost-stress), a plain 2D dashboard with no three.js scene, so it
+// doesn't strictly need the code-splitting rationale above - kept lazy
+// anyway for consistency with every other route in this file.
+const EvaluationPage = lazy(() => import('./pages/EvaluationPage').then((m) => ({ default: m.EvaluationPage })))
 
 function RouteLoadingFallback() {
   return <div className="flex items-center justify-center py-24 text-sm text-white/40">Loading…</div>
@@ -42,6 +47,7 @@ function App() {
           <Route path="/options-strategy" element={<OptionsStrategyPage state={state} />} />
           <Route path="/topology" element={<TopologyPage state={state} />} />
           <Route path="/neural-network" element={<NeuralNetworkPage state={state} />} />
+          <Route path="/evaluation" element={<EvaluationPage state={state} />} />
           <Route path="/tracing" element={<TracingPage />} />
         </Routes>
       </Suspense>

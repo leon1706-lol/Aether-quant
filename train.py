@@ -58,6 +58,7 @@ from features import (
     implied_vol_term_structure,
     implied_volatility,
     implied_volatility_level,
+    load_sector_mapping as _features_load_sector_mapping,
     macd_histogram_normalized,
     nearest_yield_curve_point,
     options_implied_vol_skew,
@@ -1586,26 +1587,13 @@ DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS = 60
 
 def load_sector_mapping(config: dict) -> dict[str, str]:
     """Phase 5 of the 5/10 -> 9/10 roadmap: ticker -> sector-neutral-ranking
-    bucket, from the checked-in data/reference/sector_mapping.json (or an
-    override path via config phase1.target.ranking.sector_neutral.mapping_path).
-    Same defensive posture as load_factor_file(): returns {} (never raises)
-    when the file is missing or unparseable, so a caller degrades to every
-    ticker resolving to UNKNOWN_SECTOR_LABEL rather than crashing the whole
-    dataset build over a missing reference file.
-    """
-    mapping_path_str = (
-        config.get("phase1", {}).get("target", {}).get("ranking", {}).get("sector_neutral", {}).get("mapping_path")
-    )
-    mapping_path = Path(mapping_path_str) if mapping_path_str else SECTOR_MAPPING_PATH
-    if not mapping_path.exists():
-        return {}
-
-    try:
-        raw = json.loads(mapping_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-    return {ticker: sector for ticker, sector in raw.items() if not ticker.startswith("_")}
+    bucket. V5.1 Phase 0 (Problems.md #75): thin delegate to
+    features/sector_map.py::load_sector_mapping() - main.py cannot import
+    this module (torch), so the file-read/strip logic now lives in
+    features/ where both callers can share it. Same signature, same return
+    shape, same {} (never raises) fallback contract as before this delegate
+    existed - see the shared implementation's own docstring."""
+    return _features_load_sector_mapping(config, default_path=SECTOR_MAPPING_PATH)
 
 
 def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:

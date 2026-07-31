@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 import { Overview } from './Overview'
 import { OperationsPage } from './OperationsPage'
 import { OptionsStrategyPage } from './OptionsStrategyPage'
+import { EvaluationPage } from './EvaluationPage'
 import { TracingPage } from './TracingPage'
 import { AppShell } from '../components/layout/AppShell'
 
@@ -135,6 +136,30 @@ describe('Phase 4.8: Options & Strategy page', () => {
     )
     const link = screen.getByRole('link', { name: 'Options & Strategy' })
     expect(link).toHaveAttribute('href', '/options-strategy')
+  })
+})
+
+describe('V5.1 Phase 0: Evaluation page', () => {
+  it('renders both evaluation panels even with no data at all (aq evaluate never run)', () => {
+    renderWithProviders(<EvaluationPage state={undefined} />)
+    const titles = panelTitles()
+    expect(titles).toContain('Rank Book Performance')
+    expect(titles).toContain('Capacity & Cost Stress')
+  })
+
+  it('shows the not-evaluated empty state, never a blank/crashed panel, when no report exists', () => {
+    renderWithProviders(<EvaluationPage state={undefined} />)
+    expect(screen.getAllByText(/Not evaluated yet/).length).toBeGreaterThan(0)
+  })
+
+  it('AppShell exposes an Evaluation nav link pointing at /evaluation', () => {
+    renderWithProviders(
+      <AppShell state={undefined} isError={false}>
+        <div />
+      </AppShell>,
+    )
+    const link = screen.getByRole('link', { name: 'Evaluation' })
+    expect(link).toHaveAttribute('href', '/evaluation')
   })
 })
 

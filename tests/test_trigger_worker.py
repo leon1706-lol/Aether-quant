@@ -138,8 +138,16 @@ def test_run_once_evaluates_rolling_window_not_just_incremental_batch():
 
 
 def test_run_once_uses_since_last_retrain_when_more_recent_than_default_lookback():
+    # last_retrain_at must be anchored to datetime.now(), not a fixed
+    # calendar date - run_once()'s default rolling_window_days (30) is
+    # itself computed off datetime.now(), so a hardcoded date drifts in and
+    # out of "more recent than the default lookback" as real time passes
+    # (a fixed 2026-07-01 briefly failed this test around 2026-07-31, when
+    # `now() - 30 days` landed on the same calendar date with a later
+    # time-of-day). 5 days ago is unambiguously inside the 30-day window
+    # regardless of when this test actually runs.
     new_events = [_sample_event(created_at="2026-07-02T12:00:00+00:00")]
-    last_retrain_at = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    last_retrain_at = datetime.now(timezone.utc) - timedelta(days=5)
     conn_mock, cur_mock = _make_conn_mock(
         new_events=new_events, window_events=new_events, last_retrain_at=last_retrain_at
     )

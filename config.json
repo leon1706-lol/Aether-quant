@@ -1403,6 +1403,31 @@
                 "beta_neutral": {
                     "market_ticker": "SPY",
                     "min_observations": 60
+                },
+                "net_performance": {
+                    "enabled": true,
+                    "top_n": 6,
+                    "bottom_n": 6,
+                    "rebalance_every_bars": 10,
+                    "cost_bps_per_side": 5.0,
+                    "commission_bps": 1.0,
+                    "gross_exposure": 1.0,
+                    "dollar_neutral": true,
+                    "sector_neutral": true,
+                    "hysteresis_rank_margin": 0.05,
+                    "max_weight_per_name": 0.12,
+                    "capacity_participation_cap": 0.01,
+                    "stress_cost_multipliers": [
+                        1.0,
+                        2.0,
+                        3.0
+                    ],
+                    "capacity_top_n_sweep": [
+                        3,
+                        6,
+                        10,
+                        15
+                    ]
                 }
             }
         }
@@ -1995,6 +2020,18 @@
                 "batch_size": 200,
                 "backoff_max": 60
             }
+        },
+        "costs": {
+            "enabled": false,
+            "commission_bps_per_side": 1.5,
+            "min_commission_usd": 1.0,
+            "extra_slippage_bps": 0.0,
+            "edge_bps_per_rank_unit": 0.0,
+            "min_net_edge_bps": 0.0,
+            "holding_bars": 10,
+            "horizon_days": 20,
+            "cost_sizing_enabled": false,
+            "min_cost_multiplier": 0.25
         }
     },
     "local-id": 694224972

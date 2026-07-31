@@ -1,6 +1,7 @@
 import type { AssetsStatus, NeuralNetworkState, RuntimeState, Scene, StrategyCatalog, Topology } from '../types/state'
 import type { CsvRow, RuntimeMetricsSnapshot } from '../types/tracing'
 import type { AuditLogStatus } from '../types/audit'
+import type { EvaluationState } from '../types/evaluation'
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' })
@@ -14,6 +15,8 @@ export const fetchState = () => getJson<RuntimeState>('/api/state')
 export const fetchScene = () => getJson<Scene>('/api/scene')
 export const fetchTopology = () => getJson<Topology>('/api/topology')
 export const fetchNeuralNetwork = () => getJson<NeuralNetworkState>('/api/neural-network')
+// V5.1 Phase 0 - cost-aware rank-book simulation/capacity/stress reports.
+export const fetchEvaluation = () => getJson<EvaluationState>('/api/evaluation')
 export const fetchAssetsStatus = () => getJson<AssetsStatus>('/api/assets-status')
 // Phase 4.8 - the 43-strategy registry, static (never changes at runtime).
 export const fetchStrategyCatalog = () => getJson<StrategyCatalog>('/api/strategies')

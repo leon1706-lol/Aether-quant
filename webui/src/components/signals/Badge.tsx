@@ -28,6 +28,9 @@ const TONES: Record<string, string> = {
   medium: 'bg-sky-400/15 text-sky-300',
   low: 'bg-amber-400/15 text-amber-300',
   none: 'bg-white/10 text-white/80',
+  // V5.1 Phase 0 - evaluation-report freshness tones.
+  evaluated: 'bg-emerald-400/15 text-emerald-300',
+  not_evaluated: 'bg-white/10 text-white/60',
 }
 
 export function Badge({ tone, children }: { tone?: string; children: React.ReactNode }) {

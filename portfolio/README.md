@@ -386,3 +386,28 @@ surfaced per-symbol as a "Book Role" column in
 `webui/src/components/risk/AssetSizingTable.tsx` (long/short badge, or
 `—` for non-book-controlled symbols / when the overlay is disabled) —
 typed as `Signal.portfolio_book_role` in `webui/src/types/state.ts`.
+
+## Hysteresis-aware sticky selection (V5.1 Phase 0/1)
+
+`build_rank_based_book()`/`_select_book_group()` gained `previous_allocations`/
+`hysteresis_rank_margin` parameters (default `None`/`0.0` — a strict no-op,
+byte-identical to the pre-V5.1 plain top/bottom-N slice). When set, an
+incumbent (same role in `previous_allocations`) whose rank has fallen just
+outside the natural N-slot cutoff, but is still within
+`hysteresis_rank_margin` of it, keeps its slot rather than being dropped
+and immediately re-entered on the next small rank wobble — directly
+reduces book turnover/fees. See `_hysteresis_adjusted_selection()`'s
+docstring for the exact "best-first" ordering contract both legs share.
+`BookAllocation` also gained `rank_head`/`target_weight` (both defaulted).
+
+## `book_neutrality.py::apply_book_neutrality()` (V5.1 Phase 0)
+
+The one deliberate cross-symbol pass over an already-selected book's raw
+per-symbol weights: per-name cap → sector-neutral demean (shrink-only if a
+bucket's net still exceeds its cap after re-clipping) → dollar-neutral
+(scale the *larger* leg down only, never up) → gross-exposure cap.
+Deliberately its own module, not folded into `book_construction.py`:
+that module decides **which** symbols and **which side**; this one decides
+**how much**, given selection is already final. Reused verbatim by
+`evaluation/rank_book_simulator.py`, so the offline simulator and the live
+decision path apply identical neutrality math. See `evaluation/README.md`.

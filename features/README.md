@@ -45,6 +45,16 @@ by construction, never re-derived independently in either one.
   real front/next-month or chain-aggregate lookup — see
   `train.py::build_derivatives_macro_features_by_date()`'s docstring and
   `development/Problems.md` #29.
+- `sector_map.py` (V5.1 Phase 0, `development/Problems.md` #75) —
+  `load_sector_mapping()`, reading `data/reference/sector_mapping.json`
+  (expanded from 29 to 103 of 104 universe tickers this phase; a new
+  `"Forex"` pseudo-sector covers all 15 forex pairs, previously
+  `"Unknown"`). `train.py::load_sector_mapping()` is now a thin delegate
+  to this module — `main.py` cannot import `train.py` (torch), so the
+  file-read/comment-stripping logic lives here where both callers can
+  share it. Consumed by `portfolio/book_neutrality.py` and
+  `evaluation/rank_book_simulator.py` for sector-neutral book
+  construction (offline and, from Phase 1, live).
 
 ## Neutral-default convention
 

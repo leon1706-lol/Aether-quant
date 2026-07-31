@@ -52,6 +52,12 @@ from .macro_features import (
     crypto_risk_appetite_proxy,
     yield_curve_slope_proxy,
 )
+from .sector_map import (
+    DEFAULT_SECTOR_MAPPING_PATH,
+    UNKNOWN_SECTOR_LABEL,
+    load_sector_mapping,
+    resolve_sector,
+)
 from .technical_indicators import (
     CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
     average_true_range_pct,
@@ -70,6 +76,7 @@ __all__ = [
     "CREDIT_SPREAD_NEUTRAL",
     "CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL",
     "CRYPTO_RISK_APPETITE_NEUTRAL",
+    "DEFAULT_SECTOR_MAPPING_PATH",
     "DERIVATIVES_MACRO_FEATURE_NAMES",
     "FINANCIAL_CONDITIONS_CHANGE_NEUTRAL",
     "FUTURES_MACRO_FEATURE_NAMES",
@@ -79,6 +86,7 @@ __all__ = [
     "OPTIONS_IMPLIED_VOL_SKEW_NEUTRAL",
     "OPTIONS_MACRO_FEATURE_NAMES",
     "OPTIONS_PUT_CALL_RATIO_NEUTRAL",
+    "UNKNOWN_SECTOR_LABEL",
     "YIELD_CURVE_CURVATURE_NEUTRAL",
     "YIELD_CURVE_LEVEL_NEUTRAL",
     "YIELD_CURVE_SLOPE_NEUTRAL",
@@ -102,6 +110,7 @@ __all__ = [
     "implied_vol_term_structure",
     "implied_volatility",
     "implied_volatility_level",
+    "load_sector_mapping",
     "macd_histogram_normalized",
     "nearest_yield_curve_point",
     "option_delta",
@@ -112,6 +121,7 @@ __all__ = [
     "options_implied_vol_skew",
     "options_put_call_ratio",
     "relative_strength_index",
+    "resolve_sector",
     "volume_zscore",
     "yield_curve_curvature",
     "yield_curve_level",

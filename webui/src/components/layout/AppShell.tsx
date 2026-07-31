@@ -11,6 +11,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/options-strategy', label: 'Options & Strategy' },
   { to: '/topology', label: 'Topology' },
   { to: '/neural-network', label: 'Neural Network' },
+  { to: '/evaluation', label: 'Evaluation' },
   { to: '/tracing', label: 'Tracing' },
 ]
 

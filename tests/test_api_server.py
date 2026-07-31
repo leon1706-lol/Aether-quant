@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 import monitoring.api_server as api_server
+import monitoring.evaluation_state as evaluation_state
 
 
 def test_get_audit_log_reads_grafana_dir_file(tmp_path, monkeypatch):
@@ -112,3 +113,21 @@ def test_api_routes_are_not_shadowed_by_the_spa_catch_all(tmp_path, monkeypatch)
 
     assert _get("/api/health") == 200
     assert _get("/api/audit-log") == 404
+
+
+def test_get_evaluation_delegates_to_build_evaluation_state(tmp_path, monkeypatch):
+    """V5.1 Phase 0: /api/evaluation is a thin delegate to
+    monitoring/evaluation_state.py::build_evaluation_state() - the actual
+    not_evaluated/section-shape logic is tested in
+    tests/test_evaluation_state.py, mirroring test_neural_network_state.py's
+    own split (build_* logic tested standalone, the route only tested for
+    correct delegation + the SPA-shadowing contract above)."""
+    monkeypatch.setattr(evaluation_state, "DEFAULT_ML_DIR", tmp_path)
+
+    result = api_server.get_evaluation()
+
+    assert result["rank_book"]["status"] == "not_evaluated"
+    assert result["capacity"]["status"] == "not_evaluated"
+    assert result["stress"]["status"] == "not_evaluated"
+    assert result["ablation"]["status"] == "not_evaluated"
+    assert result["walk_forward"]["status"] == "not_evaluated"

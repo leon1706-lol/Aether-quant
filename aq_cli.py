@@ -24,6 +24,7 @@ Then:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -58,6 +59,7 @@ CONFIG_PATH = ROOT_DIR / "config.json"
 LEAN_JSON_PATH = ROOT_DIR / "lean.json"
 WEBUI_DIR = ROOT_DIR / "webui"
 README_PATH = ROOT_DIR / "README.md"
+ML_DIR = ROOT_DIR / "ml"
 
 PACKAGE_NAME = "aether-quant"
 UPDATE_CACHE_PATH = Path.home() / ".aq" / "update_check.json"
@@ -599,6 +601,10 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "live": [
         "test_live_credentials.py", "test_live_credentials_io.py", "test_paper_readiness.py",
         "test_paper_readiness_io.py", "test_paper_readiness_report.py", "test_paper_readiness_scheduler.py",
+    ],
+    "evaluation": [
+        "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
+        "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
     ],
 }
 
@@ -1264,6 +1270,213 @@ def cmd_assets(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _apply_preset_in_memory(config: dict, preset: dict) -> dict:
+    """Applies a phase_v2.presets.<name> dotted-key overlay to an IN-MEMORY
+    deep copy of `config` only - `aq evaluate --preset` must never write
+    config.json (that is `aq config preset --apply`'s job, a separate
+    command). Reuses _set_config_value()'s own dotted-path resolution -
+    json.dumps() round-trips each already-typed preset value through the
+    same string-coercion path `aq config set` uses, so both entry points
+    share one implementation and can never silently disagree on how a
+    dotted path resolves."""
+    overlaid = copy.deepcopy(config)
+    for dotted_path, value in preset.items():
+        _set_config_value(overlaid, dotted_path, json.dumps(value))
+    return overlaid
+
+
+def _write_evaluation_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+
+
+_EVALUATE_MODEL_ARTIFACTS = {
+    "sequence": ("sequence_model.json", "sequence_feature_schema.json"),
+    "multitask": ("multitask_model.json", "multitask_feature_schema.json"),
+}
+
+
+def cmd_evaluate(args: argparse.Namespace) -> int:
+    """`aq evaluate`: offline, cost-aware evaluation of the cross-sectional
+    rank book (V5.1 Phase 0, development/Problems.md) - turns "how good is
+    this rank prediction" into "what would this have earned net of fees",
+    the question nothing else in this codebase answers
+    (train.py::compute_strategy_metrics() simulates a long-only
+    1-day-direction strategy gross of costs, not the rank book, not net of
+    cost). Runs every dataset row through inference/exported_model.py (the
+    SAME torch-free interpreter main.py's live decision path uses) and
+    evaluation/rank_book_simulator.py's simulate_rank_book() (which itself
+    reuses portfolio/book_construction.py's build_rank_based_book() and
+    portfolio/book_neutrality.py's apply_book_neutrality()) - so every
+    number this prints is the offline mirror of live behavior, not a
+    separately re-derived approximation.
+
+    Heavy imports (pandas/numpy/evaluation/inference) are deliberately
+    LAZY, inside this function body, not at module top - the same
+    convention cmd_assets() already follows for monitoring.assets_status -
+    so every other `aq` subcommand's startup stays exactly as fast as
+    before this command existed.
+    """
+    import pandas as pd
+
+    from evaluation import capacity_curve, predict_head, simulate_rank_book, stress_test_costs
+    from features import load_sector_mapping
+
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+    if getattr(args, "preset", None):
+        presets = config.get("phase_v2", {}).get("presets", {})
+        preset = presets.get(args.preset)
+        if preset is None:
+            available = sorted(name for name in presets if name != "active")
+            print(f"error: unknown preset {args.preset!r} - available: {available or 'none configured yet'}", file=sys.stderr)
+            return 1
+        config = _apply_preset_in_memory(config, preset)
+
+    ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
+    net_perf_config = ranking_config.get("net_performance", {})
+    if not net_perf_config:
+        print("error: phase1.target.ranking.net_performance is not configured.", file=sys.stderr)
+        return 1
+
+    dataset_path = ML_DIR / "datasets" / "full_dataset.csv"
+    if not dataset_path.exists():
+        print(f"error: {dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
+        return 1
+
+    model_kind = args.model or "sequence"
+    head = args.head or "rank_20d"
+    split = args.split or "backtest"
+
+    model_filename, schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind]
+    model_path = ML_DIR / model_filename
+    schema_path = ML_DIR / schema_filename
+    if not model_path.exists() or not schema_path.exists():
+        print(f"error: {model_path} or {schema_path} not found - run `aq train` first.", file=sys.stderr)
+        return 1
+
+    model_export = json.loads(model_path.read_text(encoding="utf-8"))
+    feature_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    feature_names = feature_schema["model_input_names"]
+
+    dataset = pd.read_csv(dataset_path)
+    if "training_eligible" in dataset.columns:
+        dataset = dataset[dataset["training_eligible"]].reset_index(drop=True)
+    if split != "all":
+        dataset = dataset[dataset["split"] == split].reset_index(drop=True)
+    if dataset.empty:
+        print(f"error: no rows for split={split!r} after filtering - check `aq train` has run for this window.", file=sys.stderr)
+        return 1
+
+    sequence_window_default = config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30)
+    predictions = predict_head(
+        dataset, model_export, feature_names, head,
+        model_kind=model_kind,
+        sequence_feature_schema=feature_schema if model_kind == "sequence" else None,
+        configured_window_size=int(sequence_window_default),
+    )
+    dataset = dataset.copy()
+    dataset["predicted_head"] = predictions
+
+    sector_by_ticker = load_sector_mapping(config)
+    base_kwargs = dict(
+        prediction_column="predicted_head",
+        forward_return_column="target_return_1d",
+        ticker_column="ticker",
+        date_column="date",
+        top_n=int(net_perf_config.get("top_n", 6)),
+        bottom_n=int(net_perf_config.get("bottom_n", 6)),
+        rebalance_every_bars=int(net_perf_config.get("rebalance_every_bars", 10)),
+        cost_bps_per_side=float(net_perf_config.get("cost_bps_per_side", 5.0)),
+        commission_bps=float(net_perf_config.get("commission_bps", 1.0)),
+        gross_exposure=float(net_perf_config.get("gross_exposure", 1.0)),
+        dollar_neutral=bool(net_perf_config.get("dollar_neutral", True)),
+        sector_neutral=bool(net_perf_config.get("sector_neutral", True)),
+        sector_by_ticker=sector_by_ticker,
+        hysteresis_rank_margin=float(net_perf_config.get("hysteresis_rank_margin", 0.0)),
+        max_weight_per_name=float(net_perf_config.get("max_weight_per_name", 0.12)),
+        min_universe_size=int(ranking_config.get("min_universe_size", 20)),
+    )
+
+    run_rank_book = bool(args.rank_book or args.all)
+    run_capacity = bool(args.capacity or args.all)
+    run_stress = bool(args.stress or args.all)
+    run_calibrate = bool(args.calibrate_edge or args.all)
+    # Bare `aq evaluate` with no flags at all defaults to --rank-book - the
+    # single most useful number ("is the fee drag fixed"), matching every
+    # other `aq` command's "sane default when no scope flag is given"
+    # convention (e.g. `aq test` with no subsystem flags runs everything).
+    if not (run_rank_book or run_capacity or run_stress or run_calibrate):
+        run_rank_book = True
+
+    report: dict = {}
+    evaluation_dir = ML_DIR / "evaluation"
+
+    if run_rank_book:
+        result = simulate_rank_book(dataset, **base_kwargs)
+        report["rank_book"] = result.to_dict()
+        _write_evaluation_json(evaluation_dir / "rank_book_simulation.json", report["rank_book"])
+        if not args.json:
+            print(f"Rank book ({model_kind}/{head}, split={split}):")
+            print(f"  gross_sharpe={result.gross_sharpe:.4f}  net_sharpe={result.net_sharpe:.4f}")
+            print(f"  gross_total_return={result.gross_total_return:.4%}  net_total_return={result.net_total_return:.4%}")
+            print(f"  net_max_drawdown={result.net_max_drawdown:.4%}")
+            print(f"  annualized_turnover={result.annualized_turnover:.2f}x  cost_drag_annual_bps={result.cost_drag_annual_bps:.2f}")
+            print(f"  num_rebalances={result.num_rebalances}  num_dates_used={result.num_dates_used}")
+            print(f"  mean_names_long={result.mean_names_long:.2f}  mean_names_short={result.mean_names_short:.2f}")
+
+    if run_capacity:
+        cap = capacity_curve(
+            dataset,
+            participation_cap=float(net_perf_config.get("capacity_participation_cap", 0.01)),
+            base_kwargs=base_kwargs,
+            top_n_sweep=[int(n) for n in net_perf_config.get("capacity_top_n_sweep", [3, 6, 10, 15])],
+        )
+        report["capacity"] = cap
+        _write_evaluation_json(evaluation_dir / "capacity_report.json", cap)
+        if not args.json:
+            print(f"Capacity: ${cap['capacity_usd']:,.0f} (binding: {cap['binding_ticker']})")
+            for row in cap["per_top_n"]:
+                print(f"  top_n={row['top_n']}: net_sharpe={row['net_sharpe']:.4f}")
+
+    if run_stress:
+        stress = stress_test_costs(
+            dataset, base_kwargs=base_kwargs,
+            cost_multipliers=tuple(float(m) for m in net_perf_config.get("stress_cost_multipliers", [1.0, 2.0, 3.0])),
+        )
+        report["stress"] = stress
+        _write_evaluation_json(evaluation_dir / "cost_stress_report.json", {"stress": stress})
+        if not args.json:
+            print("Cost stress test:")
+            for row in stress:
+                print(f"  {row['cost_multiplier']}x: net_sharpe={row['net_sharpe']:.4f}  net_total_return={row['net_total_return']:.4%}")
+
+    if run_calibrate:
+        # A simple OLS slope-through-the-origin of forward return on
+        # (rank - 0.5)*2 - matches execution/cost_model.py::expected_edge_bps()'s
+        # own linear-in-rank-deviation model exactly, so the calibrated
+        # number plugs directly into phase_v2.costs.edge_bps_per_rank_unit
+        # with no unit mismatch.
+        rank_deviation = (dataset["predicted_head"] - 0.5) * 2.0
+        forward_return = dataset["target_return_1d"]
+        valid = rank_deviation.notna() & forward_return.notna()
+        x = rank_deviation[valid].to_numpy()
+        y = forward_return[valid].to_numpy()
+        denominator = float((x * x).sum()) if len(x) >= 2 else 0.0
+        slope = float((x * y).sum() / denominator) if denominator > 0 else 0.0
+        calibrated_edge_bps = slope * 10_000.0
+        report["calibrated_edge_bps_per_rank_unit"] = calibrated_edge_bps
+        if not args.json:
+            print(f"Calibrated edge_bps_per_rank_unit: {calibrated_edge_bps:.4f}")
+            print(f"  Apply with: aq config set phase_v2.costs.edge_bps_per_rank_unit {calibrated_edge_bps:.4f}")
+            print("  Then enable the gate: aq config set phase_v2.costs.enabled true")
+
+    if args.json:
+        print(json.dumps(report, indent=2, default=str))
+
+    return 0
+
+
 def cmd_status(_args: argparse.Namespace) -> int:
     return _run(["git", "status"])
 
@@ -1564,6 +1777,29 @@ def build_parser() -> argparse.ArgumentParser:
     assets_subparsers = assets_parser.add_subparsers(dest="assets_command", required=True)
     assets_subparsers.add_parser("status", help="Report IB/futures/options/FRED readiness at a glance")
     assets_parser.set_defaults(func=cmd_assets)
+
+    evaluate_parser = subparsers.add_parser(
+        "evaluate",
+        help="Offline, cost-aware evaluation of the cross-sectional rank book (V5.1) - net Sharpe/turnover/"
+        "capacity/cost-stress from the active model + dataset, without a Lean backtest",
+    )
+    evaluate_parser.add_argument("--rank-book", action="store_true", help="Simulate the rank book net of costs")
+    evaluate_parser.add_argument("--capacity", action="store_true", help="Breadth (top_n sweep) + capacity estimate")
+    evaluate_parser.add_argument("--stress", action="store_true", help="Re-run at 1x/2x/3x the configured cost")
+    evaluate_parser.add_argument(
+        "--calibrate-edge", action="store_true",
+        help="Print an edge_bps_per_rank_unit calibrated from this split's realized rank-vs-return relationship",
+    )
+    evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress and --calibrate-edge together")
+    evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
+    evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")
+    evaluate_parser.add_argument("--split", default=None, help="Dataset split to evaluate: train/validation/backtest/all (default: backtest)")
+    evaluate_parser.add_argument(
+        "--preset", default=None,
+        help="Overlay phase_v2.presets.<name> in memory only (never writes config.json) - see `aq config preset --list`",
+    )
+    evaluate_parser.add_argument("--json", action="store_true", help="Print the full report as JSON instead of a summary")
+    evaluate_parser.set_defaults(func=cmd_evaluate)
 
     render_lean_parser = subparsers.add_parser(
         "render-lean-config",

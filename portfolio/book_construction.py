@@ -46,6 +46,16 @@ class BookAllocation:
     book_role_multiplier: float
     predicted_rank_20d: float
     book_reason: str
+    # V5.1 Phase 0/1 (development/Problems.md - item 6 of the V5.1 roadmap):
+    # both defaulted, so every existing positional construction and
+    # asdict()/to_dict() consumer is unaffected. rank_head records which
+    # blended signal (see portfolio/rank_signal.py) drove this allocation;
+    # target_weight is filled in by callers that run the neutrality pass
+    # (portfolio/book_neutrality.py) - None means "neutrality not applied,
+    # read book_role_multiplier * the caller's own weight formula instead",
+    # same convention as every other Optional payload field in this codebase.
+    rank_head: str = "blend"
+    target_weight: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -78,25 +88,118 @@ def normalize_per_asset_class_slots(
     return valid, skipped
 
 
+def _hysteresis_adjusted_selection(
+    strength_ordered_candidates: list[str],
+    eligible_ranks: dict[str, float],
+    n: int,
+    role: str,
+    previous_allocations: dict[str, BookAllocation] | None,
+    hysteresis_rank_margin: float,
+) -> list[str]:
+    """Sticky top/bottom-N selection (V5.1 Phase 0/1, development/Problems.md
+    #43's rebalance-churn work continued): an incumbent (same `role` in
+    `previous_allocations`) whose rank has fallen just outside the natural
+    n-slot cutoff, but is still within `hysteresis_rank_margin` of it, keeps
+    its slot rather than being dropped and immediately re-entered on the
+    next small rank wobble - directly reduces turnover/fees, the whole point
+    of this parameter (see book_neutrality.py's module docstring).
+
+    `strength_ordered_candidates` must already be sorted BEST-FIRST for this
+    leg - i.e. descending by predicted_rank_20d for role="long" (highest
+    rank = most long-worthy), ascending by predicted_rank_20d for
+    role="short" (lowest rank = most short-worthy). Normalizing both legs to
+    "best first" here (rather than each leg carrying its own sign
+    convention) is what keeps this function's cutoff/margin arithmetic
+    identical for both roles - only the caller's ordering differs.
+
+    Bounded at exactly `n` slots (never grows the book past what was
+    requested). `previous_allocations` empty/None or `hysteresis_rank_margin
+    <= 0` returns `strength_ordered_candidates[:n]` unchanged - BYTE-
+    IDENTICAL to the pre-hysteresis plain top-n slice, so every existing
+    caller/test that doesn't pass these new params is unaffected."""
+    natural = strength_ordered_candidates[:n]
+    if not previous_allocations or hysteresis_rank_margin <= 0.0 or n <= 0 or not natural:
+        return natural
+
+    cutoff_rank = eligible_ranks[natural[-1]]
+    incumbents = [
+        symbol
+        for symbol in strength_ordered_candidates
+        if symbol in previous_allocations and previous_allocations[symbol].role == role
+    ]
+    if role == "long":
+        retained_incumbents = [
+            symbol for symbol in incumbents if eligible_ranks[symbol] >= cutoff_rank - hysteresis_rank_margin
+        ]
+    else:
+        retained_incumbents = [
+            symbol for symbol in incumbents if eligible_ranks[symbol] <= cutoff_rank + hysteresis_rank_margin
+        ]
+    # Cap incumbents at n slots, keeping the strongest ones first (order
+    # already inherited from strength_ordered_candidates) - an incumbent
+    # list longer than n would otherwise grow the book past what was
+    # requested, which hysteresis is meant to reduce churn within, not
+    # override entirely.
+    retained_incumbents = [
+        symbol for symbol in strength_ordered_candidates if symbol in retained_incumbents
+    ][:n]
+
+    final = list(retained_incumbents)
+    for symbol in strength_ordered_candidates:
+        if len(final) >= n:
+            break
+        if symbol not in final:
+            final.append(symbol)
+    return final[:n]
+
+
 def _select_book_group(
     eligible_ranks: dict[str, float],
     top_n: int,
     bottom_n: int,
     min_rank_confidence_spread: float,
+    previous_allocations: dict[str, BookAllocation] | None = None,
+    hysteresis_rank_margin: float = 0.0,
 ) -> dict[str, BookAllocation]:
     """Core discrete top-N-long / bottom-N-short selection over an already-
     filtered `{symbol: predicted_rank_20d}` pool - shared by the pooled
     (build_rank_based_book()'s default) and per-asset-class
     (`per_asset_class_slots`) paths, so both apply identical selection
     logic to whatever pool they're given, just scoped differently. See
-    build_rank_based_book()'s docstring for the full behavior contract."""
+    build_rank_based_book()'s docstring for the full behavior contract.
+
+    `previous_allocations`/`hysteresis_rank_margin` (V5.1 Phase 0/1,
+    defaults None/0.0): optional sticky-selection pass over the natural
+    top/bottom-N slice - see _hysteresis_adjusted_selection()'s docstring.
+    Both defaults are a strict no-op, reproducing the pre-hysteresis
+    selection exactly."""
     if len(eligible_ranks) < 2 or top_n <= 0:
         return {}
 
     ranked_symbols = sorted(eligible_ranks, key=lambda symbol: eligible_ranks[symbol], reverse=True)
-    long_symbols = ranked_symbols[:top_n]
-    remaining_symbols = [symbol for symbol in ranked_symbols if symbol not in long_symbols]
-    short_symbols = remaining_symbols[-bottom_n:] if bottom_n > 0 else []
+    natural_long_symbols = ranked_symbols[:top_n]
+    remaining_symbols = [symbol for symbol in ranked_symbols if symbol not in natural_long_symbols]
+
+    long_symbols = _hysteresis_adjusted_selection(
+        ranked_symbols, eligible_ranks, top_n, "long", previous_allocations, hysteresis_rank_margin
+    )
+    # Short leg's "best first" ordering is ascending rank (lowest = most
+    # short-worthy) - the mirror image of ranked_symbols' descending order.
+    short_ordered_candidates = sorted(remaining_symbols, key=lambda symbol: eligible_ranks[symbol])
+    short_symbols = _hysteresis_adjusted_selection(
+        short_ordered_candidates, eligible_ranks, bottom_n, "short", previous_allocations, hysteresis_rank_margin
+    )
+    # Guard against a pathological case: hysteresis retaining a symbol on
+    # both legs simultaneously (only possible if previous_allocations
+    # itself was inconsistent - it never is, since a symbol can only ever
+    # hold ONE role) - re-derive remaining_symbols/short candidates from the
+    # ACTUAL long_symbols chosen above so the two legs never overlap.
+    if long_symbols != natural_long_symbols:
+        remaining_symbols = [symbol for symbol in ranked_symbols if symbol not in long_symbols]
+        short_ordered_candidates = sorted(remaining_symbols, key=lambda symbol: eligible_ranks[symbol])
+        short_symbols = _hysteresis_adjusted_selection(
+            short_ordered_candidates, eligible_ranks, bottom_n, "short", previous_allocations, hysteresis_rank_margin
+        )
 
     if not long_symbols:
         return {}
@@ -140,6 +243,8 @@ def build_rank_based_book(
     bottom_n: int,
     min_rank_confidence_spread: float = 0.0,
     per_asset_class_slots: dict[str, tuple[int, int]] | None = None,
+    previous_allocations: dict[str, BookAllocation] | None = None,
+    hysteresis_rank_margin: float = 0.0,
 ) -> dict[str, BookAllocation]:
     """Discrete top-N-long / bottom-N-short book construction from each
     symbol's predicted_rank_20d for this bar. Continuous rank-weighted
@@ -204,7 +309,14 @@ def build_rank_based_book(
     Returns a dict covering ONLY the symbols the book actively wants long
     or short (not a "flat" entry for every candidate) - callers should
     treat "symbol absent from the returned dict" as "book has no view on
-    this symbol," not "book says flat.\""""
+    this symbol," not "book says flat."
+
+    `previous_allocations`/`hysteresis_rank_margin` (V5.1 Phase 0/1,
+    defaults None/0.0 - a strict no-op reproducing pre-hysteresis selection
+    exactly): threaded straight through to _select_book_group() (pooled
+    path) or applied identically within each asset class (per-asset-class
+    path) - see _hysteresis_adjusted_selection()'s docstring for the actual
+    sticky-selection behavior."""
     eligible = {
         symbol: candidate
         for symbol, candidate in book_candidates.items()
@@ -213,7 +325,10 @@ def build_rank_based_book(
 
     if per_asset_class_slots is None:
         eligible_ranks = {symbol: candidate["predicted_rank_20d"] for symbol, candidate in eligible.items()}
-        return _select_book_group(eligible_ranks, top_n, bottom_n, min_rank_confidence_spread)
+        return _select_book_group(
+            eligible_ranks, top_n, bottom_n, min_rank_confidence_spread,
+            previous_allocations, hysteresis_rank_margin,
+        )
 
     allocations: dict[str, BookAllocation] = {}
     for asset_class, (class_top_n, class_bottom_n) in per_asset_class_slots.items():
@@ -223,7 +338,10 @@ def build_rank_based_book(
             if candidate.get("asset_class") == asset_class
         }
         allocations.update(
-            _select_book_group(class_eligible_ranks, class_top_n, class_bottom_n, min_rank_confidence_spread)
+            _select_book_group(
+                class_eligible_ranks, class_top_n, class_bottom_n, min_rank_confidence_spread,
+                previous_allocations, hysteresis_rank_margin,
+            )
         )
     return allocations
 
