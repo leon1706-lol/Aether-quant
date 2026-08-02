@@ -4,9 +4,16 @@ Powers features/bond_features.py's real yield-curve/credit-spread signals -
 distinct from macro_features.py's existing yield_curve_slope_proxy/
 credit_spread_proxy, which derive a *proxy* from bond-ETF price momentum.
 This module fetches the *actual* Treasury yield/credit-spread series FRED
-publishes, no API key required (FRED's public graph CSV endpoint), stdlib
-only (urllib.request - no new runtime dependency, unlike yfinance_backfill's
-deferred `import yfinance`).
+publishes, no API key required (FRED's public graph CSV endpoint).
+
+Uses `httpx` over HTTP/2, NOT stdlib urllib (V5.1 Phase 2, CODESPACE RUN 1
+diagnosis, development/Problems.md). FRED's graph-export endpoint
+(fredgraph.csv) was directly confirmed - via curl and Python urllib, from
+two independent networks - to hang/reset on plain HTTP/1.1 while
+responding in ~1-2s over HTTP/2; stdlib's urllib has no HTTP/2 support, so
+this is a real, load-bearing dependency, not a convenience one. See
+fetch_fred_series()'s own docstring for the full diagnosis, including why
+the User-Agent matters here in a non-obvious way.
 
 Same two-safety-boundary shape as yfinance_backfill.py:
 1. Writing the local cache is gated by --apply (default: dry run only).
@@ -26,9 +33,9 @@ import bisect
 import csv
 import json
 import logging
-import urllib.error
-import urllib.request
 from datetime import date, timedelta
+
+import httpx
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -245,15 +252,31 @@ def fetch_fred_series(series_id: str, start: str, end: str) -> list[dict]:
     """GET FRED's public graph CSV endpoint for series_id, clipped to
     [start, end]. Returns [] on any HTTP/parse failure - never raises, so
     one bad/renamed series id never aborts a multi-series backfill run,
-    matching fetch_yahoo_ohlcv()'s convention exactly."""
+    matching fetch_yahoo_ohlcv()'s convention exactly.
+
+    MUST use HTTP/2 (http2=True below) - confirmed by direct diagnosis
+    (V5.1 Phase 2, CODESPACE RUN 1) that FRED's graph-export endpoint
+    hangs/RST_STREAMs on plain HTTP/1.1 requests (reproduced with both
+    curl --http1.1 and stdlib urllib, from two independent networks) while
+    responding in ~1-2s over HTTP/2. This is why the module now depends on
+    httpx instead of stdlib urllib, which cannot speak HTTP/2 at all.
+
+    Do NOT set a browser-spoofing User-Agent here (a prior version of this
+    function did, believing FRED required one - that belief was never
+    re-verified and turned out backwards). Under HTTP/2 specifically, a
+    "Mozilla/5.0..." User-Agent paired with httpx's own (non-browser) TLS
+    fingerprint gets an IMMEDIATE RST_STREAM from FRED's edge - a
+    mismatched UA/TLS-fingerprint pair reads as automated traffic
+    disguising itself, which is worse than not disguising it at all.
+    httpx's own honest default User-Agent (python-httpx/x.y) was verified
+    working reliably; leave headers unset."""
     url = FRED_CSV_URL.format(series_id=series_id)
     try:
-        # FRED returns an empty body to urllib's default "Python-urllib/x.y"
-        # User-Agent - a browser-like one is required to get real data back.
-        request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (AetherQuant fred_backfill.py)"})
-        with urllib.request.urlopen(request, timeout=15) as response:
-            text = response.read().decode("utf-8")
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        with httpx.Client(http2=True, timeout=15.0) as client:
+            response = client.get(url)
+            response.raise_for_status()
+            text = response.text
+    except httpx.HTTPError as exc:
         logger.warning("fetch_fred_series(%s): fetch failed — %s", series_id, exc)
         return []
 

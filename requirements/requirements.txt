@@ -31,6 +31,12 @@ python-dotenv>=1.0.0
 pyyaml>=6.0
 requests>=2.31.0
 
+# data_pipeline/fred_backfill.py - HTTP/2 client (V5.1 Phase 2, CODESPACE
+# RUN 1 diagnosis, development/Problems.md). stdlib urllib is HTTP/1.1-only
+# and FRED's graph-export endpoint hangs/resets on HTTP/1.1 - see that
+# module's docstring for the full finding.
+httpx[http2]>=0.27.0
+
 # Experience Queue / Redis Stream (V2-13)
 redis>=5.0.0
 

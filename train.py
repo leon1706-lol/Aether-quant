@@ -2470,28 +2470,61 @@ def asset_class_by_ticker_from_config(config: dict) -> dict[str, str]:
     }
 
 
-_NON_FEATURE_DATASET_COLUMNS = {"date", "ticker", "split"}
+# Structural/bookkeeping columns that persist in the final dataset but are
+# neither features (input_set/scaled/categorical/context) nor target_*
+# columns - RAW_COLUMNS (the raw OHLCV+timestamp columns read straight off
+# the Lean bars, train.py:122) plus the asset-identity/quality columns
+# added later in build_feature_dataset() (security_type/market at
+# load_lean_bars() time; quality_tier/trading_eligible/training_eligible
+# from the asset-quality pass). "date"/"ticker"/"split" are the row-identity
+# columns added by the final concat.
+_NON_FEATURE_DATASET_COLUMNS = {
+    "date", "ticker", "split",
+    *RAW_COLUMNS,
+    "security_type", "market", "quality_tier", "trading_eligible", "training_eligible",
+}
 
 
 def _computed_but_unused_feature_columns(
-    dataset_columns, base_feature_names: list[str], context_feature_names: list[str]
+    dataset_columns,
+    base_feature_names: list[str],
+    scaled_feature_names: list[str],
+    categorical_feature_names: list[str],
+    context_feature_names: list[str],
 ) -> list[str]:
     """Dataset columns that are neither in phase1.features.input_set
-    (base_feature_names) nor a target_*/context/bookkeeping column - i.e.
-    genuinely computed, genuinely never trained on. V5.1 Phase 2 (item 8,
-    Step 2.5): makes the class of silent waste this session found (the 3
-    derivatives-macro features - constant 0.0 with no futures/options
-    contract subscribed, yet fully computed every dataset build) impossible
-    to repeat unnoticed - any future feature builder that gets wired into
-    build_feature_dataset() but forgotten in input_set now shows up here
-    automatically, with zero manual bookkeeping.
+    (base_feature_names, or its scaled/categorical/context siblings) nor a
+    target_*/bookkeeping column - i.e. genuinely computed, genuinely never
+    trained on. V5.1 Phase 2 (item 8, Step 2.5): makes the class of silent
+    waste this session found (the 3 derivatives-macro features - constant
+    0.0 with no futures/options contract subscribed, yet fully computed
+    every dataset build) impossible to repeat unnoticed - any future
+    feature builder that gets wired into build_feature_dataset() but
+    forgotten in input_set now shows up here automatically, with zero
+    manual bookkeeping.
+
+    GUARDRAIL (found via CODESPACE RUN 1's first real dataset build,
+    Problems.md): the dataset passed in here is POST-scaling, so it
+    carries BOTH each raw base_feature_names column AND its "_scaled"
+    sibling as separate columns - omitting scaled_feature_names from the
+    exclusion set flags every single scaled feature as "unused". Same for
+    categorical_feature_names (the regime_*/topology_risk_* one-hots) and
+    the raw OHLCV/asset-identity bookkeeping columns
+    (_NON_FEATURE_DATASET_COLUMNS) - a small synthetic unit-test fixture
+    never exercises these, only a real end-to-end dataset build does.
 
     Excludes "asset_"-prefixed columns (both add_asset_context_features()'s
     per-ticker asset_<TICKER> one-hots and add_asset_class_context_features()'s
     asset_class_<class> ones) - these are deliberately dataset-only/context,
     not "computed but forgotten" features, the same distinction
     select_model_context_columns()'s own docstring draws."""
-    known = set(base_feature_names) | set(context_feature_names) | _NON_FEATURE_DATASET_COLUMNS
+    known = (
+        set(base_feature_names)
+        | set(scaled_feature_names)
+        | set(categorical_feature_names)
+        | set(context_feature_names)
+        | _NON_FEATURE_DATASET_COLUMNS
+    )
     return sorted(
         str(column)
         for column in dataset_columns
@@ -2555,7 +2588,7 @@ def build_dataset_manifest(
         # V5.1 Phase 2, Step 2.5 - see _computed_but_unused_feature_columns()'s
         # own docstring.
         "computed_but_unused_features": _computed_but_unused_feature_columns(
-            dataset.columns, base_feature_names, context_feature_names
+            dataset.columns, base_feature_names, scaled_feature_names, categorical_feature_names, context_feature_names
         ),
         "split_counts": split_counts,
         "per_asset_split_counts": per_asset_split,

@@ -1,9 +1,10 @@
-"""Tests for data_pipeline.fred_backfill. urllib.request.urlopen is always
-replaced via monkeypatch - zero real network access happens in this file."""
+"""Tests for data_pipeline.fred_backfill. httpx.Client is always replaced
+via monkeypatch - zero real network access happens in this file."""
 
-import io
 from datetime import date
 from unittest.mock import patch
+
+import httpx
 
 from data_pipeline.fred_backfill import (
     DEFAULT_ALT_DATA_REFERENCE_SERIES,
@@ -90,16 +91,32 @@ def test_rows_to_cache_csv_empty():
 
 
 # ---------------------------------------------------------------------------
-# fetch_fred_series - urllib.request.urlopen mocked, never real network
+# fetch_fred_series - httpx.Client mocked, never real network. V5.1 Phase 2
+# (CODESPACE RUN 1 diagnosis, development/Problems.md): swapped from
+# stdlib urllib (HTTP/1.1-only) to httpx (HTTP/2) after confirming FRED's
+# graph-export endpoint hangs/resets on plain HTTP/1.1 - see
+# fetch_fred_series()'s own docstring for the full finding.
 # ---------------------------------------------------------------------------
 
 
-class _FakeResponse:
-    def __init__(self, text: str):
-        self._buffer = io.BytesIO(text.encode("utf-8"))
+class _FakeHttpxResponse:
+    def __init__(self, text: str, status_code: int = 200):
+        self.text = text
+        self.status_code = status_code
 
-    def read(self):
-        return self._buffer.read()
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError("simulated HTTP error", request=None, response=self)
+
+
+class _FakeHttpxClient:
+    """Stands in for `with httpx.Client(...) as client: client.get(url)` -
+    __enter__ returns self (real httpx.Client does the same), and get()
+    delegates to a caller-supplied side effect so both a canned response
+    and a raised error can be exercised."""
+
+    def __init__(self, get_side_effect):
+        self._get_side_effect = get_side_effect
 
     def __enter__(self):
         return self
@@ -107,22 +124,41 @@ class _FakeResponse:
     def __exit__(self, *args):
         return False
 
+    def get(self, url):
+        return self._get_side_effect(url)
+
+
+def _patched_httpx_client(get_side_effect):
+    return patch(
+        "data_pipeline.fred_backfill.httpx.Client",
+        return_value=_FakeHttpxClient(get_side_effect),
+    )
+
 
 def test_fetch_fred_series_success():
     text = "observation_date,DGS10\n2023-01-03,3.79\n"
-    with patch("data_pipeline.fred_backfill.urllib.request.urlopen", return_value=_FakeResponse(text)):
+    with _patched_httpx_client(lambda url: _FakeHttpxResponse(text)):
         rows = fetch_fred_series("DGS10", "2020-01-01", "2030-01-01")
     assert rows == [{"date": date(2023, 1, 3), "value": 3.79}]
 
 
 def test_fetch_fred_series_never_raises_on_network_failure():
-    with patch("data_pipeline.fred_backfill.urllib.request.urlopen", side_effect=OSError("connection refused")):
+    def _raise(url):
+        raise httpx.ConnectError("connection refused")
+
+    with _patched_httpx_client(_raise):
+        rows = fetch_fred_series("DGS10", "2020-01-01", "2030-01-01")
+    assert rows == []
+
+
+def test_fetch_fred_series_never_raises_on_http_status_error():
+    with _patched_httpx_client(lambda url: _FakeHttpxResponse("", status_code=500)):
         rows = fetch_fred_series("DGS10", "2020-01-01", "2030-01-01")
     assert rows == []
 
 
 def test_fetch_fred_series_empty_response_returns_empty():
-    with patch("data_pipeline.fred_backfill.urllib.request.urlopen", return_value=_FakeResponse("observation_date,DGS10\n")):
+    with _patched_httpx_client(lambda url: _FakeHttpxResponse("observation_date,DGS10\n")):
         rows = fetch_fred_series("DGS10", "2020-01-01", "2030-01-01")
     assert rows == []
 
@@ -135,18 +171,12 @@ def test_fetch_fred_series_empty_response_returns_empty():
 def test_fetch_all_bond_reference_series_independent_failure():
     config = {"phase1": {"features": {"bond_reference_series": {"a": "GOOD", "b": "BAD"}}}}
 
-    def _fake_fetch(series_id, start, end):
-        if series_id == "BAD":
-            raise AssertionError("should be caught inside fetch_fred_series, not propagate here")
-        return [{"date": date(2023, 1, 1), "value": 1.0}]
-
-    def _urlopen_side_effect(request, timeout=None):
-        url = request.full_url if hasattr(request, "full_url") else request
+    def _get_side_effect(url):
         if "BAD" in url:
-            raise OSError("simulated failure")
-        return _FakeResponse("observation_date,GOOD\n2023-01-01,1.0\n")
+            raise httpx.ConnectError("simulated failure")
+        return _FakeHttpxResponse("observation_date,GOOD\n2023-01-01,1.0\n")
 
-    with patch("data_pipeline.fred_backfill.urllib.request.urlopen", side_effect=_urlopen_side_effect):
+    with _patched_httpx_client(_get_side_effect):
         result = fetch_all_bond_reference_series(config, "2020-01-01", "2030-01-01")
 
     assert result["a"] == [{"date": date(2023, 1, 1), "value": 1.0}]

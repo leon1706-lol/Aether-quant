@@ -300,6 +300,42 @@ def test_build_dataset_manifest_computed_but_unused_features_surfaces_orphan_col
     assert manifest["computed_but_unused_features"] == ["futures_term_structure_slope"]
 
 
+def test_build_dataset_manifest_computed_but_unused_features_excludes_scaled_categorical_and_raw_columns():
+    # Regression test for the exact bug CODESPACE RUN 1's first real
+    # dataset build found (development/Problems.md): the dataset passed to
+    # build_dataset_manifest() is POST-scaling, so it carries a
+    # "<name>_scaled" sibling for every input_set feature, a
+    # regime_*/topology_risk_*-style categorical one-hot column, AND the
+    # raw OHLCV/asset-identity bookkeeping columns (RAW_COLUMNS +
+    # security_type/market/quality_tier/trading_eligible/training_eligible) -
+    # a tiny synthetic fixture never exercised any of these, so the first
+    # real end-to-end run flagged dozens of legitimate columns as "unused".
+    config = {
+        "name": "Aether Quant",
+        "phase1": {"features": {"input_set": ["feature_a"]}},
+    }
+    dataset = pd.DataFrame(
+        {
+            "ticker": ["CORE"],
+            "split": ["train"],
+            "date": pd.to_datetime(["2020-01-01"]),
+            "timestamp": [1577836800],
+            "open": [100.0], "high": [101.0], "low": [99.0], "close": [100.5], "volume": [1000.0],
+            "security_type": ["equity"], "market": ["usa"], "quality_tier": ["core"],
+            "trading_eligible": [True], "training_eligible": [True],
+            "feature_a": [0.1],
+            "feature_a_scaled": [0.05],
+            "regime_trend_bullish": [1.0],
+            "futures_term_structure_slope": [0.0],
+            "target_direction": [1],
+        }
+    )
+
+    manifest = train.build_dataset_manifest(config, dataset, {"coverage_checks": {}}, {}, {})
+
+    assert manifest["computed_but_unused_features"] == ["futures_term_structure_slope"]
+
+
 def test_build_dataset_manifest_computed_but_unused_features_empty_when_everything_is_accounted_for():
     config = {
         "name": "Aether Quant",
