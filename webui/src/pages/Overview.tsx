@@ -4,6 +4,7 @@ import { Scene3D } from '../components/scene3d/Scene3D'
 import { AssetHeatmap } from '../components/heatmap/AssetHeatmap'
 import { SignalBoard } from '../components/signals/SignalBoard'
 import { PositionsList } from '../components/signals/PositionsList'
+import { RankSignalPanel } from '../components/signals/RankSignalPanel'
 import { StrategyRiskCards } from '../components/risk/StrategyRiskCards'
 import { ObservationPanel } from '../components/monitoring/ObservationPanel'
 
@@ -17,6 +18,7 @@ export function Overview({ state }: { state: RuntimeState | undefined }) {
       </div>
       <div className="flex min-w-0 flex-col gap-4">
         <ObservationPanel observation={state?.observation} />
+        <RankSignalPanel rankSignal={state?.rank_signal} />
         <SignalBoard signals={state?.signals} />
         <PositionsList positions={state?.positions} />
         <StrategyRiskCards strategy={state?.dashboard?.strategy_snapshot} risk={state?.risk} />

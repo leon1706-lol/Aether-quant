@@ -55,9 +55,17 @@ from risk.asset_class_router import (
 from risk.forex_risk import load_forex_pair_specs
 from risk.futures_risk import build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source
 from risk.manual_override import read_manual_trade_lock_override
-from risk.position_sizing import build_dynamic_position_sizing
+from risk.position_sizing import build_dynamic_position_sizing, cost_sizing_multiplier
 from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
-from portfolio import build_rank_based_book, normalize_per_asset_class_slots, should_rebalance_this_bar
+from portfolio import (
+    build_rank_based_book,
+    cross_sectional_rank_scores,
+    normalize_per_asset_class_slots,
+    resolve_rank_signal_policy,
+    select_raw_rank_score,
+    should_rebalance_this_bar,
+)
+from portfolio.book_neutrality import apply_book_neutrality
 # V4.4 - held-contract/held-legs sizing (development/Problems.md): sizes an
 # ALREADY-HELD contract/spread on its own current greeks. Imported directly
 # (not routed through risk/asset_class_router.py::route_position_sizing(),
@@ -106,6 +114,7 @@ from experience import (
 )
 from execution import (
     MAX_LIQUIDITY_SLIPPAGE_BPS,
+    build_net_edge_decision,
     classify_order_status,
     credentials_present,
     evaluate_broker_config,
@@ -156,6 +165,7 @@ from features import (
     implied_vol_term_structure,
     implied_volatility,
     implied_volatility_level,
+    load_sector_mapping,
     macd_histogram_normalized,
     nearest_yield_curve_point,
     options_implied_vol_skew,
@@ -336,6 +346,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.multitask_feature_schema_path = self.root_path / "ml" / "multitask_feature_schema.json"
         self.sequence_model_path = self.root_path / "ml" / "sequence_model.json"
         self.sequence_feature_schema_path = self.root_path / "ml" / "sequence_feature_schema.json"
+        # V5.1 Phase 1 (development/Problems.md #73) - resolve_rank_signal_policy()'s
+        # promotion-gate inputs, same convention as the paths above.
+        self.multitask_training_metrics_path = self.root_path / "ml" / "multitask_training_metrics.json"
+        self.sequence_training_metrics_path = self.root_path / "ml" / "sequence_training_metrics.json"
         # V4.7 (development/Problems.md #29's own framing) - the learned
         # multi-leg strategy-selector model. Single-artifact (unlike the
         # model/feature_schema pairs above): train_strategy_selector.py's
@@ -637,6 +651,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
             1, int(phase_v2_portfolio_book.get("rebalance_every_bars", 1))
         )
         self._last_book_allocations: dict = {}
+        # V5.1 Phase 1 (development/Problems.md, item 6) - apply_book_neutrality()'s
+        # diagnostics from the last rebalance bar (empty {} pre-first-
+        # rebalance or whenever the book/neutrality overlay is disabled) -
+        # see the book-construction block below and state["book_neutrality"]
+        # in _write_state().
+        self._last_book_neutrality_diagnostics: dict = {}
+        self._book_target_weights: dict = {}
         # development/Problems.md#29: optional per-asset-class slot budget
         # (e.g. {"equity": [3, 3], "crypto": [2, 2]}) instead of one pooled
         # top_n/bottom_n ranking across every enabled asset class - absent
@@ -663,6 +684,58 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # see self.strategy_mode's own assignment above.
         self.portfolio_book_effective_bottom_n = (
             self.portfolio_book_bottom_n if self.strategy_mode == "long_short" else 0
+        )
+        # V5.1 Phase 1 (development/Problems.md #73) - resolved ONCE here,
+        # not per-bar: the promotion-gate verdicts feeding this only change
+        # when a new model is installed. Best-effort load of both training-
+        # metrics files - a missing/malformed file degrades that model's
+        # metrics to None (resolve_rank_signal_policy() treats that as "not
+        # evidence of a problem", never a crash), matching this file's own
+        # "missing/degraded artifact never changes trading behavior"
+        # convention used everywhere else (e.g. _load_expert_model_exports()).
+        rank_signal_training_metrics = {}
+        for model_name, metrics_path in (
+            ("sequence", self.sequence_training_metrics_path),
+            ("multitask", self.multitask_training_metrics_path),
+        ):
+            metrics_value = None
+            if metrics_path.exists():
+                try:
+                    metrics_value = self._load_json(metrics_path)
+                except Exception as error:
+                    self.Debug(f"rank_signal: failed to load {metrics_path.name} - {error}")
+            rank_signal_training_metrics[model_name] = metrics_value
+        self._rank_signal_policy = resolve_rank_signal_policy(rank_signal_training_metrics, self.config)
+        if self._rank_signal_policy["demoted"]:
+            self.Debug(
+                f"rank_signal: demoted heads {self._rank_signal_policy['demoted']} "
+                f"(not promotable) - resolved heads {self._rank_signal_policy['heads']}"
+            )
+        # V5.1 Phase 1 (development/Problems.md, item 3) - execution/cost_model.py::
+        # build_net_edge_decision()'s own fail-open contract (enabled=false
+        # or an uncalibrated edge_bps_per_rank_unit=0.0) is what actually
+        # keeps this a no-op until deliberately calibrated via
+        # `aq evaluate --calibrate-edge` - see phase_v2.costs's own defaults.
+        self._costs_config = self.phase_v2.get("costs", {})
+        self.cost_sizing_enabled = bool(self._costs_config.get("cost_sizing_enabled", False))
+        self.min_cost_multiplier = float(self._costs_config.get("min_cost_multiplier", 0.25))
+        # V5.1 Phase 1 (development/Problems.md, item 6) - static reference
+        # data, loaded once (not per-bar) - see portfolio/book_neutrality.py.
+        # load_sector_mapping() never raises (missing/malformed file -> {}),
+        # which degrades every symbol to book_neutrality's own "Unknown"
+        # bucket default rather than crashing Initialize().
+        self.sector_by_ticker = load_sector_mapping(self.config)
+        phase_v2_portfolio_book_neutrality = phase_v2_portfolio_book.get("neutrality", {})
+        self.book_neutrality_enabled = bool(phase_v2_portfolio_book_neutrality.get("enabled", False))
+        self.book_dollar_neutral = bool(phase_v2_portfolio_book_neutrality.get("dollar_neutral", True))
+        self.book_sector_neutral = bool(phase_v2_portfolio_book_neutrality.get("sector_neutral", True))
+        self.book_gross_exposure_cap = float(phase_v2_portfolio_book_neutrality.get("gross_exposure_cap", 1.0))
+        self.book_max_weight_per_name = float(phase_v2_portfolio_book_neutrality.get("max_weight_per_name", 0.12))
+        self.book_sector_max_net_weight = float(
+            phase_v2_portfolio_book_neutrality.get("sector_max_net_weight", 0.05)
+        )
+        self.portfolio_book_hysteresis_rank_margin = float(
+            phase_v2_portfolio_book.get("hysteresis_rank_margin", 0.0)
         )
         # Non-model safety exits (development/Problems.md): main.py used to
         # have NO stop-loss/take-profit/trailing/max-age exit at all - a
@@ -1145,6 +1218,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Debug(windows_warning)
 
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
+        # V5.1 Phase 1 (development/Problems.md, item 3) - None (absent from
+        # config, the default) reproduces build_liquidity_decision()'s own
+        # pre-V5.1 signature exactly; a configured value must stay a real
+        # float, not silently coerced to 0.0 by a bare float(None) call.
+        _configured_max_round_trip_cost_fraction = phase_v2_liquidity.get("max_round_trip_cost_fraction")
         self._liquidity_thresholds = {
             "thin_participation_threshold": float(phase_v2_liquidity.get("thin_participation_threshold", 0.002)),
             "high_impact_participation_threshold": float(phase_v2_liquidity.get("high_impact_participation_threshold", 0.01)),
@@ -1152,6 +1230,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "min_daily_dollar_volume": float(phase_v2_liquidity.get("min_daily_dollar_volume", 100_000.0)),
             "high_impact_size_factor": float(phase_v2_liquidity.get("high_impact_size_factor", 0.5)),
             "slippage_factor": float(phase_v2_liquidity.get("slippage_factor", 0.1)),
+            "max_round_trip_cost_fraction": (
+                float(_configured_max_round_trip_cost_fraction)
+                if _configured_max_round_trip_cost_fraction is not None
+                else None
+            ),
         }
         phase_v2_spread_estimation = phase_v2_liquidity.get("spread_estimation", {})
         self._spread_estimation_enabled = bool(phase_v2_spread_estimation.get("enabled", True))
@@ -1590,16 +1673,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # moe/gating.py::_weighted_blend()/moe/README.md.
             predicted_return_magnitude = gating_payload.get("final_magnitude")
             predicted_volatility = gating_payload.get("final_volatility")
-            # Prefer the sequence model's rank_20d head (strongest
-            # backtest rank-IC, 0.073/t=4.40) and fall back to the
-            # multitask model's own rank_20d head when the sequence
-            # model is unavailable/disabled - see risk/position_sizing.py::
-            # rank_sizing_multiplier(). Off by default (rank_sizing_enabled).
-            predicted_rank_20d = None
-            if sequence_prediction:
-                predicted_rank_20d = sequence_prediction.get("rank_20d")
-            if predicted_rank_20d is None and multitask_payload:
-                predicted_rank_20d = multitask_payload.get("rank_20d")
+            # V5.1 Phase 1 (development/Problems.md #73): a config-driven,
+            # promotion-gate-aware blend (self._rank_signal_policy, resolved
+            # once in Initialize()) replaces the previous hardcode ("prefer
+            # sequence rank_20d, fall back to multitask") - see
+            # portfolio/rank_signal.py::select_raw_rank_score(). raw_rank_score
+            # is RAW (whatever scale the underlying head(s) output at, see
+            # Problems.md #73 for why that must never be trusted directly);
+            # it is normalized to a true cross-sectional [0,1] percentile
+            # AFTER this loop, once every symbol's raw score exists - see
+            # the cross_sectional_rank_scores() call below, right before
+            # book construction. predicted_rank_20d here is a PROVISIONAL
+            # value (== raw_rank_score) that gets overwritten in place once
+            # normalization runs; kept under its original name/meaning so
+            # every existing consumer of pass1_state[...]["predicted_rank_20d"]
+            # in Pass 2 needs zero further changes.
+            raw_rank_score, rank_source = select_raw_rank_score(
+                sequence_prediction, multitask_payload, self._rank_signal_policy
+            )
+            predicted_rank_20d = raw_rank_score
             signal_name, confidence, base_target_weight = self._derive_signal(probability_up, symbol_key=str(symbol))
 
             pass1_state[symbol_key] = {
@@ -1616,6 +1708,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "predicted_return_magnitude": predicted_return_magnitude,
                 "predicted_volatility": predicted_volatility,
                 "predicted_rank_20d": predicted_rank_20d,
+                "raw_rank_score": raw_rank_score,
+                "rank_source": rank_source,
                 "signal_name": signal_name,
                 "confidence": confidence,
                 "base_target_weight": base_target_weight,
@@ -1642,6 +1736,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "asset_class": asset.get("asset_class") or asset.get("security_type"),
             }
 
+        # V5.1 Phase 1 (development/Problems.md #73): cross-sectional
+        # percentile normalization, now that every symbol's raw_rank_score
+        # for this bar exists. Overwrites predicted_rank_20d IN PLACE (both
+        # pass1_state and book_candidates) with the normalized value -
+        # raw_rank_score is kept alongside it, unmodified, purely for
+        # dashboard visibility (state.json). normalization != "cross_sectional"
+        # (not the default) leaves predicted_rank_20d as the raw blended
+        # score - an explicit opt-out, not a silent skip.
+        if self._rank_signal_policy.get("normalization", "cross_sectional") == "cross_sectional":
+            raw_scores_by_symbol = {
+                symbol_key: state["raw_rank_score"]
+                for symbol_key, state in pass1_state.items()
+                if state["raw_rank_score"] is not None
+            }
+            normalized_ranks_by_symbol = cross_sectional_rank_scores(raw_scores_by_symbol)
+            for symbol_key, state in pass1_state.items():
+                normalized_value = normalized_ranks_by_symbol.get(symbol_key)
+                state["predicted_rank_20d"] = normalized_value
+                if symbol_key in book_candidates:
+                    book_candidates[symbol_key]["predicted_rank_20d"] = normalized_value
+
         # `enabled=False` (default) always resolves to {} here - every
         # symbol in Pass 2 below then finds no book_allocation, taking the
         # exact same code path as before this restructuring existed.
@@ -1662,6 +1777,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 bool(self._last_book_allocations),
             )
             if is_rebalance_bar:
+                # V5.1 Phase 1 (development/Problems.md #77): the
+                # confidence-spread gate must see RAW (pre-normalization)
+                # scores, never the cross-sectional percentile that
+                # book_candidates' own predicted_rank_20d now carries - a
+                # fixed top-N/bottom-N split of a normalized percentile
+                # ALWAYS shows a large spread by construction (e.g. ~0.9 for
+                # top-6/bottom-6 of ~74 names), regardless of whether the
+                # model had any real conviction that bar. Built from the
+                # same raw_rank_score every symbol already has in
+                # pass1_state (Pass 1, before normalization ran).
+                spread_check_ranks = {
+                    symbol_key: state["raw_rank_score"]
+                    for symbol_key, state in pass1_state.items()
+                    if state["raw_rank_score"] is not None
+                }
                 book_allocations = build_rank_based_book(
                     book_candidates,
                     top_n=self.portfolio_book_top_n,
@@ -1672,19 +1802,88 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     bottom_n=self.portfolio_book_effective_bottom_n,
                     min_rank_confidence_spread=self.portfolio_book_min_rank_confidence_spread,
                     per_asset_class_slots=self.portfolio_book_per_asset_class_slots,
+                    # V5.1 Phase 1 (development/Problems.md, item 6) - sticky
+                    # top/bottom-N selection against the PREVIOUS rebalance's
+                    # allocation (not this bar's - is_rebalance_bar gates
+                    # this whole branch, so self._last_book_allocations here
+                    # is still last rebalance's result). Defaults (empty
+                    # dict / 0.0) reproduce pre-hysteresis behavior exactly.
+                    previous_allocations=self._last_book_allocations or None,
+                    hysteresis_rank_margin=self.portfolio_book_hysteresis_rank_margin,
+                    spread_check_ranks=spread_check_ranks,
                 )
                 self._last_book_allocations = book_allocations
+
+                # V5.1 Phase 1 (development/Problems.md, item 6) - cross-
+                # symbol neutrality pass, now that the full book (every
+                # long/short role for this rebalance) is known. Computes
+                # each book symbol's raw weight using TODAY's exact inline
+                # formula (min(max_position_weight, 0.10+0.15*confidence) *
+                # role_multiplier - unchanged, see Pass 2 below), then
+                # apply_book_neutrality() re-scales the WHOLE set together.
+                # book_neutrality_enabled=False (default) skips this
+                # entirely - self._book_target_weights stays {}, and Pass 2
+                # falls through to computing base_target_weight inline per-
+                # symbol exactly as before this existed.
+                if self.book_neutrality_enabled and book_allocations:
+                    raw_weights_by_symbol = {}
+                    for alloc_symbol_key, allocation in book_allocations.items():
+                        alloc_confidence = min(1.0, abs(allocation.predicted_rank_20d - 0.5) * 2.0)
+                        raw_weights_by_symbol[alloc_symbol_key] = (
+                            min(self.max_position_weight, 0.10 + 0.15 * alloc_confidence)
+                            * allocation.book_role_multiplier
+                        )
+                    self._book_target_weights, self._last_book_neutrality_diagnostics = apply_book_neutrality(
+                        raw_weights_by_symbol,
+                        sector_by_symbol=self.sector_by_ticker,
+                        dollar_neutral=self.book_dollar_neutral,
+                        sector_neutral=self.book_sector_neutral,
+                        gross_exposure_cap=self.book_gross_exposure_cap,
+                        max_weight_per_name=self.book_max_weight_per_name,
+                        sector_max_net_weight=self.book_sector_max_net_weight,
+                    )
+                else:
+                    self._book_target_weights = {}
+                    self._last_book_neutrality_diagnostics = {}
             else:
                 book_allocations = self._last_book_allocations
         else:
             book_allocations = {}
+            self._book_target_weights = {}
+            self._last_book_neutrality_diagnostics = {}
+
+        # V5.1 Phase 1 (development/Problems.md, item 6 / Finding 3 - the
+        # book was silently truncated by max_active_positions in
+        # self.symbols iteration order, not by rank): when the book is
+        # active, Pass 2 below evaluates book-selected symbols in
+        # DESCENDING conviction order (|predicted_rank_20d - 0.5|) so that
+        # if max_active_positions ever binds mid-loop
+        # (_apply_signal()::active_position_limit_reached()), the
+        # strongest convictions reserve their slot first. Non-book symbols
+        # keep their original self.symbols order, appended after every
+        # book symbol - book_allocations is typically <= max_active_positions
+        # names, so this only ever reorders a small prefix, not the whole
+        # loop. A no-op (dict order unchanged) whenever the book is
+        # disabled or this bar had no allocations.
+        pass1_items = list(pass1_state.items())
+        if self.portfolio_book_enabled and book_allocations:
+            def _book_conviction_sort_key(item: tuple[str, dict]) -> float:
+                symbol_key, state = item
+                allocation = book_allocations.get(symbol_key)
+                if allocation is None:
+                    return -1.0
+                return abs(allocation.predicted_rank_20d - 0.5)
+
+            pass1_items.sort(key=_book_conviction_sort_key, reverse=True)
 
         # ---- Pass 2: sizing/liquidity/analyzer/order-application, now
         # that every symbol's book role (if any) is known. Iterates
-        # pass1_state (populated in self.symbols order during Pass 1), so
+        # pass1_state (populated in self.symbols order during Pass 1,
+        # reordered by book conviction above when the book is active), so
         # cross-symbol sequencing (e.g. exposure-cap consumption order in
-        # _apply_signal()) is unchanged from the previous single-pass loop. ----
-        for symbol_key, state in pass1_state.items():
+        # _apply_signal()) is unchanged from the previous single-pass loop
+        # whenever the book is disabled. ----
+        for symbol_key, state in pass1_items:
             symbol = state["symbol"]
             bar = state["bar"]
             feature_payload = state["feature_payload"]
@@ -1698,6 +1897,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             predicted_return_magnitude = state["predicted_return_magnitude"]
             predicted_volatility = state["predicted_volatility"]
             predicted_rank_20d = state["predicted_rank_20d"]
+            raw_rank_score = state["raw_rank_score"]
+            rank_source = state["rank_source"]
             signal_name = state["signal_name"]
             confidence = state["confidence"]
             base_target_weight = state["base_target_weight"]
@@ -1721,8 +1922,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if book_allocation is not None:
                 signal_name = "buy" if book_allocation.role == "long" else "short"
                 confidence = min(1.0, abs(book_allocation.predicted_rank_20d - 0.5) * 2.0)
-                base_target_weight = (
-                    min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier
+                # V5.1 Phase 1 (development/Problems.md, item 6) -
+                # self._book_target_weights (populated once, right after
+                # book_allocations, only when book_neutrality_enabled) is
+                # the NEUTRALITY-ADJUSTED weight for this symbol; falls
+                # through to today's exact inline formula whenever
+                # neutrality is disabled or this symbol has no entry
+                # (e.g. neutrality zeroed it out entirely - see
+                # apply_book_neutrality()'s own docstring for when that
+                # happens) - .get() with this formula as the default,
+                # not a separate branch, so "no entry" and "disabled"
+                # degrade identically.
+                base_target_weight = self._book_target_weights.get(
+                    symbol_key,
+                    min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier,
                 )
             elif self.portfolio_book_enabled and is_currently_invested:
                 # Rotation exit (development/Problems.md): the book is
@@ -1793,6 +2006,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 liquidity_cost_fraction(liquidity_payload, self._liquidity_slippage_source) * 10_000.0
             )
 
+            # V5.1 Phase 1 (development/Problems.md, item 3) - the
+            # circular-dependency break: build_net_edge_decision() needs
+            # order_value (from THIS bar's already-sized target_weight),
+            # and cost_sizing_multiplier() needs the net edge it produces -
+            # so cost-awareness is applied as a FINAL SCALAR on the
+            # already-sized weight here, never a re-entry into
+            # _build_dynamic_sizing_payload()/build_dynamic_position_sizing(),
+            # the same way the liquidity reduce_size haircut just above
+            # already applies its own adjustment post-hoc rather than
+            # re-sizing from scratch.
+            order_value = abs(target_weight) * float(self.Portfolio.TotalPortfolioValue)
+            net_edge_decision = build_net_edge_decision(
+                predicted_rank_20d, liquidity_payload, order_value, self._costs_config
+            ).to_dict()
+            cost_multiplier, cost_sizing_reason = cost_sizing_multiplier(
+                net_edge_decision["expected_edge_bps"],
+                net_edge_decision["expected_cost_bps"],
+                self.cost_sizing_enabled,
+                self.min_cost_multiplier,
+            )
+            target_weight *= cost_multiplier
+            sizing_payload["cost_multiplier"] = cost_multiplier
+            sizing_payload["cost_sizing_reason"] = cost_sizing_reason
+
             decision = build_market_analysis_decision(
                 signal_name=signal_name,
                 confidence=confidence,
@@ -1812,6 +2049,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 predicted_return_magnitude=predicted_return_magnitude,
                 predicted_volatility=predicted_volatility,
                 is_currently_invested=is_currently_invested,
+                # net_edge_decision["passes"] already encodes the
+                # min_net_edge_bps comparison (execution/cost_model.py::
+                # build_net_edge_decision()) - the analyzer trusts that
+                # single verdict rather than re-deriving it (Problems.md
+                # #76 - see analyzer/market_analyzer.py's Priority 6.5
+                # comment for why re-deriving it caused a real 0-orders
+                # regression).
+                net_edge=net_edge_decision,
             ).to_dict()
 
             signal_name = decision["signal"]
@@ -1895,6 +2140,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     "predicted_return_magnitude": predicted_return_magnitude,
                     "predicted_volatility": predicted_volatility,
                     "predicted_rank_20d": predicted_rank_20d,
+                    # V5.1 Phase 1 (development/Problems.md #73) - the
+                    # PRE-normalization blended score and which model(s)/
+                    # head(s) contributed it, alongside predicted_rank_20d
+                    # (now the cross-sectional-normalized value) - see
+                    # portfolio/rank_signal.py.
+                    "raw_rank_score": raw_rank_score,
+                    "rank_source": rank_source,
+                    # V5.1 Phase 1 (development/Problems.md, item 3) - also
+                    # embedded in market_analysis (below) via
+                    # MarketAnalysisDecision.net_edge, surfaced top-level
+                    # too for the same reason liquidity_payload is (a
+                    # dedicated webui panel shouldn't need to reach through
+                    # market_analysis for it).
+                    "net_edge": net_edge_decision,
                     # Phase 2 sequence-encoder signal - informational
                     "sequence_model": sequence_prediction,
                     "moe_gating": gating_payload,
@@ -5701,6 +5960,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         state["regime"] = self._build_regime_summary(state["signals"])
         state["topology"] = self.latest_topology_payload
+        # V5.1 Phase 1 (development/Problems.md #73) - the resolved rank-
+        # signal blend policy (which heads/models, any demotions) and the
+        # cross-symbol book-neutrality diagnostics from this bar's last
+        # rebalance (empty {} pre-first-rebalance or when the book/
+        # neutrality overlay is disabled - see apply_book_neutrality()'s
+        # own docstring for the diagnostics shape).
+        state["rank_signal"] = self._rank_signal_policy
+        state["book_neutrality"] = self._last_book_neutrality_diagnostics
         # V4.12.2 (development/Problems.md #71) - self.latest_bond_payload/
         # self.latest_alt_data_payload were already rebuilt every bar
         # (_build_bond_payload()/_build_alt_data_payload(), on_data()) purely

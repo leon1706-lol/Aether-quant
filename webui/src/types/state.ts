@@ -129,8 +129,52 @@ export interface DynamicSizing {
   // is off), a learned multiplier + reason once enabled and a trained model is loaded.
   rl_multiplier?: number
   rl_sizing_reason?: string
+  // Cost-aware sizing (V5.1 Phase 1, development/Problems.md, item 3) - same
+  // disabled-vs-active convention as rank/topology/rl above: 1.0/
+  // "cost_sizing_disabled_or_absent" while phase_v2.costs.cost_sizing_enabled
+  // is off (this project's default), a real shrink-only multiplier once
+  // enabled and calibrated - see risk/position_sizing.py::cost_sizing_multiplier().
+  cost_multiplier?: number
+  cost_sizing_reason?: string
   // Present for future/option assets only - see AssetClassRoutingExtra above.
   asset_class_routing_extra?: AssetClassRoutingExtra
+}
+
+// V5.1 Phase 1 (development/Problems.md, item 3) - execution/cost_model.py::
+// NetEdgeDecision.to_dict(). passes=true/reason="net_edge_gate_disabled"
+// whenever phase_v2.costs.enabled is off or edge_bps_per_rank_unit is
+// uncalibrated (0.0) - this project's default until `aq evaluate
+// --calibrate-edge` sets a real value.
+export interface NetEdge {
+  expected_edge_bps: number
+  expected_cost_bps: number
+  net_edge_bps: number
+  passes: boolean
+  reason: string
+}
+
+// V5.1 Phase 1 (development/Problems.md #73) - portfolio/rank_signal.py::
+// resolve_rank_signal_policy()'s return shape, resolved once per run and
+// mirrored at RuntimeState.rank_signal.
+export interface RankSignalPolicy {
+  heads: Record<string, number>
+  model_priority: string[]
+  normalization: string
+  demoted: string[]
+  reason: string
+}
+
+// V5.1 Phase 1 (development/Problems.md, item 6) - portfolio/book_neutrality.py::
+// apply_book_neutrality()'s diagnostics from the book's last rebalance bar -
+// {} pre-first-rebalance or whenever phase_v2.portfolio_book.neutrality.enabled
+// is off (this project's default until Lean Backtest 1 validates it).
+export interface BookNeutralityDiagnostics {
+  pre_gross?: number
+  post_gross?: number
+  net_before?: number
+  net_after?: number
+  per_sector_net?: Record<string, number>
+  steps_applied?: string[]
 }
 
 export interface MarketAnalysis {
@@ -142,6 +186,9 @@ export interface MarketAnalysis {
   trading_eligible?: boolean
   topology_considered?: boolean
   reasons?: string[]
+  // V5.1 Phase 1 - null/undefined whenever the net-edge gate is disabled/
+  // uncalibrated this bar - see NetEdge's own docstring.
+  net_edge?: NetEdge | null
 }
 
 export interface TopologyContext {
@@ -239,6 +286,16 @@ export interface Signal {
   market_analysis?: MarketAnalysis
   topology?: TopologyContext
   liquidity?: LiquidityInfo
+  // V5.1 Phase 1 (development/Problems.md #73) - the PRE-normalization
+  // blended score and which model(s)/head(s) contributed it, alongside
+  // predicted_rank_20d (the cross-sectional-normalized value) - see
+  // portfolio/rank_signal.py.
+  raw_rank_score?: number | null
+  rank_source?: string
+  // Also embedded in market_analysis.net_edge - surfaced top-level too for
+  // the same reason liquidity is (a dedicated panel shouldn't need to
+  // reach through market_analysis for it).
+  net_edge?: NetEdge | null
   // Phase 3 of the 5/10 -> 9/10 roadmap (portfolio/book_construction.py):
   // the Stage-2 long/short book's role for this symbol, when
   // phase_v2.portfolio_book.enabled - null/absent for non-book-controlled
@@ -727,4 +784,9 @@ export interface RuntimeState {
   performance_triggers?: PerformanceTriggerReport
   retraining_status?: RetrainingStatus
   paper_readiness?: PaperReadiness
+  // V5.1 Phase 1 (development/Problems.md #73 / item 6) - resolved once
+  // per run (rank_signal) / refreshed on the book's last rebalance bar
+  // (book_neutrality, {} pre-first-rebalance or when disabled).
+  rank_signal?: RankSignalPolicy
+  book_neutrality?: BookNeutralityDiagnostics
 }

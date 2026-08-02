@@ -2647,7 +2647,26 @@ def export_sequence_multitask_horizons_architecture(model: AetherNetSequenceMult
     head entries (direction_5d/20d, rank_5d/20d).
     inference/exported_model.py::run_exported_sequence_multitask_model()
     already iterates export["heads"] generically, so no interpreter change
-    is needed to support the extra heads."""
+    is needed to support the extra heads.
+
+    V5.1 Phase 1 (development/Problems.md #73): rank_5d/rank_20d/
+    sector_neutral_rank_20d export with NO final activation (was
+    "sigmoid") - these heads are trained as raw linear regression against a
+    [0,1] percentile-rank target (masked_mse_loss() in
+    compute_combined_multitask_loss()), never through a sigmoid, so
+    exporting one applied a transform inference never trained through:
+    live predicted_rank_20d compressed into roughly [0.5, 0.7] instead of
+    spanning [0,1] (sigmoid'(0.5)~=0.235 shrinks dispersion ~4x). Rank-IC
+    (this project's own promotion-gate metric) is invariant under any
+    monotone transform, which is exactly why no rank-IC-based gate ever
+    caught it - it took building an offline net-of-cost simulator
+    (evaluation/rank_book_simulator.py) sensitive to the ACTUAL
+    dispersion to surface it. The fix pairs with
+    portfolio/rank_signal.py::cross_sectional_rank_scores() (main.py),
+    which re-derives a true [0,1] percentile per bar regardless of
+    whatever raw scale a head happens to export at - so this export
+    change is safe even for a stale artifact still carrying the old
+    "sigmoid" entry (monotone-invariant either way)."""
     return {
         "trunk": _export_conv1d_trunk(model),
         "heads": {
@@ -2656,10 +2675,10 @@ def export_sequence_multitask_horizons_architecture(model: AetherNetSequenceMult
             "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
             "direction_5d": _export_head(model.head_direction_5d, "head_direction_5d", "sigmoid"),
             "direction_20d": _export_head(model.head_direction_20d, "head_direction_20d", "sigmoid"),
-            "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", "sigmoid"),
-            "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", "sigmoid"),
+            "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", None),
+            "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", None),
             "sector_neutral_rank_20d": _export_head(
-                model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", "sigmoid"
+                model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", None
             ),
         },
     }
@@ -3882,7 +3901,13 @@ def export_multitask_horizons_architecture(model: AetherNetMultiTaskHorizons) ->
     original 3-head model, extended with 4 more head entries (direction_5d/
     20d, rank_5d/20d). inference/exported_model.py::run_exported_multitask_model()
     already iterates export["heads"] generically, so no interpreter change
-    is needed to support the extra heads."""
+    is needed to support the extra heads.
+
+    V5.1 Phase 1 (development/Problems.md #73): rank_5d/rank_20d/
+    sector_neutral_rank_20d export with NO final activation (was
+    "sigmoid") - see export_sequence_multitask_horizons_architecture()'s
+    matching docstring for the full writeup (same bug, same fix, both
+    model families)."""
     return {
         "trunk": _export_sequential_layers(model.trunk, "trunk"),
         "heads": {
@@ -3891,10 +3916,10 @@ def export_multitask_horizons_architecture(model: AetherNetMultiTaskHorizons) ->
             "volatility": _export_head(model.head_volatility, "head_volatility", "softplus"),
             "direction_5d": _export_head(model.head_direction_5d, "head_direction_5d", "sigmoid"),
             "direction_20d": _export_head(model.head_direction_20d, "head_direction_20d", "sigmoid"),
-            "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", "sigmoid"),
-            "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", "sigmoid"),
+            "rank_5d": _export_head(model.head_rank_5d, "head_rank_5d", None),
+            "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", None),
             "sector_neutral_rank_20d": _export_head(
-                model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", "sigmoid"
+                model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", None
             ),
         },
     }

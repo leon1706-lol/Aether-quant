@@ -469,3 +469,95 @@ def test_short_signal_never_bypasses_vetoes_even_when_invested():
         is_currently_invested=True,
     )
     assert decision.action == "reduce_risk"
+
+
+# ---------------------------------------------------------------------------
+# Priority 6.5 - net-edge cost gate (V5.1 Phase 1, development/Problems.md #76)
+#
+# Problems.md #76: an earlier version of this tier re-derived
+# "net_edge_bps < min_net_edge_bps" from the raw dict instead of trusting
+# net_edge["passes"] (the verdict execution/cost_model.py::build_net_edge_decision()
+# already computed). A DISABLED gate's NetEdgeDecision defaults net_edge_bps
+# to 0.0 (not None) - so once a config/preset set any real positive
+# min_net_edge_bps, 0.0 was always "below threshold" and every single entry
+# across the whole universe was blocked (Lean Backtest 1: 0 orders, 0 fees,
+# 0 everything, for the full 2019-2021 window). Every test below constructs
+# the EXACT disabled-gate dict shape build_net_edge_decision() produces -
+# not a hand-picked "obviously fine" value - specifically so this class of
+# bug cannot silently return.
+# ---------------------------------------------------------------------------
+
+_DISABLED_NET_EDGE = {
+    "expected_edge_bps": 0.0,
+    "expected_cost_bps": 0.0,
+    "net_edge_bps": 0.0,
+    "passes": True,
+    "reason": "net_edge_gate_disabled",
+}
+
+
+def test_net_edge_none_is_a_strict_no_op():
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        net_edge=None,
+    )
+    assert decision.action == "trade"
+
+
+def test_net_edge_disabled_dict_never_blocks_a_trade_the_regression_case():
+    # THE regression: net_edge_bps=0.0 with passes=True must trade, not
+    # simulate - regardless of what net_edge_bps looks like on its own.
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        net_edge=_DISABLED_NET_EDGE,
+    )
+    assert decision.action == "trade"
+    assert "expected_net_edge_below_cost_simulate_instead" not in decision.reasons
+
+
+def test_net_edge_failing_gate_blocks_a_new_entry():
+    failing_net_edge = {
+        "expected_edge_bps": 5.0, "expected_cost_bps": 20.0, "net_edge_bps": -15.0,
+        "passes": False, "reason": "net_edge_below_min_threshold",
+    }
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        net_edge=failing_net_edge,
+    )
+    assert decision.action == "simulate"
+    assert "expected_net_edge_below_cost_simulate_instead" in decision.reasons
+
+
+def test_net_edge_failing_gate_never_blocks_an_exit():
+    failing_net_edge = {
+        "expected_edge_bps": 5.0, "expected_cost_bps": 20.0, "net_edge_bps": -15.0,
+        "passes": False, "reason": "net_edge_below_min_threshold",
+    }
+    decision = build_market_analysis_decision(
+        signal_name="sell", confidence=1.0, probability_up=0.2, target_weight=0.0,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        is_currently_invested=True,
+        net_edge=failing_net_edge,
+    )
+    assert decision.action == "trade"
+
+
+def test_net_edge_passing_gate_trades():
+    passing_net_edge = {
+        "expected_edge_bps": 22.5, "expected_cost_bps": 6.0, "net_edge_bps": 16.5,
+        "passes": True, "reason": "net_edge_clears_cost",
+    }
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.5, probability_up=0.7, target_weight=0.12,
+        regime=_regime(), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        net_edge=passing_net_edge,
+    )
+    assert decision.action == "trade"

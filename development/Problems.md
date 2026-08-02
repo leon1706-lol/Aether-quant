@@ -4445,3 +4445,50 @@ The observation-mode backtest itself hit a real, severe RAM ceiling on this 4GB 
 **New standing rule adopted this session, now recorded**: all model training runs on the GitHub Codespace (`aq-Training-Ground...`) via its CLI, never locally, even now that Docker/Lean work locally — this machine's RAM constraints are the reason, not a technical necessity. Sync uncommitted/untracked files to the Codespace before training, pull trained artifacts back after, stop the Codespace when idle (free-tier usage).
 
 **Nothing Interactive-Brokers-dependent remains open.** Every item from the original Phase 4.12 plan, its Docker-blocked follow-ups, and this closure pass is done. IB-gated items (real Gateway connectivity, live/paper deployment) remain the only category left, tracked separately in this file's IB-specific entries.
+
+---
+
+### 72. V5.1 Phase 1's net-edge cost gate blocked 100% of trades — Lean Backtest 1 produced 0 orders end to end
+
+**Severity:** 9/10 (silently defeated every trade for the entire backtest window — the exact "additive/config-gated, disabled state is a strict no-op" contract this codebase relies on everywhere else) · **Status:** 🟢 `fixed`
+
+**Symptom, user-reported:** the first V5.1 Phase 1 Lean Backtest ("Lean Backtest 1" — `aggressive` preset applied, existing V4.12.3 model artifacts, `bypass_safety_gates: false`) completed cleanly (`Status: Completed`, no `RuntimeError`, ran the full 2019-01-01→2021-03-31 window in ~46 minutes) but produced **`Total Orders 0`, `Total Fees $0.00`, `Sharpe Ratio 0`, `Net Profit 0%`** — a flat equity curve for the entire window (the "black line" the resulting chart showed), not merely "fewer trades than the V4.12.3 baseline" (3,606 orders).
+
+**Root cause.** `analyzer/market_analyzer.py`'s new Priority 6.5 tier (the net-edge cost gate, item 3 of the V5.1 roadmap) was written to re-derive its own pass/fail comparison directly from the raw dict:
+```python
+if (
+    net_edge is not None
+    and signal_name in {"buy", "sell", "short"}
+    and not is_currently_invested
+    and float(net_edge.get("net_edge_bps", 0.0)) < min_net_edge_bps
+):
+```
+`execution/cost_model.py::build_net_edge_decision()` already computes a `passes` field with the correct fail-open contract (`passes=True` whenever `phase_v2.costs.enabled` is `false` or `edge_bps_per_rank_unit` is uncalibrated `0.0`) — but that "disabled" `NetEdgeDecision` still sets `net_edge_bps=0.0` (a real number, not `None`), because a `None` there would make `float(...)` in the comparison crash. `main.py` also always passed a real dict for `net_edge` (never `None`), embedding the "disabled" state only in the `reason` field.
+
+The `aggressive` preset sets `phase_v2.costs.min_net_edge_bps: 2.0`. So even though the cost gate itself stayed disabled (`phase_v2.costs.enabled: false`, correctly uncalibrated), the analyzer's own re-derived comparison evaluated `0.0 < 2.0` → `True` on **every symbol, every bar, for the entire backtest** — Priority 6.5 fired unconditionally and routed every single directional signal to `"simulate"` before it ever reached the Priority 7 trade tier. A supposedly no-op, disabled overlay silently vetoed 100% of trading — the two functions duplicated the same threshold logic in two places, and only one of them (the one inside `build_net_edge_decision()`) actually implemented the fail-open contract correctly.
+
+Caught only because the resulting backtest was maximally, unmistakably wrong (0 orders is impossible to miss) — a partial version of this bug (e.g. blocking 90% instead of 100% of trades) would have been much harder to notice and could easily have been misread as "the net-edge gate is working as intended, just aggressively."
+
+**Why the test suite didn't catch it beforehand:** every pre-existing `test_market_analyzer.py` test call omitted `net_edge`/`min_net_edge_bps` entirely (both defaulted to `None`/`0.0`), so the `net_edge is not None` guard was always `False` and Priority 6.5 never actually fired in any test — a new tier was added and unit-tested at the `execution/cost_model.py` level (`passes`/`reason` computed correctly there, verified independently) but never integration-tested against the analyzer with a realistic non-`None` "disabled" dict, the exact shape that triggered the bug.
+
+**Fix.** Removed the re-derived comparison and the now-redundant `min_net_edge_bps` parameter from `build_market_analysis_decision()` entirely; Priority 6.5 now trusts `net_edge.get("passes", True)` — the single verdict already computed once, in one place, by `build_net_edge_decision()`. `main.py`'s call site updated to match (drops the now-nonexistent `min_net_edge_bps=` kwarg). Five new regression tests added to `tests/test_market_analyzer.py`, including `test_net_edge_disabled_dict_never_blocks_a_trade_the_regression_case()`, which constructs the *exact* dict shape `build_net_edge_decision()` produces when disabled (verified byte-for-byte against the real function's output, not a hand-picked value) and asserts it still reaches `"trade"`.
+
+**Lesson for future additive/config-gated overlays in this codebase:** when a pure decision function already computes a `passes`/`enabled`-shaped verdict, every downstream consumer must trust that single verdict rather than re-deriving it from the verdict's own inputs — the moment a second call site re-implements "is this thing active," the two can silently disagree, and the disagreement is invisible in tests that never exercise the disabled-but-realistic-dict case specifically.
+
+---
+
+### 77. V5.1 Phase 1's `min_rank_confidence_spread` gate defeated by its own cross-sectional normalization fix — real Lean Backtest 1 traded but lost money
+
+**Severity:** 8/10 (didn't block trading like #72, but silently defeated a real risk control across the entire backtest, and materially worsened returns) · **Status:** 🟢 `fixed`
+
+**Symptom, from the first real (non-zero-order) Lean Backtest 1 run**, after #72 was fixed: `aggressive` preset, full 2019-01-01→2021-03-31 window, `bypass_safety_gates: false`. Orders and fees *did* fall as the plan predicted (3,606→2,349 orders, $2,769→$1,919 fees, real 31-35% reductions), but **Sharpe fell from −0.145 to −2.526 and Net Profit flipped from +3.41% to −3.11%** — not "still marginal," a genuine regression. A rough long/short P&L reconstruction from the run's `order-events.json` (average-cost method, chronological replay) put realized closed-trade P&L at roughly −$1,194 (long −$1,005, short −$190) against $1,919 in fees — accounting for nearly the entire −$3,111 net loss, with **gross trading quality itself down roughly $7,400 from the V4.12.3 baseline**, far more than fees alone explain.
+
+**Root cause.** `portfolio/book_construction.py::_select_book_group()`'s `min_rank_confidence_spread` gate exists to disengage the book on days the model shows no real conviction (predictions clustered tightly, no genuine dispersion) — before V5.1 it read the raw (sigmoid-compressed) prediction directly. V5.1 Phase 1's F1 fix (#73) now normalizes `predicted_rank_20d` to a per-bar cross-sectional percentile *before* `build_rank_based_book()` ever sees it (`portfolio/rank_signal.py::cross_sectional_rank_scores()`, wired in `main.py`'s Pass 1). A fixed top-6/bottom-6 selection out of ~74 eligible names, once percentile-ranked, **always** shows a spread around 0.90+ — `(74-2.5)/74 ≈ 0.966` mean long rank vs. `3.5/74 ≈ 0.047` mean short rank, regardless of whether the underlying raw model output had any real cross-sectional dispersion that bar. The `aggressive` preset's `min_rank_confidence_spread: 0.20` was trivially cleared on every single rebalance — the gate never once disengaged the book for the entire 2+ year run, so it traded through low-conviction/noisy days it was specifically built to sit out on.
+
+Selection itself (which symbols land in the top/bottom-N) was never affected — sorting is invariant under a monotone transform, and cross-sectional normalization is monotone. Only the *engage-or-not* decision was silently defeated.
+
+**Fix.** `_select_book_group()`/`build_rank_based_book()` gain an optional `spread_check_ranks: dict[str, float] | None` parameter (default `None` → falls back to the existing `eligible_ranks`, byte-identical to before this existed) — when provided, the spread comparison reads *this* dict instead of the (possibly normalized) selection-driving one. `main.py` now builds `spread_check_ranks` from each symbol's `raw_rank_score` (captured in Pass 1, *before* `cross_sectional_rank_scores()` runs) and passes it alongside the normalized `book_candidates`. Sizing/confidence (`BookAllocation.predicted_rank_20d`) still reads the normalized value — only the engagement gate changed inputs. Six new tests in `tests/test_portfolio_book_construction.py`, including one that reproduces the bug directly (`test_normalized_ranks_alone_would_trivially_clear_a_realistic_threshold`) and one proving selection stays unaffected by the override (`test_spread_check_ranks_never_changes_which_symbols_are_selected`).
+
+**Not yet re-verified with a Lean backtest** — the plan's 2-backtest budget has one slot left, deliberately held in reserve rather than spent confirming this fix in isolation; verification is bundled with Phase 2's retrained-model backtest per user instruction.
+
+**Lesson, adjacent to #72's:** a metric computed for one purpose (raw dispersion / conviction) silently stopped measuring that purpose once its *input* was normalized for an unrelated reason (F1's sizing fix) — the gate kept running, kept returning a number, and that number kept clearing the threshold, so nothing *looked* broken until the backtest's actual P&L was examined. Neither #72 nor #77 threw an exception or produced an obviously-malformed result; both required comparing real outputs against expectations to catch. Any future change to what scale a value lives on must audit every existing threshold/gate reading that value, not just the code path the change was aimed at.

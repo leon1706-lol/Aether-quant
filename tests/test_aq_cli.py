@@ -1477,6 +1477,16 @@ def _config_fixture(tmp_path):
                     "topology": {"cache_enabled": False, "correlation_stability_tolerance": 0.02},
                     "gc_tuning": {"freeze_after_load_enabled": False},
                     "inference_parallelism": {"enabled": False},
+                    # V5.1 Phase 1 - reuses already-fixtured keys as preset
+                    # override targets rather than inventing new ones.
+                    "presets": {
+                        "active": "moderate",
+                        "moderate": {"phase_v2.gating_network.baseline_weight": 0.5},
+                        "aggressive": {
+                            "phase_v2.gating_network.baseline_weight": 0.75,
+                            "phase_v2.topology.cache_enabled": True,
+                        },
+                    },
                 }
             },
             indent=4,
@@ -1788,6 +1798,127 @@ def test_config_set_limit_orders_fallback_to_market_per_asset_class(tmp_path, ca
         "equity": True,
         "future": True,
     }
+
+
+# --- config preset (V5.1 Phase 1) --------------------------------------------
+
+
+def test_config_preset_list_shows_available_names_and_marks_active(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["preset", "--list"], capsys)
+
+    assert exit_code == 0
+    lines = captured.out.strip().splitlines()
+    assert "aggressive" in lines
+    assert "moderate (active)" in lines
+
+
+def test_config_preset_show_prints_one_presets_overrides(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["preset", "--show", "aggressive"], capsys)
+
+    assert exit_code == 0
+    assert json.loads(captured.out) == {
+        "phase_v2.gating_network.baseline_weight": 0.75,
+        "phase_v2.topology.cache_enabled": True,
+    }
+
+
+def test_config_preset_show_unknown_name_errors(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["preset", "--show", "nonexistent"], capsys)
+
+    assert exit_code == 1
+    assert "no such preset" in captured.err
+
+
+def test_config_preset_apply_dry_run_writes_nothing(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+    original = config_path.read_text(encoding="utf-8")
+
+    exit_code, captured = _run_config(config_path, ["preset", "--apply", "aggressive", "--dry-run"], capsys)
+
+    assert exit_code == 0
+    assert "0.25 -> 0.75" in captured.out
+    assert "(dry run)" in captured.out
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_config_preset_apply_writes_every_key_and_sets_active(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["preset", "--apply", "aggressive"], capsys)
+
+    assert exit_code == 0
+    updated = json.loads(config_path.read_text(encoding="utf-8"))
+    assert updated["phase_v2"]["gating_network"]["baseline_weight"] == 0.75
+    assert updated["phase_v2"]["topology"]["cache_enabled"] is True
+    assert updated["phase_v2"]["presets"]["active"] == "aggressive"
+
+
+def test_config_preset_apply_unknown_name_errors_and_leaves_file_untouched(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+    original = config_path.read_text(encoding="utf-8")
+
+    exit_code, captured = _run_config(config_path, ["preset", "--apply", "nonexistent"], capsys)
+
+    assert exit_code == 1
+    assert "no such preset" in captured.err
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_config_preset_apply_refuses_partial_write_when_a_dotted_path_is_missing(tmp_path, capsys):
+    # A preset referencing a key that doesn't exist in THIS config must
+    # apply none of its keys, not the ones that happened to resolve first -
+    # "apply the whole preset or none" (_dispatch_config_preset_command()'s
+    # own docstring).
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "phase_v2": {
+                    "gating_network": {"baseline_weight": 0.25},
+                    "presets": {
+                        "active": "broken",
+                        "broken": {
+                            "phase_v2.gating_network.baseline_weight": 0.9,
+                            "phase_v2.does_not_exist": 1,
+                        },
+                    },
+                }
+            },
+            indent=4,
+        ),
+        encoding="utf-8",
+    )
+    original = config_path.read_text(encoding="utf-8")
+
+    exit_code, captured = _run_config(config_path, ["preset", "--apply", "broken"], capsys)
+
+    assert exit_code == 1
+    assert "no such config key" in captured.err
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_config_preset_bare_command_dumps_whole_presets_block(tmp_path, capsys):
+    config_path = _config_fixture(tmp_path)
+
+    exit_code, captured = _run_config(config_path, ["preset"], capsys)
+
+    assert exit_code == 0
+    assert json.loads(captured.out)["active"] == "moderate"
+
+
+def test_config_preset_mutually_exclusive_flags_rejected():
+    parser = aq_cli.build_parser()
+    try:
+        parser.parse_args(["config", "preset", "--list", "--show", "aggressive"])
+        assert False, "expected SystemExit for mutually exclusive preset flags"
+    except SystemExit:
+        pass
 
 
 def test_config_keys_lists_every_leaf(tmp_path, capsys):

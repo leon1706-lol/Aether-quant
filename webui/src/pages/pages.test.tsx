@@ -15,12 +15,13 @@ import { Overview } from './Overview'
 import { OperationsPage } from './OperationsPage'
 import { OptionsStrategyPage } from './OptionsStrategyPage'
 import { EvaluationPage } from './EvaluationPage'
+import { RiskPage } from './RiskPage'
 import { TracingPage } from './TracingPage'
 import { AppShell } from '../components/layout/AppShell'
 
 // Panels are identified by their Panel `title`, the same string a user
 // reads on screen.
-const OVERVIEW_PANELS = ['Observation Mode', 'Signal Board', 'Positions', 'Strategy and Risk']
+const OVERVIEW_PANELS = ['Observation Mode', 'Rank Signal', 'Signal Board', 'Positions', 'Strategy and Risk']
 const OPERATIONS_PANELS = [
   'Performance Triggers',
   'Retraining Status',
@@ -160,6 +161,20 @@ describe('V5.1 Phase 0: Evaluation page', () => {
     )
     const link = screen.getByRole('link', { name: 'Evaluation' })
     expect(link).toHaveAttribute('href', '/evaluation')
+  })
+})
+
+describe('V5.1 Phase 1: Rank Signal / Net Edge / Book Neutrality panels', () => {
+  it('Overview renders the Rank Signal panel', () => {
+    renderWithProviders(<Overview state={undefined} />)
+    expect(panelTitles()).toContain('Rank Signal')
+  })
+
+  it('RiskPage renders the Net Edge and Book Neutrality panels', () => {
+    renderWithProviders(<RiskPage state={undefined} />)
+    const titles = panelTitles()
+    expect(titles).toContain('Net Edge vs. Cost')
+    expect(titles).toContain('Book Neutrality')
   })
 })
 

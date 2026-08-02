@@ -86,6 +86,10 @@ function MultiplierBreakdown({ sizing }: { sizing: DynamicSizing }) {
       <MultiplierChip label="topo" value={sizing.topology_multiplier} reason={sizing.topology_sizing_reason} />
       <MultiplierChip label="rank" value={sizing.rank_multiplier} reason={sizing.rank_sizing_reason} />
       <MultiplierChip label="rl" value={sizing.rl_multiplier} reason={sizing.rl_sizing_reason} />
+      {/* V5.1 Phase 1 (development/Problems.md, item 3) - same disabled-vs-
+          active convention as every other chip here: muted at the neutral
+          1.0 default while phase_v2.costs.cost_sizing_enabled is off. */}
+      <MultiplierChip label="cost" value={sizing.cost_multiplier} reason={sizing.cost_sizing_reason} />
     </div>
   )
 }

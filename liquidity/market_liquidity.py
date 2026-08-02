@@ -102,6 +102,7 @@ def build_liquidity_decision(
     high_impact_size_factor: float = 0.5,
     slippage_factor: float = 0.1,
     dynamic_spread: float | None = None,
+    max_round_trip_cost_fraction: float | None = None,
 ) -> LiquidityDecision:
     close = float(close)
     volume = float(volume)
@@ -158,6 +159,31 @@ def build_liquidity_decision(
     daily_vol = annualized_volatility / math.sqrt(TRADING_DAYS_PER_YEAR)
     estimated_slippage = participation_rate * daily_vol * slippage_factor
     estimated_round_trip_cost = estimated_slippage + spread_proxy
+
+    # V5.1 Phase 1 (development/Problems.md, item 3) - a hard ceiling on
+    # estimated_round_trip_cost itself (spread + impact, as a fraction of
+    # order value), independent of the participation-rate tiers below - a
+    # low-participation order can still carry an expensive round-trip cost
+    # on a wide-spread/high-volatility name, which the participation-rate
+    # gates alone never catch. max_round_trip_cost_fraction=None (the
+    # default) is a strict no-op - this check simply never fires, byte-
+    # identical to it not existing. Checked BEFORE the participation tiers
+    # below so an expensive-but-thin order is blocked for the right
+    # reason (cost, not participation).
+    if max_round_trip_cost_fraction is not None and estimated_round_trip_cost > max_round_trip_cost_fraction:
+        reasons.append(f"round_trip_cost_{estimated_round_trip_cost:.5f}_exceeds_max_{max_round_trip_cost_fraction:.5f}")
+        return LiquidityDecision(
+            daily_dollar_volume=daily_dollar_volume,
+            order_value=order_value,
+            participation_rate=participation_rate,
+            estimated_slippage=estimated_slippage,
+            spread_proxy=spread_proxy,
+            estimated_round_trip_cost=estimated_round_trip_cost,
+            liquidity_risk="expensive",
+            recommended_action="block",
+            adjusted_target_weight=0.0,
+            reasons=reasons,
+        )
 
     if participation_rate >= blocked_participation_threshold:
         reasons.append(f"participation_rate_{participation_rate:.4f}_exceeds_blocked_threshold")

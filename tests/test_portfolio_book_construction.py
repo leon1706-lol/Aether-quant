@@ -156,6 +156,100 @@ def test_build_rank_based_book_engages_when_spread_clears_confidence_floor():
     assert book["B"].role == "short"
 
 
+# ---------------------------------------------------------------------------
+# spread_check_ranks (V5.1 Phase 1, development/Problems.md #77)
+#
+# The regression this reproduces: main.py feeds build_rank_based_book()
+# candidates whose predicted_rank_20d is ALREADY a per-bar cross-sectional
+# percentile (portfolio/rank_signal.py::cross_sectional_rank_scores()). A
+# fixed top-N/bottom-N split of a percentile-ranked pool shows a large
+# spread by construction REGARDLESS of the underlying model's actual
+# conviction that bar - checking min_rank_confidence_spread against that
+# normalized scale can never disengage the book on a genuinely noisy day,
+# defeating the gate's entire purpose (confirmed in a real Lean backtest:
+# fees/orders fell as expected, but Sharpe/net-profit got dramatically
+# WORSE than the pre-Phase-1 baseline, because the book was now trading
+# through low-conviction noise it previously correctly sat out).
+# ---------------------------------------------------------------------------
+
+
+def test_spread_check_defaults_to_eligible_ranks_when_not_given_byte_identical():
+    # Default (no spread_check_ranks) must reproduce today's exact
+    # behavior - both disengage-below-floor and engage-above-floor cases.
+    tight_candidates = {"A": _candidate(0.52), "B": _candidate(0.51), "C": _candidate(0.49), "D": _candidate(0.48)}
+    assert build_rank_based_book(tight_candidates, top_n=2, bottom_n=2, min_rank_confidence_spread=0.5) == {}
+
+    wide_candidates = {"A": _candidate(0.95), "B": _candidate(0.05)}
+    book = build_rank_based_book(wide_candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.5)
+    assert book["A"].role == "long" and book["B"].role == "short"
+
+
+def test_normalized_ranks_alone_would_trivially_clear_a_realistic_threshold():
+    # THE bug, reproduced directly: candidates already carry cross-sectional
+    # percentiles (as main.py now passes) - top-1/bottom-1 of 4 clears even
+    # a demanding 0.5 spread floor by construction, with ZERO information
+    # about whether the underlying raw model output had any real dispersion.
+    normalized_candidates = {"A": _candidate(1.0), "B": _candidate(0.67), "C": _candidate(0.33), "D": _candidate(0.0)}
+    book = build_rank_based_book(normalized_candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.5)
+    assert book != {}, "normalized-scale spread trivially clears the floor - this is the defeated-gate bug"
+
+
+def test_spread_check_ranks_disengages_the_book_when_raw_scores_show_no_real_dispersion():
+    # THE fix: even though the NORMALIZED candidates above look maximally
+    # dispersed (0.0 to 1.0), the caller's raw_rank_score for the same
+    # symbols was tightly clustered (a genuinely low-conviction bar) -
+    # spread_check_ranks must be what actually gates engagement.
+    normalized_candidates = {"A": _candidate(1.0), "B": _candidate(0.67), "C": _candidate(0.33), "D": _candidate(0.0)}
+    raw_scores = {"A": 0.502, "B": 0.501, "C": 0.499, "D": 0.498}  # clustered, no real dispersion
+
+    book = build_rank_based_book(
+        normalized_candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.5,
+        spread_check_ranks=raw_scores,
+    )
+    assert book == {}
+
+
+def test_spread_check_ranks_still_engages_when_raw_scores_show_genuine_dispersion():
+    normalized_candidates = {"A": _candidate(1.0), "B": _candidate(0.67), "C": _candidate(0.33), "D": _candidate(0.0)}
+    raw_scores = {"A": 0.9, "B": 0.6, "C": 0.3, "D": 0.05}  # genuinely dispersed
+
+    book = build_rank_based_book(
+        normalized_candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.5,
+        spread_check_ranks=raw_scores,
+    )
+    assert book["A"].role == "long" and book["D"].role == "short"
+
+
+def test_spread_check_ranks_never_changes_which_symbols_are_selected():
+    # Selection is invariant under the (monotone) normalization transform -
+    # spread_check_ranks affects ONLY the engage/disengage decision, never
+    # who gets picked once the book does engage.
+    normalized_candidates = {"A": _candidate(1.0), "B": _candidate(0.67), "C": _candidate(0.33), "D": _candidate(0.0)}
+    raw_scores = {"A": 0.9, "B": 0.6, "C": 0.3, "D": 0.05}
+
+    without_override = build_rank_based_book(normalized_candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.0)
+    with_override = build_rank_based_book(
+        normalized_candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.0, spread_check_ranks=raw_scores
+    )
+    assert set(without_override.keys()) == set(with_override.keys()) == {"A", "D"}
+    # predicted_rank_20d on the resulting allocation is still the
+    # NORMALIZED value (sizing/confidence must keep using it) - only the
+    # engagement gate reads spread_check_ranks, never the stored allocation.
+    assert with_override["A"].predicted_rank_20d == 1.0
+    assert with_override["D"].predicted_rank_20d == 0.0
+
+
+def test_spread_check_ranks_missing_symbol_falls_back_to_eligible_ranks_not_a_crash():
+    normalized_candidates = {"A": _candidate(1.0), "B": _candidate(0.67), "C": _candidate(0.33), "D": _candidate(0.0)}
+    partial_raw_scores = {"A": 0.9}  # missing B/C/D entirely
+
+    book = build_rank_based_book(
+        normalized_candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.0,
+        spread_check_ranks=partial_raw_scores,
+    )
+    assert book != {}  # never raises, degrades gracefully
+
+
 def test_build_rank_based_book_is_asset_class_blind():
     # Multi-asset-class support: book_candidates already includes any
     # symbol with a valid predicted_rank_20d regardless of asset class -

@@ -29,6 +29,10 @@ class PositionSizingDecision:
     rank_sizing_reason: str = "rank_sizing_disabled_or_absent"
     rl_multiplier: float = 1.0
     rl_sizing_reason: str = "rl_sizing_disabled_or_absent"
+    # V5.1 Phase 1 (development/Problems.md, item 3) - see
+    # cost_sizing_multiplier() below.
+    cost_multiplier: float = 1.0
+    cost_sizing_reason: str = "cost_sizing_disabled_or_absent"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -115,6 +119,39 @@ def rank_sizing_multiplier(
     rank = _clamp01(rank_prediction)
     multiplier = min_rank_multiplier + (max_rank_multiplier - min_rank_multiplier) * rank
     return multiplier, "rank_prediction_scaled_sizing"
+
+
+def cost_sizing_multiplier(
+    expected_edge_bps: float,
+    expected_cost_bps: float,
+    cost_sizing_enabled: bool,
+    min_cost_multiplier: float = 0.25,
+) -> tuple[float, str]:
+    """Bounded, continuous, shrink-only size adjustment (V5.1 Phase 1,
+    development/Problems.md, item 3) - follows topology_sizing_multiplier()'s
+    exact contract: never above 1.0 (never amplifies size beyond what the
+    deterministic sizing already computed), and a disabled/absent input is
+    always a strict no-op.
+
+    multiplier = clamp((edge - cost) / max(edge, eps), min_cost_multiplier, 1.0) -
+    a trade whose edge comfortably clears its cost sizes at full conviction
+    (multiplier 1.0); one whose edge is barely above cost (or below it -
+    analyzer/market_analyzer.py's Priority 6.5 tier is the actual entry
+    veto for that case, this is a size-scaling BACKSTOP for whatever
+    reaches sizing regardless, e.g. an already-open position being
+    resized) shrinks toward min_cost_multiplier rather than sizing at full
+    weight on a marginal edge.
+
+    Config-gated, additive, default OFF (phase_v2.costs.cost_sizing_enabled) -
+    same off-by-default precedent as rank_sizing_enabled/rl_sizing_enabled,
+    since this depends on the same not-yet-calibrated edge_bps_per_rank_unit
+    execution/cost_model.py::build_net_edge_decision() documents."""
+    if not cost_sizing_enabled or expected_edge_bps == 0.0:
+        return 1.0, "cost_sizing_disabled_or_absent"
+
+    raw_ratio = (expected_edge_bps - expected_cost_bps) / max(abs(expected_edge_bps), 1e-9)
+    multiplier = max(min_cost_multiplier, min(raw_ratio, 1.0))
+    return multiplier, "net_edge_scaled_sizing"
 
 
 def _resolve_effective_volatility(

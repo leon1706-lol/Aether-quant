@@ -12,6 +12,11 @@ from .options_strategy import (
     build_options_position_sizing,
     select_single_leg_contract,
 )
+from .rank_signal import (
+    cross_sectional_rank_scores,
+    resolve_rank_signal_policy,
+    select_raw_rank_score,
+)
 
 __all__ = [
     "BookAllocation",
@@ -19,7 +24,10 @@ __all__ = [
     "apply_book_neutrality",
     "build_options_position_sizing",
     "build_rank_based_book",
+    "cross_sectional_rank_scores",
     "normalize_per_asset_class_slots",
+    "resolve_rank_signal_policy",
+    "select_raw_rank_score",
     "select_single_leg_contract",
     "should_rebalance_this_bar",
 ]

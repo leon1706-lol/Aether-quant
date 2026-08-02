@@ -562,6 +562,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_options_strategy_multileg.py", "test_options_arbitrage_detector.py",
         "test_options_margin_sizing.py",
         "test_options_greeks.py", "test_simulated_portfolio.py", "test_options_assignment_risk.py",
+        # V5.1 Phase 1 (development/Problems.md #73) - portfolio/rank_signal.py.
+        "test_rank_signal.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -1122,11 +1124,75 @@ def _dispatch_json_config_command(args: argparse.Namespace, json_path: Path, com
                     file=sys.stderr,
                 )
             return 0
+
+        if command == "preset":
+            return _dispatch_config_preset_command(args, data, json_path)
     except ConfigPathError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
     return 1
+
+
+def _dispatch_config_preset_command(args: argparse.Namespace, data: dict, json_path: Path) -> int:
+    """`aq config preset` (V5.1 Phase 1) - list/show/apply a named
+    dotted-key-override block from phase_v2.presets. Reuses
+    _get_config_value()/_set_config_value() so backup/type-coercion/old->new
+    printing are IDENTICAL to a manual `aq config set` per key - a preset
+    is just several `set` calls applied together, never a separate write
+    path. Only registered under `config` (not `lean` - presets are a
+    config.json-only concept)."""
+    presets_root = data.get("phase_v2", {}).get("presets", {})
+    preset_names = sorted(name for name in presets_root if name != "active")
+
+    if args.preset_list:
+        active = presets_root.get("active")
+        for name in preset_names:
+            print(f"{name}{' (active)' if name == active else ''}")
+        return 0
+
+    if args.preset_show:
+        preset_values = presets_root.get(args.preset_show)
+        if preset_values is None:
+            print(f"error: no such preset {args.preset_show!r} - available: {preset_names}", file=sys.stderr)
+            return 1
+        print(json.dumps(preset_values, indent=2))
+        return 0
+
+    if args.preset_apply:
+        preset_values = presets_root.get(args.preset_apply)
+        if preset_values is None:
+            print(f"error: no such preset {args.preset_apply!r} - available: {preset_names}", file=sys.stderr)
+            return 1
+
+        # Validate every dotted path resolves BEFORE writing anything -
+        # apply the whole preset or none. A partial apply that failed
+        # halfway through would leave config.json in a mixed state no
+        # preset actually describes.
+        for dotted_path in preset_values:
+            _get_config_value(data, dotted_path)
+
+        if args.preset_dry_run:
+            for dotted_path, new_value in preset_values.items():
+                old_value = _get_config_value(data, dotted_path)
+                print(f"{dotted_path}: {old_value!r} -> {new_value!r} (dry run)")
+            return 0
+
+        shutil.copy2(json_path, json_path.with_suffix(".json.bak"))
+        for dotted_path, new_value in preset_values.items():
+            old_value, applied_value, type_changed = _set_config_value(data, dotted_path, json.dumps(new_value))
+            print(f"{dotted_path}: {old_value!r} -> {applied_value!r}")
+            if type_changed:
+                print(f"WARNING: type changed for {dotted_path}", file=sys.stderr)
+        if "active" in presets_root:
+            _set_config_value(data, "phase_v2.presets.active", json.dumps(args.preset_apply))
+        json_path.write_text(json.dumps(data, indent=4) + "\n", encoding="utf-8")
+        return 0
+
+    # No flag given - print the whole presets block, same "bare command
+    # dumps everything" convention as `aq config` itself.
+    print(json.dumps(presets_root, indent=2))
+    return 0
 
 
 def cmd_config(args: argparse.Namespace) -> int:
@@ -1664,6 +1730,22 @@ def build_parser() -> argparse.ArgumentParser:
     config_set_parser = config_subparsers.add_parser("set", help="Set a config.json value (JSON-parsed, string fallback)")
     config_set_parser.add_argument("dotted_path")
     config_set_parser.add_argument("value")
+
+    # V5.1 Phase 1 - phase_v2.presets, named dotted-key-override blocks
+    # (e.g. "aggressive"/"moderate" turnover profiles). config-only, no
+    # `aq lean preset` equivalent.
+    config_preset_parser = config_subparsers.add_parser(
+        "preset", help="List/show/apply a named config preset (phase_v2.presets)"
+    )
+    config_preset_group = config_preset_parser.add_mutually_exclusive_group()
+    config_preset_group.add_argument("--list", dest="preset_list", action="store_true", help="List available presets")
+    config_preset_group.add_argument("--show", dest="preset_show", metavar="NAME", help="Print one preset's overrides")
+    config_preset_group.add_argument(
+        "--apply", dest="preset_apply", metavar="NAME", help="Apply one preset's overrides to config.json"
+    )
+    config_preset_parser.add_argument(
+        "--dry-run", dest="preset_dry_run", action="store_true", help="With --apply: print old -> new, write nothing"
+    )
 
     lean_parser = subparsers.add_parser("lean", help="Show or edit lean.json (same shape as `aq config`)")
     lean_parser.set_defaults(func=cmd_lean)

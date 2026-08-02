@@ -160,6 +160,7 @@ def _select_book_group(
     min_rank_confidence_spread: float,
     previous_allocations: dict[str, BookAllocation] | None = None,
     hysteresis_rank_margin: float = 0.0,
+    spread_check_ranks: dict[str, float] | None = None,
 ) -> dict[str, BookAllocation]:
     """Core discrete top-N-long / bottom-N-short selection over an already-
     filtered `{symbol: predicted_rank_20d}` pool - shared by the pooled
@@ -172,9 +173,26 @@ def _select_book_group(
     defaults None/0.0): optional sticky-selection pass over the natural
     top/bottom-N slice - see _hysteresis_adjusted_selection()'s docstring.
     Both defaults are a strict no-op, reproducing the pre-hysteresis
-    selection exactly."""
+    selection exactly.
+
+    `spread_check_ranks` (V5.1 Phase 1, development/Problems.md #77):
+    optional separate `{symbol: raw_score}` dict used ONLY for the
+    min_rank_confidence_spread comparison below - defaults to
+    `eligible_ranks` itself when not given (byte-identical to before this
+    parameter existed). Selection (WHICH symbols end up long/short) is
+    unaffected either way, since sorting is invariant under a monotone
+    transform - `eligible_ranks` may already be a per-bar cross-sectional
+    percentile (portfolio/rank_signal.py::cross_sectional_rank_scores()),
+    and a fixed top-N/bottom-N split out of that ALWAYS shows a large
+    spread by construction (e.g. ~0.9 for top-6/bottom-6 of ~74 names),
+    regardless of whether the underlying model had any real conviction
+    that day - a normalized-scale spread check is statistically
+    meaningless, it can never distinguish a genuinely dispersed day from a
+    noisy one. Passing the pre-normalization raw scores here restores the
+    gate's actual purpose: does the RAW output show real dispersion."""
     if len(eligible_ranks) < 2 or top_n <= 0:
         return {}
+    spread_ranks = spread_check_ranks if spread_check_ranks is not None else eligible_ranks
 
     ranked_symbols = sorted(eligible_ranks, key=lambda symbol: eligible_ranks[symbol], reverse=True)
     natural_long_symbols = ranked_symbols[:top_n]
@@ -214,8 +232,14 @@ def _select_book_group(
         return {}
 
     if short_symbols:
-        long_mean_rank = sum(eligible_ranks[symbol] for symbol in long_symbols) / len(long_symbols)
-        short_mean_rank = sum(eligible_ranks[symbol] for symbol in short_symbols) / len(short_symbols)
+        # Defensive .get(symbol, eligible_ranks[symbol]) fallback: a symbol
+        # missing from spread_check_ranks (e.g. a caller-supplied dict that
+        # doesn't cover every eligible symbol) falls back to its own
+        # eligible_ranks value rather than a KeyError - degrades toward the
+        # pre-fix (normalized-scale) check for that one symbol only, never
+        # crashes the whole selection.
+        long_mean_rank = sum(spread_ranks.get(symbol, eligible_ranks[symbol]) for symbol in long_symbols) / len(long_symbols)
+        short_mean_rank = sum(spread_ranks.get(symbol, eligible_ranks[symbol]) for symbol in short_symbols) / len(short_symbols)
         if (long_mean_rank - short_mean_rank) < min_rank_confidence_spread:
             return {}
 
@@ -245,6 +269,7 @@ def build_rank_based_book(
     per_asset_class_slots: dict[str, tuple[int, int]] | None = None,
     previous_allocations: dict[str, BookAllocation] | None = None,
     hysteresis_rank_margin: float = 0.0,
+    spread_check_ranks: dict[str, float] | None = None,
 ) -> dict[str, BookAllocation]:
     """Discrete top-N-long / bottom-N-short book construction from each
     symbol's predicted_rank_20d for this bar. Continuous rank-weighted
@@ -316,7 +341,15 @@ def build_rank_based_book(
     exactly): threaded straight through to _select_book_group() (pooled
     path) or applied identically within each asset class (per-asset-class
     path) - see _hysteresis_adjusted_selection()'s docstring for the actual
-    sticky-selection behavior."""
+    sticky-selection behavior.
+
+    `spread_check_ranks` (V5.1 Phase 1, development/Problems.md #77):
+    optional `{symbol: raw_score}` override for the min_rank_confidence_spread
+    check only - see _select_book_group()'s docstring for why this must be
+    the PRE-normalization score when the caller's `book_candidates`
+    predicted_rank_20d values are already a cross-sectional percentile.
+    Defaults to None (falls back to book_candidates' own predicted_rank_20d,
+    byte-identical to before this parameter existed)."""
     eligible = {
         symbol: candidate
         for symbol, candidate in book_candidates.items()
@@ -327,7 +360,7 @@ def build_rank_based_book(
         eligible_ranks = {symbol: candidate["predicted_rank_20d"] for symbol, candidate in eligible.items()}
         return _select_book_group(
             eligible_ranks, top_n, bottom_n, min_rank_confidence_spread,
-            previous_allocations, hysteresis_rank_margin,
+            previous_allocations, hysteresis_rank_margin, spread_check_ranks,
         )
 
     allocations: dict[str, BookAllocation] = {}
@@ -340,7 +373,7 @@ def build_rank_based_book(
         allocations.update(
             _select_book_group(
                 class_eligible_ranks, class_top_n, class_bottom_n, min_rank_confidence_spread,
-                previous_allocations, hysteresis_rank_margin,
+                previous_allocations, hysteresis_rank_margin, spread_check_ranks,
             )
         )
     return allocations

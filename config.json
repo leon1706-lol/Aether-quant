@@ -1469,8 +1469,8 @@
     },
     "phase6": {
         "risk": {
-            "max_position_weight": 0.2,
-            "min_confidence_to_trade": 0.05,
+            "max_position_weight": 0.12,
+            "min_confidence_to_trade": 0.12,
             "trade_cooldown_bars": 10,
             "max_daily_drawdown_pct": 0.03,
             "max_total_drawdown_pct": 0.12,
@@ -1487,7 +1487,7 @@
             "observation_only_kept_in_universe": true
         },
         "portfolio": {
-            "max_active_positions": 15,
+            "max_active_positions": 12,
             "max_equity_exposure": 0.65,
             "max_crypto_exposure": 0.35,
             "max_bond_exposure": 0.3,
@@ -1667,10 +1667,19 @@
         },
         "portfolio_book": {
             "enabled": true,
-            "top_n": 10,
-            "bottom_n": 10,
-            "min_rank_confidence_spread": 0.15,
-            "rebalance_every_bars": 5
+            "top_n": 6,
+            "bottom_n": 6,
+            "min_rank_confidence_spread": 0.2,
+            "rebalance_every_bars": 10,
+            "neutrality": {
+                "enabled": true,
+                "dollar_neutral": true,
+                "sector_neutral": true,
+                "gross_exposure_cap": 1.0,
+                "max_weight_per_name": 0.12,
+                "sector_max_net_weight": 0.05
+            },
+            "hysteresis_rank_margin": 0.05
         },
         "exits": {
             "enabled": true,
@@ -1678,11 +1687,11 @@
             "trailing_stop_pct": 0.15
         },
         "liquidity": {
-            "thin_participation_threshold": 0.005,
+            "thin_participation_threshold": 0.003,
             "high_impact_participation_threshold": 0.01,
-            "blocked_participation_threshold": 0.1,
+            "blocked_participation_threshold": 0.02,
             "min_daily_dollar_volume": 100000,
-            "high_impact_size_factor": 0.5,
+            "high_impact_size_factor": 0.35,
             "slippage_factor": 0.1,
             "spread_estimation": {
                 "enabled": true,
@@ -1691,7 +1700,8 @@
             "fill_slippage": {
                 "source": "round_trip",
                 "max_bps": 500.0
-            }
+            },
+            "max_round_trip_cost_fraction": 0.0025
         },
         "limit_orders": {
             "enabled": true,
@@ -2027,11 +2037,60 @@
             "min_commission_usd": 1.0,
             "extra_slippage_bps": 0.0,
             "edge_bps_per_rank_unit": 0.0,
-            "min_net_edge_bps": 0.0,
+            "min_net_edge_bps": 2.0,
             "holding_bars": 10,
             "horizon_days": 20,
             "cost_sizing_enabled": false,
             "min_cost_multiplier": 0.25
+        },
+        "rank_signal": {
+            "normalization": "cross_sectional",
+            "heads": {
+                "rank_20d": 1.0,
+                "rank_5d": 0.0
+            },
+            "model_priority": [
+                "sequence",
+                "multitask"
+            ],
+            "demote_not_promotable_heads": true,
+            "min_promotion_status": [
+                "promotable",
+                "watchlist"
+            ]
+        },
+        "presets": {
+            "active": "aggressive",
+            "moderate": {
+                "phase_v2.portfolio_book.top_n": 8,
+                "phase_v2.portfolio_book.bottom_n": 8,
+                "phase_v2.portfolio_book.rebalance_every_bars": 10,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.18,
+                "phase_v2.portfolio_book.hysteresis_rank_margin": 0.04,
+                "phase9.portfolio.max_active_positions": 16,
+                "phase6.risk.max_position_weight": 0.15,
+                "phase6.risk.min_confidence_to_trade": 0.08,
+                "phase_v2.liquidity.thin_participation_threshold": 0.004,
+                "phase_v2.liquidity.blocked_participation_threshold": 0.04,
+                "phase_v2.liquidity.high_impact_size_factor": 0.45,
+                "phase_v2.liquidity.max_round_trip_cost_fraction": 0.004,
+                "phase_v2.costs.min_net_edge_bps": 1.0
+            },
+            "aggressive": {
+                "phase_v2.portfolio_book.top_n": 6,
+                "phase_v2.portfolio_book.bottom_n": 6,
+                "phase_v2.portfolio_book.rebalance_every_bars": 10,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.2,
+                "phase_v2.portfolio_book.hysteresis_rank_margin": 0.05,
+                "phase9.portfolio.max_active_positions": 12,
+                "phase6.risk.max_position_weight": 0.12,
+                "phase6.risk.min_confidence_to_trade": 0.12,
+                "phase_v2.liquidity.thin_participation_threshold": 0.003,
+                "phase_v2.liquidity.blocked_participation_threshold": 0.02,
+                "phase_v2.liquidity.high_impact_size_factor": 0.35,
+                "phase_v2.liquidity.max_round_trip_cost_fraction": 0.0025,
+                "phase_v2.costs.min_net_edge_bps": 2.0
+            }
         }
     },
     "local-id": 694224972

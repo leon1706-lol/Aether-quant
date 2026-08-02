@@ -25,6 +25,12 @@ class MarketAnalysisDecision:
     signal_quality_breakdown: dict = field(default_factory=dict)
     predicted_return_magnitude: float | None = None
     predicted_volatility: float | None = None
+    # V5.1 Phase 1 (development/Problems.md, item 3 - the actual root cause
+    # of the fee drag) - execution/cost_model.py::NetEdgeDecision.to_dict(),
+    # or None when the cost gate is disabled/uncalibrated/no rank
+    # prediction this bar. Defaulted so every existing positional
+    # construction and to_dict() consumer is unaffected.
+    net_edge: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -93,6 +99,7 @@ def build_market_analysis_decision(
     predicted_return_magnitude: float | None = None,
     predicted_volatility: float | None = None,
     is_currently_invested: bool = False,
+    net_edge: dict | None = None,
 ) -> MarketAnalysisDecision:
     # signal_name == "short" (Phase 3 of the 5/10 -> 9/10 roadmap,
     # portfolio/book_construction.py) is treated identically to "buy"/"sell"
@@ -289,6 +296,54 @@ def build_market_analysis_decision(
             predicted_volatility=predicted_volatility,
         )
 
+    # Priority 6.5 (V5.1 Phase 1, development/Problems.md, item 3 - the
+    # actual root cause of the fee drag: $2,769 in fees on $3,159 gross
+    # profit in the last representative backtest): the trade is
+    # directionally right often enough to show a rank-IC, but not by
+    # enough to pay the spread + impact + commission. `not
+    # is_currently_invested` matters - an EXIT must never be blocked by a
+    # cost gate, the same reasoning Priority 0's is_currently_invested
+    # bypass above already uses (closing risk-reducing-by-construction
+    # positions is not something a cost estimate should be able to trap
+    # open).
+    #
+    # Gates on net_edge["passes"] - the SAME field
+    # execution/cost_model.py::build_net_edge_decision() already computed
+    # (passes=True, reason="net_edge_gate_disabled" whenever the gate is
+    # disabled/uncalibrated/no rank prediction this bar) - deliberately
+    # NOT re-deriving "net_edge_bps < some threshold" here. Problems.md
+    # #76: an earlier version of this tier re-compared net_edge_bps
+    # against min_net_edge_bps directly; a "disabled" NetEdgeDecision's
+    # net_edge_bps defaults to 0.0 (not None), so once a preset set a real
+    # positive min_net_edge_bps threshold, 0.0 < threshold was true on
+    # EVERY bar for EVERY symbol - a supposedly no-op cost gate blocked
+    # 100% of entries (Lean Backtest 1: 0 orders end to end). Trusting the
+    # single "passes" verdict computed once, in one place, is what
+    # actually satisfies the "disabled config is a strict no-op" contract.
+    if (
+        net_edge is not None
+        and signal_name in {"buy", "sell", "short"}
+        and not is_currently_invested
+        and not net_edge.get("passes", True)
+    ):
+        reasons.append("expected_net_edge_below_cost_simulate_instead")
+        return MarketAnalysisDecision(
+            action="simulate",
+            signal=signal_name,
+            target_weight=0.0,
+            confidence=confidence,
+            probability_up=probability_up,
+            trading_eligible=trading_eligible,
+            topology_considered=topology_considered,
+            liquidity_considered=liquidity_considered,
+            reasons=reasons,
+            signal_quality_score=signal_quality_score,
+            signal_quality_breakdown=signal_quality_breakdown,
+            predicted_return_magnitude=predicted_return_magnitude,
+            predicted_volatility=predicted_volatility,
+            net_edge=net_edge,
+        )
+
     # Priority 7: trade - only for trading-eligible assets with an actionable
     # directional signal, sufficient confidence, no topology isolation, and
     # no liquidity block (redundant guard — tiers 5/6 already caught those).
@@ -317,6 +372,11 @@ def build_market_analysis_decision(
             signal_quality_breakdown=signal_quality_breakdown,
             predicted_return_magnitude=predicted_return_magnitude,
             predicted_volatility=predicted_volatility,
+            # Visibility only - Priority 6.5 above already vetoed any trade
+            # whose net_edge failed the gate, so a trade reaching here
+            # either passed it or the gate was disabled/uncalibrated
+            # (net_edge=None) this bar.
+            net_edge=net_edge,
         )
 
     # Priority 8: simulate vs observe.
