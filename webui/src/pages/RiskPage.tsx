@@ -5,6 +5,7 @@ import { LiquidityTable } from '../components/risk/LiquidityTable'
 import { NetEdgePanel } from '../components/risk/NetEdgePanel'
 import { DerivativesMacroPanel } from '../components/risk/DerivativesMacroPanel'
 import { MacroSnapshotPanel } from '../components/risk/MacroSnapshotPanel'
+import { SensitivityPanel } from '../components/risk/SensitivityPanel'
 import { BookNeutralityPanel } from '../components/portfolio/BookNeutralityPanel'
 
 export function RiskPage({ state }: { state: RuntimeState | undefined }) {
@@ -18,6 +19,7 @@ export function RiskPage({ state }: { state: RuntimeState | undefined }) {
         <BookNeutralityPanel diagnostics={state?.book_neutrality} />
         <DerivativesMacroPanel derivatives={state?.derivatives} />
         <MacroSnapshotPanel macro={state?.macro} />
+        <SensitivityPanel signals={state?.signals} />
       </div>
     </div>
   )

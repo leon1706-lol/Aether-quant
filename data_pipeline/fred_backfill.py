@@ -58,11 +58,29 @@ DEFAULT_BOND_REFERENCE_SERIES = {
 # both; UMCSENT/TEDRATE/SOFR fail on coverage or lag; BAMLH0A0HYM2 has NO
 # usable history before 2023-07-25 through FRED's keyless endpoint (ICE
 # BofA series are license-restricted beyond a short trailing window) - do
-# not re-add it without a paid FRED API key.
+# not re-add it without a paid FRED API key. DTWEXBGS was in this same
+# candidate list and cleared both checks even then - it simply wasn't
+# needed for the original 3-series alt-data trio above (a broadcast LEVEL
+# feature; VIX/VXV/NFCI already covered vol/conditions). V5.1 Phase 2 (item
+# 8 / F2, development/Problems.md) re-adds it below as a cross-asset
+# SENSITIVITY DRIVER instead - a per-asset beta against dollar-index daily
+# CHANGE varies across the cross-section (usable by a ranker) in a way a
+# broadcast dollar-index LEVEL never would have. treasury_10yr_real
+# (DFII10) and breakeven_inflation_10y (T10YIE) are new for the same
+# purpose - real-rate and inflation-expectation sensitivity drivers,
+# neither previously evaluated as a candidate here. GUARDRAIL (plan): FRED
+# coverage for all 3 must be reverified on the Codespace before the first
+# real training run - assume nothing until `aq backfill fred` confirms it;
+# if any lacks 2014-12 -> 2021-03 coverage, drop it and its 2 sensitivity
+# columns (features/cross_asset_sensitivity.py) rather than shipping a
+# constant.
 DEFAULT_ALT_DATA_REFERENCE_SERIES = {
     "implied_volatility_vix": "VIXCLS",
     "implied_volatility_3m": "VXVCLS",
     "financial_conditions_nfci": "NFCI",
+    "treasury_10yr_real": "DFII10",
+    "breakeven_inflation_10y": "T10YIE",
+    "dollar_index": "DTWEXBGS",
 }
 
 # Days to subtract from the decision date before doing the as-of lookup
@@ -72,11 +90,18 @@ DEFAULT_ALT_DATA_REFERENCE_SERIES = {
 # above). NFCI observations are Friday-dated but released the FOLLOWING
 # Wednesday (+5 calendar days); 7 is a deliberately conservative superset
 # that survives a holiday-shifted release. Verified this session: every
-# cached NFCI row falls on a Friday.
+# cached NFCI row falls on a Friday. DFII10/T10YIE are same-day Treasury-
+# desk marks (0 lag, same convention as the nominal DGS* series).
+# DTWEXBGS (H.10 trade-weighted dollar index) is a Federal Reserve Board
+# release published the following business day (1 lag) - unlike the
+# CBOE/Treasury series above, it is NOT a same-day mark.
 ALT_DATA_PUBLICATION_LAG_DAYS = {
     "implied_volatility_vix": 0,
     "implied_volatility_3m": 0,
     "financial_conditions_nfci": 7,
+    "treasury_10yr_real": 0,
+    "breakeven_inflation_10y": 0,
+    "dollar_index": 1,
 }
 
 

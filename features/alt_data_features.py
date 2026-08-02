@@ -42,6 +42,9 @@ import math
 IMPLIED_VOLATILITY_LEVEL_NEUTRAL = 0.0
 IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL = 0.0
 FINANCIAL_CONDITIONS_CHANGE_NEUTRAL = 0.0
+REAL_RATE_CHANGE_NEUTRAL = 0.0
+BREAKEVEN_INFLATION_CHANGE_NEUTRAL = 0.0
+DOLLAR_INDEX_CHANGE_NEUTRAL = 0.0
 
 # Divisor for implied_volatility_level()'s log-ratio - an unremarkable,
 # roughly-median VIX reading (measured p50 15.1 over the 2014-12..2021-03
@@ -108,3 +111,44 @@ def financial_conditions_change(nfci_now: float | None, nfci_prior: float | None
     if nfci_now is None or nfci_prior is None:
         return FINANCIAL_CONDITIONS_CHANGE_NEUTRAL
     return float(nfci_now) - float(nfci_prior)
+
+
+def real_rate_change(real_rate_now: float | None, real_rate_prior: float | None) -> float:
+    """DFII10(t) - DFII10(t - N) - the 10-year TIPS (real) yield's own
+    CHANGE, not its level. V5.1 Phase 2 (item 8 / F2, development/
+    Problems.md): a stationary driver for
+    features/cross_asset_sensitivity.py's per-asset real-rate sensitivity
+    beta - a level would be non-stationary and comparing betas fit against
+    a trending regressor across different market eras is not meaningful,
+    the same reasoning financial_conditions_change() above already
+    documents for NFCI. Returns REAL_RATE_CHANGE_NEUTRAL (0.0) when either
+    endpoint is missing."""
+    if real_rate_now is None or real_rate_prior is None:
+        return REAL_RATE_CHANGE_NEUTRAL
+    return float(real_rate_now) - float(real_rate_prior)
+
+
+def breakeven_inflation_change(breakeven_now: float | None, breakeven_prior: float | None) -> float:
+    """T10YIE(t) - T10YIE(t - N) - the 10-year breakeven inflation rate's
+    own CHANGE. Same stationarity reasoning as real_rate_change() above -
+    a driver for features/cross_asset_sensitivity.py, not a broadcast
+    level feature. Returns BREAKEVEN_INFLATION_CHANGE_NEUTRAL (0.0) when
+    either endpoint is missing."""
+    if breakeven_now is None or breakeven_prior is None:
+        return BREAKEVEN_INFLATION_CHANGE_NEUTRAL
+    return float(breakeven_now) - float(breakeven_prior)
+
+
+def dollar_index_change(dollar_index_now: float | None, dollar_index_prior: float | None) -> float:
+    """DTWEXBGS(t) - DTWEXBGS(t - N) - the trade-weighted dollar index's
+    own CHANGE. Same stationarity reasoning as real_rate_change() above -
+    a driver for features/cross_asset_sensitivity.py, not a broadcast
+    level feature (see data_pipeline/fred_backfill.py's
+    DEFAULT_ALT_DATA_REFERENCE_SERIES docstring for why DTWEXBGS is being
+    re-added as a sensitivity driver rather than a level, having
+    previously been evaluated and left out of the original alt-data
+    trio). Returns DOLLAR_INDEX_CHANGE_NEUTRAL (0.0) when either endpoint
+    is missing."""
+    if dollar_index_now is None or dollar_index_prior is None:
+        return DOLLAR_INDEX_CHANGE_NEUTRAL
+    return float(dollar_index_now) - float(dollar_index_prior)

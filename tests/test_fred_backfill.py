@@ -222,6 +222,29 @@ def test_bond_reference_series_unchanged_by_alt_addition():
 
 
 # ---------------------------------------------------------------------------
+# V5.1 Phase 2 (item 8 / F2) - the 3 new cross-asset sensitivity driver
+# series (features/cross_asset_sensitivity.py)
+# ---------------------------------------------------------------------------
+
+
+def test_default_alt_data_reference_series_includes_the_3_sensitivity_drivers():
+    assert DEFAULT_ALT_DATA_REFERENCE_SERIES["treasury_10yr_real"] == "DFII10"
+    assert DEFAULT_ALT_DATA_REFERENCE_SERIES["breakeven_inflation_10y"] == "T10YIE"
+    assert DEFAULT_ALT_DATA_REFERENCE_SERIES["dollar_index"] == "DTWEXBGS"
+
+
+def test_alt_data_publication_lag_days_includes_the_3_sensitivity_drivers():
+    from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
+
+    assert ALT_DATA_PUBLICATION_LAG_DAYS["treasury_10yr_real"] == 0
+    assert ALT_DATA_PUBLICATION_LAG_DAYS["breakeven_inflation_10y"] == 0
+    # DTWEXBGS is a Federal Reserve Board H.10 release, published the
+    # following business day - NOT a same-day mark like the Treasury-desk
+    # series above.
+    assert ALT_DATA_PUBLICATION_LAG_DAYS["dollar_index"] == 1
+
+
+# ---------------------------------------------------------------------------
 # series_value_asof / series_change_asof (development/Problems.md #71 -
 # the shared, publication-lag-aware lookup train.py and main.py BOTH use,
 # so the lookahead rule cannot drift between them)

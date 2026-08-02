@@ -33,6 +33,7 @@ from features import (
     BOND_FEATURE_NAMES,
     CREDIT_SPREAD_LEVEL_NEUTRAL,
     CREDIT_SPREAD_NEUTRAL,
+    CROSS_ASSET_SENSITIVITY_FEATURE_NAMES,
     CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
     CRYPTO_RISK_APPETITE_NEUTRAL,
     YIELD_CURVE_CURVATURE_NEUTRAL,
@@ -64,6 +65,8 @@ from features import (
     options_implied_vol_skew,
     options_put_call_ratio,
     relative_strength_index,
+    rolling_sensitivity,
+    sensitivity_interaction,
     volume_zscore,
     yield_curve_curvature,
     yield_curve_level,
@@ -1412,6 +1415,123 @@ def build_alt_data_features_by_date(
     return updated_frames
 
 
+DEFAULT_CROSS_ASSET_SENSITIVITY_LOOKBACK_DAYS = 252
+DEFAULT_CROSS_ASSET_SENSITIVITY_MIN_OBSERVATIONS = 120
+DEFAULT_CROSS_ASSET_SENSITIVITY_DRIVERS = {
+    "vix": "implied_volatility_vix",
+    "real_rate": "treasury_10yr_real",
+    "credit": "credit_spread_baa10y",
+    "dollar": "dollar_index",
+}
+
+
+def build_cross_asset_sensitivity_features(
+    asset_frames: dict[str, pd.DataFrame], config: dict, fred_series: dict[str, list[dict]]
+) -> dict[str, pd.DataFrame]:
+    """Per-asset macro SENSITIVITY features (V5.1 Phase 2, item 8 / F2) -
+    features/cross_asset_sensitivity.py, called right after
+    build_alt_data_features_by_date() (same fred_series input, same
+    "compute per-date lookup once, then assign per asset" shape).
+
+    F2's finding: every macro_*/bond_*/alt_* feature above (except
+    bond_empirical_duration_beta) broadcasts an IDENTICAL value to every
+    asset on a date - invisible to a cross-sectional ranker by
+    construction. This builds the version that varies across the
+    cross-section instead: for each of 4 drivers (config
+    phase1.features.cross_asset_sensitivity.drivers, default vix/real_rate/
+    credit/dollar), a trailing-window OLS beta of each asset's own daily
+    return on that driver's daily change (features.rolling_sensitivity(),
+    itself a thin wrapper reusing features.empirical_duration_beta() - no
+    new OLS implementation), plus the interaction beta_i * delta_macro_t.
+
+    Driver friendly names are looked up in the SAME merged fred_series dict
+    build_bond_features_by_date()/build_alt_data_features_by_date() already
+    receive (load_cached_fred_series() globs the whole cache directory
+    regardless of bond/alt/sensitivity distinction). Publication lag per
+    driver comes from the same phase1.features.alt_data_publication_lag_days
+    config dict alt-data uses, defaulting 0 (correct for same-day series
+    like credit_spread_baa10y; VIX/real-rate/dollar are 0 too - see Step
+    2.4's fred_backfill.py mirror).
+
+    enabled defaults to False when the whole cross_asset_sensitivity config
+    block is absent - a config.json that hasn't been migrated to V5.1 Phase
+    2 yet must reproduce today's columns byte-for-byte (all-neutral 0.0),
+    the same "additive, absent-config-is-a-no-op" contract every other
+    V5.1 config-gated feature in this file already follows. A missing
+    driver series (fresh clone, `aq backfill fred` never run) neutral-
+    defaults that driver's beta/interaction columns to 0.0 for every date -
+    never raises."""
+    sensitivity_config = config.get("phase1", {}).get("features", {}).get("cross_asset_sensitivity", {})
+    if not sensitivity_config.get("enabled", False):
+        updated_frames: dict[str, pd.DataFrame] = {}
+        for ticker, frame in asset_frames.items():
+            result = frame.copy()
+            for feature_name in CROSS_ASSET_SENSITIVITY_FEATURE_NAMES:
+                result[feature_name] = 0.0
+            updated_frames[ticker] = result
+        return updated_frames
+
+    lookback = int(sensitivity_config.get("lookback_days", DEFAULT_CROSS_ASSET_SENSITIVITY_LOOKBACK_DAYS))
+    min_observations = int(sensitivity_config.get("min_observations", DEFAULT_CROSS_ASSET_SENSITIVITY_MIN_OBSERVATIONS))
+    drivers = sensitivity_config.get("drivers", DEFAULT_CROSS_ASSET_SENSITIVITY_DRIVERS)
+    publication_lag = {
+        **ALT_DATA_PUBLICATION_LAG_DAYS,
+        **config.get("phase1", {}).get("features", {}).get("alt_data_publication_lag_days", {}),
+    }
+
+    all_dates = sorted({date_value for frame in asset_frames.values() for date_value in frame["date"]})
+
+    level_by_date_by_driver: dict[str, dict] = {}
+    for driver_key, friendly_name in drivers.items():
+        rows = fred_series.get(friendly_name, [])
+        lag = publication_lag.get(friendly_name, 0)
+        level_by_date_by_driver[driver_key] = {
+            current_date: series_value_asof(rows, current_date, lag) for current_date in all_dates
+        }
+
+    updated_frames = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        dates_sorted = result["date"].tolist()
+        returns_sorted = (
+            result["close_to_close_return_1d"].tolist()
+            if "close_to_close_return_1d" in result.columns
+            else [None] * len(dates_sorted)
+        )
+
+        for driver_key, friendly_name in drivers.items():
+            level_by_date = level_by_date_by_driver[driver_key]
+            levels_sorted = [level_by_date.get(d) for d in dates_sorted]
+            deltas_sorted: list[float | None] = [None] * len(levels_sorted)
+            for index in range(1, len(levels_sorted)):
+                previous_value = levels_sorted[index - 1]
+                current_value = levels_sorted[index]
+                if previous_value is not None and current_value is not None:
+                    deltas_sorted[index] = current_value - previous_value
+
+            beta_column = []
+            interaction_column = []
+            for index in range(len(dates_sorted)):
+                window_start = max(0, index - lookback + 1) if lookback > 0 else 0
+                window_returns = returns_sorted[window_start : index + 1]
+                window_deltas = deltas_sorted[window_start : index + 1]
+                beta = rolling_sensitivity(
+                    window_returns, window_deltas, lookback=lookback, min_observations=min_observations
+                )
+                beta_column.append(beta if beta is not None else 0.0)
+                interaction_column.append(sensitivity_interaction(beta, deltas_sorted[index]))
+
+            result[f"sens_{driver_key}_beta"] = beta_column
+            result[f"sens_{driver_key}_interaction"] = interaction_column
+
+        for feature_name in CROSS_ASSET_SENSITIVITY_FEATURE_NAMES:
+            if feature_name not in result.columns:
+                result[feature_name] = 0.0
+
+        updated_frames[ticker] = result
+    return updated_frames
+
+
 def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
     """Third cross-asset macro sibling to build_macro_features_by_date()/
     build_bond_features_by_date() - features/derivatives_macro_features.py's
@@ -1584,6 +1704,20 @@ UNKNOWN_SECTOR_LABEL = "Unknown"
 DEFAULT_BETA_NEUTRAL_MARKET_TICKER = "SPY"
 DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS = 60
 
+# V5.1 Phase 2 (item 5 of the roadmap) - build_residual_rank_targets()'s own
+# defaults, deliberately mirroring DEFAULT_BETA_NEUTRAL_MARKET_TICKER/
+# DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS above rather than reusing them
+# directly - this is a genuinely separate config block
+# (phase1.target.ranking.residual_neutral), not the beta_neutral one, even
+# though the sensible default VALUES happen to match.
+DEFAULT_RESIDUAL_MARKET_TICKER = "SPY"
+DEFAULT_RESIDUAL_MIN_BETA_OBSERVATIONS = 60
+# No market-cap data exists anywhere in this repo (data/reference/ holds
+# only sector/forex/futures specs + FRED series) - liquidity_log_dollar_volume
+# is a LIQUIDITY-based size proxy, not market cap. Deliberate, documented
+# approximation - see build_residual_rank_targets()'s own docstring.
+DEFAULT_RESIDUAL_SIZE_PROXY_COLUMN = "liquidity_log_dollar_volume"
+
 
 def load_sector_mapping(config: dict) -> dict[str, str]:
     """Phase 5 of the 5/10 -> 9/10 roadmap: ticker -> sector-neutral-ranking
@@ -1594,6 +1728,194 @@ def load_sector_mapping(config: dict) -> dict[str, str]:
     shape, same {} (never raises) fallback contract as before this delegate
     existed - see the shared implementation's own docstring."""
     return _features_load_sector_mapping(config, default_path=SECTOR_MAPPING_PATH)
+
+
+def cross_sectional_residualize(returns: np.ndarray, design_matrix: np.ndarray) -> np.ndarray:
+    """V5.1 Phase 2 (item 5 of the roadmap): fits `returns ~ design_matrix`
+    via `np.linalg.lstsq` for ONE date's cross-section and returns the
+    residuals - the core primitive build_residual_rank_targets() below
+    calls once per (date, horizon).
+
+    A singular/degenerate date (fewer rows than design columns, a
+    LinAlgError, a rank-deficient fit, or a non-finite residual) returns
+    `returns` UNCHANGED - the safe, uninformative fallback. This mirrors
+    empirical_duration_beta()'s own beta=0.0 convention: residualizing
+    against a degenerate fit is equivalent to residualizing against
+    nothing at all, never a crash or a fabricated number. Never raises."""
+    n_rows, n_columns = design_matrix.shape
+    if n_rows == 0 or n_rows < n_columns:
+        return returns
+    try:
+        coefficients, _residual_sum, rank, _singular_values = np.linalg.lstsq(design_matrix, returns, rcond=None)
+    except np.linalg.LinAlgError:
+        return returns
+    if rank < 1:
+        return returns
+    fitted = design_matrix @ coefficients
+    residuals = returns - fitted
+    if not np.all(np.isfinite(residuals)):
+        return returns
+    return residuals
+
+
+def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
+    """V5.1 Phase 2 (item 5 of the roadmap): ONE combined market+sector+size
+    residualized rank target - `target_residual_rank_5d/20d` - replacing
+    "outperform the whole universe" (target_rank_Nd, above) with "outperform
+    your peers after the factors you can't trade." Deliberately a single
+    combined residualization, not four separate targets stacked on top of
+    target_rank_Nd/target_sector_neutral_rank_Nd/target_beta_neutral_rank_Nd
+    above - those three stay exactly as they are (unconsumed by this
+    function, and target_beta_neutral_rank_Nd's OWN head ships disabled,
+    see HORIZON_HEAD_SPECS).
+
+    Per date, per horizon, the design matrix is
+    `[intercept, beta_i * market_return_t, sector one-hot dummies (one
+    dropped as reference), z(size_proxy_column)]`, each column config-gated
+    by phase1.target.ranking.residual_neutral.{market,sector,size}. The
+    residual is then ranked cross-sectionally via `.rank(pct=True)` - the
+    exact same percentile-rank convention target_rank_Nd already uses -
+    and gated by the same min_universe_size floor (a thin date's residual
+    cross-section is just as noisy as a thin date's raw-return one).
+
+    `beta_i` is a single WHOLE-HISTORY OLS slope per asset
+    (features.empirical_duration_beta(), reused generically exactly the
+    way build_cross_sectional_rank_targets()'s own beta_neutral block
+    above already does - one static beta per asset, not a rolling
+    per-date one), computed once per horizon, not per date.
+
+    SIZE PROXY: no market-cap data exists anywhere in this repo
+    (data/reference/ holds only sector/forex/futures specs + FRED series).
+    `size_proxy_column` (default liquidity_log_dollar_volume, already
+    computed earlier in the per-asset engineer_features() loop) is a
+    LIQUIDITY-based size proxy, not market cap - a deliberate, documented
+    approximation. Z-scored CROSS-SECTIONALLY per date (mean 0, std 1
+    within that date's eligible pool), not as a raw level, so it is
+    comparable across dates.
+
+    With every factor disabled (market=sector=size=False), the design
+    matrix is just an intercept - OLS with only an intercept fits the
+    per-date mean, and subtracting a constant from every value never
+    changes rank ORDER, so target_residual_rank_Nd degenerates to exactly
+    target_rank_Nd in that configuration - a sensible, well-defined edge
+    case, not a special-cased branch.
+
+    `residual_neutral.enabled: false` (default true) still writes
+    target_residual_rank_5d/20d, but as an all-NaN column - the same
+    "config off degrades to no-signal, never a crash or a missing column"
+    contract every other optional target/head in this codebase follows
+    (masked_mse_loss()/the per-head disable machinery already treat an
+    all-NaN column as "no target this row", nothing new to handle)."""
+    ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
+    residual_config = ranking_config.get("residual_neutral", {})
+    enabled = bool(residual_config.get("enabled", True))
+    updated_frames: dict[str, pd.DataFrame] = dict(asset_frames)
+
+    if not enabled:
+        for ticker, frame in updated_frames.items():
+            result = frame.copy()
+            result["target_residual_rank_5d"] = np.nan
+            result["target_residual_rank_20d"] = np.nan
+            updated_frames[ticker] = result
+        return updated_frames
+
+    use_market = bool(residual_config.get("market", True))
+    use_sector = bool(residual_config.get("sector", True))
+    use_size = bool(residual_config.get("size", True))
+    size_proxy_column = residual_config.get("size_proxy_column", DEFAULT_RESIDUAL_SIZE_PROXY_COLUMN)
+    market_ticker = residual_config.get("market_ticker", DEFAULT_RESIDUAL_MARKET_TICKER)
+    min_universe_size = int(residual_config.get("min_universe_size", DEFAULT_RANKING_MIN_UNIVERSE_SIZE))
+    min_beta_observations = int(residual_config.get("min_beta_observations", DEFAULT_RESIDUAL_MIN_BETA_OBSERVATIONS))
+
+    sector_by_ticker = load_sector_mapping(config) if use_sector else {}
+    market_frame = updated_frames.get(market_ticker) if use_market else None
+
+    for horizon_days in (5, 20):
+        return_column = f"target_return_{horizon_days}d"
+        residual_rank_column = f"target_residual_rank_{horizon_days}d"
+
+        beta_by_ticker: dict[str, float] = {}
+        market_return_by_date: dict = {}
+        if use_market and market_frame is not None and return_column in market_frame.columns:
+            market_return_by_date = dict(zip(market_frame["date"], market_frame[return_column]))
+            for ticker, frame in updated_frames.items():
+                asset_returns = [None if pd.isna(value) else float(value) for value in frame[return_column]]
+                market_returns = [
+                    None if pd.isna(market_return_by_date.get(current_date)) else float(market_return_by_date[current_date])
+                    for current_date in frame["date"]
+                ]
+                beta = empirical_duration_beta(asset_returns, market_returns, min_observations=min_beta_observations)
+                beta_by_ticker[ticker] = beta if beta is not None else 0.0
+
+        long_rows = []
+        for ticker, frame in updated_frames.items():
+            for current_date, return_value in zip(frame["date"], frame[return_column]):
+                if pd.isna(return_value):
+                    continue
+                long_rows.append({"ticker": ticker, "date": current_date, "return": float(return_value)})
+
+        if not long_rows:
+            for ticker, frame in updated_frames.items():
+                result = frame.copy()
+                result[residual_rank_column] = np.nan
+                updated_frames[ticker] = result
+            continue
+
+        long_frame = pd.DataFrame(long_rows)
+        long_frame["beta"] = long_frame["ticker"].map(beta_by_ticker).fillna(0.0) if use_market else 0.0
+        long_frame["market_return"] = (
+            long_frame["date"].map(market_return_by_date).fillna(0.0) if use_market else 0.0
+        )
+        long_frame["market_term"] = long_frame["beta"] * long_frame["market_return"]
+
+        if use_sector:
+            long_frame["sector"] = long_frame["ticker"].map(sector_by_ticker).fillna(UNKNOWN_SECTOR_LABEL)
+
+        if use_size:
+            size_by_ticker_date: dict = {}
+            for ticker, frame in updated_frames.items():
+                if size_proxy_column in frame.columns:
+                    for current_date, size_value in zip(frame["date"], frame[size_proxy_column]):
+                        size_by_ticker_date[(ticker, current_date)] = size_value
+            long_frame["size_proxy"] = [
+                size_by_ticker_date.get((ticker, current_date), np.nan)
+                for ticker, current_date in zip(long_frame["ticker"], long_frame["date"])
+            ]
+            grouped_size = long_frame.groupby("date")["size_proxy"]
+            size_std = grouped_size.transform("std").replace(0.0, np.nan)
+            long_frame["size_z"] = ((long_frame["size_proxy"] - grouped_size.transform("mean")) / size_std).fillna(0.0)
+
+        residual_ranks = np.full(len(long_frame), np.nan)
+        for _current_date, group in long_frame.groupby("date"):
+            if len(group) < min_universe_size:
+                continue
+            design_columns = [np.ones(len(group))]
+            if use_market:
+                design_columns.append(group["market_term"].to_numpy())
+            if use_sector:
+                sector_dummies = pd.get_dummies(group["sector"], drop_first=True)
+                if not sector_dummies.empty:
+                    design_columns.append(sector_dummies.to_numpy(dtype=float))
+            if use_size:
+                design_columns.append(group["size_z"].to_numpy())
+            design_matrix = np.column_stack(design_columns)
+
+            residuals = cross_sectional_residualize(group["return"].to_numpy(), design_matrix)
+            residual_ranks[group.index.to_numpy()] = pd.Series(residuals).rank(pct=True).to_numpy()
+
+        long_frame["residual_rank"] = residual_ranks
+        residual_rank_lookup = (
+            long_frame.dropna(subset=["residual_rank"]).set_index(["ticker", "date"])["residual_rank"].to_dict()
+        )
+
+        for ticker, frame in updated_frames.items():
+            result = frame.copy() if residual_rank_column not in frame.columns else frame
+            result[residual_rank_column] = [
+                residual_rank_lookup.get((ticker, current_date), np.nan) for current_date in result["date"]
+            ]
+            updated_frames[ticker] = result
+
+    return updated_frames
 
 
 def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
@@ -1922,8 +2244,17 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     fred_series = load_cached_fred_series()
     engineered_frames = build_bond_features_by_date(engineered_frames, config, fred_series)
     engineered_frames = build_alt_data_features_by_date(engineered_frames, config, fred_series)
+    # V5.1 Phase 2 (item 8 / F2) - same fred_series input as the alt-data
+    # call directly above, called right after it per that function's own
+    # docstring.
+    engineered_frames = build_cross_asset_sensitivity_features(engineered_frames, config, fred_series)
     engineered_frames = build_derivatives_macro_features_by_date(engineered_frames, config)
     engineered_frames = build_cross_sectional_rank_targets(engineered_frames, config)
+    # V5.1 Phase 2 (item 5) - same cross-sectional ordering constraint as
+    # build_cross_sectional_rank_targets() itself (needs every asset's
+    # target_return_Nd already computed, must run before the final
+    # concat/strftime below).
+    engineered_frames = build_residual_rank_targets(engineered_frames, config)
     engineered_frames = build_cross_sectional_momentum_rank_features(engineered_frames)
 
     dataset = pd.concat(list(engineered_frames.values()), ignore_index=True)
@@ -2139,6 +2470,35 @@ def asset_class_by_ticker_from_config(config: dict) -> dict[str, str]:
     }
 
 
+_NON_FEATURE_DATASET_COLUMNS = {"date", "ticker", "split"}
+
+
+def _computed_but_unused_feature_columns(
+    dataset_columns, base_feature_names: list[str], context_feature_names: list[str]
+) -> list[str]:
+    """Dataset columns that are neither in phase1.features.input_set
+    (base_feature_names) nor a target_*/context/bookkeeping column - i.e.
+    genuinely computed, genuinely never trained on. V5.1 Phase 2 (item 8,
+    Step 2.5): makes the class of silent waste this session found (the 3
+    derivatives-macro features - constant 0.0 with no futures/options
+    contract subscribed, yet fully computed every dataset build) impossible
+    to repeat unnoticed - any future feature builder that gets wired into
+    build_feature_dataset() but forgotten in input_set now shows up here
+    automatically, with zero manual bookkeeping.
+
+    Excludes "asset_"-prefixed columns (both add_asset_context_features()'s
+    per-ticker asset_<TICKER> one-hots and add_asset_class_context_features()'s
+    asset_class_<class> ones) - these are deliberately dataset-only/context,
+    not "computed but forgotten" features, the same distinction
+    select_model_context_columns()'s own docstring draws."""
+    known = set(base_feature_names) | set(context_feature_names) | _NON_FEATURE_DATASET_COLUMNS
+    return sorted(
+        str(column)
+        for column in dataset_columns
+        if column not in known and not str(column).startswith("target_") and not str(column).startswith("asset_")
+    )
+
+
 def build_dataset_manifest(
     config: dict,
     dataset: pd.DataFrame,
@@ -2188,7 +2548,15 @@ def build_dataset_manifest(
             "rank_5d": "target_rank_5d",
             "rank_20d": "target_rank_20d",
             "sector_neutral_rank_20d": "target_sector_neutral_rank_20d",
+            "residual_rank_5d": "target_residual_rank_5d",
+            "residual_rank_20d": "target_residual_rank_20d",
+            "beta_neutral_rank_20d": "target_beta_neutral_rank_20d",
         },
+        # V5.1 Phase 2, Step 2.5 - see _computed_but_unused_feature_columns()'s
+        # own docstring.
+        "computed_but_unused_features": _computed_but_unused_feature_columns(
+            dataset.columns, base_feature_names, context_feature_names
+        ),
         "split_counts": split_counts,
         "per_asset_split_counts": per_asset_split,
         "asset_quality": asset_quality,
@@ -2453,6 +2821,18 @@ class AetherNetMultiTaskHorizons(nn.Module):
         # unless someone deliberately switches to this sector-demeaned
         # variant. See build_cross_sectional_rank_targets()'s docstring.
         self.head_sector_neutral_rank_20d = nn.Linear(current_dim, 1)
+        # V5.1 Phase 2 (item 5 of the roadmap) - see
+        # train.py::build_residual_rank_targets()'s docstring for what
+        # these targets are. beta_neutral_rank_20d ships DISABLED by
+        # default (HORIZON_HEAD_SPECS/DEFAULT_HORIZON_HEAD_CONFIG) -
+        # strictly dominated by the combined residual_rank_20d above it,
+        # registered only so it stops being fully dead code (the target
+        # column itself is computed unconditionally by
+        # build_cross_sectional_rank_targets() and previously consumed by
+        # no head at all).
+        self.head_residual_rank_5d = nn.Linear(current_dim, 1)
+        self.head_residual_rank_20d = nn.Linear(current_dim, 1)
+        self.head_beta_neutral_rank_20d = nn.Linear(current_dim, 1)
 
     def forward(self, features: torch.Tensor) -> dict[str, torch.Tensor]:
         trunk_output = self.trunk(features)
@@ -2465,6 +2845,9 @@ class AetherNetMultiTaskHorizons(nn.Module):
             "rank_5d": self.head_rank_5d(trunk_output).squeeze(-1),
             "rank_20d": self.head_rank_20d(trunk_output).squeeze(-1),
             "sector_neutral_rank_20d": self.head_sector_neutral_rank_20d(trunk_output).squeeze(-1),
+            "residual_rank_5d": self.head_residual_rank_5d(trunk_output).squeeze(-1),
+            "residual_rank_20d": self.head_residual_rank_20d(trunk_output).squeeze(-1),
+            "beta_neutral_rank_20d": self.head_beta_neutral_rank_20d(trunk_output).squeeze(-1),
         }
 
 
@@ -2576,6 +2959,11 @@ class AetherNetSequenceMultiTaskHorizons(nn.Module):
         # AetherNetMultiTaskHorizons.head_sector_neutral_rank_20d's
         # identical docstring.
         self.head_sector_neutral_rank_20d = nn.Linear(current_channels, 1)
+        # V5.1 Phase 2 (item 5 of the roadmap) - see
+        # AetherNetMultiTaskHorizons's identical new-heads docstring above.
+        self.head_residual_rank_5d = nn.Linear(current_channels, 1)
+        self.head_residual_rank_20d = nn.Linear(current_channels, 1)
+        self.head_beta_neutral_rank_20d = nn.Linear(current_channels, 1)
 
     def forward(self, sequence: torch.Tensor) -> dict[str, torch.Tensor]:
         current = sequence.transpose(1, 2)  # (batch, input_dim, window)
@@ -2596,6 +2984,9 @@ class AetherNetSequenceMultiTaskHorizons(nn.Module):
             "rank_5d": self.head_rank_5d(pooled).squeeze(-1),
             "rank_20d": self.head_rank_20d(pooled).squeeze(-1),
             "sector_neutral_rank_20d": self.head_sector_neutral_rank_20d(pooled).squeeze(-1),
+            "residual_rank_5d": self.head_residual_rank_5d(pooled).squeeze(-1),
+            "residual_rank_20d": self.head_residual_rank_20d(pooled).squeeze(-1),
+            "beta_neutral_rank_20d": self.head_beta_neutral_rank_20d(pooled).squeeze(-1),
         }
 
 
@@ -2679,6 +3070,15 @@ def export_sequence_multitask_horizons_architecture(model: AetherNetSequenceMult
             "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", None),
             "sector_neutral_rank_20d": _export_head(
                 model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", None
+            ),
+            # V5.1 Phase 2 (item 5) - activation None, same reasoning as
+            # rank_5d/rank_20d/sector_neutral_rank_20d above: trained as
+            # raw linear regression against a [0,1] percentile target,
+            # never through a sigmoid.
+            "residual_rank_5d": _export_head(model.head_residual_rank_5d, "head_residual_rank_5d", None),
+            "residual_rank_20d": _export_head(model.head_residual_rank_20d, "head_residual_rank_20d", None),
+            "beta_neutral_rank_20d": _export_head(
+                model.head_beta_neutral_rank_20d, "head_beta_neutral_rank_20d", None
             ),
         },
     }
@@ -3630,6 +4030,19 @@ HORIZON_HEAD_SPECS = {
     # compute_multitask_metrics()/compute_sequence_multitask_metrics()) is
     # already fully generic over this dict.
     "sector_neutral_rank_20d": ("target_sector_neutral_rank_20d", "rank", 20),
+    # V5.1 Phase 2 (item 5 of the roadmap) - see
+    # train.py::build_residual_rank_targets()'s docstring. Same "rank"-kind
+    # generic wiring as sector_neutral_rank_20d above - zero extra plumbing
+    # beyond these entries.
+    "residual_rank_5d": ("target_residual_rank_5d", "rank", 5),
+    "residual_rank_20d": ("target_residual_rank_20d", "rank", 20),
+    # Computed by build_cross_sectional_rank_targets() (a single whole-
+    # history per-asset market beta, simpler than residual_rank_20d's
+    # combined market+sector+size regression) but ships with NO active
+    # head by default (see DEFAULT_HORIZON_HEAD_CONFIG below) - strictly
+    # dominated by residual_rank_20d, registered only so it stops being
+    # fully dead code and gets full metrics on a one-key config flip.
+    "beta_neutral_rank_20d": ("target_beta_neutral_rank_20d", "rank", 20),
 }
 DEFAULT_HORIZON_HEAD_CONFIG = {
     "direction_5d": {"enabled": True, "loss_weight": 1.0},
@@ -3639,6 +4052,15 @@ DEFAULT_HORIZON_HEAD_CONFIG = {
     # Lighter weight than rank_20d - the newest, least-validated head;
     # doesn't dominate training until its own promotion criteria clear.
     "sector_neutral_rank_20d": {"enabled": True, "loss_weight": 0.3},
+    # V5.1 Phase 2 (item 5) - residual_rank_20d is meant to become the
+    # cleanest live signal once validated (market+sector+size already
+    # factored out), so it trains at rank_20d's own original weight;
+    # residual_rank_5d lighter, matching rank_5d/rank_20d's own 1.0/0.5
+    # split convention. beta_neutral_rank_20d disabled/zero-weight - see
+    # HORIZON_HEAD_SPECS's own comment for why.
+    "residual_rank_5d": {"enabled": True, "loss_weight": 0.5},
+    "residual_rank_20d": {"enabled": True, "loss_weight": 1.0},
+    "beta_neutral_rank_20d": {"enabled": False, "loss_weight": 0.0},
 }
 
 
@@ -3920,6 +4342,13 @@ def export_multitask_horizons_architecture(model: AetherNetMultiTaskHorizons) ->
             "rank_20d": _export_head(model.head_rank_20d, "head_rank_20d", None),
             "sector_neutral_rank_20d": _export_head(
                 model.head_sector_neutral_rank_20d, "head_sector_neutral_rank_20d", None
+            ),
+            # V5.1 Phase 2 (item 5) - activation None, same reasoning as
+            # rank_5d/rank_20d/sector_neutral_rank_20d above.
+            "residual_rank_5d": _export_head(model.head_residual_rank_5d, "head_residual_rank_5d", None),
+            "residual_rank_20d": _export_head(model.head_residual_rank_20d, "head_residual_rank_20d", None),
+            "beta_neutral_rank_20d": _export_head(
+                model.head_beta_neutral_rank_20d, "head_beta_neutral_rank_20d", None
             ),
         },
     }

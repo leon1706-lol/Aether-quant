@@ -142,6 +142,7 @@ def test_aether_net_sequence_multitask_horizons_forward_returns_eight_heads():
     expected_heads = {
         "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
         "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+        "residual_rank_5d", "residual_rank_20d", "beta_neutral_rank_20d",
     }
     assert set(outputs.keys()) == expected_heads
     for tensor in outputs.values():
@@ -163,6 +164,7 @@ def test_export_sequence_multitask_horizons_architecture_shape():
     assert set(export["heads"].keys()) == {
         "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
         "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+        "residual_rank_5d", "residual_rank_20d", "beta_neutral_rank_20d",
     }
     trunk_types = [layer["type"] for layer in export["trunk"]]
     assert trunk_types == ["conv1d_causal", "relu", "dropout", "conv1d_causal", "relu", "dropout"]

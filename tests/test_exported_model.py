@@ -226,6 +226,36 @@ def test_run_exported_multitask_model_matches_hand_computed_reference():
         assert result[key] == pytest.approx(expected[key], abs=1e-9)
 
 
+def test_run_exported_multitask_model_activation_none_rank_head_matches_raw_linear_output():
+    # V5.1 Phase 1/2 (development/Problems.md #73, item 5) - rank heads
+    # (rank_5d/20d, residual_rank_5d/20d, beta_neutral_rank_20d) export
+    # with activation None, the SAME shape magnitude already uses above -
+    # inference/exported_model.py needs zero changes to support them
+    # (the whole point of Step 1.3's fix). This is the round-trip proof:
+    # an activation-less head's output must be the raw linear pre-
+    # activation value, unsquashed by any sigmoid.
+    model_export = _synthetic_multitask_model_export()
+    model_export["export"]["heads"]["residual_rank_20d"] = [
+        {"type": "linear", "weight_key": "head_residual_rank_20d.weight", "bias_key": "head_residual_rank_20d.bias"},
+    ]
+    model_export["export"]["state_dict"]["head_residual_rank_20d.weight"] = [[0.4, -0.6]]
+    model_export["export"]["state_dict"]["head_residual_rank_20d.bias"] = [0.03]
+    inputs = [1.0, -0.5]
+
+    result = run_exported_multitask_model(model_export, inputs)
+
+    trunk_weight = [[0.5, -0.25], [0.1, 0.3]]
+    trunk_bias = [0.1, -0.1]
+    trunk_out = [max(0.0, sum(w * x for w, x in zip(row, inputs)) + b) for row, b in zip(trunk_weight, trunk_bias)]
+    expected_raw = sum(w * x for w, x in zip([0.4, -0.6], trunk_out)) + 0.03
+
+    assert result["residual_rank_20d"] == pytest.approx(expected_raw, abs=1e-9)
+    # Never squashed into (0, 1) by a sigmoid that isn't in the export -
+    # the exact regression #73 fixed for rank_5d/20d.
+    sigmoid_of_raw = 1.0 / (1.0 + math.exp(-expected_raw))
+    assert result["residual_rank_20d"] != pytest.approx(sigmoid_of_raw, abs=1e-9)
+
+
 def test_run_exported_multitask_model_volatility_head_is_always_nonnegative():
     model_export = _synthetic_multitask_model_export()
 

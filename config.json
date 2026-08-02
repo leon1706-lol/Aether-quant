@@ -1330,7 +1330,15 @@
                 "bond_dv01",
                 "alt_implied_volatility_level",
                 "alt_implied_vol_term_structure",
-                "alt_financial_conditions_change"
+                "alt_financial_conditions_change",
+                "sens_vix_beta",
+                "sens_vix_interaction",
+                "sens_real_rate_beta",
+                "sens_real_rate_interaction",
+                "sens_credit_beta",
+                "sens_credit_interaction",
+                "sens_dollar_beta",
+                "sens_dollar_interaction"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
             "winsorize_quantiles": [
@@ -1349,18 +1357,36 @@
             "alt_data_reference_series": {
                 "implied_volatility_vix": "VIXCLS",
                 "implied_volatility_3m": "VXVCLS",
-                "financial_conditions_nfci": "NFCI"
+                "financial_conditions_nfci": "NFCI",
+                "treasury_10yr_real": "DFII10",
+                "breakeven_inflation_10y": "T10YIE",
+                "dollar_index": "DTWEXBGS"
             },
             "alt_data_publication_lag_days": {
                 "implied_volatility_vix": 0,
                 "implied_volatility_3m": 0,
-                "financial_conditions_nfci": 7
+                "financial_conditions_nfci": 7,
+                "treasury_10yr_real": 0,
+                "breakeven_inflation_10y": 0,
+                "dollar_index": 1
             },
             "alt_data_financial_conditions_change_periods": 4,
             "derivatives_reference_tickers": {
                 "futures_term_structure": "ES",
                 "options_sentiment": "SPY"
-            }
+            },
+            "cross_asset_sensitivity": {
+                "enabled": true,
+                "lookback_days": 252,
+                "min_observations": 120,
+                "drivers": {
+                    "vix": "implied_volatility_vix",
+                    "real_rate": "treasury_10yr_real",
+                    "credit": "credit_spread_baa10y",
+                    "dollar": "dollar_index"
+                }
+            },
+            "derivatives_in_input_set": false
         },
         "target": {
             "type": "directional_return",
@@ -1428,6 +1454,16 @@
                         10,
                         15
                     ]
+                },
+                "residual_neutral": {
+                    "enabled": true,
+                    "market": true,
+                    "sector": true,
+                    "size": true,
+                    "size_proxy_column": "liquidity_log_dollar_volume",
+                    "market_ticker": "SPY",
+                    "min_universe_size": 20,
+                    "min_beta_observations": 60
                 }
             }
         }
@@ -1960,6 +1996,18 @@
                     "sector_neutral_rank_20d": {
                         "enabled": true,
                         "loss_weight": 0.3
+                    },
+                    "residual_rank_5d": {
+                        "enabled": true,
+                        "loss_weight": 0.5
+                    },
+                    "residual_rank_20d": {
+                        "enabled": true,
+                        "loss_weight": 1.0
+                    },
+                    "beta_neutral_rank_20d": {
+                        "enabled": false,
+                        "loss_weight": 0.0
                     }
                 },
                 "seed": 42
@@ -2012,6 +2060,18 @@
                     "sector_neutral_rank_20d": {
                         "enabled": true,
                         "loss_weight": 0.3
+                    },
+                    "residual_rank_5d": {
+                        "enabled": true,
+                        "loss_weight": 0.5
+                    },
+                    "residual_rank_20d": {
+                        "enabled": true,
+                        "loss_weight": 1.0
+                    },
+                    "beta_neutral_rank_20d": {
+                        "enabled": false,
+                        "loss_weight": 0.0
                     }
                 },
                 "seed": 42

@@ -156,6 +156,7 @@ from features import (
     compute_greeks,
     credit_spread_level,
     credit_spread_proxy,
+    CROSS_ASSET_SENSITIVITY_FEATURE_NAMES,
     cross_sectional_momentum_rank,
     crypto_risk_appetite_proxy,
     distance_from_52w_high,
@@ -171,6 +172,8 @@ from features import (
     options_implied_vol_skew,
     options_put_call_ratio,
     relative_strength_index,
+    rolling_sensitivity,
+    sensitivity_interaction,
     volume_zscore,
     yield_curve_curvature,
     yield_curve_level,
@@ -191,6 +194,19 @@ from performance import evaluate_all_triggers
 # deps like torch/sklearn have no place in the Lean runtime).
 VOLUME_CHANGE_FLOOR = -1.0
 VOLUME_CHANGE_CEILING = 20.0
+
+# V5.1 Phase 2 (item 8 / F2) - must match train.py::DEFAULT_CROSS_ASSET_SENSITIVITY_*
+# exactly for train/runtime feature parity. Duplicated (not imported) for
+# the same reason VOLUME_CHANGE_FLOOR/CEILING above are - main.py never
+# imports train.py.
+CROSS_ASSET_SENSITIVITY_LOOKBACK_DAYS = 252
+CROSS_ASSET_SENSITIVITY_MIN_OBSERVATIONS = 120
+CROSS_ASSET_SENSITIVITY_DRIVERS = {
+    "vix": "implied_volatility_vix",
+    "real_rate": "treasury_10yr_real",
+    "credit": "credit_spread_baa10y",
+    "dollar": "dollar_index",
+}
 
 # V4.9 Priority 1 - distinguishes "no precomputed sequence-model result was
 # passed" (fall back to the per-symbol call) from "a precomputed result of
@@ -397,6 +413,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # aligned per symbol, regardless of any other symbol's data gaps -
         # see _build_model_input()'s bond_empirical_duration_beta block.
         self.symbol_treasury_10yr_history = {}
+        # V5.1 Phase 2 (item 8 / F2) - same pairing convention as
+        # symbol_treasury_10yr_history immediately above, one per cross-asset
+        # sensitivity driver (vix/real_rate/credit/dollar) - see
+        # _cross_asset_sensitivity_for_symbol()'s docstring.
+        self.symbol_sensitivity_driver_history = {}
         self.latest_momentum_by_symbol = {}
         self.latest_signal_state = {}
         self.last_trade_bar_by_symbol = {}
@@ -508,6 +529,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.symbol_windows[symbol] = deque(maxlen=self.bar_history_size)
             self.symbol_long_windows[symbol] = deque(maxlen=self.long_bar_history_size)
             self.symbol_treasury_10yr_history[symbol] = deque(maxlen=self.long_bar_history_size)
+            self.symbol_sensitivity_driver_history[symbol] = {
+                driver_key: deque(maxlen=self.long_bar_history_size) for driver_key in CROSS_ASSET_SENSITIVITY_DRIVERS
+            }
             self.latest_signal_state[str(symbol)] = "hold"
             self.last_trade_bar_by_symbol[symbol] = -1000000
             # InteractiveBrokersFeeModel() does not support security_type
@@ -1359,6 +1383,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_macro_payload = {}
         self.latest_bond_payload = {}
         self.latest_alt_data_payload = {}
+        self.latest_sensitivity_driver_levels = {}
         # V4.6 - per-symbol analytic bond duration/convexity/DV01
         # (features/bond_features.py). V4.7 also merges this same value into
         # base_features (see _build_model_input()'s bond block) - this
@@ -1366,6 +1391,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # _bond_analytics_for_symbol()'s own docstring), not a duplicate
         # computation.
         self.latest_bond_analytics_by_symbol: dict[str, dict] = {}
+        # V5.1 Phase 2 (item 8 / F2) - dashboard/state-facing copy of
+        # _cross_asset_sensitivity_for_symbol()'s return value, same
+        # "computed once in _build_model_input(), cached here for the
+        # signals[symbol_key] dict below" pattern as
+        # latest_bond_analytics_by_symbol immediately above.
+        self.latest_cross_asset_sensitivity_by_symbol: dict[str, dict] = {}
         # Phase 4.8 - the V4.7 features that were computed but never
         # actually reached state.json: per-leg dividend-driven assignment-
         # risk score/flag (populated in _apply_option_assignment_risk_sweep(),
@@ -1405,6 +1436,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_macro_payload = self._build_macro_payload()
         self.latest_bond_payload = self._build_bond_payload()
         self.latest_alt_data_payload = self._build_alt_data_payload()
+        self.latest_sensitivity_driver_levels = self._build_sensitivity_driver_levels()
         self.latest_options_chains_payload = self._build_options_chains_payload(slice)
         self.latest_futures_chains_payload = self._build_futures_chains_payload(slice)
         self.latest_derivatives_macro_payload = self._build_derivatives_macro_payload()
@@ -1478,6 +1510,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             self.symbol_long_windows[symbol].append(float(bar.close))
             self.symbol_treasury_10yr_history[symbol].append(self.latest_bond_payload.get("treasury_10yr_level"))
+            for driver_key, driver_history in self.symbol_sensitivity_driver_history[symbol].items():
+                driver_history.append(self.latest_sensitivity_driver_levels.get(driver_key))
             self.symbol_windows[symbol].append(
                 {
                     "open": float(bar.open),
@@ -2173,6 +2207,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     # or the detector/model being off/unloaded, which is the
                     # default) - see this dict's own __init__ comment.
                     "bond_analytics": self.latest_bond_analytics_by_symbol.get(symbol_key),
+                    # V5.1 Phase 2 (item 8 / F2) - per-symbol macro
+                    # sensitivity betas/interactions, dashboard-facing copy
+                    # of _cross_asset_sensitivity_for_symbol()'s return.
+                    "cross_asset_sensitivity": self.latest_cross_asset_sensitivity_by_symbol.get(symbol_key),
                     "assignment_risk": self.latest_assignment_risk_by_symbol.get(symbol_key),
                     "dividend_schedule": self._dividend_schedule_by_ticker.get(_dividend_schedule_ticker),
                     "strategy_selector_scores": self.latest_strategy_selector_scores_by_symbol.get(symbol_key),
@@ -2751,6 +2789,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         base_features["alt_financial_conditions_change"] = float(
             self.latest_alt_data_payload.get("financial_conditions_change", 0.0) or 0.0
         )
+
+        # V5.1 Phase 2 (item 8 / F2) - per-asset macro SENSITIVITY features
+        # (features/cross_asset_sensitivity.py), unlike every broadcast
+        # macro_*/bond_*/alt_* block above these genuinely vary per symbol -
+        # see _cross_asset_sensitivity_for_symbol()'s docstring. Same
+        # shipped-inert-until-retrained convention as the alt-data/bond-
+        # analytics blocks above: only reaches the scaler loop below if
+        # these 8 names are also in phase1.features.input_set AND a
+        # freshly retrained ml/feature_schema.json.
+        cross_asset_sensitivity = self._cross_asset_sensitivity_for_symbol(symbol)
+        for feature_name in CROSS_ASSET_SENSITIVITY_FEATURE_NAMES:
+            base_features[feature_name] = float(cross_asset_sensitivity.get(feature_name, 0.0) or 0.0)
+        self.latest_cross_asset_sensitivity_by_symbol[str(symbol)] = cross_asset_sensitivity
 
         # Safe default (10.0) for scaler_stats.json files written before
         # clip_sigma existed - see train.py::write_scaler_artifacts().
@@ -3507,6 +3558,86 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "implied_vol_term_structure": implied_vol_term_structure(vix_close, vix_3m_close),
             "financial_conditions_change": nfci_change if nfci_change is not None else FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
         }
+
+    def _build_sensitivity_driver_levels(self) -> dict:
+        """V5.1 Phase 2 (item 8 / F2) - raw as-of level for each of the 4
+        cross-asset sensitivity drivers (CROSS_ASSET_SENSITIVITY_DRIVERS),
+        computed once per bar from the SAME self.fred_series dict
+        _build_bond_payload()/_build_alt_data_payload() already read.
+        Unlike those payloads (which return a TRANSFORMED level/change),
+        this returns the raw value so on_data() can append it to
+        self.symbol_sensitivity_driver_history[symbol][driver_key] - the
+        per-symbol, index-aligned-with-symbol_long_windows series
+        _cross_asset_sensitivity_for_symbol() regresses against, exactly
+        the role self.latest_bond_payload["treasury_10yr_level"] plays for
+        self.symbol_treasury_10yr_history.
+
+        Routes through series_value_asof() (not a bare bisect) so a lagged
+        driver (currently none of the 4 default 0-lag drivers, but
+        config-overridable via alt_data_publication_lag_days) cannot leak
+        lookahead - same reasoning _build_alt_data_payload()'s own
+        docstring gives."""
+        current_date = self.Time.date()
+        alt_data_config = self.phase1.get("features", {})
+        publication_lag = {**ALT_DATA_PUBLICATION_LAG_DAYS, **alt_data_config.get("alt_data_publication_lag_days", {})}
+        drivers = alt_data_config.get("cross_asset_sensitivity", {}).get("drivers", CROSS_ASSET_SENSITIVITY_DRIVERS)
+
+        levels = {}
+        for driver_key, friendly_name in drivers.items():
+            levels[driver_key] = series_value_asof(
+                self.fred_series.get(friendly_name, []), current_date, publication_lag.get(friendly_name, 0)
+            )
+        return levels
+
+    def _cross_asset_sensitivity_for_symbol(self, symbol) -> dict:
+        """V5.1 Phase 2 (item 8 / F2) - runtime sibling of
+        train.py::build_cross_asset_sensitivity_features(), using the exact
+        same features.rolling_sensitivity()/sensitivity_interaction()
+        primitives for train/inference parity by construction.
+
+        Per driver, regresses this symbol's own close-to-close returns
+        (self.symbol_long_windows) against the driver's own day-over-day
+        level change (self.symbol_sensitivity_driver_history[symbol]
+        [driver_key], appended in on_data() every bar alongside
+        symbol_long_windows - the same index-alignment-per-symbol
+        convention _bond_empirical_duration_beta_for_symbol() already
+        established), restricted to the trailing
+        CROSS_ASSET_SENSITIVITY_LOOKBACK_DAYS bars.
+
+        Returns a flat dict with all 8 CROSS_ASSET_SENSITIVITY_FEATURE_NAMES
+        keys, neutral 0.0 for any driver with too little history - never
+        raises, matching _build_model_input()'s own hard base_features[name]
+        index further down (a missing key there is a KeyError every bar,
+        not a soft-fail)."""
+        sensitivity_config = self.phase1.get("features", {}).get("cross_asset_sensitivity", {})
+        lookback = int(sensitivity_config.get("lookback_days", CROSS_ASSET_SENSITIVITY_LOOKBACK_DAYS))
+        min_observations = int(sensitivity_config.get("min_observations", CROSS_ASSET_SENSITIVITY_MIN_OBSERVATIONS))
+        drivers = sensitivity_config.get("drivers", CROSS_ASSET_SENSITIVITY_DRIVERS)
+
+        closes = list(self.symbol_long_windows.get(symbol, []))
+        returns: list[float | None] = [None] + [
+            (closes[i] / closes[i - 1] - 1.0) if closes[i - 1] else None for i in range(1, len(closes))
+        ]
+
+        result = {}
+        driver_history = self.symbol_sensitivity_driver_history.get(symbol, {})
+        for driver_key in drivers:
+            levels = list(driver_history.get(driver_key, []))
+            deltas: list[float | None] = [None] * len(levels)
+            for index in range(1, len(levels)):
+                if levels[index] is not None and levels[index - 1] is not None:
+                    deltas[index] = levels[index] - levels[index - 1]
+
+            window_returns = returns[-lookback:] if lookback > 0 else returns
+            window_deltas = deltas[-lookback:] if lookback > 0 else deltas
+            beta = rolling_sensitivity(window_returns, window_deltas, lookback=lookback, min_observations=min_observations)
+            latest_delta = deltas[-1] if deltas else None
+            result[f"sens_{driver_key}_beta"] = beta if beta is not None else 0.0
+            result[f"sens_{driver_key}_interaction"] = sensitivity_interaction(beta, latest_delta)
+
+        for feature_name in CROSS_ASSET_SENSITIVITY_FEATURE_NAMES:
+            result.setdefault(feature_name, 0.0)
+        return result
 
     def _bond_empirical_duration_beta_for_symbol(self, symbol) -> float:
         """Only meaningful for asset_class == "bond" symbols - every other
@@ -5976,7 +6107,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # itself. Both dicts default to {} pre-first-bar (see __init__),
         # same safe-default convention as latest_derivatives_macro_payload
         # below.
-        state["macro"] = {**self.latest_bond_payload, **self.latest_alt_data_payload}
+        # V5.1 Phase 2 (item 8 / F2) - raw levels for the 3 new cross-asset
+        # sensitivity drivers not already covered by latest_bond_payload/
+        # latest_alt_data_payload (real_rate/dollar; credit is already
+        # bond_credit_spread_level above). Informational only, same as the
+        # rest of this dict - the model reads per-symbol sensitivity betas
+        # via _cross_asset_sensitivity_for_symbol(), never this raw level.
+        state["macro"] = {
+            **self.latest_bond_payload,
+            **self.latest_alt_data_payload,
+            "sensitivity_driver_levels": self.latest_sensitivity_driver_levels,
+        }
         state["derivatives"] = {
             "macro": self.latest_derivatives_macro_payload,
             "options_chains": self._options_chains_payload_for_state(),

@@ -252,9 +252,20 @@ def _extract_horizon_evaluation_summary(training_metrics: dict | None) -> dict:
 
     rank_ic = {}
     ranking_quality = {}
-    # sector_neutral_rank_20d (Phase 5 of the 5/10 -> 9/10 roadmap): same
-    # rank-IC shape as rank_5d/20d, appended rather than replacing either.
-    for head_name in ("rank_5d", "rank_20d", "sector_neutral_rank_20d"):
+    # sector_neutral_rank_20d (Phase 5 of the 5/10 -> 9/10 roadmap) and
+    # residual_rank_5d/20d + beta_neutral_rank_20d (V5.1 Phase 2, item 5):
+    # same rank-IC shape as rank_5d/20d, appended rather than replacing any
+    # of them - deliberately NOT sourced from train.py::HORIZON_HEAD_SPECS
+    # (this module must stay torch-free, see monitoring/README.md), so a
+    # future new rank head needs one name added here too.
+    # beta_neutral_rank_20d ships with no active head by default (see
+    # train.py::DEFAULT_HORIZON_HEAD_CONFIG) - included here anyway so it
+    # gets full webui visibility the moment someone flips it on, same
+    # "registered, not dead code" reasoning as the head itself.
+    for head_name in (
+        "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+        "residual_rank_5d", "residual_rank_20d", "beta_neutral_rank_20d",
+    ):
         ic_metrics = backtest_metrics.get(f"{head_name}_ic")
         rank_ic[head_name] = ic_metrics if ic_metrics else None
         # Phase 2's code-enforced promotion-gate verdict

@@ -40,16 +40,19 @@ def _sample_frame() -> pd.DataFrame:
                 "f1": 0.1, "f2": -0.2, "target_direction": 1, "target_return_1d": 0.01,
                 "target_volatility_next_day": 0.02, "target_direction_5d": 1.0, "target_direction_20d": 0.0,
                 "target_rank_5d": 0.8, "target_rank_20d": np.nan, "target_sector_neutral_rank_20d": 0.7,
+                "target_residual_rank_5d": 0.75, "target_residual_rank_20d": np.nan, "target_beta_neutral_rank_20d": 0.6,
             },
             {
                 "f1": -0.1, "f2": 0.2, "target_direction": 0, "target_return_1d": -0.01,
                 "target_volatility_next_day": 0.03, "target_direction_5d": 0.0, "target_direction_20d": np.nan,
                 "target_rank_5d": 0.2, "target_rank_20d": 0.5, "target_sector_neutral_rank_20d": np.nan,
+                "target_residual_rank_5d": 0.25, "target_residual_rank_20d": 0.45, "target_beta_neutral_rank_20d": np.nan,
             },
             {
                 "f1": 0.0, "f2": 0.0, "target_direction": 1, "target_return_1d": 0.0,
                 "target_volatility_next_day": 0.01, "target_direction_5d": np.nan, "target_direction_20d": 1.0,
                 "target_rank_5d": 0.5, "target_rank_20d": 0.9, "target_sector_neutral_rank_20d": 0.4,
+                "target_residual_rank_5d": 0.55, "target_residual_rank_20d": 0.85, "target_beta_neutral_rank_20d": 0.35,
             },
         ]
     )
@@ -129,6 +132,7 @@ def test_aether_net_multitask_horizons_forward_returns_eight_heads():
     expected_heads = {
         "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
         "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+        "residual_rank_5d", "residual_rank_20d", "beta_neutral_rank_20d",
     }
     assert set(outputs.keys()) == expected_heads
     for head_name, tensor in outputs.items():
@@ -145,6 +149,7 @@ def test_export_multitask_horizons_architecture_shape():
     assert set(export["heads"].keys()) == {
         "direction", "magnitude", "volatility", "direction_5d", "direction_20d",
         "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+        "residual_rank_5d", "residual_rank_20d", "beta_neutral_rank_20d",
     }
 
 
@@ -220,12 +225,15 @@ def test_compute_combined_loss_is_zero_contribution_from_disabled_heads():
         "direction": torch.zeros(4), "magnitude": torch.zeros(4), "volatility": torch.zeros(4).abs(),
         "direction_5d": torch.randn(4), "direction_20d": torch.randn(4),
         "rank_5d": torch.rand(4), "rank_20d": torch.rand(4), "sector_neutral_rank_20d": torch.rand(4),
+        "residual_rank_5d": torch.rand(4), "residual_rank_20d": torch.rand(4), "beta_neutral_rank_20d": torch.rand(4),
     }
     targets = {
         "direction": torch.zeros(4), "magnitude": torch.zeros(4), "volatility": torch.zeros(4),
         "direction_5d": torch.full((4,), float("nan")), "direction_20d": torch.full((4,), float("nan")),
         "rank_5d": torch.full((4,), float("nan")), "rank_20d": torch.full((4,), float("nan")),
         "sector_neutral_rank_20d": torch.full((4,), float("nan")),
+        "residual_rank_5d": torch.full((4,), float("nan")), "residual_rank_20d": torch.full((4,), float("nan")),
+        "beta_neutral_rank_20d": torch.full((4,), float("nan")),
     }
     criterion = nn.BCEWithLogitsLoss()
     horizon_head_config = {name: {"enabled": False, "loss_weight": 1.0} for name in HORIZON_HEAD_SPECS}
@@ -251,6 +259,7 @@ def _direction_only_loss_inputs():
         "magnitude": torch.zeros(4), "volatility": torch.zeros(4).abs(),
         "direction_5d": torch.randn(4), "direction_20d": torch.randn(4),
         "rank_5d": torch.rand(4), "rank_20d": torch.rand(4), "sector_neutral_rank_20d": torch.rand(4),
+        "residual_rank_5d": torch.rand(4), "residual_rank_20d": torch.rand(4), "beta_neutral_rank_20d": torch.rand(4),
     }
     targets = {
         "direction": torch.tensor([1.0, 0.0, 1.0, 0.0]),
@@ -258,6 +267,8 @@ def _direction_only_loss_inputs():
         "direction_5d": torch.full((4,), float("nan")), "direction_20d": torch.full((4,), float("nan")),
         "rank_5d": torch.full((4,), float("nan")), "rank_20d": torch.full((4,), float("nan")),
         "sector_neutral_rank_20d": torch.full((4,), float("nan")),
+        "residual_rank_5d": torch.full((4,), float("nan")), "residual_rank_20d": torch.full((4,), float("nan")),
+        "beta_neutral_rank_20d": torch.full((4,), float("nan")),
     }
     horizon_head_config = {name: {"enabled": False, "loss_weight": 1.0} for name in HORIZON_HEAD_SPECS}
     return outputs, targets, horizon_head_config
@@ -423,16 +434,22 @@ def test_compute_combined_loss_consistency_loss_weight_defaults_to_zero_backward
         "direction_5d": torch.tensor([5.0, 5.0]), "direction_20d": torch.tensor([-5.0, -5.0]),
         "rank_5d": torch.tensor([0.9, 0.9]), "rank_20d": torch.tensor([0.1, 0.1]),
         "sector_neutral_rank_20d": torch.rand(2),
+        "residual_rank_5d": torch.rand(2), "residual_rank_20d": torch.rand(2), "beta_neutral_rank_20d": torch.rand(2),
     }
     targets = {
         "direction": torch.tensor([1.0, 0.0]), "magnitude": torch.zeros(2), "volatility": torch.zeros(2),
         "direction_5d": torch.tensor([1.0, 1.0]), "direction_20d": torch.tensor([0.0, 0.0]),
         "rank_5d": torch.tensor([0.5, 0.5]), "rank_20d": torch.tensor([0.5, 0.5]),
         "sector_neutral_rank_20d": torch.full((2,), float("nan")),
+        "residual_rank_5d": torch.full((2,), float("nan")), "residual_rank_20d": torch.full((2,), float("nan")),
+        "beta_neutral_rank_20d": torch.full((2,), float("nan")),
     }
     criterion = nn.BCEWithLogitsLoss()
     horizon_head_config = {name: {"enabled": True, "loss_weight": 1.0} for name in HORIZON_HEAD_SPECS}
     horizon_head_config["sector_neutral_rank_20d"]["enabled"] = False
+    horizon_head_config["residual_rank_5d"]["enabled"] = False
+    horizon_head_config["residual_rank_20d"]["enabled"] = False
+    horizon_head_config["beta_neutral_rank_20d"]["enabled"] = False
 
     loss_no_consistency = compute_combined_multitask_loss(outputs, targets, criterion, 1.0, 1.0, horizon_head_config)
     loss_zero_weight = compute_combined_multitask_loss(

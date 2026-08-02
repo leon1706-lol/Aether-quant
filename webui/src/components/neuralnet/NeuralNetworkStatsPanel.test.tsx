@@ -104,3 +104,15 @@ describe('NeuralNetworkStatsPanel ranking-quality gates (V4.12.2, Problems.md #7
     expect(screen.queryByText(/promotion gate:/)).not.toBeInTheDocument()
   })
 })
+
+describe('NeuralNetworkStatsPanel residual-rank gates (V5.1 Phase 2, item 5)', () => {
+  it('renders the residual rank_20d gate alongside rank_5d/20d', () => {
+    const withResidual: NeuralNetworkState = {
+      networks: [{ ...network(), ranking_quality: { ...network().ranking_quality, residual_rank_20d: PROMOTABLE_RANK_5D } }],
+      totals: { total_networks: 1, total_layers: 3, total_nodes: 88, total_edges: 1760, trained_count: 1 },
+      excluded: [],
+    }
+    render(<NeuralNetworkStatsPanel neuralNetwork={withResidual} />)
+    expect(screen.getByText(/20d residual promotion gate:/)).toBeInTheDocument()
+  })
+})

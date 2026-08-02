@@ -4,14 +4,22 @@ mocking, hand-computed expected values, explicit None/missing-input cases."""
 
 import math
 
+import pytest
+
 from features.alt_data_features import (
+    BREAKEVEN_INFLATION_CHANGE_NEUTRAL,
+    DOLLAR_INDEX_CHANGE_NEUTRAL,
     FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
     IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL,
     IMPLIED_VOLATILITY_LEVEL_NEUTRAL,
+    REAL_RATE_CHANGE_NEUTRAL,
     VIX_REFERENCE_LEVEL,
+    breakeven_inflation_change,
+    dollar_index_change,
     financial_conditions_change,
     implied_vol_term_structure,
     implied_volatility_level,
+    real_rate_change,
 )
 
 
@@ -95,3 +103,37 @@ def test_financial_conditions_change_missing_prior_returns_neutral():
 
 def test_financial_conditions_change_both_missing_returns_neutral():
     assert financial_conditions_change(nfci_now=None, nfci_prior=None) == FINANCIAL_CONDITIONS_CHANGE_NEUTRAL
+
+
+# ---------------------------------------------------------------------------
+# real_rate_change / breakeven_inflation_change / dollar_index_change
+# (V5.1 Phase 2, item 8 / F2 - features/cross_asset_sensitivity.py's drivers)
+# ---------------------------------------------------------------------------
+
+
+def test_real_rate_change_matches_hand_computation():
+    assert real_rate_change(1.85, 1.80) == pytest.approx(0.05)
+
+
+def test_real_rate_change_missing_input_returns_neutral():
+    assert real_rate_change(None, 1.80) == REAL_RATE_CHANGE_NEUTRAL
+    assert real_rate_change(1.85, None) == REAL_RATE_CHANGE_NEUTRAL
+    assert real_rate_change(None, None) == REAL_RATE_CHANGE_NEUTRAL
+
+
+def test_breakeven_inflation_change_matches_hand_computation():
+    assert breakeven_inflation_change(2.30, 2.25) == pytest.approx(0.05)
+
+
+def test_breakeven_inflation_change_missing_input_returns_neutral():
+    assert breakeven_inflation_change(None, 2.25) == BREAKEVEN_INFLATION_CHANGE_NEUTRAL
+    assert breakeven_inflation_change(2.30, None) == BREAKEVEN_INFLATION_CHANGE_NEUTRAL
+
+
+def test_dollar_index_change_matches_hand_computation():
+    assert dollar_index_change(104.5, 103.9) == pytest.approx(0.6)
+
+
+def test_dollar_index_change_missing_input_returns_neutral():
+    assert dollar_index_change(None, 103.9) == DOLLAR_INDEX_CHANGE_NEUTRAL
+    assert dollar_index_change(104.5, None) == DOLLAR_INDEX_CHANGE_NEUTRAL

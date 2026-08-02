@@ -22,6 +22,11 @@ from .bond_features import (
     yield_curve_level,
     yield_curve_slope as bond_yield_curve_slope,
 )
+from .cross_asset_sensitivity import (
+    CROSS_ASSET_SENSITIVITY_FEATURE_NAMES,
+    rolling_sensitivity,
+    sensitivity_interaction,
+)
 from .derivatives_macro_features import (
     DERIVATIVES_MACRO_FEATURE_NAMES,
     FUTURES_MACRO_FEATURE_NAMES,
@@ -74,6 +79,7 @@ __all__ = [
     "BOND_FEATURE_NAMES",
     "CREDIT_SPREAD_LEVEL_NEUTRAL",
     "CREDIT_SPREAD_NEUTRAL",
+    "CROSS_ASSET_SENSITIVITY_FEATURE_NAMES",
     "CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL",
     "CRYPTO_RISK_APPETITE_NEUTRAL",
     "DEFAULT_SECTOR_MAPPING_PATH",
@@ -122,6 +128,8 @@ __all__ = [
     "options_put_call_ratio",
     "relative_strength_index",
     "resolve_sector",
+    "rolling_sensitivity",
+    "sensitivity_interaction",
     "volume_zscore",
     "yield_curve_curvature",
     "yield_curve_level",

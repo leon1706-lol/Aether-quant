@@ -178,6 +178,13 @@ describe('V5.1 Phase 1: Rank Signal / Net Edge / Book Neutrality panels', () => 
   })
 })
 
+describe('V5.1 Phase 2: Cross-Asset Sensitivity panel', () => {
+  it('RiskPage renders the Cross-Asset Macro Sensitivity panel', () => {
+    renderWithProviders(<RiskPage state={undefined} />)
+    expect(panelTitles()).toContain('Cross-Asset Macro Sensitivity')
+  })
+})
+
 describe('V4-W2: Tracing column layout', () => {
   it('puts asset performance alone in the right column and the charts in the left', () => {
     const { container } = renderWithProviders(<TracingPage />)

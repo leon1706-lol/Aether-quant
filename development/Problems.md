@@ -4492,3 +4492,19 @@ Selection itself (which symbols land in the top/bottom-N) was never affected —
 **Not yet re-verified with a Lean backtest** — the plan's 2-backtest budget has one slot left, deliberately held in reserve rather than spent confirming this fix in isolation; verification is bundled with Phase 2's retrained-model backtest per user instruction.
 
 **Lesson, adjacent to #72's:** a metric computed for one purpose (raw dispersion / conviction) silently stopped measuring that purpose once its *input* was normalized for an unrelated reason (F1's sizing fix) — the gate kept running, kept returning a number, and that number kept clearing the threshold, so nothing *looked* broken until the backtest's actual P&L was examined. Neither #72 nor #77 threw an exception or produced an obviously-malformed result; both required comparing real outputs against expectations to catch. Any future change to what scale a value lives on must audit every existing threshold/gate reading that value, not just the code path the change was aimed at.
+
+---
+
+### 78. `tests/test_retraining_worker.py` — 7 of 11 tests spawned a real, unmocked subprocess, adding ~17 minutes to every full suite run
+
+**Severity:** 3/10 (dev-velocity/CI-cost only, no correctness impact — every affected test still asserted the right behavior and passed) · **Status:** 🟢 `fixed`
+
+**Found while investigating why a full `aq test` run had grown to ~28 minutes** (user-reported). `pytest --durations`' own "slowest 15" output showed 7 tests in this one file each taking 140-168 seconds — collectively ~1,050-1,200 seconds, i.e. the large majority of the entire suite's wall-clock time.
+
+**Root cause, found via `cProfile` on one isolated test:** `retraining/worker.py::RetrainingWorker.run_once()` calls six best-effort trainer stages in sequence — `train_topology`, `train_gating`, `train_multitask`, `train_sequence`, `train_strategy_selector`, in that order — and every test in this file that exercises the "past `train()` succeeds" path patched the first four by name (`patch("retraining.worker.train_topology")` etc.) but never `train_strategy_selector`. The profile's cumulative-time breakdown pointed straight at it: `run_once()` → `train_strategy_selector()` → `subprocess.run(...)` → **143.3 of 161.9 total seconds** in the one test profiled. `retraining/orchestrator.py::train_strategy_selector()` genuinely shells out to `python train_strategy_selector.py --version-id <id>` (a real subprocess, `timeout=300`) whenever it isn't mocked — the ~140s cost is that child process's own from-scratch Python/torch import + exit-fast-with-no-data-source cost (see that function's own docstring: it realistically no-ops every cycle in this environment, but still has to *start* to find that out).
+
+Exactly 7 of the file's 11 tests reach that call site — matching the 7 slow entries in the durations report precisely, which is what confirmed the diagnosis before touching anything.
+
+**Fix.** Added `patch("retraining.worker.train_strategy_selector")` alongside the other five best-effort-stage patches in all 7 affected tests (matching this file's own existing per-stage mocking convention — no new pattern introduced). Verified: full file re-run, 11/11 passed, **86.8 seconds total** (down from >1,050s for just the previously-slow 7) — roughly **15-16 minutes off every future full-suite run**.
+
+**Not related to any V5.1 change** — `retraining/worker.py` and this test file were untouched by the V5.1 phase in progress; this was a pre-existing gap, found only because a full-suite run's growing wall-clock time prompted a direct investigation.

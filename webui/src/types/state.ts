@@ -246,6 +246,21 @@ export interface AssignmentRiskLeg {
   flag: boolean
 }
 
+// features/cross_asset_sensitivity.py's CROSS_ASSET_SENSITIVITY_FEATURE_NAMES -
+// mirrors main.py::_cross_asset_sensitivity_for_symbol()'s return shape
+// exactly. Neutral 0.0 (not null) per key, matching that function's own
+// "never raises, 0.0 for too-little-history" contract.
+export interface CrossAssetSensitivity {
+  sens_vix_beta?: number
+  sens_vix_interaction?: number
+  sens_real_rate_beta?: number
+  sens_real_rate_interaction?: number
+  sens_credit_beta?: number
+  sens_credit_interaction?: number
+  sens_dollar_beta?: number
+  sens_dollar_interaction?: number
+}
+
 export interface DividendEstimate {
   estimated_next_ex_date: string | null
   estimated_amount: number | null
@@ -307,6 +322,8 @@ export interface Signal {
   // detector/model being off/unloaded, which is this codebase's default) -
   // any consumer must render a graceful empty state, never assume presence.
   bond_analytics?: BondAnalytics | null
+  // V5.1 Phase 2 (item 8 / F2) - per-symbol macro sensitivity betas.
+  cross_asset_sensitivity?: CrossAssetSensitivity | null
   assignment_risk?: Record<string, AssignmentRiskLeg> | null
   dividend_schedule?: DividendSchedule | null
   strategy_selector_scores?: Record<string, number> | null
@@ -544,10 +561,16 @@ export interface NeuralNetworkModel {
   // sector_neutral_rank_20d (Phase 5 of the 5/10 -> 9/10 roadmap): same
   // RankIcSummary shape as rank_5d/20d, sector-demeaned instead of
   // universe-wide - see build_cross_sectional_rank_targets()'s docstring.
+  // residual_rank_5d/20d (V5.1 Phase 2, item 5): combined market+sector+
+  // size-residualized rank targets - see train.py::build_residual_rank_targets()'s
+  // docstring. beta_neutral_rank_20d ships enabled:false by default (see
+  // config.json's horizon_heads) so is deliberately not surfaced here yet.
   rank_ic?: {
     rank_5d: RankIcSummary | null
     rank_20d: RankIcSummary | null
     sector_neutral_rank_20d?: RankIcSummary | null
+    residual_rank_5d?: RankIcSummary | null
+    residual_rank_20d?: RankIcSummary | null
   } | null
   // Per-head promotion-gate verdict, same head keys as rank_ic above -
   // null when the backtest run didn't compute a ranking_promotion_config
@@ -556,6 +579,8 @@ export interface NeuralNetworkModel {
     rank_5d: RankingQualitySummary | null
     rank_20d: RankingQualitySummary | null
     sector_neutral_rank_20d?: RankingQualitySummary | null
+    residual_rank_5d?: RankingQualitySummary | null
+    residual_rank_20d?: RankingQualitySummary | null
   } | null
   regression_quality?: { magnitude: string | null; volatility: string | null } | null
 }
@@ -763,6 +788,18 @@ export interface MacroSnapshot {
   implied_volatility_level?: number | null
   implied_vol_term_structure?: number | null
   financial_conditions_change?: number | null
+  // V5.1 Phase 2 (item 8 / F2) - raw as-of levels for the 4 cross-asset
+  // sensitivity drivers (features/cross_asset_sensitivity.py); "credit" is
+  // omitted here since bond_credit_spread_level above already covers it.
+  // Informational only - the model reads per-symbol sensitivity BETAS, not
+  // these broadcast levels. Keyed by driver (vix/real_rate/credit/dollar),
+  // any of which may be null pre-first-bar or if FRED backfill is missing.
+  sensitivity_driver_levels?: {
+    vix?: number | null
+    real_rate?: number | null
+    credit?: number | null
+    dollar?: number | null
+  }
 }
 
 export interface RuntimeState {

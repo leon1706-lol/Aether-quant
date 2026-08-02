@@ -37,10 +37,18 @@ export function MacroSnapshotPanel({ macro }: { macro: MacroSnapshot | undefined
             <StatTile label="Credit Spread" value={macro.credit_spread_level} />
           </div>
           <div className="mb-1 text-xs text-white/50">Alt-data (options-implied vol / financial conditions)</div>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             <StatTile label="Implied Vol Level" value={macro.implied_volatility_level} />
             <StatTile label="Implied Vol Term Structure" value={macro.implied_vol_term_structure} />
             <StatTile label="Financial Conditions Δ" value={macro.financial_conditions_change} />
+          </div>
+          <div className="mb-1 text-xs text-white/50">
+            Sensitivity drivers (V5.1 Phase 2 - raw levels, per-asset betas on the Risk page)
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <StatTile label="Real Rate (10Y TIPS)" value={macro.sensitivity_driver_levels?.real_rate} />
+            <StatTile label="Dollar Index" value={macro.sensitivity_driver_levels?.dollar} />
+            <StatTile label="VIX" value={macro.sensitivity_driver_levels?.vix} />
           </div>
         </>
       )}

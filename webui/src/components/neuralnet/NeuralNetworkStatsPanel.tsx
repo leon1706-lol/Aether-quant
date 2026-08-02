@@ -135,11 +135,33 @@ function NetworkRow({ network }: { network: NeuralNetworkState['networks'][numbe
                   </span>
                 </span>
               ) : null}
+              {network.rank_ic.residual_rank_5d !== undefined ? (
+                <span>
+                  5d residual rank-IC:{' '}
+                  <span className="text-white/80">
+                    {network.rank_ic.residual_rank_5d
+                      ? `${network.rank_ic.residual_rank_5d.mean_ic.toFixed(3)} (t=${network.rank_ic.residual_rank_5d.t_stat.toFixed(2)})`
+                      : '—'}
+                  </span>
+                </span>
+              ) : null}
+              {network.rank_ic.residual_rank_20d !== undefined ? (
+                <span>
+                  20d residual rank-IC:{' '}
+                  <span className="text-white/80">
+                    {network.rank_ic.residual_rank_20d
+                      ? `${network.rank_ic.residual_rank_20d.mean_ic.toFixed(3)} (t=${network.rank_ic.residual_rank_20d.t_stat.toFixed(2)})`
+                      : '—'}
+                  </span>
+                </span>
+              ) : null}
             </>
           ) : null}
           <RankingQualityGate label="5d" summary={network.ranking_quality?.rank_5d} />
           <RankingQualityGate label="20d" summary={network.ranking_quality?.rank_20d} />
           <RankingQualityGate label="20d sector-neutral" summary={network.ranking_quality?.sector_neutral_rank_20d} />
+          <RankingQualityGate label="5d residual" summary={network.ranking_quality?.residual_rank_5d} />
+          <RankingQualityGate label="20d residual" summary={network.ranking_quality?.residual_rank_20d} />
           {network.regression_quality ? (
             <span className="col-span-2">
               Regression quality: mag={network.regression_quality.magnitude ?? '—'}, vol=

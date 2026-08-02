@@ -1332,6 +1332,20 @@ def cmd_assets(_args: argparse.Namespace) -> int:
     print(f"FRED cache: {report['fred_cache_series_count']} series populated, most recent date: {most_recent}")
     print(f"Configured futures assets: {report['configured_futures_assets']}")
     print(f"Configured options assets: {report['configured_options_assets']}")
+    # V5.1 Phase 2, Step 2.5 - development/Problems.md: derivatives macro
+    # features are computed every dataset build, but deliberately left out
+    # of phase1.features.input_set (constant 0.0 with no futures/options
+    # contract subscribed - see build_dataset_manifest()'s
+    # computed_but_unused_features list for the code-enforced version of
+    # this same fact).
+    derivatives_in_input_set = config.get("phase1", {}).get("features", {}).get("derivatives_in_input_set", False)
+    status = "in input_set" if derivatives_in_input_set else "computed, NOT in input_set"
+    print(
+        "Derivatives macro features (futures_term_structure_slope, options_put_call_ratio, "
+        f"options_implied_vol_skew): {status} - needs a futures/options contract subscribed "
+        "(IB-gated) to carry real signal; flip phase1.features.derivatives_in_input_set "
+        "once one is."
+    )
 
     return 0
 

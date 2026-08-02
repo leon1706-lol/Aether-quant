@@ -268,6 +268,56 @@ def test_build_dataset_manifest_includes_target_columns_map():
     # stay exactly as they were.
     assert manifest["target_column"] == "target_direction"
     assert manifest["aux_target_column"] == "target_return_1d"
+    # V5.1 Phase 2, Step 2.2 - new heads' target columns are additive too.
+    assert manifest["target_columns"]["residual_rank_5d"] == "target_residual_rank_5d"
+    assert manifest["target_columns"]["residual_rank_20d"] == "target_residual_rank_20d"
+    assert manifest["target_columns"]["beta_neutral_rank_20d"] == "target_beta_neutral_rank_20d"
+
+
+def test_build_dataset_manifest_computed_but_unused_features_surfaces_orphan_columns():
+    # V5.1 Phase 2, Step 2.5 - a column that is neither in input_set nor a
+    # target_*/context/bookkeeping column (the exact shape of the 3
+    # orphan derivatives-macro features this session found) must be
+    # surfaced, not silently dropped.
+    config = {
+        "name": "Aether Quant",
+        "phase1": {"features": {"input_set": ["feature_a"]}},
+    }
+    dataset = pd.DataFrame(
+        {
+            "ticker": ["CORE"],
+            "split": ["train"],
+            "date": pd.to_datetime(["2020-01-01"]),
+            "feature_a": [0.1],
+            "futures_term_structure_slope": [0.0],
+            "target_direction": [1],
+            "asset_class_equity": [1.0],
+        }
+    )
+
+    manifest = train.build_dataset_manifest(config, dataset, {"coverage_checks": {}}, {}, {})
+
+    assert manifest["computed_but_unused_features"] == ["futures_term_structure_slope"]
+
+
+def test_build_dataset_manifest_computed_but_unused_features_empty_when_everything_is_accounted_for():
+    config = {
+        "name": "Aether Quant",
+        "phase1": {"features": {"input_set": ["feature_a"]}},
+    }
+    dataset = pd.DataFrame(
+        {
+            "ticker": ["CORE"],
+            "split": ["train"],
+            "date": pd.to_datetime(["2020-01-01"]),
+            "feature_a": [0.1],
+            "target_direction": [1],
+        }
+    )
+
+    manifest = train.build_dataset_manifest(config, dataset, {"coverage_checks": {}}, {}, {})
+
+    assert manifest["computed_but_unused_features"] == []
 
 
 def test_load_factor_file_returns_none_when_missing(tmp_path, monkeypatch):
