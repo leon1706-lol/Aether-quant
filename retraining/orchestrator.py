@@ -512,9 +512,15 @@ def validate(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     candidate_report = _load_json_if_exists(version_dir / "strategy_report.json")
     active_metrics = _load_json_if_exists(ACTIVE_TRAINING_METRICS_PATH)
     active_report = _load_json_if_exists(ACTIVE_STRATEGY_REPORT_PATH)
+    # V5.1 Phase 4 (item 7) - see evaluate_validation_gate()'s own docstring.
+    candidate_ranking_metrics = {
+        "sequence": _load_json_if_exists(version_dir / "sequence_training_metrics.json") or None,
+        "multitask": _load_json_if_exists(version_dir / "multitask_training_metrics.json") or None,
+    }
 
     gate_result = evaluate_validation_gate(
-        candidate_metrics, candidate_report, active_metrics, active_report, config.get("validation_gate", {})
+        candidate_metrics, candidate_report, active_metrics, active_report, config.get("validation_gate", {}),
+        candidate_ranking_metrics=candidate_ranking_metrics,
     )
 
     if not gate_result["passed"]:

@@ -5,7 +5,7 @@ with plain dicts shaped like ml/training_metrics.json and
 backtests/strategy_report.json.
 """
 
-from retraining.validation_gate import compute_overfitting_gap, evaluate_validation_gate
+from retraining.validation_gate import compute_overfitting_gap, evaluate_ranking_promotion_gate, evaluate_validation_gate
 
 _CONFIG = {
     "min_sharpe": 0.3,
@@ -148,3 +148,176 @@ def test_evaluate_validation_gate_skill_floor_thresholds_are_configurable():
     assert "candidate_no_demonstrated_skill" in result["failures"]
     assert result["thresholds"]["min_balanced_accuracy"] == 0.55
     assert result["thresholds"]["min_mcc"] == 0.05
+
+
+# ---------------------------------------------------------------------------
+# evaluate_ranking_promotion_gate (V5.1 Phase 4, item 7 - "the dead end")
+# ---------------------------------------------------------------------------
+
+_RANKING_CONFIG = {
+    "enabled": True,
+    "model": "sequence",
+    "head": "residual_rank_20d",
+    "require_quality_status": ["promotable", "watchlist"],
+    "min_net_sharpe": 0.40,
+    "max_annualized_turnover": 12.0,
+    "min_capacity_usd": 250000,
+    "min_walk_forward_windows": 3,
+    "max_window_sign_flip_fraction": 0.34,
+    "missing_metrics_action": "near_miss",
+}
+
+
+def _ranking_metrics(quality_status="promotable", net_sharpe=0.6, turnover=5.0, capacity_usd=300000) -> dict:
+    return {
+        "sequence": {
+            "backtest": {
+                "residual_rank_20d_ranking_quality": {"quality_status": quality_status},
+                "residual_rank_20d_net_performance": {
+                    "observed": {
+                        "net_sharpe": net_sharpe,
+                        "annualized_turnover": turnover,
+                        "capacity_usd": capacity_usd,
+                    }
+                },
+            }
+        }
+    }
+
+
+def test_evaluate_ranking_promotion_gate_passes_when_everything_clears():
+    result = evaluate_ranking_promotion_gate(_ranking_metrics(), _RANKING_CONFIG)
+
+    assert result["passed"] is True
+    assert result["failures"] == []
+
+
+def test_evaluate_ranking_promotion_gate_fails_on_not_promotable_quality_status():
+    result = evaluate_ranking_promotion_gate(_ranking_metrics(quality_status="not_promotable"), _RANKING_CONFIG)
+
+    assert result["passed"] is False
+    assert "ranking_quality_status_not_accepted" in result["failures"]
+
+
+def test_evaluate_ranking_promotion_gate_fails_on_net_sharpe_below_gate():
+    result = evaluate_ranking_promotion_gate(_ranking_metrics(net_sharpe=0.1), _RANKING_CONFIG)
+
+    assert result["passed"] is False
+    assert "net_sharpe_below_gate" in result["failures"]
+
+
+def test_evaluate_ranking_promotion_gate_missing_metrics_is_near_miss_not_failure_by_default():
+    # The MISSING-METRICS CONTRACT: an older candidate trained before V5.1
+    # has neither key at all - default missing_metrics_action="near_miss"
+    # must NOT reject it (that would auto-reject the very first retrain
+    # after V5.1 ships).
+    result = evaluate_ranking_promotion_gate({"sequence": None, "multitask": None}, _RANKING_CONFIG)
+
+    assert result["passed"] is True
+    assert "ranking_gate_metrics_absent" in result["near_misses"]
+
+
+def test_evaluate_ranking_promotion_gate_missing_metrics_fails_when_configured_to():
+    strict_config = {**_RANKING_CONFIG, "missing_metrics_action": "fail"}
+
+    result = evaluate_ranking_promotion_gate({"sequence": None, "multitask": None}, strict_config)
+
+    assert result["passed"] is False
+    assert "ranking_gate_metrics_absent" in result["failures"]
+
+
+def test_evaluate_ranking_promotion_gate_missing_metrics_ignored_when_configured_to():
+    ignore_config = {**_RANKING_CONFIG, "missing_metrics_action": "ignore"}
+
+    result = evaluate_ranking_promotion_gate({"sequence": None, "multitask": None}, ignore_config)
+
+    assert result["passed"] is True
+    assert result["near_misses"] == []
+    assert result["failures"] == []
+
+
+def test_evaluate_ranking_promotion_gate_walk_forward_stability_optional_input():
+    walk_forward_summary = {
+        "stability_by_metric": {
+            "residual_rank_20d_ic": {"num_windows": 6, "sign_flip_fraction": 0.1},
+        }
+    }
+
+    result = evaluate_ranking_promotion_gate(_ranking_metrics(), _RANKING_CONFIG, walk_forward_summary)
+
+    assert result["passed"] is True
+    assert result["observed"]["walk_forward_num_windows"] == 6
+
+
+def test_evaluate_ranking_promotion_gate_fails_on_insufficient_walk_forward_windows():
+    walk_forward_summary = {"stability_by_metric": {"residual_rank_20d_ic": {"num_windows": 1, "sign_flip_fraction": 0.0}}}
+
+    result = evaluate_ranking_promotion_gate(_ranking_metrics(), _RANKING_CONFIG, walk_forward_summary)
+
+    assert result["passed"] is False
+    assert "insufficient_walk_forward_windows" in result["failures"]
+
+
+# ---------------------------------------------------------------------------
+# evaluate_validation_gate + candidate_ranking_metrics wiring (V5.1 Phase 4)
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_validation_gate_candidate_ranking_metrics_none_is_byte_identical_to_today():
+    candidate_metrics = _metrics(validation={"balanced_accuracy": 0.60, "loss": 0.55})
+    candidate_report = _report(sharpe=0.8, max_drawdown=-0.05, trade_count=60, exposure_rate=0.25)
+
+    without = evaluate_validation_gate(candidate_metrics, candidate_report, _ACTIVE_METRICS, _ACTIVE_REPORT, _CONFIG)
+    with_default = evaluate_validation_gate(
+        candidate_metrics, candidate_report, _ACTIVE_METRICS, _ACTIVE_REPORT, _CONFIG,
+        candidate_ranking_metrics=None,
+    )
+
+    assert without == with_default
+
+
+def test_evaluate_validation_gate_ranking_disabled_is_a_no_op_even_with_metrics_provided():
+    candidate_metrics = _metrics(validation={"balanced_accuracy": 0.60, "loss": 0.55})
+    candidate_report = _report(sharpe=0.8, max_drawdown=-0.05, trade_count=60, exposure_rate=0.25)
+    config_without_ranking = {**_CONFIG}  # no "ranking" key at all -> disabled by default
+
+    result = evaluate_validation_gate(
+        candidate_metrics, candidate_report, _ACTIVE_METRICS, _ACTIVE_REPORT, config_without_ranking,
+        candidate_ranking_metrics=_ranking_metrics(quality_status="not_promotable"),
+    )
+
+    assert result["passed"] is True
+    assert "ranking" not in result["thresholds"]
+
+
+def test_evaluate_validation_gate_merges_ranking_gate_failures_when_enabled():
+    candidate_metrics = _metrics(validation={"balanced_accuracy": 0.60, "loss": 0.55})
+    candidate_report = _report(sharpe=0.8, max_drawdown=-0.05, trade_count=60, exposure_rate=0.25)
+    config_with_ranking = {**_CONFIG, "ranking": _RANKING_CONFIG}
+
+    result = evaluate_validation_gate(
+        candidate_metrics, candidate_report, _ACTIVE_METRICS, _ACTIVE_REPORT, config_with_ranking,
+        candidate_ranking_metrics=_ranking_metrics(quality_status="not_promotable"),
+    )
+
+    # Every baseline check still passes on its own (same fixture as the
+    # "accepts better candidate" test) - only the ranking sub-gate fails,
+    # and it alone must be enough to reject the whole candidate.
+    assert result["passed"] is False
+    assert "ranking_quality_status_not_accepted" in result["failures"]
+    assert "ranking" in result["thresholds"]
+    assert "ranking" in result["observed"]
+
+
+def test_evaluate_validation_gate_ranking_enabled_but_metrics_absent_does_not_reject():
+    candidate_metrics = _metrics(validation={"balanced_accuracy": 0.60, "loss": 0.55})
+    candidate_report = _report(sharpe=0.8, max_drawdown=-0.05, trade_count=60, exposure_rate=0.25)
+    config_with_ranking = {**_CONFIG, "ranking": _RANKING_CONFIG}
+
+    result = evaluate_validation_gate(
+        candidate_metrics, candidate_report, _ACTIVE_METRICS, _ACTIVE_REPORT, config_with_ranking,
+        candidate_ranking_metrics={"sequence": None, "multitask": None},
+    )
+
+    assert result["passed"] is True
+    assert "ranking_gate_metrics_absent" in result["near_misses"]

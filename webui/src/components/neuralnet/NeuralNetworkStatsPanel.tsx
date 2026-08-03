@@ -1,4 +1,4 @@
-import type { NeuralNetworkState, RankingQualitySummary } from '../../types/state'
+import type { NeuralNetworkState, NetPerformanceSummary, RankingQualitySummary } from '../../types/state'
 import { Panel } from '../layout/Panel'
 import { Badge } from '../signals/Badge'
 
@@ -68,6 +68,26 @@ function RankingQualityGate({ label, summary }: { label: string; summary: Rankin
   )
 }
 
+// V5.1 Phase 4 (items 7, 12) - assess_net_performance_quality()'s verdict,
+// same rendering shape as RankingQualityGate above but over net Sharpe/
+// turnover/capacity/double-cost-stress instead of rank-IC. Only ever
+// non-null for the ONE head phase1.target.ranking.net_performance.head is
+// configured for.
+function NetPerformanceGate({ label, summary }: { label: string; summary: NetPerformanceSummary | null | undefined }) {
+  if (!summary) return null
+  const { observed } = summary
+  return (
+    <span className="col-span-2 flex flex-wrap items-center gap-1.5">
+      {label} net performance: <Badge tone={summary.quality_status}>{summary.quality_status}</Badge>
+      <span className="text-white/80">
+        net Sharpe={observed.net_sharpe.toFixed(3)}, turnover={observed.annualized_turnover.toFixed(2)}x, capacity=$
+        {observed.capacity_usd.toLocaleString()}
+        {observed.double_cost_net_sharpe !== null ? `, 2x-cost Sharpe=${observed.double_cost_net_sharpe.toFixed(3)}` : ''}
+      </span>
+    </span>
+  )
+}
+
 function NetworkRow({ network }: { network: NeuralNetworkState['networks'][number] }) {
   const tone = network.role === 'baseline' ? 'baseline' : network.quality_status ?? undefined
 
@@ -95,7 +115,7 @@ function NetworkRow({ network }: { network: NeuralNetworkState['networks'][numbe
       ) : (
         <div className="mt-2 text-xs text-white/40">Not trained yet</div>
       )}
-      {network.horizon_mcc || network.rank_ic || network.ranking_quality || network.regression_quality ? (
+      {network.horizon_mcc || network.rank_ic || network.ranking_quality || network.net_performance || network.regression_quality ? (
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-white/5 pt-2 text-[0.7rem] text-white/60">
           {network.horizon_mcc ? (
             <>
@@ -162,6 +182,11 @@ function NetworkRow({ network }: { network: NeuralNetworkState['networks'][numbe
           <RankingQualityGate label="20d sector-neutral" summary={network.ranking_quality?.sector_neutral_rank_20d} />
           <RankingQualityGate label="5d residual" summary={network.ranking_quality?.residual_rank_5d} />
           <RankingQualityGate label="20d residual" summary={network.ranking_quality?.residual_rank_20d} />
+          <NetPerformanceGate label="5d" summary={network.net_performance?.rank_5d} />
+          <NetPerformanceGate label="20d" summary={network.net_performance?.rank_20d} />
+          <NetPerformanceGate label="20d sector-neutral" summary={network.net_performance?.sector_neutral_rank_20d} />
+          <NetPerformanceGate label="5d residual" summary={network.net_performance?.residual_rank_5d} />
+          <NetPerformanceGate label="20d residual" summary={network.net_performance?.residual_rank_20d} />
           {network.regression_quality ? (
             <span className="col-span-2">
               Regression quality: mag={network.regression_quality.magnitude ?? '—'}, vol=

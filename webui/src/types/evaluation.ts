@@ -43,9 +43,63 @@ export interface CostStressReport {
   entries: CostStressEntry[]
 }
 
-// Phase 4/5 shapes - loosely typed until those phases land; the webui only
-// ever reads a handful of top-level fields from these before then.
-export type WalkForwardSummary = Record<string, unknown>
+// V5.1 Phase 4 - mirrors train.py::summarize_walk_forward_run()'s /
+// bootstrap_ic_confidence_interval()'s exact return shape.
+export interface CrossWindowBootstrap {
+  lower_bound: number
+  upper_bound: number
+  mean_ic: number
+  confidence: number
+  n_resamples: number
+  num_observations: number
+}
+
+export interface MetricWindowSummary {
+  num_windows: number
+  per_window_metric_values: number[]
+  cross_window_bootstrap: CrossWindowBootstrap
+}
+
+// Mirrors evaluation/rank_book_simulator.py::summarize_metric_stability()'s
+// return shape - note its own internal bootstrap uses {lower_bound,
+// upper_bound, mean} (no _ic suffix, no confidence/n_resamples/
+// num_observations - a torch-free duplicate with a narrower shape, see
+// that function's own docstring for why it is deliberately NOT the same
+// train.py helper CrossWindowBootstrap above wraps).
+export interface MetricStabilitySummary {
+  num_windows: number
+  mean: number
+  sign_flip_fraction: number
+  stable: boolean
+  failures: string[]
+  bootstrap: { lower_bound: number; upper_bound: number; mean: number }
+}
+
+export interface WalkForwardNetPerformanceWindow {
+  window_index: number
+  head: string
+  model_kind: 'sequence' | 'multitask'
+  simulation: RankBookSimulationResult
+  capacity: CapacityReport
+  stress: CostStressEntry[]
+}
+
+export interface WalkForwardWindowResult {
+  window: Record<string, unknown>
+  version_id: string
+  backtest_mcc: number
+}
+
+export interface WalkForwardSummary {
+  run_id: string | null
+  num_windows: number
+  window_results: WalkForwardWindowResult[]
+  summary: MetricWindowSummary
+  summary_by_metric: Record<string, MetricWindowSummary>
+  stability_by_metric: Record<string, MetricStabilitySummary>
+  net_performance_by_window: WalkForwardNetPerformanceWindow[]
+}
+
 export type AblationReport = Record<string, unknown>
 
 export interface EvaluationState {

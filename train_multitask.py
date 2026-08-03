@@ -56,6 +56,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from train import (
     HORIZON_HEAD_SPECS,
     AetherNetMultiTaskHorizons,
+    assess_net_performance_quality,
     assess_ranking_quality_from_predictions,
     assess_regression_quality,
     build_cross_sectional_date_batches,
@@ -74,7 +75,9 @@ from train import (
     find_optimal_masked_threshold,
     find_optimal_threshold,
     is_new_best_epoch,
+    load_sector_mapping,
     resolve_horizon_head_config,
+    run_net_performance_simulation,
     set_seed,
     smoothed_metric,
     swa_accumulate,
@@ -94,6 +97,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version-id", type=str, required=True, help="Candidate model_version_id (UUID)")
     parser.add_argument("--config-path", type=str, default=str(CONFIG_PATH))
     parser.add_argument("--dataset-path", type=str, default=str(DATASET_PATH))
+    # V5.1 Phase 4 (item 4) - previously FEATURE_SCHEMA_PATH was a hardcoded
+    # module constant with no override, which meant this trainer could only
+    # ever read the ACTIVE ml/feature_schema.json - fine for the normal
+    # candidate-retraining path (which shares that active dataset/schema),
+    # but a hard blocker for train.py::_run_walk_forward()'s per-window
+    # subprocess calls, where each window has its own schema that does NOT
+    # match the active one. Defaults to the module constant - a no-op for
+    # every existing caller.
+    parser.add_argument("--feature-schema-path", type=str, default=str(FEATURE_SCHEMA_PATH))
     # Stage 4 of the rank-pivot roadmap (development/Problems.md#43):
     # seed-ensembling support. Overrides config.json's multitask_training.seed
     # for THIS invocation only (never mutates config.json) - run this script
@@ -165,7 +177,20 @@ def compute_multitask_metrics(
     head_thresholds: dict[str, float],
     horizon_head_config: dict,
     ranking_promotion_config: dict | None = None,
+    net_performance_context: dict | None = None,
 ) -> dict:
+    """net_performance_context (V5.1 Phase 4, items 7/12), only passed by
+    the BACKTEST split call site (same convention as ranking_promotion_config
+    above): {"raw_frame": pd.DataFrame with ticker/date/target_return_1d,
+    row-aligned with `features`/`dates`; "net_performance_config": dict;
+    "sector_by_ticker": dict; "head": str - which HORIZON_HEAD_SPECS head
+    to run the simulation for; "full_config": the full config.json, for
+    assess_net_performance_quality()'s promotion_gate lookup}. Writes
+    metrics[f"{head}_net_performance"] via train.py::
+    run_net_performance_simulation()/assess_net_performance_quality() - the
+    same simulator train.py::_run_walk_forward()'s per-window evaluation
+    and `aq evaluate --rank-book` both use, so this number is directly
+    comparable to those, not a re-derived approximation."""
     model.eval()
     with torch.no_grad():
         outputs = model(features)
@@ -204,6 +229,21 @@ def compute_multitask_metrics(
                     non_overlapping_stride=stride,
                     config=ranking_promotion_config,
                 )
+            if net_performance_context is not None and net_performance_context.get("head") == head_name:
+                raw_frame = net_performance_context["raw_frame"].copy()
+                raw_frame["_predicted_head"] = outputs[head_name].detach().cpu().numpy()
+                net_performance_result = run_net_performance_simulation(
+                    raw_frame, "_predicted_head",
+                    net_performance_context["net_performance_config"],
+                    net_performance_context["sector_by_ticker"],
+                )
+                if net_performance_result is not None:
+                    metrics[f"{head_name}_net_performance"] = assess_net_performance_quality(
+                        net_performance_result["simulation"],
+                        net_performance_result["capacity"],
+                        net_performance_result["stress"],
+                        net_performance_context["full_config"],
+                    )
     return metrics
 
 
@@ -273,10 +313,11 @@ def main() -> int:
         early_stop_head = str(training_config.get("early_stop_head", "rank_20d"))
         early_stop_smoothing_epochs = int(training_config.get("early_stop_smoothing_epochs", 1))
 
-        if not FEATURE_SCHEMA_PATH.exists():
-            LOGGER.info("train_multitask: missing feature schema - skipping.")
+        feature_schema_path = Path(args.feature_schema_path)
+        if not feature_schema_path.exists():
+            LOGGER.info("train_multitask: missing feature schema at %s - skipping.", feature_schema_path)
             return 0
-        with FEATURE_SCHEMA_PATH.open("r", encoding="utf-8") as f:
+        with feature_schema_path.open("r", encoding="utf-8") as f:
             feature_schema = json.load(f)
         feature_names = list(feature_schema["model_input_names"])
 
@@ -613,6 +654,28 @@ def main() -> int:
         backtest_targets = {name: tensor.to(device) for name, tensor in backtest_targets.items()}
 
         trained_at = datetime.now(timezone.utc).isoformat()
+        # V5.1 Phase 4 (items 7, 12) - net-performance simulation context,
+        # only meaningful for the BACKTEST split (same convention as
+        # ranking_promotion_config below). Config-gated: an absent/disabled
+        # phase1.target.ranking.net_performance block leaves
+        # net_performance_context None, and compute_multitask_metrics()
+        # then writes no *_net_performance key at all - zero behavior
+        # change for anyone not opting in.
+        net_performance_config = full_config.get("phase1", {}).get("target", {}).get("ranking", {}).get(
+            "net_performance", {}
+        )
+        net_performance_context = (
+            {
+                "raw_frame": backtest_frame,
+                "net_performance_config": net_performance_config,
+                "sector_by_ticker": load_sector_mapping(full_config),
+                "head": str(net_performance_config.get("head", "rank_20d")),
+                "full_config": full_config,
+            }
+            if net_performance_config.get("enabled", False)
+            else None
+        )
+
         metrics = {
             "project": "aether_quant",
             "phase": "multitask_direction_magnitude_volatility_horizons",
@@ -665,6 +728,7 @@ def main() -> int:
                 model, backtest_features, backtest_targets, backtest_frame["date"],
                 direction_criterion, tuned_threshold, head_thresholds, horizon_head_config,
                 ranking_promotion_config=full_config,
+                net_performance_context=net_performance_context,
             ),
             "history": history,
         }

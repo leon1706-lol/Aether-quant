@@ -14,10 +14,13 @@ from __future__ import annotations
 import argparse
 import bisect
 import copy
+import gc
 import json
 import logging
 import math
 import random
+import subprocess
+import sys
 import uuid
 from collections import Counter
 from datetime import datetime, timezone
@@ -74,6 +77,8 @@ from features import (
 )
 from data_pipeline.fred_backfill import bond_reference_series, load_cached_fred_series, series_change_asof, series_value_asof
 from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
+from evaluation.model_predictions import predict_head
+from evaluation.rank_book_simulator import capacity_curve, simulate_rank_book, stress_test_costs, summarize_metric_stability
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
 from regime import build_market_regime_vector
@@ -183,6 +188,33 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Walk-forward mode. Defaults to phase_v2.retraining.walk_forward.mode.",
     )
+    # V5.1 Phase 4 (item 4) - one-run overrides of walk_forward.train_multitask/
+    # train_sequence/tracked_metrics, same --seed/--ranking-objective
+    # precedent as train_multitask.py/train_sequence.py: None (default)
+    # leaves config.json's own values unchanged, only --walk-forward reads
+    # these (aq_cli.py::cmd_train() warns, doesn't silently ignore, if
+    # passed without --walk-forward - same convention as --seed there).
+    parser.add_argument(
+        "--include-multitask",
+        action="store_true",
+        default=None,
+        help="Force walk_forward.train_multitask on for this run (only with --walk-forward).",
+    )
+    parser.add_argument(
+        "--include-sequence",
+        action="store_true",
+        default=None,
+        help="Force walk_forward.train_sequence on for this run (only with --walk-forward).",
+    )
+    parser.add_argument(
+        "--metrics",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated tracked-metric names to restrict walk_forward.tracked_metrics to for this run "
+            "(only with --walk-forward) - each name must already exist in config.json's tracked_metrics list."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -222,6 +254,11 @@ def candidate_output_paths(version_id: str) -> dict[str, Path]:
         "scaler_stats": version_dir / "scaler_stats.json",
         "feature_schema": version_dir / "feature_schema.json",
         "dataset_manifest": version_dir / "dataset_manifest.json",
+        # V5.1 Phase 4, Step 4.1 - only _run_walk_forward() writes this today
+        # (per-window data genuinely differs; the regular --candidate path
+        # trains against the shared active ml/datasets/full_dataset.csv and
+        # has no per-candidate dataset of its own).
+        "full_dataset": version_dir / "full_dataset.csv",
     }
 
 
@@ -2654,6 +2691,32 @@ def write_scaler_artifacts(
     )
 
 
+def build_feature_schema_payload(manifest: dict) -> dict:
+    """Pure extraction of the feature-schema JSON shape from a dataset
+    manifest (V5.1 Phase 4, Step 4.1). Shared by write_dataset_artifacts()
+    (writes to the active ml/feature_schema.json) and _run_walk_forward()
+    (writes one per window) so the two call sites can never drift apart -
+    previously only write_dataset_artifacts() built this dict inline and
+    _run_walk_forward() never wrote a schema file at all, which meant a
+    per-window train_multitask.py/train_sequence.py subprocess had no
+    feature schema to read (see --feature-schema-path's docstring)."""
+    return {
+        "project": manifest["project"],
+        "phase": 2,
+        "feature_names": manifest["feature_names"],
+        "scaled_feature_names": manifest["scaled_feature_names"],
+        "categorical_feature_names": manifest["categorical_feature_names"],
+        "context_feature_names": manifest["context_feature_names"],
+        "model_input_names": manifest["model_input_names"],
+        "target_column": manifest["target_column"],
+        "split_column": "split",
+        "asset_quality": manifest["asset_quality"],
+        "training_eligible_assets": manifest["training_eligible_assets"],
+        "trading_eligible_assets": manifest["trading_eligible_assets"],
+        "observation_only_assets": manifest["observation_only_assets"],
+    }
+
+
 def write_dataset_artifacts(
     dataset: pd.DataFrame,
     manifest: dict,
@@ -2667,27 +2730,7 @@ def write_dataset_artifacts(
     dataset[dataset["split"] == "backtest"].to_csv(BACKTEST_DATASET_PATH, index=False)
 
     DATASET_MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    FEATURE_SCHEMA_PATH.write_text(
-        json.dumps(
-            {
-                "project": manifest["project"],
-                "phase": 2,
-                "feature_names": manifest["feature_names"],
-                "scaled_feature_names": manifest["scaled_feature_names"],
-                "categorical_feature_names": manifest["categorical_feature_names"],
-                "context_feature_names": manifest["context_feature_names"],
-                "model_input_names": manifest["model_input_names"],
-                "target_column": manifest["target_column"],
-                "split_column": "split",
-                "asset_quality": manifest["asset_quality"],
-                "training_eligible_assets": manifest["training_eligible_assets"],
-                "trading_eligible_assets": manifest["trading_eligible_assets"],
-                "observation_only_assets": manifest["observation_only_assets"],
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    FEATURE_SCHEMA_PATH.write_text(json.dumps(build_feature_schema_payload(manifest), indent=2), encoding="utf-8")
     write_scaler_artifacts(scaler, manifest, clip_sigma=clip_sigma)
 
     expert_dataset, expert_manifest = build_expert_dataset_manifest(dataset, manifest, config)
@@ -5256,6 +5299,16 @@ def assess_ranking_quality(
     watchlist_margin = float(gate.get("ranking_watchlist_margin", 0.3))
     era_sign_min_abs_ic = float(gate.get("era_sign_min_abs_ic", 0.0))
     era_min_observations = int(gate.get("era_min_observations", 0))
+    # V5.1 Phase 4 (item 4) - multi-regime stability, one level up from the
+    # existing era-sign-instability check above: that check fails on ANY
+    # single opposite-sign era, however small a fraction of the total. This
+    # pair is a proportional generalization on top of it - both default to
+    # a byte-identical no-op (min_stable_eras=0 always satisfied;
+    # max_era_sign_flip_fraction=1.0 can never be exceeded since a fraction
+    # is bounded at 1.0), same convention as era_sign_min_abs_ic/
+    # era_min_observations above.
+    min_stable_eras = int(gate.get("min_stable_eras", 0))
+    max_era_sign_flip_fraction = float(gate.get("max_era_sign_flip_fraction", 1.0))
 
     non_overlapping_t_stat = float(non_overlapping_rank_ic.get("t_stat", 0.0) or 0.0)
     non_overlapping_mean_ic = float(non_overlapping_rank_ic.get("mean_ic", 0.0) or 0.0)
@@ -5273,6 +5326,8 @@ def assess_ranking_quality(
         )
     ]
 
+    era_sign_flip_fraction = len(opposite_sign_eras) / len(eligible_eras) if eligible_eras else 0.0
+
     failures = []
     near_misses = []
     if non_overlapping_t_stat < min_non_overlapping_t_stat:
@@ -5285,6 +5340,12 @@ def assess_ranking_quality(
 
     if opposite_sign_eras:
         failures.append("era_sign_instability")
+
+    if len(eligible_eras) < min_stable_eras:
+        failures.append("insufficient_eras_for_stability")
+
+    if era_sign_flip_fraction > max_era_sign_flip_fraction:
+        failures.append("era_sign_flip_fraction_above_gate")
 
     if failures:
         quality_status = "not_promotable"
@@ -5308,6 +5369,8 @@ def assess_ranking_quality(
             "watchlist_margin": watchlist_margin,
             "era_sign_min_abs_ic": era_sign_min_abs_ic,
             "era_min_observations": era_min_observations,
+            "min_stable_eras": min_stable_eras,
+            "max_era_sign_flip_fraction": max_era_sign_flip_fraction,
         },
         "observed": {
             "non_overlapping_t_stat": non_overlapping_t_stat,
@@ -5315,9 +5378,90 @@ def assess_ranking_quality(
             "bootstrap_ci_lower_bound": bootstrap_lower_bound,
             "bootstrap_ci_upper_bound": float(bootstrap_result.get("upper_bound", 0.0) or 0.0),
             "num_eras": len(per_era),
+            "num_eligible_eras": len(eligible_eras),
             "num_opposite_sign_eras": len(opposite_sign_eras),
             "num_insufficient_data_eras": len(insufficient_data_eras),
+            "era_sign_flip_fraction": era_sign_flip_fraction,
             "per_era": per_era,
+        },
+    }
+
+
+def assess_net_performance_quality(
+    simulation_result: dict, capacity_result: dict, stress_results: list[dict], config: dict
+) -> dict:
+    """V5.1 Phase 4 (items 7, 12): the code-enforced version of "does this
+    edge survive costs, capacity, and stress" - mirrors assess_ranking_quality()'s
+    EXACT {quality_status, promotion_eligible, failures, near_misses,
+    thresholds, observed} shape so every quality gate in this repo stays
+    consumable identically by retraining/validation_gate.py and the webui.
+
+    Inputs are already-computed evaluation/rank_book_simulator.py results
+    (RankBookSimulationResult.to_dict(), capacity_curve(), stress_test_costs())
+    - this function only assesses them, it never runs a simulation itself,
+    so callers control exactly which head/config the simulation used.
+
+    Checks: net_sharpe >= min_net_sharpe (watchlist within
+    net_performance_watchlist_margin of the gate); annualized_turnover <=
+    max_annualized_turnover; capacity_usd >= min_capacity_usd; the 2x cost
+    stress run's net_sharpe > 0 (the edge must survive DOUBLE costs, not
+    just the calibrated estimate - a stress_results list missing a 2.0
+    multiplier entry simply skips this check rather than failing on an
+    absent input)."""
+    gate = config.get("phase1", {}).get("target", {}).get("ranking", {}).get("promotion_gate", {})
+    min_net_sharpe = float(gate.get("min_net_sharpe", 0.0))
+    max_annualized_turnover = float(gate.get("max_annualized_turnover", 1e9))
+    min_capacity_usd = float(gate.get("min_capacity_usd", 0.0))
+    watchlist_margin = float(gate.get("net_performance_watchlist_margin", 0.1))
+
+    net_sharpe = float(simulation_result.get("net_sharpe", 0.0) or 0.0)
+    annualized_turnover = float(simulation_result.get("annualized_turnover", 0.0) or 0.0)
+    capacity_usd = float(capacity_result.get("capacity_usd", 0.0) or 0.0)
+    double_cost_result = next(
+        (entry for entry in stress_results if abs(float(entry.get("cost_multiplier", 0.0)) - 2.0) < 1e-9), None
+    )
+    double_cost_net_sharpe = float(double_cost_result["net_sharpe"]) if double_cost_result is not None else None
+
+    failures: list[str] = []
+    near_misses: list[str] = []
+
+    if net_sharpe < min_net_sharpe:
+        failures.append("net_sharpe_below_gate")
+    elif net_sharpe < min_net_sharpe + watchlist_margin:
+        near_misses.append("net_sharpe_near_gate")
+
+    if annualized_turnover > max_annualized_turnover:
+        failures.append("annualized_turnover_above_gate")
+
+    if capacity_usd < min_capacity_usd:
+        failures.append("capacity_usd_below_gate")
+
+    if double_cost_net_sharpe is not None and double_cost_net_sharpe <= 0.0:
+        failures.append("net_sharpe_does_not_survive_double_costs")
+
+    if failures:
+        quality_status = "not_promotable"
+    elif near_misses:
+        quality_status = "watchlist"
+    else:
+        quality_status = "promotable"
+
+    return {
+        "quality_status": quality_status,
+        "promotion_eligible": quality_status in {"promotable", "watchlist"},
+        "failures": failures,
+        "near_misses": near_misses,
+        "thresholds": {
+            "min_net_sharpe": min_net_sharpe,
+            "max_annualized_turnover": max_annualized_turnover,
+            "min_capacity_usd": min_capacity_usd,
+            "watchlist_margin": watchlist_margin,
+        },
+        "observed": {
+            "net_sharpe": net_sharpe,
+            "annualized_turnover": annualized_turnover,
+            "capacity_usd": capacity_usd,
+            "double_cost_net_sharpe": double_cost_net_sharpe,
         },
     }
 
@@ -5490,6 +5634,31 @@ def summarize_walk_forward_run(per_window_metric_values: list[float]) -> dict:
         "per_window_metric_values": list(per_window_metric_values),
         "cross_window_bootstrap": bootstrap_result,
     }
+
+
+def extract_metric_by_path(metrics: dict | None, dotted_path: str) -> float | None:
+    """V5.1 Phase 4 (item 4) - pure. Walks a dotted key path (e.g.
+    "backtest.rank_20d_ic_non_overlapping.mean_ic") through a metrics dict;
+    a missing key, a None value anywhere along the path, or a non-numeric
+    leaf all return None rather than raising. Replaces
+    _run_walk_forward()'s previous hardcoded
+    training_result["metrics"]["backtest"].get("mcc", 0.0) extraction with
+    a generic one driven by walk_forward.tracked_metrics config, so the
+    walk-forward loop can track any trainer's any metric without new code
+    per metric."""
+    if not isinstance(metrics, dict):
+        return None
+    current: object = metrics
+    for key in dotted_path.split("."):
+        if not isinstance(current, dict) or key not in current:
+            return None
+        current = current[key]
+    if current is None:
+        return None
+    try:
+        return float(current)
+    except (TypeError, ValueError):
+        return None
 
 
 def _train_expert_classifier(
@@ -6511,6 +6680,148 @@ def write_visualization_state(
     write_phase8_exports(config, training_context, scene_payload, scorecards, asset_heatmap)
 
 
+def run_net_performance_simulation(
+    frame: pd.DataFrame, prediction_column: str, net_performance_config: dict, sector_by_ticker: dict[str, str],
+) -> dict | None:
+    """V5.1 Phase 4 (items 7, 12) - shared by _run_walk_forward_net_performance()
+    (one call per walk-forward window) and train_multitask.py/
+    train_sequence.py's compute_*_metrics() (one call per regular
+    backtest-split evaluation), so both call sites run the identical
+    simulate_rank_book()/capacity_curve()/stress_test_costs() pipeline with
+    identical config-reading rather than two independently-drifting copies.
+
+    `frame` must already be filtered to the split being evaluated
+    (typically backtest) and contain `prediction_column` (an
+    already-predicted, unbounded rank score - a raw model output, not yet
+    normalized) alongside ticker/date/target_return_1d. Returns None (never
+    raises) when `frame` has no usable, non-NaN predictions in that column
+    - the caller then simply omits the net-performance result rather than
+    recording a fabricated one."""
+    if prediction_column not in frame.columns or frame[prediction_column].dropna().empty:
+        return None
+    base_kwargs = {
+        "prediction_column": prediction_column,
+        "top_n": int(net_performance_config.get("top_n", 6)),
+        "bottom_n": int(net_performance_config.get("bottom_n", 6)),
+        "rebalance_every_bars": int(net_performance_config.get("rebalance_every_bars", 10)),
+        "cost_bps_per_side": float(net_performance_config.get("cost_bps_per_side", 5.0)),
+        "commission_bps": float(net_performance_config.get("commission_bps", 1.0)),
+        "gross_exposure": float(net_performance_config.get("gross_exposure", 1.0)),
+        "dollar_neutral": bool(net_performance_config.get("dollar_neutral", True)),
+        "sector_neutral": bool(net_performance_config.get("sector_neutral", True)),
+        "sector_by_ticker": sector_by_ticker,
+        "hysteresis_rank_margin": float(net_performance_config.get("hysteresis_rank_margin", 0.05)),
+        "max_weight_per_name": float(net_performance_config.get("max_weight_per_name", 0.12)),
+    }
+    simulation_result = simulate_rank_book(frame, **base_kwargs)
+    capacity_result = capacity_curve(
+        frame,
+        participation_cap=float(net_performance_config.get("capacity_participation_cap", 0.01)),
+        base_kwargs=base_kwargs,
+        top_n_sweep=list(net_performance_config.get("capacity_top_n_sweep", [3, 6, 10, 15])),
+    )
+    stress_results = stress_test_costs(
+        frame,
+        base_kwargs=base_kwargs,
+        cost_multipliers=tuple(net_performance_config.get("stress_cost_multipliers", (1.0, 2.0, 3.0))),
+    )
+    return {"simulation": simulation_result.to_dict(), "capacity": capacity_result, "stress": stress_results}
+
+
+def _run_walk_forward_trainer(
+    script_name: str,
+    version_id: str,
+    dataset_path: Path,
+    feature_schema_path: Path,
+    config_path: Path,
+    timeout_seconds: int,
+) -> dict | None:
+    """V5.1 Phase 4 (Step 4.2) - best-effort per-window subprocess call to
+    train_multitask.py/train_sequence.py, same never-fatal contract as
+    retraining/orchestrator.py::train_multitask()/train_sequence(): a
+    failure here never aborts the walk-forward run, it just means that
+    window contributes no tracked-metric value for that trainer. Passes
+    --dataset-path/--feature-schema-path/--config-path so each subprocess
+    trains against THIS window's own data, not the active ml/ artifacts
+    (see train_multitask.py::parse_args()'s --feature-schema-path
+    docstring, added in this same phase). Returns the written
+    *_training_metrics.json dict, or None on any failure (launch error,
+    nonzero exit, or a "skipped, no artifacts written" run - e.g. too few
+    rows in a short window)."""
+    script_path = ROOT / script_name
+    try:
+        result = subprocess.run(
+            [
+                sys.executable, str(script_path),
+                "--version-id", version_id,
+                "--dataset-path", str(dataset_path),
+                "--feature-schema-path", str(feature_schema_path),
+                "--config-path", str(config_path),
+            ],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except Exception as exc:  # never let a best-effort subprocess crash the walk-forward run
+        LOGGER.warning("walk-forward: %s subprocess failed to launch for %s - %s", script_name, version_id, exc)
+        return None
+    if result.returncode != 0:
+        LOGGER.warning(
+            "walk-forward: %s failed for %s (rc=%d) - %s",
+            script_name, version_id, result.returncode, result.stderr[-2000:],
+        )
+        return None
+
+    metrics_name = "multitask_training_metrics.json" if "multitask" in script_name else "sequence_training_metrics.json"
+    metrics_path = ML_DIR / "versions" / version_id / metrics_name
+    if not metrics_path.exists():
+        LOGGER.info("walk-forward: %s skipped writing artifacts for %s (insufficient rows).", script_name, version_id)
+        return None
+    return json.loads(metrics_path.read_text(encoding="utf-8"))
+
+
+def _run_walk_forward_net_performance(
+    dataset: pd.DataFrame,
+    feature_names: list[str],
+    model_export: dict,
+    model_kind: str,
+    sequence_feature_schema: dict | None,
+    configured_window_size: int,
+    head: str,
+    net_performance_config: dict,
+    sector_by_ticker: dict[str, str],
+) -> dict | None:
+    """V5.1 Phase 4 (Step 4.2) - runs simulate_rank_book()/capacity_curve()/
+    stress_test_costs() against ONE window's own backtest-split
+    predictions, via evaluation.predict_head() - the SAME torch-free
+    interpreter `aq evaluate --rank-book` uses, so a window's net
+    performance is computed identically to the offline evaluator, not a
+    re-derived approximation. Returns None (never raises) when the
+    backtest split is empty or the head produced no usable predictions -
+    net_performance_by_window simply omits that window rather than
+    recording a fabricated zero."""
+    eligible = dataset[dataset["training_eligible"]].copy() if "training_eligible" in dataset.columns else dataset.copy()
+    backtest_frame = eligible[eligible["split"] == "backtest"].reset_index(drop=True)
+    if backtest_frame.empty:
+        return None
+
+    predictions = predict_head(
+        backtest_frame, model_export, feature_names, head,
+        model_kind=model_kind, sequence_feature_schema=sequence_feature_schema,
+        configured_window_size=configured_window_size,
+    )
+    backtest_frame = backtest_frame.copy()
+    backtest_frame["_walk_forward_predicted_head"] = predictions
+
+    result = run_net_performance_simulation(
+        backtest_frame, "_walk_forward_predicted_head", net_performance_config, sector_by_ticker
+    )
+    if result is None:
+        return None
+    return {"head": head, "model_kind": model_kind, **result}
+
+
 def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: str) -> dict:
     """Phase 4 of the 5/10 -> 9/10 roadmap: `python train.py --walk-forward`'s
     implementation - runs the baseline model's existing dataset-build +
@@ -6522,14 +6833,37 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
     branch to share code - zero regression risk to it as a result).
 
     Never touches active ml/ - same as --candidate. Returns a summary dict
-    with per-window results and a summarize_walk_forward_run() cross-window
-    stability readout over each window's backtest MCC (the baseline
-    model's own headline metric - see train_model()/compute_binary_metrics()).
+    with per-window results and, for every entry in
+    walk_forward.tracked_metrics (default: the single backtest.mcc entry,
+    reproducing today's behavior exactly), a cross-window
+    summarize_walk_forward_run() stability readout under
+    summary_by_metric/stability_by_metric (V5.1 Phase 4, item 4).
+
+    V5.1 Phase 4 (items 4, 7, 12) additions, all config-gated under
+    walk_forward and all OFF by default (byte-identical to pre-Phase-4
+    behavior when unset): walk_forward.train_multitask/train_sequence run
+    those trainers per window against that window's own data (needs Step
+    4.1's per-window full_dataset.csv/feature_schema.json, written below);
+    walk_forward.net_performance runs the offline rank-book simulator
+    against whichever of those two models trained (sequence preferred,
+    matching phase_v2.rank_signal.model_priority's own precedent),
+    producing net_performance_by_window.
     """
     walk_forward_config = config.get("phase_v2", {}).get("retraining", {}).get("walk_forward", {})
     train_span_days = int(walk_forward_config.get("train_span_days", 1095))
     validation_span_days = int(walk_forward_config.get("validation_span_days", 365))
     backtest_span_days = int(walk_forward_config.get("backtest_span_days", 365))
+    train_multitask_enabled = bool(walk_forward_config.get("train_multitask", False))
+    train_sequence_enabled = bool(walk_forward_config.get("train_sequence", False))
+    net_performance_enabled = bool(walk_forward_config.get("net_performance", False))
+    net_performance_head = str(walk_forward_config.get("net_performance_head", "rank_20d"))
+    multitask_timeout_seconds = int(walk_forward_config.get("multitask_timeout_seconds", 2400))
+    sequence_timeout_seconds = int(walk_forward_config.get("sequence_timeout_seconds", 2400))
+    tracked_metrics_config = list(
+        walk_forward_config.get(
+            "tracked_metrics", [{"name": "backtest_mcc", "artifact": "training_metrics.json", "path": "backtest.mcc"}]
+        )
+    )
 
     windows = generate_walk_forward_windows(
         config["phase1"]["universe"]["common_window"],
@@ -6544,12 +6878,19 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
             "walk-forward: no windows fit inside common_window with train=%s/validation=%s/backtest=%s/step=%s days.",
             train_span_days, validation_span_days, backtest_span_days, step_days,
         )
-        return {"run_id": None, "num_windows": 0, "window_results": [], "summary": summarize_walk_forward_run([])}
+        return {
+            "run_id": None, "num_windows": 0, "window_results": [],
+            "summary": summarize_walk_forward_run([]),
+            "summary_by_metric": {}, "stability_by_metric": {}, "net_performance_by_window": [],
+        }
 
     run_id = f"walk-forward-{uuid.uuid4()}"
     feature_names = config["phase1"]["features"]["input_set"]
     window_results: list[dict] = []
     backtest_mcc_by_window: list[float] = []
+    tracked_values_by_metric: dict[str, list[float]] = {entry["name"]: [] for entry in tracked_metrics_config}
+    net_performance_by_window: list[dict] = []
+    sector_by_ticker = load_sector_mapping(config) if net_performance_enabled else {}
 
     for window_index, window in enumerate(windows):
         window_config = copy.deepcopy(config)
@@ -6586,6 +6927,13 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
             clip_sigma=clip_sigma,
         )
         paths["dataset_manifest"].write_text(json.dumps(dataset_manifest, indent=2), encoding="utf-8")
+        # V5.1 Phase 4, Step 4.1 - per-window dataset + schema, needed by the
+        # multitask/sequence subprocesses below (they can't read the active
+        # ml/feature_schema.json - it doesn't match this window's data).
+        dataset.to_csv(paths["full_dataset"], index=False)
+        paths["feature_schema"].write_text(
+            json.dumps(build_feature_schema_payload(dataset_manifest), indent=2), encoding="utf-8"
+        )
 
         training_result = train_model(
             window_config, dataset,
@@ -6602,11 +6950,121 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
 
         backtest_mcc = float(training_result["metrics"]["backtest"].get("mcc", 0.0) or 0.0)
         backtest_mcc_by_window.append(backtest_mcc)
+
+        # V5.1 Phase 4 memory fix - the parent process's own `dataset`
+        # (already written to paths["full_dataset"] above) is no longer
+        # needed until the net-performance block far below, but the
+        # multitask/sequence subprocess calls immediately after this point
+        # each load their OWN full copy of that same window's dataset from
+        # disk into a SEPARATE process's memory - while the parent is
+        # BLOCKED waiting on subprocess.run(), the parent's already-resident
+        # `dataset` and the child's freshly-loaded copy (plus the child's
+        # own dense (rows, window, features) sequence-tensor allocation)
+        # are concurrently resident on the SAME machine. On a 7.8GB/no-swap
+        # Codespace this externally SIGTERM'd the sequence subprocess for
+        # every window whose row count grew past ~130k (windows 2-5 of a
+        # real 6-window run all failed here, rc=-15, mid tensor-build,
+        # windows 0-1's smaller row counts succeeded). Freeing it here and
+        # re-reading only if/when net-performance actually needs it removes
+        # the parent's contribution to that peak, at the cost of one extra
+        # CSV read per window (cheap relative to a subprocess retrain).
+        del dataset
+        gc.collect()
+
+        # V5.1 Phase 4, Step 4.2 - config-gated multi-model walk-forward.
+        window_config_path = paths["version_dir"] / "config.json"
+        window_config_path.write_text(json.dumps(window_config, indent=2), encoding="utf-8")
+
+        multitask_metrics = (
+            _run_walk_forward_trainer(
+                "train_multitask.py", version_id, paths["full_dataset"], paths["feature_schema"],
+                window_config_path, timeout_seconds=multitask_timeout_seconds,
+            )
+            if train_multitask_enabled else None
+        )
+        sequence_metrics = (
+            _run_walk_forward_trainer(
+                "train_sequence.py", version_id, paths["full_dataset"], paths["feature_schema"],
+                window_config_path, timeout_seconds=sequence_timeout_seconds,
+            )
+            if train_sequence_enabled else None
+        )
+
+        window_metrics_artifacts: dict[str, dict] = {"training_metrics.json": training_result["metrics"]}
+        if multitask_metrics is not None:
+            window_metrics_artifacts["multitask_training_metrics.json"] = multitask_metrics
+        if sequence_metrics is not None:
+            window_metrics_artifacts["sequence_training_metrics.json"] = sequence_metrics
+
+        for entry in tracked_metrics_config:
+            value = extract_metric_by_path(window_metrics_artifacts.get(entry["artifact"]), entry["path"])
+            if value is not None:
+                tracked_values_by_metric.setdefault(entry["name"], []).append(value)
+
+        if net_performance_enabled:
+            # Re-read from the CSV written earlier this iteration - see the
+            # `del dataset` comment above for why the parent doesn't hold
+            # this in memory continuously through the subprocess calls.
+            dataset = pd.read_csv(paths["full_dataset"])
+            # V5.1 Phase 4 bugfix - must use THIS window's own
+            # model_input_names (dataset_manifest["model_input_names"],
+            # 66 columns including scaled/categorical/context features),
+            # NOT the outer `feature_names` (= phase1.features.input_set,
+            # the 49 raw pre-scaling names) - train_multitask.py/
+            # train_sequence.py train against model_input_names via their
+            # own feature_schema.json, so predicting with the raw input_set
+            # list feeds the wrong column count into the exported model's
+            # interpreter (crashed with a real in_channels mismatch,
+            # 49 vs the trained weight's 66, the first time this ran).
+            net_performance_feature_names = dataset_manifest["model_input_names"]
+            net_result = None
+            if sequence_metrics is not None:
+                sequence_model_path = paths["version_dir"] / "sequence_model.json"
+                sequence_schema_path = paths["version_dir"] / "sequence_feature_schema.json"
+                if sequence_model_path.exists() and sequence_schema_path.exists():
+                    net_result = _run_walk_forward_net_performance(
+                        dataset, net_performance_feature_names,
+                        json.loads(sequence_model_path.read_text(encoding="utf-8")), "sequence",
+                        json.loads(sequence_schema_path.read_text(encoding="utf-8")), 30,
+                        net_performance_head,
+                        window_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("net_performance", {}),
+                        sector_by_ticker,
+                    )
+            if net_result is None and multitask_metrics is not None:
+                multitask_model_path = paths["version_dir"] / "multitask_model.json"
+                if multitask_model_path.exists():
+                    net_result = _run_walk_forward_net_performance(
+                        dataset, net_performance_feature_names,
+                        json.loads(multitask_model_path.read_text(encoding="utf-8")), "multitask",
+                        None, 30, net_performance_head,
+                        window_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("net_performance", {}),
+                        sector_by_ticker,
+                    )
+            if net_result is not None:
+                net_performance_by_window.append({"window_index": window_index, **net_result})
+
         window_results.append({"window": window, "version_id": version_id, "backtest_mcc": backtest_mcc})
         LOGGER.info("walk-forward window %s/%s backtest MCC: %.4f", window_index + 1, len(windows), backtest_mcc)
 
     summary = summarize_walk_forward_run(backtest_mcc_by_window)
-    run_summary = {"run_id": run_id, "num_windows": len(windows), "window_results": window_results, "summary": summary}
+    summary_by_metric = {name: summarize_walk_forward_run(values) for name, values in tracked_values_by_metric.items()}
+    stability_by_metric = {
+        name: summarize_metric_stability(
+            values,
+            min_windows=int(walk_forward_config.get("min_stable_windows", 3)),
+            max_sign_flip_fraction=float(walk_forward_config.get("max_window_sign_flip_fraction", 0.34)),
+        )
+        for name, values in tracked_values_by_metric.items()
+    }
+    run_summary = {
+        "run_id": run_id,
+        "num_windows": len(windows),
+        "window_results": window_results,
+        "summary": summary,
+        "summary_by_metric": summary_by_metric,
+        "stability_by_metric": stability_by_metric,
+        "net_performance_by_window": net_performance_by_window,
+    }
     (ML_DIR / "versions" / run_id / "walk_forward_summary.json").parent.mkdir(parents=True, exist_ok=True)
     (ML_DIR / "versions" / run_id / "walk_forward_summary.json").write_text(
         json.dumps(run_summary, indent=2), encoding="utf-8"
@@ -6641,6 +7099,26 @@ def main() -> int:
         walk_forward_config = config.get("phase_v2", {}).get("retraining", {}).get("walk_forward", {})
         step_days = args.step_days if args.step_days is not None else int(walk_forward_config.get("step_days", 90))
         mode = args.mode if args.mode is not None else str(walk_forward_config.get("mode", "expanding"))
+        # V5.1 Phase 4 (item 4) - --include-multitask/--include-sequence/--metrics
+        # override config.json's walk_forward block IN MEMORY ONLY for this
+        # invocation (never written to disk), same one-run-override
+        # precedent as --seed/--ranking-objective elsewhere in this project.
+        if args.include_multitask or args.include_sequence or args.metrics is not None:
+            config = copy.deepcopy(config)
+            walk_forward_config = config["phase_v2"]["retraining"]["walk_forward"]
+            if args.include_multitask:
+                walk_forward_config["train_multitask"] = True
+            if args.include_sequence:
+                walk_forward_config["train_sequence"] = True
+            if args.metrics is not None:
+                requested_names = {name.strip() for name in args.metrics.split(",") if name.strip()}
+                existing_tracked = walk_forward_config.get(
+                    "tracked_metrics",
+                    [{"name": "backtest_mcc", "artifact": "training_metrics.json", "path": "backtest.mcc"}],
+                )
+                walk_forward_config["tracked_metrics"] = [
+                    entry for entry in existing_tracked if entry.get("name") in requested_names
+                ]
         run_summary = _run_walk_forward(config, data_summary, step_days=step_days, mode=mode)
         if run_summary["num_windows"] == 0:
             print("Walk-forward run produced no windows - common_window too short for the configured spans.")

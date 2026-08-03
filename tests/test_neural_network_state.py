@@ -385,7 +385,10 @@ def test_horizon_evaluation_fields_are_none_when_metrics_file_missing():
 
     result = _extract_horizon_evaluation_summary(None)
 
-    assert result == {"horizon_mcc": None, "rank_ic": None, "ranking_quality": None, "regression_quality": None}
+    assert result == {
+        "horizon_mcc": None, "rank_ic": None, "ranking_quality": None,
+        "net_performance": None, "regression_quality": None,
+    }
 
 
 def test_horizon_evaluation_fields_are_none_for_pre_phase3_metrics_shape():
@@ -400,7 +403,10 @@ def test_horizon_evaluation_fields_are_none_for_pre_phase3_metrics_shape():
 
     result = _extract_horizon_evaluation_summary(old_shape_metrics)
 
-    assert result == {"horizon_mcc": None, "rank_ic": None, "ranking_quality": None, "regression_quality": None}
+    assert result == {
+        "horizon_mcc": None, "rank_ic": None, "ranking_quality": None,
+        "net_performance": None, "regression_quality": None,
+    }
 
 
 def test_expert_multitask_networks_never_get_horizon_evaluation_fields(tmp_path):

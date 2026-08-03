@@ -98,6 +98,10 @@ class NetworkSummary:
     # Phase 2's per-head promotion-gate verdict (quality_status/
     # promotion_eligible/observed CI/eras) - see _extract_horizon_evaluation_summary().
     ranking_quality: dict | None = None
+    # V5.1 Phase 4 (items 7, 12) - assess_net_performance_quality()'s
+    # verdict (net Sharpe/turnover/capacity, double-cost stress), only
+    # populated for whichever ONE head net_performance is configured for.
+    net_performance: dict | None = None
     regression_quality: dict | None = None
     # V5.1 Phase 3 (items 1, 10, 11) - the actual optimizer/schedule/batch-
     # mode/ranking-loss/SWA recipe THIS candidate trained with (written by
@@ -284,6 +288,21 @@ def _extract_horizon_evaluation_summary(training_metrics: dict | None) -> dict:
         quality_metrics = backtest_metrics.get(f"{head_name}_ranking_quality")
         ranking_quality[head_name] = quality_metrics if quality_metrics else None
 
+    # V5.1 Phase 4 (items 7, 12) - assess_net_performance_quality()'s
+    # verdict, written alongside {head}_ranking_quality above by the same
+    # compute_multitask_metrics()/compute_sequence_multitask_metrics() call
+    # site, only for whichever ONE head phase1.target.ranking.net_performance.head
+    # is configured for (default rank_20d) - every other head's entry stays
+    # None, same "not computed for this head" convention ranking_quality
+    # already follows.
+    net_performance = {}
+    for head_name in (
+        "rank_5d", "rank_20d", "sector_neutral_rank_20d",
+        "residual_rank_5d", "residual_rank_20d", "beta_neutral_rank_20d",
+    ):
+        net_performance_metrics = backtest_metrics.get(f"{head_name}_net_performance")
+        net_performance[head_name] = net_performance_metrics if net_performance_metrics else None
+
     regression_quality = {}
     for quality_name in ("magnitude_quality", "volatility_quality"):
         quality = (training_metrics or {}).get(quality_name)
@@ -293,14 +312,19 @@ def _extract_horizon_evaluation_summary(training_metrics: dict | None) -> dict:
         any(horizon_mcc.values())
         or any(rank_ic.values())
         or any(ranking_quality.values())
+        or any(net_performance.values())
         or any(regression_quality.values())
     )
     if not has_any_value:
-        return {"horizon_mcc": None, "rank_ic": None, "ranking_quality": None, "regression_quality": None}
+        return {
+            "horizon_mcc": None, "rank_ic": None, "ranking_quality": None,
+            "net_performance": None, "regression_quality": None,
+        }
     return {
         "horizon_mcc": horizon_mcc,
         "rank_ic": rank_ic,
         "ranking_quality": ranking_quality,
+        "net_performance": net_performance,
         "regression_quality": regression_quality,
     }
 

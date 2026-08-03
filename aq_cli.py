@@ -216,6 +216,17 @@ def cmd_train(args: argparse.Namespace) -> int:
             "aq train: --seed/--ranking-objective only apply to --multitask-only/--sequence-only - ignored here.",
             file=sys.stderr,
         )
+    # V5.1 Phase 4 (item 4) - same not-silently-ignored precedent as
+    # --seed/--ranking-objective above.
+    if (
+        getattr(args, "include_multitask", False)
+        or getattr(args, "include_sequence", False)
+        or getattr(args, "metrics", None) is not None
+    ) and not args.walk_forward:
+        print(
+            "aq train: --include-multitask/--include-sequence/--metrics only apply to --walk-forward - ignored here.",
+            file=sys.stderr,
+        )
     if args.gating_only:
         return _train_gating_only()
     if args.multitask_only:
@@ -241,6 +252,12 @@ def cmd_train(args: argparse.Namespace) -> int:
             cmd += ["--step-days", str(args.step_days)]
         if args.mode is not None:
             cmd += ["--mode", args.mode]
+        if getattr(args, "include_multitask", False):
+            cmd.append("--include-multitask")
+        if getattr(args, "include_sequence", False):
+            cmd.append("--include-sequence")
+        if getattr(args, "metrics", None) is not None:
+            cmd += ["--metrics", args.metrics]
     return _run(cmd)
 
 
@@ -624,6 +641,9 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V5.1 Phase 3 (items 1, 10, 11) - cross-sectional batching, ranking
         # losses, optimizer/schedule/SWA/smoothing helpers.
         "test_train_cross_sectional_batching.py", "test_train_ranking_loss.py", "test_train_optimizer_and_swa.py",
+        # V5.1 Phase 4 (item 4) - multi-model walk-forward subprocess/net-
+        # performance-simulation helpers.
+        "test_walk_forward_multimodel.py",
     ],
     "retraining": [
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
@@ -1446,6 +1466,46 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             return 1
         config = _apply_preset_in_memory(config, preset)
 
+    # V5.1 Phase 4 (item 4) - `aq evaluate --walk-forward-summary` reads an
+    # already-written ml/versions/walk-forward-*/walk_forward_summary.json
+    # (train.py::_run_walk_forward()'s output) rather than running anything
+    # itself - a completely separate, lightweight code path from every
+    # other --rank-book/--capacity/--stress/--calibrate-edge flag below,
+    # so it returns early before any of that dataset/model loading.
+    if getattr(args, "walk_forward_summary", False):
+        versions_dir = ML_DIR / "versions"
+        run_id = getattr(args, "run_id", None)
+        if run_id:
+            summary_path = versions_dir / run_id / "walk_forward_summary.json"
+        else:
+            candidates = sorted(versions_dir.glob("walk-forward-*/walk_forward_summary.json"), key=lambda p: p.stat().st_mtime)
+            summary_path = candidates[-1] if candidates else None
+        if summary_path is None or not summary_path.exists():
+            print("error: no walk-forward summary found - run `aq train --walk-forward` first.", file=sys.stderr)
+            return 1
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if args.json:
+            print(json.dumps(summary, indent=2))
+        else:
+            print(f"Walk-forward summary ({summary_path.parent.name}): {summary.get('num_windows', 0)} windows")
+            for name, stats in (summary.get("summary_by_metric") or {}).items():
+                bootstrap = stats.get("cross_window_bootstrap", {})
+                print(
+                    f"  {name}: mean={bootstrap.get('mean_ic', 0.0):.4f} "
+                    f"95% CI=[{bootstrap.get('lower_bound', 0.0):.4f}, {bootstrap.get('upper_bound', 0.0):.4f}]"
+                )
+            for name, stability in (summary.get("stability_by_metric") or {}).items():
+                status = "stable" if stability.get("stable") else "UNSTABLE"
+                print(
+                    f"  {name} stability: {status} "
+                    f"(sign_flip_fraction={stability.get('sign_flip_fraction', 0.0):.2f}, "
+                    f"num_windows={stability.get('num_windows', 0)})"
+                )
+            net_performance_windows = summary.get("net_performance_by_window") or []
+            if net_performance_windows:
+                print(f"  net_performance: {len(net_performance_windows)} window(s) with a simulated book")
+        return 0
+
     ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
     net_perf_config = ranking_config.get("net_performance", {})
     if not net_perf_config:
@@ -1661,6 +1721,29 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("rolling", "expanding"),
         default=None,
         help="Walk-forward mode: rolling or expanding (only with --walk-forward).",
+    )
+    # V5.1 Phase 4 (item 4) - one-run overrides of config.json's
+    # phase_v2.retraining.walk_forward.{train_multitask,train_sequence,
+    # tracked_metrics}, only meaningful with --walk-forward - passthrough
+    # to train.py --walk-forward's own identical flags.
+    train_parser.add_argument(
+        "--include-multitask",
+        action="store_true",
+        help="Force multitask training per walk-forward window on for this run (only with --walk-forward).",
+    )
+    train_parser.add_argument(
+        "--include-sequence",
+        action="store_true",
+        help="Force sequence training per walk-forward window on for this run (only with --walk-forward).",
+    )
+    train_parser.add_argument(
+        "--metrics",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated tracked-metric names to restrict walk-forward tracking to for this run "
+            "(only with --walk-forward)."
+        ),
     )
     # V5.1 Phase 3 (item 1) - passthrough to --multitask-only/--sequence-only's
     # own train_multitask.py/train_sequence.py --seed/--ranking-objective
@@ -1937,6 +2020,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print an edge_bps_per_rank_unit calibrated from this split's realized rank-vs-return relationship",
     )
     evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress and --calibrate-edge together")
+    evaluate_parser.add_argument(
+        "--walk-forward-summary", action="store_true",
+        help="Print an already-written ml/versions/walk-forward-*/walk_forward_summary.json (V5.1 Phase 4) - "
+        "never runs training itself; run `aq train --walk-forward` first.",
+    )
+    evaluate_parser.add_argument(
+        "--run-id", default=None,
+        help="Specific walk-forward run-id to read with --walk-forward-summary (default: the most recent run).",
+    )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")
     evaluate_parser.add_argument("--split", default=None, help="Dataset split to evaluate: train/validation/backtest/all (default: backtest)")

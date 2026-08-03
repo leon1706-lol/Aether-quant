@@ -54,6 +54,61 @@ def test_train_marks_event_failed_when_subprocess_fails():
     update_version_mock.assert_called_with(conn_mock, "v1", status="rejected")
 
 
+# ---------------------------------------------------------------------------
+# validate() + candidate_ranking_metrics (V5.1 Phase 4, item 7)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_loads_and_passes_candidate_ranking_metrics():
+    conn_mock, _ = _make_conn_mock()
+
+    def fake_load_json(path):
+        name = path.name
+        if name == "sequence_training_metrics.json":
+            return {"backtest": {"residual_rank_20d_ranking_quality": {"quality_status": "promotable"}}}
+        if name == "multitask_training_metrics.json":
+            return {}
+        return {"train": {}, "validation": {}, "backtest": {}}
+
+    gate_result = {"passed": True, "failures": [], "near_misses": [], "thresholds": {}, "observed": {}}
+
+    with patch("retraining.orchestrator.check_required_artifacts", return_value=(True, [])), patch(
+        "retraining.orchestrator._load_json_if_exists", side_effect=fake_load_json
+    ), patch("retraining.orchestrator.evaluate_validation_gate", return_value=gate_result) as gate_mock, patch(
+        "retraining.orchestrator.update_model_version_status"
+    ), patch("retraining.orchestrator.update_retraining_event_status"):
+        result = orchestrator.validate(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    assert result["ok"] is True
+    _, kwargs = gate_mock.call_args
+    assert kwargs["candidate_ranking_metrics"] == {
+        "sequence": {"backtest": {"residual_rank_20d_ranking_quality": {"quality_status": "promotable"}}},
+        "multitask": None,
+    }
+
+
+def test_validate_rejects_candidate_when_ranking_gate_merged_failure_present():
+    conn_mock, _ = _make_conn_mock()
+    gate_result = {
+        "passed": False,
+        "failures": ["ranking_quality_status_not_accepted"],
+        "near_misses": [],
+        "thresholds": {},
+        "observed": {},
+    }
+
+    with patch("retraining.orchestrator.check_required_artifacts", return_value=(True, [])), patch(
+        "retraining.orchestrator._load_json_if_exists", return_value={}
+    ), patch("retraining.orchestrator.evaluate_validation_gate", return_value=gate_result), patch(
+        "retraining.orchestrator.update_model_version_status"
+    ) as version_mock, patch("retraining.orchestrator.update_retraining_event_status") as event_mock:
+        result = orchestrator.validate(conn_mock, retraining_id="r1", version_id="v1", config={})
+
+    assert result["ok"] is False
+    version_mock.assert_called_with(conn_mock, "v1", status="rejected", metrics={"validation_gate": gate_result})
+    assert event_mock.call_args.kwargs["status"] == "rejected"
+
+
 def test_promote_requires_vault_commit():
     conn_mock, _ = _make_conn_mock()
     candidate_without_commit = {"model_version_id": "v1", "status": "candidate", "aether_vault_commit": None}

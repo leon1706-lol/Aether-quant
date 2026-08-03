@@ -536,6 +536,23 @@ export interface RankingQualitySummary {
   }
 }
 
+// V5.1 Phase 4 (items 7, 12): train.py::assess_net_performance_quality()'s
+// verdict - mirrors RankingQualitySummary's shape (quality_status/
+// promotion_eligible/failures/near_misses/observed), but over net
+// Sharpe/turnover/capacity/double-cost-stress instead of rank-IC.
+export interface NetPerformanceSummary {
+  quality_status: 'promotable' | 'watchlist' | 'not_promotable' | string
+  promotion_eligible: boolean
+  failures: string[]
+  near_misses: string[]
+  observed: {
+    net_sharpe: number
+    annualized_turnover: number
+    capacity_usd: number
+    double_cost_net_sharpe: number | null
+  }
+}
+
 export interface NeuralNetworkModel {
   name: string
   label: string
@@ -581,6 +598,16 @@ export interface NeuralNetworkModel {
     sector_neutral_rank_20d?: RankingQualitySummary | null
     residual_rank_5d?: RankingQualitySummary | null
     residual_rank_20d?: RankingQualitySummary | null
+  } | null
+  // V5.1 Phase 4 (items 7, 12) - only the ONE head
+  // phase1.target.ranking.net_performance.head is configured for (default
+  // rank_20d) has a non-null entry; every other head key stays null.
+  net_performance?: {
+    rank_5d: NetPerformanceSummary | null
+    rank_20d: NetPerformanceSummary | null
+    sector_neutral_rank_20d?: NetPerformanceSummary | null
+    residual_rank_5d?: NetPerformanceSummary | null
+    residual_rank_20d?: NetPerformanceSummary | null
   } | null
   regression_quality?: { magnitude: string | null; volatility: string | null } | null
   // V5.1 Phase 3 (items 1, 10, 11) - the actual optimizer/schedule/batch-

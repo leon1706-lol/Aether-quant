@@ -1,11 +1,12 @@
 """Tests for train.py's Phase 4 (5/10 -> 9/10 roadmap) walk-forward
-retraining functions: generate_walk_forward_windows(), summarize_walk_forward_run().
+retraining functions: generate_walk_forward_windows(), summarize_walk_forward_run(),
+extract_metric_by_path() (V5.1 Phase 4, item 4).
 """
 
 import pandas as pd
 import pytest
 
-from train import generate_walk_forward_windows, summarize_walk_forward_run
+from train import extract_metric_by_path, generate_walk_forward_windows, summarize_walk_forward_run
 
 
 def _common_window(start: str, end: str) -> dict:
@@ -129,3 +130,47 @@ def test_summarize_walk_forward_run_empty_list_is_degenerate_not_raise():
 
     assert summary["num_windows"] == 0
     assert summary["cross_window_bootstrap"]["num_observations"] == 0
+
+
+# ---------------------------------------------------------------------------
+# extract_metric_by_path (V5.1 Phase 4, item 4)
+# ---------------------------------------------------------------------------
+
+
+def test_extract_metric_by_path_walks_a_dotted_path():
+    metrics = {"backtest": {"rank_20d_ic_non_overlapping": {"mean_ic": 0.0421}}}
+
+    assert extract_metric_by_path(metrics, "backtest.rank_20d_ic_non_overlapping.mean_ic") == pytest.approx(0.0421)
+
+
+def test_extract_metric_by_path_missing_key_returns_none():
+    metrics = {"backtest": {"mcc": 0.12}}
+
+    assert extract_metric_by_path(metrics, "backtest.nonexistent.mean_ic") is None
+    assert extract_metric_by_path(metrics, "validation.mcc") is None
+
+
+def test_extract_metric_by_path_none_metrics_returns_none():
+    assert extract_metric_by_path(None, "backtest.mcc") is None
+
+
+def test_extract_metric_by_path_non_dict_metrics_returns_none():
+    assert extract_metric_by_path("not a dict", "backtest.mcc") is None
+
+
+def test_extract_metric_by_path_none_value_along_path_returns_none():
+    metrics = {"backtest": {"rank_20d": None}}
+
+    assert extract_metric_by_path(metrics, "backtest.rank_20d.mcc") is None
+
+
+def test_extract_metric_by_path_non_numeric_leaf_returns_none():
+    metrics = {"backtest": {"status": "not_promotable"}}
+
+    assert extract_metric_by_path(metrics, "backtest.status") is None
+
+
+def test_extract_metric_by_path_top_level_key():
+    metrics = {"mcc": 0.5}
+
+    assert extract_metric_by_path(metrics, "mcc") == pytest.approx(0.5)

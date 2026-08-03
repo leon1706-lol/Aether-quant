@@ -17,6 +17,7 @@ import torch
 
 from train import (
     aggregate_seed_ensemble_rank_ic,
+    assess_net_performance_quality,
     assess_ranking_quality,
     assess_ranking_quality_from_predictions,
     average_ensemble_predictions,
@@ -414,6 +415,180 @@ def test_assess_ranking_quality_per_era_is_persisted_verbatim_in_observed():
     result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
 
     assert result["observed"]["per_era"] == per_era
+
+
+# ---------------------------------------------------------------------------
+# assess_ranking_quality - min_stable_eras / max_era_sign_flip_fraction
+# (V5.1 Phase 4, item 4 - multi-regime stability, one level up from the
+# existing binary era_sign_instability check above)
+# ---------------------------------------------------------------------------
+
+
+def test_assess_ranking_quality_stability_thresholds_default_to_byte_identical_no_op():
+    # Absent from config -> min_stable_eras=0 (always satisfied) and
+    # max_era_sign_flip_fraction=1.0 (a fraction can never exceed 1.0) -
+    # must never add a failure neither of the pre-Phase-4 tests above see.
+    non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
+    per_era = [_era(0.04, index=0), _era(0.05, index=1), _era(0.06, index=2)]
+
+    result = assess_ranking_quality(non_overlapping_ic, bootstrap_result, per_era, _promotable_gate_config())
+
+    assert result["thresholds"]["min_stable_eras"] == 0
+    assert result["thresholds"]["max_era_sign_flip_fraction"] == 1.0
+    assert "insufficient_eras_for_stability" not in result["failures"]
+    assert "era_sign_flip_fraction_above_gate" not in result["failures"]
+    assert result["quality_status"] == "promotable"
+
+
+def _gate_config_with_stability(min_stable_eras: int, max_sign_flip_fraction: float) -> dict:
+    config = _promotable_gate_config()
+    config["phase1"]["target"]["ranking"]["promotion_gate"]["min_stable_eras"] = min_stable_eras
+    config["phase1"]["target"]["ranking"]["promotion_gate"]["max_era_sign_flip_fraction"] = max_sign_flip_fraction
+    return config
+
+
+def test_assess_ranking_quality_fails_on_insufficient_eras_for_stability():
+    non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
+    per_era = [_era(0.04, index=0), _era(0.05, index=1)]  # only 2 eras
+
+    result = assess_ranking_quality(
+        non_overlapping_ic, bootstrap_result, per_era, _gate_config_with_stability(3, 1.0)
+    )
+
+    assert "insufficient_eras_for_stability" in result["failures"]
+    assert result["quality_status"] == "not_promotable"
+
+
+def test_assess_ranking_quality_fails_on_era_sign_flip_fraction_above_gate():
+    non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
+    # 1 of 4 eras opposes sign - a 0.25 flip fraction, above a 0.2 cap.
+    per_era = [_era(0.05, index=0), _era(0.05, index=1), _era(0.05, index=2), _era(-0.05, index=3)]
+
+    result = assess_ranking_quality(
+        non_overlapping_ic, bootstrap_result, per_era, _gate_config_with_stability(0, 0.2)
+    )
+
+    assert result["observed"]["era_sign_flip_fraction"] == pytest.approx(0.25)
+    assert "era_sign_flip_fraction_above_gate" in result["failures"]
+    assert result["quality_status"] == "not_promotable"
+
+
+def test_assess_ranking_quality_era_sign_flip_fraction_within_gate_passes():
+    non_overlapping_ic = {"mean_ic": 0.05, "t_stat": 3.0}
+    bootstrap_result = {"lower_bound": 0.01, "upper_bound": 0.09}
+    per_era = [_era(0.05, index=0), _era(0.05, index=1), _era(0.05, index=2), _era(-0.05, index=3)]
+
+    result = assess_ranking_quality(
+        non_overlapping_ic, bootstrap_result, per_era, _gate_config_with_stability(0, 0.5)
+    )
+
+    # Still fails the pre-existing binary era_sign_instability check (any
+    # opposite-sign era fails it) - the two checks are independent, not a
+    # replacement of one another.
+    assert "era_sign_instability" in result["failures"]
+    assert "era_sign_flip_fraction_above_gate" not in result["failures"]
+
+
+# ---------------------------------------------------------------------------
+# assess_net_performance_quality (V5.1 Phase 4, items 7, 12)
+# ---------------------------------------------------------------------------
+
+
+def _net_performance_gate_config(**overrides) -> dict:
+    promotion_gate = {
+        "min_net_sharpe": 0.40,
+        "max_annualized_turnover": 12.0,
+        "min_capacity_usd": 250000,
+        "net_performance_watchlist_margin": 0.1,
+    }
+    promotion_gate.update(overrides)
+    return {"phase1": {"target": {"ranking": {"promotion_gate": promotion_gate}}}}
+
+
+def _simulation(net_sharpe: float, annualized_turnover: float = 5.0) -> dict:
+    return {"net_sharpe": net_sharpe, "annualized_turnover": annualized_turnover}
+
+
+def _capacity(capacity_usd: float) -> dict:
+    return {"capacity_usd": capacity_usd}
+
+
+def test_assess_net_performance_quality_promotable_when_all_gates_clear():
+    result = assess_net_performance_quality(
+        _simulation(0.6), _capacity(300000), [{"cost_multiplier": 2.0, "net_sharpe": 0.2}],
+        _net_performance_gate_config(),
+    )
+
+    assert result["quality_status"] == "promotable"
+    assert result["promotion_eligible"] is True
+    assert result["failures"] == []
+
+
+def test_assess_net_performance_quality_fails_on_net_sharpe_below_gate():
+    result = assess_net_performance_quality(
+        _simulation(0.1), _capacity(300000), [], _net_performance_gate_config(),
+    )
+
+    assert "net_sharpe_below_gate" in result["failures"]
+    assert result["quality_status"] == "not_promotable"
+
+
+def test_assess_net_performance_quality_watchlist_when_net_sharpe_near_gate():
+    result = assess_net_performance_quality(
+        _simulation(0.45), _capacity(300000), [], _net_performance_gate_config(),
+    )
+
+    assert result["quality_status"] == "watchlist"
+    assert "net_sharpe_near_gate" in result["near_misses"]
+    assert result["promotion_eligible"] is True
+
+
+def test_assess_net_performance_quality_fails_on_turnover_above_gate():
+    result = assess_net_performance_quality(
+        _simulation(0.6, annualized_turnover=20.0), _capacity(300000), [], _net_performance_gate_config(),
+    )
+
+    assert "annualized_turnover_above_gate" in result["failures"]
+
+
+def test_assess_net_performance_quality_fails_on_capacity_below_gate():
+    result = assess_net_performance_quality(
+        _simulation(0.6), _capacity(1000), [], _net_performance_gate_config(),
+    )
+
+    assert "capacity_usd_below_gate" in result["failures"]
+
+
+def test_assess_net_performance_quality_fails_when_double_cost_sharpe_non_positive():
+    result = assess_net_performance_quality(
+        _simulation(0.6), _capacity(300000), [{"cost_multiplier": 2.0, "net_sharpe": -0.1}],
+        _net_performance_gate_config(),
+    )
+
+    assert "net_sharpe_does_not_survive_double_costs" in result["failures"]
+    assert result["observed"]["double_cost_net_sharpe"] == pytest.approx(-0.1)
+
+
+def test_assess_net_performance_quality_missing_double_cost_stress_entry_is_skipped_not_failed():
+    # No cost_multiplier == 2.0 entry in stress_results at all - must not be
+    # treated as a failure (there's simply nothing to check).
+    result = assess_net_performance_quality(
+        _simulation(0.6), _capacity(300000), [{"cost_multiplier": 3.0, "net_sharpe": -5.0}],
+        _net_performance_gate_config(),
+    )
+
+    assert "net_sharpe_does_not_survive_double_costs" not in result["failures"]
+    assert result["observed"]["double_cost_net_sharpe"] is None
+
+
+def test_assess_net_performance_quality_missing_config_falls_back_to_defaults():
+    result = assess_net_performance_quality(_simulation(0.6), _capacity(300000), [], {})
+
+    assert result["thresholds"]["min_net_sharpe"] == 0.0
+    assert result["thresholds"]["min_capacity_usd"] == 0.0
 
 
 # ---------------------------------------------------------------------------
