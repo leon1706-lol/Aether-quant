@@ -107,8 +107,18 @@ describe('NeuralNetworkStatsPanel ranking-quality gates (V4.12.2, Problems.md #7
 
 describe('NeuralNetworkStatsPanel residual-rank gates (V5.1 Phase 2, item 5)', () => {
   it('renders the residual rank_20d gate alongside rank_5d/20d', () => {
+    const baseNetwork = network()
     const withResidual: NeuralNetworkState = {
-      networks: [{ ...network(), ranking_quality: { ...network().ranking_quality, residual_rank_20d: PROMOTABLE_RANK_5D } }],
+      networks: [
+        {
+          ...baseNetwork,
+          ranking_quality: {
+            rank_5d: baseNetwork.ranking_quality?.rank_5d ?? null,
+            rank_20d: baseNetwork.ranking_quality?.rank_20d ?? null,
+            residual_rank_20d: PROMOTABLE_RANK_5D,
+          },
+        },
+      ],
       totals: { total_networks: 1, total_layers: 3, total_nodes: 88, total_edges: 1760, trained_count: 1 },
       excluded: [],
     }

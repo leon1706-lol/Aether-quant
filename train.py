@@ -80,7 +80,7 @@ from regime import build_market_regime_vector
 from sklearn.preprocessing import StandardScaler
 from topology import build_market_topology
 from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Sampler, TensorDataset
 
 
 LOGGER = logging.getLogger("aether_quant.train")
@@ -2968,16 +2968,32 @@ class AetherNetSequenceMultiTaskHorizons(nn.Module):
         channels: list[int],
         kernel_size: int,
         dropout: float,
+        normalization: str = "none",
     ) -> None:
         super().__init__()
         if not channels:
             raise ValueError("AetherNetSequenceMultiTaskHorizons requires at least one trunk channel size.")
         self.kernel_size = int(kernel_size)
+        # V5.1 Phase 3 (item 10) - the TCN trunk previously had NO
+        # normalization at all (Conv1d -> ReLU -> Dropout only), unlike
+        # AetherNetMultiTaskHorizons' MLP trunk (which already supports
+        # LayerNorm). normalization="none" is the FUNCTION default -
+        # byte-identical to every existing caller/checkpoint when this
+        # param is omitted. "layernorm" inserts an nn.LayerNorm(out_channels)
+        # after each Conv1d->ReLU, normalizing over the CHANNEL axis per
+        # timestep - see forward()'s transpose comment for why, and
+        # export_sequence_multitask_horizons_architecture()/
+        # _export_conv1d_trunk() for the matching "layernorm_axis" export
+        # layer (already supported by inference/exported_model.py with
+        # zero interpreter changes - see that module's own docstring).
+        self.normalization = str(normalization)
         self.conv_layers = nn.ModuleList()
+        self.layer_norms = nn.ModuleList()
         current_channels = input_dim
         for layer_index, out_channels in enumerate(channels):
             dilation = 2**layer_index
             self.conv_layers.append(nn.Conv1d(current_channels, out_channels, self.kernel_size, dilation=dilation))
+            self.layer_norms.append(nn.LayerNorm(out_channels) if self.normalization == "layernorm" else nn.Identity())
             current_channels = out_channels
         self.activation = nn.ReLU()
         self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
@@ -3000,12 +3016,23 @@ class AetherNetSequenceMultiTaskHorizons(nn.Module):
 
     def forward(self, sequence: torch.Tensor) -> dict[str, torch.Tensor]:
         current = sequence.transpose(1, 2)  # (batch, input_dim, window)
-        for conv in self.conv_layers:
+        for conv, layer_norm in zip(self.conv_layers, self.layer_norms):
             dilation = conv.dilation[0]
             pad_left = (self.kernel_size - 1) * dilation
             current = nn.functional.pad(current, (pad_left, 0))
-            current = conv(current)
-            current = self.dropout(self.activation(current))
+            current = self.activation(conv(current))
+            if self.normalization == "layernorm":
+                # nn.LayerNorm(out_channels) normalizes over its last dim -
+                # current is (batch, channels, window) (PyTorch's own
+                # Conv1d convention), so transpose to (batch, window,
+                # channels) first (normalize each timestep's channel
+                # vector independently), then back. Matches
+                # inference/exported_model.py's _layernorm_axis(axis=-1)
+                # on a (window, channels) array exactly - same per-
+                # timestep, per-channel-axis normalization, just with an
+                # extra leading batch dim here.
+                current = layer_norm(current.transpose(1, 2)).transpose(1, 2)
+            current = self.dropout(current)
 
         pooled = current[:, :, -1]  # (batch, channels[-1]) - most-recent timestep
         return {
@@ -3028,8 +3055,17 @@ def _export_conv1d_trunk(model) -> list[dict]:
     export_sequence_multitask_horizons_architecture() - both models build
     their causal TCN trunk identically (AetherNetSequenceMultiTask/
     AetherNetSequenceMultiTaskHorizons.__init__ are the same conv-stack
-    loop), only their heads differ."""
+    loop), only their heads differ.
+
+    V5.1 Phase 3 (item 10): AetherNetSequenceMultiTask (the older sibling)
+    has no `normalization`/`layer_norms` attribute at all -
+    getattr(..., "none")/getattr(..., None) below degrade it to the
+    pre-Phase-3 trunk shape exactly (no layernorm_axis entries), so this
+    stays a true shared helper rather than needing two near-duplicate
+    versions."""
     trunk: list[dict] = []
+    use_layernorm = getattr(model, "normalization", "none") == "layernorm"
+    layer_norms = getattr(model, "layer_norms", None)
     for layer_index, conv in enumerate(model.conv_layers):
         trunk.append(
             {
@@ -3043,6 +3079,16 @@ def _export_conv1d_trunk(model) -> list[dict]:
             }
         )
         trunk.append({"type": "relu"})
+        if use_layernorm and layer_norms is not None:
+            layer_norm = layer_norms[layer_index]
+            trunk.append(
+                {
+                    "type": "layernorm_axis",
+                    "weight_key": f"layer_norms.{layer_index}.weight",
+                    "bias_key": f"layer_norms.{layer_index}.bias",
+                    "eps": layer_norm.eps,
+                }
+            )
         trunk.append({"type": "dropout", "p": model.dropout.p if isinstance(model.dropout, nn.Dropout) else 0.0})
     return trunk
 
@@ -3161,6 +3207,113 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+# ---------------------------------------------------------------------------
+# V5.1 Phase 3 (items 10, 11) - optimizer/schedule/SWA/smoothing helpers
+# shared by train_multitask.py and train_sequence.py (the train.py-as-
+# master-module convention every other trainer utility in this file
+# already follows).
+# ---------------------------------------------------------------------------
+
+
+def build_optimizer(model: nn.Module, training_config: dict) -> torch.optim.Optimizer:
+    """Dispatches on training_config["optimizer"] in {"adam", "adamw"} -
+    "adam" is the FUNCTION default (preserving every existing caller's
+    behavior byte-for-byte when the config key is absent), "adamw" is
+    config.json's new default for the multitask/sequence trainers
+    specifically.
+
+    GUARDRAIL: weight_decay under AdamW is DECOUPLED from the learning
+    rate (Loshchilov & Hutter 2019) - not comparable to the same numeric
+    value under plain Adam (coupled, effectively scaled by lr).
+    config.json's weight_decay was re-tuned upward (1e-4 -> 1e-2)
+    specifically alongside this switch - never carry the old Adam-tuned
+    value over to AdamW unchanged."""
+    optimizer_name = str(training_config.get("optimizer", "adam")).lower()
+    learning_rate = float(training_config.get("learning_rate", 0.0007))
+    weight_decay = float(training_config.get("weight_decay", 0.0001))
+    if optimizer_name == "adamw":
+        return torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    return torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
+
+def build_lr_scheduler(optimizer: torch.optim.Optimizer, training_config: dict, max_epochs: int):
+    """Dispatches on training_config["lr_schedule"] in {"none", "cosine"} -
+    "none" is the FUNCTION default (returns None - a caller that never
+    calls scheduler.step() is completely unaffected by this function
+    existing). "cosine" is config.json's new default: CosineAnnealingLR
+    decaying the optimizer's current LR down to lr * lr_min_factor over
+    max_epochs."""
+    schedule_name = str(training_config.get("lr_schedule", "none")).lower()
+    if schedule_name != "cosine":
+        return None
+    lr_min_factor = float(training_config.get("lr_min_factor", 0.05))
+    base_lr = float(optimizer.param_groups[0]["lr"])
+    return torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=max(int(max_epochs), 1), eta_min=base_lr * lr_min_factor
+    )
+
+
+def swa_accumulate(averaged_state: dict | None, model_state: dict, count: int) -> tuple[dict, int]:
+    """Elementwise running mean over state_dict()s - a plain, from-scratch
+    accumulator, deliberately NOT torch.optim.swa_utils.AveragedModel.
+
+    GUARDRAIL: AveragedModel wraps the model with a `module.`-prefixed
+    state_dict, which would silently break export_state_dict()/
+    export_*_architecture() (both read the raw module's own keys). No
+    update_bn() pass is needed either - neither model has any BatchNorm
+    (LayerNorm only, which carries no running statistics to recompute).
+
+    GUARDRAIL (pre-empting the obvious objection): this is WITHIN-RUN
+    averaging of late-training checkpoints along a SINGLE SGD trajectory -
+    the weights are aligned by construction (same init, same optimizer
+    path, different epochs), which is the valid case (Izmailov et al.
+    2018, Stochastic Weight Averaging). This is NOT the CROSS-SEED weight
+    averaging average_ensemble_predictions()'s own docstring correctly
+    rejects on permutation-symmetry grounds (two independently-seeded
+    runs' hidden units are not aligned, so averaging THEIR weights is
+    invalid) - averaging one run's own late-epoch weights against itself
+    is a different, well-established technique. Do not conflate the two,
+    and do not "fix" this into calling average_ensemble_predictions()'s
+    machinery instead.
+
+    averaged_state=None (first call) seeds the accumulator with
+    model_state verbatim (count becomes 1, an exact copy - not yet an
+    "average" of anything). Returns (new_averaged_state, new_count)."""
+    if averaged_state is None:
+        return {key: value.clone() for key, value in model_state.items()}, 1
+    new_count = count + 1
+    new_averaged_state = {key: (averaged_state[key] * count + model_state[key]) / new_count for key in averaged_state}
+    return new_averaged_state, new_count
+
+
+def swa_finalize(averaged_state: dict) -> dict:
+    """No-op passthrough today, kept as a named step pairing with
+    swa_accumulate() in case a future normalization-recompute pass is ever
+    needed here (there is none currently - see swa_accumulate()'s own
+    docstring on why no update_bn() equivalent is needed)."""
+    return averaged_state
+
+
+def smoothed_metric(history: list[dict], key: str, window: int) -> float | None:
+    """Mean of the last `window` non-None values of history[i][key] - the
+    early-stopping monitor for a noisy per-epoch metric. A 365-day
+    validation split at stride 20 gives ~18 non-overlapping rank-IC
+    observations, so epoch-to-epoch that metric is noisy enough that
+    early-stopping on the RAW value reliably picks a lucky epoch rather
+    than a genuinely-better one. window=1 reproduces "monitor the raw
+    latest value" exactly (today's behavior, byte-for-byte).
+
+    Returns None (never 0.0 - a missing metric must not look like a
+    genuine zero) when no history entry has this key with a non-None
+    value yet."""
+    values = [entry[key] for entry in history if entry.get(key) is not None]
+    if not values:
+        return None
+    window = max(int(window), 1)
+    recent = values[-window:]
+    return sum(recent) / len(recent)
+
+
 def split_frame(dataset: pd.DataFrame, split_name: str) -> pd.DataFrame:
     return dataset[dataset["split"] == split_name].reset_index(drop=True)
 
@@ -3268,6 +3421,263 @@ def compute_regression_metrics(predictions: torch.Tensor, targets: torch.Tensor)
         "mean_prediction": float(predictions_np.mean()) if len(predictions_np) else 0.0,
         "mean_target": float(targets_np.mean()) if len(targets_np) else 0.0,
     }
+
+
+# ---------------------------------------------------------------------------
+# V5.1 Phase 3 (items 1, 10, 11) - cross-sectional date batching, so a
+# training batch is a set of WHOLE dates (every asset trading that day)
+# rather than a random row sample - the ranking losses below need this to
+# compute a per-date rank/softmax, exactly the same grouping
+# build_cross_sectional_rank_targets()/_rank_ic_from_arrays() already use
+# offline. Pure numpy, no torch - fully unit-testable without a model.
+# ---------------------------------------------------------------------------
+
+
+def build_cross_sectional_date_batches(
+    dates: np.ndarray, *, batch_dates: int, min_group_size: int, shuffle: bool, seed: int
+) -> list[np.ndarray]:
+    """Groups row indices by date, drops dates with fewer than
+    min_group_size rows (same "too few names is meaningless" rationale as
+    build_cross_sectional_rank_targets()'s min_universe_size), then packs
+    `batch_dates` whole dates per batch. Returns a list of row-index arrays
+    (dtype int64) - each array is one training batch's row selection into
+    the ORIGINAL `dates` array (and, by extension, into a parallel
+    features/targets tensor built in the same row order).
+
+    shuffle=True shuffles the DATE order (not rows within a date - every
+    row of a kept date always lands in the same batch as its peers) with a
+    seeded RNG, so batch composition is reproducible per (seed, epoch).
+    shuffle=False keeps dates in their natural sorted order - deterministic,
+    used by validation/backtest passes that iterate the whole split once.
+
+    batch_dates <= 0 is treated as 1 (never an empty/negative batch)."""
+    batch_dates = max(int(batch_dates), 1)
+    frame = pd.DataFrame({"date": np.asarray(dates), "row": np.arange(len(dates))})
+    group_sizes = frame.groupby("date")["row"].transform("size")
+    eligible = frame[group_sizes >= min_group_size]
+
+    unique_dates = eligible["date"].unique().tolist()
+    if shuffle:
+        rng = np.random.default_rng(seed)
+        rng.shuffle(unique_dates)
+    else:
+        unique_dates = sorted(unique_dates)
+
+    rows_by_date = {date_value: group["row"].to_numpy(dtype=np.int64) for date_value, group in eligible.groupby("date")}
+
+    batches: list[np.ndarray] = []
+    for start in range(0, len(unique_dates), batch_dates):
+        chunk_dates = unique_dates[start : start + batch_dates]
+        batch_rows = np.concatenate([rows_by_date[date_value] for date_value in chunk_dates])
+        batches.append(batch_rows)
+    return batches
+
+
+class CrossSectionalDateBatchSampler(Sampler[list[int]]):
+    """torch Sampler wrapper around build_cross_sectional_date_batches() -
+    yields one list[int] (row indices) per whole-date batch, for use as
+    DataLoader's `batch_sampler`. set_epoch() re-derives the shuffle seed
+    per epoch (seed + epoch) so batch composition varies epoch to epoch
+    the same way a random-sampling DataLoader's shuffle=True already does,
+    while every batch still contains only whole dates."""
+
+    def __init__(self, dates: np.ndarray, *, batch_dates: int, min_group_size: int, shuffle: bool, seed: int) -> None:
+        self.dates = np.asarray(dates)
+        self.batch_dates = batch_dates
+        self.min_group_size = min_group_size
+        self.shuffle = shuffle
+        self.seed = seed
+        self.epoch = 0
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+
+    def _batches(self) -> list[np.ndarray]:
+        return build_cross_sectional_date_batches(
+            self.dates,
+            batch_dates=self.batch_dates,
+            min_group_size=self.min_group_size,
+            shuffle=self.shuffle,
+            seed=self.seed + self.epoch,
+        )
+
+    def __iter__(self):
+        for batch in self._batches():
+            yield batch.tolist()
+
+    def __len__(self) -> int:
+        return len(self._batches())
+
+
+def build_date_group_ids(dates: np.ndarray) -> np.ndarray:
+    """Dense integer group id per row (0, 1, 2, ... one id per unique date,
+    in sorted-date order) - the ranking losses below scatter/loop by this
+    id rather than the raw date value (a torch.Tensor of ids is simpler to
+    index with than a tensor of dates/strings). Pure numpy, int64."""
+    _, inverse = np.unique(np.asarray(dates), return_inverse=True)
+    return inverse.astype(np.int64)
+
+
+# ---------------------------------------------------------------------------
+# V5.1 Phase 3 (item 1) - cross-sectional ranking losses. Hand-written
+# (n ~= 70 assets/date => O(n^2) ~= 5k pairwise ops per date, trivial) -
+# deliberately NOT a compiled dependency like torchsort/fast-soft-sort in a
+# repo whose live inference is a hand-written NumPy interpreter
+# (inference/exported_model.py); these losses only ever run at TRAINING
+# time (never exported/interpreted), so there is no interpreter-parity
+# concern here, but a new compiled dependency for training alone still
+# isn't worth it when the pure-torch version is this cheap.
+# ---------------------------------------------------------------------------
+
+
+def soft_rank_within_groups(scores: torch.Tensor, group_ids: torch.Tensor, temperature: float) -> torch.Tensor:
+    """Differentiable rank approximation: for each group (date), soft_rank_i
+    = sum_j sigmoid((s_i - s_j) / temperature), normalized to [0, 1] via
+    (raw_rank - 0.5) / (n - 1) - the -0.5 removes the self-comparison term
+    (sigmoid(0) == 0.5 exactly), matching pandas' .rank(pct=True) convention
+    of assigning the smallest score percentile 0 and the largest 1 in the
+    low-temperature limit. As temperature -> 0, sigmoid((s_i-s_j)/temperature)
+    approaches the hard step function 1[s_i > s_j], so soft_rank_i approaches
+    the TRUE rank exactly (see tests/test_train_ranking_loss.py's
+    cross-validation against _rank_ic_from_arrays()).
+
+    A group of size 1 gets rank 0.5 (no information, the safe neutral
+    midpoint - never divides by zero)."""
+    soft_ranks = torch.zeros_like(scores)
+    for group in torch.unique(group_ids):
+        group_mask = group_ids == group
+        group_scores = scores[group_mask]
+        n = int(group_scores.shape[0])
+        if n <= 1:
+            soft_ranks = soft_ranks.masked_scatter(group_mask, torch.full((n,), 0.5, device=scores.device))
+            continue
+        pairwise = torch.sigmoid((group_scores.unsqueeze(1) - group_scores.unsqueeze(0)) / temperature)
+        raw_rank = pairwise.sum(dim=1)
+        normalized = (raw_rank - 0.5) / (n - 1)
+        soft_ranks = soft_ranks.masked_scatter(group_mask, normalized)
+    return soft_ranks
+
+
+def soft_spearman_loss(
+    predictions: torch.Tensor, targets: torch.Tensor, group_ids: torch.Tensor, mask: torch.Tensor, temperature: float
+) -> torch.Tensor:
+    """Per date, Pearson correlation between soft_rank(predictions) and
+    targets (already a [0,1] percentile rank, a positive affine transform
+    of the true rank - Pearson is invariant to that, the EXACT argument
+    _rank_ic_from_arrays()'s own docstring makes for why ranking the
+    prediction alone reproduces the true Spearman correlation). Loss =
+    -mean(correlation) across dates, so minimizing it maximizes rank-IC.
+
+    Dates with fewer than 2 valid rows, or zero variance on either side
+    (every asset tied - undefined correlation), are SKIPPED, not counted
+    as a 0.0 correlation - same convention _rank_ic_from_arrays() uses for
+    exactly the same reason (0.0 would misrepresent "undefined" as "no
+    correlation", pulling the mean toward zero for no real reason).
+    Returns a true zero (no gradient) when nothing is valid, matching
+    masked_mse_loss()'s contract."""
+    valid = mask & ~torch.isnan(targets)
+    if not torch.any(valid):
+        return torch.zeros((), device=predictions.device)
+
+    valid_predictions = predictions[valid]
+    valid_targets = targets[valid]
+    valid_group_ids = group_ids[valid]
+    soft_ranks = soft_rank_within_groups(valid_predictions, valid_group_ids, temperature)
+
+    correlations = []
+    for group in torch.unique(valid_group_ids):
+        group_mask = valid_group_ids == group
+        group_rank = soft_ranks[group_mask]
+        group_target = valid_targets[group_mask]
+        if group_rank.shape[0] < 2:
+            continue
+        rank_variance = torch.var(group_rank, unbiased=False)
+        target_variance = torch.var(group_target, unbiased=False)
+        if rank_variance <= 1e-12 or target_variance <= 1e-12:
+            continue
+        rank_centered = group_rank - group_rank.mean()
+        target_centered = group_target - group_target.mean()
+        denominator = torch.sqrt((rank_centered**2).sum() * (target_centered**2).sum())
+        correlation = (rank_centered * target_centered).sum() / denominator
+        correlations.append(correlation)
+
+    if not correlations:
+        return torch.zeros((), device=predictions.device)
+    return -torch.stack(correlations).mean()
+
+
+def listnet_loss(
+    predictions: torch.Tensor, targets: torch.Tensor, group_ids: torch.Tensor, mask: torch.Tensor, temperature: float
+) -> torch.Tensor:
+    """Per date, cross-entropy H(softmax(targets/temperature),
+    softmax(predictions/temperature)) - the standard ListNet objective
+    (Cao et al. 2007), treating each date's cross-section as a probability
+    distribution over "which asset is the top performer" rather than
+    comparing pairwise ranks. Always >= 0 (cross-entropy of two
+    distributions in [0,1] is non-negative by construction) and minimized
+    when the two softmax distributions coincide, i.e. when predictions are
+    a positive affine function of targets. Dates with fewer than 2 valid
+    rows are skipped. Returns a true zero when nothing is valid."""
+    valid = mask & ~torch.isnan(targets)
+    if not torch.any(valid):
+        return torch.zeros((), device=predictions.device)
+
+    valid_predictions = predictions[valid]
+    valid_targets = targets[valid]
+    valid_group_ids = group_ids[valid]
+
+    losses = []
+    for group in torch.unique(valid_group_ids):
+        group_mask = valid_group_ids == group
+        group_predictions = valid_predictions[group_mask]
+        group_targets = valid_targets[group_mask]
+        if group_predictions.shape[0] < 2:
+            continue
+        prediction_log_softmax = torch.log_softmax(group_predictions / temperature, dim=0)
+        target_softmax = torch.softmax(group_targets / temperature, dim=0)
+        losses.append(-(target_softmax * prediction_log_softmax).sum())
+
+    if not losses:
+        return torch.zeros((), device=predictions.device)
+    return torch.stack(losses).mean()
+
+
+def compute_cross_sectional_ranking_loss(
+    head_output: torch.Tensor, head_target: torch.Tensor, group_ids: torch.Tensor, ranking_loss_config: dict
+) -> torch.Tensor:
+    """Dispatcher on ranking_loss_config["objective"] in
+    {"mse", "soft_spearman", "listnet"} (default "mse", reproducing
+    masked_mse_loss() exactly - the byte-identical no-op path
+    compute_combined_multitask_loss() falls back to when Phase 3's config
+    is absent). For the two real ranking objectives, adds
+    ranking_loss_config["mse_anchor_weight"] * masked_mse_loss() on top: a
+    pure ranking loss is invariant to any affine rescaling of the head's
+    raw output, so without this anchor term the output SCALE drifts
+    unboundedly during training - harmless for ranking (only order
+    matters) but it would make the exported head numerically unstable and
+    would defeat the "raw" (non-normalized) diagnostic reading of the
+    score. Defaults (temperature=0.05, listnet_temperature=0.1,
+    mse_anchor_weight=0.1) live in config.json, not here - this function
+    always reads them from ranking_loss_config, never hardcodes a
+    fallback, so a caller can never silently diverge from what got
+    logged/trained with."""
+    mask = ~torch.isnan(head_target)
+    objective = str(ranking_loss_config.get("objective", "mse"))
+    if objective == "mse":
+        return masked_mse_loss(head_output, head_target, mask)
+
+    temperature = float(ranking_loss_config.get("temperature", 0.05))
+    mse_anchor_weight = float(ranking_loss_config.get("mse_anchor_weight", 0.0))
+    if objective == "soft_spearman":
+        ranking_loss = soft_spearman_loss(head_output, head_target, group_ids, mask, temperature)
+    elif objective == "listnet":
+        listnet_temperature = float(ranking_loss_config.get("listnet_temperature", temperature))
+        ranking_loss = listnet_loss(head_output, head_target, group_ids, mask, listnet_temperature)
+    else:
+        raise ValueError(f"compute_cross_sectional_ranking_loss: unknown objective {objective!r}")
+
+    anchor_loss = masked_mse_loss(head_output, head_target, mask) if mse_anchor_weight else torch.zeros((), device=head_output.device)
+    return ranking_loss + mse_anchor_weight * anchor_loss
 
 
 def masked_bce_with_logits_loss(logits: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -4178,6 +4588,8 @@ def compute_combined_multitask_loss(
     horizon_head_config: dict,
     direction_loss_weight: float = 1.0,
     consistency_loss_weight: float = 0.0,
+    date_group_ids: torch.Tensor | None = None,
+    ranking_loss_config: dict | None = None,
 ) -> torch.Tensor:
     """Combined loss for both AetherNetMultiTaskHorizons and
     AetherNetSequenceMultiTaskHorizons (identical head-name dict shape,
@@ -4207,22 +4619,35 @@ def compute_combined_multitask_loss(
     zero gradient contribution, so every existing positional caller/test is
     completely unaffected); only added when BOTH heads of a pair are
     enabled (horizon_head_config), matching this function's existing
-    per-head enabled-gating convention immediately below."""
+    per-head enabled-gating convention immediately below.
+
+    date_group_ids/ranking_loss_config (V5.1 Phase 3, item 1): when BOTH
+    are provided, every enabled "rank"-kind head (HORIZON_HEAD_SPECS -
+    rank_5d/20d, sector_neutral_rank_20d, residual_rank_5d/20d,
+    beta_neutral_rank_20d, generically, no per-head special-casing) routes
+    through compute_cross_sectional_ranking_loss() instead of a bare
+    masked_mse_loss() call. GUARDRAIL: when either is None (the default),
+    this is BYTE-IDENTICAL to the pre-Phase-3 code path - every existing
+    positional caller/test is completely unaffected."""
     loss = (
         direction_loss_weight * direction_criterion(outputs["direction"], targets["direction"])
         + magnitude_loss_weight * nn.functional.mse_loss(outputs["magnitude"], targets["magnitude"])
         + volatility_loss_weight * nn.functional.mse_loss(outputs["volatility"], targets["volatility"])
     )
+    use_ranking_loss = date_group_ids is not None and ranking_loss_config is not None
     for head_name, (_column, kind, _stride) in HORIZON_HEAD_SPECS.items():
         head_config = horizon_head_config[head_name]
         if not head_config.get("enabled", True):
             continue
         mask = ~torch.isnan(targets[head_name])
-        head_loss = (
-            masked_bce_with_logits_loss(outputs[head_name], targets[head_name], mask)
-            if kind == "binary"
-            else masked_mse_loss(outputs[head_name], targets[head_name], mask)
-        )
+        if kind == "binary":
+            head_loss = masked_bce_with_logits_loss(outputs[head_name], targets[head_name], mask)
+        elif use_ranking_loss:
+            head_loss = compute_cross_sectional_ranking_loss(
+                outputs[head_name], targets[head_name], date_group_ids, ranking_loss_config
+            )
+        else:
+            head_loss = masked_mse_loss(outputs[head_name], targets[head_name], mask)
         loss = loss + float(head_config.get("loss_weight", 1.0)) * head_loss
 
     if consistency_loss_weight:

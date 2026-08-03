@@ -43,22 +43,24 @@ def test_dollar_neutral_scales_the_larger_leg_down_only():
     assert abs(weights["S1"]) == 0.10
 
 
-def test_sector_neutral_makes_each_bucket_net_zero():
+def test_sector_neutral_leaves_bucket_untouched_when_net_within_cap():
+    # A generous cap means the bucket's raw net is already fine - no
+    # demeaning, no shrinking. Both Tech names keep their original weight.
     weights, diagnostics = _neutralize(
         {"A": 0.10, "B": 0.10, "C": -0.05},
         sectors={"A": "Tech", "B": "Tech", "C": "Fin"},
         dollar_neutral=False,
         sector_max_net_weight=1.0,
     )
-    tech_net = weights["A"] + weights["B"]
-    assert abs(tech_net) < 1e-9
-    assert abs(diagnostics["per_sector_net"]["Tech"]) < 1e-9
+    assert weights["A"] == 0.10
+    assert weights["B"] == 0.10
+    assert abs(diagnostics["per_sector_net"]["Tech"] - 0.20) < 1e-9
 
 
 def test_sector_neutral_single_member_bucket_left_untouched():
-    # A lone name in its own sector has no peer to demean against -
-    # demeaning it would just zero it out, a much bigger behavior change
-    # than "neutralize this sector" implies.
+    # A lone name's bucket net equals its own weight - within a generous
+    # cap, so it is left untouched. Same code path as any other bucket,
+    # no special case needed.
     weights, _ = _neutralize(
         {"A": 0.10, "B": -0.10},
         sectors={"A": "Tech", "B": "Fin"},
@@ -70,8 +72,9 @@ def test_sector_neutral_single_member_bucket_left_untouched():
 
 
 def test_sector_bucket_over_max_net_weight_is_shrunk_not_amplified():
-    # Two Tech names both long (no offsetting short in the bucket) leaves a
-    # nonzero net after demeaning - shrink must bring it within the cap.
+    # Two Tech names both long (no offsetting short in the bucket) - net
+    # exceeds a tight cap, so the whole bucket is shrunk toward it. Signs
+    # and relative per-name weights are preserved, never erased.
     weights, diagnostics = _neutralize(
         {"A": 0.10, "B": 0.08},
         sectors={"A": "Tech", "B": "Tech"},
@@ -79,9 +82,30 @@ def test_sector_bucket_over_max_net_weight_is_shrunk_not_amplified():
         sector_max_net_weight=0.02,
     )
     tech_net = weights["A"] + weights["B"]
-    assert abs(tech_net) <= 0.02 + 1e-9
-    assert abs(weights["A"]) <= 0.10
-    assert abs(weights["B"]) <= 0.08
+    assert abs(tech_net - 0.02) < 1e-9
+    assert weights["A"] > 0.0
+    assert weights["B"] > 0.0
+    assert abs(weights["A"] / weights["B"] - 0.10 / 0.08) < 1e-9
+
+
+def test_sector_neutral_equal_weighted_monolithic_role_bucket_is_shrunk_not_erased():
+    # Regression guard for Problems.md #81: an entire sector bucket
+    # (e.g. every Forex ticker) selected on a single leg with equal
+    # per-name weights - the exact shape build_rank_based_book() +
+    # equal-weighted legs produces every time a leg is sector-monolithic.
+    # The old demean-to-zero implementation drove every member to exactly
+    # 0.0 here, silently erasing the entire leg. It must now only be
+    # shrunk toward the cap, never erased.
+    weights, diagnostics = _neutralize(
+        {"F1": -0.15, "F2": -0.15, "F3": -0.15, "F4": -0.15, "F5": -0.15, "F6": -0.15},
+        sectors={s: "Forex" for s in ("F1", "F2", "F3", "F4", "F5", "F6")},
+        dollar_neutral=False,
+        sector_max_net_weight=0.05,
+    )
+    for symbol in ("F1", "F2", "F3", "F4", "F5", "F6"):
+        assert weights[symbol] < 0.0, f"{symbol} was erased by sector neutrality"
+    forex_net = sum(weights.values())
+    assert abs(forex_net - (-0.05)) < 1e-9
 
 
 def test_per_name_cap_binds_before_anything_else():
@@ -110,9 +134,13 @@ def test_gross_exposure_cap_scales_everything_down():
 def test_all_long_book_with_dollar_neutral_requested_degrades_gracefully_never_raises():
     # No shorts exist - dollar-neutrality has nothing to balance against.
     # Must never divide by zero or raise; the step is simply skipped.
+    # sector_neutral=False isolates this test to the dollar-neutral step
+    # (sector caps now apply to single-member buckets too - see
+    # test_sector_bucket_over_max_net_weight_is_shrunk_not_amplified).
     weights, diagnostics = _neutralize(
         {"A": 0.10, "B": 0.08},
         sectors={"A": "Tech", "B": "Fin"},
+        sector_neutral=False,
     )
     assert weights["A"] == 0.10
     assert weights["B"] == 0.08

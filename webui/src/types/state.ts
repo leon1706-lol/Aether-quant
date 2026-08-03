@@ -583,6 +583,30 @@ export interface NeuralNetworkModel {
     residual_rank_20d?: RankingQualitySummary | null
   } | null
   regression_quality?: { magnitude: string | null; volatility: string | null } | null
+  // V5.1 Phase 3 (items 1, 10, 11) - the actual optimizer/schedule/batch-
+  // mode/ranking-loss/SWA recipe this candidate trained with. null for
+  // baseline/expert/gating or an older pre-Phase-3 artifact.
+  training_recipe?: TrainingRecipe | null
+}
+
+// train_multitask.py/train_sequence.py's "training_recipe" metrics field -
+// see compute_combined_multitask_loss()'s docstring in train.py for the
+// underlying ranking_loss/date_group_ids contract this describes.
+export interface TrainingRecipe {
+  optimizer: 'adam' | 'adamw' | string
+  lr_schedule: 'none' | 'cosine' | string
+  normalization?: 'none' | 'layernorm' | string
+  batch_mode: 'random' | 'cross_sectional' | string
+  ranking_loss: {
+    objective: 'mse' | 'soft_spearman' | 'listnet' | string
+    temperature?: number
+    listnet_temperature?: number
+    mse_anchor_weight?: number
+  } | null
+  swa: { enabled: boolean; epochs_averaged: number }
+  early_stop_metric: string
+  early_stop_head: string
+  early_stop_smoothing_epochs: number
 }
 
 export interface NeuralNetworkExcluded {

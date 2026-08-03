@@ -292,6 +292,71 @@ def test_compute_combined_loss_direction_loss_weight_scales_direction_term():
     assert torch.isclose(loss_zero_weight, torch.zeros(()))
 
 
+def test_compute_combined_loss_date_group_ids_none_is_byte_identical_to_pre_phase3():
+    # V5.1 Phase 3 (item 1) GUARDRAIL - compute_combined_multitask_loss()'s
+    # own docstring promise: when date_group_ids/ranking_loss_config are
+    # both None (the default), every rank-kind head must use plain
+    # masked_mse_loss(), exactly as before Phase 3 existed. Every existing
+    # positional caller/test must be completely unaffected.
+    torch.manual_seed(0)
+    outputs = {
+        "direction": torch.randn(4), "magnitude": torch.randn(4), "volatility": torch.randn(4).abs(),
+        "direction_5d": torch.randn(4), "direction_20d": torch.randn(4),
+        "rank_5d": torch.rand(4), "rank_20d": torch.rand(4), "sector_neutral_rank_20d": torch.rand(4),
+        "residual_rank_5d": torch.rand(4), "residual_rank_20d": torch.rand(4), "beta_neutral_rank_20d": torch.rand(4),
+    }
+    targets = {
+        "direction": torch.zeros(4), "magnitude": torch.zeros(4), "volatility": torch.zeros(4),
+        "direction_5d": torch.rand(4), "direction_20d": torch.rand(4),
+        "rank_5d": torch.rand(4), "rank_20d": torch.rand(4), "sector_neutral_rank_20d": torch.rand(4),
+        "residual_rank_5d": torch.rand(4), "residual_rank_20d": torch.rand(4), "beta_neutral_rank_20d": torch.rand(4),
+    }
+    criterion = nn.BCEWithLogitsLoss()
+    horizon_head_config = {name: {"enabled": True, "loss_weight": 1.0} for name in HORIZON_HEAD_SPECS}
+
+    loss_without_phase3_kwargs = compute_combined_multitask_loss(
+        outputs, targets, criterion, 1.0, 1.0, horizon_head_config
+    )
+    loss_with_explicit_none = compute_combined_multitask_loss(
+        outputs, targets, criterion, 1.0, 1.0, horizon_head_config,
+        date_group_ids=None, ranking_loss_config=None,
+    )
+
+    assert torch.equal(loss_without_phase3_kwargs, loss_with_explicit_none)
+
+
+def test_compute_combined_loss_ranking_objective_mse_matches_masked_mse_path_exactly():
+    # V5.1 Phase 3 (item 1) - "objective": "mse" (whether via an explicit
+    # ranking_loss_config or the byte-identical None/None default path)
+    # must produce the EXACT same combined loss value - a ranking-loss
+    # config that happens to select "mse" is not a different code path,
+    # just a different way of asking for the same thing.
+    torch.manual_seed(1)
+    outputs = {
+        "direction": torch.randn(6), "magnitude": torch.randn(6), "volatility": torch.randn(6).abs(),
+        "direction_5d": torch.randn(6), "direction_20d": torch.randn(6),
+        "rank_5d": torch.rand(6), "rank_20d": torch.rand(6), "sector_neutral_rank_20d": torch.rand(6),
+        "residual_rank_5d": torch.rand(6), "residual_rank_20d": torch.rand(6), "beta_neutral_rank_20d": torch.rand(6),
+    }
+    targets = {
+        "direction": torch.zeros(6), "magnitude": torch.zeros(6), "volatility": torch.zeros(6),
+        "direction_5d": torch.rand(6), "direction_20d": torch.rand(6),
+        "rank_5d": torch.rand(6), "rank_20d": torch.rand(6), "sector_neutral_rank_20d": torch.rand(6),
+        "residual_rank_5d": torch.rand(6), "residual_rank_20d": torch.rand(6), "beta_neutral_rank_20d": torch.rand(6),
+    }
+    criterion = nn.BCEWithLogitsLoss()
+    horizon_head_config = {name: {"enabled": True, "loss_weight": 1.0} for name in HORIZON_HEAD_SPECS}
+    group_ids = torch.tensor([0, 0, 0, 1, 1, 1])
+
+    loss_default_path = compute_combined_multitask_loss(outputs, targets, criterion, 1.0, 1.0, horizon_head_config)
+    loss_explicit_mse = compute_combined_multitask_loss(
+        outputs, targets, criterion, 1.0, 1.0, horizon_head_config,
+        date_group_ids=group_ids, ranking_loss_config={"objective": "mse"},
+    )
+
+    assert torch.isclose(loss_default_path, loss_explicit_mse, atol=1e-6)
+
+
 def test_compute_combined_loss_direction_loss_weight_defaults_to_one_backward_compatible():
     """Stage 4 of the rank-pivot roadmap added direction_loss_weight as the
     LAST parameter with default 1.0 specifically so every pre-existing

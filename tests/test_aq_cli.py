@@ -158,6 +158,82 @@ def test_train_multitask_only_invokes_train_multitask_py_with_generated_version_
     assert copy_mock.call_count == 3
 
 
+def test_train_multitask_only_passes_through_seed_and_ranking_objective():
+    # V5.1 Phase 3 (item 1) - the `aq`-level entry point for the seed-
+    # ensembling/ranking-objective-A/B workflow, previously only reachable
+    # by calling train_multitask.py directly.
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--multitask-only", "--seed", "43", "--ranking-objective", "listnet"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli.uuid.uuid4", return_value="fixed-uuid"), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("shutil.copy2"):
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    argv = run_mock.call_args.args[0]
+    assert argv[:2] == [sys.executable, "train_multitask.py"]
+    assert argv[2:] == [
+        "--version-id", "multitask-only-fixed-uuid",
+        "--seed", "43",
+        "--ranking-objective", "listnet",
+    ]
+
+
+def test_train_seed_and_ranking_objective_default_to_no_passthrough():
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--multitask-only"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli.uuid.uuid4", return_value="fixed-uuid"), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("shutil.copy2"):
+        args.func(args)
+
+    argv = run_mock.call_args.args[0]
+    assert "--seed" not in argv
+    assert "--ranking-objective" not in argv
+
+
+def test_train_seed_without_multitask_or_sequence_only_warns_and_is_ignored(capsys):
+    # --seed/--ranking-objective only make sense paired with
+    # --multitask-only/--sequence-only - the default full-pipeline train.py
+    # invocation accepts neither flag, so passing them here must be a
+    # harmless, warned-about no-op, not silently swallowed or a crash.
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--seed", "43"])
+
+    with patch("aq_cli._run", run_mock):
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    argv = run_mock.call_args.args[0]
+    assert "--seed" not in argv
+    assert "ignored" in capsys.readouterr().err
+
+
+def test_train_sequence_only_passes_through_seed_and_ranking_objective():
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--sequence-only", "--seed", "44", "--ranking-objective", "soft_spearman"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli.uuid.uuid4", return_value="fixed-uuid"), patch(
+        "pathlib.Path.exists", return_value=True
+    ), patch("shutil.copy2"):
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    argv = run_mock.call_args.args[0]
+    assert argv[:2] == [sys.executable, "train_sequence.py"]
+    assert argv[2:] == [
+        "--version-id", "sequence-only-fixed-uuid",
+        "--seed", "44",
+        "--ranking-objective", "soft_spearman",
+    ]
+
+
 def test_train_multitask_only_propagates_trainer_failure_without_copying():
     run_mock = MagicMock(return_value=1)
     parser = aq_cli.build_parser()

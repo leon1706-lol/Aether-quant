@@ -17,12 +17,14 @@ import pandas as pd
 import pytest
 import torch
 
+from inference.exported_model import run_exported_sequence_multitask_model
 from train import (
     AetherNetSequenceMultiTask,
     AetherNetSequenceMultiTaskHorizons,
     build_sequence_tensor_dataset,
     export_sequence_multitask_architecture,
     export_sequence_multitask_horizons_architecture,
+    export_state_dict,
 )
 
 
@@ -179,6 +181,62 @@ def test_export_sequence_multitask_horizons_architecture_weight_keys_are_disjoin
     head_weight_keys = [head[0]["weight_key"] for head in export["heads"].values()]
     all_keys = conv_weight_keys + head_weight_keys
     assert len(all_keys) == len(set(all_keys))
+
+
+# ---------------------------------------------------------------------------
+# V5.1 Phase 3 (item 10) - LayerNorm trunk normalization
+# ---------------------------------------------------------------------------
+
+
+def test_sequence_horizons_normalization_none_reproduces_today_exactly():
+    # FUNCTION default - byte-identical trunk shape to every pre-Phase-3
+    # checkpoint/export.
+    model = AetherNetSequenceMultiTaskHorizons(input_dim=4, channels=[6, 6], kernel_size=3, dropout=0.0)
+    export = export_sequence_multitask_horizons_architecture(model)
+    trunk_types = [layer["type"] for layer in export["trunk"]]
+    assert trunk_types == ["conv1d_causal", "relu", "dropout", "conv1d_causal", "relu", "dropout"]
+
+
+def test_sequence_horizons_normalization_layernorm_inserts_layernorm_axis_layers():
+    model = AetherNetSequenceMultiTaskHorizons(
+        input_dim=4, channels=[6, 6], kernel_size=3, dropout=0.0, normalization="layernorm"
+    )
+    export = export_sequence_multitask_horizons_architecture(model)
+    trunk_types = [layer["type"] for layer in export["trunk"]]
+    assert trunk_types == [
+        "conv1d_causal", "relu", "layernorm_axis", "dropout",
+        "conv1d_causal", "relu", "layernorm_axis", "dropout",
+    ]
+
+
+def test_sequence_horizons_layernorm_export_round_trips_through_interpreter():
+    # The load-bearing test for item 10: the exported "layernorm_axis"
+    # trunk layers must reproduce the TRAINED model's own forward() output
+    # through inference/exported_model.py's torch-free interpreter -
+    # inference/exported_model.py needed zero changes for this (that
+    # support already existed, see run_exported_sequence_multitask_model()'s
+    # own docstring) - this proves it actually holds for a real LayerNorm
+    # trunk, not just that the export shape looks right.
+    model = AetherNetSequenceMultiTaskHorizons(
+        input_dim=4, channels=[6, 6], kernel_size=3, dropout=0.0, normalization="layernorm"
+    )
+    model.eval()
+
+    export = export_sequence_multitask_horizons_architecture(model)
+    full_export = {"export": {"trunk": export["trunk"], "heads": export["heads"], "state_dict": export_state_dict(model)}}
+
+    torch.manual_seed(0)
+    sequence = torch.randn(1, 10, 4)
+    with torch.no_grad():
+        torch_out = model(sequence)
+
+    interp_out = run_exported_sequence_multitask_model(full_export, sequence[0].numpy().tolist())
+
+    # magnitude/rank_20d/residual_rank_20d carry no activation on either
+    # side - a direct comparison is fair (unlike "direction", which has a
+    # sigmoid baked into the export only).
+    for key in ("magnitude", "rank_20d", "residual_rank_20d"):
+        assert torch_out[key].item() == pytest.approx(interp_out[key], abs=1e-4)
 
 
 # ---------------------------------------------------------------------------

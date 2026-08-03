@@ -42,12 +42,25 @@ def apply_book_neutrality(
     Steps, always in this order:
       1. Per-name cap: clip every weight to [-max_weight_per_name, +max_weight_per_name].
       2. Sector neutrality (if sector_neutral): within each sector bucket,
-         subtract the bucket's mean signed weight (makes the bucket's raw
-         net exactly zero), then re-clip to the per-name cap. Re-clipping
-         can reintroduce a nonzero net - any bucket whose |net| still
-         exceeds sector_max_net_weight after that is SHRUNK (never
-         amplified) by a uniform per-bucket factor so its net lands exactly
-         at the cap.
+         if |bucket net| exceeds sector_max_net_weight, SHRINK the whole
+         bucket (every member, proportionally, sign preserved, never
+         amplified) so its net lands exactly at the cap. A bucket already
+         within the cap is left untouched.
+
+         Deliberately NOT "demean to exact zero" (the pre-V5.1.3 behavior -
+         see Problems.md #81). Demeaning only preserves information when a
+         bucket has genuine within-bucket weight dispersion to fall back
+         on. Both of this module's callers (main.py's book formula,
+         evaluation/rank_book_simulator.py) equal-weight every name within
+         a role, so a bucket that is monolithic to one role - e.g. every
+         Forex ticker maps to a single "Forex" bucket, and Forex can never
+         appear on the opposite leg - has NO within-bucket dispersion:
+         demeaning drove every member to exactly zero, silently erasing the
+         entire position instead of bounding a genuine sector tilt.
+         Shrink-toward-cap degrades gracefully in every case: an already-
+         balanced bucket is untouched, a lopsided or monolithic bucket is
+         shrunk (never erased) toward the cap, and a single-member bucket
+         (net == its own weight) needs no special case - same code path.
       3. Dollar neutrality (if dollar_neutral): scale the LARGER leg down
          so sum(long) == sum(|short|). Scale-down only, never up - this can
          never increase gross exposure. A one-sided book (no shorts, or no
@@ -86,7 +99,8 @@ def apply_book_neutrality(
     }
     steps_applied.append("per_name_cap")
 
-    # Step 2: sector neutrality.
+    # Step 2: sector neutrality - shrink each bucket's net toward the cap,
+    # never demean to exact zero. See the docstring above (Problems.md #81).
     if sector_neutral:
         symbols_by_sector: dict[str, list[str]] = {}
         for symbol in weights:
@@ -94,19 +108,6 @@ def apply_book_neutrality(
             symbols_by_sector.setdefault(sector, []).append(symbol)
 
         for sector, members in symbols_by_sector.items():
-            if len(members) < 2:
-                # A single-member bucket has no within-bucket peer to
-                # demean against - demeaning it would just zero the one
-                # symbol out, which is a much larger behavior change than
-                # "neutralize this sector" implies. Left untouched, same
-                # convention as build_rank_based_book()'s thin-pool guards.
-                continue
-            bucket_mean = sum(weights[symbol] for symbol in members) / len(members)
-            for symbol in members:
-                weights[symbol] = _clip(
-                    weights[symbol] - bucket_mean, -max_weight_per_name, max_weight_per_name
-                )
-
             bucket_net = sum(weights[symbol] for symbol in members)
             if abs(bucket_net) > sector_max_net_weight and abs(bucket_net) > 0.0:
                 shrink_factor = sector_max_net_weight / abs(bucket_net)

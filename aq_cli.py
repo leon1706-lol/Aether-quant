@@ -209,12 +209,19 @@ def check_for_update() -> None:
 
 
 def cmd_train(args: argparse.Namespace) -> int:
+    seed = getattr(args, "seed", None)
+    ranking_objective = getattr(args, "ranking_objective", None)
+    if (seed is not None or ranking_objective is not None) and not (args.multitask_only or args.sequence_only):
+        print(
+            "aq train: --seed/--ranking-objective only apply to --multitask-only/--sequence-only - ignored here.",
+            file=sys.stderr,
+        )
     if args.gating_only:
         return _train_gating_only()
     if args.multitask_only:
-        return _train_multitask_only()
+        return _train_multitask_only(seed=seed, ranking_objective=ranking_objective)
     if args.sequence_only:
-        return _train_sequence_only()
+        return _train_sequence_only(seed=seed, ranking_objective=ranking_objective)
     if args.topology_only:
         return _train_topology_only()
     if args.strategy_selector_only:
@@ -272,14 +279,25 @@ def _train_gating_only() -> int:
     return 0
 
 
-def _train_multitask_only() -> int:
+def _train_multitask_only(seed: int | None = None, ranking_objective: str | None = None) -> int:
     """`aq train --multitask-only`: trains the joint direction+magnitude+
     volatility model (train_multitask.py) and installs it straight into
     active ml/ - identical shape to _train_gating_only() above, including
     the throwaway version-id / manual promotion-simulation / "skipped must
-    never look like failed" handling."""
+    never look like failed" handling.
+
+    seed/ranking_objective (V5.1 Phase 3, item 1) - passed straight
+    through to train_multitask.py's own --seed/--ranking-objective flags
+    when provided, the `aq`-level entry point for the seed-ensembling/
+    ranking-objective-A/B workflow that previously required calling the
+    script directly."""
     version_id = f"multitask-only-{uuid.uuid4()}"
-    returncode = _run([sys.executable, "train_multitask.py", "--version-id", version_id])
+    cmd = [sys.executable, "train_multitask.py", "--version-id", version_id]
+    if seed is not None:
+        cmd += ["--seed", str(seed)]
+    if ranking_objective is not None:
+        cmd += ["--ranking-objective", ranking_objective]
+    returncode = _run(cmd)
     if returncode != 0:
         return returncode
 
@@ -300,12 +318,20 @@ def _train_multitask_only() -> int:
     return 0
 
 
-def _train_sequence_only() -> int:
+def _train_sequence_only(seed: int | None = None, ranking_objective: str | None = None) -> int:
     """`aq train --sequence-only`: trains the Phase 2 causal-TCN sequence
     encoder (train_sequence.py) and installs it straight into active ml/ -
-    identical shape to _train_multitask_only()/_train_gating_only() above."""
+    identical shape to _train_multitask_only()/_train_gating_only() above.
+
+    seed/ranking_objective - see _train_multitask_only()'s identical
+    docstring."""
     version_id = f"sequence-only-{uuid.uuid4()}"
-    returncode = _run([sys.executable, "train_sequence.py", "--version-id", version_id])
+    cmd = [sys.executable, "train_sequence.py", "--version-id", version_id]
+    if seed is not None:
+        cmd += ["--seed", str(seed)]
+    if ranking_objective is not None:
+        cmd += ["--ranking-objective", ranking_objective]
+    returncode = _run(cmd)
     if returncode != 0:
         return returncode
 
@@ -571,6 +597,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_derivatives_macro_features.py", "test_train_macro_features.py",
         "test_train_asset_class_context_features.py", "test_train_cross_sectional_features.py",
         "test_train_indicators.py", "test_alt_data_features.py", "test_train_alt_data_features.py",
+        # V5.1 Phase 2 (item 8 / F2) - features/cross_asset_sensitivity.py.
+        "test_cross_asset_sensitivity.py", "test_train_cross_asset_sensitivity.py",
     ],
     "data-pipeline": [
         "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
@@ -591,6 +619,11 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_strategy_selector.py", "test_strategy_selector_inference.py",
         "test_parallel_inference.py", "test_train_threshold_and_early_stop.py",
         "test_train_select_model_context_columns.py", "test_train_rl_sizing.py",
+        # V5.1 Phase 2 (item 5 of the roadmap) - train.py::build_residual_rank_targets().
+        "test_train_residual_rank_targets.py",
+        # V5.1 Phase 3 (items 1, 10, 11) - cross-sectional batching, ranking
+        # losses, optimizer/schedule/SWA/smoothing helpers.
+        "test_train_cross_sectional_batching.py", "test_train_ranking_loss.py", "test_train_optimizer_and_swa.py",
     ],
     "retraining": [
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
@@ -1628,6 +1661,23 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("rolling", "expanding"),
         default=None,
         help="Walk-forward mode: rolling or expanding (only with --walk-forward).",
+    )
+    # V5.1 Phase 3 (item 1) - passthrough to --multitask-only/--sequence-only's
+    # own train_multitask.py/train_sequence.py --seed/--ranking-objective
+    # flags (development/Problems.md - previously the seed-ensembling
+    # workflow required calling those scripts directly, bypassing `aq`
+    # entirely). Ignored (with a warning) by every other --*-only mode and
+    # by the default full-pipeline train.py invocation, neither of which
+    # accepts these flags.
+    train_parser.add_argument(
+        "--seed", type=int, default=None, help="Override config.json's seed (only with --multitask-only/--sequence-only)"
+    )
+    train_parser.add_argument(
+        "--ranking-objective",
+        type=str,
+        default=None,
+        choices=["mse", "soft_spearman", "listnet"],
+        help="Override config.json's ranking_loss.objective for this run only (only with --multitask-only/--sequence-only)",
     )
     train_parser.set_defaults(func=cmd_train)
 

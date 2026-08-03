@@ -58,6 +58,10 @@ from train import (
     AetherNetMultiTaskHorizons,
     assess_ranking_quality_from_predictions,
     assess_regression_quality,
+    build_cross_sectional_date_batches,
+    build_date_group_ids,
+    build_lr_scheduler,
+    build_optimizer,
     compute_binary_metrics,
     compute_combined_multitask_loss,
     compute_masked_binary_metrics,
@@ -72,6 +76,9 @@ from train import (
     is_new_best_epoch,
     resolve_horizon_head_config,
     set_seed,
+    smoothed_metric,
+    swa_accumulate,
+    swa_finalize,
 )
 
 LOGGER = logging.getLogger("aether_quant.train_multitask")
@@ -99,6 +106,16 @@ def parse_args() -> argparse.Namespace:
     # (use config.json's seed unchanged) - zero behavior change for anyone
     # not passing this flag.
     parser.add_argument("--seed", type=int, default=None, help="Override config.json's seed for this run (seed-ensembling)")
+    # V5.1 Phase 3 (item 1) - one-run A/B override without editing config.json,
+    # same precedent as --seed immediately above. None (default) leaves
+    # training_config["ranking_loss"]["objective"] unchanged.
+    parser.add_argument(
+        "--ranking-objective",
+        type=str,
+        default=None,
+        choices=["mse", "soft_spearman", "listnet"],
+        help="Override config.json's ranking_loss.objective for this run only (A/B testing)",
+    )
     return parser.parse_args()
 
 
@@ -240,6 +257,22 @@ def main() -> int:
         # see parse_args()'s docstring for the seed-ensembling workflow.
         seed = int(args.seed) if args.seed is not None else int(training_config.get("seed", 42))
 
+        # V5.1 Phase 3 (items 1, 10, 11) - "random"/"none"/"adam" are every
+        # FUNCTION default below (build_optimizer/build_lr_scheduler/
+        # batch construction), so an older config.json missing this whole
+        # block reproduces today's training run byte-for-byte.
+        batch_mode = str(training_config.get("batch_mode", "random"))
+        cross_sectional_batch_dates = int(training_config.get("cross_sectional_batch_dates", 4))
+        min_cross_sectional_group_size = int(training_config.get("min_cross_sectional_group_size", 20))
+        ranking_loss_config = training_config.get("ranking_loss") if batch_mode == "cross_sectional" else None
+        if ranking_loss_config is not None and args.ranking_objective is not None:
+            ranking_loss_config = {**ranking_loss_config, "objective": args.ranking_objective}
+        swa_config = training_config.get("swa", {})
+        swa_enabled = bool(swa_config.get("enabled", False))
+        swa_start_epoch_fraction = float(swa_config.get("start_epoch_fraction", 0.7))
+        early_stop_head = str(training_config.get("early_stop_head", "rank_20d"))
+        early_stop_smoothing_epochs = int(training_config.get("early_stop_smoothing_epochs", 1))
+
         if not FEATURE_SCHEMA_PATH.exists():
             LOGGER.info("train_multitask: missing feature schema - skipping.")
             return 0
@@ -306,15 +339,31 @@ def main() -> int:
         validation_features = validation_features.to(device)
         validation_targets = {name: tensor.to(device) for name, tensor in validation_targets.items()}
 
-        train_loader = DataLoader(
-            TensorDataset(
-                train_features,
-                *[train_targets[name] for name in sorted(train_targets)],
-            ),
-            batch_size=batch_size,
-            shuffle=True,
-        )
         target_names_sorted = sorted(train_targets)
+        # V5.1 Phase 3 (item 1) - "random" (default) reproduces today's
+        # DataLoader byte-for-byte; "cross_sectional" batches are built
+        # fresh per epoch further down (needs a fresh seed+epoch shuffle,
+        # see build_cross_sectional_date_batches()'s docstring), and
+        # train_date_group_ids is only computed when a ranking loss is
+        # actually configured to use it.
+        if batch_mode == "cross_sectional":
+            train_loader = None
+        else:
+            train_loader = DataLoader(
+                TensorDataset(
+                    train_features,
+                    *[train_targets[name] for name in target_names_sorted],
+                ),
+                batch_size=batch_size,
+                shuffle=True,
+            )
+        train_dates_array = train_frame["date"].to_numpy()
+        train_date_group_ids = build_date_group_ids(train_dates_array) if ranking_loss_config is not None else None
+        validation_date_group_ids = (
+            torch.as_tensor(build_date_group_ids(validation_frame["date"].to_numpy()), dtype=torch.int64, device=device)
+            if ranking_loss_config is not None
+            else None
+        )
 
         model = AetherNetMultiTaskHorizons(
             input_dim=len(feature_names),
@@ -324,7 +373,14 @@ def main() -> int:
             normalization=normalization,
         ).to(device)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        # V5.1 Phase 3 (item 11) - "adam" is build_optimizer()'s own
+        # FUNCTION default (byte-identical to the plain torch.optim.Adam
+        # call this replaces, when training_config has no "optimizer" key).
+        optimizer = build_optimizer(model, training_config)
+        scheduler = build_lr_scheduler(optimizer, training_config, max_epochs)
+        swa_state: dict | None = None
+        swa_count = 0
+        swa_start_epoch = max(1, int(round(max_epochs * swa_start_epoch_fraction))) if swa_enabled else None
         positive_count = max(float(train_frame["target_direction"].sum()), 1.0)
         negative_count = max(float(len(train_frame) - train_frame["target_direction"].sum()), 1.0)
         pos_weight = torch.tensor(negative_count / positive_count, dtype=torch.float32, device=device)
@@ -353,22 +409,65 @@ def main() -> int:
         # "validation_loss" automatically if the rank_20d head itself is
         # disabled/missing - monitoring an IC that doesn't exist is not a
         # valid choice regardless of what this key says.
+        # early_stop_head/early_stop_smoothing_epochs (V5.1 Phase 3):
+        # generalizes the rank_20d-only monitor above to any HORIZON_HEAD_SPECS
+        # head, and smooths the monitored value over the last N epochs
+        # before comparing - a 365-day validation split at stride 20 gives
+        # only ~18 non-overlapping IC observations, so early-stopping on
+        # the RAW per-epoch value reliably picks a lucky epoch.
+        # early_stop_smoothing_epochs defaults to 1 (smoothed_metric()'s
+        # own byte-identical-to-"raw value" case), and early_stop_head
+        # defaults to "rank_20d" - together, an old config.json with
+        # neither key reproduces the exact "rank_20d" monitoring behavior
+        # this block replaces.
         early_stop_metric = str(training_config.get("early_stop_metric", "rank_ic"))
         monitor_rank_ic = (
-            early_stop_metric == "rank_ic"
-            and "rank_20d" in horizon_head_config
-            and horizon_head_config["rank_20d"].get("enabled", True)
+            early_stop_metric in ("rank_ic", "rank_ic_non_overlapping")
+            and early_stop_head in horizon_head_config
+            and early_stop_head in HORIZON_HEAD_SPECS
+            and horizon_head_config[early_stop_head].get("enabled", True)
         )
+        monitored_metric_key = f"validation_{early_stop_head}_mean_ic"
+        if early_stop_metric == "rank_ic_non_overlapping":
+            monitored_metric_key = f"validation_{early_stop_head}_non_overlapping_mean_ic"
 
         for epoch in range(1, max_epochs + 1):
             model.train()
             running_loss = 0.0
             sample_count = 0
 
-            for batch in train_loader:
-                batch_features = batch[0].to(device)
-                batch_targets = {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:])}
+            if batch_mode == "cross_sectional":
+                epoch_batches = build_cross_sectional_date_batches(
+                    train_dates_array,
+                    batch_dates=cross_sectional_batch_dates,
+                    min_group_size=min_cross_sectional_group_size,
+                    shuffle=True,
+                    seed=seed + epoch,
+                )
+                batch_source = (
+                    (
+                        train_features[torch.as_tensor(row_indices, dtype=torch.long)].to(device),
+                        {
+                            name: train_targets[name][torch.as_tensor(row_indices, dtype=torch.long)].to(device)
+                            for name in target_names_sorted
+                        },
+                        torch.as_tensor(train_date_group_ids[row_indices], dtype=torch.int64, device=device)
+                        if train_date_group_ids is not None
+                        else None,
+                    )
+                    for row_indices in epoch_batches
+                )
+            else:
+                batch_source = (
+                    (
+                        batch[0].to(device),
+                        {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:])},
+                        None,
+                    )
+                    for batch in train_loader
+                )
 
+            for batch_features, batch_targets, batch_group_ids in batch_source:
                 optimizer.zero_grad()
                 outputs = model(batch_features)
                 loss = compute_combined_multitask_loss(
@@ -380,12 +479,17 @@ def main() -> int:
                     horizon_head_config,
                     direction_loss_weight,
                     consistency_loss_weight,
+                    date_group_ids=batch_group_ids,
+                    ranking_loss_config=ranking_loss_config,
                 )
                 loss.backward()
                 optimizer.step()
 
                 running_loss += float(loss.item()) * len(batch_features)
                 sample_count += len(batch_features)
+
+            if scheduler is not None:
+                scheduler.step()
 
             model.eval()
             with torch.no_grad():
@@ -399,6 +503,8 @@ def main() -> int:
                     horizon_head_config,
                     direction_loss_weight,
                     consistency_loss_weight,
+                    date_group_ids=validation_date_group_ids,
+                    ranking_loss_config=ranking_loss_config,
                 )
             # validation_direction_metrics is always computed and recorded
             # for diagnostics regardless of what's actually monitored below
@@ -408,14 +514,16 @@ def main() -> int:
                 validation_outputs["direction"], validation_targets["direction"], direction_criterion, decision_threshold
             )
 
-            validation_rank_20d_ic = None
+            validation_head_ic = None
             if monitor_rank_ic:
-                validation_rank_20d_ic = compute_rank_ic(
-                    validation_outputs["rank_20d"], validation_targets["rank_20d"], validation_frame["date"]
+                _column, _kind, head_stride = HORIZON_HEAD_SPECS[early_stop_head]
+                non_overlapping_stride = head_stride if early_stop_metric == "rank_ic_non_overlapping" else 1
+                validation_head_ic = compute_rank_ic(
+                    validation_outputs[early_stop_head],
+                    validation_targets[early_stop_head],
+                    validation_frame["date"],
+                    non_overlapping_stride=non_overlapping_stride,
                 )
-                candidate_metric = validation_rank_20d_ic["mean_ic"]
-            else:
-                candidate_metric = -float(validation_loss.item())
 
             history_entry = {
                 "epoch": epoch,
@@ -423,9 +531,23 @@ def main() -> int:
                 "validation_loss": float(validation_loss.item()),
                 "validation_direction_balanced_accuracy": validation_direction_metrics["balanced_accuracy"],
             }
-            if validation_rank_20d_ic is not None:
-                history_entry["validation_rank_20d_mean_ic"] = validation_rank_20d_ic["mean_ic"]
+            if validation_head_ic is not None:
+                history_entry[monitored_metric_key] = validation_head_ic["mean_ic"]
+                # Backward-compat key, kept exactly as before, for any
+                # existing dashboard/consumer reading this specific name
+                # when monitoring rank_20d via the original "rank_ic" mode.
+                if early_stop_metric == "rank_ic" and early_stop_head == "rank_20d":
+                    history_entry["validation_rank_20d_mean_ic"] = validation_head_ic["mean_ic"]
             history.append(history_entry)
+
+            if monitor_rank_ic:
+                smoothed = smoothed_metric(history, monitored_metric_key, early_stop_smoothing_epochs)
+                candidate_metric = smoothed if smoothed is not None else -float(validation_loss.item())
+            else:
+                candidate_metric = -float(validation_loss.item())
+
+            if swa_enabled and swa_start_epoch is not None and epoch >= swa_start_epoch:
+                swa_state, swa_count = swa_accumulate(swa_state, model.state_dict(), swa_count)
 
             if is_new_best_epoch(candidate_metric, best_validation_metric, epoch, min_best_epoch):
                 best_validation_metric = candidate_metric
@@ -438,7 +560,18 @@ def main() -> int:
             if epoch >= min_best_epoch and epochs_without_improvement >= patience:
                 break
 
-        if best_state is None:
+        # V5.1 Phase 3 (item 10) - SWA (when enabled and at least one epoch
+        # was accumulated) REPLACES the single best-validation-epoch
+        # checkpoint with the averaged tail-of-training weights - see
+        # swa_accumulate()'s docstring for why this is a valid, different
+        # technique from the ensemble-averaging this codebase already
+        # rejects. best_epoch is left as whatever epoch loop variable value
+        # it last held (informational only in this branch - "best_epoch"
+        # stops meaning "the single checkpoint used" once SWA is active,
+        # see the swa metrics block below for the authoritative record).
+        if swa_enabled and swa_state is not None:
+            best_state = swa_finalize(swa_state)
+        elif best_state is None:
             best_state = copy.deepcopy(model.state_dict())
             best_epoch = len(history)
 
@@ -492,11 +625,25 @@ def main() -> int:
             },
             "seed": seed,
             "best_epoch": best_epoch,
-            "early_stop_metric": "rank_20d_ic" if monitor_rank_ic else "validation_loss",
+            "early_stop_metric": f"{early_stop_head}_ic" if monitor_rank_ic else "validation_loss",
             "epochs_ran": len(history),
             "loss_weights": {
                 "magnitude_loss_weight": magnitude_loss_weight,
                 "volatility_loss_weight": volatility_loss_weight,
+            },
+            # V5.1 Phase 3 (items 1, 10, 11) - the training recipe actually
+            # used for this candidate, so "which model am I looking at" is
+            # answerable from the artifact alone (see
+            # src/components/neuralnet/TrainingRecipePanel.tsx).
+            "training_recipe": {
+                "optimizer": str(training_config.get("optimizer", "adam")),
+                "lr_schedule": str(training_config.get("lr_schedule", "none")),
+                "batch_mode": batch_mode,
+                "ranking_loss": ranking_loss_config,
+                "swa": {"enabled": swa_enabled, "epochs_averaged": swa_count if swa_enabled else 0},
+                "early_stop_metric": early_stop_metric,
+                "early_stop_head": early_stop_head,
+                "early_stop_smoothing_epochs": early_stop_smoothing_epochs,
             },
             "horizon_heads": horizon_head_config,
             "threshold_optimization": {

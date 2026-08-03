@@ -99,6 +99,13 @@ class NetworkSummary:
     # promotion_eligible/observed CI/eras) - see _extract_horizon_evaluation_summary().
     ranking_quality: dict | None = None
     regression_quality: dict | None = None
+    # V5.1 Phase 3 (items 1, 10, 11) - the actual optimizer/schedule/batch-
+    # mode/ranking-loss/SWA recipe THIS candidate trained with (written by
+    # train_multitask.py/train_sequence.py's own "training_recipe" metrics
+    # field) - makes "which model am I looking at" answerable from the UI.
+    # None for baseline/expert/gating (no such field in their metrics) or
+    # an older artifact trained before this existed.
+    training_recipe: dict | None = None
 
     def to_dict(self) -> dict:
         payload = asdict(self)
@@ -307,6 +314,7 @@ def _build_network_summary(
     training_metrics: dict | None = None,
 ) -> NetworkSummary:
     evaluation_summary = _extract_horizon_evaluation_summary(training_metrics)
+    training_recipe = (training_metrics or {}).get("training_recipe")
     payload = _load_json(weights_path)
     if payload is None or "export" not in payload:
         return NetworkSummary(
@@ -322,6 +330,7 @@ def _build_network_summary(
             total_edges=0,
             last_modified=None,
             heads={},
+            training_recipe=training_recipe,
             **evaluation_summary,
         )
 
@@ -344,6 +353,7 @@ def _build_network_summary(
         total_edges=total_edges,
         last_modified=_last_modified(weights_path),
         heads=heads_node_layers,
+        training_recipe=training_recipe,
         **evaluation_summary,
     )
 
