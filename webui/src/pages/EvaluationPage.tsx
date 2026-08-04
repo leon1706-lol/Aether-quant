@@ -3,6 +3,7 @@ import { useEvaluation } from '../api/hooks'
 import { RankBookPerformancePanel } from '../components/evaluation/RankBookPerformancePanel'
 import { CapacityStressPanel } from '../components/evaluation/CapacityStressPanel'
 import { WalkForwardStabilityPanel } from '../components/evaluation/WalkForwardStabilityPanel'
+import { AblationPanel } from '../components/evaluation/AblationPanel'
 
 // V5.1 Phase 0 - the cost-aware rank-book evaluation dashboard: "is the fee
 // drag fixed", breadth/capacity, and cost-stress robustness, all sourced
@@ -17,6 +18,7 @@ export function EvaluationPage(_props: { state: RuntimeState | undefined }) {
       <RankBookPerformancePanel evaluation={evaluation} />
       <CapacityStressPanel evaluation={evaluation} />
       <WalkForwardStabilityPanel evaluation={evaluation} />
+      <AblationPanel evaluation={evaluation} />
     </div>
   )
 }

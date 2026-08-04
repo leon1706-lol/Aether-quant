@@ -10,6 +10,13 @@ pulling in the training stack - the same torch-free-core convention
 train.py::_rank_ic_from_arrays() already established for its own metric.
 """
 
+from .ablation import (
+    ABLATION_VARIANTS,
+    NOT_OFFLINE_MEASURABLE_VARIANTS,
+    compare_static_vs_retrained,
+    run_ablation,
+    simulate_static_baseline,
+)
 from .model_predictions import (
     build_sequence_windows,
     predict_head,
@@ -25,13 +32,18 @@ from .rank_book_simulator import (
 )
 
 __all__ = [
+    "ABLATION_VARIANTS",
+    "NOT_OFFLINE_MEASURABLE_VARIANTS",
     "RankBookSimulationResult",
     "build_sequence_windows",
     "capacity_curve",
+    "compare_static_vs_retrained",
     "predict_head",
     "predict_multitask_head",
     "predict_sequence_head",
+    "run_ablation",
     "simulate_rank_book",
+    "simulate_static_baseline",
     "stress_test_costs",
     "summarize_metric_stability",
 ]

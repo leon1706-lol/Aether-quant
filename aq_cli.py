@@ -660,6 +660,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "evaluation": [
         "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
         "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
+        # V5.1 Phase 5 (item 9) - evaluation/ablation.py.
+        "test_ablation.py",
     ],
 }
 
@@ -1575,6 +1577,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     run_capacity = bool(args.capacity or args.all)
     run_stress = bool(args.stress or args.all)
     run_calibrate = bool(args.calibrate_edge or args.all)
+    # V5.1 Phase 5 (item 9) - deliberately NOT bundled into --all (matching
+    # the plan's own scoping: --all is rank-book/capacity/stress/calibrate-
+    # edge only) - ablation is a heavier, opt-in-only report.
+    run_ablation_flag = bool(getattr(args, "ablation", False))
     # Bare `aq evaluate` with no flags at all defaults to --rank-book - the
     # single most useful number ("is the fee drag fixed"), matching every
     # other `aq` command's "sane default when no scope flag is given"
@@ -1643,6 +1649,28 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"Calibrated edge_bps_per_rank_unit: {calibrated_edge_bps:.4f}")
             print(f"  Apply with: aq config set phase_v2.costs.edge_bps_per_rank_unit {calibrated_edge_bps:.4f}")
             print("  Then enable the gate: aq config set phase_v2.costs.enabled true")
+
+    if run_ablation_flag:
+        from evaluation import run_ablation
+
+        ablation_config = config.get("phase_v2", {}).get("evaluation", {}).get("ablation", {})
+        requested_variants = (
+            [name.strip() for name in args.variants.split(",") if name.strip()]
+            if getattr(args, "variants", None)
+            else list(ablation_config.get("variants", ["static_baseline", "no_neutrality", "no_hysteresis", "no_cost_model"]))
+        )
+        ablation_results = run_ablation(dataset, base_kwargs, requested_variants)
+        report["ablation"] = ablation_results
+        _write_evaluation_json(
+            ROOT_DIR / ablation_config.get("report_path", "ml/evaluation/ablation_report.json"), ablation_results
+        )
+        if not args.json:
+            print(f"Ablation ({model_kind}/{head}, split={split}):")
+            for name, entry in ablation_results.items():
+                if entry.get("status") in {"not_offline_measurable", "unknown_variant", "insufficient_windows"}:
+                    print(f"  {name}: [{entry['status']}] {entry.get('reason', '')}")
+                else:
+                    print(f"  {name}: net_sharpe={entry['net_sharpe']:.4f}  delta_vs_static_baseline={entry['delta_vs_static_baseline']:+.4f}")
 
     if args.json:
         print(json.dumps(report, indent=2, default=str))
@@ -2028,6 +2056,17 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_parser.add_argument(
         "--run-id", default=None,
         help="Specific walk-forward run-id to read with --walk-forward-summary (default: the most recent run).",
+    )
+    evaluate_parser.add_argument(
+        "--ablation", action="store_true",
+        help="V5.1 Phase 5: run the adaptive-machinery ablation harness - runtime-only mechanisms "
+        "(gating, topology sizing, the net-edge gate, ...) honestly report not_offline_measurable "
+        "rather than a fabricated number. Not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--variants", default=None,
+        help="Comma-separated ablation variant names to run with --ablation (default: "
+        "phase_v2.evaluation.ablation.variants from config.json).",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import gc
 import json
 import logging
 import sys
@@ -376,6 +377,23 @@ def main() -> int:
         validation_features, validation_targets, validation_dates = _split_sequence_tensors(eligible, sequences, "validation")
         validation_features = validation_features.to(device)
         validation_targets = {name: tensor.to(device) for name, tensor in validation_targets.items()}
+        backtest_features, backtest_targets, backtest_dates = _split_sequence_tensors(eligible, sequences, "backtest")
+        backtest_features = backtest_features.to(device)
+        backtest_targets = {name: tensor.to(device) for name, tensor in backtest_targets.items()}
+        # V5.1 Phase 5 (Problems.md #83) - `sequences` (the full-dataset
+        # dense (rows, window, features) array, easily 1GB+ on a large
+        # walk-forward window) is not needed again once all three splits
+        # are sliced out of it above. It was previously kept alive by
+        # Python's own reference tracking all the way through the entire
+        # training loop, because backtest extraction used to happen ~250
+        # lines later, right before backtest evaluation - meaning it sat
+        # resident in memory for the full multi-minute training run for no
+        # reason, on a Codespace machine type with no swap. Freeing it here
+        # (plus train.py::_run_walk_forward()'s matching fix for its own
+        # per-window `dataset`) is what let a previously-OOM-killed 130,738
+        # row window succeed on retry.
+        del sequences
+        gc.collect()
 
         target_names_sorted = sorted(train_targets)
         if batch_mode == "cross_sectional":
@@ -618,9 +636,6 @@ def main() -> int:
 
         train_features_device = train_features.to(device)
         train_targets_device = {name: tensor.to(device) for name, tensor in train_targets.items()}
-        backtest_features, backtest_targets, backtest_dates = _split_sequence_tensors(eligible, sequences, "backtest")
-        backtest_features = backtest_features.to(device)
-        backtest_targets = {name: tensor.to(device) for name, tensor in backtest_targets.items()}
 
         trained_at = datetime.now(timezone.utc).isoformat()
         # V5.1 Phase 4 (items 7, 12) - see train_multitask.py's identical

@@ -100,7 +100,27 @@ export interface WalkForwardSummary {
   net_performance_by_window: WalkForwardNetPerformanceWindow[]
 }
 
-export type AblationReport = Record<string, unknown>
+// V5.1 Phase 5 (item 9) - mirrors evaluation/ablation.py::run_ablation()'s
+// return shape exactly: either a real RankBookSimulationResult-shaped
+// entry (plus delta_vs_static_baseline) or the honesty-contract sentinel
+// for anything not offline-measurable (runtime-only mechanisms) or an
+// unrecognized variant name.
+export interface AblationMeasuredEntry extends RankBookSimulationResult {
+  delta_vs_static_baseline: number
+}
+
+export interface AblationSentinelEntry {
+  status: 'not_offline_measurable' | 'unknown_variant' | 'insufficient_windows' | 'walk_forward_derived'
+  reason?: string
+}
+
+export type AblationVariantEntry = AblationMeasuredEntry | AblationSentinelEntry
+
+export function isAblationSentinel(entry: AblationVariantEntry): entry is AblationSentinelEntry {
+  return 'status' in entry
+}
+
+export type AblationReport = Record<string, AblationVariantEntry>
 
 export interface EvaluationState {
   rank_book: RankBookSimulationResult | NotEvaluated

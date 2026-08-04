@@ -2233,6 +2233,24 @@
         "phase_v2.liquidity.max_round_trip_cost_fraction": 0.0025,
         "phase_v2.costs.min_net_edge_bps": 2.0
       }
+    },
+    "evaluation": {
+      "ablation": {
+        "enabled": true,
+        "variants": [
+          "static_baseline",
+          "no_neutrality",
+          "no_hysteresis",
+          "no_cost_model",
+          "no_rank_sizing",
+          "no_portfolio_book",
+          "no_gating",
+          "no_topology_sizing",
+          "no_net_edge_gate",
+          "no_retraining"
+        ],
+        "report_path": "ml/evaluation/ablation_report.json"
+      }
     }
   },
   "local-id": 694224972

@@ -39,11 +39,18 @@ def build_sequence_windows(
     train.py pulls in torch and this module must stay import-light.
     `dataset` must already be sorted the way build_feature_dataset() leaves
     it (each ticker's own rows in chronological order) - the same
-    precondition train.py's version documents."""
-    feature_matrix = dataset[model_input_names].to_numpy(dtype=np.float64)
+    precondition train.py's version documents.
+
+    float32, not float64 (V5.1 Phase 5, Problems.md #83) - halves peak
+    memory for no correctness cost: every consumer (run_exported_sequence_
+    multitask_model()) takes `sequence: list[list[float]]` and converts via
+    .tolist() before use, so the underlying numpy dtype is invisible to it
+    either way. Matches train.py::build_sequence_tensor_dataset()'s own
+    dtype, which was already float32."""
+    feature_matrix = dataset[model_input_names].to_numpy(dtype=np.float32)
     tickers = dataset[ticker_column].to_numpy()
 
-    windows = np.zeros((len(dataset), window_size, len(model_input_names)), dtype=np.float64)
+    windows = np.zeros((len(dataset), window_size, len(model_input_names)), dtype=np.float32)
     positions_by_ticker: dict[object, list[int]] = {}
     for position, ticker in enumerate(tickers):
         positions_by_ticker.setdefault(ticker, []).append(position)
