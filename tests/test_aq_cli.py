@@ -36,9 +36,99 @@ def _parse_and_dispatch(argv: list[str], run_mock: MagicMock) -> int:
 
 def test_train_wraps_plain_train_py():
     run_mock = MagicMock(return_value=0)
-    _parse_and_dispatch(["train"], run_mock)
+    with patch("aq_cli._train_gating_only", return_value=0), patch(
+        "aq_cli._train_multitask_only", return_value=0
+    ), patch("aq_cli._train_sequence_only", return_value=0):
+        _parse_and_dispatch(["train"], run_mock)
 
     assert run_mock.call_args.args[0] == [sys.executable, "train.py"]
+
+
+def test_train_bare_chains_gating_multitask_sequence_after_train_py():
+    # A fully bare `aq train` (no scope flag) genuinely trains everything -
+    # baseline+experts via train.py, then gating/multitask/sequence via
+    # their own --X-only helpers, each installing straight into active ml/.
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train"])
+
+    with patch("aq_cli._run", run_mock), patch(
+        "aq_cli._train_gating_only", return_value=0
+    ) as gating_mock, patch("aq_cli._train_multitask_only", return_value=0) as multitask_mock, patch(
+        "aq_cli._train_sequence_only", return_value=0
+    ) as sequence_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    gating_mock.assert_called_once_with()
+    multitask_mock.assert_called_once_with()
+    sequence_mock.assert_called_once_with()
+
+
+def test_train_bare_stops_after_train_py_failure_without_chaining():
+    run_mock = MagicMock(return_value=1)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli._train_gating_only") as gating_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 1
+    gating_mock.assert_not_called()
+
+
+def test_train_bare_stops_after_gating_failure_without_running_multitask(capsys):
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli._train_gating_only", return_value=1), patch(
+        "aq_cli._train_multitask_only"
+    ) as multitask_mock, patch("aq_cli._train_sequence_only") as sequence_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 1
+    multitask_mock.assert_not_called()
+    sequence_mock.assert_not_called()
+    assert "stopped after gating training failed" in capsys.readouterr().err
+
+
+def test_train_bare_stops_after_multitask_failure_without_running_sequence():
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli._train_gating_only", return_value=0), patch(
+        "aq_cli._train_multitask_only", return_value=1
+    ), patch("aq_cli._train_sequence_only") as sequence_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 1
+    sequence_mock.assert_not_called()
+
+
+def test_train_dataset_only_does_not_chain_gating_multitask_sequence():
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--dataset-only"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli._train_gating_only") as gating_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    gating_mock.assert_not_called()
+
+
+def test_train_walk_forward_does_not_chain_gating_multitask_sequence():
+    run_mock = MagicMock(return_value=0)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["train", "--walk-forward"])
+
+    with patch("aq_cli._run", run_mock), patch("aq_cli._train_gating_only") as gating_mock:
+        exit_code = args.func(args)
+
+    assert exit_code == 0
+    gating_mock.assert_not_called()
 
 
 def test_train_dataset_only_flag():

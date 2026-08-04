@@ -245,6 +245,11 @@ def cmd_train(args: argparse.Namespace) -> int:
     if args.rl_sizing_only:
         return _train_rl_sizing_only()
     cmd = [sys.executable, "train.py"]
+    # A fully bare `aq train` (no scope flag at all) is the only case that
+    # chains gating/multitask/sequence training on top of train.py's own
+    # baseline+experts run below - --dataset-only/--init-only/--experts-only/
+    # --walk-forward all still mean exactly what they say and stop there.
+    bare_run = not (args.dataset_only or args.init_only or args.experts_only or args.walk_forward)
     if args.dataset_only:
         cmd.append("--dataset-only")
     elif args.init_only:
@@ -263,7 +268,26 @@ def cmd_train(args: argparse.Namespace) -> int:
             cmd.append("--include-sequence")
         if getattr(args, "metrics", None) is not None:
             cmd += ["--metrics", args.metrics]
-    return _run(cmd)
+
+    returncode = _run(cmd)
+    if returncode != 0 or not bare_run:
+        return returncode
+
+    # Each of these installs straight into active ml/ the same way its own
+    # --gating-only/--multitask-only/--sequence-only flag does - a bare
+    # `aq train` genuinely trains baseline + experts + gating + multitask +
+    # sequence, not just the first two. Stops at the first failure rather
+    # than silently continuing with a partially-updated active model.
+    for stage_name, stage_fn in (
+        ("gating", _train_gating_only),
+        ("multitask", _train_multitask_only),
+        ("sequence", _train_sequence_only),
+    ):
+        returncode = stage_fn()
+        if returncode != 0:
+            print(f"aq train: stopped after {stage_name} training failed (exit {returncode}).", file=sys.stderr)
+            return returncode
+    return 0
 
 
 def _train_gating_only() -> int:

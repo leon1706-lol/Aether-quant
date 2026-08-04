@@ -4652,3 +4652,39 @@ nothing to do with how strongly the model ranked them. Fixed two ways:
 config presets now set `max_active_positions >= top_n + bottom_n`, and
 when the cap does bind, Pass 2 sorts candidates by rank-confidence first
 so the strongest convictions survive.
+
+### 87. `capacity_curve()`'s binding-ticker search let a forex pair's fake zero dollar volume dictate the whole book's capacity
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+`evaluation/rank_book_simulator.py::capacity_curve()` estimates book
+capacity from the held name with the *lowest* average dollar volume.
+Forex pairs (15 of the 104-asset universe) always show
+`liquidity_log_dollar_volume == 0.0` exactly — Yahoo Finance reports no
+real `Volume` for FX, so `log1p(close * volume)` is `log1p(0) = 0` for
+every row. Nothing in rank-based book construction filters by liquidity
+data quality, so whenever a forex pair landed in the top/bottom-N book it
+automatically won the "lowest volume" search and became the binding
+constraint — producing a sub-$1 `capacity_usd` (observed: 0.3–0.6 across
+all 6 windows of a real walk-forward run) regardless of the rest of the
+book's actual, mostly-equity liquidity. Every window failed the
+promotion gate's `capacity_usd` check for this reason alone, independent
+of whether the model or book was otherwise healthy.
+
+A second, smaller bug in the same function: `liquidity_log_dollar_volume`
+is a `log1p()` value, whose correct inverse is `np.expm1()`, not
+`np.exp()` (the code used `exp`). Negligible for large real dollar
+volumes (the `+1`/`-1` washes out), but genuinely wrong, and it made the
+forex case resolve to `exp(0.0) = 1.0` instead of the honest
+`expm1(0.0) = 0.0`.
+
+**Fix:** a held ticker with `liquidity_log_dollar_volume == 0.0` exactly
+is now excluded from the binding-ticker search — a true zero means "no
+real liquidity signal for this asset," not "the most illiquid held
+name," matching this module's own "honest estimate, never a fabricated
+number" contract. If every held name lacks real volume data, the
+function degrades to the same `capacity_usd=0.0`/`binding_ticker=None`
+result it already returns for an empty book. `np.exp` → `np.expm1` fixed
+alongside it. 3 new tests in `tests/test_rank_book_simulator.py`
+(zero-volume exclusion, all-zero fallback, and a small exact value
+distinguishing `expm1` from `exp`).

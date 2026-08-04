@@ -2197,22 +2197,22 @@
             }
         },
         "costs": {
-            "enabled": false,
+            "enabled": true,
             "commission_bps_per_side": 1.5,
             "min_commission_usd": 1.0,
             "extra_slippage_bps": 0.0,
-            "edge_bps_per_rank_unit": 0.0,
+            "edge_bps_per_rank_unit": 28.2194,
             "min_net_edge_bps": 2.0,
             "holding_bars": 10,
             "horizon_days": 20,
-            "cost_sizing_enabled": false,
+            "cost_sizing_enabled": true,
             "min_cost_multiplier": 0.25
         },
         "rank_signal": {
             "normalization": "cross_sectional",
             "heads": {
-                "rank_20d": 1.0,
-                "rank_5d": 0.0
+                "rank_20d": 0.5,
+                "rank_5d": 0.5
             },
             "model_priority": [
                 "sequence",

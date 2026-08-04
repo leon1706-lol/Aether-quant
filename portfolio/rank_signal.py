@@ -34,6 +34,12 @@ def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None]
         verdict for it - the same precedence select_raw_rank_score() uses
         at runtime) is not in min_promotion_status has its weight zeroed
         and redistributed proportionally across the surviving heads.
+        A head configured at weight 0.0 is still checked and can still
+        become a survivor - "listed with zero weight" means "tracked,
+        currently inactive," not "not configured" (development/Problems.md);
+        it only actually receives weight if every positively-weighted head
+        gets demoted, in which case survivors split the freed weight
+        equally rather than dividing by the now-zero surviving total.
 
     Returns {"heads": {...}, "model_priority": [...], "normalization": ...,
     "demoted": [...], "reason": "..."}.
@@ -63,12 +69,13 @@ def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None]
     demoted: list[str] = []
     surviving_heads: dict[str, float] = {}
     for head_name, weight in heads.items():
-        if weight <= 0.0:
-            continue
         status = _resolve_head_quality_status(head_name, model_priority, training_metrics_by_model)
         if status is None or status in min_promotion_status:
             surviving_heads[head_name] = weight
-        else:
+        elif weight > 0.0:
+            # A head already at 0.0 weight can't be meaningfully "demoted"
+            # (there's nothing to redistribute away from it) - only a
+            # positively-weighted head's demotion is worth recording.
             demoted.append(head_name)
 
     if not surviving_heads:
@@ -81,7 +88,14 @@ def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None]
         }
 
     total_weight = sum(surviving_heads.values())
-    redistributed = {name: weight / total_weight for name, weight in surviving_heads.items()}
+    if total_weight > 0.0:
+        redistributed = {name: weight / total_weight for name, weight in surviving_heads.items()}
+    else:
+        # Every positively-weighted head got demoted, leaving only
+        # zero-weight survivors (heads tracked but not currently primary) -
+        # split the freed weight equally among them rather than dividing
+        # by a zero total.
+        redistributed = {name: 1.0 / len(surviving_heads) for name in surviving_heads}
     # Zero-weighted entries for demoted heads are kept (not dropped) so
     # select_raw_rank_score()'s blend loop can still see - and skip - them
     # without a KeyError, and so state.json's rank_head_weights stays a

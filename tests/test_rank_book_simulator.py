@@ -149,6 +149,67 @@ def test_capacity_curve_binding_ticker_is_the_lowest_dollar_volume_held_name():
     assert result["binding_ticker"] == "T0"
 
 
+def test_capacity_curve_excludes_zero_volume_tickers_from_binding_search():
+    # A held ticker with liquidity_log_dollar_volume == 0.0 (e.g. a forex
+    # pair - Yahoo Finance reports no real Volume for FX, so log1p(close*
+    # volume) is always exactly 0.0) must never win the "lowest dollar
+    # volume" binding-ticker search - a true zero means "no real liquidity
+    # signal," not "the most illiquid held name." T0 (extreme short
+    # candidate, guaranteed to be held) gets its volume zeroed out here;
+    # T1 (the next-lowest REAL volume among held names) must bind instead.
+    frame = _synthetic_frame(num_tickers=20)
+    frame.loc[frame["ticker"] == "T0", "liquidity_log_dollar_volume"] = 0.0
+    result = capacity_curve(
+        frame,
+        participation_cap=0.01,
+        base_kwargs=_base_kwargs(),
+        top_n_sweep=[4],
+    )
+    assert result["binding_ticker"] != "T0"
+    assert result["binding_ticker"] == "T1"
+    assert result["capacity_usd"] > 0.0
+
+
+def test_capacity_curve_falls_back_to_zero_when_every_held_ticker_lacks_real_volume():
+    frame = _synthetic_frame(num_tickers=20)
+    frame["liquidity_log_dollar_volume"] = 0.0
+    result = capacity_curve(
+        frame,
+        participation_cap=0.01,
+        base_kwargs=_base_kwargs(),
+        top_n_sweep=[4],
+    )
+    assert result["binding_ticker"] is None
+    assert result["capacity_usd"] == 0.0
+
+
+def test_capacity_curve_inverts_log1p_with_expm1_not_exp():
+    # liquidity_log_dollar_volume is a log1p(dollar_volume) value - its
+    # correct inverse is expm1, not exp (development/Problems.md). Using a
+    # small, exactly-checkable value makes the two functions' results
+    # distinguishable (they converge for large inputs, where the +/-1 is
+    # negligible - the earlier "lowest dollar volume" tests can't catch
+    # this on their own for that reason). rebalance_every_bars is set
+    # larger than num_days so the book never rotates past its first
+    # rebalance - held_avg_dollar_volume's size is then deterministically
+    # top_n+bottom_n==8, not an accumulated union across many rebalances.
+    frame = _synthetic_frame(num_tickers=20)
+    frame.loc[frame["ticker"] == "T0", "liquidity_log_dollar_volume"] = np.log1p(5.0)  # dollar_volume == 5.0
+    result = capacity_curve(
+        frame,
+        participation_cap=1.0,
+        base_kwargs=_base_kwargs(rebalance_every_bars=1000),
+        top_n_sweep=[4],
+    )
+    assert result["binding_ticker"] == "T0"
+    # capacity_usd = dollar_volume(binding) * participation_cap * num_held.
+    # participation_cap=1.0 and num_held=8 (top_n=4 + bottom_n=4, one
+    # rebalance only) here, so capacity_usd == dollar_volume(T0) * 8 ==
+    # 40.0 with the correct expm1 inverse - exp(np.log1p(5.0)) would
+    # instead give 6.0 * 8 = 48.0.
+    assert result["capacity_usd"] == pytest.approx(40.0)
+
+
 def test_stress_test_costs_degrades_net_sharpe_as_multiplier_rises():
     frame = _synthetic_frame()
     results = stress_test_costs(

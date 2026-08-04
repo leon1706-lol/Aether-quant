@@ -274,11 +274,23 @@ def capacity_curve(
     capacity_usd is a deliberately simple, honestly-approximate estimate,
     not a precision claim: among names actually held during the BASE run
     (base_kwargs's own top_n/bottom_n), the one with the lowest average
-    dollar volume (dollar_volume_column, already a LOG value - exponentiated
-    back here) is the binding constraint; scaling its average dollar volume
-    by participation_cap and by the number of held names gives a rough
-    total-book capacity ceiling. binding_ticker names exactly which held
-    name limits it, so this is auditable rather than a black-box number."""
+    dollar volume (dollar_volume_column, a log1p value - inverted with
+    expm1 here, the correct inverse) is the binding constraint; scaling its
+    average dollar volume by participation_cap and by the number of held
+    names gives a rough total-book capacity ceiling. binding_ticker names
+    exactly which held name limits it, so this is auditable rather than a
+    black-box number.
+
+    A held ticker with dollar_volume_column == 0.0 exactly (e.g. a forex
+    pair - Yahoo Finance reports no real Volume for FX, so
+    log1p(close*volume) is always 0.0 for them, see development/Problems.md)
+    is EXCLUDED from the binding-ticker search: a true zero here means "no
+    real liquidity signal for this asset," not "zero capacity," and letting
+    it win the minimum would make one data-quality artifact dictate the
+    whole book's capacity regardless of every other held name's real
+    liquidity. If every held ticker lacks real volume data, this honestly
+    degrades to capacity_usd=0.0 / binding_ticker=None, the same "can't
+    estimate" result already returned when the base run holds nothing."""
     per_top_n: list[dict] = []
     base_held_days: dict[str, int] | None = None
     base_top_n = base_kwargs.get("top_n")
@@ -301,13 +313,21 @@ def capacity_curve(
     ticker_column = base_kwargs.get("ticker_column", "ticker")
     avg_log_dollar_volume = frame.groupby(ticker_column)[dollar_volume_column].mean()
     held_avg_dollar_volume = {
-        ticker: float(np.exp(avg_log_dollar_volume.get(ticker, 0.0))) for ticker in base_held_days
+        ticker: float(np.expm1(avg_log_dollar_volume.get(ticker, 0.0))) for ticker in base_held_days
     }
     if not held_avg_dollar_volume:
         return {"capacity_usd": 0.0, "binding_ticker": None, "per_top_n": per_top_n}
 
-    binding_ticker = min(held_avg_dollar_volume, key=held_avg_dollar_volume.get)
-    capacity_usd = float(held_avg_dollar_volume[binding_ticker] * participation_cap * len(held_avg_dollar_volume))
+    # Zero means "no real volume data for this ticker" (e.g. forex - see
+    # this function's own docstring), not "zero liquidity" - exclude it
+    # from the binding-ticker search so a data-quality artifact can't
+    # dictate the whole book's capacity.
+    tickers_with_real_volume = {ticker: value for ticker, value in held_avg_dollar_volume.items() if value > 0.0}
+    if not tickers_with_real_volume:
+        return {"capacity_usd": 0.0, "binding_ticker": None, "per_top_n": per_top_n}
+
+    binding_ticker = min(tickers_with_real_volume, key=tickers_with_real_volume.get)
+    capacity_usd = float(tickers_with_real_volume[binding_ticker] * participation_cap * len(held_avg_dollar_volume))
     return {"capacity_usd": capacity_usd, "binding_ticker": binding_ticker, "per_top_n": per_top_n}
 
 

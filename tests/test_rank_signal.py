@@ -79,6 +79,71 @@ def test_resolve_rank_signal_policy_demotion_disabled_is_a_no_op():
     assert policy["reason"] == "demotion_disabled_or_no_heads_configured"
 
 
+# ---------------------------------------------------------------------------
+# Zero-weight heads are still demotion-fallback candidates (development/
+# Problems.md - a head configured at weight 0.0, e.g. rank_5d in this
+# project's own default config, was previously skipped from consideration
+# entirely, so it could never receive redistributed weight even when the
+# only positively-weighted head got demoted - the demotion mechanism
+# silently gave up and kept using the demoted head instead of falling
+# back).
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_rank_signal_policy_zero_weight_head_becomes_sole_fallback():
+    config = _config(heads={"rank_20d": 1.0, "rank_5d": 0.0})
+    metrics = _metrics({"rank_20d": "not_promotable", "rank_5d": "promotable"})
+
+    policy = resolve_rank_signal_policy(metrics, config)
+
+    assert policy["demoted"] == ["rank_20d"]
+    assert policy["heads"]["rank_20d"] == 0.0
+    assert policy["heads"]["rank_5d"] == 1.0
+    assert policy["reason"] == "demoted:rank_20d"
+
+
+def test_resolve_rank_signal_policy_multiple_zero_weight_survivors_split_equally():
+    config = _config(heads={"rank_20d": 1.0, "rank_5d": 0.0, "residual_rank_20d": 0.0})
+    metrics = _metrics(
+        {"rank_20d": "not_promotable", "rank_5d": "promotable", "residual_rank_20d": "watchlist"}
+    )
+
+    policy = resolve_rank_signal_policy(metrics, config)
+
+    assert policy["demoted"] == ["rank_20d"]
+    assert policy["heads"]["rank_20d"] == 0.0
+    assert policy["heads"]["rank_5d"] == 0.5
+    assert policy["heads"]["residual_rank_20d"] == 0.5
+
+
+def test_resolve_rank_signal_policy_zero_weight_head_stays_zero_when_positive_head_survives():
+    # No behavior change in the common case: rank_20d is fine, so rank_5d
+    # (tracked but inactive) must stay at 0.0, not silently pick up weight.
+    config = _config(heads={"rank_20d": 1.0, "rank_5d": 0.0})
+    metrics = _metrics({"rank_20d": "promotable", "rank_5d": "not_promotable"})
+
+    policy = resolve_rank_signal_policy(metrics, config)
+
+    assert policy["heads"]["rank_20d"] == 1.0
+    assert policy["heads"]["rank_5d"] == 0.0
+    # A head already at 0.0 weight has nothing to redistribute away from -
+    # it must not be recorded as "demoted".
+    assert policy["demoted"] == []
+
+
+def test_resolve_rank_signal_policy_zero_weight_not_promotable_head_is_not_recorded_as_demoted():
+    config = _config(heads={"rank_20d": 1.0, "rank_5d": 0.0})
+    metrics = _metrics({"rank_20d": "not_promotable", "rank_5d": "not_promotable"})
+
+    policy = resolve_rank_signal_policy(metrics, config)
+
+    # Both would be demoted - the "all heads would be demoted" fallback
+    # applies, exactly as before this fix.
+    assert policy["heads"] == {"rank_20d": 1.0, "rank_5d": 0.0}
+    assert policy["demoted"] == []
+    assert policy["reason"] == "all_heads_would_be_demoted_policy_unchanged"
+
+
 def test_resolve_rank_signal_policy_model_priority_order_wins_for_status_lookup():
     # sequence (first in model_priority) says not_promotable, multitask says
     # promotable - sequence's verdict must win, matching select_raw_rank_score()'s
