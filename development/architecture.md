@@ -624,6 +624,53 @@ adds the one deliberate, narrow way to override it:
   `config.json`** (every other reader treats it as human-edited, read-only
   input) — a deliberate, narrow exception, not a new general pattern.
 
+## Kill-Switch, Reconciliation, and Auto-Rollback Contract
+
+`risk/kill_switch.py::evaluate_kill_switch()` is a pure, per-bar function:
+given a `runtime_metrics` dict (rolling per-bar returns, one-bar drawdown
+velocity, live rank-IC, consecutive losing sessions, realized-vs-expected
+slippage, model age, a reconciliation-breach flag) and a config block, it
+returns a `KillSwitchDecision`. Every threshold defaults to a value that
+condition can never cross, so `phase_v2.risk.kill_switch.enabled: false`
+(or an unconfigured individual threshold) is a strict no-op — the same
+fail-open contract `execution/cost_model.py::build_net_edge_decision()`
+already established. A trip sets `main.py`'s **existing**
+`trade_lock_active`/`trade_lock_reason` — never a second, competing lock —
+and, once tripped, is exempted from the session-rollover auto-clear the
+same way a `total_drawdown_limit_breached` lock already is: a production
+circuit breaker that silently cleared itself the next day would defeat
+the point of having one. `risk/manual_override.py`'s
+`kill_switch_manual_override` key overrides `enabled` the same way the
+trade-lock override does, via `aq kill-switch --arm|--disarm|--auto`. A
+trip also pushes a `live_mode_transition` audit event
+(`{"event": "kill_switch_tripped", ...}`), queryable via
+`aq kill-switch --history`.
+
+`execution/reconciliation.py::reconcile_positions()` compares the book's
+intended per-symbol weights against the broker's (or the simulated
+portfolio's) actual holdings and classifies every discrepancy as matched,
+drifted, or orphaned/missing on either side. It's scoped to the
+portfolio-book-with-neutrality path specifically — `main.py`'s only
+persistently-addressable "intended weights" dict — and reports an explicit
+`not_applicable` result rather than a misleading all-orphan table when
+that path isn't active. A breach beyond `max_tolerated_drift` becomes one
+of the kill switch's own trigger inputs, so an unreconciled position
+doesn't just sit logged, it can stop trading.
+
+`retraining/auto_rollback.py::select_rollback_target()` is a separate pure
+selector deciding whether the currently-active model should be rolled
+back — off by default (`phase_v2.retraining.auto_rollback.enabled: false`,
+an automatic weight swap being the most consequential single action this
+system can take). It refuses to act without at least one configured
+trigger, a minimum runway since promotion, an elapsed cooldown since the
+last rollback, and a target that previously passed the validation gate.
+`retraining/worker.py::RetrainingWorker.check_auto_rollback()` runs it on
+the same poll cadence as the main plan→train→promote cycle, but as a
+genuinely separate concern (is the active model degrading, not is a new
+candidate ready), reusing the existing `orchestrator.rollback()` and the
+existing trigger-table → Telegram alert pathway rather than adding a new
+notification channel.
+
 ## Regime Detection Contract
 
 Regime detection is quantitative first. It uses the Lean-derived feature set before any LLM regime-vector adapter is introduced.
@@ -1309,6 +1356,59 @@ underperforms the trivial constant-`1.0` baseline, so it ships
 genuine negative result, documented rather than hidden. RL can
 plausibly reduce turnover/cost on top of a real edge; it cannot
 manufacture one where the underlying signal doesn't clear costs.
+
+## Cost-Aware Cross-Sectional Ranking Contract
+
+Both trainers optimize a differentiable cross-sectional ranking loss over
+whole-date batches (`train.py::build_cross_sectional_date_batches()`,
+`compute_cross_sectional_ranking_loss()` — soft-Spearman by default, a
+ListNet variant available via `--ranking-objective`), not an MSE proxy: a
+pure ranking loss is invariant to the head's own output scale, so a small
+MSE anchor term keeps exports numerically sane. Rank targets are also
+available residualized against market beta, sector, and asset size
+(`build_residual_rank_targets()`), isolating skill from exposure to those
+factors; `phase1.target.ranking.residual_neutral` controls which terms are
+removed. Since the training objective doesn't constrain the head's output
+range, `portfolio/rank_signal.py::cross_sectional_rank_scores()`
+percentile-normalizes predictions per bar at inference — the same
+treatment the offline rank-IC metric already gives targets — before
+anything downstream reads them as a `[0,1]` conviction.
+
+`execution/cost_model.py::build_net_edge_decision()` estimates a trade's
+expected edge against its expected round-trip cost
+(`liquidity/market_liquidity.py`'s own estimate plus commission) and fails
+open — disabled, uncalibrated, or a missing prediction all pass through
+unchanged — the same contract `risk/kill_switch.py` later reuses.
+`analyzer/market_analyzer.py`'s Priority 6.5 simulates (never blocks an
+exit) an entry whose net edge doesn't clear the configured floor;
+`risk/position_sizing.py::cost_sizing_multiplier()` additionally shrinks
+(never grows) the sized weight when the edge is thin. `portfolio/book_neutrality.py::apply_book_neutrality()`
+runs a deterministic four-step pass over the constructed book (per-name
+cap → sector-neutralize by shrinking any bucket that exceeds its net cap,
+never demeaning it to exact zero → dollar-neutralize by scaling the larger
+leg down → a final gross-exposure cap), with hysteresis in
+`portfolio/book_construction.py` so an incumbent position isn't churned
+out on a marginal rank change alone.
+
+`evaluation/rank_book_simulator.py::simulate_rank_book()` is a torch-free
+offline mirror of this same live decision chain — same top-N/bottom-N
+selection, same neutrality pass, same cost model — so net Sharpe,
+turnover, and capacity can be measured without spending a Lean backtest
+(`aq evaluate --rank-book`). `evaluation/ablation.py::run_ablation()`
+re-runs it with individual mechanisms (neutrality, hysteresis, cost model)
+disabled in turn to isolate their contribution; a mechanism with no
+offline equivalent (gating, topology sizing) returns an explicit
+"not measurable this way" sentinel rather than a fabricated number.
+`retraining/validation_gate.py::evaluate_ranking_promotion_gate()`
+finally wires the ranking-quality and net-performance verdicts
+(`train.py::assess_ranking_quality()`/`assess_net_performance_quality()`,
+which had been computed since the promotion gate's own introduction but
+read by nothing) into promotion itself — a candidate whose ranking
+quality or offline net performance doesn't clear its bars is rejected,
+not just logged. Walk-forward validation (`train.py::_run_walk_forward()`)
+now spans six expanding windows from 2014 through 2021, giving the
+stability check real multi-regime coverage (including COVID) instead of
+one fixed split.
 
 ## Real Topology Overlay Training
 

@@ -73,27 +73,37 @@ full setup.
 
 ## Current Status
 
-**V3 complete. V4 complete**, spanning visualisation, the full multi-asset-class (options/futures/Forex) architecture, a major latency pass, and the training + optimization phase. As of Phase 4.12.3, every planned Docker-dependent item is closed for real: the topology overlay trained for the first time in this project's history, `cpp_inference_ext` links correctly in the built image, and both a data-generation and a fully representative Lean backtest have run end-to-end.
-Multi-asset-class trading (equities, crypto, bonds, futures, options, Forex),
-the full ML stack, and the retraining loop are all built, tested
-(<!-- AQ:TEST_COUNT_START -->2355<!-- AQ:TEST_COUNT_END -->
+**V4 complete. V5.1 complete.** V4 built the full multi-asset-class
+architecture (equities, crypto, bonds, futures, options, Forex), the ML
+stack, and the retraining loop. V5.1 rebuilt the trading model and
+execution path to actually pay for its own costs and to survive running
+unattended: the model now trains directly against cross-sectional rank
+(not a proxy MSE loss), targets are residualized against market/sector/size
+so they measure real skill instead of beta, every trade decision runs
+through an explicit expected-cost gate, the book is dollar- and
+sector-neutral with hysteresis, walk-forward validation spans six regimes
+including COVID, and an automated kill switch, position reconciliation,
+and rollback mechanism now sit in front of live trading. Everything below
+is built, tested (<!-- AQ:TEST_COUNT_START -->2355<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
-- **Backtest:** the latest representative run (2019-01-01 to 2021-03-31,
-  drawdown enforcement genuinely active) is only marginally profitable:
-  Sharpe **-0.145**, Net **+3.41%**, max drawdown 6.6% (see
-  [Backtest Results](#backtest-results)) — improved over the prior run's
-  -0.313 Sharpe, but still negative, with fees consuming nearly all of the
-  net profit.
-- **Signal significance:** `rank_20d`'s non-overlapping t-stat clears 2.0
-  with real margin (2.8954) but stays `not_promotable` — a genuine COVID-era
-  inversion. Sequence `rank_5d` is fully `promotable`, the first head ever
-  to clear every gate; whether to promote it alongside `rank_20d` is an open
-  decision.
+- **Backtest:** the numbers in [Backtest Results](#backtest-results) below
+  predate V5.1 and don't yet reflect the new model, cost gate, or
+  neutral book — a fresh backtest against the V5.1 pipeline hasn't been
+  run yet (see [Roadmap](#roadmap)).
+- **Signal quality:** the new cross-sectional ranking objective lifted
+  `rank_5d`'s non-overlapping t-stat to 6+ across every seed and objective
+  tried, easily its strongest result to date. `rank_20d` improved but still
+  falls just short of this project's own promotion bar; `residual_rank_20d`
+  (the new market/sector/size-neutral head) isn't promotable yet either.
+  The offline rank-book simulator shows a genuinely positive, balanced
+  net Sharpe after costs across all six walk-forward windows.
 - **Not paper/live-deployable yet**: Interactive Brokers has never been
-  tested against a real Gateway (see [Known Limitations](#known-limitations)).
-- **Next:** decide whether/how to promote sequence `rank_5d` as a second
-  live signal, then IB testing — see [Roadmap](#roadmap).
+  tested against a real Gateway (see [Known Limitations](#known-limitations)),
+  and the new kill-switch/reconciliation machinery, while fully unit-tested,
+  hasn't run against a live broker connection either.
+- **Next:** the Lean backtest that validates the V5.1 pipeline end-to-end,
+  then IB testing — see [Roadmap](#roadmap).
 
 ## Known Limitations
 
@@ -105,6 +115,7 @@ connected** (`phase_v2.ib.enabled`, see `aq ib status`/`aq assets
 status`). Remaining, still-open items:
 
 - **IB is unverified end-to-end**: futures margin uses a static reference file by default; an opt-in live (Lean/IB-calibrated) margin source exists (`phase_v2.futures_risk.margin_source`, see `development/Problems.md` #67) but, like the connection itself, has never been tested against a real Gateway. All 43 option structures (#38, #59) are unverified for the same reason, no option/future asset exists in the universe yet, and adding a real one goes through the IB-backed `aq fetch options --apply` path.
+- **Production-safety machinery is unit-tested, not field-tested**: the kill switch, position reconciliation, and auto-rollback (`aq kill-switch`, see [CLI Reference](#cli-reference)) are wired into the live decision path and fully covered by tests, but nothing has yet run them against a real, continuously-running broker/Postgres deployment — that's the same gap IB testing itself needs to close.
 
 ## Table of Contents
 
@@ -134,6 +145,8 @@ status`). Remaining, still-open items:
   - [`aq lean`](#aq-lean)
   - [`aq retrain`](#aq-retrain)
   - [`aq trade-lock`](#aq-trade-lock)
+  - [`aq kill-switch`](#aq-kill-switch)
+  - [`aq evaluate`](#aq-evaluate)
   - [`aq fetch`](#aq-fetch)
   - [`aq backfill`](#aq-backfill)
   - [`aq ib`](#aq-ib)
@@ -327,27 +340,40 @@ hand-matched formulas, `features/`, `main.py::_build_model_input()`):
   multitask heads for return magnitude and volatility.
 - **Multitask model** (`AetherNetMultiTaskHorizons`, `train_multitask.py`)
   — a shared trunk with multiple heads: next-day direction,
-  `direction_5d`/`direction_20d`, and `rank_5d`/`rank_20d` (per-date
-  cross-sectional percentile rank of forward return, evaluated via
-  rank-IC). `rank_20d` is the primary trading signal.
+  `direction_5d`/`direction_20d`, and the cross-sectional rank heads
+  (`rank_5d`/`rank_20d`, plus market/sector/size-**residualized** variants
+  that measure real skill rather than beta). `rank_20d` is the primary
+  trading signal.
 - **Sequence encoder** (`AetherNetSequenceMultiTaskHorizons`,
   `train_sequence.py`) — a causal-TCN over a rolling 30-bar window of the
   same inputs, adding temporal structure the flat-MLP trunk can't see;
-  its own `rank_5d` head is the first in this project to clear every
-  promotion gate simultaneously.
+  its `rank_5d` head is the strongest signal in this project's history.
 
-**58 model inputs** — not just price/volume: regime state (one-hot /
+Both trainers are trained directly against a differentiable ranking
+objective (soft-Spearman/ListNet over whole-date cross-sectional batches),
+not an MSE proxy — the model now optimizes for the thing it actually
+trades on.
+
+**66 model inputs** — not just price/volume: regime state (one-hot /
 confidence / trend / risk), liquidity spread/dollar-volume, cross-asset
 topology correlation/risk, correlated-peer lagged returns, 7 technical
-indicators, real bond yield-curve/credit-spread features, and alt-data
-(options-implied volatility, financial-conditions change) — all computed
+indicators, real bond yield-curve/credit-spread features, alt-data
+(options-implied volatility, financial-conditions change), and per-asset
+macro **sensitivity betas** (rolling regression of each asset's return
+against ΔVIX/Δreal-rate/Δcredit/Δdollar, so macro actually varies
+cross-sectionally instead of shifting every asset equally) — all computed
 offline and at runtime by the same code, with verified parity.
 
-`rank_20d`/`rank_5d` drive the long/short book and per-position sizing
-(`risk/position_sizing.py`, bounded and direction-preserving); the
-multitask magnitude/volatility heads feed position sizing opt-in via
-`phase_v2.dynamic_risk.use_predicted_volatility`. All signals are visible
-on the `/neural-network` webui tab and in `ml/*_training_metrics.json`.
+The rank heads drive a dollar- and sector-neutral long/short book
+(`portfolio/book_neutrality.py`) with per-position sizing
+(`risk/position_sizing.py`, bounded and direction-preserving) that's
+scaled down when a trade's expected edge doesn't clear its expected
+round-trip cost (`execution/cost_model.py`). An automated kill switch,
+position reconciliation against the broker's actual holdings, and an
+opt-in auto-rollback sit in front of all of it (`risk/kill_switch.py`,
+`execution/reconciliation.py`, `retraining/auto_rollback.py`). All of it
+is visible on the `/neural-network`, `/evaluation`, and `/operations`
+webui tabs and in `ml/*_training_metrics.json`.
 
 See `inference/README.md`, `moe/README.md`, `risk/README.md`,
 `regime/README.md`, `liquidity/README.md` and `topology/README.md` for
@@ -496,8 +522,13 @@ Lean's own result JSON, chart, headline table, and full stats all
 overwritten, never hand-edited, so nothing here goes stale relative to your
 last backtest.
 
-**Read these numbers with two caveats:**
+**Read these numbers with three caveats:**
 
+- **These numbers predate V5.1.** They're from the last real Lean backtest,
+  run against the pre-V5.1 model, sizing, and execution path — not the
+  ranking loss, cost gate, or neutral book described in
+  [Current Status](#current-status). This section refreshes automatically
+  the next time `aq backtest` runs; until then, treat it as historical.
 - **Signal significance:** `rank_20d`'s non-overlapping t-stat now clears the
   project's own ≥ 2.0 bar (**2.8954**), but the signal stays `not_promotable`
   — two genuine era-sign inversions (COVID, plus a second one data-hygiene
@@ -544,7 +575,7 @@ command already documented elsewhere in this README:
 
 #### `aq train`
 ```text
-aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--topology-only|--walk-forward] [--step-days N] [--mode rolling|expanding]
+aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--topology-only|--walk-forward] [--step-days N] [--mode rolling|expanding] [--seed N] [--ranking-objective mse|soft_spearman|listnet]
 ```
 **Builds the dataset and trains the models** (`train.py`). With no flags,
 trains everything (baseline + experts + gating + multitask + sequence) and
@@ -559,8 +590,9 @@ Scope flags (each trains just one piece, installs straight into `ml/`):
 - `--topology-only`: the learned topology overlay (`train_topology.py`, `topology/README.md`). Different data source from every other flag here — fits over realized trading outcomes pulled from Postgres, needs `phase_v2.topology_learning.training.min_training_events` (default 500) accumulated events, and correctly no-ops ("skipped, active `ml/` left unchanged") rather than training on too little data.
 
 Walk-forward (diagnostic, **never** touches active `ml/`):
-- `--walk-forward`: runs the whole pipeline once per rolling/expanding window instead of on the fixed `phase1.windows`; each window writes to `ml/versions/<run-id>/window_<i>/`.
+- `--walk-forward`: runs the whole pipeline once per rolling/expanding window instead of on the fixed `phase1.windows`; each window writes to `ml/versions/<run-id>/window_<i>/`. `--include-multitask`/`--include-sequence` also train those models per window (not just the baseline), `--metrics` picks which dotted metric paths get tracked across windows.
 - `--step-days N` / `--mode rolling|expanding`: override `phase_v2.retraining.walk_forward`'s defaults. See `retraining/README.md`.
+- `--seed N` / `--ranking-objective mse|soft_spearman|listnet`: one-run overrides for `--multitask-only`/`--sequence-only`, for seed-ensembling or A/B-testing the ranking loss without editing `config.json` (default: `soft_spearman`, confirmed to beat MSE in a controlled comparison).
 
 #### `aq test`
 ```text
@@ -642,6 +674,7 @@ aq config [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
 - `aq config keys [<prefix>]`: list every leaf key path (find the right key in a deeply nested file).
 - `aq config get <key>`: print one value (a scalar, or a whole nested section as JSON).
 - `aq config set <key> <value>`: write it. The value is parsed as JSON first (`true`/`123`/`0.5`/`["a","b"]` become real types), falling back to a string. Every `set` backs up to `config.json.bak` and prints old → new; a type change (e.g. bool → string) warns but still writes, since this gives full access to every key.
+- `aq config preset --list|--show <name>|--apply <name> [--dry-run]`: applies a whole named bundle of dotted keys at once (`moderate`/`aggressive`, e.g. book size, liquidity thresholds, minimum net edge) — validates every key resolves before writing anything, so a partial config never lands. `aq evaluate --preset <name>` overlays the same bundle in memory only, for a free offline A/B before committing to one.
 
 #### `aq lean`
 ```text
@@ -654,19 +687,71 @@ ib-trading-mode live`, `aq lean keys environments.live-paper`, etc.
 
 #### `aq retrain`
 ```text
-aq retrain <plan|train|validate|backtest|commit|promote|rollback|status> [...]
+aq retrain <plan|train|validate|backtest|commit|promote|rollback|auto-rollback|status> [...]
 ```
-Dispatches to `python -m retraining.orchestrator <stage> ...` for a
-single manual pipeline stage.
+**Dispatches to `python -m retraining.orchestrator <stage> ...`** for a
+single manual pipeline stage, independent of the continuous worker.
+
+Stages (each usable standalone, in the order the worker itself runs them):
+- `plan`: decides whether a retraining cycle should even start — highest-priority eligible trigger, minimum observations, cooldown, daily cap.
+- `train`: trains a new candidate model in isolation, never touching the active `ml/` files.
+- `validate`: candidate-vs-active comparison (drawdown, Sharpe, validation-loss stability, overfitting gap, plus the ranking-quality/net-performance gates — see `development/architecture.md`'s Cost-Aware Cross-Sectional Ranking Contract).
+- `backtest`: a 3-way active/candidate/buy-and-hold comparison, plus an optional real Lean backtest if `lean` is on `PATH`.
+- `commit`: hashes and pushes the candidate's artifacts to Aether-Vault.
+- `promote`: makes a validated, committed candidate the active model, with rollback always available.
+- `rollback --to-version-id <id>`: manually restores a previous version as active.
+- `auto-rollback --status`: **read-only diagnostic**, not a mutation — reports whether the currently active model would be rolled back right now (and why/why not) without acting. The real enforcement runs inside the retraining worker's own poll loop, opt-in via `phase_v2.retraining.auto_rollback.enabled` (`false` by default — an automatic weight swap is the single most consequential action this system can take).
+- `status`: prints the current retraining status view (same content as `visualization/grafana/retraining_status.json`).
 
 #### `aq trade-lock`
 ```text
 aq trade-lock --on|--off|--auto|--status
 ```
-Manually overrides `main.py`'s sticky total-drawdown trade lock (see
+**Manually overrides `main.py`'s sticky total-drawdown trade lock** (see
 `development/architecture.md`'s Manual Trade-Lock Override Contract).
-`--off` deliberately clears an otherwise-permanent lock; `--auto` returns
-to fully automatic behavior.
+
+- `--on`: force trading paused.
+- `--off`: force trading resumed — deliberately clears an otherwise-permanent lock.
+- `--auto`: return to fully automatic behavior.
+- `--status`: print the current override state.
+
+#### `aq kill-switch`
+```text
+aq kill-switch --arm|--disarm|--auto|--status
+aq kill-switch --history [--limit N]
+```
+**Inspects and overrides the automated production kill switch**
+(`risk/kill_switch.py`) — the same override-file convention as
+`aq trade-lock` above, so the two switches can never disagree. A trip
+feeds `main.py`'s existing trade lock; it never creates a second one.
+
+- `--arm`: force kill-switch evaluation on, even if `phase_v2.risk.kill_switch.enabled` is `false`.
+- `--disarm`: force kill-switch evaluation off, even if `enabled` is `true`.
+- `--auto`: defer entirely to `phase_v2.risk.kill_switch.enabled`.
+- `--status`: print the current override state.
+- `--history [--limit N]`: list past trips from the tamper-evident audit log (default 50 rows; needs `AETHER_POSTGRES_DSN`, same requirement as `aq audit-log` below).
+
+#### `aq evaluate`
+```text
+aq evaluate --rank-book [--model sequence|multitask] [--head rank_20d] [--split backtest]
+aq evaluate --capacity | --stress | --calibrate-edge | --ablation [--variants a,b,c] | --all
+aq evaluate --walk-forward-summary [--run-id <id>]
+aq evaluate [--preset aggressive|moderate] [--json]
+```
+**Runs the offline, cost-aware rank-book simulator** (`evaluation/`) — the
+torch-free mirror of the live decision path, so net Sharpe, turnover,
+capacity, and cost sensitivity can be measured without spending a Lean
+backtest.
+
+- `--rank-book [--model sequence|multitask] [--head rank_20d] [--split backtest]`: simulate the constructed long/short book against realized returns for one model/head/dataset split — net/gross Sharpe, turnover, cost drag.
+- `--capacity`: sweep top-N breadth and estimate the participation-capped capacity ceiling.
+- `--stress`: re-run the simulation at 1x/2x/3x the configured cost.
+- `--calibrate-edge`: print an `edge_bps_per_rank_unit` calibrated from this split's realized rank-vs-return relationship — the one input `phase_v2.costs`'s net-edge gate needs before it can do anything (ships `enabled: false`/uncalibrated until this is run).
+- `--ablation [--variants a,b,c]`: isolate the contribution of neutrality, hysteresis, and the cost model by re-running the simulation with each turned off in turn (mechanisms with no offline equivalent, like gating or topology sizing, report an explicit "not measurable this way" result rather than a fabricated number). Not included in `--all`.
+- `--all`: run `--rank-book`, `--capacity`, `--stress` and `--calibrate-edge` together.
+- `--walk-forward-summary [--run-id <id>]`: print an already-written `ml/versions/walk-forward-*/walk_forward_summary.json` (default: the most recent run) — never runs training itself, run `aq train --walk-forward` first.
+- `--preset aggressive|moderate`: overlay a named config preset (`phase_v2.presets`) in memory only, never writes `config.json`, for a free A/B comparison — see `aq config preset` above.
+- `--json`: print the full report as JSON instead of a summary.
 
 #### `aq fetch`
 ```text
@@ -857,17 +942,29 @@ GitHub Codespaces" section for why); those stay local.
 
 ## Roadmap
 
-All finished phases and changes can be found in
+All finished work and changes can be found in
 [`development/Changelog.md`](development/Changelog.md), kept separate to keep this README short.
 
+### V5.1 — Cost-aware cross-sectional ranking (shipped)
 
-### V5, Later (HFT)
+Rebuilt the model and execution path around the thing the system actually
+trades on: rank, not a proxy. The model trains directly against a
+cross-sectional ranking loss, targets are residualized against
+market/sector/size, every trade runs through an explicit expected-cost
+gate, the book is dollar- and sector-neutral, and the promotion gate now
+genuinely blocks a model that doesn't clear its bars. An automated kill
+switch, position reconciliation, and opt-in auto-rollback close out the
+production-safety side. Full detail in the Changelog; the four real bugs
+found along the way are in `development/Problems.md`.
 
-**Tests / production readiness**
-- Real IB API key insertion and testing, the one blocker behind #29/#38's unverified items and the README's Known Limitations.
+### Next, open
 
-**Computing**
-- Beyond GitHub Codespaces (#53): Oracle Cloud Always Free + Remote-SSH as a more powerful, persistent free compute option.
+- **Validate V5.1 against a real Lean backtest** — the pipeline is code-complete and tested, but not yet re-verified against a live run.
+- **Interactive Brokers end-to-end verification** — the one blocker behind the README's Known Limitations; written and mock-tested, unverifiable without a key.
+- **Wire the three orphan derivatives-macro features into the model's input set** — one config flip (`phase1.features.derivatives_in_input_set`) once IB clears and a real futures/options contract exists in the universe.
+- **Computing beyond GitHub Codespaces** (#53): Oracle Cloud Always Free + Remote-SSH as a more powerful, persistent free compute option.
+
+### Later (HFT)
 
 `development/architecture.md`'s own "Why This Is Not HFT, And What It
 Would Take" analysis is the honest starting point here, not marketing
@@ -876,8 +973,9 @@ docs already identify (daily bars everywhere, no tick/L1-L2 data, no
 slippage/latency-aware execution, offline batch retraining, polling
 infrastructure, no colocated broker connectivity). Its own conclusion is
 blunt: closing these gaps is **"closer to a second, parallel trading system
-than an incremental change."** Bolting HFT onto V4's daily-bar architecture
-isn't realistic; it would need to be built alongside it, not on top of it.
+than an incremental change."** Bolting HFT onto today's daily-bar
+architecture isn't realistic; it would need to be built alongside it, not
+on top of it.
 
 If pursued, sequence it as its own workstream, in this order:
 1. **Tick/L1-L2 market data pipeline**: a new storage layer entirely, replacing the daily Lean zip files.

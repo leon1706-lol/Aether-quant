@@ -114,3 +114,12 @@ risk engine, and before action categorization / Lean order placement.
     categorization as any other directional signal, never bypassing it.
     See `portfolio/README.md` for why book construction lives in its own
     package rather than here.
+- **Net-edge cost gate (priority 6.5, between the topology/liquidity tiers
+  and the trade gate).** When `execution/cost_model.py`'s expected-net-edge
+  decision says an entry's expected edge doesn't clear its expected
+  round-trip cost, the decision downgrades to `simulate` instead of
+  `trade` — never blocks an **exit** (`not is_currently_invested` gates
+  it, mirroring priority 0's own "never trap an exit" reasoning). A
+  disabled or uncalibrated cost model (`net_edge=None`) is a no-op, same
+  fail-open contract as every other optional overlay here. See
+  `execution/README.md`.

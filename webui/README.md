@@ -13,17 +13,31 @@ Pages (`src/pages/`):
   out to `OperationsPage.tsx`; this page had grown to 11 stacked panels in
   a single column.
 - `OperationsPage.tsx` (V4-W1) — the operational/health half of the old
-  Overview, in a balanced two-column layout: Performance Triggers,
-  Retraining Status (V2-17), Paper Trading Readiness, Multi-Asset-Class
-  Readiness (left); Audit Log, Monitoring Feeds, Raw State (right).
+  Overview, in a balanced two-column layout: Kill Switch
+  (`KillSwitchPanel.tsx`) and Reconciliation (`ReconciliationPanel.tsx`)
+  lead the left column, followed by Performance Triggers, Retraining
+  Status (V2-17, now including an Auto-Rollback block), Paper Trading
+  Readiness, Multi-Asset-Class Readiness; Audit Log, Monitoring Feeds, Raw
+  State (right).
 - `RiskPage.tsx` — risk core panel, asset volatility/sizing table (with a
-  per-multiplier chip breakdown — confidence/topology/rank/RL — added
-  V4.12.2, `development/Problems.md` #71), liquidity and execution-impact
-  panel, and a Macro & Alt-Data Snapshot panel (`MacroSnapshotPanel.tsx`,
-  V4.12.2 — real Treasury yield-curve/credit-spread and VIX-derived
-  options-implied-vol/financial-conditions numbers, `main.py::_write_state()`'s
-  `state["macro"]`, computed every bar since Phase 4.12 but never exposed
-  to the webui until this fix).
+  per-multiplier chip breakdown — confidence/topology/rank/RL/cost — added
+  incrementally, `development/Problems.md` #71), liquidity and
+  execution-impact panel, a Macro & Alt-Data Snapshot panel
+  (`MacroSnapshotPanel.tsx` — real Treasury yield-curve/credit-spread and
+  VIX-derived options-implied-vol/financial-conditions numbers,
+  `main.py::_write_state()`'s `state["macro"]`), plus (V5.1) Rank Signal
+  (`RankSignalPanel.tsx`, the resolved head-blend policy), Net Edge
+  (`NetEdgePanel.tsx`, expected-edge-vs-cost per symbol), Book Neutrality
+  (`BookNeutralityPanel.tsx`, dollar/sector-neutral diagnostics from the
+  last rebalance), and Sensitivity (`SensitivityPanel.tsx`, per-symbol
+  macro betas).
+- `EvaluationPage.tsx` (V5.1) — the offline, cost-aware evaluation of the
+  active model (`GET /api/evaluation`): rank-book performance
+  (gross-vs-net Sharpe, turnover, cost drag), capacity/cost-stress,
+  walk-forward stability (per-metric mean/CI/sign-flip across windows),
+  and an ablation panel (Δ net Sharpe vs. a static buy-and-hold baseline
+  per mechanism, with unmeasurable mechanisms shown muted rather than
+  omitted).
 - `OptionsStrategyPage.tsx` (Phase 4.8) — held multi-leg option positions
   with per-leg dividend-driven assignment-risk scores, a dividend-schedule
   summary, the learned strategy-selector model's per-symbol scores (a

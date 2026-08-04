@@ -596,3 +596,27 @@ this codebase — this only ever applies to futures/options.
   whenever both are true, stamps cooldown, logs via `self.Debug()` only
   (no dashboard-state write — Pass 2 still runs this bar and records an
   accurate, still-true execution note).
+
+## Cost-scaled sizing and the automated kill switch
+
+`position_sizing.py::cost_sizing_multiplier()` shrinks (never grows) the
+sized weight when a trade's expected edge doesn't clear its expected
+round-trip cost (`execution/cost_model.py`), following the same
+shrink-only, bounded contract `topology_sizing_multiplier()` already
+established — disabled by default, config-gated via
+`phase_v2.costs.cost_sizing_enabled`.
+
+`kill_switch.py::evaluate_kill_switch()` is the automated production
+circuit breaker: a pure per-bar function over already-tracked runtime
+state (rolling return history, drawdown velocity, live rank-IC,
+consecutive losing sessions, slippage divergence, model age, a
+reconciliation-breach flag) that trips `main.py`'s existing sticky trade
+lock — never a second one — whenever any one of seven independently
+config-gated conditions fires. Every threshold defaults to a value it can
+never cross, so it's a strict no-op until deliberately configured.
+`manual_override.py` gained a matching `kill_switch_manual_override` key
+(same read/write/cache shape as the pre-existing trade-lock override),
+driven by `aq kill-switch --arm|--disarm|--auto|--status|--history`. See
+`development/architecture.md`'s Kill-Switch, Reconciliation, and
+Auto-Rollback Contract for the full picture, including
+`execution/reconciliation.py` and `retraining/auto_rollback.py`.

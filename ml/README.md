@@ -55,3 +55,21 @@ same artifact set as above (`model_weights.json`, `model.pt`,
 never touching any of the active files above until
 `retraining/orchestrator.py`'s `promote()` explicitly copies a validated,
 Vault-committed candidate over them.
+
+**Walk-forward runs** — `versions/walk-forward-<run-id>/window_<i>/`: the
+same per-window artifact set as a candidate above, one directory per
+expanding/rolling window (`aq train --walk-forward`), plus a top-level
+`walk_forward_summary.json` (per-metric mean/bootstrap-CI/stability
+verdict across windows, and per-window offline net-performance numbers).
+`multitask_training_metrics.json`/`sequence_training_metrics.json` now
+also carry a `training_recipe` block (optimizer, LR schedule, ranking
+objective, SWA, batch mode) and rank heads for both plain and
+market/sector/size-**residualized** cross-sectional rank
+(`rank_5d`/`rank_20d`/`residual_rank_5d`/`residual_rank_20d`, plus a
+disabled-by-default `beta_neutral_rank_20d`).
+
+`evaluation/` (top-level, alongside this folder, not inside it) holds
+`aq evaluate`'s output — `rank_book_simulation.json`, `capacity_report.json`,
+`cost_stress_report.json`, `ablation_report.json` — the offline,
+cost-aware evaluation of whatever model is currently active. See
+`evaluation/README.md`.

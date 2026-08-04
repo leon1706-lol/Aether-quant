@@ -676,6 +676,29 @@ files directly over the same SSH connection, entirely outside git.
 same way: copied up once via `gh codespace cp` in the other direction,
 never committed.
 
+**`gh codespace cp -r` is unreliable for large or multi-file transfers** —
+observed dropping files silently mid-batch (TLS handshake timeouts) with
+no non-zero exit code. For anything beyond a handful of small files
+(walk-forward run artifacts, a batch of new source files), `tar czf` on
+the Codespace, copy the single tarball down with a plain `gh codespace cp`,
+extract locally — and always verify file presence/mtime afterward rather
+than trusting "no error" from the copy alone. A full six-window walk-forward
+run (`aq train --walk-forward --include-multitask --include-sequence
+--mode expanding`) takes roughly an hour on the free-tier machine and
+produces a multi-gigabyte artifact tree; pull only `walk_forward_summary.json`
+day-to-day and fetch the full per-window tree via the tarball approach only
+when the individual models are actually needed locally.
+
+## Config Presets
+
+`phase_v2.presets` holds named bundles of dotted config keys (`moderate`,
+`aggressive` — book size, liquidity thresholds, minimum net edge, and
+similar) applied atomically via `aq config preset --apply <name>`
+(validates every key resolves before writing anything). `aq evaluate
+--preset <name>` overlays the same bundle in memory only, so both presets
+can be compared against the offline rank-book simulator for free before
+either one costs a Lean backtest.
+
 ## Connecting Between Containers
 
 Within the Compose network, services use their service names:

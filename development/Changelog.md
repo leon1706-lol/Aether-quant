@@ -4812,3 +4812,94 @@ position sizing, rather than silently falling back to the deterministic
 embedding. `README.md`'s Backtest Results section updated from this run.
 
 **Nothing Interactive-Brokers-independent remains open in this project.**
+
+## V5.1 — Cost-aware cross-sectional ranking (Problems.md #72, #77, #81, #83–86)
+
+V4's most representative backtest had a real gross edge (`rank_20d`
+non-overlapping t-stat 2.90) but a negative Sharpe — fees and an
+uncalibrated book were consuming essentially all of it. V5.1 rebuilds the
+model and execution path around that specific gap: train for the thing
+actually traded on, make cost explicit in both the trade decision and
+sizing, and put real safety machinery in front of unattended trading.
+
+**Training objective and targets.** Both trainers now optimize a
+differentiable cross-sectional ranking loss (soft-Spearman, with a ListNet
+variant available) over whole-date batches, instead of an MSE proxy — a
+controlled same-seed comparison confirmed soft-Spearman clearly beats MSE,
+and it's the shipped default. AdamW with cosine decay and stochastic
+weight averaging replaced the older optimizer/schedule, and the sequence
+model's TCN trunk gained LayerNorm (it had none before). Rank targets are
+now also available residualized against market beta, sector, and size, so
+the model can be evaluated on skill rather than exposure to those factors.
+Per-asset macro **sensitivity betas** (rolling regression against
+ΔVIX/Δreal-rate/Δcredit/Δdollar) replaced the old broadcast macro features,
+which — being identical across every asset on a given day — contributed
+essentially nothing to a cross-sectional model.
+
+**Cost-awareness.** An expected-net-edge gate now runs before every trade
+decision, comparing the model's expected edge against `execution/cost_model.py`'s
+expected round-trip cost; positions can also be scaled down (never up)
+when the edge is thin. Getting here required fixing a real bug: rank heads
+were trained raw against a `[0,1]` target but exported with a leftover
+sigmoid activation, silently compressing live predictions into roughly
+`[0.475, 0.75]` and starving the confidence-driven gates and sizing that
+assumed the full range — invisible to every rank-quality check because
+rank-IC is invariant to a monotone transform (Problems.md #84).
+
+**Portfolio construction.** The book is now dollar- and sector-neutral
+with hysteresis (an incumbent position isn't churned out on a marginal
+rank change), using a sector mapping expanded from 29 to the full
+104-asset universe (Problems.md #85). A separate bug meant the realized
+book was sometimes truncated by symbol order rather than conviction —
+fixed so the strongest-ranked names always survive when a position cap
+binds (#86). A third, more severe bug slipped into the neutrality pass
+itself: the sector-neutral step was demeaning entire sector buckets to
+exact zero instead of just capping their net tilt, which — combined with
+a structurally one-sided bucket like Forex — silently erased whole legs of
+the book (#81); fixed, and the offline net Sharpe roughly doubled once the
+short leg was actually being sized again.
+
+**Validation.** Walk-forward evaluation now spans six expanding windows
+from 2014 through 2021, covering the COVID regime and its recovery, not
+just one fixed split. A new offline, cost-aware rank-book simulator
+(`evaluation/`) reproduces the live decision path without spending a Lean
+backtest — net Sharpe, turnover, capacity, cost-stress, and an ablation
+harness that isolates the contribution of neutrality, hysteresis, and the
+cost model (mechanisms with no offline equivalent, like gating or
+topology sizing, report an explicit "not measurable this way" result
+rather than a fabricated number). The promotion gate finally consumes
+this: ranking-quality and net-performance verdicts were being computed
+all along but read by nothing in the retraining pipeline — they now
+actually block a candidate that doesn't clear its bars.
+
+**Production safety.** An automated kill switch evaluates rolling Sharpe,
+drawdown velocity, live rank-IC decay, consecutive losses, realized-vs-expected
+slippage, and model age every bar, tripping the same sticky trade lock the
+drawdown breach already uses rather than a second, competing one.
+Position reconciliation compares the book's intended weights against what
+the broker actually holds. An opt-in, off-by-default auto-rollback can
+restore a previously-promoted model when the active one degrades, gated
+by a cooldown and minimum runway so it can't thrash.
+
+**Results.** `rank_5d`'s non-overlapping t-stat reached 6.0–6.8 across
+every seed and objective tried — by far the strongest result in this
+project's history. `rank_20d` improved but still falls just short of the
+project's own promotion bar, and the residualized rank head isn't
+promotable yet either, both recorded as honest open results rather than
+smoothed over. The offline simulator shows a positive, balanced net
+Sharpe after costs across all six walk-forward windows. Neither of the
+two Lean backtests reserved for this arc has been spent yet — everything
+above is validated by the test suite and the offline simulator, not yet
+by a live Lean run.
+
+**Also fixed along the way:** `fetch_fred_series()` hanging/reset because
+FRED's graph-export endpoint requires HTTP/2, which the stdlib client
+couldn't speak (#79); a feature-list mismatch that crashed walk-forward
+net-performance evaluation on the first window (#82); a false-positive
+"orphaned feature" report caused by the manifest check not accounting for
+scaled/categorical columns (#80); and a ~17-minute-per-run test-suite
+regression from an unmocked subprocess-spawning test (#78).
+
+**Still open:** Interactive Brokers end-to-end verification (no API key —
+the one recurring blocker across this whole project); a real Lean backtest
+against this pipeline.

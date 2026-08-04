@@ -34,6 +34,17 @@ in the last representative backtest).
   codebase already follows. Config: `phase_v2.costs` (`enabled: false`
   until calibrated via `aq evaluate --calibrate-edge`).
 
+## Position reconciliation (`reconciliation.py`)
+
+Pure, broker-free: `reconcile_positions()` compares the book's intended
+per-symbol weights against whatever a broker (or the simulated portfolio)
+actually holds and classifies each symbol as matched, drifted, or
+orphaned/missing on either side. `main.py` calls it once per bar, scoped
+to the portfolio-book-with-neutrality path (its only persistently-tracked
+"intended weights" dict); a breach beyond `max_tolerated_drift` becomes
+one of `risk/kill_switch.py`'s own trigger inputs, so an unreconciled
+position can actually stop trading, not just get logged.
+
 ## Real fill slippage (execution/risk realism pass)
 
 Closes the gap `development/architecture.md`'s own HFT-gap analysis

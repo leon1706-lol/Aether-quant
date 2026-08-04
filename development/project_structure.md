@@ -18,7 +18,8 @@ aether-quant/
 ├── moe/                         # Mixture-of-Experts gating network
 ├── experts/                     # Bullish / bearish / sideways / volatility expert models
 ├── features/                    # Shared feature-computation functions (train.py + main.py parity)
-├── portfolio/                   # Stage-2 cross-sectional long/short book construction + options sizing
+├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation)
+├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing
 ├── regime/                      # Market regime detection
 ├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
 ├── liquidity/                   # Liquidity / market-impact engine

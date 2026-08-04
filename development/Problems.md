@@ -4595,3 +4595,60 @@ Exactly 7 of the file's 11 tests reach that call site — matching the 7 slow en
 **Verified end-to-end on the Codespace:** re-ran `train_sequence.py` standalone against windows 3 (146,868 rows — the exact window that failed twice before, including once already running in total isolation), 4 (153,696 rows), and 5 (160,219 rows, the largest of all 6). **All three succeeded on the first attempt** (`rc=0`), completing V5.1's walk-forward sequence data at the full intended 6-of-6 windows for the first time. `walk_forward_summary.json` was regenerated with the complete sample — `rank_20d_ic`/`rank_5d_ic`/`residual_rank_20d_ic` all now report `stable=True` at n=6 (not n=3), and net Sharpe for windows 3-5 (previously only available via the multitask fallback: 0.91, −0.26, −0.26) is now the real sequence-model number: 0.39, 0.62, 1.47 — **every one of the 6 windows now shows a positive net Sharpe**, materially changing the honest read of Phase 4's own results (see the plan file's Phase 5 execution log for the full corrected table). This is a good illustration of why the multitask-fallback numbers were flagged as provisional rather than trusted at face value in Phase 4's write-up: two of the three fallback windows were sign-flipped versus what the real sequence model actually does.
 
 **Lesson, in the same family as #72/#77/#80/#81/#82:** the array that caused the crash (`sequences`) was never actually the thing consuming memory *during* the crash — the crash always happened at that array's own construction line, which made it the obvious suspect. The real fix was in a completely different, much-later part of the same function: how long an already-built array outlives its usefulness. A profiler or an explicit "what's alive when this fails" check would have found this faster than dtype/chunking theorizing; worth remembering for the next memory-shaped bug in this codebase.
+
+### 84. Rank heads were sigmoid-squashed at inference but trained raw against an MSE target
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed` (V5.1 — export activation changed to `None`, cross-sectional percentile normalization added at inference)
+
+`train.py`'s rank heads (`rank_5d`/`rank_20d`/`sector_neutral_rank_20d`)
+were trained directly against a `[0,1]` percentile target with a **raw
+linear** output, but the export step wrapped every rank head in a final
+`"sigmoid"` layer anyway — a leftover from an earlier architecture. Live
+`predicted_rank_20d` was therefore `sigmoid(x)` where `x` had never been
+trained toward a sigmoid-shaped target, compressing real values into
+roughly `[0.475, 0.75]` instead of the full `[0,1]` range. Every gate that
+reads this value assumes it spans `[0,1]`: `min_rank_confidence_spread`
+ended up ~4× tighter than configured, `confidence = min(1, |rank-0.5|*2)`
+was capped near 0.5 instead of 1.0, and bottom-ranked shorts sized to
+exactly zero via `build_dynamic_position_sizing()`'s `confidence == 0.0`
+early-return. **Invisible to every existing rank-quality gate** because
+rank-IC is invariant under any monotone transform — a sigmoid squash
+doesn't change the *ranking*, only its usable range, so it survived every
+gate built to catch a broken signal.
+
+**Fix:** export activation changed from `"sigmoid"` to `None` for every
+rank head (`train.py`'s two export functions); `inference/exported_model.py`
+needed no change (an activation-free head already had a supported code
+path). Since a pure ranking loss makes the head's absolute output scale
+meaningless by construction anyway, the real fix is
+per-bar cross-sectional percentile normalization at inference
+(`portfolio/rank_signal.py::cross_sectional_rank_scores()`), mirroring what
+the offline rank-IC metric already does per date.
+
+### 85. `sector_mapping.json` covered 29 of the universe's 104 assets
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (V5.1 — expanded to all 104)
+
+75 of 104 configured tickers (most of the equity universe, all 15 forex
+pairs, most crypto) defaulted to `"Unknown"`. `target_sector_neutral_rank_20d`
+— a live head with `loss_weight: 0.3` — ranked 72% of the universe inside
+one giant bucket, making it nearly a duplicate of the plain `rank_20d`
+head, while any genuinely small sector (e.g. 2-member `Technology`) NaN'd
+out entirely under `min_sector_size: 3`. Any sector-neutral book built on
+this mapping was meaningless. Fixed with a full 104-ticker mapping
+(GICS-like buckets for equities, `Forex`/`Crypto`/`Fixed Income`/`Broad
+Market ETF` for the rest); `AAA` stays deliberately unmapped (documented
+as an ambiguous legacy ticker, observation-only).
+
+### 86. The constructed book was silently truncated by `max_active_positions`, not by rank
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (V5.1)
+
+`portfolio_book.top_n=10 + bottom_n=10` requests 20 names, but
+`max_active_positions=15` and `_apply_signal()` rejected the excess in
+`self.symbols` iteration order — an accident of universe ordering, not
+conviction. Five names were dropped from the realized book that had
+nothing to do with how strongly the model ranked them. Fixed two ways:
+config presets now set `max_active_positions >= top_n + bottom_n`, and
+when the cap does bind, Pass 2 sorts candidates by rank-confidence first
+so the strongest convictions survive.

@@ -98,3 +98,13 @@ threads it into observation-mode's simulated fills too. See
 `execution/README.md`'s "Real fill slippage" section for the full wiring;
 this module itself is unchanged (the fix was entirely in how its existing
 output gets consumed, not in the estimator).
+
+## A harder floor: `max_round_trip_cost_fraction`
+
+`build_liquidity_decision()` gained an optional keyword,
+`max_round_trip_cost_fraction` (default `None`, byte-identical when
+unset): once `estimated_round_trip_cost` itself (not `participation_rate`)
+crosses this fraction, the decision blocks outright regardless of how
+small the order's participation rate looks — catching the case a thin,
+low-participation order can still be genuinely expensive to fill. Config
+per preset via `phase_v2.liquidity.max_round_trip_cost_fraction`.

@@ -60,7 +60,12 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
   `sequence_feature_schema.json`, `sequence_training_metrics.json`, Phase
   2) all follow the identical optional/best-effort contract.
 - `status_export.py` (IO) — the sole writer of
-  `visualization/grafana/retraining_status.json`.
+  `visualization/grafana/retraining_status.json`, including an
+  `auto_rollback` section (see below).
+- `auto_rollback.py` (pure) — `select_rollback_target()`: whether the
+  currently-active model should be rolled back given live degradation
+  signals, a minimum runway since promotion, a cooldown since the last
+  rollback, and a target that previously passed the validation gate.
 - `orchestrator.py` — `plan`/`train`/`validate`/`backtest`/`commit`/
   `promote`/`rollback`/`status`, each usable as a library function or a CLI
   subcommand (`python -m retraining.orchestrator <stage> ...`) for
@@ -91,6 +96,25 @@ python -m retraining.orchestrator status
 See `development/infrastructure.md`'s "Controlled Retraining Betreiben
 (V2-17)" section for the full command reference, including every
 orchestrator subcommand and the Postgres inspection queries.
+
+## Auto-rollback: a separate concern from the plan→train→promote loop
+
+`RetrainingWorker.check_auto_rollback()` runs on the same poll cadence as
+`run_once()` but asks a different question — is the model *currently
+active* in production degrading, not whether a new candidate is ready. It
+feeds `auto_rollback.select_rollback_target()` live signals
+(`_live_degradation_signals()`: `main.py`'s kill-switch state read from
+`visualization/state.json`, plus recent `sharpe_degradation_trigger`/
+`rank_ic_decay_trigger` rows from `performance_triggers`) and, only when
+the selector agrees, calls the existing `orchestrator.rollback()` and
+pushes a notification through the same trigger-table → Telegram pathway
+every other alert already uses. Off by default
+(`phase_v2.retraining.auto_rollback.enabled: false`) — an automatic
+weight swap is the most consequential single action this system can
+take. `aq retrain auto-rollback --status` and the `retraining_status.json`
+`auto_rollback` section are both read-only diagnostics backed by the same
+`auto_rollback_status()` function; neither one ever triggers a rollback
+itself.
 
 ## Walk-forward retraining is a separate, scheduled mechanism (Phase 4)
 
