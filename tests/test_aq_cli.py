@@ -1017,6 +1017,147 @@ def test_trade_lock_requires_exactly_one_flag():
         pass
 
 
+# --- `aq kill-switch` (V5.1 Phase 6) ---
+
+
+def test_kill_switch_arm_writes_true(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text('{"phase_v2": {"risk": {}}}', encoding="utf-8")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["kill-switch", "--arm"])
+    with patch("aq_cli.CONFIG_PATH", config_path):
+        args.func(args)
+
+    from risk.manual_override import read_kill_switch_manual_override
+
+    assert read_kill_switch_manual_override(config_path) is True
+
+
+def test_kill_switch_disarm_writes_false(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text('{"phase_v2": {"risk": {"kill_switch_manual_override": true}}}', encoding="utf-8")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["kill-switch", "--disarm"])
+    with patch("aq_cli.CONFIG_PATH", config_path):
+        args.func(args)
+
+    from risk.manual_override import read_kill_switch_manual_override
+
+    assert read_kill_switch_manual_override(config_path) is False
+
+
+def test_kill_switch_auto_clears_override(tmp_path):
+    config_path = tmp_path / "config.json"
+    config_path.write_text('{"phase_v2": {"risk": {"kill_switch_manual_override": true}}}', encoding="utf-8")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["kill-switch", "--auto"])
+    with patch("aq_cli.CONFIG_PATH", config_path):
+        args.func(args)
+
+    from risk.manual_override import read_kill_switch_manual_override
+
+    assert read_kill_switch_manual_override(config_path) is None
+
+
+def test_kill_switch_status_prints_current_state(tmp_path, capsys):
+    config_path = tmp_path / "config.json"
+    config_path.write_text('{"phase_v2": {"risk": {"kill_switch_manual_override": false}}}', encoding="utf-8")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["kill-switch", "--status"])
+    with patch("aq_cli.CONFIG_PATH", config_path):
+        args.func(args)
+
+    assert "DISARMED" in capsys.readouterr().out
+
+
+def test_kill_switch_requires_exactly_one_flag():
+    parser = aq_cli.build_parser()
+    try:
+        parser.parse_args(["kill-switch"])
+        assert False, "expected SystemExit when no kill-switch flag is given"
+    except SystemExit:
+        pass
+
+
+def test_kill_switch_history_errors_without_postgres_dsn(monkeypatch, capsys):
+    monkeypatch.delenv("AETHER_POSTGRES_DSN", raising=False)
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["kill-switch", "--history"])
+
+    exit_code = args.func(args)
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "AETHER_POSTGRES_DSN" in captured.err
+
+
+def test_kill_switch_history_filters_to_kill_switch_trips(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    conn_mock = MagicMock()
+    fake_rows = [
+        {"created_at": "2026-07-17T12:00:00Z", "event_type": "live_mode_transition", "payload": {"event": "kill_switch_tripped", "triggers": ["rolling_sharpe_below_floor"]}},
+        {"created_at": "2026-07-17T12:05:00Z", "event_type": "live_mode_transition", "payload": {"event": "some_other_transition"}},
+    ]
+    with patch("psycopg.connect", return_value=conn_mock), \
+         patch("audit.fetch_recent_events", return_value=fake_rows):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["kill-switch", "--history"])
+        exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "kill_switch_tripped" in captured.out
+    assert "some_other_transition" not in captured.out
+    conn_mock.close.assert_called_once()
+
+
+def test_kill_switch_history_reports_no_trips(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    conn_mock = MagicMock()
+    with patch("psycopg.connect", return_value=conn_mock), \
+         patch("audit.fetch_recent_events", return_value=[]):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["kill-switch", "--history"])
+        exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "no kill-switch trips" in captured.out.lower()
+
+
+def test_kill_switch_history_connection_failure_returns_error(monkeypatch, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://aether:pw@localhost:5433/aether_quant")
+    with patch("psycopg.connect", side_effect=Exception("connection refused")):
+        parser = aq_cli.build_parser()
+        args = parser.parse_args(["kill-switch", "--history"])
+        exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "connection refused" in captured.err
+
+
+# --- `aq retrain auto-rollback` (V5.1 Phase 6) ---
+
+
+def test_retrain_auto_rollback_dispatches_to_orchestrator():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["retrain", "auto-rollback", "--status"], run_mock)
+
+    assert run_mock.call_args.args[0] == [sys.executable, "-m", "retraining.orchestrator", "auto-rollback", "--status"]
+
+
+def test_retrain_auto_rollback_dry_run_dispatches_to_orchestrator():
+    run_mock = MagicMock(return_value=0)
+    _parse_and_dispatch(["retrain", "auto-rollback", "--dry-run"], run_mock)
+
+    assert run_mock.call_args.args[0] == [sys.executable, "-m", "retraining.orchestrator", "auto-rollback", "--dry-run"]
+
+
 # --- fetch ------------------------------------------------------------------
 
 

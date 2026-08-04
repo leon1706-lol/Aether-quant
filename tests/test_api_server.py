@@ -41,6 +41,53 @@ def test_get_audit_log_404s_when_export_not_written_yet(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# /api/state + /api/grafana/retraining-status - V5.1 Phase 6 (production
+# safety) passthrough of kill_switch/reconciliation (written into
+# state.json by main.py's own Phase 6 wiring) and auto_rollback (written
+# into retraining_status.json by retraining/status_export.py's own Phase 6
+# wiring). Both routes are thin JSON-file readers with no route-level
+# shaping, so this is a regression guard that neither route's own file
+# read silently drops or reshapes these new top-level keys, not a test of
+# the underlying build logic (already covered by test_status_export.py).
+# ---------------------------------------------------------------------------
+
+
+def test_get_state_passes_through_kill_switch_and_reconciliation(tmp_path, monkeypatch):
+    monkeypatch.setattr(api_server, "VISUALIZATION_DIR", tmp_path)
+    monkeypatch.setattr(api_server, "GRAFANA_DIR", tmp_path / "grafana")
+    state_payload = {
+        "project": "Aether Quant",
+        "kill_switch": {"tripped": True, "severity": "critical", "triggers": ["rolling_sharpe_below_floor"]},
+        "reconciliation": {"status": "not_applicable", "reason": "portfolio_book_neutrality_or_reconciliation_disabled"},
+    }
+    (tmp_path / "state.json").write_text(json.dumps(state_payload), encoding="utf-8")
+
+    result = api_server.get_state()
+
+    assert result["kill_switch"]["tripped"] is True
+    assert result["kill_switch"]["triggers"] == ["rolling_sharpe_below_floor"]
+    assert result["reconciliation"]["status"] == "not_applicable"
+
+
+def test_get_retraining_status_passes_through_auto_rollback(tmp_path, monkeypatch):
+    monkeypatch.setattr(api_server, "GRAFANA_DIR", tmp_path)
+    payload = {
+        "active_model": None,
+        "auto_rollback": {
+            "config": {"enabled": True},
+            "degradation_signals": {"kill_switch_tripped": False},
+            "decision": {"should_rollback": False, "reason": "no_configured_trigger_fired"},
+        },
+    }
+    (tmp_path / "retraining_status.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    result = api_server.get_retraining_status()
+
+    assert result["auto_rollback"]["decision"]["reason"] == "no_configured_trigger_fired"
+    assert result["auto_rollback"]["config"]["enabled"] is True
+
+
+# ---------------------------------------------------------------------------
 # SpaStaticFiles - client-side-routing fallback (found during V4-W1 manual
 # verification: every webui tab except / 404'd on a direct load or hard
 # refresh whenever the SPA was served from FastAPI, i.e. the Docker image

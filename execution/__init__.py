@@ -37,6 +37,7 @@ from .paper_readiness import (
     evaluate_observation_readiness,
     evaluate_paper_broker_config,
 )
+from .reconciliation import ReconciliationReport, reconcile_positions
 
 __all__ = [
     "NetEdgeDecision",
@@ -70,4 +71,6 @@ __all__ = [
     "describe_missing_fields",
     "postgres_dsn_is_live_safe",
     "DEFAULT_DEV_DB_PASSWORD",
+    "ReconciliationReport",
+    "reconcile_positions",
 ]

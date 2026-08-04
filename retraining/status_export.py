@@ -20,6 +20,7 @@ from typing import Any
 from uuid import UUID
 
 from performance.postgres_triggers import fetch_latest_trigger
+from retraining.auto_rollback import select_rollback_target
 from retraining.postgres_registry import (
     ensure_schema,
     fetch_active_model_version,
@@ -32,6 +33,31 @@ logger = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_STATUS_PATH = ROOT_DIR / "visualization" / "grafana" / "retraining_status.json"
+
+
+def _load_auto_rollback_config() -> dict:
+    """V5.1 Phase 6 (production safety) - deliberately duplicates
+    retraining.orchestrator::_load_retraining_config()'s ~4-line body
+    rather than importing it: orchestrator.py already imports
+    build_status_view/write_status_file FROM this module, so importing
+    back would be circular. Same "small, documented duplication over a
+    heavy circular import" precedent as evaluation/rank_book_simulator.py's
+    own torch-free bootstrap duplication."""
+    config_path = ROOT_DIR / "config.json"
+    if not config_path.exists():
+        return {}
+    with config_path.open("r", encoding="utf-8") as f:
+        config = json.load(f)
+    return config.get("phase_v2", {}).get("retraining", {})
+
+
+def _hours_since(timestamp) -> float | None:
+    if timestamp is None:
+        return None
+    now = datetime.now(timezone.utc)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return (now - timestamp).total_seconds() / 3600.0
 
 
 def _json_safe(value: Any) -> Any:
@@ -75,6 +101,30 @@ def build_status_view(conn) -> dict:
 
     validation_status = latest_event.get("status", "none") if latest_event else "none"
 
+    # V5.1 Phase 6 (production safety) - a read-only diagnostic snapshot,
+    # reusing active/rollback_candidates already fetched above. Never
+    # itself triggers a rollback - retraining/worker.py::RetrainingWorker.
+    # check_auto_rollback() is the actual enforcement path, running on its
+    # own poll loop with REAL live degradation signals (state.json +
+    # recent Postgres triggers). kill_switch_tripped/net_sharpe_decay/
+    # rank_ic_decay are always reported False HERE specifically because
+    # this exporter (unlike check_auto_rollback()) has no live-signal
+    # input wired in - a documented limitation, not a bug: this section
+    # exists to show WHEN a rollback could become eligible (runway/
+    # cooldown), not to duplicate the real trigger evaluation.
+    auto_rollback_config = _load_auto_rollback_config().get("auto_rollback", {})
+    bars_since_promotion = _hours_since(active.get("updated_at")) if active else None
+    last_rolled_back = next((v for v in rollback_candidates if v.get("status") == "rolled_back"), None)
+    bars_since_last_rollback = _hours_since(last_rolled_back.get("updated_at")) if last_rolled_back else None
+    degradation_signals = {
+        "kill_switch_tripped": False,
+        "net_sharpe_decay": False,
+        "rank_ic_decay": False,
+        "bars_since_promotion": bars_since_promotion,
+        "bars_since_last_rollback": bars_since_last_rollback,
+    }
+    auto_rollback_decision = select_rollback_target(active or {}, rollback_candidates, degradation_signals, auto_rollback_config)
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "active_model": _version_summary(active),
@@ -87,6 +137,13 @@ def build_status_view(conn) -> dict:
             _json_safe({"model_version_id": v["model_version_id"], "created_at": v["created_at"]})
             for v in rollback_candidates
         ],
+        "auto_rollback": _json_safe(
+            {
+                "config": auto_rollback_config,
+                "degradation_signals": degradation_signals,
+                "decision": auto_rollback_decision,
+            }
+        ),
     }
 
 

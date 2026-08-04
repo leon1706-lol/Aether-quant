@@ -248,3 +248,145 @@ def test_init_reconciles_stale_running_events_before_entering_run_loop():
 
     reconcile_mock.assert_called_once_with(conn_mock, config)
     assert worker.config is config
+
+
+# ---------------------------------------------------------------------------
+# Auto-rollback (V5.1 Phase 6, production safety)
+# ---------------------------------------------------------------------------
+
+
+def test_live_degradation_signals_all_false_when_nothing_present(tmp_path):
+    worker = _worker()
+    missing_state_path = tmp_path / "state.json"
+
+    with patch("retraining.worker._STATE_PATH", missing_state_path), patch(
+        "retraining.worker.fetch_triggers_since", return_value=[]
+    ):
+        signals = worker._live_degradation_signals()
+
+    assert signals == {"kill_switch_tripped": False, "net_sharpe_decay": False, "rank_ic_decay": False}
+
+
+def test_live_degradation_signals_reads_kill_switch_tripped_from_state_json(tmp_path):
+    worker = _worker()
+    state_path = tmp_path / "state.json"
+    state_path.write_text('{"kill_switch": {"tripped": true}}', encoding="utf-8")
+
+    with patch("retraining.worker._STATE_PATH", state_path), patch(
+        "retraining.worker.fetch_triggers_since", return_value=[]
+    ):
+        signals = worker._live_degradation_signals()
+
+    assert signals["kill_switch_tripped"] is True
+
+
+def test_live_degradation_signals_maps_trigger_types_to_abstract_names(tmp_path):
+    worker = _worker()
+    missing_state_path = tmp_path / "state.json"
+    triggers = [{"trigger_type": "sharpe_degradation_trigger"}, {"trigger_type": "rank_ic_decay_trigger"}]
+
+    with patch("retraining.worker._STATE_PATH", missing_state_path), patch(
+        "retraining.worker.fetch_triggers_since", return_value=triggers
+    ):
+        signals = worker._live_degradation_signals()
+
+    assert signals["net_sharpe_decay"] is True
+    assert signals["rank_ic_decay"] is True
+
+
+def test_live_degradation_signals_never_raises_on_malformed_state_file(tmp_path):
+    worker = _worker()
+    state_path = tmp_path / "state.json"
+    state_path.write_text("not valid json", encoding="utf-8")
+
+    with patch("retraining.worker._STATE_PATH", state_path), patch(
+        "retraining.worker.fetch_triggers_since", side_effect=Exception("db down")
+    ):
+        signals = worker._live_degradation_signals()
+
+    assert signals == {"kill_switch_tripped": False, "net_sharpe_decay": False, "rank_ic_decay": False}
+
+
+def test_check_auto_rollback_no_ops_when_selector_says_no():
+    worker = _worker({"auto_rollback": {"enabled": False}})
+    decision = {"should_rollback": False, "to_version_id": None, "reason": "auto_rollback_disabled", "failures": []}
+    status_result = {"active_version_id": "v1", "degradation_signals": {}, "decision": decision}
+
+    with patch("retraining.worker.RetrainingWorker._live_degradation_signals", return_value={}), patch(
+        "retraining.worker.auto_rollback_status", return_value=status_result
+    ) as status_mock, patch("retraining.worker.rollback") as rollback_mock, patch(
+        "retraining.worker.insert_triggers"
+    ) as insert_mock:
+        result = worker.check_auto_rollback()
+
+    status_mock.assert_called_once()
+    rollback_mock.assert_not_called()
+    insert_mock.assert_not_called()
+    assert result == status_result
+
+
+def test_check_auto_rollback_calls_rollback_and_notifies_when_selector_says_yes():
+    worker = _worker({"auto_rollback": {"enabled": True}})
+    decision = {"should_rollback": True, "to_version_id": "v_old", "reason": "kill_switch_tripped", "failures": []}
+    status_result = {"active_version_id": "v_new", "degradation_signals": {"kill_switch_tripped": True}, "decision": decision}
+    rollback_result = {"ok": True, "restored_version_id": "v_old"}
+
+    with patch(
+        "retraining.worker.RetrainingWorker._live_degradation_signals", return_value={"kill_switch_tripped": True}
+    ), patch("retraining.worker.auto_rollback_status", return_value=status_result), patch(
+        "retraining.worker.rollback", return_value=rollback_result
+    ) as rollback_mock, patch("retraining.worker.insert_triggers", return_value=1) as insert_mock:
+        result = worker.check_auto_rollback()
+
+    rollback_mock.assert_called_once_with(worker._conn, "v_old", worker.config)
+    insert_mock.assert_called_once()
+    inserted_trigger = insert_mock.call_args.args[1][0]
+    assert inserted_trigger["trigger_type"] == "auto_rollback_triggered"
+    assert "v_old" in inserted_trigger["recommended_action"]
+    assert result["rollback_result"] == rollback_result
+
+
+def test_check_auto_rollback_notifies_even_when_rollback_itself_fails():
+    worker = _worker({"auto_rollback": {"enabled": True}})
+    decision = {"should_rollback": True, "to_version_id": "v_old", "reason": "kill_switch_tripped", "failures": []}
+    status_result = {"active_version_id": "v_new", "degradation_signals": {}, "decision": decision}
+    rollback_result = {"ok": False, "error": "artifact_hash_mismatch"}
+
+    with patch("retraining.worker.RetrainingWorker._live_degradation_signals", return_value={}), patch(
+        "retraining.worker.auto_rollback_status", return_value=status_result
+    ), patch("retraining.worker.rollback", return_value=rollback_result), patch(
+        "retraining.worker.insert_triggers", return_value=1
+    ) as insert_mock:
+        result = worker.check_auto_rollback()
+
+    insert_mock.assert_called_once()
+    inserted_trigger = insert_mock.call_args.args[1][0]
+    assert "FAILED" in inserted_trigger["recommended_action"]
+    assert result["rollback_result"]["ok"] is False
+
+
+def test_notify_auto_rollback_never_raises_on_insert_failure():
+    worker = _worker()
+    decision = {"should_rollback": True, "to_version_id": "v_old", "reason": "kill_switch_tripped"}
+    rollback_result = {"ok": True}
+
+    with patch("retraining.worker.insert_triggers", side_effect=Exception("db down")):
+        worker._notify_auto_rollback(decision, rollback_result)  # must not raise
+
+
+def test_run_loop_calls_check_auto_rollback_alongside_run_once():
+    """run() must call check_auto_rollback() on the SAME poll cadence as
+    run_once(), as a genuinely separate concern (active-model health, not
+    new-candidate promotion) - not nested inside run_once()."""
+    worker = _worker()
+
+    def _stop_after_one_cycle(*args, **kwargs):
+        raise KeyboardInterrupt()
+
+    with patch("retraining.worker.RetrainingWorker.run_once", return_value={"ran": False, "reason": "disabled"}), patch(
+        "retraining.worker.RetrainingWorker.check_auto_rollback",
+        return_value={"decision": {"should_rollback": False}},
+    ) as check_mock, patch("retraining.worker.time.sleep", side_effect=_stop_after_one_cycle):
+        worker.run()
+
+    check_mock.assert_called_once()

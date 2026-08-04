@@ -177,6 +177,46 @@ export interface BookNeutralityDiagnostics {
   steps_applied?: string[]
 }
 
+// V5.1 Phase 6 (production safety) - risk/kill_switch.py::KillSwitchDecision.
+// to_dict(), evaluated once per bar in main.py::_refresh_risk_state() and
+// mirrored at RuntimeState.kill_switch. severity="none"/tripped=false is
+// the steady-state default (config-gated fail-open, see that module's own
+// docstring).
+export interface KillSwitchDecision {
+  tripped: boolean
+  severity: 'none' | 'warning' | 'critical' | string
+  triggers: string[]
+  reason: string
+  recommended_action: string
+  observed: Record<string, number | boolean | null>
+  thresholds: Record<string, number>
+}
+
+// V5.1 Phase 6 (production safety) - execution/reconciliation.py::
+// ReconciliationReport.to_dict(), evaluated once per bar in main.py::
+// _refresh_risk_state(). {status: "not_applicable", reason: "..."} is the
+// steady-state default whenever the portfolio-book-with-neutrality path
+// or phase_v2.reconciliation.enabled isn't active - see
+// main.py::_evaluate_reconciliation()'s own docstring.
+export interface ReconciliationDrift {
+  symbol: string
+  expected_weight: number
+  actual_weight: number
+  delta_weight: number
+  delta_usd: number
+}
+
+export interface ReconciliationReport {
+  status?: 'not_applicable' | 'not_evaluated' | string
+  reason?: string
+  matched?: string[]
+  drifted?: ReconciliationDrift[]
+  orphan_broker?: ReconciliationDrift[]
+  missing_broker?: ReconciliationDrift[]
+  max_abs_weight_drift?: number
+  breach?: boolean
+}
+
 export interface MarketAnalysis {
   action?: 'observe' | 'simulate' | 'trade' | 'reduce_risk' | 'retrain_candidate' | string
   signal?: string
@@ -719,6 +759,34 @@ export interface RetrainingEventSummary {
   reason: string
 }
 
+// V5.1 Phase 6 (production safety) - retraining/auto_rollback.py::
+// select_rollback_target()'s return shape, wrapped by retraining/
+// status_export.py::build_status_view()'s read-only diagnostic snapshot.
+// kill_switch_tripped/net_sharpe_decay/rank_ic_decay are always false in
+// THIS snapshot (this exporter has no live-signal input wired in - the
+// real enforcement path is retraining/worker.py::RetrainingWorker.
+// check_auto_rollback(), which runs with real live signals but writes no
+// webui-visible artifact of its own beyond this same retraining_status.json
+// on its next status() call).
+export interface AutoRollbackDecision {
+  should_rollback: boolean
+  to_version_id: string | null
+  reason: string
+  failures: string[]
+}
+
+export interface AutoRollback {
+  config: Record<string, unknown>
+  degradation_signals: {
+    kill_switch_tripped: boolean
+    net_sharpe_decay: boolean
+    rank_ic_decay: boolean
+    bars_since_promotion: number | null
+    bars_since_last_rollback: number | null
+  }
+  decision: AutoRollbackDecision
+}
+
 export interface RetrainingStatus {
   generated_at?: string
   active_model: ActiveModelSummary | null
@@ -728,6 +796,7 @@ export interface RetrainingStatus {
   validation_status?: string
   rollback_available: boolean
   rollback_candidates: { model_version_id: string; created_at: string }[]
+  auto_rollback?: AutoRollback
 }
 
 export interface PaperReadinessCheck {
@@ -877,4 +946,9 @@ export interface RuntimeState {
   // (book_neutrality, {} pre-first-rebalance or when disabled).
   rank_signal?: RankSignalPolicy
   book_neutrality?: BookNeutralityDiagnostics
+  // V5.1 Phase 6 (production safety) - evaluated once per bar in main.py::
+  // _refresh_risk_state(), see KillSwitchDecision/ReconciliationReport's
+  // own docstrings above for each field's steady-state default.
+  kill_switch?: KillSwitchDecision
+  reconciliation?: ReconciliationReport
 }

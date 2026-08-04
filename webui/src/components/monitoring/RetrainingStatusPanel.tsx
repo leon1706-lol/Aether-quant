@@ -79,6 +79,28 @@ export function RetrainingStatusPanel({ status }: { status: RetrainingStatus | u
           <small className="text-white/40">No rollback candidates yet</small>
         )}
       </div>
+
+      {/* V5.1 Phase 6 (production safety) - retraining/auto_rollback.py's
+          read-only diagnostic, refreshed by retraining/status_export.py.
+          Always visible (not hidden when disabled) so an operator can
+          confirm auto-rollback is genuinely off, not just quiet. */}
+      <div className="mt-3 grid min-w-0 gap-1 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
+        <strong className="text-xs uppercase tracking-widest text-white/60">Auto-Rollback</strong>
+        {status?.auto_rollback ? (
+          <div className="grid gap-1 text-sm text-white/80">
+            <span>
+              {status.auto_rollback.config.enabled ? 'Armed' : 'Disabled'} ·{' '}
+              {status.auto_rollback.decision.should_rollback ? 'ROLLBACK PENDING' : 'no action'}
+            </span>
+            <span className="text-xs text-white/40 break-words">{status.auto_rollback.decision.reason}</span>
+            {status.auto_rollback.decision.failures.length > 0 && (
+              <span className="text-xs text-white/40">blocked by: {status.auto_rollback.decision.failures.join(', ')}</span>
+            )}
+          </div>
+        ) : (
+          <small className="text-white/40">No data yet</small>
+        )}
+      </div>
     </Panel>
   )
 }

@@ -50,7 +50,12 @@ from data_pipeline.ib_backfill import (
     ib_readiness_status,
     load_futures_contract_specs,
 )
-from risk.manual_override import read_manual_trade_lock_override, write_manual_trade_lock_override
+from risk.manual_override import (
+    read_kill_switch_manual_override,
+    read_manual_trade_lock_override,
+    write_kill_switch_manual_override,
+    write_manual_trade_lock_override,
+)
 
 IB_ASSET_CLASSES = ("futures", "options")
 
@@ -599,6 +604,11 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_forex_risk.py",
         "test_order_gate.py", "test_position_sizing.py", "test_backtest_gate.py",
         "test_validation_gate.py", "test_manual_override.py", "test_rl_sizing.py",
+        # V5.1 Phase 6 (production safety) - risk/kill_switch.py,
+        # execution/reconciliation.py (grouped here, not a dedicated
+        # "execution" bucket, alongside every other production-safety
+        # risk mechanism in this list).
+        "test_kill_switch.py", "test_reconciliation.py",
     ],
     "portfolio": [
         "test_portfolio_book_construction.py", "test_options_strategy.py",
@@ -650,6 +660,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_retraining_postgres_registry.py", "test_retraining_worker.py", "test_trigger_worker.py",
         "test_triggers.py", "test_vault_client.py", "test_vault_commands.py", "test_lean_backtest.py",
         "test_v2_pipeline_manifest.py",
+        # V5.1 Phase 6 (production safety) - retraining/auto_rollback.py.
+        "test_auto_rollback.py",
     ],
     "notifications": ["test_telegram_alerts.py", "test_telegram_client.py", "test_telegram_worker.py", "test_postgres_telegram.py"],
     "storage": ["test_postgres_triggers.py", "test_postgres_worker.py", "test_config_cache.py", "test_runtime_config_io.py", "test_experience_queue.py"],
@@ -1076,6 +1088,60 @@ def cmd_trade_lock(args: argparse.Namespace) -> int:
         override = read_manual_trade_lock_override(CONFIG_PATH)
         label = {True: "ON (forced paused)", False: "OFF (forced resumed)", None: "AUTO (automatic behavior)"}[override]
         print(f"Trade lock override: {label}")
+    return 0
+
+
+def _cmd_kill_switch_history(args: argparse.Namespace) -> int:
+    """Queries the SAME tamper-evident audit log as `aq audit-log`
+    (development/Problems.md #42), filtering for kill-switch trips. main.py's
+    Phase 6 wiring pushes a trip as a LIVE_MODE_TRANSITION event with
+    payload {"event": "kill_switch_tripped", ...} - LIVE_MODE_TRANSITION is
+    reused rather than registering a new EVENT_TYPES entry (audit/redis_queue.py
+    fixes that tuple; build_audit_event() raises ValueError on anything else)."""
+    import psycopg
+
+    from audit import LIVE_MODE_TRANSITION, fetch_recent_events
+
+    dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    if not dsn:
+        print("error: AETHER_POSTGRES_DSN is not set.", file=sys.stderr)
+        return 1
+
+    try:
+        conn = psycopg.connect(dsn, autocommit=False)
+    except Exception as exc:
+        print(f"error: could not connect to Postgres: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        rows = fetch_recent_events(conn, event_type=LIVE_MODE_TRANSITION, limit=args.limit)
+        trip_rows = [row for row in rows if row["payload"].get("event") == "kill_switch_tripped"]
+        if not trip_rows:
+            print("aq kill-switch --history: no kill-switch trips recorded.")
+            return 0
+        for row in trip_rows:
+            print(f"{row['created_at']}  {json.dumps(row['payload'])}")
+        return 0
+    finally:
+        conn.close()
+
+
+def cmd_kill_switch(args: argparse.Namespace) -> int:
+    if args.arm:
+        write_kill_switch_manual_override(True, CONFIG_PATH)
+        print("Kill switch override: ARMED (forced evaluation active, even if phase_v2.risk.kill_switch.enabled is false).")
+    elif args.disarm:
+        write_kill_switch_manual_override(False, CONFIG_PATH)
+        print("Kill switch override: DISARMED (forced off, even if phase_v2.risk.kill_switch.enabled is true).")
+    elif args.auto:
+        write_kill_switch_manual_override(None, CONFIG_PATH)
+        print("Kill switch override: AUTO (defers to phase_v2.risk.kill_switch.enabled).")
+    elif args.history:
+        return _cmd_kill_switch_history(args)
+    else:  # status
+        override = read_kill_switch_manual_override(CONFIG_PATH)
+        label = {True: "ARMED (forced on)", False: "DISARMED (forced off)", None: "AUTO (defers to config)"}[override]
+        print(f"Kill switch override: {label}")
     return 0
 
 
@@ -1955,6 +2021,10 @@ def build_parser() -> argparse.ArgumentParser:
             "promote",
             "rollback",
             "status",
+            # V5.1 Phase 6 (production safety) - read-only diagnostic,
+            # never itself calls rollback() - see retraining/orchestrator.py::
+            # auto_rollback_status()'s own docstring.
+            "auto-rollback",
         ],
     )
     retrain_parser.add_argument("retrain_args", nargs=argparse.REMAINDER, help="Passed through verbatim, e.g. --version-id <uuid>")
@@ -1989,6 +2059,24 @@ def build_parser() -> argparse.ArgumentParser:
     trade_lock_group.add_argument("--auto", action="store_true", help="Return to fully automatic behavior")
     trade_lock_group.add_argument("--status", dest="status", action="store_true", help="Print the current override state")
     trade_lock_parser.set_defaults(func=cmd_trade_lock)
+
+    # V5.1 Phase 6 (production safety) - deliberately the same
+    # override-file/mutually-exclusive-group shape as `trade-lock` above (see
+    # risk/manual_override.py's kill_switch_manual_override, the exact same
+    # read/write/cache convention as manual_trade_lock_override) so the two
+    # switches can never disagree about their CLI surface. --history is the
+    # one addition, querying the tamper-evident audit log instead.
+    kill_switch_parser = subparsers.add_parser(
+        "kill-switch", help="Manually override / inspect the automated production kill switch"
+    )
+    kill_switch_group = kill_switch_parser.add_mutually_exclusive_group(required=True)
+    kill_switch_group.add_argument("--arm", action="store_true", help="Force kill-switch evaluation on")
+    kill_switch_group.add_argument("--disarm", action="store_true", help="Force kill-switch evaluation off")
+    kill_switch_group.add_argument("--auto", action="store_true", help="Defer to phase_v2.risk.kill_switch.enabled")
+    kill_switch_group.add_argument("--status", dest="status", action="store_true", help="Print the current override state")
+    kill_switch_group.add_argument("--history", action="store_true", help="List recorded kill-switch trips from the audit log")
+    kill_switch_parser.add_argument("--limit", type=int, default=50, help="Max --history rows (default 50)")
+    kill_switch_parser.set_defaults(func=cmd_kill_switch)
 
     fetch_parser = subparsers.add_parser(
         "fetch",

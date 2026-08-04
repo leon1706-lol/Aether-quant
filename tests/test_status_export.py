@@ -65,3 +65,74 @@ def test_write_status_file_writes_valid_json(tmp_path):
     write_status_file({"active_model": None}, path=path)
 
     assert json.loads(path.read_text(encoding="utf-8")) == {"active_model": None}
+
+
+# ---------------------------------------------------------------------------
+# auto_rollback section (V5.1 Phase 6, production safety)
+# ---------------------------------------------------------------------------
+
+
+def test_build_status_view_auto_rollback_reports_disabled_by_default():
+    with patch("retraining.status_export.fetch_active_model_version", return_value=None), patch(
+        "retraining.status_export.fetch_latest_candidate_version", return_value=None
+    ), patch("retraining.status_export.fetch_latest_trigger", return_value=None), patch(
+        "retraining.status_export.fetch_latest_retraining_event", return_value=None
+    ), patch("retraining.status_export.fetch_rollback_candidates", return_value=[]), patch(
+        "retraining.status_export._load_auto_rollback_config", return_value={}
+    ):
+        status = build_status_view(conn=None)
+
+    assert status["auto_rollback"]["config"] == {}
+    assert status["auto_rollback"]["decision"]["should_rollback"] is False
+    assert status["auto_rollback"]["degradation_signals"]["kill_switch_tripped"] is False
+    assert status["auto_rollback"]["degradation_signals"]["bars_since_promotion"] is None
+
+
+def test_build_status_view_auto_rollback_computes_bars_since_promotion():
+    from datetime import datetime, timedelta, timezone
+
+    active = {
+        "model_version_id": "v1",
+        "status": "active",
+        "created_at": "2026-07-02T12:00:00+00:00",
+        "updated_at": datetime.now(timezone.utc) - timedelta(hours=10),
+        "metrics": {},
+        "aether_vault_commit": "abc123",
+    }
+
+    with patch("retraining.status_export.fetch_active_model_version", return_value=active), patch(
+        "retraining.status_export.fetch_latest_candidate_version", return_value=None
+    ), patch("retraining.status_export.fetch_latest_trigger", return_value=None), patch(
+        "retraining.status_export.fetch_latest_retraining_event", return_value=None
+    ), patch("retraining.status_export.fetch_rollback_candidates", return_value=[]), patch(
+        "retraining.status_export._load_auto_rollback_config", return_value={"auto_rollback": {"enabled": True}}
+    ):
+        status = build_status_view(conn=None)
+
+    bars_since_promotion = status["auto_rollback"]["degradation_signals"]["bars_since_promotion"]
+    assert 9.5 < bars_since_promotion < 10.5
+
+
+def test_build_status_view_auto_rollback_computes_bars_since_last_rollback():
+    from datetime import datetime, timedelta, timezone
+
+    rollback_candidates = [
+        {
+            "model_version_id": "v0",
+            "created_at": "2026-07-01T12:00:00+00:00",
+            "status": "rolled_back",
+            "updated_at": datetime.now(timezone.utc) - timedelta(hours=50),
+        }
+    ]
+
+    with patch("retraining.status_export.fetch_active_model_version", return_value=None), patch(
+        "retraining.status_export.fetch_latest_candidate_version", return_value=None
+    ), patch("retraining.status_export.fetch_latest_trigger", return_value=None), patch(
+        "retraining.status_export.fetch_latest_retraining_event", return_value=None
+    ), patch("retraining.status_export.fetch_rollback_candidates", return_value=rollback_candidates), patch(
+        "retraining.status_export._load_auto_rollback_config", return_value={}
+    ):
+        status = build_status_view(conn=None)
+
+    bars_since_last_rollback = status["auto_rollback"]["degradation_signals"]["bars_since_last_rollback"]
+    assert 49.5 < bars_since_last_rollback < 50.5

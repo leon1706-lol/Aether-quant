@@ -28,7 +28,7 @@ import math
 import sys
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -54,7 +54,8 @@ from risk.asset_class_router import (
 )
 from risk.forex_risk import load_forex_pair_specs
 from risk.futures_risk import build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source
-from risk.manual_override import read_manual_trade_lock_override
+from risk.kill_switch import evaluate_kill_switch
+from risk.manual_override import read_kill_switch_manual_override, read_manual_trade_lock_override
 from risk.position_sizing import build_dynamic_position_sizing, cost_sizing_multiplier
 from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
 from portfolio import (
@@ -120,6 +121,7 @@ from execution import (
     evaluate_broker_config,
     is_real_order_placement,
     liquidity_cost_fraction,
+    reconcile_positions,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
     resolve_limit_price,
@@ -348,6 +350,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.observation_summary_path = self.grafana_dir / "observation_summary.json"
         self.observation_equity_curve_path = self.grafana_dir / "observation_equity_curve.csv"
         self.performance_triggers_path = self.grafana_dir / "performance_triggers.json"
+        # V5.1 Phase 6 (production safety) - written by the Postgres-connected
+        # retraining/status_export.py worker (main.py never opens its own
+        # Postgres connection). Same "read a locally-cached file a separate
+        # worker refreshes" pattern as performance_triggers_path above.
+        self.retraining_status_path = self.grafana_dir / "retraining_status.json"
         self.model_path = self.root_path / "ml" / "model_weights.json"
         self.expert_model_dir = self.root_path / "ml" / "expert_models"
         self.expert_metrics_path = self.root_path / "ml" / "expert_training_metrics.json"
@@ -743,6 +750,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._costs_config = self.phase_v2.get("costs", {})
         self.cost_sizing_enabled = bool(self._costs_config.get("cost_sizing_enabled", False))
         self.min_cost_multiplier = float(self._costs_config.get("min_cost_multiplier", 0.25))
+        # V5.1 Phase 6 (production safety) - fail-open exactly like
+        # execution/cost_model.py's own contract (see risk/kill_switch.py's
+        # module docstring: config["enabled"]=False is a full no-op, and
+        # every individual condition threshold defaults to a value it can
+        # never cross). phase_v2.risk.kill_switch is its own namespace,
+        # distinct from phase6.risk (the older daily/total-drawdown block
+        # read above).
+        self._kill_switch_config = self.phase_v2.get("risk", {}).get("kill_switch", {})
+        self._reconciliation_config = self.phase_v2.get("reconciliation", {})
         # V5.1 Phase 1 (development/Problems.md, item 6) - static reference
         # data, loaded once (not per-bar) - see portfolio/book_neutrality.py.
         # load_sector_mapping() never raises (missing/malformed file -> {}),
@@ -1375,6 +1391,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.current_total_drawdown = 0.0
         self.trade_lock_active = False
         self.trade_lock_reason = None
+        # V5.1 Phase 6 (production safety) - all state feeding
+        # risk/kill_switch.py::evaluate_kill_switch() and
+        # execution/reconciliation.py::reconcile_positions(), plus the
+        # kill switch's own manual arm/disarm override (read fresh from
+        # config.json once per session rollover, same convention as
+        # self.trade_lock_reason's own manual override just above).
+        self._kill_switch_return_history: deque = deque(maxlen=252)
+        self._previous_portfolio_value: float | None = None
+        self._previous_total_drawdown: float | None = None
+        # main.py trades at Daily resolution (Problems.md #13) - a
+        # "consecutive losing sessions" counter IS a "consecutive losing
+        # trades" counter at that cadence, and no genuine per-trade P&L
+        # tracker exists anywhere else in this codebase to build a finer-
+        # grained one from.
+        self._consecutive_losing_sessions: int = 0
+        self._slippage_divergence_history: deque = deque(maxlen=20)
+        self._expected_cost_by_symbol: dict = {}
+        self._live_rank_ic: float | None = None
+        self._kill_switch_manual_override: bool | None = None
+        self._kill_switch_previously_tripped: bool = False
+        self._last_kill_switch_decision: dict = {}
+        self._last_reconciliation_report: dict = {"status": "not_evaluated"}
         self.latest_regime_by_symbol = {}
         self.latest_regime_risk_score_by_symbol = {}
         self.latest_liquidity_by_symbol = {}
@@ -2054,6 +2092,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
             net_edge_decision = build_net_edge_decision(
                 predicted_rank_20d, liquidity_payload, order_value, self._costs_config
             ).to_dict()
+            # V5.1 Phase 6 (production safety) - this bar's expected round-
+            # trip cost + reference price, read back by on_order_event()
+            # (Lean's real-fill callback) to compute realized-vs-expected
+            # slippage divergence for evaluate_kill_switch(). Purely a
+            # stash-and-later-read - does not affect order construction or
+            # sizing at all, and every existing order-submission call site
+            # is untouched.
+            self._expected_cost_by_symbol[symbol_key] = {
+                "expected_cost_bps": net_edge_decision["expected_cost_bps"],
+                "reference_price": float(bar.close),
+            }
             cost_multiplier, cost_sizing_reason = cost_sizing_multiplier(
                 net_edge_decision["expected_edge_bps"],
                 net_edge_decision["expected_cost_bps"],
@@ -5516,6 +5565,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # Daily resolution in a backtest.
                 if self.runtime_mode != "backtest":
                     self._experience_queue.push(session_summary_event)
+                # V5.1 Phase 6 (production safety) - a "consecutive losing
+                # sessions" streak, fed to risk/kill_switch.py::
+                # evaluate_kill_switch()'s consecutive_losses input. Uses
+                # the exact same start/end-equity pair as
+                # build_session_summary_event() just above, BEFORE
+                # session_start_equity is overwritten for the new session.
+                if portfolio_value < self.session_start_equity:
+                    self._consecutive_losing_sessions += 1
+                else:
+                    self._consecutive_losing_sessions = 0
             self._session_events = []
             self.current_session_date = current_date
             self.session_start_equity = portfolio_value
@@ -5525,8 +5584,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # daily auto-clear, for live capital preservation - since
             # peak_equity never decreases, once liquidated to flat cash
             # this lock would otherwise never clear again for the rest of
-            # a bypass-mode backtest run.
-            if self.trade_lock_reason != "total_drawdown_limit_breached" or is_backtest_safety_bypass_active(
+            # a bypass-mode backtest run. V5.1 Phase 6 extends the same
+            # stickiness to any kill_switch_* reason (risk/kill_switch.py's
+            # module docstring) - a production circuit breaker that
+            # silently self-cleared on the very next bar/session would
+            # defeat the "requires a deliberate decision to resume" point
+            # of having one at all.
+            trade_lock_reason_is_sticky = self.trade_lock_reason == "total_drawdown_limit_breached" or str(
+                self.trade_lock_reason or ""
+            ).startswith("kill_switch_")
+            if not trade_lock_reason_is_sticky or is_backtest_safety_bypass_active(
                 self.runtime_mode, self.bypass_safety_gates
             ):
                 self.trade_lock_active = False
@@ -5569,9 +5636,49 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # in _ensure_ready() and never touched again.
             self.fred_series = load_cached_fred_series()
 
+            # V5.1 Phase 6 (production safety) - the kill switch's own
+            # arm/disarm override, same read-fresh-once-per-session-rollover
+            # convention as the manual trade-lock override above (see
+            # risk/manual_override.py's kill_switch_manual_override).
+            self._kill_switch_manual_override = read_kill_switch_manual_override(self.root_path / "config.json")
+
+            # V5.1 Phase 6 (production safety) - session-rollover read of the
+            # Postgres-backed retraining worker's locally-cached status file
+            # (main.py never opens its own Postgres connection - same
+            # pattern as the two refreshes above). Only trusted as a live
+            # rank-IC reading when the LATEST trigger is genuinely rank-IC-
+            # shaped - a stale/wrong-shaped signal must never be treated as
+            # a real reading (see evaluate_kill_switch()'s own docstring).
+            self._live_rank_ic = None
+            if self.retraining_status_path.exists():
+                try:
+                    retraining_status = self._load_json(self.retraining_status_path)
+                    last_trigger = retraining_status.get("last_trigger") or {}
+                    if last_trigger.get("trigger_type") == "rank_ic_decay_trigger":
+                        self._live_rank_ic = last_trigger.get("metric_value")
+                except Exception as error:
+                    self.Debug(f"kill_switch: failed to load {self.retraining_status_path.name} - {error}")
+
         self.peak_equity = max(self.peak_equity, portfolio_value)
         self.current_daily_drawdown = portfolio_value / max(self.session_start_equity, 1.0) - 1.0
         self.current_total_drawdown = portfolio_value / max(self.peak_equity, 1.0) - 1.0
+
+        # V5.1 Phase 6 (production safety) - rolling per-bar return history +
+        # one-bar drawdown-velocity (depth of drawdown, not the signed
+        # delta - a bar where drawdown DEEPENS produces a positive
+        # velocity), both feeding evaluate_kill_switch() below. None on the
+        # very first bar (no previous value yet) - degrades that ONE input,
+        # never crashes (see evaluate_kill_switch()'s own None-skip
+        # contract).
+        if self._previous_portfolio_value is not None and self._previous_portfolio_value > 0:
+            self._kill_switch_return_history.append(portfolio_value / self._previous_portfolio_value - 1.0)
+        drawdown_velocity_pct_per_bar = (
+            abs(self.current_total_drawdown) - abs(self._previous_total_drawdown)
+            if self._previous_total_drawdown is not None
+            else None
+        )
+        self._previous_portfolio_value = portfolio_value
+        self._previous_total_drawdown = self.current_total_drawdown
 
         breach_active, breach_reason = assess_drawdown_lock(
             self.current_daily_drawdown,
@@ -5588,6 +5695,124 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Liquidate()
                 else:
                     self._simulated_portfolio.liquidate_all(self.bar_index)
+
+        # V5.1 Phase 6 (production safety) - reconciliation + the automated
+        # kill switch, both evaluated once per bar using ALREADY-COMPUTED
+        # state above. Feeds the EXISTING trade_lock_active/trade_lock_reason
+        # machinery - see risk/kill_switch.py's module docstring for why
+        # this must never become a second, parallel lock.
+        reconciliation_report = self._evaluate_reconciliation()
+        self._last_reconciliation_report = reconciliation_report
+
+        effective_kill_switch_config = dict(self._kill_switch_config)
+        if self._kill_switch_manual_override is not None:
+            effective_kill_switch_config["enabled"] = self._kill_switch_manual_override
+
+        slippage_divergence_bps = (
+            sum(self._slippage_divergence_history) / len(self._slippage_divergence_history)
+            if self._slippage_divergence_history
+            else None
+        )
+        reconciliation_breach = bool(
+            reconciliation_report.get("breach") and self._reconciliation_config.get("trips_kill_switch", True)
+        )
+        runtime_metrics = {
+            "recent_bar_returns": list(self._kill_switch_return_history),
+            "drawdown_velocity_pct_per_bar": drawdown_velocity_pct_per_bar,
+            "live_rank_ic": self._live_rank_ic,
+            "consecutive_losses": self._consecutive_losing_sessions,
+            "slippage_divergence_bps": slippage_divergence_bps,
+            "model_age_days": self._model_age_days(),
+            "reconciliation_breach": reconciliation_breach,
+        }
+        kill_switch_decision = evaluate_kill_switch(runtime_metrics, effective_kill_switch_config)
+        self._last_kill_switch_decision = kill_switch_decision.to_dict()
+
+        if kill_switch_decision.tripped:
+            self.trade_lock_active = True
+            self.trade_lock_reason = kill_switch_decision.reason
+            if not self._kill_switch_previously_tripped:
+                self._audit_queue.push(
+                    build_audit_event(
+                        LIVE_MODE_TRANSITION,
+                        {"event": "kill_switch_tripped", **kill_switch_decision.to_dict()},
+                    )
+                )
+            self._kill_switch_previously_tripped = True
+        else:
+            self._kill_switch_previously_tripped = False
+
+    def _model_age_days(self) -> float | None:
+        """V5.1 Phase 6 (production safety) - age of whichever model
+        actually drives the live rank signal (self._rank_signal_policy's
+        model_priority, falling back to the other export if that one is
+        missing on disk). None (never 0.0 or a crash) whenever neither
+        export exists yet, or in backtest mode - self.Time is SIMULATED
+        time in a backtest and can be years away from the real wall-clock
+        mtime of a file on disk, so this check is only meaningful in
+        live/paper mode, matching this file's existing
+        `if self.runtime_mode != "backtest":` convention used everywhere
+        else for wall-clock-dependent behavior."""
+        if self.runtime_mode == "backtest":
+            return None
+        for model_name in self._rank_signal_policy.get("model_priority") or ["sequence", "multitask"]:
+            model_path = self.sequence_model_path if model_name == "sequence" else self.multitask_model_path
+            if model_path.exists():
+                age_seconds = datetime.now(timezone.utc).timestamp() - model_path.stat().st_mtime
+                return max(0.0, age_seconds / 86400.0)
+        return None
+
+    def _build_reconciliation_actual_weights(self) -> dict[str, float]:
+        """V5.1 Phase 6 (production safety) - per-symbol holdings weight,
+        mirroring _snapshot_positions()'s exact dual-mode (real Portfolio
+        vs. SimulatedPortfolioState) branching and Invested-only filter, so
+        the two never drift apart. Keyed by str(Symbol)/symbol_key, same
+        convention as self._book_target_weights (both ultimately derive
+        from `symbol_key = str(symbol)` on the same underlying Lean Symbol
+        object - see Pass 1/2's own symbol_key assignments)."""
+        orders_allowed, _ = self._order_permission()
+        if orders_allowed:
+            total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
+            return {
+                str(security_holding.Symbol): float(security_holding.HoldingsValue / total_value)
+                for security_holding in self.Portfolio.Values
+                if security_holding.Invested
+            }
+        equity = max(float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"]), 1.0)
+        return {
+            symbol_key: float(self._simulated_portfolio.position_value(symbol_key) / equity)
+            for symbol_key in self._simulated_portfolio.holdings
+        }
+
+    def _evaluate_reconciliation(self) -> dict:
+        """V5.1 Phase 6 (production safety) - once per bar, the book's
+        intended weights (self._book_target_weights, this bar's most
+        recent rebalance - see the Pass 1 book-construction block) vs. the
+        broker/simulated portfolio's ACTUAL current holdings. Deliberately
+        scoped to the portfolio-book-with-neutrality path specifically:
+        self._book_target_weights is ONLY ever populated when
+        self.book_neutrality_enabled (see that block's own comment) - the
+        non-neutrality book path computes weights inline per-symbol in
+        Pass 2 without ever persisting an addressable dict, so there is
+        nothing meaningful to reconcile against outside this path. Returns
+        an explicit not_applicable sentinel rather than a misleading
+        all-orphan report when the precondition doesn't hold - same
+        honesty-contract convention as evaluation/ablation.py's
+        NOT_OFFLINE_MEASURABLE_VARIANTS."""
+        if not (self.book_neutrality_enabled and self._reconciliation_config.get("enabled", False)):
+            return {"status": "not_applicable", "reason": "portfolio_book_neutrality_or_reconciliation_disabled"}
+
+        actual_by_symbol = self._build_reconciliation_actual_weights()
+        portfolio_value = float(self._snapshot_portfolio_summary()["total_portfolio_value"])
+        report = reconcile_positions(
+            self._book_target_weights,
+            actual_by_symbol,
+            weight_tolerance=float(self._reconciliation_config.get("weight_tolerance", 0.01)),
+            value_tolerance_usd=float(self._reconciliation_config.get("value_tolerance_usd", 50.0)),
+            portfolio_value=portfolio_value,
+            max_tolerated_drift=self._reconciliation_config.get("max_tolerated_drift"),
+        )
+        return report.to_dict()
 
     def _liquidate_positions_for_disabled_asset_classes(self) -> None:
         """Runs once per bar, immediately after _refresh_risk_state()
@@ -5992,7 +6217,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         one fill directly. On "canceled": clears the entry only, no
         cooldown stamp - nothing was actually filled. "pending"/"unknown"
         (e.g. a partial fill): left alone, the entry stays tracked for
-        _process_pending_limit_order_timeouts() to eventually resolve."""
+        _process_pending_limit_order_timeouts() to eventually resolve.
+
+        V5.1 Phase 6 (production safety): also feeds
+        _track_slippage_divergence() below, fully independent of and
+        additive to the limit-order bookkeeping above - fires for EVERY
+        real fill (limit or market), not just tracked limit orders."""
+        try:
+            self._track_slippage_divergence(order_event)
+        except Exception as error:
+            self.Debug(f"on_order_event: slippage-divergence tracking failed - {error}")
+
         pending = self.pending_limit_orders.get(str(order_event.Symbol))
         if pending is None:
             return
@@ -6011,6 +6246,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
         elif status == "canceled":
             for target_symbol in pending["target_symbols"]:
                 self.pending_limit_orders.pop(str(target_symbol), None)
+
+    def _track_slippage_divergence(self, order_event) -> None:
+        """V5.1 Phase 6 (production safety) - feeds risk/kill_switch.py::
+        evaluate_kill_switch()'s slippage_divergence_bps input. Reads (and
+        consumes) self._expected_cost_by_symbol, populated once per bar
+        per traded symbol at the build_net_edge_decision() Pass 2 call
+        site - BEFORE that bar's order is even submitted, so this is a
+        pure read here with no coupling back into order construction.
+        Only a fully "Filled" status counts (classify_order_status()
+        treats "PartiallyFilled" as still-pending) - a partial fill is
+        left in self._expected_cost_by_symbol for a later, more complete
+        fill event to consume."""
+        status = classify_order_status(getattr(order_event.Status, "name", str(order_event.Status)))
+        if status != "filled":
+            return
+        expected = self._expected_cost_by_symbol.pop(str(order_event.Symbol), None)
+        if expected is None:
+            return
+        fill_price = float(getattr(order_event, "FillPrice", 0.0) or 0.0)
+        reference_price = float(expected["reference_price"])
+        if fill_price <= 0.0 or reference_price <= 0.0:
+            return
+        realized_slippage_bps = abs(fill_price - reference_price) / reference_price * 10_000.0
+        self._slippage_divergence_history.append(realized_slippage_bps - float(expected["expected_cost_bps"]))
 
     def _write_state(self, mode: str, insight: str, signals: dict | None = None) -> None:
         now = self.Time if hasattr(self, "Time") else datetime.utcnow()
@@ -6099,6 +6358,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # own docstring for the diagnostics shape).
         state["rank_signal"] = self._rank_signal_policy
         state["book_neutrality"] = self._last_book_neutrality_diagnostics
+        # V5.1 Phase 6 (production safety) - both evaluated once per bar in
+        # _refresh_risk_state(), see risk/kill_switch.py::evaluate_kill_switch()
+        # and execution/reconciliation.py::reconcile_positions(). A trip
+        # already fed self.trade_lock_active/self.trade_lock_reason above
+        # (state["risk"]) - this is the full diagnostic detail (per-trigger
+        # observed/threshold breakdown, per-symbol drift) behind that.
+        state["kill_switch"] = self._last_kill_switch_decision
+        state["reconciliation"] = self._last_reconciliation_report
         # V4.12.2 (development/Problems.md #71) - self.latest_bond_payload/
         # self.latest_alt_data_payload were already rebuilt every bar
         # (_build_bond_payload()/_build_alt_data_payload(), on_data()) purely

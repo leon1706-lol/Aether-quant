@@ -67,3 +67,52 @@ def write_manual_trade_lock_override(value: bool | None, config_path: Path) -> N
     with config_path.open("w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
         f.write("\n")
+
+
+# V5.1 Phase 6 (production safety) - the kill switch's own arm/disarm
+# override, deliberately the EXACT same read/write/cache shape as the
+# manual trade-lock override above (same GUARDRAIL the plan states for
+# `aq kill-switch`: reuse this convention so the two can never disagree -
+# an operator can force-disarm the kill switch's own evaluation without
+# touching phase_v2.risk.kill_switch.enabled in config.json at all, the
+# same way manual_trade_lock_override sits ON TOP of the automatic
+# drawdown-lock logic rather than replacing it).
+_KILL_SWITCH_OVERRIDE_KEY = "kill_switch_manual_override"
+
+
+def read_kill_switch_manual_override(config_path: Path) -> bool | None:
+    """True = force-armed, False = force-disarmed, None = defer entirely to
+    config.json's own phase_v2.risk.kill_switch.enabled. Never raises -
+    same missing-file/missing-key degrade-to-None contract as
+    read_manual_trade_lock_override()."""
+    return read_cached(config_path, _read_kill_switch_manual_override_uncached)
+
+
+def _read_kill_switch_manual_override_uncached(config_path: Path) -> bool | None:
+    if not config_path.exists():
+        return None
+    with config_path.open("r", encoding="utf-8") as f:
+        config = json.load(f)
+    value = config.get(_PHASE_V2_KEY, {}).get(_RISK_KEY, {}).get(_KILL_SWITCH_OVERRIDE_KEY)
+    return value if isinstance(value, bool) else None
+
+
+def write_kill_switch_manual_override(value: bool | None, config_path: Path) -> None:
+    """Read-modify-write config.json, setting only
+    phase_v2.risk.kill_switch_manual_override - every other key (including
+    phase_v2.risk.manual_trade_lock_override) is preserved untouched.
+    value=None removes the override key entirely (returns to fully
+    config-driven kill_switch.enabled behavior)."""
+    with config_path.open("r", encoding="utf-8") as f:
+        config = json.load(f)
+
+    phase_v2 = config.setdefault(_PHASE_V2_KEY, {})
+    risk = phase_v2.setdefault(_RISK_KEY, {})
+    if value is None:
+        risk.pop(_KILL_SWITCH_OVERRIDE_KEY, None)
+    else:
+        risk[_KILL_SWITCH_OVERRIDE_KEY] = value
+
+    with config_path.open("w", encoding="utf-8") as f:
+        json.dump(config, f, indent=4)
+        f.write("\n")

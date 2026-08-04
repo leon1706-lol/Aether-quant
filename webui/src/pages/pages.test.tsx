@@ -23,6 +23,9 @@ import { AppShell } from '../components/layout/AppShell'
 // reads on screen.
 const OVERVIEW_PANELS = ['Observation Mode', 'Rank Signal', 'Signal Board', 'Positions', 'Strategy and Risk']
 const OPERATIONS_PANELS = [
+  // V5.1 Phase 6 (production safety)
+  'Kill Switch',
+  'Reconciliation',
   'Performance Triggers',
   'Retraining Status',
   'Paper Trading Readiness',

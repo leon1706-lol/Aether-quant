@@ -244,6 +244,93 @@ def test_rollback_rejects_ineligible_target_status():
     assert result["error"] == "rollback_target_not_eligible"
 
 
+# -- auto_rollback_status (V5.1 Phase 6, production safety) -----------------
+
+
+def test_auto_rollback_status_assembles_inputs_and_calls_selector():
+    conn_mock, _ = _make_conn_mock()
+    active_version = {"model_version_id": "v_active", "updated_at": None}
+    version_history = [{"model_version_id": "v_old", "status": "archived", "updated_at": None}]
+    decision = {"should_rollback": False, "to_version_id": None, "reason": "no_configured_trigger_fired", "failures": []}
+
+    with patch("retraining.orchestrator.fetch_active_model_version", return_value=active_version), patch(
+        "retraining.orchestrator.fetch_rollback_candidates", return_value=version_history
+    ), patch("retraining.orchestrator.select_rollback_target", return_value=decision) as select_mock:
+        result = orchestrator.auto_rollback_status(conn_mock, {"auto_rollback": {"enabled": True}})
+
+    assert result["active_version_id"] == "v_active"
+    assert result["decision"] == decision
+    assert result["degradation_signals"]["kill_switch_tripped"] is False
+    assert result["degradation_signals"]["net_sharpe_decay"] is False
+    assert result["degradation_signals"]["rank_ic_decay"] is False
+    select_mock.assert_called_once()
+    call_args = select_mock.call_args.args
+    assert call_args[0] == active_version
+    assert call_args[1] == version_history
+    assert call_args[3] == {"enabled": True}
+
+
+def test_auto_rollback_status_handles_no_active_version():
+    conn_mock, _ = _make_conn_mock()
+    decision = {"should_rollback": False, "to_version_id": None, "reason": "no_configured_trigger_fired", "failures": []}
+
+    with patch("retraining.orchestrator.fetch_active_model_version", return_value=None), patch(
+        "retraining.orchestrator.fetch_rollback_candidates", return_value=[]
+    ), patch("retraining.orchestrator.select_rollback_target", return_value=decision):
+        result = orchestrator.auto_rollback_status(conn_mock, {})
+
+    assert result["active_version_id"] is None
+    assert result["degradation_signals"]["bars_since_promotion"] is None
+
+
+def test_auto_rollback_status_computes_bars_since_promotion_from_updated_at():
+    from datetime import datetime, timedelta, timezone
+
+    conn_mock, _ = _make_conn_mock()
+    promoted_at = datetime.now(timezone.utc) - timedelta(hours=48)
+    active_version = {"model_version_id": "v_active", "updated_at": promoted_at}
+    decision = {"should_rollback": False, "to_version_id": None, "reason": "no_configured_trigger_fired", "failures": []}
+
+    with patch("retraining.orchestrator.fetch_active_model_version", return_value=active_version), patch(
+        "retraining.orchestrator.fetch_rollback_candidates", return_value=[]
+    ), patch("retraining.orchestrator.select_rollback_target", return_value=decision) as select_mock:
+        orchestrator.auto_rollback_status(conn_mock, {})
+
+    degradation_signals = select_mock.call_args.args[2]
+    assert 47.5 < degradation_signals["bars_since_promotion"] < 48.5
+
+
+def test_auto_rollback_status_computes_bars_since_last_rollback_from_history():
+    from datetime import datetime, timedelta, timezone
+
+    conn_mock, _ = _make_conn_mock()
+    rolled_back_at = datetime.now(timezone.utc) - timedelta(hours=200)
+    version_history = [{"model_version_id": "v_old", "status": "rolled_back", "updated_at": rolled_back_at}]
+    decision = {"should_rollback": False, "to_version_id": None, "reason": "no_configured_trigger_fired", "failures": []}
+
+    with patch("retraining.orchestrator.fetch_active_model_version", return_value=None), patch(
+        "retraining.orchestrator.fetch_rollback_candidates", return_value=version_history
+    ), patch("retraining.orchestrator.select_rollback_target", return_value=decision) as select_mock:
+        orchestrator.auto_rollback_status(conn_mock, {})
+
+    degradation_signals = select_mock.call_args.args[2]
+    assert 199.5 < degradation_signals["bars_since_last_rollback"] < 200.5
+
+
+def test_auto_rollback_status_degradation_overrides_win():
+    conn_mock, _ = _make_conn_mock()
+    decision = {"should_rollback": True, "to_version_id": "v_old", "reason": "kill_switch_tripped", "failures": []}
+
+    with patch("retraining.orchestrator.fetch_active_model_version", return_value=None), patch(
+        "retraining.orchestrator.fetch_rollback_candidates", return_value=[]
+    ), patch("retraining.orchestrator.select_rollback_target", return_value=decision) as select_mock:
+        result = orchestrator.auto_rollback_status(conn_mock, {}, degradation_overrides={"kill_switch_tripped": True})
+
+    assert result["degradation_signals"]["kill_switch_tripped"] is True
+    degradation_signals = select_mock.call_args.args[2]
+    assert degradation_signals["kill_switch_tripped"] is True
+
+
 # -- reconcile_stale_running_events (#48 orphaned-row startup fix) -----------
 
 

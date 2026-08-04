@@ -39,12 +39,14 @@ from retraining.artifacts import (
 )
 from retraining.backtest_gate import compare_backtests
 from retraining.lean_backtest import run_lean_backtest
+from retraining.auto_rollback import select_rollback_target
 from retraining.postgres_registry import (
     count_experience_events,
     ensure_schema,
     fetch_active_model_version,
     fetch_model_version,
     fetch_recent_retraining_events,
+    fetch_rollback_candidates,
     fetch_stale_active_events,
     insert_model_version,
     insert_retraining_event,
@@ -699,6 +701,63 @@ def rollback(conn, to_version_id: str, config: dict | None = None) -> dict:
     return {"ok": True, "version_id": to_version_id}
 
 
+def _hours_since(timestamp) -> float | None:
+    if timestamp is None:
+        return None
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return (now - timestamp).total_seconds() / 3600.0
+
+
+def auto_rollback_status(conn, config: dict, degradation_overrides: dict | None = None) -> dict:
+    """V5.1 Phase 6 (production safety) - read-only diagnostic backing
+    `aq retrain auto-rollback --status`/`--dry-run` AND RetrainingWorker::
+    check_auto_rollback()'s own real (non-diagnostic) decision - both call
+    this same function so there is exactly one place that assembles
+    inputs for retraining.auto_rollback::select_rollback_target(). NEVER
+    calls rollback() itself - the caller decides whether decision
+    ["should_rollback"] is acted on.
+
+    "bars" in retraining.auto_rollback's own vocabulary means, in THIS
+    offline/periodic-worker context (as opposed to main.py's per-Lean-bar
+    live loop), ELAPSED HOURS since the relevant Postgres timestamp - a
+    documented, explicit simplification: this worker has no notion of a
+    Lean bar at all, it polls on a wall-clock interval.
+
+    degradation_overrides lets a caller supply live trigger flags
+    (kill_switch_tripped/net_sharpe_decay/rank_ic_decay) this function has
+    no way to observe on its own - {} (default) reports every trigger flag
+    as False, so a bare call always honestly reports "no trigger fired"
+    rather than fabricating a live signal it cannot actually see."""
+    auto_rollback_config = config.get("auto_rollback", {})
+    active_version = fetch_active_model_version(conn)
+    version_history = fetch_rollback_candidates(conn)
+
+    bars_since_promotion = _hours_since(active_version["updated_at"]) if active_version else None
+    last_rollback = next((v for v in version_history if v.get("status") == "rolled_back"), None)
+    bars_since_last_rollback = _hours_since(last_rollback["updated_at"]) if last_rollback else None
+
+    degradation_signals = {
+        "kill_switch_tripped": False,
+        "net_sharpe_decay": False,
+        "rank_ic_decay": False,
+        "bars_since_promotion": bars_since_promotion,
+        "bars_since_last_rollback": bars_since_last_rollback,
+    }
+    degradation_signals.update(degradation_overrides or {})
+
+    decision = select_rollback_target(active_version or {}, version_history, degradation_signals, auto_rollback_config)
+    return {
+        "config": auto_rollback_config,
+        "active_version_id": active_version["model_version_id"] if active_version else None,
+        "degradation_signals": degradation_signals,
+        "decision": decision,
+    }
+
+
 def status(conn) -> dict:
     view = build_status_view(conn)
     write_status_file(view)
@@ -760,6 +819,15 @@ def main() -> None:
     rollback_parser = subparsers.add_parser("rollback")
     rollback_parser.add_argument("--to-version-id", required=True)
 
+    # V5.1 Phase 6 (production safety) - read-only diagnostic, mirrors
+    # `rollback`'s CLI shape but never calls rollback() itself; --dry-run is
+    # accepted purely for CLI-ergonomics symmetry with a hypothetical future
+    # non-dry-run mode - today auto-rollback_status() is ALWAYS read-only, so
+    # --dry-run and its absence behave identically.
+    auto_rollback_parser = subparsers.add_parser("auto-rollback")
+    auto_rollback_parser.add_argument("--status", action="store_true")
+    auto_rollback_parser.add_argument("--dry-run", action="store_true")
+
     subparsers.add_parser("status")
 
     args = parser.parse_args()
@@ -794,6 +862,8 @@ def main() -> None:
             print(json.dumps(promote(conn, args.version_id, args.retraining_id, config), indent=2, default=str))
         elif args.stage == "rollback":
             print(json.dumps(rollback(conn, args.to_version_id, config), indent=2, default=str))
+        elif args.stage == "auto-rollback":
+            print(json.dumps(auto_rollback_status(conn, config), indent=2, default=str))
         elif args.stage == "status":
             print(json.dumps(status(conn), indent=2, default=str))
     finally:
