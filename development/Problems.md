@@ -1,5 +1,39 @@
 # Problems
 
+### 88. Lean CLI's generated Windows dependency mount was unreliable, and startup imported the training stack
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (V5.1.11)
+
+On affected Windows Docker Desktop hosts, Lean CLI generated a temporary
+root `requirements.txt` and mounted it into the engine container. Docker
+could reject that Python-created temporary path even though ordinary project
+files were readable. Separately, importing `performance` at `main.py` module
+scope pulled in the standalone trigger worker and its training/PyTorch import
+graph while Lean's 90-second algorithm startup isolator was active.
+
+**Fix:** `aq backtest` now builds a cached local image from the pinned Lean
+engine and installs Redis inside it, so there is no generated requirements
+mount. A Windows wrapper gives Lean-created temporary directories Docker-read
+access before the CLI imports. `main.py` imports `evaluate_all_triggers` only
+inside the in-memory dashboard view; the standalone worker retains its
+existing process boundary. Regression tests cover both boundaries without
+running a Lean backtest.
+
+**Follow-up found during review:** the local image's own dependency list
+(`requirements/lean-runtime.txt`) only listed `redis`, but `main.py`
+unconditionally imports `data_pipeline.fred_backfill` at module scope, and
+that module imports `httpx` at its own top level (V5.1, #79) — a dependency
+introduced to this project *after* the last known-working Lean backtest, so
+there was no basis for assuming the base `quantconnect/lean` image already
+has it. Left as-is this would have surfaced as a second, later failure
+(`ModuleNotFoundError: httpx`) once the Docker-connectivity issue above was
+resolved. Added `httpx[http2]>=0.27.0` to `requirements/lean-runtime.txt`,
+matching `requirements/requirements.txt`'s own version pin exactly. Not yet
+verified against a real Lean backtest (none has completed successfully
+since this fix landed).
+
+---
+
 Bugs and infrastructure issues found in this codebase, how they were fixed
 (or why they're still open), a severity rating (1 = cosmetic, 10 = critical
 data-loss/safety issue), and a status tag. Newest first.

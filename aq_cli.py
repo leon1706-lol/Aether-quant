@@ -84,6 +84,18 @@ UPDATE_CHECK_TIMEOUT_SECONDS = 2
 # first (`docker pull quantconnect/lean:<new-tag>`), confirm it works,
 # then bump this constant - never let it drift back to `latest`.
 PINNED_LEAN_ENGINE_IMAGE = "quantconnect/lean:17900"
+# Local derivative used by `aq backtest` by default. It is built once from
+# PINNED_LEAN_ENGINE_IMAGE and installs the packages this project needs but
+# the official image does not provide (redis, httpx - see requirements/
+# lean-runtime.txt). Keeping them in the image avoids Lean CLI's Windows-host
+# bind mount of a generated requirements.txt file, which fails on some
+# Docker Desktop setups. Tag is DERIVED from PINNED_LEAN_ENGINE_IMAGE's own
+# tag, never a second hardcoded copy - _ensure_local_lean_engine_image()'s
+# cache check is a `docker image inspect` on this exact tag, so if the two
+# constants could drift apart, bumping the pinned base without remembering
+# to bump this one too would silently keep reusing a stale local image
+# built from the old base forever.
+LOCAL_LEAN_ENGINE_IMAGE = f"aether-quant-lean:{PINNED_LEAN_ENGINE_IMAGE.rsplit(':', 1)[-1]}"
 
 _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 _TEST_BADGE_MARKER_START = "<!-- AQ:TEST_BADGE_START -->"
@@ -121,6 +133,41 @@ def _find_quantconnect_lean_binary() -> str | None:
         if "Lean (version" not in (result.stdout or "") + (result.stderr or ""):
             return candidate
     return None
+
+
+def _ensure_local_lean_engine_image() -> bool:
+    """Build the small project-specific LEAN image when it is not cached."""
+    image_check = subprocess.run(
+        ["docker", "image", "inspect", LOCAL_LEAN_ENGINE_IMAGE],
+        cwd=str(ROOT_DIR),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if image_check.returncode == 0:
+        return True
+
+    dockerfile = ROOT_DIR / "Dockerfile.lean"
+    if not dockerfile.is_file():
+        print(f"error: missing local LEAN image definition: {dockerfile}", file=sys.stderr)
+        return False
+
+    print(
+        f"Building {LOCAL_LEAN_ENGINE_IMAGE} from {PINNED_LEAN_ENGINE_IMAGE} "
+        "(one-time setup; the large base image is reused)..."
+    )
+    return _run(
+        [
+            "docker",
+            "build",
+            "--file",
+            str(dockerfile),
+            "--tag",
+            LOCAL_LEAN_ENGINE_IMAGE,
+            "--build-arg",
+            f"LEAN_BASE_IMAGE={PINNED_LEAN_ENGINE_IMAGE}",
+            str(ROOT_DIR),
+        ]
+    ) == 0
 
 
 def _parse_simple_version(value: str) -> tuple[int, ...] | None:
@@ -617,7 +664,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "cli": [
         "test_aq_cli.py", "test_generate_backtest_report.py",
         "test_lean_config_render.py", "test_dockerignore_secrets.py", "test_secret_scan.py",
-        "test_profile_inference.py", "test_profile_subsystems.py",
+        "test_profile_inference.py", "test_profile_subsystems.py", "test_lean_runtime_imports.py",
     ],
     "audit": [
         "test_hash_chain.py", "test_audit_queue.py", "test_postgres_audit.py",
@@ -762,12 +809,27 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     if lean_binary is None:
         print("error: QuantConnect Lean CLI not found (checked .venv and PATH).", file=sys.stderr)
         return 1
-    # --image always passed explicitly (PINNED_LEAN_ENGINE_IMAGE by default,
-    # see its own comment) rather than letting `lean backtest .` silently
-    # resolve the mutable `latest` tag - --image lets a user deliberately
-    # opt into a different/newer engine build without editing this file.
-    engine_image = args.image or PINNED_LEAN_ENGINE_IMAGE
-    exit_code = _run([lean_binary, "backtest", ".", "--image", engine_image])
+    # The default is a small local derivative of the pinned official image.
+    # It contains redis in the image itself, so Lean CLI does not need to
+    # create and Windows-bind-mount a generated requirements.txt file.
+    # --image remains an escape hatch for deliberately selecting another
+    # engine image without editing this file.
+    if args.image:
+        engine_image = args.image
+    else:
+        if not _ensure_local_lean_engine_image():
+            return 1
+        engine_image = LOCAL_LEAN_ENGINE_IMAGE
+    lean_command = [lean_binary, "backtest", ".", "--image", engine_image]
+    # Lean CLI creates config/startup files with tempfile.mkdtemp(). On some
+    # Windows Docker Desktop installations those Python-created directories
+    # are not readable by Docker, while ordinary host files are. Run through
+    # the project wrapper so every generated temp directory receives
+    # Docker-readable inherited permissions before the container is created.
+    windows_wrapper = ROOT_DIR / "scripts" / "run_lean_cli_windows.py"
+    if sys.platform == "win32" and windows_wrapper.is_file():
+        lean_command = [sys.executable, str(windows_wrapper), *lean_command[1:]]
+    exit_code = _run(lean_command)
     # Attempt the README update regardless of exit_code, NOT only on == 0.
     # On a resource-constrained machine Lean's Python-interpreter teardown
     # can exceed its own hardcoded 10-second shutdown-isolator budget and

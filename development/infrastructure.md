@@ -711,3 +711,35 @@ From Windows, you reach the ports by default like this (remapped so they don't c
 - Redis: `localhost:6380`
 - PostgreSQL: `localhost:5433`
 - `engine` (FastAPI + webui bundle): `http://localhost:8001`
+
+## Local Lean Backtest Image (V5.1.11)
+
+`aq backtest` builds and reuses `aether-quant-lean:17900`, a small local
+layer over the pinned `quantconnect/lean:17900` engine. Its
+`Dockerfile.lean` installs only `requirements/lean-runtime.txt` (currently
+the Redis client), keeping runtime dependencies inside the container rather
+than asking Lean CLI to create and bind-mount a temporary root
+`requirements.txt` from Windows. On Windows, `aq` also launches Lean through
+`scripts/run_lean_cli_windows.py`, which makes Lean-created temporary mount
+directories readable by Docker Desktop. `aq backtest --image <image>` remains
+an explicit escape hatch and bypasses the local-image build.
+
+## Codespace Training Handoff
+
+Before a cloud training run, confirm local source changes are present in the
+Codespace (commit/push them or copy the changed files over with `gh codespace
+cp`). Training stays Python-only in the Codespace; local Lean/Docker
+backtests stay on the workstation. After training, copy the entire required
+model artifact tree back to local `ml/` (not just the summary JSON), verify
+the copied files and timestamps, then stop the Codespace immediately:
+
+```powershell
+# local -> Codespace, if needed before training
+gh codespace cp -c <codespace-name> -r .\ml remote:Aether-quant\ml
+
+# Codespace -> local after training; archive first for large/many artifacts
+gh codespace ssh -c <codespace-name> -- "cd Aether-quant && tar czf /tmp/aether-quant-ml.tgz ml"
+gh codespace cp -c <codespace-name> remote:/tmp/aether-quant-ml.tgz .\aether-quant-ml.tgz
+tar -xzf .\aether-quant-ml.tgz
+gh codespace stop -c <codespace-name>
+```

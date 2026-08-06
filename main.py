@@ -188,7 +188,6 @@ from data_pipeline.fred_backfill import (
     series_value_asof,
 )
 from data_pipeline.dividend_backfill import load_cached_dividend_schedule
-from performance import evaluate_all_triggers
 
 # volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/
 # VOLUME_CHANGE_CEILING exactly for train/runtime feature parity. Duplicated
@@ -6541,6 +6540,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # Grafana/Phase 17) is populated exclusively by
         # performance/trigger_worker.py, running as its own process/service,
         # never from inside this Lean algorithm.
+        # Keep this import local: performance/__init__.py also exposes the
+        # standalone trigger worker, whose rank-IC module imports train.py and
+        # its heavy training stack. Lean's AlgorithmFactory wraps module
+        # import + initialize() in a hard 90-second isolator, while this
+        # in-memory dashboard view is only needed after the first data slice.
+        # Retraining and the durable performance-trigger worker keep their
+        # existing imports and process boundaries unchanged.
+        from performance import evaluate_all_triggers
+
         report = evaluate_all_triggers(list(self._observation_event_log), self._performance_triggers_config)
         report["source"] = "in_memory_current_run"
         return report

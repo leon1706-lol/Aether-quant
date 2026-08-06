@@ -22,6 +22,7 @@ exactly the bug this comment exists to prevent from being reintroduced.
 import json
 import sys
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import aq_cli
@@ -670,35 +671,91 @@ def test_test_never_calls_run_or_a_real_subprocess():
     popen_mock.assert_not_called()
 
 
-def test_backtest_wraps_lean_backtest_dot_with_pinned_image_by_default():
-    # development/Problems.md: lean backtest . resolves the mutable
-    # `latest` tag by default, silently re-pulling on every run even
-    # against an already-cached image - --image is now always passed
-    # explicitly with the pinned default so this repo's engine image
-    # never drifts.
+def test_backtest_uses_project_lean_image_by_default():
+    # The project image is built from the pinned official engine and carries
+    # the Lean-only Redis dependency, avoiding the Windows host bind mount.
     run_mock = MagicMock(return_value=0)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "aq_cli._ensure_local_lean_engine_image", return_value=True
+    ), patch(
         "generate_backtest_report.update_readme_from_latest_backtest", return_value=False
     ):
         _parse_and_dispatch(["backtest"], run_mock)
 
-    assert run_mock.call_args.args[0] == ["lean", "backtest", ".", "--image", aq_cli.PINNED_LEAN_ENGINE_IMAGE]
+    expected_prefix = (
+        [sys.executable, str(aq_cli.ROOT_DIR / "scripts" / "run_lean_cli_windows.py")]
+        if sys.platform == "win32"
+        else ["lean"]
+    )
+    assert run_mock.call_args.args[0] == [
+        *expected_prefix,
+        "backtest",
+        ".",
+        "--image",
+        aq_cli.LOCAL_LEAN_ENGINE_IMAGE,
+    ]
 
 
 def test_backtest_image_flag_overrides_the_pinned_default():
     run_mock = MagicMock(return_value=0)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "aq_cli._ensure_local_lean_engine_image"
+    ) as ensure_image, patch(
         "generate_backtest_report.update_readme_from_latest_backtest", return_value=False
     ):
         _parse_and_dispatch(["backtest", "--image", "quantconnect/lean:99999"], run_mock)
 
-    assert run_mock.call_args.args[0] == ["lean", "backtest", ".", "--image", "quantconnect/lean:99999"]
+    ensure_image.assert_not_called()
+
+    expected_prefix = (
+        [sys.executable, str(aq_cli.ROOT_DIR / "scripts" / "run_lean_cli_windows.py")]
+        if sys.platform == "win32"
+        else ["lean"]
+    )
+    assert run_mock.call_args.args[0] == [
+        *expected_prefix,
+        "backtest",
+        ".",
+        "--image",
+        "quantconnect/lean:99999",
+    ]
+
+
+def test_ensure_local_lean_engine_image_skips_build_when_cached():
+    with patch(
+        "aq_cli.subprocess.run", return_value=SimpleNamespace(returncode=0)
+    ) as subprocess_mock, patch("aq_cli._run") as run_mock:
+        assert aq_cli._ensure_local_lean_engine_image() is True
+
+    subprocess_mock.assert_called_once_with(
+        ["docker", "image", "inspect", aq_cli.LOCAL_LEAN_ENGINE_IMAGE],
+        cwd=str(aq_cli.ROOT_DIR),
+        stdout=aq_cli.subprocess.DEVNULL,
+        stderr=aq_cli.subprocess.DEVNULL,
+    )
+    run_mock.assert_not_called()
+
+
+def test_ensure_local_lean_engine_image_builds_from_pinned_base_when_missing():
+    with patch(
+        "aq_cli.subprocess.run", return_value=SimpleNamespace(returncode=1)
+    ), patch("aq_cli._run", return_value=0) as run_mock:
+        assert aq_cli._ensure_local_lean_engine_image() is True
+
+    assert run_mock.call_args.args[0] == [
+        "docker", "build", "--file", str(aq_cli.ROOT_DIR / "Dockerfile.lean"),
+        "--tag", aq_cli.LOCAL_LEAN_ENGINE_IMAGE,
+        "--build-arg", f"LEAN_BASE_IMAGE={aq_cli.PINNED_LEAN_ENGINE_IMAGE}",
+        str(aq_cli.ROOT_DIR),
+    ]
 
 
 def test_backtest_updates_readme_on_success():
     run_mock = MagicMock(return_value=0)
     report_mock = MagicMock(return_value=True)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "aq_cli._ensure_local_lean_engine_image", return_value=True
+    ), patch(
         "generate_backtest_report.update_readme_from_latest_backtest", report_mock
     ):
         _parse_and_dispatch(["backtest"], run_mock)
@@ -717,6 +774,8 @@ def test_backtest_attempts_readme_update_even_when_lean_returns_nonzero():
     run_mock = MagicMock(return_value=1)
     report_mock = MagicMock(return_value=True)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "aq_cli._ensure_local_lean_engine_image", return_value=True
+    ), patch(
         "generate_backtest_report.update_readme_from_latest_backtest", report_mock
     ):
         exit_code = _parse_and_dispatch(["backtest"], run_mock)
@@ -728,6 +787,8 @@ def test_backtest_attempts_readme_update_even_when_lean_returns_nonzero():
 def test_backtest_never_fails_when_report_generation_raises():
     run_mock = MagicMock(return_value=0)
     with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "aq_cli._ensure_local_lean_engine_image", return_value=True
+    ), patch(
         "generate_backtest_report.update_readme_from_latest_backtest", side_effect=RuntimeError("boom")
     ):
         exit_code = _parse_and_dispatch(["backtest"], run_mock)

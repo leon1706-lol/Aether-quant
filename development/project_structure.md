@@ -1,5 +1,8 @@
 # Project Structure
 
+`Dockerfile.lean` is the project-local Lean engine layer used by `aq backtest`;
+it installs only Lean-runtime dependencies from `requirements/lean-runtime.txt`.
+
 The repository is organized as a set of single-responsibility Python packages
 (one concern per folder, each with its own README), a handful of top-level
 entry-point scripts (`main.py` for the Lean algorithm, `train*.py` for the

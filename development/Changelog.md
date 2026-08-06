@@ -4903,3 +4903,23 @@ regression from an unmocked subprocess-spawning test (#78).
 **Still open:** Interactive Brokers end-to-end verification (no API key —
 the one recurring blocker across this whole project); a real Lean backtest
 against this pipeline.
+
+## V5.1.11 — Lean runtime portability and startup boundary
+
+- `aq backtest` now defaults to the cached local `aether-quant-lean:17900`
+  image, built from the pinned `quantconnect/lean:17900` base. The small
+  layer installs Redis and `httpx[http2]` from `requirements/lean-runtime.txt`,
+  removing Lean CLI's fragile generated root-`requirements.txt` bind mount
+  on Windows.
+- A Windows-only Lean CLI launcher adjusts temporary-directory permissions
+  before Lean starts, addressing Docker Desktop failures to mount Lean's
+  generated startup files.
+- Deferred `performance.evaluate_all_triggers` until the runtime dashboard
+  view, preventing Lean's hard startup isolator from importing the trigger
+  worker's training/PyTorch stack during `main.py` module initialization.
+- Added unit/AST regression coverage for the local image path and deferred
+  import, and registered the new Lean runtime test in `aq test --cli`.
+- `httpx[http2]` (added to this project in V5.1's FRED fix, Problems.md #79)
+  was missing from the local Lean image's own dependency list even though
+  `main.py` unconditionally imports it at module load via
+  `data_pipeline.fred_backfill` — added alongside Redis.

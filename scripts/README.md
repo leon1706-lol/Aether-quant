@@ -5,6 +5,12 @@ the training pipeline (`train.py` and friends), or the `aq` CLI
 (`aq_cli.py`) — things you run by hand, occasionally, while working on the
 codebase.
 
+- `run_lean_cli_windows.py` — Windows-only compatibility launcher used
+  internally by `aq backtest`. It patches Lean CLI's temporary-directory
+  creation before the CLI imports so Docker Desktop can read Lean's generated
+  startup/config files on affected Windows hosts. Invoke `aq backtest`, not
+  this script directly.
+
 - `profile_inference.py` — cProfile + wall-clock harness for `main.py`'s
   per-bar inference hot path (`inference/exported_model.py`), also
   exposed as `aq profile` (see the main README's CLI Reference). Loads

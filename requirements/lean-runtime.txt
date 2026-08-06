@@ -1,0 +1,12 @@
+# Dependencies installed into Dockerfile.lean's local LEAN image.
+# Keep this file limited to packages missing from quantconnect/lean.
+redis>=5.0.0
+# main.py unconditionally imports data_pipeline.fred_backfill at module
+# load (top-level, every Lean process start, backtest or live), and that
+# module imports httpx at its own top level (V5.1, Problems.md #79 - FRED's
+# graph endpoint requires HTTP/2, which stdlib urllib cannot speak). httpx
+# was introduced to this project after the last known-working Lean
+# backtest, so there is no basis for assuming quantconnect/lean already
+# bundles it - same reasoning as redis above. Version pin matches
+# requirements/requirements.txt's own httpx[http2] constraint exactly.
+httpx[http2]>=0.27.0
