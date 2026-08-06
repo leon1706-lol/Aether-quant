@@ -56,14 +56,26 @@ def reconcile_positions(
         filled.
 
     max_abs_weight_drift is the single largest |delta_weight| across every
-    symbol (drifted + orphan_broker + missing_broker combined). breach is
-    that value compared against max_tolerated_drift (typically
+    NON-matched symbol (drifted + orphan_broker + missing_broker combined -
+    a symbol classified "matched" is, by construction, already within both
+    tolerances, so including it could only ever pull the max down toward a
+    value the genuine drifts already exceed - excluding it keeps this
+    field's value exactly matching what its name and this docstring claim).
+    breach is that value compared against max_tolerated_drift (typically
     phase_v2.reconciliation.max_tolerated_drift) - the one field a caller
     checks to decide whether this reconciliation should trip the kill
     switch (risk/kill_switch.py's "reconciliation_breach" trigger) without
     re-deriving the comparison itself. max_tolerated_drift=None (the
     default) always reports breach=False - an unconfigured caller gets a
     strict no-op, matching every other fail-open contract in this codebase.
+
+    Tolerance is checked BEFORE presence: a symbol held/expected only on
+    one side but within weight_tolerance/value_tolerance_usd of the other
+    side's implicit 0.0 (a dust position - a fractional share leftover, a
+    rounding remainder) is "matched", never "orphan_broker"/"missing_broker".
+    Without this, every dust amount was a permanent, unfixable "orphan" no
+    matter how negligible, even though it could never move max_abs_weight_drift
+    past a real drift either - pure report-quality noise.
 
     Pure dict-in/dict-out - result does not depend on either dict's
     insertion order (both are iterated via a sorted union of keys). Empty
@@ -82,23 +94,25 @@ def reconcile_positions(
         actual_weight = float(actual_by_symbol.get(symbol, 0.0))
         delta_weight = actual_weight - expected_weight
         delta_usd = delta_weight * portfolio_value
-        max_abs_weight_drift = max(max_abs_weight_drift, abs(delta_weight))
 
         within_tolerance = abs(delta_weight) <= weight_tolerance and abs(delta_usd) <= value_tolerance_usd
 
-        if symbol not in expected_by_symbol:
+        if within_tolerance:
+            matched.append(symbol)
+        elif symbol not in expected_by_symbol:
+            max_abs_weight_drift = max(max_abs_weight_drift, abs(delta_weight))
             orphan_broker.append(
                 {"symbol": symbol, "expected_weight": 0.0, "actual_weight": actual_weight,
                  "delta_weight": delta_weight, "delta_usd": delta_usd}
             )
         elif symbol not in actual_by_symbol:
+            max_abs_weight_drift = max(max_abs_weight_drift, abs(delta_weight))
             missing_broker.append(
                 {"symbol": symbol, "expected_weight": expected_weight, "actual_weight": 0.0,
                  "delta_weight": delta_weight, "delta_usd": delta_usd}
             )
-        elif within_tolerance:
-            matched.append(symbol)
         else:
+            max_abs_weight_drift = max(max_abs_weight_drift, abs(delta_weight))
             drifted.append(
                 {"symbol": symbol, "expected_weight": expected_weight, "actual_weight": actual_weight,
                  "delta_weight": delta_weight, "delta_usd": delta_usd}

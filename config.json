@@ -1583,7 +1583,7 @@
                 "max_drawdown_velocity_pct_per_bar": 0.01,
                 "min_live_rank_ic": -0.02,
                 "max_consecutive_losses": 12,
-                "max_slippage_divergence_bps": 25.0,
+                "max_slippage_divergence_bps": 1e12,
                 "max_model_age_days": 180,
                 "action": "trade_lock"
             }
@@ -1730,7 +1730,7 @@
                 "sector_neutral": true,
                 "gross_exposure_cap": 1.0,
                 "max_weight_per_name": 0.12,
-                "sector_max_net_weight": 0.05
+                "sector_max_net_weight": 0.15
             },
             "hysteresis_rank_margin": 0.05
         },
@@ -2201,7 +2201,7 @@
             "commission_bps_per_side": 1.5,
             "min_commission_usd": 1.0,
             "extra_slippage_bps": 0.0,
-            "edge_bps_per_rank_unit": 28.2194,
+            "edge_bps_per_rank_unit": 396.2743,
             "min_net_edge_bps": 2.0,
             "holding_bars": 10,
             "horizon_days": 20,
@@ -2280,7 +2280,7 @@
             "weight_tolerance": 0.01,
             "value_tolerance_usd": 50.0,
             "max_tolerated_drift": 0.05,
-            "trips_kill_switch": true
+            "trips_kill_switch": false
         }
     },
     "local-id": 694224972

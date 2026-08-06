@@ -111,6 +111,16 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
         return KillSwitchDecision(tripped=False, severity="none", reason="kill_switch_disabled")
 
     evaluation_bars = int(config.get("evaluation_bars", 60))
+    # GUARDRAIL (Problems.md - kill switch tripped on bar 2-3 of every
+    # run): evaluation_bars was previously used ONLY as a slice bound
+    # ([-evaluation_bars:]), never as a minimum-sample requirement, so
+    # _rolling_sharpe() happily annualized a 2-observation mean/std by
+    # sqrt(252) into an absurd magnitude and tripped the switch almost
+    # immediately. min_bars_for_sharpe defaults to evaluation_bars itself
+    # (the value's own documented intent - "the trailing window size") and
+    # gates whether the rolling-Sharpe trigger is evaluated AT ALL this
+    # bar, not just how much history it's computed over.
+    min_bars_for_sharpe = int(config.get("min_bars_for_sharpe", evaluation_bars))
     min_rolling_sharpe = float(config.get("min_rolling_sharpe", _NEVER_BELOW))
     max_drawdown_velocity_pct_per_bar = float(config.get("max_drawdown_velocity_pct_per_bar", _NEVER_ABOVE))
     min_live_rank_ic = float(config.get("min_live_rank_ic", _NEVER_BELOW))
@@ -121,10 +131,16 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
     triggers: list[str] = []
     observed: dict = {}
 
-    recent_returns = list(runtime_metrics.get("recent_bar_returns") or [])[-evaluation_bars:]
-    rolling_sharpe = _rolling_sharpe(recent_returns)
-    observed["rolling_sharpe"] = rolling_sharpe
+    # evaluation_bars <= 0 previously meant "use the entire history" via
+    # Python's own `[-0:]` == `[0:]` slice semantics - not a real window,
+    # and not what a misconfigured 0/negative value should do. Treat it as
+    # no window at all (insufficient data, trigger never evaluated) rather
+    # than silently falling back to unbounded history.
+    all_returns = list(runtime_metrics.get("recent_bar_returns") or [])
+    recent_returns = all_returns[-evaluation_bars:] if evaluation_bars > 0 else []
     observed["rolling_sharpe_num_bars"] = len(recent_returns)
+    rolling_sharpe = _rolling_sharpe(recent_returns) if len(recent_returns) >= min_bars_for_sharpe else None
+    observed["rolling_sharpe"] = rolling_sharpe
     if rolling_sharpe is not None and rolling_sharpe < min_rolling_sharpe:
         triggers.append("rolling_sharpe_below_floor")
 
@@ -159,6 +175,7 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
 
     thresholds = {
         "evaluation_bars": evaluation_bars,
+        "min_bars_for_sharpe": min_bars_for_sharpe,
         "min_rolling_sharpe": min_rolling_sharpe,
         "max_drawdown_velocity_pct_per_bar": max_drawdown_velocity_pct_per_bar,
         "min_live_rank_ic": min_live_rank_ic,

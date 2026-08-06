@@ -69,23 +69,46 @@ def expected_edge_bps(
     edge_bps_per_rank_unit: float,
     holding_bars: int,
     horizon_days: int,
+    trade_direction: int = 1,
 ) -> float:
-    """Linear-in-rank-deviation expected edge estimate: a predicted rank of
-    0.5 (median - no view) has zero expected edge; a rank of 1.0 (top of
-    the universe) or 0.0 (bottom) has the full edge_bps_per_rank_unit
-    magnitude. Scaled down by min(1, holding_bars/horizon_days) - the rank
-    head's own forward horizon (horizon_days, e.g. 20 for rank_20d) is how
-    long the FULL predicted move is expected to take; holding for fewer
-    bars than that only captures a fraction of it.
+    """Linear-in-rank-deviation expected edge estimate, measured IN THE
+    DIRECTION OF THE TRADE. rank_deviation = (rank - 0.5) * 2 is positive
+    for a top-ranked asset (expected to rise) and negative for a
+    bottom-ranked one (expected to fall) - `trade_direction` (+1 long, -1
+    short) says which side the caller actually intends to trade, so the
+    result is the edge realized if that trade is entered, not merely the
+    raw long-side edge.
+
+    A rank of 0.5 (median - no view) always has zero expected edge. A rank
+    of 1.0/0.0 has the full edge_bps_per_rank_unit magnitude, on whichever
+    side the rank itself favors (long the top, short the bottom) - the
+    book case, where trade_direction is derived from the same rank that
+    picked the side, so the product is always the FULL magnitude,
+    never negative. A mismatched trade (e.g. going long a bottom-ranked
+    asset) correctly comes out negative and gets vetoed downstream.
+
+    Scaled down by min(1, holding_bars/horizon_days) - the rank head's own
+    forward horizon (horizon_days, e.g. 20 for rank_20d) is how long the
+    FULL predicted move is expected to take; holding for fewer bars than
+    that only captures a fraction of it.
 
     predicted_rank=None (model unavailable this bar) -> 0.0, the safe
     no-edge default, matching every other "missing prediction never
-    changes trading behavior" contract in this codebase."""
+    changes trading behavior" contract in this codebase.
+
+    GUARDRAIL (Problems.md - net-edge gate blocked 100% of shorts): before
+    this parameter existed, the gate measured only the raw long-side edge
+    and applied it unconditionally to buy/sell/short decisions alike, so
+    every short entry (negative rank_deviation) was vetoed on every bar.
+    trade_direction must always be threaded through from the caller's own
+    signed intent (e.g. sign of the pre-cost target_weight) - never left
+    at the default 1 for a short trade."""
     if predicted_rank is None:
         return 0.0
     rank_deviation = (float(predicted_rank) - 0.5) * 2.0
     horizon_fraction = min(1.0, float(holding_bars) / float(horizon_days)) if horizon_days > 0 else 1.0
-    return edge_bps_per_rank_unit * rank_deviation * horizon_fraction
+    direction_sign = 1.0 if trade_direction >= 0 else -1.0
+    return edge_bps_per_rank_unit * rank_deviation * horizon_fraction * direction_sign
 
 
 def build_net_edge_decision(
@@ -93,9 +116,18 @@ def build_net_edge_decision(
     liquidity_payload: dict,
     order_value: float,
     cost_config: dict,
+    *,
+    trade_direction: int = 1,
 ) -> NetEdgeDecision:
     """The one call site analyzer/market_analyzer.py's Priority 6.5 tier
     and risk/position_sizing.py::cost_sizing_multiplier() both consume.
+
+    `trade_direction` (+1 long, -1 short) must be the sign of the trade
+    actually being evaluated - see expected_edge_bps()'s docstring for why
+    this parameter exists at all. Defaults to 1 (long) only so callers
+    that genuinely never trade short (or existing tests exercising the
+    long side) do not need to pass it; every live call site must supply
+    the real signed direction.
 
     FAIL-OPEN, always: returns passes=True, reason="net_edge_gate_disabled"
     whenever cost_config["enabled"] is false, edge_bps_per_rank_unit is
@@ -122,6 +154,7 @@ def build_net_edge_decision(
         edge_bps_per_rank_unit=edge_bps_per_rank_unit,
         holding_bars=int(cost_config.get("holding_bars", 10)),
         horizon_days=int(cost_config.get("horizon_days", 20)),
+        trade_direction=trade_direction,
     )
     expected_cost = estimate_round_trip_cost_bps(
         liquidity_payload,

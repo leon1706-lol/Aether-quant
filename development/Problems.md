@@ -4722,3 +4722,90 @@ result it already returns for an empty book. `np.exp` → `np.expm1` fixed
 alongside it. 3 new tests in `tests/test_rank_book_simulator.py`
 (zero-volume exclusion, all-zero fallback, and a small exact value
 distinguishing `expm1` from `exp`).
+
+### 88. A pre-backtest review found six critical bugs in code/config that had never executed a Lean bar
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed`
+
+Before spending V5.1's first real Lean backtest, a full review of every
+config value switched on this session (net-edge gate, calibrated cost
+model, kill switch, reconciliation) and its consuming code turned up six
+bugs — three in code, three in the interaction between a config value and
+its consumer, exactly the kind of defect a unit-test suite can't catch
+because both sides pass their own tests in isolation. Together they would
+have produced a half-dead book (no shorts) that locked up within the
+first few bars and stayed locked.
+
+- **Net-edge gate blocked 100% of shorts.** `execution/cost_model.py::expected_edge_bps()`
+  measured only the raw long-side edge and applied it to buy/sell/short
+  decisions alike, so a bottom-ranked short (negative edge by
+  construction) was vetoed on every bar, unconditionally. Fixed by adding
+  a `trade_direction` parameter (sign of the trade actually being
+  evaluated) that both `expected_edge_bps()` and `build_net_edge_decision()`
+  now require; `main.py` supplies it from the sign of the bar's own sized
+  `target_weight`.
+- **`--calibrate-edge` regressed on the wrong horizon.** It always
+  regressed rank deviation against `target_return_1d`, but
+  `expected_edge_bps()`'s own contract treats the result as the FULL
+  predicted move over `phase_v2.costs.horizon_days` (20) before scaling
+  it back down — a ~14x understatement in practice. Fixed to regress on
+  `target_return_{horizon_days}d` (falling back to 1d with a warning if
+  that column is absent); re-run against the real dataset,
+  `edge_bps_per_rank_unit` moved from `28.2194` to `396.2743`.
+- **Kill switch tripped on bar 2–3 of every run.** `risk/kill_switch.py`'s
+  `evaluation_bars` was used only as a slice bound, never a minimum-sample
+  requirement, so a 2-observation rolling Sharpe got annualized into an
+  absurd, always-tripping magnitude. Fixed with a `min_bars_for_sharpe`
+  floor (defaults to `evaluation_bars`) the rolling-Sharpe trigger must
+  clear before it evaluates at all; also fixed `evaluation_bars <= 0`
+  silently falling back to the entire return history via Python's own
+  `[-0:]` slice semantics.
+- **Reconciliation compared the wrong quantity at the wrong scope.**
+  `main.py::_evaluate_reconciliation()` compared the pre-sizing book
+  weight (~12 names) against every held security, so any liquidity/cost
+  haircut or legitimately-held non-book position read as false drift —
+  compounded by the short-side bug above, this was self-sustaining (the
+  lock creates the exact condition that keeps it locked). Fixed by
+  capturing the FINAL, post-sizing/liquidity/cost `target_weight` for
+  every symbol Pass 2 actually processes each bar (book or not) into a
+  new `self._realized_target_weights_by_symbol`, and restricting the
+  broker side to `self.asset_lookup`'s key space so option/futures
+  contract holdings (never book members) stop being permanent orphans.
+  `reconcile_positions()` itself gained two related fixes: tolerance is
+  now checked before presence (a dust position is "matched", not a
+  permanent orphan), and `max_abs_weight_drift` now excludes matched
+  symbols, matching its own docstring. `trips_kill_switch` set to `false`
+  in config until a real backtest confirms the drift distribution is sane.
+- **Slippage divergence measured the overnight gap, not slippage.**
+  `_track_slippage_divergence()` compared the fill price against the
+  PRIOR bar's close, but a Daily-resolution market order fills at the
+  NEXT bar's open — so the metric was structurally the overnight price
+  gap (commonly tens to hundreds of bps), biased to keep tripping
+  `max_slippage_divergence_bps`. Data collection stays on for
+  observability, but the trigger itself is set to a never-fires sentinel
+  in config until a reliable fill-time reference price exists and is
+  verified against a real Lean run. Also fixed: the stash lookup now
+  resolves an option contract fill back to its chain symbol_key via the
+  existing `symbol_key_by_option_contract_symbol` reverse map, instead of
+  a raw `str(order_event.Symbol)` that never matched for options.
+- **`corporate_action_payload` leaked across symbols.** The Phase 1a/1b/1c
+  split (earlier in V5.1) turned Phase 1c into a separate loop that runs
+  once per symbol only after Phase 1a has finished every symbol — reading
+  the bare outer-scope `corporate_action_payload` variable there picked up
+  whichever value the LAST Phase 1a symbol left it at, not this symbol's
+  own. Fixed by carrying it through the `pending` list from Phase 1a,
+  same pattern `topology_payload`/`regime_payload` already use.
+- **`sector_max_net_weight: 0.05` was tighter than `max_weight_per_name: 0.12`,**
+  silently shrinking the book to a fraction of its intended exposure with
+  no diagnostic saying so. Raised to `0.15`. Separately,
+  `portfolio/book_neutrality.py::apply_book_neutrality()` gained a
+  `sector_max_net_weight > 0.0` precondition — a configured value of
+  exactly `0.0` previously reintroduced #81's exact demean-to-zero
+  regression through config instead of code.
+
+**Fix:** all seven items above, each with new/extended targeted tests
+(`test_cost_model.py`, `test_kill_switch.py`, `test_reconciliation.py`,
+`test_book_neutrality.py`) plus `main.py`'s established `py_compile`-only
+verification (no unit-test host — Problems.md #66). Full suite: 2392
+passed. Not yet re-verified with an actual Lean backtest — both of this
+arc's reserved backtest slots remain unspent.

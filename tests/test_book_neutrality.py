@@ -108,6 +108,37 @@ def test_sector_neutral_equal_weighted_monolithic_role_bucket_is_shrunk_not_eras
     assert abs(forex_net - (-0.05)) < 1e-9
 
 
+def test_sector_max_net_weight_zero_skips_sector_neutral_instead_of_erasing_book():
+    # Bug fix: a configured sector_max_net_weight of exactly 0.0 previously
+    # gave shrink_factor = 0.0 / |bucket_net| = 0.0 for every non-flat
+    # bucket, silently reintroducing Problems.md #81's exact
+    # demean-to-zero regression through config rather than code. It must
+    # now skip the sector-neutral step entirely (recorded in diagnostics),
+    # never erase the book.
+    weights, diagnostics = _neutralize(
+        {"F1": -0.10, "F2": -0.10, "F3": -0.10},
+        sectors={s: "Forex" for s in ("F1", "F2", "F3")},
+        dollar_neutral=False,
+        sector_max_net_weight=0.0,
+    )
+    for symbol in ("F1", "F2", "F3"):
+        assert weights[symbol] == -0.10, f"{symbol} was erased by sector_max_net_weight=0.0"
+    assert "sector_neutral_skipped_invalid_max_net_weight" in diagnostics["steps_applied"]
+    assert "sector_neutral" not in diagnostics["steps_applied"]
+
+
+def test_sector_max_net_weight_negative_also_skips_sector_neutral():
+    weights, diagnostics = _neutralize(
+        {"F1": -0.10, "F2": -0.10},
+        sectors={s: "Forex" for s in ("F1", "F2")},
+        dollar_neutral=False,
+        sector_max_net_weight=-1.0,
+    )
+    for symbol in ("F1", "F2"):
+        assert weights[symbol] == -0.10
+    assert "sector_neutral_skipped_invalid_max_net_weight" in diagnostics["steps_applied"]
+
+
 def test_per_name_cap_binds_before_anything_else():
     weights, _ = _neutralize(
         {"A": 0.50, "B": -0.50},

@@ -2614,6 +2614,7 @@ def _write_tiny_dataset(ml_dir, feature_names=("f1", "f2"), num_tickers=6, num_d
                 "ticker": f"T{i}",
                 "split": "backtest",
                 "target_return_1d": float(rng.normal(0, 0.01)),
+                "target_return_20d": float(rng.normal(0, 0.03)),
                 "liquidity_log_dollar_volume": 15.0 + i,
             }
             for name in feature_names:
@@ -2729,9 +2730,70 @@ def test_evaluate_all_flag_runs_every_report(tmp_path, capsys, monkeypatch):
     captured = capsys.readouterr()
     assert exit_code == 0
     payload = json.loads(captured.out)
-    assert set(payload) == {"rank_book", "capacity", "stress", "calibrated_edge_bps_per_rank_unit"}
+    assert set(payload) == {
+        "rank_book", "capacity", "stress",
+        "calibrated_edge_bps_per_rank_unit", "calibrated_edge_forward_return_column",
+    }
     assert (ml_dir / "evaluation" / "capacity_report.json").exists()
     assert (ml_dir / "evaluation" / "cost_stress_report.json").exists()
+
+
+def test_evaluate_calibrate_edge_regresses_on_the_configured_horizon_return(tmp_path, capsys, monkeypatch):
+    # V5.1 bug fix: --calibrate-edge previously always regressed on
+    # target_return_1d, but execution/cost_model.py::expected_edge_bps()
+    # treats the result as the FULL move over phase_v2.costs.horizon_days
+    # (default 20) - a ~20x understatement. Default horizon_days=20 must
+    # pick target_return_20d, not target_return_1d.
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--calibrate-edge", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["calibrated_edge_forward_return_column"] == "target_return_20d"
+    assert "not in dataset" not in captured.err
+
+
+def test_evaluate_calibrate_edge_falls_back_to_1d_when_horizon_column_missing(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)
+    # Drop the 20d column so the configured horizon_days=20 has nothing to
+    # regress against - must fall back to target_return_1d with a warning,
+    # never crash and never silently mis-regress on a nonexistent column.
+    import pandas as pd
+
+    dataset_path = ml_dir / "datasets" / "full_dataset.csv"
+    frame = pd.read_csv(dataset_path)
+    frame = frame.drop(columns=["target_return_20d"])
+    frame.to_csv(dataset_path, index=False)
+
+    config = _evaluate_config()
+    config["phase_v2"]["costs"]["horizon_days"] = 20
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--calibrate-edge", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["calibrated_edge_forward_return_column"] == "target_return_1d"
+    assert "not in dataset" in captured.err
 
 
 def test_evaluate_preset_overlay_never_writes_config_json(tmp_path, capsys, monkeypatch):

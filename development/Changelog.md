@@ -4923,3 +4923,37 @@ against this pipeline.
   was missing from the local Lean image's own dependency list even though
   `main.py` unconditionally imports it at module load via
   `data_pipeline.fred_backfill` — added alongside Redis.
+
+## V5.1.12 — Six critical bugs found before the first V5.1 Lean backtest
+
+A full review of every config value switched on this session and its
+consuming code (Problems.md #88), before spending V5.1's first real Lean
+backtest:
+
+- Net-edge gate no longer blocks every short — it measures edge in the
+  direction of the trade, not just the raw long-side rank deviation.
+- `--calibrate-edge` now regresses on the configured horizon's forward
+  return, not always a 1-day one; `edge_bps_per_rank_unit` recalibrated
+  from `28.2194` to `396.2743`.
+- Kill switch no longer trips within the first few bars of a run — the
+  rolling-Sharpe trigger now requires a real minimum sample before it
+  evaluates at all.
+- Reconciliation compares the broker's actual holdings against the FINAL,
+  post-sizing/liquidity/cost intent for every symbol Pass 2 processes
+  (book or not), not the pre-sizing book weight against every held
+  security — the old scope mismatch was self-sustaining once combined
+  with the short-side bug above. `trips_kill_switch` set to `false` until
+  a real backtest confirms the drift distribution is sane. Dust positions
+  (within tolerance) no longer read as permanent orphans.
+- Slippage-divergence tracking no longer measures the overnight price
+  gap as if it were execution slippage; the trigger is disabled pending a
+  reliable fill-time reference price, while data collection continues for
+  observability.
+- `corporate_action_payload` no longer leaks the last Phase-1a symbol's
+  value onto every other symbol's Phase-1c record.
+- `sector_max_net_weight` raised from `0.05` to `0.15` so
+  `max_weight_per_name: 0.12` is actually reachable; a configured `0.0`
+  can no longer silently zero the whole book again (Problems.md #81).
+
+Full suite: 2392 passed. Neither of this arc's two reserved Lean backtest
+slots has been spent yet.

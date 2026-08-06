@@ -146,3 +146,43 @@ def test_breach_false_when_drift_within_max_tolerated_drift():
         weight_tolerance=0.0001, value_tolerance_usd=1_000_000.0, max_tolerated_drift=0.05,
     )
     assert report.breach is False
+
+
+# ---------------------------------------------------------------------------
+# Dust positions - tolerance is checked BEFORE presence, so a negligible
+# one-sided amount is "matched", never a permanent orphan/missing entry
+# (bug fix: previously ANY presence-only mismatch was unconditionally
+# orphan_broker/missing_broker regardless of size).
+# ---------------------------------------------------------------------------
+
+
+def test_dust_position_held_but_not_expected_is_matched_not_orphan():
+    report = _reconcile({}, {"AAPL": 0.0001}, weight_tolerance=0.01, value_tolerance_usd=1_000_000.0)
+    assert report.matched == ["AAPL"]
+    assert report.orphan_broker == []
+
+
+def test_dust_position_expected_but_not_held_is_matched_not_missing():
+    report = _reconcile({"AAPL": 0.0001}, {}, weight_tolerance=0.01, value_tolerance_usd=1_000_000.0)
+    assert report.matched == ["AAPL"]
+    assert report.missing_broker == []
+
+
+def test_large_one_sided_position_still_classifies_as_orphan_or_missing():
+    # Sanity check the dust fix didn't swallow genuine one-sided drift.
+    report = _reconcile({}, {"TSLA": 0.20}, weight_tolerance=0.01, value_tolerance_usd=1_000_000.0)
+    assert report.matched == []
+    assert len(report.orphan_broker) == 1
+
+
+def test_matched_symbols_excluded_from_max_abs_weight_drift():
+    # A matched symbol's own tiny delta must never be what max_abs_weight_drift
+    # reports - only drifted/orphan_broker/missing_broker entries count,
+    # matching the field's own docstring.
+    report = _reconcile(
+        {"AAPL": 0.10, "MSFT": 0.05}, {"AAPL": 0.1005},
+        weight_tolerance=0.01, value_tolerance_usd=1_000_000.0,
+    )
+    assert report.matched == ["AAPL"]
+    assert report.missing_broker[0]["symbol"] == "MSFT"
+    assert report.max_abs_weight_drift == pytest.approx(0.05)

@@ -128,3 +128,54 @@ def test_net_edge_decision_to_dict_shape():
     decision = build_net_edge_decision(0.9, {"estimated_round_trip_cost": 0.001}, 10_000, _cost_config())
     payload = decision.to_dict()
     assert set(payload) == {"expected_edge_bps", "expected_cost_bps", "net_edge_bps", "passes", "reason"}
+
+
+def test_trade_direction_defaults_to_long_reproducing_today_exactly():
+    edge = expected_edge_bps(0.0, edge_bps_per_rank_unit=50.0, holding_bars=20, horizon_days=20)
+    assert edge == -50.0
+
+
+def test_bottom_ranked_short_has_positive_edge_in_the_direction_of_the_trade():
+    # A bottom-ranked asset (expected to fall) traded SHORT profits from
+    # that fall - the edge in the direction of the trade is positive, even
+    # though the raw long-side rank_deviation is negative.
+    edge = expected_edge_bps(0.0, edge_bps_per_rank_unit=50.0, holding_bars=20, horizon_days=20, trade_direction=-1)
+    assert edge == 50.0
+
+
+def test_top_ranked_long_has_positive_edge_in_the_direction_of_the_trade():
+    edge = expected_edge_bps(1.0, edge_bps_per_rank_unit=50.0, holding_bars=20, horizon_days=20, trade_direction=1)
+    assert edge == 50.0
+
+
+def test_mismatched_direction_has_negative_edge():
+    # Going long a bottom-ranked asset (or short a top-ranked one) is
+    # against the rank's own view - the gate should see negative edge and
+    # veto it, not silently ignore direction.
+    edge = expected_edge_bps(0.0, edge_bps_per_rank_unit=50.0, holding_bars=20, horizon_days=20, trade_direction=1)
+    assert edge == -50.0
+
+
+def test_build_net_edge_decision_short_side_passes_when_rank_supports_it():
+    # The regression this fixes: previously every short was vetoed
+    # unconditionally because the gate only ever measured raw long-side
+    # edge. A bottom-ranked (rank=0.02) short with a real calibrated edge
+    # must now be able to pass, exactly like an equivalent long does.
+    short_decision = build_net_edge_decision(
+        0.02, {"estimated_round_trip_cost": 0.0005}, 10_000, _cost_config(min_net_edge_bps=2.0), trade_direction=-1
+    )
+    long_decision = build_net_edge_decision(
+        0.98, {"estimated_round_trip_cost": 0.0005}, 10_000, _cost_config(min_net_edge_bps=2.0), trade_direction=1
+    )
+    assert short_decision.passes is True
+    assert short_decision.expected_edge_bps == long_decision.expected_edge_bps
+    assert short_decision.net_edge_bps == long_decision.net_edge_bps
+
+
+def test_build_net_edge_decision_short_side_still_blocked_without_direction_fix():
+    # Same short candidate, but with the (wrong) default trade_direction=1
+    # - reproduces the pre-fix bug so a future regression here is caught.
+    decision = build_net_edge_decision(
+        0.02, {"estimated_round_trip_cost": 0.0005}, 10_000, _cost_config(min_net_edge_bps=2.0)
+    )
+    assert decision.passes is False

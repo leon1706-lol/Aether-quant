@@ -82,8 +82,9 @@ def test_rolling_sharpe_below_floor_trips():
     # Strongly negative mean, small non-zero variance -> a strongly
     # negative Sharpe. Constant returns (zero variance) would instead
     # report Sharpe=0.0 per _rolling_sharpe()'s own documented convention -
-    # deliberately avoided here.
-    returns = [-0.025, -0.015] * 15
+    # deliberately avoided here. 60 bars to clear the default
+    # min_bars_for_sharpe warmup (== evaluation_bars, 60 in _config()).
+    returns = [-0.025, -0.015] * 30
     decision = evaluate_kill_switch({"recent_bar_returns": returns}, _config())
 
     assert decision.tripped is True
@@ -95,6 +96,73 @@ def test_rolling_sharpe_insufficient_data_never_trips():
     decision = evaluate_kill_switch({"recent_bar_returns": [-0.5]}, _config())
     assert decision.tripped is False
     assert decision.observed["rolling_sharpe"] is None
+
+
+# ---------------------------------------------------------------------------
+# Warmup guard (bug fix: evaluation_bars was only a slice bound, never a
+# minimum-sample requirement - a 2-bar mildly-negative run annualized into
+# an absurd Sharpe and tripped the switch within the first few bars of
+# every run).
+# ---------------------------------------------------------------------------
+
+
+def test_two_mildly_negative_bars_no_longer_trips_under_default_warmup():
+    # The exact regression scenario: 2 mildly-negative bars used to trip
+    # the switch because _rolling_sharpe() had no floor on sample size.
+    decision = evaluate_kill_switch({"recent_bar_returns": [-0.001, -0.0005]}, _config())
+    assert decision.tripped is False
+    assert decision.observed["rolling_sharpe"] is None
+    assert decision.observed["rolling_sharpe_num_bars"] == 2
+
+
+def test_rolling_sharpe_trigger_stays_silent_below_min_bars_for_sharpe_even_with_extreme_returns():
+    # Below the warmup floor, the trigger must not fire no matter how bad
+    # the (tiny) sample looks - the whole point of a minimum-sample
+    # requirement is that it isn't overridable by how extreme the data is.
+    decision = evaluate_kill_switch(
+        {"recent_bar_returns": [-0.5, -0.4, -0.3]}, _config(evaluation_bars=60, min_rolling_sharpe=-1.0)
+    )
+    assert decision.tripped is False
+    assert decision.observed["rolling_sharpe"] is None
+
+
+def test_min_bars_for_sharpe_independently_configurable_below_evaluation_bars():
+    # An operator who genuinely wants a faster-reacting (but still
+    # warmed-up) trigger can set min_bars_for_sharpe below evaluation_bars
+    # explicitly - it must not be silently forced back up to
+    # evaluation_bars.
+    returns = [-0.03, -0.02] * 5  # 10 bars
+    decision = evaluate_kill_switch(
+        {"recent_bar_returns": returns},
+        _config(evaluation_bars=60, min_bars_for_sharpe=10, min_rolling_sharpe=-1.0),
+    )
+    assert decision.tripped is True
+    assert "rolling_sharpe_below_floor" in decision.triggers
+
+
+def test_min_bars_for_sharpe_defaults_to_evaluation_bars():
+    decision = evaluate_kill_switch({}, _config(evaluation_bars=45))
+    assert decision.thresholds["min_bars_for_sharpe"] == 45
+
+
+def test_evaluation_bars_zero_or_negative_never_trips_rolling_sharpe_instead_of_using_full_history():
+    # Python's own `x[-0:]` == `x[0:]` slice semantics previously meant
+    # evaluation_bars=0 silently fell back to the ENTIRE return history
+    # instead of a real (empty) window - a misconfiguration should degrade
+    # to "insufficient data", never to "unbounded history".
+    returns = [-0.5] * 500
+    decision = evaluate_kill_switch(
+        {"recent_bar_returns": returns}, _config(evaluation_bars=0, min_rolling_sharpe=-1.0)
+    )
+    assert decision.tripped is False
+    assert decision.observed["rolling_sharpe"] is None
+    assert decision.observed["rolling_sharpe_num_bars"] == 0
+
+    negative_decision = evaluate_kill_switch(
+        {"recent_bar_returns": returns}, _config(evaluation_bars=-5, min_rolling_sharpe=-1.0)
+    )
+    assert negative_decision.tripped is False
+    assert negative_decision.observed["rolling_sharpe_num_bars"] == 0
 
 
 def test_drawdown_velocity_above_cap_trips():

@@ -688,6 +688,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # in _write_state().
         self._last_book_neutrality_diagnostics: dict = {}
         self._book_target_weights: dict = {}
+        # V5.1 bug fix (production safety, reconciliation) - the FINAL,
+        # post-sizing/post-liquidity/post-cost target_weight actually
+        # decided for every symbol Pass 2 processes this bar (not just
+        # book members), keyed by symbol_key. Reset and fully repopulated
+        # every bar in Pass 2 (see that loop's own comment for why this is
+        # a materially different, more honest quantity than
+        # self._book_target_weights for reconciliation purposes -
+        # self._book_target_weights is the pre-liquidity/pre-cost book
+        # intent, never what was actually sized/submitted).
+        self._realized_target_weights_by_symbol: dict = {}
         # development/Problems.md#29: optional per-asset-class slot budget
         # (e.g. {"equity": [3, 3], "crypto": [2, 2]}) instead of one pooled
         # top_n/bottom_n ranking across every enabled asset class - absent
@@ -1577,11 +1587,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "asset_quality": self._asset_quality_for_symbol(symbol),
                 "trading_eligible": self._is_trading_eligible(symbol),
                 "can_trade": not self.trade_lock_active and self._is_trading_eligible(symbol),
-                # Phase 4.8 - correctly scoped to THIS symbol's own Pass-1
-                # iteration (unlike the stale outer-scope variable Pass 2
-                # used to read - see pass1_state[symbol_key]'s own
-                # "corporate_action_payload" key below, and this bar's
-                # build_experience_event() call for the actual bug fix).
+                # Correctly scoped to THIS symbol's own Phase 1a iteration -
+                # see `pending.append(...)` above and pass1_state[symbol_key]'s
+                # own "corporate_action_payload" key for why Phase 1c needs
+                # its own carried-through copy rather than reading this bare
+                # variable directly (it is a separate, later loop).
                 "corporate_action": corporate_action_payload,
             }
             signals[str(symbol)] = signal_payload
@@ -1615,6 +1625,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "topology_payload": topology_payload,
                         "regime_payload": regime_payload,
                         "sequence_history": sequence_history,
+                        # V5.1 bug fix - this symbol's OWN value, captured
+                        # while still in Phase 1a's own per-symbol
+                        # iteration. The Phase 1a/1b/1c split (V5.1) turned
+                        # Phase 1c into a SEPARATE loop that runs once for
+                        # every symbol only after Phase 1a has finished
+                        # ALL of them - reading the bare outer-scope
+                        # `corporate_action_payload` variable there (as the
+                        # pre-split single-pass code correctly did) instead
+                        # picks up whichever value the LAST Phase 1a symbol
+                        # left it at, not this symbol's own. Carrying it
+                        # through `pending` restores per-symbol correctness.
+                        "corporate_action_payload": corporate_action_payload,
                     }
                 )
             else:
@@ -1711,6 +1733,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             feature_payload = item["feature_payload"]
             topology_payload = item["topology_payload"]
             regime_payload = item["regime_payload"]
+            corporate_action_payload = item["corporate_action_payload"]
 
             result = inference_results[symbol_key]
             baseline_probability_up = result["baseline_probability"]
@@ -1784,15 +1807,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "signal_name": signal_name,
                 "confidence": confidence,
                 "base_target_weight": base_target_weight,
-                # Phase 4.8 bug fix - previously NOT captured here, so Pass 2
-                # below (a separate loop over pass1_state.items()) read the
-                # bare outer-scope `corporate_action_payload` variable
-                # instead - Python has no block scoping, so that variable
-                # held whatever value it was left at by the LAST symbol
-                # Pass 1 processed, not this symbol's own value. Capturing
-                # it here (still within this symbol's own Pass-1 iteration,
-                # where the variable is still correctly scoped) and reading
-                # it back per-symbol in Pass 2 fixes that.
+                # This symbol's own value, now correctly threaded through
+                # `pending` from Phase 1a (see that block's own comment) -
+                # `corporate_action_payload` here is this symbol's local,
+                # freshly re-scoped copy for this Phase 1c iteration, not a
+                # stale bare variable.
                 "corporate_action_payload": corporate_action_payload,
             }
             asset = self.asset_lookup[str(symbol)]
@@ -1947,6 +1966,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
             pass1_items.sort(key=_book_conviction_sort_key, reverse=True)
 
+        # Reset here, fully repopulated below as Pass 2 processes each
+        # symbol - see this dict's own comment at __init__ for why it
+        # exists (reconciliation's "expected" input).
+        self._realized_target_weights_by_symbol = {}
+
         # ---- Pass 2: sizing/liquidity/analyzer/order-application, now
         # that every symbol's book role (if any) is known. Iterates
         # pass1_state (populated in self.symbols order during Pass 1,
@@ -2088,8 +2112,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # already applies its own adjustment post-hoc rather than
             # re-sizing from scratch.
             order_value = abs(target_weight) * float(self.Portfolio.TotalPortfolioValue)
+            # trade_direction from THIS bar's already-sized (signed)
+            # target_weight - positive sizing means long, negative means
+            # short. Without this, expected_edge_bps() measured only the
+            # raw long-side edge and applied it to short entries too,
+            # vetoing every short unconditionally (Problems.md).
+            trade_direction = 1 if target_weight >= 0.0 else -1
             net_edge_decision = build_net_edge_decision(
-                predicted_rank_20d, liquidity_payload, order_value, self._costs_config
+                predicted_rank_20d,
+                liquidity_payload,
+                order_value,
+                self._costs_config,
+                trade_direction=trade_direction,
             ).to_dict()
             # V5.1 Phase 6 (production safety) - this bar's expected round-
             # trip cost + reference price, read back by on_order_event()
@@ -2098,6 +2132,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # stash-and-later-read - does not affect order construction or
             # sizing at all, and every existing order-submission call site
             # is untouched.
+            #
+            # GUARDRAIL: reference_price is THIS bar's close, but a Daily-
+            # resolution market order fills at the NEXT bar's open - so the
+            # realized_slippage_bps _track_slippage_divergence() computes
+            # from this reference is structurally the overnight price gap
+            # (commonly tens to hundreds of bps) plus any real slippage, not
+            # slippage alone. It is still stashed/tracked here for
+            # observability (state.json, the webui panel), but
+            # phase_v2.risk.kill_switch.max_slippage_divergence_bps is
+            # deliberately set to a never-fires sentinel in config.json
+            # until a reliable fill-time reference price is available and
+            # verified against a real Lean run - see that config key's own
+            # comment and development/Problems.md.
             self._expected_cost_by_symbol[symbol_key] = {
                 "expected_cost_bps": net_edge_decision["expected_cost_bps"],
                 "reference_price": float(bar.close),
@@ -2144,6 +2191,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             signal_name = decision["signal"]
             target_weight = decision["target_weight"]
             close_price = float(bar.close)
+
+            # V5.1 bug fix (production safety, reconciliation) - this is
+            # the FINAL, fully-adjusted intent for this symbol this bar
+            # (post sizing/liquidity/cost, post every analyzer veto - a
+            # vetoed entry already carries target_weight=0.0 here, exactly
+            # right for reconciliation: we declined to acquire it, so 0.0
+            # IS the honest expectation, not the pre-veto book weight).
+            # Captured for every symbol Pass 2 touches, not just book
+            # members, so a legitimately-held non-book position is never
+            # misclassified as an orphan purely because it fell outside
+            # the book's own top/bottom-N.
+            self._realized_target_weights_by_symbol[symbol_key] = target_weight
 
             if decision["action"] == "trade":
                 execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price, sizing_payload)
@@ -5766,45 +5825,90 @@ class AetherQuantAlgorithm(QCAlgorithm):
         mirroring _snapshot_positions()'s exact dual-mode (real Portfolio
         vs. SimulatedPortfolioState) branching and Invested-only filter, so
         the two never drift apart. Keyed by str(Symbol)/symbol_key, same
-        convention as self._book_target_weights (both ultimately derive
-        from `symbol_key = str(symbol)` on the same underlying Lean Symbol
-        object - see Pass 1/2's own symbol_key assignments)."""
+        convention as self._realized_target_weights_by_symbol (both
+        ultimately derive from `symbol_key = str(symbol)` on the same
+        underlying Lean Symbol object - see Pass 1/2's own symbol_key
+        assignments).
+
+        Restricted to `self.asset_lookup`'s own key space (the base
+        tradable-asset universe Pass 1/2 actually reason about) - bug fix:
+        previously included EVERY held security, including derivative
+        CONTRACT symbols (options/futures contracts, which are distinct
+        Symbol objects from their underlying and never appear in
+        asset_lookup or self._realized_target_weights_by_symbol). Every
+        such contract holding was unconditionally an unmatched
+        "orphan_broker" regardless of how legitimately it was held,
+        inflating drift for reasons that had nothing to do with the equity/
+        crypto/forex book this reconciliation is meant to police."""
         orders_allowed, _ = self._order_permission()
         if orders_allowed:
             total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
             return {
                 str(security_holding.Symbol): float(security_holding.HoldingsValue / total_value)
                 for security_holding in self.Portfolio.Values
-                if security_holding.Invested
+                if security_holding.Invested and str(security_holding.Symbol) in self.asset_lookup
             }
         equity = max(float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"]), 1.0)
         return {
             symbol_key: float(self._simulated_portfolio.position_value(symbol_key) / equity)
             for symbol_key in self._simulated_portfolio.holdings
+            if symbol_key in self.asset_lookup
         }
 
     def _evaluate_reconciliation(self) -> dict:
-        """V5.1 Phase 6 (production safety) - once per bar, the book's
-        intended weights (self._book_target_weights, this bar's most
-        recent rebalance - see the Pass 1 book-construction block) vs. the
-        broker/simulated portfolio's ACTUAL current holdings. Deliberately
-        scoped to the portfolio-book-with-neutrality path specifically:
-        self._book_target_weights is ONLY ever populated when
-        self.book_neutrality_enabled (see that block's own comment) - the
-        non-neutrality book path computes weights inline per-symbol in
-        Pass 2 without ever persisting an addressable dict, so there is
-        nothing meaningful to reconcile against outside this path. Returns
-        an explicit not_applicable sentinel rather than a misleading
-        all-orphan report when the precondition doesn't hold - same
-        honesty-contract convention as evaluation/ablation.py's
-        NOT_OFFLINE_MEASURABLE_VARIANTS."""
-        if not (self.book_neutrality_enabled and self._reconciliation_config.get("enabled", False)):
-            return {"status": "not_applicable", "reason": "portfolio_book_neutrality_or_reconciliation_disabled"}
+        """V5.1 Phase 6 (production safety) - once per bar, this bar's
+        actual holdings vs. self._realized_target_weights_by_symbol (the
+        FINAL, post-sizing/post-liquidity/post-cost target_weight Pass 2
+        decided for every symbol it processed - see that dict's own
+        __init__ comment).
+
+        Bug fix: previously compared against self._book_target_weights,
+        the pre-sizing/pre-liquidity/pre-cost BOOK-ONLY intent (~top_n +
+        bottom_n names) - two compounding defects. First, it was the wrong
+        quantity: a name can be haircut by liquidity, scaled by the cost
+        gate, or vetoed entirely by the analyzer between book construction
+        and order submission, so the book weight was never actually what
+        got sent to the broker. Second, it was the wrong SCOPE: every
+        legitimately-held non-book position (a name trading on its own
+        individual signal outside the book's top/bottom-N, or before
+        V5.1's fix to the cost gate, EVERY short - the book's shorts never
+        filled, so they were always "missing_broker") showed up as a false
+        drift. self._realized_target_weights_by_symbol fixes both: it is
+        the real submitted intent, and it covers every symbol Pass 2
+        actually reasoned about this bar, book or not - a symbol simply
+        absent from it (never touched by Pass 2 this bar, e.g. a warming-up
+        or excluded asset) correctly falls back to expected=0.0 via
+        reconcile_positions()'s own "not in dict" handling, same as before.
+
+        Deliberately NOT re-timed relative to _refresh_risk_state()'s call
+        site (top of on_data, before this bar's own Pass 1/2 run): Lean
+        fills a market order at the NEXT bar's open, so by construction
+        "actual holdings" can never reflect intent decided earlier THIS
+        same bar no matter where in the bar the comparison runs - only
+        PRIOR bars' intent has had a chance to be realized. Running here
+        compares last bar's fully-adjusted intent (already sitting in this
+        dict, untouched since Pass 2 last populated it) against holdings
+        that, by the time this bar's on_data fires, already reflect that
+        exact intent's fills - a genuinely same-vintage, apples-to-apples
+        comparison. Moving the call to run after this bar's own Pass 2
+        would compare an intent that has NOT YET had any chance to fill
+        against holdings that still only reflect the PRIOR bar - strictly
+        worse, not better.
+
+        Reconciliation is otherwise meaningful whenever it's config-enabled,
+        independent of self.book_neutrality_enabled - self._realized_target_weights_by_symbol
+        is populated every bar regardless of whether the book/neutrality
+        overlay is on, unlike the old book-only dict it replaces. Returns
+        an explicit not_applicable sentinel only when reconciliation itself
+        is disabled - same honesty-contract convention as
+        evaluation/ablation.py's NOT_OFFLINE_MEASURABLE_VARIANTS."""
+        if not self._reconciliation_config.get("enabled", False):
+            return {"status": "not_applicable", "reason": "reconciliation_disabled"}
 
         actual_by_symbol = self._build_reconciliation_actual_weights()
         portfolio_value = float(self._snapshot_portfolio_summary()["total_portfolio_value"])
         report = reconcile_positions(
-            self._book_target_weights,
+            self._realized_target_weights_by_symbol,
             actual_by_symbol,
             weight_tolerance=float(self._reconciliation_config.get("weight_tolerance", 0.01)),
             value_tolerance_usd=float(self._reconciliation_config.get("value_tolerance_usd", 50.0)),
@@ -6256,11 +6360,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
         Only a fully "Filled" status counts (classify_order_status()
         treats "PartiallyFilled" as still-pending) - a partial fill is
         left in self._expected_cost_by_symbol for a later, more complete
-        fill event to consume."""
+        fill event to consume.
+
+        Bug fix: order_event.Symbol is the actual order-target Symbol,
+        which for a single-leg option is the CONTRACT symbol - a different
+        object from the chain symbol_key _expected_cost_by_symbol was
+        stashed under during Pass 2. Resolved back via the SAME reverse
+        map _enter_option_single_leg()/on_order_event()'s own limit-order
+        bookkeeping already uses (self.symbol_key_by_option_contract_symbol),
+        rather than a second, divergent lookup - without this, option fills
+        never matched their stash entry and were silently never tracked."""
         status = classify_order_status(getattr(order_event.Status, "name", str(order_event.Status)))
         if status != "filled":
             return
-        expected = self._expected_cost_by_symbol.pop(str(order_event.Symbol), None)
+        event_symbol_key = str(order_event.Symbol)
+        resolved_symbol_key = self.symbol_key_by_option_contract_symbol.get(event_symbol_key, event_symbol_key)
+        expected = self._expected_cost_by_symbol.pop(resolved_symbol_key, None)
         if expected is None:
             return
         fill_price = float(getattr(order_event, "FillPrice", 0.0) or 0.0)

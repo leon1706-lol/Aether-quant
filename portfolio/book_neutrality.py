@@ -101,7 +101,17 @@ def apply_book_neutrality(
 
     # Step 2: sector neutrality - shrink each bucket's net toward the cap,
     # never demean to exact zero. See the docstring above (Problems.md #81).
-    if sector_neutral:
+    #
+    # GUARDRAIL: sector_max_net_weight <= 0.0 is skipped entirely rather
+    # than applied - a configured cap of exactly 0.0 would otherwise give
+    # shrink_factor = 0.0 / |bucket_net| = 0.0 for every non-flat bucket,
+    # scaling every member to nothing. That is precisely the "demean to
+    # exact zero" behavior Problems.md #81 fixed (see the docstring above),
+    # reintroduced through config instead of code. A non-positive value
+    # cannot be honestly enforced by shrink-toward-cap at all (there is no
+    # cap to shrink toward), so it is treated the same as sector_neutral
+    # being off for this step, not silently honored.
+    if sector_neutral and sector_max_net_weight > 0.0:
         symbols_by_sector: dict[str, list[str]] = {}
         for symbol in weights:
             sector = sector_by_symbol.get(symbol, "Unknown")
@@ -109,11 +119,13 @@ def apply_book_neutrality(
 
         for sector, members in symbols_by_sector.items():
             bucket_net = sum(weights[symbol] for symbol in members)
-            if abs(bucket_net) > sector_max_net_weight and abs(bucket_net) > 0.0:
+            if abs(bucket_net) > sector_max_net_weight:
                 shrink_factor = sector_max_net_weight / abs(bucket_net)
                 for symbol in members:
                     weights[symbol] *= shrink_factor
         steps_applied.append("sector_neutral")
+    elif sector_neutral:
+        steps_applied.append("sector_neutral_skipped_invalid_max_net_weight")
 
     # Step 3: dollar neutrality - scale the larger leg down only.
     if dollar_neutral:

@@ -1785,11 +1785,28 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     if run_calibrate:
         # A simple OLS slope-through-the-origin of forward return on
         # (rank - 0.5)*2 - matches execution/cost_model.py::expected_edge_bps()'s
-        # own linear-in-rank-deviation model exactly, so the calibrated
-        # number plugs directly into phase_v2.costs.edge_bps_per_rank_unit
-        # with no unit mismatch.
+        # own linear-in-rank-deviation model. That function documents its
+        # edge_bps_per_rank_unit as the FULL predicted move over
+        # phase_v2.costs.horizon_days (it then scales down by
+        # holding_bars/horizon_days itself) - so the regression must use
+        # the SAME horizon's forward return, not a fixed 1-day one, or the
+        # calibrated number is off by roughly horizon_days/1 (a ~20x
+        # understatement of edge at the default horizon_days=20, since a
+        # 1-day slope was previously being treated as a 20-day move and
+        # then halved again downstream).
+        costs_config = config.get("phase_v2", {}).get("costs", {})
+        horizon_days = int(costs_config.get("horizon_days", 20))
+        forward_return_column = f"target_return_{horizon_days}d"
+        if forward_return_column not in dataset.columns:
+            print(
+                f"warning: {forward_return_column!r} not in dataset (horizon_days={horizon_days}); "
+                "falling back to target_return_1d - the calibrated value will then represent a "
+                "1-day move, not the horizon_days move expected_edge_bps() assumes.",
+                file=sys.stderr,
+            )
+            forward_return_column = "target_return_1d"
         rank_deviation = (dataset["predicted_head"] - 0.5) * 2.0
-        forward_return = dataset["target_return_1d"]
+        forward_return = dataset[forward_return_column]
         valid = rank_deviation.notna() & forward_return.notna()
         x = rank_deviation[valid].to_numpy()
         y = forward_return[valid].to_numpy()
@@ -1797,8 +1814,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         slope = float((x * y).sum() / denominator) if denominator > 0 else 0.0
         calibrated_edge_bps = slope * 10_000.0
         report["calibrated_edge_bps_per_rank_unit"] = calibrated_edge_bps
+        report["calibrated_edge_forward_return_column"] = forward_return_column
         if not args.json:
-            print(f"Calibrated edge_bps_per_rank_unit: {calibrated_edge_bps:.4f}")
+            print(f"Calibrated edge_bps_per_rank_unit ({forward_return_column}): {calibrated_edge_bps:.4f}")
             print(f"  Apply with: aq config set phase_v2.costs.edge_bps_per_rank_unit {calibrated_edge_bps:.4f}")
             print("  Then enable the gate: aq config set phase_v2.costs.enabled true")
 
