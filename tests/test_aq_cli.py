@@ -2734,7 +2734,7 @@ def test_evaluate_all_flag_runs_every_report(tmp_path, capsys, monkeypatch):
     assert exit_code == 0
     payload = json.loads(captured.out)
     assert set(payload) == {
-        "rank_book", "capacity", "stress",
+        "rank_book", "rank_book_entry_lag_1", "capacity", "stress",
         "calibrated_edge_bps_per_rank_unit", "calibrated_edge_forward_return_column",
     }
     assert (ml_dir / "evaluation" / "capacity_report.json").exists()

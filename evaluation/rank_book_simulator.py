@@ -94,6 +94,9 @@ def _simulate_rank_book_core(
     min_universe_size: int = 20,
     sector_max_net_weight: float = DEFAULT_SECTOR_MAX_NET_WEIGHT,
     trading_days_per_year: int = 252,
+    entry_lag_bars: int = 0,
+    min_commission_usd: float = 0.0,
+    assumed_portfolio_value_usd: float = 0.0,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -116,7 +119,37 @@ def _simulate_rank_book_core(
     of that single rebalance event only - held-and-unchanged positions
     between rebalances accrue zero cost, matching main.py's own
     hold-until-next-rebalance contract (portfolio/book_construction.py::
-    should_rebalance_this_bar())."""
+    should_rebalance_this_bar()).
+
+    entry_lag_bars (V5.2.1, development/Problems.md - default 0, today's
+    exact behavior): a Daily-resolution market order decided off bar N's
+    close fills at bar N+1's open, not bar N's close (main.py's own
+    documented behavior) - this function previously credited a newly-
+    selected position with that SAME date's forward return, an implicit
+    zero-lag fill assumption no live system can achieve. When > 0, return
+    accrual for a given date reads the book state as it stood
+    entry_lag_bars dates EARLIER (a rolling snapshot history), not the
+    state as of the current date's own rebalance - so a position selected
+    today does not start earning return until entry_lag_bars dates from
+    now, mirroring the live fill delay. Affects ONLY which return a held
+    weight earns; turnover/cost accounting stays keyed to the unlagged
+    rebalance transition (cost is incurred at order-submission time, not
+    fill time). A position held unchanged across the lag window has an
+    identical snapshot at both indices, so nothing is falsely penalized -
+    only genuinely CHANGED positions are affected.
+
+    min_commission_usd / assumed_portfolio_value_usd (default 0.0 - a
+    no-op, today's exact bps-of-turnover-only cost model): an
+    honestly-approximate per-order minimum-commission floor, layered on
+    top of the existing cost_bps_per_side/commission_bps bps-of-turnover
+    term. Real broker commissions are often floor-dominated for small
+    orders (see execution/cost_model.py's own min_commission_usd), which a
+    pure bps-of-notional model never captures. Requires an assumed NAV to
+    convert a per-order dollar floor into a return-fraction - a deliberate
+    approximation (uniform order size, fixed NAV across the whole run),
+    not a precision claim, same "honestly-approximate" convention
+    capacity_curve()'s own docstring uses. Only applied on rebalance
+    dates, charged once per name whose weight actually changed."""
     sector_by_ticker = sector_by_ticker or {}
     working = frame.dropna(subset=[prediction_column]).copy()
     unique_dates = sorted(working[date_column].unique())
@@ -134,6 +167,9 @@ def _simulate_rank_book_core(
     total_cost_return = 0.0
     num_rebalances = 0
     rebalance_counter = 0
+    # V5.2.1 - one held_weights snapshot per processed date, appended AFTER
+    # that date's own rebalance (if any) - see entry_lag_bars's docstring.
+    weights_history: list[dict[str, float]] = []
 
     net_cumprod = 1.0
     gross_cumprod = 1.0
@@ -206,11 +242,18 @@ def _simulate_rank_book_core(
                 held_allocations = {}
 
             all_symbols = set(new_weights) | set(held_weights)
-            turnover_this_rebalance = sum(
-                abs(new_weights.get(symbol, 0.0) - held_weights.get(symbol, 0.0)) for symbol in all_symbols
-            )
+            deltas_by_symbol = {
+                symbol: new_weights.get(symbol, 0.0) - held_weights.get(symbol, 0.0) for symbol in all_symbols
+            }
+            turnover_this_rebalance = sum(abs(delta) for delta in deltas_by_symbol.values())
             total_turnover += turnover_this_rebalance
             cost_this_date = turnover_this_rebalance * (cost_bps_per_side + commission_bps) / 1e4
+            # V5.2.1 (development/Problems.md) - honestly-approximate
+            # per-order minimum-commission floor, see this function's own
+            # docstring. No-op (0.0) unless both inputs are configured.
+            if min_commission_usd > 0.0 and assumed_portfolio_value_usd > 0.0:
+                names_traded = sum(1 for delta in deltas_by_symbol.values() if delta != 0.0)
+                cost_this_date += names_traded * min_commission_usd / assumed_portfolio_value_usd
             total_cost_return += cost_this_date
             num_rebalances += 1
             held_weights = new_weights
@@ -221,14 +264,23 @@ def _simulate_rank_book_core(
         names_short_series.append(sum(1 for weight in held_weights.values() if weight < 0.0))
 
         date_returns = dict(zip(eligible[ticker_column], eligible[forward_return_column]))
+        # V5.2.1 - entry_lag_bars=0 (default) uses held_weights directly,
+        # byte-identical to before this parameter existed. > 0 looks back
+        # into weights_history instead - see this function's own docstring.
+        if entry_lag_bars > 0:
+            lag_index = len(weights_history) - entry_lag_bars
+            effective_weights = weights_history[lag_index] if lag_index >= 0 else {}
+        else:
+            effective_weights = held_weights
         bar_return = sum(
-            weight * float(date_returns.get(symbol, 0.0)) for symbol, weight in held_weights.items()
+            weight * float(date_returns.get(symbol, 0.0)) for symbol, weight in effective_weights.items()
         )
         net_return = bar_return - cost_this_date
 
         gross_returns.append(bar_return)
         net_returns.append(net_return)
         per_date_used.append(str(date))
+        weights_history.append(dict(held_weights))
         gross_cumprod *= 1.0 + bar_return
         net_cumprod *= 1.0 + net_return
         net_running_peak = max(net_running_peak, net_cumprod)

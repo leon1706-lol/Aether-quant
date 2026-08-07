@@ -68,6 +68,41 @@ def should_scale_position(
     return abs(target_weight - current_weight) >= rebalance_threshold_weight
 
 
+def compute_held_weight(holdings_value: float, total_portfolio_value: float) -> float:
+    """The current_weight formula _apply_signal()'s scaling branches already
+    compute inline (twice, once per direction) - extracted so every caller
+    reads one shared formula instead of maintaining duplicate copies that
+    could silently drift if one is ever edited without the other. Floors
+    total_portfolio_value at 1.0 (never divide by zero/negative)."""
+    return holdings_value / max(total_portfolio_value, 1.0)
+
+
+def is_position_resize_permitted(
+    position_scaling_enabled: bool,
+    is_book_selected: bool,
+    is_rebalance_bar: bool,
+) -> bool:
+    """V5.2.1 (development/Problems.md) - a book-selected symbol's SIZE may
+    only resize on a rebalance bar; every other symbol (an individual-
+    signal trade, or every symbol when the book is disabled entirely) is
+    completely unaffected by this gate.
+
+    Bug this closes: should_scale_position() was being re-evaluated every
+    single bar for book members too, entirely independent of the book's
+    own is_rebalance_bar cadence - a book member's base weight is frozen
+    between rebalances, but the downstream sizing pipeline (confidence/
+    volatility/liquidity/cost multipliers) reinterprets that same frozen
+    weight differently bar to bar from live noise, tripping
+    rebalance_threshold_weight and firing real resize orders on non-
+    rebalance bars. That noise-churn is what this gates out.
+
+    Deliberately does NOT touch full exits (signal_name == "sell") or the
+    V4.3.0 futures/options incremental-quantity protection
+    (compute_incremental_order_quantity()) - both are unconditional,
+    separate code paths, never gated by this function."""
+    return position_scaling_enabled and (not is_book_selected or is_rebalance_bar)
+
+
 def compute_incremental_order_quantity(
     target_quantity: float,
     current_quantity: float,

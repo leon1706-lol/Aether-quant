@@ -4991,3 +4991,51 @@ show whether trading actually resumes, or whether a third, not-yet-found
 mechanism is still blocking it.
 
 Full suite: 2412 passed.
+
+## V5.2.1 — Closing the offline-vs-live Sharpe gap
+
+The follow-up backtest confirmed V5.1.13's two fixes: trading resumed and
+continued for 14 months (768-1106 orders) instead of dying after 3 weeks.
+But the resulting Sharpe was strongly negative (-4.2 to -4.4, confirmed
+identical whether the kill-switch/drawdown-lock safety layer was active or
+bypassed) against the same window's offline evaluation showing +0.26 to
++2.18 — a large, systematic gap that needed a real root-cause investigation
+rather than another guess (Problems.md #90).
+
+Three independent, compounding mechanisms, found and verified directly
+against the code and the backtest's own order events/fees:
+
+1. **A ~1-bar execution lag** the offline simulator never modeled — it
+   credited a newly-selected position with the SAME day's forward return,
+   but a Daily-resolution market order actually fills at the NEXT bar's
+   open. Researched and ruled out a live-side fix (`MarketOnCloseOrder`
+   would land even later, not earlier) — this is a structural gap tied to
+   Daily-resolution architecture. The offline simulator now supports an
+   `entry_lag_bars` parameter (opt-in, default `0`), and `aq evaluate
+   --rank-book` always shows both `0` and `1` side by side as an explicit
+   "lag tax," rather than leaving it invisible.
+2. **Orthogonal V4.3.0 position-scaling machinery** was re-firing every
+   bar for book members, entirely independent of the book's own 10-bar
+   rebalance cadence — reinterpreting a frozen book allocation differently
+   bar to bar from live confidence/volatility/liquidity noise and firing
+   real resize orders far more often than the offline model ever assumed.
+   Now gated to rebalance bars only for book-selected symbols; every other
+   symbol (individual-signal trades, or everything when the book is
+   disabled) is unaffected, and full exits were never touched.
+3. **The cost gate was sized against the wrong notional** — the full
+   target position value instead of the actual incremental resize — so it
+   systematically under-costed exactly the frequent small resizes item 2
+   generates, letting trades through that don't clear their real cost once
+   Lean's own commission floor applies. Now sized against the real trade
+   delta, with a bonus fix: a direction flip now correctly costs more too.
+
+The offline simulator also gained an approximate per-order minimum-
+commission floor, so future `aq evaluate` numbers are a closer preview of
+real cost drag.
+
+**Not yet confirmed:** whether these three fixes actually close the gap —
+that's the next real backtest. Improvement is expected; full closure isn't
+promised, since the execution-lag mechanism is structural, not a bug with
+a complete fix.
+
+Full suite: 2428 passed.

@@ -1725,6 +1725,11 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         hysteresis_rank_margin=float(net_perf_config.get("hysteresis_rank_margin", 0.0)),
         max_weight_per_name=float(net_perf_config.get("max_weight_per_name", 0.12)),
         min_universe_size=int(ranking_config.get("min_universe_size", 20)),
+        # V5.2.1 (development/Problems.md) - both no-op by default (0/0.0/0.0),
+        # matching simulate_rank_book()'s own defaults exactly.
+        entry_lag_bars=int(net_perf_config.get("entry_lag_bars", 0)),
+        min_commission_usd=float(net_perf_config.get("min_commission_usd", 0.0)),
+        assumed_portfolio_value_usd=float(net_perf_config.get("assumed_portfolio_value_usd", 0.0)),
     )
 
     run_rank_book = bool(args.rank_book or args.all)
@@ -1757,13 +1762,32 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         report["rank_book"] = result.to_dict()
         _write_evaluation_json(evaluation_dir / "rank_book_simulation.json", report["rank_book"])
         if not args.json:
-            print(f"Rank book ({model_kind}/{head}, split={split}):")
+            print(f"Rank book ({model_kind}/{head}, split={split}, entry_lag_bars={base_kwargs['entry_lag_bars']}):")
             print(f"  gross_sharpe={result.gross_sharpe:.4f}  net_sharpe={result.net_sharpe:.4f}")
             print(f"  gross_total_return={result.gross_total_return:.4%}  net_total_return={result.net_total_return:.4%}")
             print(f"  net_max_drawdown={result.net_max_drawdown:.4%}")
             print(f"  annualized_turnover={result.annualized_turnover:.2f}x  cost_drag_annual_bps={result.cost_drag_annual_bps:.2f}")
             print(f"  num_rebalances={result.num_rebalances}  num_dates_used={result.num_dates_used}")
             print(f"  mean_names_long={result.mean_names_long:.2f}  mean_names_short={result.mean_names_short:.2f}")
+
+        # V5.2.1 (development/Problems.md) - a Daily-resolution market
+        # order decided off bar N's close fills at bar N+1's open, not
+        # bar N's close; this simulator's own return accrual previously
+        # had no way to model that. ALWAYS compute and show both
+        # entry_lag_bars=0 (same-bar fill, what this simulator has always
+        # assumed) and =1 (the honest, next-bar-fill "lag tax") here,
+        # regardless of what net_perf_config.entry_lag_bars is configured
+        # to - so the gap this investigation found is never silently
+        # invisible again, whichever value base_kwargs happens to carry.
+        lag_kwargs = dict(base_kwargs)
+        lag_kwargs["entry_lag_bars"] = 1
+        lagged_result = simulate_rank_book(dataset, **lag_kwargs)
+        report["rank_book_entry_lag_1"] = lagged_result.to_dict()
+        _write_evaluation_json(evaluation_dir / "rank_book_simulation_entry_lag_1.json", report["rank_book_entry_lag_1"])
+        if not args.json:
+            print(f"Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
+            print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
+            print(f"  Δnet_sharpe vs entry_lag_bars=0: {lagged_result.net_sharpe - result.net_sharpe:+.4f}")
 
     if run_capacity:
         cap = capacity_curve(

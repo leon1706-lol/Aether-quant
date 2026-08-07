@@ -90,6 +90,26 @@ def test_estimated_round_trip_cost_bps_commission_floor_dominates_small_orders()
     assert cost == 10.0 + 50.0
 
 
+def test_estimated_round_trip_cost_bps_smaller_order_value_shows_higher_effective_bps():
+    # V5.2.1 (development/Problems.md) - documents WHY main.py's Pass 2 now
+    # feeds this function the actual incremental trade size (target minus
+    # already-held weight) instead of the full target notional: the SAME
+    # dollar-floor commission is a much larger effective bps rate against a
+    # small resize than against a large fresh-entry notional, so gating on
+    # the wrong (larger) notional understates real cost for exactly the
+    # small, frequent resizes should_scale_position() exists to catch.
+    liquidity_payload = {"estimated_round_trip_cost": 0.0005}  # 5 bps, identical both times
+    full_notional_cost = estimate_round_trip_cost_bps(
+        liquidity_payload, commission_bps_per_side=1.0, min_commission_usd=1.0,
+        order_value=12_000.0, extra_slippage_bps=0.0,
+    )
+    small_resize_cost = estimate_round_trip_cost_bps(
+        liquidity_payload, commission_bps_per_side=1.0, min_commission_usd=1.0,
+        order_value=300.0, extra_slippage_bps=0.0,
+    )
+    assert small_resize_cost > full_notional_cost
+
+
 def test_estimated_round_trip_cost_bps_zero_order_value_skips_commission_floor():
     cost = estimate_round_trip_cost_bps(
         {"estimated_round_trip_cost": 0.001},

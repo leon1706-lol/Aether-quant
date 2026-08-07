@@ -2,10 +2,12 @@ from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
     cap_target_weight,
+    compute_held_weight,
     compute_incremental_order_quantity,
     compute_position_exit_tracking_update,
     evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
+    is_position_resize_permitted,
     should_scale_position,
 )
 
@@ -105,6 +107,79 @@ def test_should_scale_position_handles_negative_target_weight_for_shorts():
     # Both weights negative (an open short growing more negative) - abs()
     # must measure the magnitude of the move, not be confused by sign.
     assert should_scale_position(current_weight=-0.10, target_weight=-0.14, rebalance_threshold_weight=0.03) is True
+
+
+# ---------------------------------------------------------------------------
+# compute_held_weight() - the shared current_weight formula
+# ---------------------------------------------------------------------------
+
+
+def test_compute_held_weight_flat_is_zero():
+    assert compute_held_weight(holdings_value=0.0, total_portfolio_value=100_000.0) == 0.0
+
+
+def test_compute_held_weight_long_position():
+    assert compute_held_weight(holdings_value=12_000.0, total_portfolio_value=100_000.0) == 0.12
+
+
+def test_compute_held_weight_short_position_is_negative():
+    assert compute_held_weight(holdings_value=-12_000.0, total_portfolio_value=100_000.0) == -0.12
+
+
+def test_compute_held_weight_floors_total_portfolio_value_at_one():
+    # Never divide by zero/negative - degrades to a floor of 1.0.
+    assert compute_held_weight(holdings_value=5.0, total_portfolio_value=0.0) == 5.0
+
+
+# ---------------------------------------------------------------------------
+# is_position_resize_permitted() - V5.2.1 (development/Problems.md): gates
+# a book member's SIZE to rebalance bars only, leaves every non-book
+# symbol (or every symbol when the book is disabled) untouched.
+# ---------------------------------------------------------------------------
+
+
+def test_resize_permitted_for_non_book_symbol_on_any_bar():
+    assert is_position_resize_permitted(
+        position_scaling_enabled=True, is_book_selected=False, is_rebalance_bar=False
+    ) is True
+
+
+def test_resize_permitted_for_book_symbol_on_rebalance_bar():
+    assert is_position_resize_permitted(
+        position_scaling_enabled=True, is_book_selected=True, is_rebalance_bar=True
+    ) is True
+
+
+def test_resize_blocked_for_book_symbol_off_rebalance_bar():
+    assert is_position_resize_permitted(
+        position_scaling_enabled=True, is_book_selected=True, is_rebalance_bar=False
+    ) is False
+
+
+def test_resize_blocked_when_position_scaling_disabled_regardless_of_book_membership():
+    assert is_position_resize_permitted(
+        position_scaling_enabled=False, is_book_selected=False, is_rebalance_bar=True
+    ) is False
+    assert is_position_resize_permitted(
+        position_scaling_enabled=False, is_book_selected=True, is_rebalance_bar=True
+    ) is False
+
+
+def test_resize_permitted_matrix_matches_book_gating_contract():
+    # Exhaustive 2x2x2 - the full contract in one table, so a future
+    # regression to any single combination is caught immediately.
+    expected = {
+        (True, False, False): True,
+        (True, False, True): True,
+        (True, True, False): False,
+        (True, True, True): True,
+        (False, False, False): False,
+        (False, False, True): False,
+        (False, True, False): False,
+        (False, True, True): False,
+    }
+    for (scaling_enabled, book_selected, rebalance_bar), outcome in expected.items():
+        assert is_position_resize_permitted(scaling_enabled, book_selected, rebalance_bar) is outcome
     assert should_scale_position(current_weight=-0.10, target_weight=-0.115, rebalance_threshold_weight=0.03) is False
 
 

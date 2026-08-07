@@ -1458,7 +1458,10 @@
                         6,
                         10,
                         15
-                    ]
+                    ],
+                    "entry_lag_bars": 0,
+                    "min_commission_usd": 0.0,
+                    "assumed_portfolio_value_usd": 0.0
                 },
                 "residual_neutral": {
                     "enabled": true,
@@ -1847,7 +1850,7 @@
             "allow_live_orders": false
         },
         "backtest": {
-            "bypass_safety_gates": true
+            "bypass_safety_gates": false
         },
         "paper_trading": {
             "brokerage": "lean_paper_brokerage",

@@ -37,10 +37,12 @@ from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
     cap_target_weight,
+    compute_held_weight,
     compute_incremental_order_quantity,
     compute_position_exit_tracking_update,
     evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
+    is_position_resize_permitted,
     should_scale_position,
 )
 from analyzer import build_market_analysis_decision
@@ -1860,6 +1862,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # rebalance_every_bars==1 (the default) makes this branch always
         # true, reproducing the previous every-bar-rebalance behavior
         # exactly - no regression for anyone who doesn't set the new key.
+        #
+        # V5.2.1 (development/Problems.md) - widened scope: default True
+        # so Pass 2's is_position_resize_permitted() call (this variable
+        # was previously ONLY assigned inside the portfolio_book_enabled
+        # branch, a NameError waiting to happen for any later reference
+        # when the book is disabled) always sees a defined value. True is
+        # the correct no-op here: is_position_resize_permitted() only ever
+        # consults is_rebalance_bar for a book-selected symbol, and no
+        # symbol is ever book-selected while the book is disabled.
+        is_rebalance_bar = True
         if self.portfolio_book_enabled:
             is_rebalance_bar = should_rebalance_this_bar(
                 self.bar_index,
@@ -2111,7 +2123,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # the same way the liquidity reduce_size haircut just above
             # already applies its own adjustment post-hoc rather than
             # re-sizing from scratch.
-            order_value = abs(target_weight) * float(self.Portfolio.TotalPortfolioValue)
+            #
+            # V5.2.1 (development/Problems.md) - order_value must reflect
+            # the ACTUAL incremental trade (target minus what's already
+            # held), not the full target notional. A flat symbol has
+            # current_weight==0, so this reduces to the exact prior
+            # abs(target_weight) formula for every fresh entry - zero
+            # regression for the majority case. The bug this fixes: for a
+            # small resize (should_scale_position()'s whole reason to
+            # exist), the old formula fed the gate the FULL target notional
+            # (e.g. up to $12k at max_position_weight=0.12) instead of the
+            # much smaller real delta, systematically understating the
+            # effective bps cost of exactly the small, frequent resizes
+            # that get hit hardest by execution/cost_model.py's
+            # min_commission_usd floor - letting trades through that don't
+            # actually clear their real cost. A direction flip (long-short)
+            # correctly gets the larger true round-trip notional too.
+            current_weight = compute_held_weight(
+                float(self.Portfolio[symbol].HoldingsValue), float(self.Portfolio.TotalPortfolioValue)
+            )
+            order_value = abs(target_weight - current_weight) * float(self.Portfolio.TotalPortfolioValue)
             # trade_direction from THIS bar's already-sized (signed)
             # target_weight - positive sizing means long, negative means
             # short. Without this, expected_edge_bps() measured only the
@@ -2205,7 +2236,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._realized_target_weights_by_symbol[symbol_key] = target_weight
 
             if decision["action"] == "trade":
-                execution_note = self._apply_signal(symbol, signal_name, target_weight, close_price, sizing_payload)
+                execution_note = self._apply_signal(
+                    symbol,
+                    signal_name,
+                    target_weight,
+                    close_price,
+                    sizing_payload,
+                    is_book_selected=(book_allocation is not None),
+                    is_rebalance_bar=is_rebalance_bar,
+                )
             else:
                 execution_note = decision["action"]
 
@@ -4930,8 +4969,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._experience_queue.push(event)
 
     def _apply_signal(
-        self, symbol, signal_name: str, target_weight: float, close_price: float, sizing_payload: dict | None = None
+        self,
+        symbol,
+        signal_name: str,
+        target_weight: float,
+        close_price: float,
+        sizing_payload: dict | None = None,
+        is_book_selected: bool = False,
+        is_rebalance_bar: bool = True,
     ) -> str:
+        # V5.2.1 (development/Problems.md) - is_book_selected/is_rebalance_bar
+        # both default to values that reproduce today's exact behavior for
+        # any caller that doesn't pass them (is_position_resize_permitted()
+        # reduces to just self.position_scaling_enabled when
+        # is_book_selected=False). Only the Pass 2 call site passes real
+        # values, gating a book member's SAME-DIRECTION RESIZE to the
+        # book's own rebalance cadence instead of re-firing on every bar's
+        # multiplier noise - see is_position_resize_permitted()'s own
+        # docstring. Full exits (this function's "sell" branch, and the
+        # kill-switch/drawdown lock upstream) are entirely unaffected -
+        # this gate only ever touches an already-open, same-direction
+        # scale-up/down.
         symbol_key = str(symbol)
         previous_signal = self.latest_signal_state.get(symbol_key, "hold")
         last_trade_bar = self.last_trade_bar_by_symbol.get(symbol, -1000000)
@@ -5092,10 +5150,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # target primitive, so no separate quantity math is needed here
             # - it's already safe for a resize, not just a fresh entry.
             if orders_allowed:
-                current_weight = float(self.Portfolio[symbol].HoldingsValue) / max(
-                    float(self.Portfolio.TotalPortfolioValue), 1.0
+                current_weight = compute_held_weight(
+                    float(self.Portfolio[symbol].HoldingsValue), float(self.Portfolio.TotalPortfolioValue)
                 )
-                if self.position_scaling_enabled and should_scale_position(
+                if is_position_resize_permitted(
+                    self.position_scaling_enabled, is_book_selected, is_rebalance_bar
+                ) and should_scale_position(
                     current_weight, target_weight, self.position_scaling_rebalance_threshold_weight
                 ):
                     if self._try_submit_limit_order(
@@ -5253,10 +5313,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 return f"simulated_entered_short:{permission_reason}"
             # V4.3.0 - symmetric to the "buy" branch above.
             if orders_allowed:
-                current_weight = float(self.Portfolio[symbol].HoldingsValue) / max(
-                    float(self.Portfolio.TotalPortfolioValue), 1.0
+                current_weight = compute_held_weight(
+                    float(self.Portfolio[symbol].HoldingsValue), float(self.Portfolio.TotalPortfolioValue)
                 )
-                if self.position_scaling_enabled and should_scale_position(
+                if is_position_resize_permitted(
+                    self.position_scaling_enabled, is_book_selected, is_rebalance_bar
+                ) and should_scale_position(
                     current_weight, target_weight, self.position_scaling_rebalance_threshold_weight
                 ):
                     if self._try_submit_limit_order(

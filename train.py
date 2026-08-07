@@ -6712,6 +6712,13 @@ def run_net_performance_simulation(
         "sector_by_ticker": sector_by_ticker,
         "hysteresis_rank_margin": float(net_performance_config.get("hysteresis_rank_margin", 0.05)),
         "max_weight_per_name": float(net_performance_config.get("max_weight_per_name", 0.12)),
+        # V5.2.1 (development/Problems.md) - both no-op by default,
+        # matching simulate_rank_book()'s own defaults exactly - see
+        # aq_cli.py::cmd_evaluate()'s identical wiring for the full
+        # rationale.
+        "entry_lag_bars": int(net_performance_config.get("entry_lag_bars", 0)),
+        "min_commission_usd": float(net_performance_config.get("min_commission_usd", 0.0)),
+        "assumed_portfolio_value_usd": float(net_performance_config.get("assumed_portfolio_value_usd", 0.0)),
     }
     simulation_result = simulate_rank_book(frame, **base_kwargs)
     capacity_result = capacity_curve(

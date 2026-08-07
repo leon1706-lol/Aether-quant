@@ -91,6 +91,135 @@ def test_turnover_falls_monotonically_as_rebalance_cadence_slows():
     assert turnovers[0] > turnovers[1] > turnovers[2]
 
 
+# ---------------------------------------------------------------------------
+# entry_lag_bars (V5.2.1, development/Problems.md) - a Daily-resolution
+# market order fills at the NEXT bar's open, not the decision bar's close;
+# this parameter makes the offline simulator stop implicitly assuming a
+# same-bar fill.
+# ---------------------------------------------------------------------------
+
+
+def _two_ticker_frame():
+    """Deterministic: A always ranks top, B always ranks bottom, so with
+    top_n=bottom_n=1 the SAME book (A long, B short) forms on day 0 and is
+    held unchanged thereafter (rebalance_every_bars=1000). Forward returns
+    are distinct, large, and hand-computable per day."""
+    dates = pd.bdate_range("2020-01-01", periods=3)
+    returns = {"A": [0.10, 0.20, 0.30], "B": [-0.10, -0.20, -0.30]}
+    rows = []
+    for day_index, date in enumerate(dates):
+        for ticker, rank in (("A", 1.0), ("B", 0.0)):
+            rows.append(
+                {
+                    "date": date,
+                    "ticker": ticker,
+                    "pred": rank,
+                    "target_return_1d": returns[ticker][day_index],
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _lag_test_kwargs(**overrides):
+    kwargs = dict(
+        prediction_column="pred",
+        forward_return_column="target_return_1d",
+        ticker_column="ticker",
+        date_column="date",
+        top_n=1,
+        bottom_n=1,
+        rebalance_every_bars=1000,
+        cost_bps_per_side=0.0,
+        commission_bps=0.0,
+        gross_exposure=1.0,
+        dollar_neutral=False,
+        sector_neutral=False,
+        max_weight_per_name=0.5,
+        min_universe_size=2,
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_entry_lag_bars_zero_reproduces_default_behavior_exactly():
+    frame = _two_ticker_frame()
+    explicit = simulate_rank_book(frame, **_lag_test_kwargs(entry_lag_bars=0))
+    implicit = simulate_rank_book(frame, **_lag_test_kwargs())
+    assert explicit.per_date_net_return == implicit.per_date_net_return
+    # Hand-computed: day0 A(+0.5)*0.10 + B(-0.5)*(-0.10) = 0.10.
+    assert explicit.per_date_net_return[0] == pytest.approx(0.10)
+
+
+def test_entry_lag_bars_one_excludes_only_the_first_days_return():
+    frame = _two_ticker_frame()
+    lagged = simulate_rank_book(frame, **_lag_test_kwargs(entry_lag_bars=1))
+    # Day 0: no prior snapshot exists yet -> no position -> zero return,
+    # even though the book was "selected" that same day.
+    assert lagged.per_date_net_return[0] == pytest.approx(0.0)
+    # Days 1-2: the position was held UNCHANGED from day 0 onward, so a
+    # 1-bar lag makes no difference once it's already on - identical to
+    # the unlagged case for these two dates specifically.
+    unlagged = simulate_rank_book(frame, **_lag_test_kwargs(entry_lag_bars=0))
+    assert lagged.per_date_net_return[1] == pytest.approx(unlagged.per_date_net_return[1])
+    assert lagged.per_date_net_return[2] == pytest.approx(unlagged.per_date_net_return[2])
+    assert lagged.per_date_net_return[1] == pytest.approx(0.20)
+    assert lagged.per_date_net_return[2] == pytest.approx(0.30)
+
+
+def test_entry_lag_bars_only_penalizes_changed_positions_not_held_ones():
+    # Cumulative effect: lag=1 loses EXACTLY day 0's contribution and
+    # nothing else, for a book that never rotates after entry.
+    frame = _two_ticker_frame()
+    lagged = simulate_rank_book(frame, **_lag_test_kwargs(entry_lag_bars=1))
+    unlagged = simulate_rank_book(frame, **_lag_test_kwargs(entry_lag_bars=0))
+    assert sum(unlagged.per_date_net_return) - sum(lagged.per_date_net_return) == pytest.approx(0.10)
+
+
+# ---------------------------------------------------------------------------
+# min_commission_usd / assumed_portfolio_value_usd (V5.2.1) - an
+# honestly-approximate per-order minimum-commission floor layered on the
+# existing bps-of-turnover cost model.
+# ---------------------------------------------------------------------------
+
+
+def test_commission_floor_defaults_to_a_strict_no_op():
+    frame = _synthetic_frame()
+    baseline = simulate_rank_book(frame, **_base_kwargs())
+    explicit_zero = simulate_rank_book(frame, **_base_kwargs(min_commission_usd=0.0, assumed_portfolio_value_usd=0.0))
+    assert explicit_zero.cost_drag_annual_bps == pytest.approx(baseline.cost_drag_annual_bps)
+    assert explicit_zero.net_sharpe == pytest.approx(baseline.net_sharpe)
+
+
+def test_commission_floor_requires_both_inputs_configured():
+    # A floor with no NAV to convert against (or vice versa) must not
+    # divide-by-zero or silently apply a nonsensical charge - stays a no-op.
+    frame = _synthetic_frame()
+    baseline = simulate_rank_book(frame, **_base_kwargs())
+    only_floor = simulate_rank_book(frame, **_base_kwargs(min_commission_usd=5.0, assumed_portfolio_value_usd=0.0))
+    only_nav = simulate_rank_book(frame, **_base_kwargs(min_commission_usd=0.0, assumed_portfolio_value_usd=100_000.0))
+    assert only_floor.cost_drag_annual_bps == pytest.approx(baseline.cost_drag_annual_bps)
+    assert only_nav.cost_drag_annual_bps == pytest.approx(baseline.cost_drag_annual_bps)
+
+
+def test_commission_floor_adds_exact_drag_on_the_only_rebalance_date():
+    # A book that only ever rebalances once (rebalance_every_bars huge)
+    # has a known, hand-computable names_traded == 2 (A entering long, B
+    # entering short) on day 0 only - every later date has zero turnover,
+    # so zero additional floor cost.
+    frame = _two_ticker_frame()
+    without_floor = simulate_rank_book(frame, **_lag_test_kwargs())
+    with_floor = simulate_rank_book(
+        frame, **_lag_test_kwargs(min_commission_usd=5.0, assumed_portfolio_value_usd=100_000.0)
+    )
+    expected_extra_cost = 2 * 5.0 / 100_000.0  # 2 names traded, $5 floor, $100k NAV
+    assert without_floor.per_date_net_return[0] - with_floor.per_date_net_return[0] == pytest.approx(
+        expected_extra_cost
+    )
+    # No further turnover after day 0 -> no further floor cost.
+    assert with_floor.per_date_net_return[1] == pytest.approx(without_floor.per_date_net_return[1])
+    assert with_floor.per_date_net_return[2] == pytest.approx(without_floor.per_date_net_return[2])
+
+
 def test_turnover_falls_as_hysteresis_margin_widens():
     frame = _synthetic_frame()
     tight = simulate_rank_book(frame, **_base_kwargs(hysteresis_rank_margin=0.0)).annualized_turnover
