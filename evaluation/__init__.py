@@ -30,14 +30,20 @@ from .rank_book_simulator import (
     stress_test_costs,
     summarize_metric_stability,
 )
+from .rank_signal_calibration import (
+    calibrate_book_confidence_spread,
+    compute_blended_raw_scores,
+)
 
 __all__ = [
     "ABLATION_VARIANTS",
     "NOT_OFFLINE_MEASURABLE_VARIANTS",
     "RankBookSimulationResult",
     "build_sequence_windows",
+    "calibrate_book_confidence_spread",
     "capacity_curve",
     "compare_static_vs_retrained",
+    "compute_blended_raw_scores",
     "predict_head",
     "predict_multitask_head",
     "predict_sequence_head",

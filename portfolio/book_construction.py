@@ -153,6 +153,35 @@ def _hysteresis_adjusted_selection(
     return final[:n]
 
 
+def compute_confidence_spread(
+    long_symbols: list[str],
+    short_symbols: list[str],
+    spread_ranks: dict[str, float],
+    eligible_ranks: dict[str, float],
+) -> float | None:
+    """mean(long-side score) - mean(short-side score), the exact quantity
+    _select_book_group()'s min_rank_confidence_spread gate compares
+    against a floor. Public (not module-private) so a calibration tool can
+    compute the identical statistic against historical data without
+    re-deriving the formula - the two can then never disagree on what
+    "spread" means for a given day's selection.
+
+    `spread_ranks.get(symbol, eligible_ranks[symbol])` - a symbol missing
+    from spread_ranks (e.g. a caller-supplied dict that doesn't cover
+    every eligible symbol) falls back to its own eligible_ranks value
+    rather than a KeyError, same defensive convention as every other
+    optional-override lookup in this module.
+
+    None if either list is empty - spread is undefined without both
+    sides (mirrors the caller never reaching this check for a long-only
+    book)."""
+    if not long_symbols or not short_symbols:
+        return None
+    long_mean = sum(spread_ranks.get(symbol, eligible_ranks[symbol]) for symbol in long_symbols) / len(long_symbols)
+    short_mean = sum(spread_ranks.get(symbol, eligible_ranks[symbol]) for symbol in short_symbols) / len(short_symbols)
+    return long_mean - short_mean
+
+
 def _select_book_group(
     eligible_ranks: dict[str, float],
     top_n: int,
@@ -232,15 +261,12 @@ def _select_book_group(
         return {}
 
     if short_symbols:
-        # Defensive .get(symbol, eligible_ranks[symbol]) fallback: a symbol
-        # missing from spread_check_ranks (e.g. a caller-supplied dict that
-        # doesn't cover every eligible symbol) falls back to its own
-        # eligible_ranks value rather than a KeyError - degrades toward the
-        # pre-fix (normalized-scale) check for that one symbol only, never
-        # crashes the whole selection.
-        long_mean_rank = sum(spread_ranks.get(symbol, eligible_ranks[symbol]) for symbol in long_symbols) / len(long_symbols)
-        short_mean_rank = sum(spread_ranks.get(symbol, eligible_ranks[symbol]) for symbol in short_symbols) / len(short_symbols)
-        if (long_mean_rank - short_mean_rank) < min_rank_confidence_spread:
+        # compute_confidence_spread() (module-level, above) - shared with
+        # the calibration tool that derives min_rank_confidence_spread
+        # from real data, so the two can never disagree on what "spread"
+        # means for a given selection.
+        spread = compute_confidence_spread(long_symbols, short_symbols, spread_ranks, eligible_ranks)
+        if spread is not None and spread < min_rank_confidence_spread:
             return {}
 
     allocations: dict[str, BookAllocation] = {}

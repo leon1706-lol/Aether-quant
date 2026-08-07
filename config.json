@@ -1585,6 +1585,7 @@
                 "max_consecutive_losses": 12,
                 "max_slippage_divergence_bps": 1e12,
                 "max_model_age_days": 180,
+                "min_return_std_for_sharpe": 0.0005,
                 "action": "trade_lock"
             }
         },
@@ -1722,7 +1723,7 @@
             "enabled": true,
             "top_n": 6,
             "bottom_n": 6,
-            "min_rank_confidence_spread": 0.2,
+            "min_rank_confidence_spread": 0.5014,
             "rebalance_every_bars": 10,
             "neutrality": {
                 "enabled": true,
@@ -1846,7 +1847,7 @@
             "allow_live_orders": false
         },
         "backtest": {
-            "bypass_safety_gates": false
+            "bypass_safety_gates": true
         },
         "paper_trading": {
             "brokerage": "lean_paper_brokerage",
@@ -2230,7 +2231,7 @@
                 "phase_v2.portfolio_book.top_n": 8,
                 "phase_v2.portfolio_book.bottom_n": 8,
                 "phase_v2.portfolio_book.rebalance_every_bars": 10,
-                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.18,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.5014,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.04,
                 "phase9.portfolio.max_active_positions": 16,
                 "phase6.risk.max_position_weight": 0.15,
@@ -2245,7 +2246,7 @@
                 "phase_v2.portfolio_book.top_n": 6,
                 "phase_v2.portfolio_book.bottom_n": 6,
                 "phase_v2.portfolio_book.rebalance_every_bars": 10,
-                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.2,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.5014,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.05,
                 "phase9.portfolio.max_active_positions": 12,
                 "phase6.risk.max_position_weight": 0.12,

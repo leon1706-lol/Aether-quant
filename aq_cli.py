@@ -745,6 +745,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
         # V5.1 Phase 5 (item 9) - evaluation/ablation.py.
         "test_ablation.py",
+        # V5.1 (Problems.md) - evaluation/rank_signal_calibration.py.
+        "test_rank_signal_calibration.py",
     ],
 }
 
@@ -1733,11 +1735,18 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # the plan's own scoping: --all is rank-book/capacity/stress/calibrate-
     # edge only) - ablation is a heavier, opt-in-only report.
     run_ablation_flag = bool(getattr(args, "ablation", False))
+    # V5.1 (Problems.md) - also deliberately NOT bundled into --all, same
+    # reasoning as --ablation: a heavier, two-model, opt-in-only report.
+    run_calibrate_book_spread = bool(getattr(args, "calibrate_book_spread", False))
     # Bare `aq evaluate` with no flags at all defaults to --rank-book - the
     # single most useful number ("is the fee drag fixed"), matching every
     # other `aq` command's "sane default when no scope flag is given"
     # convention (e.g. `aq test` with no subsystem flags runs everything).
-    if not (run_rank_book or run_capacity or run_stress or run_calibrate):
+    # Every opt-in-only flag (not just the --all-bundled ones) must be
+    # included here - Problems.md bug: --calibrate-book-spread alone used
+    # to also silently run a whole extra --rank-book simulation because it
+    # wasn't counted as "a flag was given".
+    if not (run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag or run_calibrate_book_spread):
         run_rank_book = True
 
     report: dict = {}
@@ -1819,6 +1828,86 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"Calibrated edge_bps_per_rank_unit ({forward_return_column}): {calibrated_edge_bps:.4f}")
             print(f"  Apply with: aq config set phase_v2.costs.edge_bps_per_rank_unit {calibrated_edge_bps:.4f}")
             print("  Then enable the gate: aq config set phase_v2.costs.enabled true")
+
+    if run_calibrate_book_spread:
+        # V5.1 (development/Problems.md) - min_rank_confidence_spread was a
+        # guessed constant (0.2) never checked against this codebase's
+        # actual raw-score scale; evaluation/rank_book_simulator.py's own
+        # book simulation hardcodes min_rank_confidence_spread=0.0 (see
+        # that module's comment), so nothing ever exercised the real gate
+        # before it shipped live. This mirrors --calibrate-edge's own
+        # discipline: derive the number from data, don't guess it.
+        from evaluation import calibrate_book_confidence_spread, compute_blended_raw_scores
+        from portfolio.rank_signal import resolve_rank_signal_policy
+
+        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
+        training_metrics_by_model: dict[str, dict | None] = {}
+        for model_name, metrics_filename in (
+            ("sequence", "sequence_training_metrics.json"),
+            ("multitask", "multitask_training_metrics.json"),
+        ):
+            metrics_path = ML_DIR / metrics_filename
+            training_metrics_by_model[model_name] = (
+                json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
+            )
+        policy = resolve_rank_signal_policy(training_metrics_by_model, config)
+        active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
+
+        predictions_by_model_head: dict[str, dict[str, object]] = {}
+        for model_kind_for_head in policy["model_priority"]:
+            calib_model_filename, calib_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
+            calib_model_path = ML_DIR / calib_model_filename
+            calib_schema_path = ML_DIR / calib_schema_filename
+            if not calib_model_path.exists() or not calib_schema_path.exists():
+                continue  # best-effort - a missing model just means its heads fall through to the next model_priority entry
+            calib_model_export = json.loads(calib_model_path.read_text(encoding="utf-8"))
+            calib_feature_schema = json.loads(calib_schema_path.read_text(encoding="utf-8"))
+            calib_feature_names = calib_feature_schema["model_input_names"]
+            head_predictions: dict[str, object] = {}
+            for head_name in active_heads:
+                head_predictions[head_name] = predict_head(
+                    dataset, calib_model_export, calib_feature_names, head_name,
+                    model_kind=model_kind_for_head,
+                    sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
+                    configured_window_size=int(sequence_window_default),
+                )
+            predictions_by_model_head[model_kind_for_head] = head_predictions
+
+        dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
+
+        book_config = config.get("phase_v2", {}).get("portfolio_book", {})
+        strategy_mode = config.get("phase5", {}).get("backtest", {}).get("strategy_mode", "long_flat")
+        book_top_n = int(book_config.get("top_n", 6))
+        book_bottom_n = int(book_config.get("bottom_n", 6)) if strategy_mode == "long_short" else 0
+
+        book_spread_result = calibrate_book_confidence_spread(
+            dataset,
+            raw_score_column="raw_blended_score",
+            top_n=book_top_n,
+            bottom_n=book_bottom_n,
+            percentile=float(getattr(args, "book_spread_percentile", 0.10)),
+        )
+        report["book_spread_calibration"] = book_spread_result
+        _write_evaluation_json(evaluation_dir / "book_spread_calibration.json", book_spread_result)
+        if not args.json:
+            calibrated_spread = book_spread_result["calibrated_min_rank_confidence_spread"]
+            distribution = book_spread_result["spread_distribution"]
+            print(
+                f"Calibrated min_rank_confidence_spread (p{book_spread_result['percentile']*100:.0f}, "
+                f"{book_spread_result['num_dates_used']} dates used, "
+                f"{book_spread_result['num_dates_skipped_thin_universe']} skipped thin-universe): "
+                f"{calibrated_spread:.4f}"
+            )
+            print(
+                f"  Distribution: min={distribution['min']}, p10={distribution['p10']}, "
+                f"median={distribution['median']}, p75={distribution['p75']}, max={distribution['max']}"
+            )
+            print(f"  Apply with: aq config set phase_v2.portfolio_book.min_rank_confidence_spread {calibrated_spread:.4f}")
+            print(
+                "  NOTE: this recalibrates the gate's threshold to this model's real achievable dispersion - "
+                "it does not certify the underlying rank heads are skillful. Check ml/*_training_metrics.json's "
+                "quality_status before trusting the resulting book."
+            )
 
     if run_ablation_flag:
         from evaluation import run_ablation
@@ -2259,6 +2348,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--variants", default=None,
         help="Comma-separated ablation variant names to run with --ablation (default: "
         "phase_v2.evaluation.ablation.variants from config.json).",
+    )
+    evaluate_parser.add_argument(
+        "--calibrate-book-spread", action="store_true",
+        help="Print a min_rank_confidence_spread calibrated from this split's actual raw-score dispersion "
+        "(the same resolved rank-signal blend and book top_n/bottom_n main.py uses live). Not included in "
+        "--all - loads both models' predictions, a heavier run like --ablation.",
+    )
+    evaluate_parser.add_argument(
+        "--book-spread-percentile", type=float, default=0.10,
+        help="Percentile (0-1) of the per-date confidence-spread distribution to use as the calibrated "
+        "floor with --calibrate-book-spread (default: 0.10).",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

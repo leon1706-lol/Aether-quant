@@ -5,6 +5,7 @@ no test classes, module-level helpers, plain dicts.
 
 from portfolio.book_construction import (
     build_rank_based_book,
+    compute_confidence_spread,
     normalize_per_asset_class_slots,
     should_rebalance_this_bar,
 )
@@ -248,6 +249,46 @@ def test_spread_check_ranks_missing_symbol_falls_back_to_eligible_ranks_not_a_cr
         spread_check_ranks=partial_raw_scores,
     )
     assert book != {}  # never raises, degrades gracefully
+
+
+# ---------------------------------------------------------------------------
+# compute_confidence_spread() (public, shared with the book-spread
+# calibration tool so the live gate and the calibration can never disagree
+# on what "spread" means for a given selection)
+# ---------------------------------------------------------------------------
+
+
+def test_compute_confidence_spread_basic_mean_difference():
+    ranks = {"A": 0.9, "B": 0.7, "C": 0.3, "D": 0.1}
+    spread = compute_confidence_spread(["A", "B"], ["C", "D"], ranks, ranks)
+    assert spread == (0.9 + 0.7) / 2 - (0.3 + 0.1) / 2
+
+
+def test_compute_confidence_spread_empty_long_returns_none():
+    assert compute_confidence_spread([], ["C"], {"C": 0.1}, {"C": 0.1}) is None
+
+
+def test_compute_confidence_spread_empty_short_returns_none():
+    assert compute_confidence_spread(["A"], [], {"A": 0.9}, {"A": 0.9}) is None
+
+
+def test_compute_confidence_spread_missing_symbol_falls_back_to_eligible_ranks():
+    spread = compute_confidence_spread(["A"], ["B"], {}, {"A": 0.8, "B": 0.2})
+    assert spread == 0.8 - 0.2
+
+
+def test_compute_confidence_spread_matches_the_value_select_book_group_gates_on():
+    # Cross-check: the exact same inputs build_rank_based_book() uses
+    # internally must reproduce identically when called directly.
+    candidates = {"A": _candidate(1.0), "B": _candidate(0.67), "C": _candidate(0.33), "D": _candidate(0.0)}
+    raw_scores = {"A": 0.61, "B": 0.60, "C": 0.59, "D": 0.58}  # compressed, near-constant raw dispersion
+    spread = compute_confidence_spread(["A"], ["D"], raw_scores, {"A": 1.0, "D": 0.0})
+    assert spread == 0.61 - 0.58
+
+    disengaged = build_rank_based_book(
+        candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.05, spread_check_ranks=raw_scores,
+    )
+    assert disengaged == {}, "the compressed raw spread computed above should also disengage the real gate"
 
 
 def test_build_rank_based_book_is_asset_class_blind():

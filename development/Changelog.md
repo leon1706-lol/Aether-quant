@@ -4955,5 +4955,39 @@ backtest:
   `max_weight_per_name: 0.12` is actually reachable; a configured `0.0`
   can no longer silently zero the whole book again (Problems.md #81).
 
-Full suite: 2392 passed. Neither of this arc's two reserved Lean backtest
-slots has been spent yet.
+Full suite: 2392 passed. First of this arc's two reserved Lean backtest
+slots spent on this batch — see the next entry for what it found.
+
+## V5.1.13 — First real V5.1 backtest: three critical fixes verified, book-spread bug found and calibrated
+
+The first real Lean backtest against V5.1.12's fixes (2019-01-01→2021-03-31)
+confirmed the riskiest ones work: a genuine short executed for the first
+time, the kill switch never falsely tripped from a short sample, and
+reconciliation reported zero false breaches. It also exposed a bigger
+problem — the book traded for 3 weeks, then placed zero new orders for the
+remaining 2.2 years (Problems.md #89).
+
+Two more bugs fixed: the kill switch's rolling-Sharpe calculation was
+numerically unstable on a near-zero-variance return window (a mostly-cash
+portfolio with a couple of small real values mixed in could swing to wildly
+extreme, meaningless Sharpe readings — a different gap from the sample-count
+warmup fixed in #88) and would then stay stuck on the resulting spurious
+trip. And `min_rank_confidence_spread` — the book's conviction gate — was a
+guessed `0.2`, never checked against this codebase's actual raw-score scale;
+the offline simulator that had been reporting healthy numbers hardcodes that
+gate off entirely, so nothing had ever validated it. Added
+`aq evaluate --calibrate-book-spread` (mirroring `--calibrate-edge`'s own
+"derive it, don't guess it" discipline) and applied the real result: `0.5014`,
+not `0.2`.
+
+**Honest open item:** the calibrated spread came back far higher than
+expected — the model's real dispersion clears the old 0.2 threshold on
+nearly every day measured, which means the guessed threshold likely
+wasn't what actually stopped new entries in January 2019. The kill-switch
+fix is independently verified; the book-spread fix is correct practice
+regardless, but not yet confirmed as *the* fix for the dead-book symptom.
+One more real backtest (the arc's second and final reserved slot) will
+show whether trading actually resumes, or whether a third, not-yet-found
+mechanism is still blocking it.
+
+Full suite: 2412 passed.

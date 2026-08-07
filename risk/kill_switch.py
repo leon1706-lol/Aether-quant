@@ -53,18 +53,34 @@ class KillSwitchDecision:
         return asdict(self)
 
 
-def _rolling_sharpe(returns: list[float], trading_days_per_year: int = 252) -> float | None:
+def _rolling_sharpe(
+    returns: list[float], trading_days_per_year: int = 252, min_return_std_floor: float = 0.0
+) -> float | None:
     """None (never 0.0) when there are fewer than 2 observations - the
     caller must be able to tell "not enough data yet" apart from
     "genuinely zero Sharpe" (a std of exactly 0.0 with >=2 observations IS
     reported as 0.0, same convention evaluation/rank_book_simulator.py::
-    _annualized_sharpe() already uses)."""
+    _annualized_sharpe() already uses).
+
+    GUARDRAIL (Problems.md - a sticky kill-switch trip from a numerically
+    meaningless reading): std <= max(0.0, min_return_std_floor) also
+    returns a clean 0.0 - widening the exact-zero guard above into a
+    near-zero guard. mean/std*sqrt(trading_days_per_year) is numerically
+    explosive whenever std is small but nonzero: a return window that's
+    mostly flat/cash (e.g. a mostly-uninvested portfolio) with just a
+    couple of small real values mixed in can swing to wildly extreme
+    Sharpe readings - both directions - purely from which few nonzero
+    values happen to still be inside the window, not from genuine risk-
+    adjusted performance. Reproduced directly against a real backtest's
+    equity curve: a near-flat window produced Sharpe swings of +2.25 and
+    -2.28 bar-to-bar from noise alone. min_return_std_floor=0.0 (default)
+    reproduces today's exact behavior for any caller that doesn't pass it."""
     if len(returns) < 2:
         return None
     mean = sum(returns) / len(returns)
     variance = sum((value - mean) ** 2 for value in returns) / (len(returns) - 1)
     std = math.sqrt(variance)
-    if std <= 0.0:
+    if std <= max(0.0, min_return_std_floor):
         return 0.0
     return (mean / std) * math.sqrt(trading_days_per_year)
 
@@ -121,6 +137,16 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
     # gates whether the rolling-Sharpe trigger is evaluated AT ALL this
     # bar, not just how much history it's computed over.
     min_bars_for_sharpe = int(config.get("min_bars_for_sharpe", evaluation_bars))
+    # GUARDRAIL (Problems.md - a real backtest's kill switch stuck sticky
+    # on a spurious trip) - independent of min_bars_for_sharpe above:
+    # count and variance are orthogonal failure modes. A window with
+    # plenty of samples that are almost all exactly zero (e.g. a mostly-
+    # cash portfolio) clears the count floor fine but is still numerically
+    # degenerate for mean/std - see _rolling_sharpe()'s own docstring.
+    # Default 0.0005 (std*sqrt(252) ~= 1% annualized) - below this, daily
+    # returns are behaviorally indistinguishable from sitting in cash, far
+    # more likely a near-zero-return artifact than a real low-vol edge.
+    min_return_std_for_sharpe = float(config.get("min_return_std_for_sharpe", 0.0005))
     min_rolling_sharpe = float(config.get("min_rolling_sharpe", _NEVER_BELOW))
     max_drawdown_velocity_pct_per_bar = float(config.get("max_drawdown_velocity_pct_per_bar", _NEVER_ABOVE))
     min_live_rank_ic = float(config.get("min_live_rank_ic", _NEVER_BELOW))
@@ -139,7 +165,11 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
     all_returns = list(runtime_metrics.get("recent_bar_returns") or [])
     recent_returns = all_returns[-evaluation_bars:] if evaluation_bars > 0 else []
     observed["rolling_sharpe_num_bars"] = len(recent_returns)
-    rolling_sharpe = _rolling_sharpe(recent_returns) if len(recent_returns) >= min_bars_for_sharpe else None
+    rolling_sharpe = (
+        _rolling_sharpe(recent_returns, min_return_std_floor=min_return_std_for_sharpe)
+        if len(recent_returns) >= min_bars_for_sharpe
+        else None
+    )
     observed["rolling_sharpe"] = rolling_sharpe
     if rolling_sharpe is not None and rolling_sharpe < min_rolling_sharpe:
         triggers.append("rolling_sharpe_below_floor")
@@ -176,6 +206,7 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
     thresholds = {
         "evaluation_bars": evaluation_bars,
         "min_bars_for_sharpe": min_bars_for_sharpe,
+        "min_return_std_for_sharpe": min_return_std_for_sharpe,
         "min_rolling_sharpe": min_rolling_sharpe,
         "max_drawdown_velocity_pct_per_bar": max_drawdown_velocity_pct_per_bar,
         "min_live_rank_ic": min_live_rank_ic,

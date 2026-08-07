@@ -1,0 +1,14 @@
+{
+  "calibrated_min_rank_confidence_spread": 0.5014195724628046,
+  "percentile": 0.1,
+  "num_dates_used": 586,
+  "num_dates_skipped_thin_universe": 234,
+  "spread_distribution": {
+    "min": 0.15227831785095414,
+    "max": 0.8029997169072643,
+    "p10": 0.5014195724628046,
+    "p25": 0.538847439043642,
+    "median": 0.58427835529859,
+    "p75": 0.6349677986566891
+  }
+}

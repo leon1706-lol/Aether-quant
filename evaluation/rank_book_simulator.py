@@ -155,6 +155,19 @@ def _simulate_rank_book_core(
                 str(ticker): {"predicted_rank_20d": float(rank), "trading_eligible": True, "asset_class": None}
                 for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
             }
+            # min_rank_confidence_spread=0.0 is DELIBERATE, not an
+            # oversight: this simulator measures book QUALITY (what would
+            # this rank prediction have earned, net of costs) uncapped by
+            # the live entry gate's conviction filter - those are two
+            # different questions. Do not "fix" this into reading
+            # phase_v2.portfolio_book.min_rank_confidence_spread to try to
+            # mirror live engagement; that number is calibrated
+            # specifically for the RAW pre-normalization score scale
+            # (aq evaluate --calibrate-book-spread, portfolio/rank_signal.py),
+            # which this function's `prediction_column` is not guaranteed
+            # to be (callers may pass an already-normalized column). A
+            # healthy net_sharpe here is evidence the RANKING has value,
+            # never evidence the live gate will engage on any given day.
             allocations = build_rank_based_book(
                 book_candidates,
                 top_n=top_n,

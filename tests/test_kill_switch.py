@@ -10,6 +10,11 @@ def _config(**overrides):
         "enabled": True,
         "evaluation_bars": 60,
         "min_rolling_sharpe": -1.0,
+        # 0.0 (not the real 0.0005 production default) so every EXISTING
+        # test below keeps exercising the exact-zero-variance guard only,
+        # unaffected by the new near-zero floor - tests specifically
+        # targeting min_return_std_for_sharpe override it explicitly.
+        "min_return_std_for_sharpe": 0.0,
         "max_drawdown_velocity_pct_per_bar": 0.01,
         "min_live_rank_ic": -0.02,
         "max_consecutive_losses": 12,
@@ -163,6 +168,73 @@ def test_evaluation_bars_zero_or_negative_never_trips_rolling_sharpe_instead_of_
     )
     assert negative_decision.tripped is False
     assert negative_decision.observed["rolling_sharpe_num_bars"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Minimum-variance floor (bug fix: a near-flat/mostly-cash return window
+# with a couple of small real values mixed in produced numerically
+# explosive, meaningless Sharpe swings even with enough samples to clear
+# min_bars_for_sharpe - count and variance are orthogonal guards).
+# ---------------------------------------------------------------------------
+
+
+def test_near_flat_window_with_tiny_noise_does_not_trip_under_the_real_default_floor():
+    # 58 exact zeros + 2 tiny real values - passes min_bars_for_sharpe (60)
+    # easily, but is exactly the degenerate low-variance shape that used to
+    # produce an arbitrary-sign, arbitrary-magnitude Sharpe. Uses the REAL
+    # production default (min_return_std_for_sharpe not overridden away).
+    returns = [0.0] * 58 + [0.0001, -0.0001]
+    config = _config()
+    del config["min_return_std_for_sharpe"]  # exercise the real 0.0005 default
+    decision = evaluate_kill_switch({"recent_bar_returns": returns}, config)
+    assert decision.tripped is False
+    assert decision.observed["rolling_sharpe"] == 0.0
+
+
+def test_min_return_std_for_sharpe_floor_suppresses_a_low_variance_extreme_reading():
+    # A window whose real std sits just under an explicit floor must report
+    # a clean 0.0, not the unstable ratio the same data would otherwise
+    # produce - reproduces the class of swing seen replaying a real
+    # backtest's equity curve (Problems.md).
+    returns = [0.0] * 58 + [0.0003, -0.0002]
+    below_floor = evaluate_kill_switch(
+        {"recent_bar_returns": returns}, _config(min_return_std_for_sharpe=0.01, min_rolling_sharpe=-1.0)
+    )
+    assert below_floor.tripped is False
+    assert below_floor.observed["rolling_sharpe"] == 0.0
+
+    # The identical data with the floor disabled (0.0, this file's
+    # baseline) is free to compute the real, unstable ratio - demonstrates
+    # the floor is actually doing something, not just always returning 0.0.
+    with_floor_disabled = evaluate_kill_switch({"recent_bar_returns": returns}, _config())
+    assert with_floor_disabled.observed["rolling_sharpe"] != 0.0
+
+
+def test_min_return_std_for_sharpe_does_not_suppress_genuinely_volatile_bad_patch():
+    # A real, meaningfully volatile bad stretch must still trip - the floor
+    # only silences numerically degenerate (near-zero-variance) windows,
+    # never a genuine risk-adjusted signal.
+    returns = [-0.025, -0.015] * 30
+    decision = evaluate_kill_switch(
+        {"recent_bar_returns": returns}, _config(min_return_std_for_sharpe=0.0005, min_rolling_sharpe=-1.0)
+    )
+    assert decision.tripped is True
+    assert "rolling_sharpe_below_floor" in decision.triggers
+
+
+def test_min_return_std_for_sharpe_defaults_to_a_positive_value_not_zero():
+    # Distinguishes the production default (0.0005) from this test file's
+    # own deliberately-zeroed _config() baseline - build a config without
+    # the key at all to see the function's own real default.
+    config_without_key = _config()
+    del config_without_key["min_return_std_for_sharpe"]
+    decision = evaluate_kill_switch({}, config_without_key)
+    assert decision.thresholds["min_return_std_for_sharpe"] == pytest.approx(0.0005)
+
+
+def test_thresholds_reflect_configured_min_return_std_for_sharpe():
+    decision = evaluate_kill_switch({}, _config(min_return_std_for_sharpe=0.002))
+    assert decision.thresholds["min_return_std_for_sharpe"] == 0.002
 
 
 def test_drawdown_velocity_above_cap_trips():

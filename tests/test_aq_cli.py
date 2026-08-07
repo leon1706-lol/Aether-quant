@@ -2546,7 +2546,7 @@ def test_audit_log_connection_failure_returns_error(monkeypatch, capsys):
 # --- `aq evaluate` (V5.1 Phase 0) ---
 
 
-def _evaluate_config(net_performance=True, presets=None):
+def _evaluate_config(net_performance=True, presets=None, portfolio_book=None):
     config = {
         "phase1": {
             "target": {"ranking": {"min_universe_size": 2}},
@@ -2564,6 +2564,9 @@ def _evaluate_config(net_performance=True, presets=None):
         }
     if presets is not None:
         config["phase_v2"]["presets"] = presets
+    if portfolio_book is not None:
+        config["phase_v2"]["portfolio_book"] = portfolio_book
+        config["phase5"] = {"backtest": {"strategy_mode": "long_short"}}
     return config
 
 
@@ -2794,6 +2797,62 @@ def test_evaluate_calibrate_edge_falls_back_to_1d_when_horizon_column_missing(tm
     payload = json.loads(captured.out)
     assert payload["calibrated_edge_forward_return_column"] == "target_return_1d"
     assert "not in dataset" in captured.err
+
+
+def test_evaluate_calibrate_book_spread_end_to_end(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 1})
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--calibrate-book-spread", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    result = payload["book_spread_calibration"]
+    assert "calibrated_min_rank_confidence_spread" in result
+    assert result["spread_distribution"]["min"] is not None or result["num_dates_used"] == 0
+
+    written = json.loads((ml_dir / "evaluation" / "book_spread_calibration.json").read_text(encoding="utf-8"))
+    assert written == result
+
+
+def test_evaluate_calibrate_book_spread_respects_long_flat_strategy_mode(tmp_path, capsys, monkeypatch):
+    # strategy_mode != "long_short" must force bottom_n to 0 (long-only),
+    # the same enforcement main.py's own portfolio_book_effective_bottom_n
+    # applies live - a book with no short side never disengages on the
+    # spread gate at all (build_rank_based_book()'s bottom_n==0 path never
+    # reaches the spread check), so num_dates_skipped_thin_universe should
+    # reflect only genuine thin-universe dates, never a missing short leg.
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 1})
+    config["phase5"]["backtest"]["strategy_mode"] = "long_flat"
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--calibrate-book-spread", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    # A long-only book (no short leg requested) never has a spread to
+    # measure at all - every date is excluded, not a crash.
+    assert payload["book_spread_calibration"]["num_dates_used"] == 0
 
 
 def test_evaluate_preset_overlay_never_writes_config_json(tmp_path, capsys, monkeypatch):
