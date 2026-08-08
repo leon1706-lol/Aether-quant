@@ -119,6 +119,19 @@ visualization/state.json
 visualization/scene.json
 visualization/topology_state.json
 visualization/grafana/
+# V5.2.2 book-history diagnostic log - per-date live book selections
+# (roles/raw scores/weights) from a real backtest. Off by default
+# (phase_v2.diagnostics.book_history.enabled), but gitignored regardless
+# so an accidental enable+commit can't leak it - same rationale as the
+# ml/evaluation/ reports below.
+visualization/book_history.jsonl
+
+# Generated evaluation reports (aq evaluate --...) - reveal historical
+# model selections/scores (book composition by date, rank scores,
+# calibrated thresholds), effectively derived model IP, not source - same
+# rationale as the ml/*_model.json weight-artifact rules above.
+# Regenerable by re-running the command that wrote them.
+ml/evaluation/
 
 # Logs and temporary files
 .coverage

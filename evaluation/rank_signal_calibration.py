@@ -158,3 +158,178 @@ def calibrate_book_confidence_spread(
         "num_dates_skipped_thin_universe": num_dates_skipped_thin_universe,
         "spread_distribution": distribution,
     }
+
+
+def reconcile_book_history_date(
+    logged_record: dict,
+    raw_scores_by_symbol: dict[str, float],
+    *,
+    top_n: int,
+    bottom_n: int,
+) -> dict:
+    """V5.2.2 (development/Problems.md) - `aq evaluate --reconcile-book-history`'s
+    per-date core: compares one `build_book_history_record()` log entry
+    (portfolio/book_construction.py - what main.py's LIVE book actually
+    selected that date, during a real Lean backtest) against a fresh
+    offline re-derivation of what the SAME raw scores would naturally
+    select today, with no gate and no hysteresis
+    (build_rank_based_book(..., min_rank_confidence_spread=0.0,
+    previous_allocations=None) - the exact same "independent natural
+    selection" convention calibrate_book_confidence_spread() above
+    already established).
+
+    `previous_allocations=None` is deliberate, not an oversight: this
+    cannot replay the live book's actual incumbency history from a single
+    date's log entry, so a flagged mismatch here can mean either a real
+    divergence OR "hysteresis correctly kept an incumbent that day's
+    natural ranking alone wouldn't pick" - callers printing this result
+    must carry that caveat, never over-read a mismatch as necessarily a bug.
+
+    Weight comparison is best-effort and deliberately naive: offline has
+    no access to the live per-symbol `confidence` value or the neutrality
+    pass's inputs (both needed to reproduce main.py's real sizing formula),
+    so `per_symbol_deltas[symbol]["weight_delta"]` is computed against a
+    naive equal-weight baseline (`book_role_multiplier / count-on-that-role`),
+    not the live formula - it measures how far the logged (post-neutrality,
+    post-confidence-sizing) weight moved from a symmetric equal-weight
+    book, not a reconstruction error. `None` whenever the logged record's
+    own `target_weight` is `None` (neutrality was off for that run).
+
+    Returns:
+        {"date", "logged_symbols": {"long", "short"}, "offline_symbols":
+         {"long", "short"}, "symbols_matched", "symbols_only_logged",
+         "symbols_only_offline", "role_mismatches", "overlap_fraction",
+         "per_symbol_deltas": {symbol: {"raw_score_delta", "weight_delta"}}}
+
+    `overlap_fraction` is `symbols_matched / (logged | offline)`, `None`
+    when both sides are empty (nothing to compare, not a 0% overlap)."""
+    logged_allocations = logged_record.get("allocations", {})
+    logged_long = {symbol for symbol, entry in logged_allocations.items() if entry.get("role") == "long"}
+    logged_short = {symbol for symbol, entry in logged_allocations.items() if entry.get("role") == "short"}
+
+    normalized = cross_sectional_rank_scores(raw_scores_by_symbol)
+    candidates = {
+        symbol: {"predicted_rank_20d": rank, "trading_eligible": True} for symbol, rank in normalized.items()
+    }
+    offline_allocations = build_rank_based_book(
+        candidates,
+        top_n=top_n,
+        bottom_n=bottom_n,
+        min_rank_confidence_spread=0.0,
+        spread_check_ranks=raw_scores_by_symbol,
+    )
+    offline_long = {symbol for symbol, allocation in offline_allocations.items() if allocation.role == "long"}
+    offline_short = {symbol for symbol, allocation in offline_allocations.items() if allocation.role == "short"}
+
+    logged_all = logged_long | logged_short
+    offline_all = offline_long | offline_short
+
+    symbols_matched = sorted(logged_all & offline_all)
+    symbols_only_logged = sorted(logged_all - offline_all)
+    symbols_only_offline = sorted(offline_all - logged_all)
+    role_mismatches = sorted(
+        symbol for symbol in symbols_matched if (symbol in logged_long) != (symbol in offline_long)
+    )
+
+    union_size = len(logged_all | offline_all)
+    overlap_fraction = (len(symbols_matched) / union_size) if union_size > 0 else None
+
+    num_offline_long = len(offline_long)
+    num_offline_short = len(offline_short)
+    per_symbol_deltas: dict[str, dict] = {}
+    for symbol in symbols_matched:
+        logged_raw_score = logged_allocations[symbol].get("raw_rank_score")
+        offline_raw_score = raw_scores_by_symbol.get(symbol)
+        raw_score_delta = (
+            offline_raw_score - logged_raw_score
+            if logged_raw_score is not None and offline_raw_score is not None
+            else None
+        )
+
+        logged_target_weight = logged_allocations[symbol].get("target_weight")
+        if logged_target_weight is not None and symbol in offline_long and num_offline_long > 0:
+            naive_offline_weight = 1.0 / num_offline_long
+        elif logged_target_weight is not None and symbol in offline_short and num_offline_short > 0:
+            naive_offline_weight = -1.0 / num_offline_short
+        else:
+            naive_offline_weight = None
+        weight_delta = (
+            logged_target_weight - naive_offline_weight
+            if logged_target_weight is not None and naive_offline_weight is not None
+            else None
+        )
+
+        per_symbol_deltas[symbol] = {"raw_score_delta": raw_score_delta, "weight_delta": weight_delta}
+
+    return {
+        "date": logged_record.get("date"),
+        "logged_symbols": {"long": sorted(logged_long), "short": sorted(logged_short)},
+        "offline_symbols": {"long": sorted(offline_long), "short": sorted(offline_short)},
+        "symbols_matched": symbols_matched,
+        "symbols_only_logged": symbols_only_logged,
+        "symbols_only_offline": symbols_only_offline,
+        "role_mismatches": role_mismatches,
+        "overlap_fraction": overlap_fraction,
+        "per_symbol_deltas": per_symbol_deltas,
+    }
+
+
+def summarize_book_history_reconciliation(per_date_results: list[dict]) -> dict:
+    """Aggregates a list of reconcile_book_history_date() results (one per
+    logged date) into a single report. An empty list returns a defined
+    all-zero/None summary, never raises - the CLI orchestrator always calls
+    this even when the log file turned out to contain zero usable dates.
+
+    `mean_weight_delta_abs`/`num_dates_with_weight_logged` are computed
+    only over dates that had at least one symbol with a non-None logged
+    `target_weight` (neutrality was on for that run) - callers must report
+    "weight deltas computed for N/M dates" rather than silently averaging
+    the missing dates away as zero, per reconcile_book_history_date()'s own
+    weight-comparison caveat."""
+    num_dates = len(per_date_results)
+    if num_dates == 0:
+        return {
+            "num_dates": 0,
+            "num_dates_exact_match": 0,
+            "mean_overlap_fraction": None,
+            "mean_raw_score_delta_abs": None,
+            "mean_weight_delta_abs": None,
+            "num_dates_with_weight_logged": 0,
+            "num_symbols_only_logged_total": 0,
+            "num_symbols_only_offline_total": 0,
+        }
+
+    num_dates_exact_match = sum(
+        1
+        for result in per_date_results
+        if not result["symbols_only_logged"] and not result["symbols_only_offline"] and not result["role_mismatches"]
+    )
+    overlap_fractions = [result["overlap_fraction"] for result in per_date_results if result["overlap_fraction"] is not None]
+    raw_score_deltas = [
+        abs(delta["raw_score_delta"])
+        for result in per_date_results
+        for delta in result["per_symbol_deltas"].values()
+        if delta["raw_score_delta"] is not None
+    ]
+    weight_deltas = [
+        abs(delta["weight_delta"])
+        for result in per_date_results
+        for delta in result["per_symbol_deltas"].values()
+        if delta["weight_delta"] is not None
+    ]
+    num_dates_with_weight_logged = sum(
+        1
+        for result in per_date_results
+        if any(delta["weight_delta"] is not None for delta in result["per_symbol_deltas"].values())
+    )
+
+    return {
+        "num_dates": num_dates,
+        "num_dates_exact_match": num_dates_exact_match,
+        "mean_overlap_fraction": float(np.mean(overlap_fractions)) if overlap_fractions else None,
+        "mean_raw_score_delta_abs": float(np.mean(raw_score_deltas)) if raw_score_deltas else None,
+        "mean_weight_delta_abs": float(np.mean(weight_deltas)) if weight_deltas else None,
+        "num_dates_with_weight_logged": num_dates_with_weight_logged,
+        "num_symbols_only_logged_total": sum(len(result["symbols_only_logged"]) for result in per_date_results),
+        "num_symbols_only_offline_total": sum(len(result["symbols_only_offline"]) for result in per_date_results),
+    }

@@ -1586,7 +1586,7 @@
                 "max_drawdown_velocity_pct_per_bar": 0.01,
                 "min_live_rank_ic": -0.02,
                 "max_consecutive_losses": 12,
-                "max_slippage_divergence_bps": 1e12,
+                "max_slippage_divergence_bps": 1000000000000.0,
                 "max_model_age_days": 180,
                 "min_return_std_for_sharpe": 0.0005,
                 "action": "trade_lock"
@@ -1804,6 +1804,12 @@
                 "batch_size": 100,
                 "deadletter_stream": "aether:audit:deadletter",
                 "backoff_max": 60
+            }
+        },
+        "diagnostics": {
+            "book_history": {
+                "enabled": true,
+                "output_path": "visualization/book_history.jsonl"
             }
         },
         "performance_triggers": {

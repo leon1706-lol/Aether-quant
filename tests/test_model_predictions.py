@@ -6,6 +6,7 @@ from evaluation.model_predictions import (
     predict_head,
     predict_multitask_head,
     predict_sequence_head,
+    select_context_date_range,
 )
 
 
@@ -164,3 +165,88 @@ def test_predict_head_unknown_model_kind_raises_value_error():
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def _two_ticker_range_frame():
+    # Ticker A: 10 consecutive trading days. Ticker B: 6 rows, missing
+    # 01-02 - deliberately different calendar-date sets per ticker, so
+    # select_context_date_range() must resolve each ticker's own boundary
+    # independently rather than assuming a shared calendar.
+    dates_a = [f"2020-01-{day:02d}" for day in range(1, 11)]
+    dates_b = ["2020-01-01", "2020-01-03", "2020-01-04", "2020-01-05", "2020-01-06", "2020-01-07"]
+    frame = pd.concat(
+        [
+            pd.DataFrame({"ticker": ["A"] * len(dates_a), "date": dates_a, "f1": range(len(dates_a))}),
+            pd.DataFrame({"ticker": ["B"] * len(dates_b), "date": dates_b, "f1": range(len(dates_b))}),
+        ],
+        ignore_index=True,
+    )
+    return frame
+
+
+def test_select_context_date_range_spanning_full_range_is_a_no_op_trim():
+    frame = _two_ticker_range_frame()
+    all_dates = sorted(frame["date"].unique().tolist())
+    min_date, max_date = select_context_date_range(frame, all_dates, window_size=4)
+    assert min_date == all_dates[0]
+    assert max_date == all_dates[-1]
+
+
+def test_select_context_date_range_keeps_lookback_and_drops_the_rest():
+    frame = _two_ticker_range_frame()
+    recorded_dates = ["2020-01-05", "2020-01-06", "2020-01-07"]
+    min_date, max_date = select_context_date_range(frame, recorded_dates, window_size=4)
+    # Ticker A: 01-05 is at ordinal index 4; lookback of 4 -> starts at index 1 (01-02).
+    # Ticker B: 01-05 is at ordinal index 3; lookback of 4 -> clamps to index 0 (01-01).
+    # min_date is the earliest across both tickers.
+    assert min_date == "2020-01-01"
+    assert max_date == "2020-01-07"
+
+
+def test_select_context_date_range_clamps_when_fewer_rows_precede_than_window_size():
+    frame = _two_ticker_range_frame()
+    # window_size (10) far exceeds either ticker's available preceding rows
+    # for this early recorded date - must clamp to each ticker's own
+    # earliest row, never negative-index or raise.
+    min_date, max_date = select_context_date_range(frame, ["2020-01-03"], window_size=10)
+    assert min_date == "2020-01-01"
+    assert max_date == "2020-01-03"
+
+
+def test_select_context_date_range_raises_on_empty_recorded_dates():
+    frame = _two_ticker_range_frame()
+    try:
+        select_context_date_range(frame, [], window_size=4)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_naive_date_filtering_corrupts_sequence_windows_but_the_trimmed_range_does_not():
+    # This is the single most important test in this module: it proves WHY
+    # select_context_date_range() exists. build_sequence_windows() builds
+    # each window from ordinal row position, not calendar dates, so naively
+    # filtering a frame down to only the recorded dates silently builds
+    # windows from whatever rows happen to be ordinally adjacent after the
+    # filter - wrong, with no error raised.
+    dates = [f"2020-01-{day:02d}" for day in range(1, 7)]  # d1..d6
+    full_frame = pd.DataFrame({"ticker": ["A"] * 6, "date": dates, "f1": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]})
+    window_size = 3
+    recorded_dates = ["2020-01-05", "2020-01-06"]  # d5, d6
+
+    ground_truth = build_sequence_windows(full_frame, ["f1"], window_size)
+    ground_truth_recorded = ground_truth[full_frame["date"].isin(recorded_dates).to_numpy()]
+
+    naive_frame = full_frame[full_frame["date"].isin(recorded_dates)].reset_index(drop=True)
+    naive_windows = build_sequence_windows(naive_frame, ["f1"], window_size)
+
+    min_date, max_date = select_context_date_range(full_frame, recorded_dates, window_size=window_size)
+    assert (min_date, max_date) == ("2020-01-03", "2020-01-06")
+    trimmed_frame = full_frame[(full_frame["date"] >= min_date) & (full_frame["date"] <= max_date)].reset_index(
+        drop=True
+    )
+    trimmed_windows = build_sequence_windows(trimmed_frame, ["f1"], window_size)
+    trimmed_recorded = trimmed_windows[trimmed_frame["date"].isin(recorded_dates).to_numpy()]
+
+    assert not np.allclose(naive_windows, ground_truth_recorded)
+    assert np.allclose(trimmed_recorded, ground_truth_recorded)

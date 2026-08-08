@@ -1662,6 +1662,165 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 print(f"  net_performance: {len(net_performance_windows)} window(s) with a simulated book")
         return 0
 
+    # V5.2.2 (development/Problems.md) - `aq evaluate --reconcile-book-history`
+    # compares a real Lean backtest's actual per-date book selections
+    # (logged via phase_v2.diagnostics.book_history, see main.py's write
+    # site) against a fresh offline re-derivation of the same raw scores -
+    # true ground truth instead of more indirect offline-vs-live hypothesis
+    # testing. Early-return, same precedent as --walk-forward-summary above:
+    # needs its own UNFILTERED-by-split dataset load, because a recorded
+    # date's required lookback context can reach into rows from a different
+    # split boundary (see select_context_date_range()'s own docstring for
+    # why naively reusing the split-filtered dataset below would be wrong).
+    if getattr(args, "reconcile_book_history", False):
+        from evaluation import (
+            compute_blended_raw_scores,
+            reconcile_book_history_date,
+            select_context_date_range,
+            summarize_book_history_reconciliation,
+        )
+        from portfolio.rank_signal import resolve_rank_signal_policy
+
+        book_history_path_arg = getattr(args, "book_history_path", None)
+        diagnostics_config = config.get("phase_v2", {}).get("diagnostics", {}).get("book_history", {})
+        book_history_path = (
+            Path(book_history_path_arg)
+            if book_history_path_arg
+            else ROOT_DIR / diagnostics_config.get("output_path", "visualization/book_history.jsonl")
+        )
+        if not book_history_path.exists():
+            print(
+                f"error: {book_history_path} not found - run a backtest with "
+                "phase_v2.diagnostics.book_history.enabled=true first.",
+                file=sys.stderr,
+            )
+            return 1
+
+        logged_records: list[dict] = []
+        with open(book_history_path, "r", encoding="utf-8") as book_history_file:
+            for line_number, raw_line in enumerate(book_history_file, start=1):
+                stripped_line = raw_line.strip()
+                if not stripped_line:
+                    continue
+                try:
+                    logged_records.append(json.loads(stripped_line))
+                except json.JSONDecodeError as error:
+                    print(
+                        f"warning: skipping malformed line {line_number} in {book_history_path}: {error}",
+                        file=sys.stderr,
+                    )
+
+        if not logged_records:
+            print(f"error: {book_history_path} contains no usable records.", file=sys.stderr)
+            return 1
+
+        recorded_dates = sorted({record["date"] for record in logged_records if record.get("date")})
+        logged_records_by_date = {record["date"]: record for record in logged_records if record.get("date")}
+
+        recon_dataset_path = ML_DIR / "datasets" / "full_dataset.csv"
+        if not recon_dataset_path.exists():
+            print(f"error: {recon_dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
+            return 1
+        full_dataset = pd.read_csv(recon_dataset_path)
+        if "training_eligible" in full_dataset.columns:
+            full_dataset = full_dataset[full_dataset["training_eligible"]].reset_index(drop=True)
+
+        sequence_window_default = config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30)
+        recon_min_date, recon_max_date = select_context_date_range(
+            full_dataset, recorded_dates, window_size=int(sequence_window_default)
+        )
+        context_dataset = full_dataset[
+            (full_dataset["date"] >= recon_min_date) & (full_dataset["date"] <= recon_max_date)
+        ].reset_index(drop=True)
+
+        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
+        training_metrics_by_model: dict[str, dict | None] = {}
+        for model_name, metrics_filename in (
+            ("sequence", "sequence_training_metrics.json"),
+            ("multitask", "multitask_training_metrics.json"),
+        ):
+            metrics_path = ML_DIR / metrics_filename
+            training_metrics_by_model[model_name] = (
+                json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
+            )
+        policy = resolve_rank_signal_policy(training_metrics_by_model, config)
+        active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
+
+        predictions_by_model_head: dict[str, dict[str, object]] = {}
+        for model_kind_for_head in policy["model_priority"]:
+            recon_model_filename, recon_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
+            recon_model_path = ML_DIR / recon_model_filename
+            recon_schema_path = ML_DIR / recon_schema_filename
+            if not recon_model_path.exists() or not recon_schema_path.exists():
+                continue  # best-effort - same convention as --calibrate-book-spread above
+            recon_model_export = json.loads(recon_model_path.read_text(encoding="utf-8"))
+            recon_feature_schema = json.loads(recon_schema_path.read_text(encoding="utf-8"))
+            recon_feature_names = recon_feature_schema["model_input_names"]
+            head_predictions: dict[str, object] = {}
+            for head_name in active_heads:
+                head_predictions[head_name] = predict_head(
+                    context_dataset, recon_model_export, recon_feature_names, head_name,
+                    model_kind=model_kind_for_head,
+                    sequence_feature_schema=recon_feature_schema if model_kind_for_head == "sequence" else None,
+                    configured_window_size=int(sequence_window_default),
+                )
+            predictions_by_model_head[model_kind_for_head] = head_predictions
+
+        context_dataset["raw_blended_score"] = compute_blended_raw_scores(
+            context_dataset, predictions_by_model_head, policy
+        )
+
+        book_config = config.get("phase_v2", {}).get("portfolio_book", {})
+        strategy_mode = config.get("phase5", {}).get("backtest", {}).get("strategy_mode", "long_flat")
+        book_top_n = int(book_config.get("top_n", 6))
+        book_bottom_n = int(book_config.get("bottom_n", 6)) if strategy_mode == "long_short" else 0
+
+        recorded_subset = context_dataset[context_dataset["date"].isin(recorded_dates)]
+        per_date_results = []
+        for recon_date, group in recorded_subset.groupby("date", sort=True):
+            if recon_date not in logged_records_by_date:
+                continue
+            raw_scores_by_symbol = {
+                str(ticker): float(score)
+                for ticker, score in zip(group["ticker"], group["raw_blended_score"])
+                if score is not None and not (isinstance(score, float) and pd.isna(score))
+            }
+            per_date_results.append(
+                reconcile_book_history_date(
+                    logged_records_by_date[recon_date], raw_scores_by_symbol, top_n=book_top_n, bottom_n=book_bottom_n
+                )
+            )
+
+        summary = summarize_book_history_reconciliation(per_date_results)
+        payload = {"per_date": per_date_results, "summary": summary}
+        _write_evaluation_json(ML_DIR / "evaluation" / "book_history_reconciliation.json", payload)
+
+        if args.json:
+            print(json.dumps(payload, indent=2, default=str))
+        else:
+            print(f"Book-history reconciliation ({book_history_path}): {summary['num_dates']} dates")
+            print(
+                f"  exact_match={summary['num_dates_exact_match']}/{summary['num_dates']}  "
+                f"mean_overlap_fraction={summary['mean_overlap_fraction']}"
+            )
+            print(
+                f"  mean_raw_score_delta_abs={summary['mean_raw_score_delta_abs']}  "
+                f"mean_weight_delta_abs={summary['mean_weight_delta_abs']} "
+                f"({summary['num_dates_with_weight_logged']}/{summary['num_dates']} dates had a logged weight)"
+            )
+            print(
+                f"  symbols_only_logged_total={summary['num_symbols_only_logged_total']}  "
+                f"symbols_only_offline_total={summary['num_symbols_only_offline_total']}"
+            )
+            print(
+                "  NOTE: this reconciliation replays NO hysteresis (previous_allocations=None) - a "
+                "mismatch can mean either a real divergence OR the live book correctly holding an "
+                "incumbent that day's natural ranking alone wouldn't pick. Read per-date role_mismatches "
+                "before concluding anything is actually wrong."
+            )
+
+        return 0
+
     ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
     net_perf_config = ranking_config.get("net_performance", {})
     if not net_perf_config:
@@ -2383,6 +2542,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--book-spread-percentile", type=float, default=0.10,
         help="Percentile (0-1) of the per-date confidence-spread distribution to use as the calibrated "
         "floor with --calibrate-book-spread (default: 0.10).",
+    )
+    evaluate_parser.add_argument(
+        "--reconcile-book-history", action="store_true",
+        help="V5.2.2: compare a real Lean backtest's logged book selections "
+        "(phase_v2.diagnostics.book_history) against a fresh offline re-derivation of the same raw "
+        "scores on those same dates - true ground truth for diagnosing offline-vs-live divergence. "
+        "Not included in --all - loads both models' predictions like --calibrate-book-spread.",
+    )
+    evaluate_parser.add_argument(
+        "--book-history-path", default=None,
+        help="Path to the book_history.jsonl log to reconcile with --reconcile-book-history "
+        "(default: phase_v2.diagnostics.book_history.output_path from config.json).",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

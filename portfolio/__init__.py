@@ -2,6 +2,7 @@
 
 from .book_construction import (
     BookAllocation,
+    build_book_history_record,
     build_rank_based_book,
     normalize_per_asset_class_slots,
     should_rebalance_this_bar,
@@ -22,6 +23,7 @@ __all__ = [
     "BookAllocation",
     "OptionsPositionDecision",
     "apply_book_neutrality",
+    "build_book_history_record",
     "build_options_position_sizing",
     "build_rank_based_book",
     "cross_sectional_rank_scores",

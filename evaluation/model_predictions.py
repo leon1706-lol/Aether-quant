@@ -65,6 +65,68 @@ def build_sequence_windows(
     return windows
 
 
+def select_context_date_range(
+    dataset: pd.DataFrame,
+    recorded_dates: list[str],
+    *,
+    window_size: int,
+    ticker_column: str = "ticker",
+    date_column: str = "date",
+) -> tuple[str, str]:
+    """V5.2.2 (development/Problems.md) - computes the inclusive
+    `(min_date, max_date)` date-string bounds a caller must keep every
+    row for (per ticker, in `dataset`'s own row order) before restricting
+    the dataset to a specific set of `recorded_dates` and still getting
+    CORRECT `build_sequence_windows()` output for those dates.
+
+    GUARDRAIL: `build_sequence_windows()` builds each ticker's trailing
+    window from ORDINAL ROW POSITION within whatever frame it's given,
+    not from calendar dates - it has no way to know rows were dropped.
+    Naively filtering `dataset` down to only `recorded_dates` before
+    calling it does not raise; it silently builds each window from
+    whichever OTHER kept rows happen to be ordinally adjacent (e.g. 10
+    calendar days apart instead of 1), producing wrong predictions with
+    no error. This function exists so a caller can safely narrow a large
+    dataset to just the date range a reconciliation actually needs
+    (`aq evaluate --reconcile-book-history`'s whole reason for existing)
+    without corrupting sequence-model context: keep every row inside
+    `[min(recorded_dates), max(recorded_dates)]` UNCHANGED, plus enough
+    additional rows per ticker immediately preceding that span (by row
+    position, not calendar-day subtraction, since non-trading days never
+    appear in `dataset` to begin with) to fully support a `window_size`
+    trailing window for the earliest recorded date. Only rows entirely
+    outside the returned bounds may be safely dropped.
+
+    Per ticker: finds the first row at/after `min(recorded_dates)`, then
+    walks back `window_size` positions (mirroring `build_sequence_windows()`'s
+    own `max(0, index_within_ticker + 1 - window_size)` formula exactly)
+    to find that ticker's own earliest-needed date. The overall
+    `min_date` returned is the EARLIEST such date across all tickers, so
+    every ticker's window is fully supported, not just the first one
+    encountered. A ticker with no rows at/after `min(recorded_dates)` at
+    all is skipped (nothing to support for it).
+
+    Raises `ValueError` if `recorded_dates` is empty - there is no
+    context range to compute without at least one target date."""
+    if not recorded_dates:
+        raise ValueError("select_context_date_range() requires at least one recorded date")
+
+    target_min = min(recorded_dates)
+    target_max = max(recorded_dates)
+
+    earliest_needed_dates: list[str] = []
+    for _ticker, ticker_frame in dataset.groupby(ticker_column, sort=False):
+        ticker_dates = ticker_frame[date_column].tolist()
+        boundary_index = next((i for i, d in enumerate(ticker_dates) if d >= target_min), None)
+        if boundary_index is None:
+            continue
+        lookback_start = max(0, boundary_index + 1 - window_size)
+        earliest_needed_dates.append(ticker_dates[lookback_start])
+
+    min_date = min(earliest_needed_dates) if earliest_needed_dates else target_min
+    return min_date, target_max
+
+
 def predict_multitask_head(
     dataset: pd.DataFrame, model_export: dict, feature_names: list[str], head: str
 ) -> np.ndarray:

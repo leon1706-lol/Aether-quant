@@ -42,3 +42,14 @@ have no direct frontend consumer — the latter reaches the UI nested inside
 `/api/state` instead. Note also that `metrics_snapshot.json` in this folder
 is orphaned: `/api/grafana/metrics-snapshot` serves
 `runtime_metrics_snapshot.json`.
+
+- `book_history.jsonl` — V5.2.2 diagnostic, off by default
+  (`phase_v2.diagnostics.book_history.enabled`). One JSON line per
+  rebalance date, logging the live book's actual selections during a real
+  Lean **backtest** (never written in live/paper mode, regardless of the
+  config toggle). Reconciled offline against a fresh re-derivation of the
+  same raw scores via `aq evaluate --reconcile-book-history` — see
+  `portfolio/book_construction.py::build_book_history_record()` and
+  `evaluation/rank_signal_calibration.py::reconcile_book_history_date()`.
+  Not served by `/api/grafana/` like every other file above — it's a
+  standalone diagnostic artifact, not runtime state.

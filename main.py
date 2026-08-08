@@ -61,6 +61,7 @@ from risk.manual_override import read_kill_switch_manual_override, read_manual_t
 from risk.position_sizing import build_dynamic_position_sizing, cost_sizing_multiplier
 from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
 from portfolio import (
+    build_book_history_record,
     build_rank_based_book,
     cross_sectional_rank_scores,
     normalize_per_asset_class_slots,
@@ -1365,6 +1366,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
             stream_name=str(phase_v2_audit_log.get("redis_stream", "aether:audit")),
             maxlen=int(phase_v2_audit_log.get("maxlen", 500_000)),
         )
+        # V5.2.2 (development/Problems.md) - book-history diagnostic log,
+        # off by default. Reused by `aq evaluate --reconcile-book-history`
+        # to compare a real Lean backtest's actual book selections against
+        # a fresh offline re-derivation of the same raw scores - see the
+        # write site's own comment (inside on_data()'s is_rebalance_bar
+        # branch) for the backtest-only guard rationale.
+        phase_v2_diagnostics_book_history = self.phase_v2.get("diagnostics", {}).get("book_history", {})
+        self.book_history_diagnostics_enabled = bool(phase_v2_diagnostics_book_history.get("enabled", False))
+        self.book_history_path = self.root_path / phase_v2_diagnostics_book_history.get(
+            "output_path", "visualization/book_history.jsonl"
+        )
         # Live-mode transition audit event - the single highest-stakes fact
         # about a run (whether real capital is at risk) determined once here
         # at startup. self.runtime_mode is already fully resolved above.
@@ -1947,6 +1959,31 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 else:
                     self._book_target_weights = {}
                     self._last_book_neutrality_diagnostics = {}
+
+                # V5.2.2 (development/Problems.md) - opt-in, backtest-only
+                # ground-truth log of what the live book actually selected
+                # this rebalance date, so a real Lean run can later be
+                # reconciled against a fresh offline re-derivation of the
+                # same raw scores (`aq evaluate --reconcile-book-history`).
+                # Backtest-only regardless of the config toggle - makes
+                # unbounded file growth on a live/paper deployment
+                # structurally impossible, since this tool exists to
+                # diagnose backtest-vs-offline gaps, not to run forever.
+                if self.book_history_diagnostics_enabled and self.runtime_mode == "backtest" and book_allocations:
+                    try:
+                        record = build_book_history_record(
+                            str(self.Time.date()),
+                            book_allocations,
+                            spread_check_ranks,
+                            self._book_target_weights,
+                            self.sector_by_ticker,
+                            self._rank_signal_policy,
+                        )
+                        self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
+                        with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:
+                            book_history_file.write(json.dumps(record) + "\n")
+                    except Exception as error:
+                        self.Debug(f"book_history diagnostic write failed: {error}")
             else:
                 book_allocations = self._last_book_allocations
         else:

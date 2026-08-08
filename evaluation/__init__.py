@@ -22,6 +22,7 @@ from .model_predictions import (
     predict_head,
     predict_multitask_head,
     predict_sequence_head,
+    select_context_date_range,
 )
 from .rank_book_simulator import (
     RankBookSimulationResult,
@@ -33,6 +34,8 @@ from .rank_book_simulator import (
 from .rank_signal_calibration import (
     calibrate_book_confidence_spread,
     compute_blended_raw_scores,
+    reconcile_book_history_date,
+    summarize_book_history_reconciliation,
 )
 
 __all__ = [
@@ -47,9 +50,12 @@ __all__ = [
     "predict_head",
     "predict_multitask_head",
     "predict_sequence_head",
+    "reconcile_book_history_date",
     "run_ablation",
+    "select_context_date_range",
     "simulate_rank_book",
     "simulate_static_baseline",
     "stress_test_costs",
+    "summarize_book_history_reconciliation",
     "summarize_metric_stability",
 ]

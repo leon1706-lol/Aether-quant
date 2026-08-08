@@ -4,6 +4,8 @@ no test classes, module-level helpers, plain dicts.
 """
 
 from portfolio.book_construction import (
+    BookAllocation,
+    build_book_history_record,
     build_rank_based_book,
     compute_confidence_spread,
     normalize_per_asset_class_slots,
@@ -659,3 +661,96 @@ def test_book_allocation_gains_rank_head_and_target_weight_defaults():
     allocation = next(iter(book.values()))
     assert allocation.rank_head == "blend"
     assert allocation.target_weight is None
+
+
+# ---------------------------------------------------------------------------
+# build_book_history_record() (V5.2.2, development/Problems.md) - the
+# diagnostic snapshot main.py's optional book-history log writes per
+# rebalance bar.
+# ---------------------------------------------------------------------------
+
+
+def _sample_allocations() -> dict[str, BookAllocation]:
+    return {
+        "A": BookAllocation(role="long", book_role_multiplier=1.0, predicted_rank_20d=0.9, book_reason="r"),
+        "B": BookAllocation(role="short", book_role_multiplier=-1.0, predicted_rank_20d=0.1, book_reason="r"),
+    }
+
+
+_SAMPLE_POLICY = {
+    "heads": {"rank_20d": 0.5, "rank_5d": 0.5},
+    "model_priority": ["sequence", "multitask"],
+    "demoted": [],
+    "normalization": "cross_sectional",
+}
+
+
+def test_build_book_history_record_normal_shape():
+    record = build_book_history_record(
+        "2019-01-02",
+        _sample_allocations(),
+        raw_scores_by_symbol={"A": 0.61, "B": 0.02},
+        target_weights_by_symbol={"A": 0.12, "B": -0.08},
+        sector_by_symbol={"A": "Technology", "B": "Fixed Income"},
+        rank_signal_policy=_SAMPLE_POLICY,
+    )
+    assert record["date"] == "2019-01-02"
+    assert record["rank_signal_policy"]["heads"] == {"rank_20d": 0.5, "rank_5d": 0.5}
+    assert record["allocations"]["A"] == {
+        "role": "long",
+        "book_role_multiplier": 1.0,
+        "predicted_rank_20d": 0.9,
+        "rank_head": "blend",
+        "raw_rank_score": 0.61,
+        "target_weight": 0.12,
+        "sector": "Technology",
+    }
+    assert record["allocations"]["B"]["role"] == "short"
+    assert record["allocations"]["B"]["target_weight"] == -0.08
+
+
+def test_build_book_history_record_missing_raw_score_is_none_not_keyerror():
+    record = build_book_history_record(
+        "2019-01-02", _sample_allocations(),
+        raw_scores_by_symbol={},  # neither symbol present
+        target_weights_by_symbol={"A": 0.12, "B": -0.08},
+        sector_by_symbol={},
+        rank_signal_policy=_SAMPLE_POLICY,
+    )
+    assert record["allocations"]["A"]["raw_rank_score"] is None
+    assert record["allocations"]["B"]["raw_rank_score"] is None
+    assert record["allocations"]["A"]["sector"] == "Unknown"
+
+
+def test_build_book_history_record_missing_target_weight_is_none():
+    # Mirrors book_neutrality_enabled=False live: self._book_target_weights
+    # stays {} - every symbol's target_weight must be None, not a crash.
+    record = build_book_history_record(
+        "2019-01-02", _sample_allocations(),
+        raw_scores_by_symbol={"A": 0.61, "B": 0.02},
+        target_weights_by_symbol={},
+        sector_by_symbol={"A": "Technology", "B": "Fixed Income"},
+        rank_signal_policy=_SAMPLE_POLICY,
+    )
+    assert record["allocations"]["A"]["target_weight"] is None
+    assert record["allocations"]["B"]["target_weight"] is None
+
+
+def test_build_book_history_record_empty_book_allocations_never_raises():
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy=_SAMPLE_POLICY,
+    )
+    assert record["date"] == "2019-01-02"
+    assert record["allocations"] == {}
+    assert record["rank_signal_policy"]["heads"] == {"rank_20d": 0.5, "rank_5d": 0.5}
+
+
+def test_build_book_history_record_missing_policy_keys_degrade_to_defaults():
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+    )
+    assert record["rank_signal_policy"] == {
+        "heads": {}, "model_priority": [], "demoted": [], "normalization": "cross_sectional",
+    }

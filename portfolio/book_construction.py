@@ -432,3 +432,58 @@ def should_rebalance_this_bar(
     if not has_previous_allocation:
         return True
     return (bar_index - 1) % max(1, rebalance_every_bars) == 0
+
+
+def build_book_history_record(
+    date_str: str,
+    book_allocations: dict[str, BookAllocation],
+    raw_scores_by_symbol: dict[str, float],
+    target_weights_by_symbol: dict[str, float],
+    sector_by_symbol: dict[str, str],
+    rank_signal_policy: dict,
+) -> dict:
+    """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
+    rebalance bar's book, for `main.py`'s optional (config-gated, off by
+    default, backtest-only) book-history log. Exists to make a real,
+    ground-truth reconciliation possible between what a live/backtest run
+    actually selected and what `evaluation/rank_book_simulator.py`'s
+    offline simulator would select for the identical date - the tool
+    this project needed after six other hypotheses for a large live-vs-
+    offline Sharpe gap were tested and ruled out without finding the
+    cause (see Problems.md #89-#90).
+
+    Pure: no I/O, no `self`, never raises on well-formed inputs - every
+    per-symbol field degrades via `.get(..., None)` rather than
+    `KeyError`, since a symbol missing from `raw_scores_by_symbol` or
+    `target_weights_by_symbol` (e.g. `target_weight` is never populated
+    when `phase_v2.portfolio_book.neutrality.enabled` is False - see
+    `BookAllocation.target_weight`'s own `None`-means-"not applicable"
+    convention) is expected, not exceptional.
+
+    `rank_signal_policy` (main.py's own `self._rank_signal_policy`,
+    resolved once in `Initialize()`) is embedded INLINE in every record,
+    not referenced externally - deliberately, so the log stays self-
+    contained and correctly interpretable even if config or training
+    metrics change between when a run produced this line and when a
+    later reconciliation reads it back."""
+    return {
+        "date": date_str,
+        "rank_signal_policy": {
+            "heads": dict(rank_signal_policy.get("heads", {})),
+            "model_priority": list(rank_signal_policy.get("model_priority", [])),
+            "demoted": list(rank_signal_policy.get("demoted", [])),
+            "normalization": rank_signal_policy.get("normalization", "cross_sectional"),
+        },
+        "allocations": {
+            symbol_key: {
+                "role": allocation.role,
+                "book_role_multiplier": allocation.book_role_multiplier,
+                "predicted_rank_20d": allocation.predicted_rank_20d,
+                "rank_head": allocation.rank_head,
+                "raw_rank_score": raw_scores_by_symbol.get(symbol_key),
+                "target_weight": target_weights_by_symbol.get(symbol_key),
+                "sector": sector_by_symbol.get(symbol_key, "Unknown"),
+            }
+            for symbol_key, allocation in book_allocations.items()
+        },
+    }
