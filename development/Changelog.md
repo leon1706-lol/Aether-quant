@@ -5039,3 +5039,94 @@ promised, since the execution-lag mechanism is structural, not a bug with
 a complete fix.
 
 Full suite: 2428 passed.
+
+## V5.2.2 — Book-history diagnostic + reconciliation CLI
+
+The V5.2.1 confirming backtest (Sharpe -4.421) showed the three fixes did
+NOT close the offline-vs-live gap. Six more indirect hypotheses (signal
+blending, kill-switch lockout duration, training-data-vs-Lean price
+mismatch, and others) were tested and ruled out without finding the cause
+— every cheap, indirect test was exhausted (Problems.md #90's update).
+
+Built a reusable ground-truth diagnostic instead of another one-off test:
+
+- `visualization/book_history.jsonl` (new, opt-in, backtest-only via
+  `phase_v2.diagnostics.book_history.enabled`) — one JSON line per
+  rebalance date, logging the live book's actual selections during a real
+  Lean backtest (`portfolio/book_construction.py::build_book_history_record()`).
+  Backtest-only regardless of the config toggle, so unbounded file growth
+  on a live/paper deployment is structurally impossible.
+- `aq evaluate --reconcile-book-history [--book-history-path PATH]` — reads
+  that log back and reconciles it against a fresh offline re-derivation of
+  the same raw scores (`evaluation/rank_signal_calibration.py::reconcile_book_history_date()`),
+  reporting per-date symbol overlap/role mismatches/score-and-weight
+  deltas plus an aggregate summary, always persisted to
+  `ml/evaluation/book_history_reconciliation.json`.
+- A real correctness fix along the way: `evaluation/model_predictions.py::build_sequence_windows()`
+  builds each ticker's trailing window from ordinal row position, not
+  calendar dates — naively filtering a dataset to just the recorded
+  reconciliation dates would silently corrupt sequence-model predictions.
+  New `select_context_date_range()` computes the correct contiguous
+  lookback-inclusive span to keep instead.
+
+Deliberately no hysteresis replay in this round (documented limitation,
+not a bug — flagged in the CLI's own output) and no change to live
+selection/sizing logic — purely diagnostic. Full suite: 286 passed across
+the touched test files.
+
+## V5.2.3 — Full-universe snapshot, hysteresis replay, webui integration
+
+V5.2.2's first real run (2026-08-07 backtest, 112 rebalance dates)
+surfaced two concrete findings, not yet explained (Problems.md #91):
+crypto/FX symbols appear in the offline re-derivation on 107/112 dates but
+in the live book on 0/112, and even restricting to equities only, mean
+symbol overlap is only 54.8% with essentially no exact-match dates.
+
+- `phase_v2.diagnostics.book_history.include_full_universe` (new, opt-in,
+  off by default, additive to V5.2.2's toggle) — `build_book_history_record()`
+  now optionally logs a `"universe"` snapshot of EVERY symbol with a bar
+  that rebalance date, selected or not (`raw_rank_score`/`feature_ready`/
+  `reason`/`trading_eligible`/`security_type`), built from `main.py`'s own
+  Phase 1a `signals` payload. Closes the exact gap that made the V5.2.2
+  log unable to show *why* a symbol was never selected — only that it
+  wasn't.
+- `--replay-hysteresis` (new CLI flag) — `replay_book_history_reconciliation()`
+  walks the log's dates in order, carrying offline's own held allocations
+  forward the same way `main.py`'s live `_last_book_allocations` and
+  `evaluation/rank_book_simulator.py`'s walk-forward simulation both
+  already do, instead of reconciling each date independently. Tells a real
+  divergence apart from the live book correctly holding an incumbent a
+  from-scratch reselection wouldn't naturally pick.
+- `summarize_universe_snapshot_by_security_type()` — a per-`security_type`
+  aggregate (mean raw score, feature-ready rate, trading-eligible rate),
+  always attempted by the CLI when the log carries `"universe"` data.
+- Frontend/backend integration: `book_history_reconciliation` (new) and
+  `book_spread_calibration` (a V5.1 report that had never been wired in —
+  closed alongside this work) are now served via `GET /api/evaluation`
+  (`monitoring/evaluation_state.py`) and shown in the webui's Evaluation
+  tab (`BookHistoryReconciliationPanel`, `BookSpreadCalibrationPanel`).
+
+Diagnostic-only round, same as V5.2.2 — no change to live selection or
+sizing logic. The crypto/FX root cause is still open: the existing
+2026-08-07 log predates `include_full_universe`, so a fresh real Lean
+backtest with the new toggle enabled is needed before Problems.md #91 can
+carry a confirmed answer.
+
+**Update — the fresh backtest ran (2026-08-08), and the answer is bigger
+than expected.** Byte-identical Sharpe/order-count/`OrderListHash` to the
+2026-08-07 run confirms the new logging is a true no-op on trading
+behavior. The universe snapshot shows crypto/FX never appear in `signals`
+on any of the 112 rebalance dates at all (not a low-score problem — a
+bar-delivery problem), and cross-checking rebalance-date spacing against
+real business-day calendars shows `self.bar_index` running at roughly 2x
+the actual trading-day rate — `on_data()` is being invoked about twice as
+often as there are real trading days, meaning every `bar_index`-keyed
+cadence (rebalancing, exits, cooldowns, hysteresis) has likely been
+running at roughly double its configured frequency the whole time. Leading
+hypothesis: crypto (24/7) and forex (24/5) Daily bars close at different
+times than the equity session, and Lean may be delivering each asset
+class's bar in its own separate `Slice`, inflating `bar_index` on ticks
+where most of the universe isn't even present. Not yet fixed — the exact
+Lean-level mechanism isn't traced yet, and deciding the fix (bar_index vs.
+calendar-day-based scheduling) is next round's work. See Problems.md #91's
+own update for the full writeup.

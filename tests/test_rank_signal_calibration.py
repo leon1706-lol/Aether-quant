@@ -11,7 +11,9 @@ from evaluation.rank_signal_calibration import (
     calibrate_book_confidence_spread,
     compute_blended_raw_scores,
     reconcile_book_history_date,
+    replay_book_history_reconciliation,
     summarize_book_history_reconciliation,
+    summarize_universe_snapshot_by_security_type,
 )
 from portfolio.book_construction import compute_confidence_spread
 
@@ -250,3 +252,149 @@ def test_summarize_book_history_reconciliation_aggregates_across_dates():
     assert summary["num_symbols_only_logged_total"] == 1  # "C" on 2020-01-02
     assert summary["num_symbols_only_offline_total"] == 1  # "D" on 2020-01-02
     assert summary["mean_overlap_fraction"] == pytest.approx((1.0 + 1 / 3) / 2)
+
+
+# ---------------------------------------------------------------------------
+# replay_book_history_reconciliation()
+# ---------------------------------------------------------------------------
+
+
+def test_replay_book_history_reconciliation_reproduces_independent_mode_at_zero_margin():
+    # hysteresis_rank_margin=0.0 is build_rank_based_book()'s own no-op
+    # default - the replay must degrade to exactly what independent
+    # per-date reconciliation already produces for the SAME dates.
+    logged_records = [
+        _logged_record(
+            "2020-01-01",
+            {"A": _allocation_entry("long", 0.9, target_weight=0.5), "D": _allocation_entry("short", 0.1, target_weight=-0.5)},
+        ),
+    ]
+    raw_scores_by_date = {"2020-01-01": _RAW_SCORES}
+
+    replayed = replay_book_history_reconciliation(logged_records, raw_scores_by_date, top_n=1, bottom_n=1)
+    independent = reconcile_book_history_date(logged_records[0], _RAW_SCORES, top_n=1, bottom_n=1)
+
+    assert replayed == [independent]
+
+
+def test_replay_book_history_reconciliation_hysteresis_resolves_a_mismatch_independent_mode_flags():
+    # Day 1: natural selection is long A / short D, and the live book
+    # logs exactly that - held_allocations after day 1 (offline's OWN
+    # replay, not the log) becomes {A: long, D: short}.
+    #
+    # Day 2: raw scores flip so B's percentile rank (1.0) now exceeds A's
+    # (0.75) - a from-scratch reselection would swap to B. The live book
+    # (logged) instead kept A, exactly what hysteresis_rank_margin=0.3
+    # should also do here (cutoff=1.0, keep incumbent A since
+    # 0.75 >= 1.0 - 0.3). Independent per-date reconciliation (no
+    # previous_allocations) can't see this and flags a false mismatch;
+    # the replay, carrying offline's own day-1 selection forward, must
+    # NOT flag it.
+    day1_scores = {"A": 0.9, "B": 0.7, "C": 0.3, "D": 0.1}
+    day2_scores = {"A": 0.7, "B": 0.9, "C": 0.3, "D": 0.1}
+    logged_records = [
+        _logged_record(
+            "2020-01-01",
+            {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)},
+        ),
+        _logged_record(
+            "2020-01-02",
+            {"A": _allocation_entry("long", 0.7), "D": _allocation_entry("short", 0.1)},
+        ),
+    ]
+    raw_scores_by_date = {"2020-01-01": day1_scores, "2020-01-02": day2_scores}
+
+    # Independent mode flags day 2 as a divergence: A only-logged, B only-offline.
+    independent_day2 = reconcile_book_history_date(logged_records[1], day2_scores, top_n=1, bottom_n=1)
+    assert independent_day2["symbols_only_logged"] == ["A"]
+    assert independent_day2["symbols_only_offline"] == ["B"]
+
+    # The replay, at a large enough margin, correctly resolves it.
+    replayed = replay_book_history_reconciliation(
+        logged_records, raw_scores_by_date, top_n=1, bottom_n=1, hysteresis_rank_margin=0.3
+    )
+    assert len(replayed) == 2
+    assert replayed[1]["symbols_matched"] == ["A", "D"]
+    assert replayed[1]["symbols_only_logged"] == []
+    assert replayed[1]["symbols_only_offline"] == []
+
+
+def test_replay_book_history_reconciliation_skips_dates_missing_from_raw_scores_by_date():
+    logged_records = [
+        _logged_record("2020-01-01", {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)}),
+        _logged_record("2020-01-02", {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)}),
+    ]
+    # Only day 1 has raw scores available (e.g. day 2 fell outside a
+    # caller's re-inference window) - day 2 must be skipped, not KeyError.
+    raw_scores_by_date = {"2020-01-01": _RAW_SCORES}
+
+    replayed = replay_book_history_reconciliation(logged_records, raw_scores_by_date, top_n=1, bottom_n=1)
+
+    assert len(replayed) == 1
+    assert replayed[0]["date"] == "2020-01-01"
+
+
+# ---------------------------------------------------------------------------
+# summarize_universe_snapshot_by_security_type()
+# ---------------------------------------------------------------------------
+
+
+def _universe_record(date, universe):
+    return {"date": date, "allocations": {}, "universe": universe}
+
+
+def test_summarize_universe_snapshot_no_universe_data_never_raises():
+    logged_records = [_logged_record("2020-01-01", {})]  # no "universe" key at all
+    summary = summarize_universe_snapshot_by_security_type(logged_records)
+    assert summary == {"num_dates_with_universe_data": 0, "by_security_type": {}}
+
+
+def test_summarize_universe_snapshot_empty_list_never_raises():
+    assert summarize_universe_snapshot_by_security_type([]) == {
+        "num_dates_with_universe_data": 0,
+        "by_security_type": {},
+    }
+
+
+def test_summarize_universe_snapshot_aggregates_by_security_type():
+    logged_records = [
+        _universe_record(
+            "2020-01-01",
+            {
+                "AAPL": {"raw_rank_score": 0.6, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "equity"},
+                "BTCUSD": {"raw_rank_score": 0.9, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "crypto"},
+                "EURUSD": {"raw_rank_score": None, "feature_ready": False, "reason": "Need 2 bars, have 1", "trading_eligible": True, "security_type": "forex"},
+            },
+        ),
+        _universe_record(
+            "2020-01-02",
+            {
+                "AAPL": {"raw_rank_score": 0.4, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "equity"},
+                "BTCUSD": {"raw_rank_score": 0.8, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "crypto"},
+            },
+        ),
+    ]
+
+    summary = summarize_universe_snapshot_by_security_type(logged_records)
+
+    assert summary["num_dates_with_universe_data"] == 2
+    assert summary["by_security_type"]["equity"]["num_symbol_dates"] == 2
+    assert summary["by_security_type"]["equity"]["mean_raw_rank_score"] == pytest.approx((0.6 + 0.4) / 2)
+    assert summary["by_security_type"]["equity"]["feature_ready_rate"] == pytest.approx(1.0)
+    assert summary["by_security_type"]["crypto"]["mean_raw_rank_score"] == pytest.approx((0.9 + 0.8) / 2)
+    # forex only ever appears once, with a None score - never averaged in as 0.
+    assert summary["by_security_type"]["forex"]["num_symbol_dates"] == 1
+    assert summary["by_security_type"]["forex"]["mean_raw_rank_score"] is None
+    assert summary["by_security_type"]["forex"]["feature_ready_rate"] == pytest.approx(0.0)
+
+
+def test_summarize_universe_snapshot_dates_without_universe_key_are_not_counted():
+    logged_records = [
+        _universe_record(
+            "2020-01-01",
+            {"AAPL": {"raw_rank_score": 0.6, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "equity"}},
+        ),
+        _logged_record("2020-01-02", {}),  # no "universe" key - toggle was presumably off that day
+    ]
+    summary = summarize_universe_snapshot_by_security_type(logged_records)
+    assert summary["num_dates_with_universe_data"] == 1

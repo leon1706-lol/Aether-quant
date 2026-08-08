@@ -754,3 +754,51 @@ def test_build_book_history_record_missing_policy_keys_degrade_to_defaults():
     assert record["rank_signal_policy"] == {
         "heads": {}, "model_priority": [], "demoted": [], "normalization": "cross_sectional",
     }
+
+
+def test_build_book_history_record_full_universe_signals_none_is_byte_identical_to_v5_2_2():
+    # V5.2.3 - the default (no full_universe_signals argument at all) must
+    # reproduce the exact V5.2.2 record shape: no "universe" key present.
+    record = build_book_history_record(
+        "2019-01-02", _sample_allocations(),
+        raw_scores_by_symbol={"A": 0.61, "B": 0.02},
+        target_weights_by_symbol={"A": 0.12, "B": -0.08},
+        sector_by_symbol={"A": "Technology", "B": "Fixed Income"},
+        rank_signal_policy=_SAMPLE_POLICY,
+    )
+    assert "universe" not in record
+
+
+def test_build_book_history_record_full_universe_signals_produces_universe_key():
+    full_universe_signals = {
+        "A": {"raw_rank_score": 0.61, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "equity"},
+        "BTCUSD": {"raw_rank_score": 0.5, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "crypto"},
+        "EURUSD": {"raw_rank_score": None, "feature_ready": False, "reason": "Need 2 bars, have 1", "trading_eligible": True, "security_type": "forex"},
+    }
+    record = build_book_history_record(
+        "2019-01-02", _sample_allocations(),
+        raw_scores_by_symbol={"A": 0.61, "B": 0.02},
+        target_weights_by_symbol={"A": 0.12, "B": -0.08},
+        sector_by_symbol={"A": "Technology", "B": "Fixed Income"},
+        rank_signal_policy=_SAMPLE_POLICY,
+        full_universe_signals=full_universe_signals,
+    )
+    assert record["universe"]["A"] == {
+        "raw_rank_score": 0.61, "feature_ready": True, "reason": None,
+        "trading_eligible": True, "security_type": "equity",
+    }
+    assert record["universe"]["EURUSD"]["feature_ready"] is False
+    assert record["universe"]["EURUSD"]["reason"] == "Need 2 bars, have 1"
+    assert record["universe"]["EURUSD"]["raw_rank_score"] is None
+
+
+def test_build_book_history_record_full_universe_signals_missing_keys_degrade_to_none():
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+        full_universe_signals={"A": {}},
+    )
+    assert record["universe"]["A"] == {
+        "raw_rank_score": None, "feature_ready": None, "reason": None,
+        "trading_eligible": None, "security_type": None,
+    }

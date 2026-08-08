@@ -1809,7 +1809,8 @@
         "diagnostics": {
             "book_history": {
                 "enabled": true,
-                "output_path": "visualization/book_history.jsonl"
+                "output_path": "visualization/book_history.jsonl",
+                "include_full_universe": true
             }
         },
         "performance_triggers": {

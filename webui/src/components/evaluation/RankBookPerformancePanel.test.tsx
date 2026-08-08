@@ -26,6 +26,8 @@ function evaluationWith(rankBook: EvaluationState['rank_book']): EvaluationState
     stress: { status: 'not_evaluated', hint: '' },
     ablation: { status: 'not_evaluated', hint: '' },
     walk_forward: { status: 'not_evaluated', hint: '' },
+    book_spread_calibration: { status: 'not_evaluated', hint: '' },
+    book_history_reconciliation: { status: 'not_evaluated', hint: '' },
   }
 }
 

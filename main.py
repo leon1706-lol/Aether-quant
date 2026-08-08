@@ -1377,6 +1377,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.book_history_path = self.root_path / phase_v2_diagnostics_book_history.get(
             "output_path", "visualization/book_history.jsonl"
         )
+        # V5.2.3 (development/Problems.md #91) - opt-in on top of the
+        # V5.2.2 toggle above: also snapshot EVERY symbol with a bar this
+        # rebalance date (selected or not) - role/score alone couldn't
+        # explain why a symbol (e.g. crypto/FX) never gets selected at
+        # all, since the V5.2.2 log only ever recorded already-selected
+        # book members. Off by default - real, if bounded, extra file
+        # growth (roughly the full universe x every rebalance date).
+        self.book_history_include_full_universe = bool(
+            phase_v2_diagnostics_book_history.get("include_full_universe", False)
+        )
         # Live-mode transition audit event - the single highest-stakes fact
         # about a run (whether real capital is at risk) determined once here
         # at startup. self.runtime_mode is already fully resolved above.
@@ -1971,6 +1981,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # diagnose backtest-vs-offline gaps, not to run forever.
                 if self.book_history_diagnostics_enabled and self.runtime_mode == "backtest" and book_allocations:
                     try:
+                        # V5.2.3 (development/Problems.md #91) - `signals`
+                        # (Phase 1a's per-symbol payload, already built
+                        # earlier this bar) covers EVERY symbol with a bar
+                        # this tick, selected or not - unlike
+                        # `spread_check_ranks`/`pass1_state`, which only
+                        # ever contain symbols that passed the feature-
+                        # ready gate. Merging the two here is what lets a
+                        # later reconciliation see WHY a non-selected
+                        # symbol (e.g. crypto/FX) never made the book,
+                        # rather than just that it didn't.
+                        full_universe_signals = None
+                        if self.book_history_include_full_universe:
+                            full_universe_signals = {
+                                symbol_key: {
+                                    "raw_rank_score": pass1_state.get(symbol_key, {}).get("raw_rank_score"),
+                                    "feature_ready": bool(signal_payload["feature_ready"]),
+                                    "reason": signal_payload.get("reason"),
+                                    "trading_eligible": bool(signal_payload["trading_eligible"]),
+                                    "security_type": signal_payload["security_type"],
+                                }
+                                for symbol_key, signal_payload in signals.items()
+                            }
                         record = build_book_history_record(
                             str(self.Time.date()),
                             book_allocations,
@@ -1978,6 +2010,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                             self._book_target_weights,
                             self.sector_by_ticker,
                             self._rank_signal_policy,
+                            full_universe_signals=full_universe_signals,
                         )
                         self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
                         with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:

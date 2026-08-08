@@ -122,12 +122,96 @@ export function isAblationSentinel(entry: AblationVariantEntry): entry is Ablati
 
 export type AblationReport = Record<string, AblationVariantEntry>
 
+// V5.2.3 - mirrors evaluation/rank_signal_calibration.py::calibrate_book_confidence_spread()'s
+// return shape (V5.1 report, only wired into /api/evaluation in V5.2.3
+// alongside the book-history reconciliation report below - a pre-existing
+// gap closed while touching this same file).
+export interface SpreadDistribution {
+  min: number | null
+  p10: number | null
+  p25: number | null
+  median: number | null
+  p75: number | null
+  max: number | null
+}
+
+export interface BookSpreadCalibrationReport {
+  calibrated_min_rank_confidence_spread: number
+  percentile: number
+  num_dates_used: number
+  num_dates_skipped_thin_universe: number
+  spread_distribution: SpreadDistribution
+}
+
+// V5.2.2/V5.2.3 (development/Problems.md #91) - mirrors
+// evaluation/rank_signal_calibration.py::reconcile_book_history_date()'s
+// (or replay_book_history_reconciliation()'s) per-date return shape.
+export interface BookHistoryRoleSymbols {
+  long: string[]
+  short: string[]
+}
+
+export interface BookHistorySymbolDelta {
+  raw_score_delta: number | null
+  weight_delta: number | null
+}
+
+export interface BookHistoryPerDateResult {
+  date: string
+  logged_symbols: BookHistoryRoleSymbols
+  offline_symbols: BookHistoryRoleSymbols
+  symbols_matched: string[]
+  symbols_only_logged: string[]
+  symbols_only_offline: string[]
+  role_mismatches: string[]
+  overlap_fraction: number | null
+  per_symbol_deltas: Record<string, BookHistorySymbolDelta>
+}
+
+// Mirrors summarize_book_history_reconciliation()'s return shape.
+export interface BookHistoryReconciliationSummary {
+  num_dates: number
+  num_dates_exact_match: number
+  mean_overlap_fraction: number | null
+  mean_raw_score_delta_abs: number | null
+  mean_weight_delta_abs: number | null
+  num_dates_with_weight_logged: number
+  num_symbols_only_logged_total: number
+  num_symbols_only_offline_total: number
+}
+
+// V5.2.3 - mirrors summarize_universe_snapshot_by_security_type()'s return
+// shape. num_dates_with_universe_data === 0 means the log was written
+// without phase_v2.diagnostics.book_history.include_full_universe - NOT
+// that every security type had zero observations.
+export interface UniverseSecurityTypeStats {
+  num_symbol_dates: number
+  mean_raw_rank_score: number | null
+  feature_ready_rate: number | null
+  trading_eligible_rate: number | null
+}
+
+export interface UniverseSnapshotSummary {
+  num_dates_with_universe_data: number
+  by_security_type: Record<string, UniverseSecurityTypeStats>
+}
+
+// Top-level persisted/served payload from `aq evaluate --reconcile-book-history`.
+export interface BookHistoryReconciliationReport {
+  mode: 'independent' | 'replay_hysteresis'
+  per_date: BookHistoryPerDateResult[]
+  summary: BookHistoryReconciliationSummary
+  universe_summary: UniverseSnapshotSummary
+}
+
 export interface EvaluationState {
   rank_book: RankBookSimulationResult | NotEvaluated
   capacity: CapacityReport | NotEvaluated
   stress: CostStressReport | NotEvaluated
   ablation: AblationReport | NotEvaluated
   walk_forward: WalkForwardSummary | NotEvaluated
+  book_spread_calibration: BookSpreadCalibrationReport | NotEvaluated
+  book_history_reconciliation: BookHistoryReconciliationReport | NotEvaluated
 }
 
 export function isNotEvaluated(value: unknown): value is NotEvaluated {

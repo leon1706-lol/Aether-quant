@@ -2872,13 +2872,128 @@ def test_evaluate_reconcile_book_history_end_to_end(tmp_path, capsys, monkeypatc
     captured = capsys.readouterr()
     assert exit_code == 0
     payload = json.loads(captured.out)
-    assert set(payload) == {"per_date", "summary"}
+    assert set(payload) == {"mode", "per_date", "summary", "universe_summary"}
+    assert payload["mode"] == "independent"
     assert payload["summary"]["num_dates"] == 2
     assert len(payload["per_date"]) == 2
     assert {result["date"] for result in payload["per_date"]} == set(logged_dates)
+    # This fixture's records carry no "universe" key - the toggle was off.
+    assert payload["universe_summary"] == {"num_dates_with_universe_data": 0, "by_security_type": {}}
 
     written = json.loads((ml_dir / "evaluation" / "book_history_reconciliation.json").read_text(encoding="utf-8"))
     assert written == payload
+
+
+def test_evaluate_reconcile_book_history_replay_hysteresis_end_to_end(tmp_path, capsys, monkeypatch):
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    dataset = pd.read_csv(ml_dir / "datasets" / "full_dataset.csv")
+    all_dates = sorted(dataset["date"].unique().tolist())
+    logged_dates = [all_dates[4], all_dates[7]]
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 1, "hysteresis_rank_margin": 0.3})
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    def _allocation_entry(role, raw_rank_score):
+        return {
+            "role": role,
+            "book_role_multiplier": 1.0 if role == "long" else -1.0,
+            "predicted_rank_20d": raw_rank_score,
+            "rank_head": "blend",
+            "raw_rank_score": raw_rank_score,
+            "target_weight": 0.5 if role == "long" else -0.5,
+            "sector": "Unknown",
+        }
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    with open(book_history_path, "w", encoding="utf-8") as book_history_file:
+        for date in logged_dates:
+            record = {
+                "date": date,
+                "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+                "allocations": {"T0": _allocation_entry("long", 0.9), "T5": _allocation_entry("short", 0.1)},
+            }
+            book_history_file.write(json.dumps(record) + "\n")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate", "--reconcile-book-history", "--replay-hysteresis",
+            "--book-history-path", str(book_history_path), "--json",
+        ]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["mode"] == "replay_hysteresis"
+    assert len(payload["per_date"]) == 2
+
+
+def test_evaluate_reconcile_book_history_universe_summary_appears_when_logged(tmp_path, capsys, monkeypatch):
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    dataset = pd.read_csv(ml_dir / "datasets" / "full_dataset.csv")
+    all_dates = sorted(dataset["date"].unique().tolist())
+    logged_dates = [all_dates[4], all_dates[7]]
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 1})
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    def _allocation_entry(role, raw_rank_score):
+        return {
+            "role": role,
+            "book_role_multiplier": 1.0 if role == "long" else -1.0,
+            "predicted_rank_20d": raw_rank_score,
+            "rank_head": "blend",
+            "raw_rank_score": raw_rank_score,
+            "target_weight": 0.5 if role == "long" else -0.5,
+            "sector": "Unknown",
+        }
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    with open(book_history_path, "w", encoding="utf-8") as book_history_file:
+        for date in logged_dates:
+            record = {
+                "date": date,
+                "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+                "allocations": {"T0": _allocation_entry("long", 0.9), "T5": _allocation_entry("short", 0.1)},
+                "universe": {
+                    "T0": {"raw_rank_score": 0.9, "feature_ready": True, "reason": None, "trading_eligible": True, "security_type": "equity"},
+                    "T1": {"raw_rank_score": None, "feature_ready": False, "reason": "Need 2 bars, have 1", "trading_eligible": True, "security_type": "equity"},
+                },
+            }
+            book_history_file.write(json.dumps(record) + "\n")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--reconcile-book-history", "--book-history-path", str(book_history_path), "--json"]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["universe_summary"]["num_dates_with_universe_data"] == 2
+    assert payload["universe_summary"]["by_security_type"]["equity"]["num_symbol_dates"] == 4
+
+    written = json.loads((ml_dir / "evaluation" / "book_history_reconciliation.json").read_text(encoding="utf-8"))
+    assert written["universe_summary"] == payload["universe_summary"]
 
 
 def test_evaluate_reconcile_book_history_missing_file_errors(tmp_path, capsys, monkeypatch):

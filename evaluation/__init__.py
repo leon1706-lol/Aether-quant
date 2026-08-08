@@ -35,7 +35,9 @@ from .rank_signal_calibration import (
     calibrate_book_confidence_spread,
     compute_blended_raw_scores,
     reconcile_book_history_date,
+    replay_book_history_reconciliation,
     summarize_book_history_reconciliation,
+    summarize_universe_snapshot_by_security_type,
 )
 
 __all__ = [
@@ -51,6 +53,7 @@ __all__ = [
     "predict_multitask_head",
     "predict_sequence_head",
     "reconcile_book_history_date",
+    "replay_book_history_reconciliation",
     "run_ablation",
     "select_context_date_range",
     "simulate_rank_book",
@@ -58,4 +61,5 @@ __all__ = [
     "stress_test_costs",
     "summarize_book_history_reconciliation",
     "summarize_metric_stability",
+    "summarize_universe_snapshot_by_security_type",
 ]

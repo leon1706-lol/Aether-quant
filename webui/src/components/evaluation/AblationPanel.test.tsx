@@ -49,6 +49,8 @@ function evaluationWith(ablation: EvaluationState['ablation']): EvaluationState 
     stress: { status: 'not_evaluated', hint: '' },
     ablation,
     walk_forward: { status: 'not_evaluated', hint: '' },
+    book_spread_calibration: { status: 'not_evaluated', hint: '' },
+    book_history_reconciliation: { status: 'not_evaluated', hint: '' },
   }
 }
 

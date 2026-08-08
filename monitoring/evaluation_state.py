@@ -51,6 +51,16 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
     stress_report = _load_json(evaluation_dir / "cost_stress_report.json")
     ablation = _load_json(evaluation_dir / "ablation_report.json")
     walk_forward = _latest_walk_forward_summary(ml_dir)
+    # V5.1 report that was never wired in here until V5.2.3 - a pre-
+    # existing gap, closed alongside book_history_reconciliation below
+    # since this function already touches every other `aq evaluate`
+    # report.
+    book_spread_calibration = _load_json(evaluation_dir / "book_spread_calibration.json")
+    # V5.2.2/V5.2.3 (development/Problems.md #91) - `aq evaluate
+    # --reconcile-book-history`'s persisted payload (per-date diffs +
+    # aggregate summary + universe_summary once V5.2.3's
+    # include_full_universe toggle has been used for a run).
+    book_history_reconciliation = _load_json(evaluation_dir / "book_history_reconciliation.json")
 
     # Every section follows the same shape convention: the raw report dict
     # when present, or {"status": "not_evaluated", "hint": ...} when not -
@@ -67,6 +77,9 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
         ),
         "ablation": ablation or _not_evaluated("run `aq evaluate --ablation`"),
         "walk_forward": walk_forward or _not_evaluated("run `aq train --walk-forward --include-multitask --include-sequence`"),
+        "book_spread_calibration": book_spread_calibration or _not_evaluated("run `aq evaluate --calibrate-book-spread`"),
+        "book_history_reconciliation": book_history_reconciliation
+        or _not_evaluated("run `aq evaluate --reconcile-book-history` (needs a backtest with phase_v2.diagnostics.book_history.enabled=true first)"),
     }
 
 

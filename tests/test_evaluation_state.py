@@ -6,7 +6,10 @@ from monitoring.evaluation_state import build_evaluation_state
 def test_every_section_degrades_to_not_evaluated_on_a_fresh_checkout(tmp_path):
     state = build_evaluation_state(ml_dir=tmp_path)
 
-    for key in ("rank_book", "capacity", "stress", "ablation", "walk_forward"):
+    for key in (
+        "rank_book", "capacity", "stress", "ablation", "walk_forward",
+        "book_spread_calibration", "book_history_reconciliation",
+    ):
         assert state[key]["status"] == "not_evaluated"
         assert "hint" in state[key]
 
@@ -83,3 +86,30 @@ def test_malformed_json_report_degrades_to_not_evaluated_never_raises(tmp_path):
     state = build_evaluation_state(ml_dir=tmp_path)
 
     assert state["rank_book"]["status"] == "not_evaluated"
+
+
+def test_book_spread_calibration_section_reads_the_real_report_file(tmp_path):
+    evaluation_dir = tmp_path / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    payload = {"calibrated_min_rank_confidence_spread": 0.5, "num_dates_used": 10}
+    (evaluation_dir / "book_spread_calibration.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    state = build_evaluation_state(ml_dir=tmp_path)
+
+    assert state["book_spread_calibration"] == payload
+
+
+def test_book_history_reconciliation_section_reads_the_real_report_file(tmp_path):
+    evaluation_dir = tmp_path / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    payload = {
+        "mode": "independent",
+        "per_date": [],
+        "summary": {"num_dates": 0},
+        "universe_summary": {"num_dates_with_universe_data": 0, "by_security_type": {}},
+    }
+    (evaluation_dir / "book_history_reconciliation.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    state = build_evaluation_state(ml_dir=tmp_path)
+
+    assert state["book_history_reconciliation"] == payload

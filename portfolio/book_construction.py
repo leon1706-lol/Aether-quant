@@ -441,6 +441,7 @@ def build_book_history_record(
     target_weights_by_symbol: dict[str, float],
     sector_by_symbol: dict[str, str],
     rank_signal_policy: dict,
+    full_universe_signals: dict[str, dict] | None = None,
 ) -> dict:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
@@ -465,8 +466,25 @@ def build_book_history_record(
     not referenced externally - deliberately, so the log stays self-
     contained and correctly interpretable even if config or training
     metrics change between when a run produced this line and when a
-    later reconciliation reads it back."""
-    return {
+    later reconciliation reads it back.
+
+    `full_universe_signals` (V5.2.3, opt-in via
+    `phase_v2.diagnostics.book_history.include_full_universe`): `None`
+    (default) reproduces this function's exact V5.2.2 return shape - no
+    `"universe"` key at all, so every existing caller/log consumer is
+    unaffected. When given `{symbol: {"raw_rank_score", "feature_ready",
+    "reason", "trading_eligible", "security_type"}}` (main.py's own Phase
+    1a `signals` payload, one entry per symbol with a bar this tick,
+    selected or not), adds a `"universe"` key with the same shape -
+    closes the exact gap that made the V5.2.2 tool unable to see WHY a
+    symbol was never selected (e.g. crypto/FX consistently absent from
+    every live book - Problems.md #91): the V5.2.2 log only ever recorded
+    `book_allocations`, i.e. symbols that already made the cut, with no
+    way to see what score/readiness a NON-selected symbol had that day.
+    Each per-symbol sub-dict degrades the same `.get(..., None)` way as
+    every other field here - a caller-supplied dict missing a key never
+    raises."""
+    record = {
         "date": date_str,
         "rank_signal_policy": {
             "heads": dict(rank_signal_policy.get("heads", {})),
@@ -487,3 +505,15 @@ def build_book_history_record(
             for symbol_key, allocation in book_allocations.items()
         },
     }
+    if full_universe_signals is not None:
+        record["universe"] = {
+            symbol_key: {
+                "raw_rank_score": signal.get("raw_rank_score"),
+                "feature_ready": signal.get("feature_ready"),
+                "reason": signal.get("reason"),
+                "trading_eligible": signal.get("trading_eligible"),
+                "security_type": signal.get("security_type"),
+            }
+            for symbol_key, signal in full_universe_signals.items()
+        }
+    return record

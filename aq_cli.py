@@ -1676,8 +1676,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation import (
             compute_blended_raw_scores,
             reconcile_book_history_date,
+            replay_book_history_reconciliation,
             select_context_date_range,
             summarize_book_history_reconciliation,
+            summarize_universe_snapshot_by_security_type,
         )
         from portfolio.rank_signal import resolve_rank_signal_policy
 
@@ -1776,23 +1778,50 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         book_bottom_n = int(book_config.get("bottom_n", 6)) if strategy_mode == "long_short" else 0
 
         recorded_subset = context_dataset[context_dataset["date"].isin(recorded_dates)]
-        per_date_results = []
+        raw_scores_by_date: dict[str, dict[str, float]] = {}
         for recon_date, group in recorded_subset.groupby("date", sort=True):
             if recon_date not in logged_records_by_date:
                 continue
-            raw_scores_by_symbol = {
+            raw_scores_by_date[recon_date] = {
                 str(ticker): float(score)
                 for ticker, score in zip(group["ticker"], group["raw_blended_score"])
                 if score is not None and not (isinstance(score, float) and pd.isna(score))
             }
-            per_date_results.append(
+
+        # V5.2.3 (development/Problems.md #91) - --replay-hysteresis
+        # switches from independently reconciling each date (the
+        # V5.2.2 default - can't tell a real divergence apart from
+        # hysteresis correctly holding an incumbent) to a walk-forward
+        # replay of offline's OWN selection history, carrying hysteresis
+        # forward the same way main.py's live book does.
+        replay_hysteresis = bool(getattr(args, "replay_hysteresis", False))
+        if replay_hysteresis:
+            hysteresis_rank_margin = float(book_config.get("hysteresis_rank_margin", 0.0))
+            ordered_logged_records = [logged_records_by_date[d] for d in recorded_dates if d in raw_scores_by_date]
+            per_date_results = replay_book_history_reconciliation(
+                ordered_logged_records, raw_scores_by_date,
+                top_n=book_top_n, bottom_n=book_bottom_n, hysteresis_rank_margin=hysteresis_rank_margin,
+            )
+        else:
+            per_date_results = [
                 reconcile_book_history_date(
                     logged_records_by_date[recon_date], raw_scores_by_symbol, top_n=book_top_n, bottom_n=book_bottom_n
                 )
-            )
+                for recon_date, raw_scores_by_symbol in raw_scores_by_date.items()
+            ]
 
         summary = summarize_book_history_reconciliation(per_date_results)
-        payload = {"per_date": per_date_results, "summary": summary}
+        # Cheap and always attempted (pure, reads straight off the log's
+        # own "universe" keys - no re-inference) - degrades to
+        # num_dates_with_universe_data=0 for a log written without
+        # include_full_universe, never raises.
+        universe_summary = summarize_universe_snapshot_by_security_type(logged_records)
+        payload = {
+            "mode": "replay_hysteresis" if replay_hysteresis else "independent",
+            "per_date": per_date_results,
+            "summary": summary,
+            "universe_summary": universe_summary,
+        }
         _write_evaluation_json(ML_DIR / "evaluation" / "book_history_reconciliation.json", payload)
 
         if args.json:
@@ -1812,12 +1841,40 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 f"  symbols_only_logged_total={summary['num_symbols_only_logged_total']}  "
                 f"symbols_only_offline_total={summary['num_symbols_only_offline_total']}"
             )
-            print(
-                "  NOTE: this reconciliation replays NO hysteresis (previous_allocations=None) - a "
-                "mismatch can mean either a real divergence OR the live book correctly holding an "
-                "incumbent that day's natural ranking alone wouldn't pick. Read per-date role_mismatches "
-                "before concluding anything is actually wrong."
-            )
+            if replay_hysteresis:
+                print(
+                    "  NOTE: this reconciliation REPLAYS hysteresis (--replay-hysteresis) - offline's own "
+                    "held allocations are carried forward date-by-date, the same way main.py's live book "
+                    "does. The first reconciled date still starts from a COLD (empty) held-allocations "
+                    "state regardless of the book's true earlier history, so early dates may show a "
+                    "colder-start mismatch than mid-series dates."
+                )
+            else:
+                print(
+                    "  NOTE: this reconciliation replays NO hysteresis (previous_allocations=None) - a "
+                    "mismatch can mean either a real divergence OR the live book correctly holding an "
+                    "incumbent that day's natural ranking alone wouldn't pick. Read per-date role_mismatches "
+                    "before concluding anything is actually wrong. Pass --replay-hysteresis for the "
+                    "hysteresis-aware alternative."
+                )
+            if universe_summary["num_dates_with_universe_data"] > 0:
+                print(
+                    f"  Universe snapshot ({universe_summary['num_dates_with_universe_data']}/"
+                    f"{summary['num_dates']} dates carry full-universe data):"
+                )
+                for security_type, stats in sorted(universe_summary["by_security_type"].items()):
+                    print(
+                        f"    {security_type}: mean_raw_rank_score={stats['mean_raw_rank_score']}  "
+                        f"feature_ready_rate={stats['feature_ready_rate']}  "
+                        f"trading_eligible_rate={stats['trading_eligible_rate']} "
+                        f"(n={stats['num_symbol_dates']})"
+                    )
+            else:
+                print(
+                    "  Universe snapshot: not available for this log - re-run the backtest with "
+                    "phase_v2.diagnostics.book_history.include_full_universe=true to see per-security-type "
+                    "score/readiness breakdowns for symbols that were never selected."
+                )
 
         return 0
 
@@ -2554,6 +2611,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--book-history-path", default=None,
         help="Path to the book_history.jsonl log to reconcile with --reconcile-book-history "
         "(default: phase_v2.diagnostics.book_history.output_path from config.json).",
+    )
+    evaluate_parser.add_argument(
+        "--replay-hysteresis", action="store_true",
+        help="V5.2.3: with --reconcile-book-history, replay offline's own hysteresis-aware selection "
+        "walk-forward across the log's dates (carrying held allocations forward, same as main.py's live "
+        "book) instead of reconciling each date independently - tells a real divergence apart from the "
+        "live book correctly holding an incumbent a from-scratch reselection wouldn't naturally pick.",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")
