@@ -5130,3 +5130,93 @@ where most of the universe isn't even present. Not yet fixed — the exact
 Lean-level mechanism isn't traced yet, and deciding the fix (bar_index vs.
 calendar-day-based scheduling) is next round's work. See Problems.md #91's
 own update for the full writeup.
+
+## V5.2.4 — Fixing bar_index inflation, the empty-book liquidation bug, and making crypto/FX book-eligible
+
+The confirmed mechanism from V5.2.3's update: `self.bar_index` was meant to
+represent one real trading day but actually incremented once per Lean
+`Slice`/`on_data()` call — and the algorithm subscribes to equity + crypto
+(7 days/week) + forex all at Daily resolution. Lean delivers each asset
+class's Daily bar-close as its own separate Slice rather than one
+consolidated call per calendar day, so `on_data()` was firing roughly 2x
+more often than real trading days, corrupting every bar-count-keyed
+mechanism downstream. Confirmed precisely this round: forex never actually
+drives the inflation (it only ever delivers `QuoteBar`s, and `on_data()`'s
+own early return gates on TradeBars) — the real driver is equity-vs-crypto
+tick-splitting specifically.
+
+**The fix, five parts:**
+
+1. `self.is_equity_session_bar` (new) — computed fresh every tick from
+   whether any equity symbol has a bar this tick (data presence, not a
+   calendar/`Exchange.Hours` lookup, which can't distinguish two
+   same-weekday ticks). Gates `self.bar_index`'s single increment site —
+   this one change fixes every downstream `bar_index`-keyed consumer
+   (rebalance cadence, trade cooldowns, max-holding exits, options-rotation
+   cooldowns, unfilled-limit-order timeouts) automatically, confirmed via a
+   full-repo grep that none of them needed their own code change.
+2. `should_rebalance_this_bar()` gained an `is_trading_day_bar` parameter
+   (default `True`, fully backward-compatible) so a frozen `bar_index`
+   across several off-session ticks can't spuriously re-trigger an
+   already-satisfied rebalance.
+3. The kill switch's rolling-Sharpe/drawdown-velocity inputs now use
+   dedicated, equity-session-cadenced trackers, separate from the
+   real-time `assess_drawdown_lock` inputs (which stay every-tick,
+   unweakened) — `evaluation_bars: 60` becomes a real ~60-trading-day
+   window again, not ~30.
+4. **A second, independently confirmed bug**: `build_rank_based_book()`'s
+   own docstring documents that a disengaged book should be
+   "byte-identical to this module not existing at all." Pass 2 never
+   implemented that — it force-sold every currently-invested book-managed
+   position whenever `book_allocations` came back empty for ANY reason,
+   not just a genuine per-symbol rotation-out. Combined with an
+   unconditional `_last_book_allocations` overwrite even when empty, a
+   single thin/off-session-tick artifact could previously cascade into
+   liquidating the entire book. New `should_exit_non_selected_book_symbol()`
+   fixes this directly.
+5. **Crypto/FX made genuinely book-eligible** — a deliberate scope
+   expansion once investigation showed the offline evaluator already
+   proves the model scores them correctly (it picked crypto/FX on 107/112
+   real dates); the gap was live never getting the chance to score them on
+   the tick that matters, not a model limitation. Phase 1a's per-symbol
+   loop no longer skips a symbol without a fresh bar on the equity-session
+   tick if it has enough accumulated window history — it's processed using
+   its own last-known OHLCV snapshot instead, the same "use last known
+   value" semantic Lean's own `Security.Price` and this codebase's own
+   regime/topology inputs already rely on. Window/sequence-buffer appends
+   are gated to genuinely-fresh bars only, so a borrowed tick can never
+   duplicate/corrupt a trailing window.
+
+**Full blast-radius audit** (options, futures, corporate actions,
+audit-log/experience events, warm-up, Pass 2 ordering) confirmed clean —
+options never reach this code path at all (canonical option-chain symbols
+never get a `slice.Bars` entry, pre- or post-fix), futures aren't
+currently configured and would be handled the same safe way as equity if
+they were, and splits can't structurally be lost via the new borrow path
+(a split only ever fires alongside that same symbol's own fresh bar, which
+is definitionally an equity-session tick).
+
+Full suite green. `py_compile` clean. Extensive manual read-through
+(diff-verified against the actual changes, not just the plan's prose) in
+place of main.py's usual lack of direct unit-test coverage.
+
+**Update — confirmed (2026-08-09 backtest).** Every mechanism worked
+exactly as predicted:
+
+- Mean gap between rebalance dates: **10.29 business days** (was 5.2) —
+  matches `rebalance_every_bars: 10` almost exactly. 57 rebalances over
+  the window (was 112).
+- Orders roughly halved (392 vs. 768), fees roughly halved ($372 vs.
+  $664.70), turnover roughly halved (0.27% vs. 0.49%) — the direct,
+  predicted consequence of the corrected cadence.
+- Crypto/FX are not just eligible now, they're actually selected: all
+  three `security_type`s now appear in the universe snapshot (previously
+  equity only, ever), and 189 non-equity selections landed across the 57
+  dates — BTCUSD/LTCUSD constantly long, several FX pairs short.
+- Sharpe improved (-4.103 vs. -4.421) but the offline-vs-live gap is not
+  fully closed — expected, since the equity-only selection divergence
+  found in V5.2.3 and V5.2.1's structural execution-lag mechanism are
+  both still open, separate from what this round fixed.
+
+See `development/Problems.md` #91's own update for the full numbers and
+next steps.

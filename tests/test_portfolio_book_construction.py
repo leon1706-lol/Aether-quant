@@ -9,6 +9,7 @@ from portfolio.book_construction import (
     build_rank_based_book,
     compute_confidence_spread,
     normalize_per_asset_class_slots,
+    should_exit_non_selected_book_symbol,
     should_rebalance_this_bar,
 )
 
@@ -534,6 +535,71 @@ def test_should_rebalance_this_bar_rejects_zero_or_negative_interval_by_clamping
     # degrades to "every bar" instead of a ZeroDivisionError.
     for bar_index in range(1, 6):
         assert should_rebalance_this_bar(bar_index, 0, has_previous_allocation=True) is True
+
+
+# ---- is_trading_day_bar (V5.2.4, development/Problems.md #91) - main.py's
+# bar_index only advances on equity-session ticks post-V5.2.4; this flag lets
+# a non-equity-session tick never rebalance, regardless of the modulo or
+# cold-start state. ----
+
+
+def test_should_rebalance_this_bar_is_trading_day_bar_false_never_rebalances():
+    # Would otherwise rebalance (modulo satisfied) - the new flag overrides it.
+    assert should_rebalance_this_bar(6, 5, has_previous_allocation=True, is_trading_day_bar=False) is False
+
+
+def test_should_rebalance_this_bar_is_trading_day_bar_false_overrides_cold_start_too():
+    # Even the "no previous allocation, always rebalance" cold-start
+    # exception must not fire on a non-trading-day tick.
+    assert should_rebalance_this_bar(1, 5, has_previous_allocation=False, is_trading_day_bar=False) is False
+
+
+def test_should_rebalance_this_bar_is_trading_day_bar_true_or_omitted_is_a_pure_no_op():
+    # Explicit True and the omitted default must reproduce every existing
+    # case in this file exactly - regression-lock against the V5.2.4 signature change.
+    for bar_index in range(1, 21):
+        for has_previous_allocation in (True, False):
+            omitted = should_rebalance_this_bar(bar_index, 5, has_previous_allocation)
+            explicit_true = should_rebalance_this_bar(
+                bar_index, 5, has_previous_allocation, is_trading_day_bar=True
+            )
+            assert omitted == explicit_true
+
+
+# ---- should_exit_non_selected_book_symbol() (V5.2.4, development/
+# Problems.md #91) - the empty-book force-liquidation contract fix: an
+# empty/disengaged book_allocations must never force-exit a held position,
+# matching build_rank_based_book()'s own documented "byte-identical to this
+# module not existing at all" contract. ----
+
+
+def test_should_exit_non_selected_book_symbol_real_rotation_exit_fires():
+    # A genuinely active, non-empty book that didn't select this symbol -
+    # the real, unchanged rotation-exit case.
+    assert should_exit_non_selected_book_symbol(
+        book_is_active=True, portfolio_book_enabled=True, is_currently_invested=True
+    ) is True
+
+
+def test_should_exit_non_selected_book_symbol_disengaged_book_never_force_exits():
+    # The bug fix: book_allocations came back empty this bar (confidence-gate
+    # failure, or - pre-V5.2.4 - a thin-tick artifact) - must NOT force-close
+    # a held position, per build_rank_based_book()'s own documented contract.
+    assert should_exit_non_selected_book_symbol(
+        book_is_active=False, portfolio_book_enabled=True, is_currently_invested=True
+    ) is False
+
+
+def test_should_exit_non_selected_book_symbol_book_disabled_never_force_exits():
+    assert should_exit_non_selected_book_symbol(
+        book_is_active=True, portfolio_book_enabled=False, is_currently_invested=True
+    ) is False
+
+
+def test_should_exit_non_selected_book_symbol_nothing_to_exit_when_not_invested():
+    assert should_exit_non_selected_book_symbol(
+        book_is_active=True, portfolio_book_enabled=True, is_currently_invested=False
+    ) is False
 
 
 def test_rebalance_schedule_holds_positions_between_rebalances_synthetic():

@@ -5,6 +5,7 @@ from .book_construction import (
     build_book_history_record,
     build_rank_based_book,
     normalize_per_asset_class_slots,
+    should_exit_non_selected_book_symbol,
     should_rebalance_this_bar,
 )
 from .book_neutrality import apply_book_neutrality
@@ -31,5 +32,6 @@ __all__ = [
     "resolve_rank_signal_policy",
     "select_raw_rank_score",
     "select_single_leg_contract",
+    "should_exit_non_selected_book_symbol",
     "should_rebalance_this_bar",
 ]

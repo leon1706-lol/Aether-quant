@@ -67,6 +67,7 @@ from portfolio import (
     normalize_per_asset_class_slots,
     resolve_rank_signal_policy,
     select_raw_rank_score,
+    should_exit_non_selected_book_symbol,
     should_rebalance_this_bar,
 )
 from portfolio.book_neutrality import apply_book_neutrality
@@ -557,6 +558,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # one. IB's fee model is fine for the other 4 asset classes.
             if asset["security_type"] != "crypto":
                 self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
+
+        # V5.2.4 (development/Problems.md #91) - the subset of self.symbols
+        # this algorithm treats as "the equity session" for on_data()'s own
+        # is_equity_session_bar gate (see that flag's own comment). Cached
+        # once here rather than re-filtered every bar - self.symbols/
+        # asset_lookup are fully populated by this point and never mutated
+        # afterward (no RemoveSecurity/dynamic-universe code exists in this
+        # algorithm).
+        self._equity_symbols = [
+            symbol for symbol in self.symbols if self.asset_lookup[str(symbol)]["security_type"] == "equity"
+        ]
 
         self.set_warm_up(max(int(self.runtime["warmup_bars"]), 21), self.resolution)
 
@@ -1417,6 +1429,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         self.last_state_write = None
         self.bar_index = 0
+        # V5.2.4 (development/Problems.md #91) - recomputed fresh at the top
+        # of every on_data() call before any consumer reads it; initialized
+        # here only as a defensive default (matches the "no equity
+        # configured" degrade-to-True case) in case anything is ever
+        # inspected before the first on_data() call.
+        self.is_equity_session_bar = True
         self.current_session_date = None
         self.session_start_equity = float(self.runtime["initial_cash"])
         self.peak_equity = float(self.runtime["initial_cash"])
@@ -1433,6 +1451,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._kill_switch_return_history: deque = deque(maxlen=252)
         self._previous_portfolio_value: float | None = None
         self._previous_total_drawdown: float | None = None
+        # V5.2.4 (development/Problems.md #91) - dedicated, equity-session-
+        # only-cadenced trackers feeding ONLY _kill_switch_return_history/
+        # drawdown_velocity_pct_per_bar below - deliberately separate from
+        # _previous_portfolio_value/_previous_total_drawdown just above,
+        # which stay updated every tick (unchanged) so assess_drawdown_lock
+        # (the faster-reacting real-time safety layer) isn't slowed down.
+        # Only the kill switch's OWN rolling-Sharpe/velocity inputs need to
+        # represent true day-over-day deltas, not tick-over-tick ones.
+        self._kill_switch_previous_portfolio_value: float | None = None
+        self._kill_switch_previous_total_drawdown: float | None = None
         # main.py trades at Daily resolution (Problems.md #13) - a
         # "consecutive losing sessions" counter IS a "consecutive losing
         # trades" counter at that cadence, and no genuine per-trade P&L
@@ -1496,7 +1524,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if len(slice.Bars) == 0:
             return
 
-        self.bar_index += 1
+        # V5.2.4 (development/Problems.md #91) - main.py subscribes to
+        # equity + crypto (7 days/week) + forex all at Daily resolution;
+        # confirmed via a real backtest that Lean delivers each asset
+        # class's Daily bar-close as its OWN separate Slice/on_data() call,
+        # not one consolidated call per calendar day - self.bar_index (meant
+        # to represent "one real trading day") was inflating ~2x versus real
+        # business days as a result, corrupting every bar-count-keyed
+        # mechanism downstream (rebalance cadence, cooldowns, exit-age,
+        # kill-switch window). is_equity_session_bar answers "did equity
+        # data actually arrive this tick" via data presence (the same
+        # `slice.Bars.get(symbol) is not None` pattern Phase 1a already
+        # uses per-symbol below) - not a calendar lookup, which can't
+        # distinguish two same-weekday ticks (one equity-only, one
+        # crypto-only). `not self._equity_symbols` (no equity configured at
+        # all) degrades to always-True, preserving today's behavior for a
+        # hypothetical non-equity-anchored deployment.
+        self.is_equity_session_bar = (
+            not self._equity_symbols or any(slice.Bars.get(symbol) is not None for symbol in self._equity_symbols)
+        )
+        if self.is_equity_session_bar:
+            self.bar_index += 1
         self._pending_entries_this_bar.clear()
         self._refresh_risk_state()
         self._liquidate_positions_for_disabled_asset_classes()
@@ -1542,20 +1590,47 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # whose features are actually ready to run inference on.
         pending: list[dict] = []
         for symbol in self.symbols:
+            symbol_key = str(symbol)
             bar = slice.bars.get(symbol)
-            if bar is None:
+            has_fresh_bar_this_tick = bar is not None
+            if not has_fresh_bar_this_tick:
                 # V4.6 - forex brokerage feeds are quote-bar (bid/ask), not
                 # trade-bar, data - Lean's Slice exposes both dicts in
                 # parallel. Strictly additive: only ever consulted for a
                 # forex asset with no TradeBar this bar; every other asset
                 # class's existing "skip when slice.Bars has no entry"
                 # behavior is completely unchanged.
-                symbol_key = str(symbol)
                 asset_for_symbol = self.asset_lookup.get(symbol_key, {})
                 if (asset_for_symbol.get("asset_class") or asset_for_symbol.get("security_type")) == "forex":
                     bar = self._midpoint_bar_from_quote_bar(slice.quote_bars.get(symbol))
-                if bar is None:
+                    has_fresh_bar_this_tick = bar is not None
+
+            if bar is None:
+                # V5.2.4 (development/Problems.md #91) - on the equity-
+                # session tick specifically, still consider a symbol using
+                # its own most-recently-known bar if it has enough
+                # accumulated window history - book construction needs the
+                # WHOLE universe scored "at once" (portfolio/
+                # book_construction.py's own docstring), and a symbol whose
+                # Daily bar simply arrived on an earlier, off-session tick
+                # this same trading day (crypto's dominant real-world case,
+                # given its bar closes ~midnight UTC, hours before the
+                # equity session) is not meaningfully "missing data." Off-
+                # session ticks are completely unaffected by this branch -
+                # `not self.is_equity_session_bar` short-circuits it first,
+                # so a symbol without a fresh bar on its OWN native tick is
+                # still skipped exactly as before this existed - individual-
+                # signal trading cadence for it is unchanged. `len(...) < 2`
+                # mirrors _build_model_input()'s own "Need 2 bars" floor -
+                # a symbol with no/insufficient history yet is still
+                # correctly skipped, not fabricated from nothing.
+                if not self.is_equity_session_bar or len(self.symbol_windows.get(symbol, [])) < 2:
                     continue
+                bar = SimpleNamespace(**self.symbol_windows[symbol][-1])
+                # has_fresh_bar_this_tick stays False - the window/sequence-
+                # buffer appends below must never grow from this bar, or
+                # they'd duplicate the same entry and corrupt the trailing
+                # window's real temporal structure.
 
             # V4.7 (development/Problems.md - corporate-action modeling) -
             # purely observational same-bar split logging, threaded into
@@ -1579,19 +1654,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 except (TypeError, ValueError, AttributeError):
                     corporate_action_payload = None
 
-            self.symbol_long_windows[symbol].append(float(bar.close))
-            self.symbol_treasury_10yr_history[symbol].append(self.latest_bond_payload.get("treasury_10yr_level"))
-            for driver_key, driver_history in self.symbol_sensitivity_driver_history[symbol].items():
-                driver_history.append(self.latest_sensitivity_driver_levels.get(driver_key))
-            self.symbol_windows[symbol].append(
-                {
-                    "open": float(bar.open),
-                    "high": float(bar.high),
-                    "low": float(bar.low),
-                    "close": float(bar.close),
-                    "volume": float(bar.volume),
-                }
-            )
+            # V5.2.4 (development/Problems.md #91) - a borrowed/stale bar
+            # (has_fresh_bar_this_tick=False) must never grow these trailing
+            # windows - it's the SAME entry that's already the last one in
+            # self.symbol_windows[symbol] (that's precisely where it came
+            # from), so appending it again would duplicate a timestep that
+            # never happened, corrupting every technical indicator/sequence-
+            # model input that reads these windows.
+            if has_fresh_bar_this_tick:
+                self.symbol_long_windows[symbol].append(float(bar.close))
+                self.symbol_treasury_10yr_history[symbol].append(self.latest_bond_payload.get("treasury_10yr_level"))
+                for driver_key, driver_history in self.symbol_sensitivity_driver_history[symbol].items():
+                    driver_history.append(self.latest_sensitivity_driver_levels.get(driver_key))
+                self.symbol_windows[symbol].append(
+                    {
+                        "open": float(bar.open),
+                        "high": float(bar.high),
+                        "low": float(bar.low),
+                        "close": float(bar.close),
+                        "volume": float(bar.volume),
+                    }
+                )
 
             topology_payload = topology_by_symbol.get(str(symbol))
             feature_payload = self._build_model_input(symbol, topology_payload)
@@ -1637,10 +1720,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # row-includes-itself windowing.
                 sequence_history: list[list[float]] | None = None
                 if self.sequence_model_enabled:
-                    self.symbol_feature_history.setdefault(
-                        symbol, deque(maxlen=self.sequence_window_size)
-                    ).append(feature_payload["model_inputs"])
-                    sequence_history = list(self.symbol_feature_history[symbol])
+                    # V5.2.4 (development/Problems.md #91) - same reasoning
+                    # as the window-append gate above: a borrowed/stale bar
+                    # doesn't represent a genuinely new time step, so it
+                    # must never be appended to the sequence buffer (that
+                    # would duplicate the same feature vector and corrupt
+                    # the model's real temporal window). Reading it is
+                    # unconditional either way - a borrowed-tick symbol
+                    # simply sees whatever its own last real update left.
+                    if has_fresh_bar_this_tick:
+                        self.symbol_feature_history.setdefault(
+                            symbol, deque(maxlen=self.sequence_window_size)
+                        ).append(feature_payload["model_inputs"])
+                    sequence_history = list(self.symbol_feature_history.get(symbol, []))
                 pending.append(
                     {
                         "symbol": symbol,
@@ -1899,6 +1991,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.bar_index,
                 self.portfolio_book_rebalance_every_bars,
                 bool(self._last_book_allocations),
+                is_trading_day_bar=self.is_equity_session_bar,
             )
             if is_rebalance_bar:
                 # V5.1 Phase 1 (development/Problems.md #77): the
@@ -2114,7 +2207,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     symbol_key,
                     min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier,
                 )
-            elif self.portfolio_book_enabled and is_currently_invested:
+            elif should_exit_non_selected_book_symbol(
+                bool(book_allocations), self.portfolio_book_enabled, is_currently_invested
+            ):
                 # Rotation exit (development/Problems.md): the book is
                 # active and picked a fresh top/bottom-N this bar, but this
                 # symbol - previously book-selected - didn't make the cut.
@@ -2125,6 +2220,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # top-N every bar. Forced "sell" here always executes - see
                 # analyzer/market_analyzer.py's Priority 0 (is_currently_invested
                 # bypass) below.
+                #
+                # V5.2.4 (development/Problems.md #91) - should_exit_non_selected_book_symbol()
+                # additionally requires book_allocations itself to be non-
+                # empty (a REAL, active book that genuinely didn't select
+                # this symbol) - the old bare `self.portfolio_book_enabled
+                # and is_currently_invested` condition force-sold EVERY
+                # book-managed position whenever book_allocations came back
+                # {} for ANY reason (a genuine min_rank_confidence_spread
+                # gate failure, or - pre-V5.2.4 - a thin/off-session-tick
+                # artifact), directly contradicting build_rank_based_book()'s
+                # own documented "disengaged book is byte-identical to this
+                # module not existing at all" contract.
                 signal_name = "sell"
                 confidence = 1.0
                 base_target_weight = 0.0
@@ -5860,13 +5967,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # very first bar (no previous value yet) - degrades that ONE input,
         # never crashes (see evaluate_kill_switch()'s own None-skip
         # contract).
-        if self._previous_portfolio_value is not None and self._previous_portfolio_value > 0:
-            self._kill_switch_return_history.append(portfolio_value / self._previous_portfolio_value - 1.0)
-        drawdown_velocity_pct_per_bar = (
-            abs(self.current_total_drawdown) - abs(self._previous_total_drawdown)
-            if self._previous_total_drawdown is not None
-            else None
-        )
+        #
+        # V5.2.4 (development/Problems.md #91) - both inputs gated to
+        # self.is_equity_session_bar, using the dedicated
+        # _kill_switch_previous_* trackers (NOT _previous_portfolio_value/
+        # _previous_total_drawdown above, which stay real-time/every-tick
+        # for assess_drawdown_lock below) - so _kill_switch_return_history's
+        # 252-entry window represents ~252 real trading days again, and
+        # every entry is a genuine close-to-close return, not diluted by an
+        # off-session tick's snapshot.
+        if self.is_equity_session_bar:
+            if self._kill_switch_previous_portfolio_value is not None and self._kill_switch_previous_portfolio_value > 0:
+                self._kill_switch_return_history.append(
+                    portfolio_value / self._kill_switch_previous_portfolio_value - 1.0
+                )
+            drawdown_velocity_pct_per_bar = (
+                abs(self.current_total_drawdown) - abs(self._kill_switch_previous_total_drawdown)
+                if self._kill_switch_previous_total_drawdown is not None
+                else None
+            )
+            self._kill_switch_previous_portfolio_value = portfolio_value
+            self._kill_switch_previous_total_drawdown = self.current_total_drawdown
+        else:
+            drawdown_velocity_pct_per_bar = None
         self._previous_portfolio_value = portfolio_value
         self._previous_total_drawdown = self.current_total_drawdown
 

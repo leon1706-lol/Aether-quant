@@ -409,6 +409,7 @@ def should_rebalance_this_bar(
     bar_index: int,
     rebalance_every_bars: int,
     has_previous_allocation: bool,
+    is_trading_day_bar: bool = True,
 ) -> bool:
     """Stage 2 of the rank-pivot roadmap (development/Problems.md#43): the
     book previously re-ranked and re-formed on EVERY bar, churning positions
@@ -426,12 +427,55 @@ def should_rebalance_this_bar(
     False only on a genuinely fresh run (no cached book yet) - it forces a
     rebalance regardless of the modulo so the book is never left empty.
 
+    `is_trading_day_bar` (V5.2.4, development/Problems.md #91) - default
+    True, fully backward-compatible with every existing caller. False on a
+    tick main.py has determined isn't the equity-session tick (e.g. an
+    off-session crypto/forex-only Lean Slice, see main.py's own
+    `is_equity_session_bar`) - never rebalances on such a tick, full stop,
+    regardless of `bar_index`'s modulo or `has_previous_allocation`. This
+    exists because `main.py`'s `bar_index` only advances on equity-session
+    ticks post-V5.2.4 - without this explicit gate, several consecutive
+    off-session ticks following a real rebalance-eligible bar would keep
+    re-evaluating the SAME already-satisfied modulo condition and could
+    re-trigger a rebalance that already happened.
+
     Returns True on bar_index 1, 1+N, 1+2N, ... (i.e. 0, N, 2N, ... in
     0-indexed bar terms) - False on every bar in between, where the caller
     should reuse its previously cached allocation and simply hold."""
+    if not is_trading_day_bar:
+        return False
     if not has_previous_allocation:
         return True
     return (bar_index - 1) % max(1, rebalance_every_bars) == 0
+
+
+def should_exit_non_selected_book_symbol(
+    book_is_active: bool,
+    portfolio_book_enabled: bool,
+    is_currently_invested: bool,
+) -> bool:
+    """V5.2.4 (development/Problems.md #91) - whether main.py's Pass 2
+    should force-close a currently-invested, book-managed position because
+    the book engaged this bar and didn't select it (the "rotation exit").
+
+    Returns False whenever `book_is_active` is False (this bar's
+    `book_allocations` came back empty) - matching `build_rank_based_book()`'s
+    own documented contract just above: a disengaged book
+    (`min_rank_confidence_spread` gate failure, or - pre-V5.2.4 - a thin/
+    off-session-tick artifact) is "byte-identical to this module not
+    existing at all", never a liquidation trigger. Before this function
+    existed, main.py's own Pass 2 violated that documented contract -
+    force-selling EVERY currently-invested book symbol whenever
+    `book_allocations` didn't contain it, without distinguishing "the whole
+    book disengaged today" from "this specific symbol got rotated out of a
+    REAL, active book" (the only case that should ever force an exit).
+
+    Callers pass `book_is_active=bool(book_allocations)` - `symbol_key not
+    in book_allocations` (i.e. "this symbol specifically wasn't selected")
+    is the caller's own responsibility to check separately, same as before;
+    this function only answers "is a force-exit ever appropriate given the
+    book's overall state this bar", not "for this particular symbol"."""
+    return portfolio_book_enabled and book_is_active and is_currently_invested
 
 
 def build_book_history_record(
