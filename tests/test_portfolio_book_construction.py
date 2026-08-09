@@ -868,3 +868,43 @@ def test_build_book_history_record_full_universe_signals_missing_keys_degrade_to
         "raw_rank_score": None, "feature_ready": None, "reason": None,
         "trading_eligible": None, "security_type": None,
     }
+
+
+def test_build_book_history_record_omits_decisions_key_when_none():
+    # V5.2.6 - book_member_decisions=None (the default) must reproduce
+    # the exact pre-V5.2.6 record shape: no "book_member_decisions" key.
+    record = build_book_history_record(
+        "2019-01-02", _sample_allocations(),
+        raw_scores_by_symbol={"A": 0.61, "B": 0.02},
+        target_weights_by_symbol={"A": 0.12, "B": -0.08},
+        sector_by_symbol={"A": "Technology", "B": "Fixed Income"},
+        rank_signal_policy=_SAMPLE_POLICY,
+    )
+    assert "book_member_decisions" not in record
+
+
+def test_build_book_history_record_includes_decisions_when_provided():
+    book_member_decisions = {
+        "A": {"action": "trade", "reasons": ["trading_eligible_book_selected_directional_signal_above_confidence_threshold"]},
+        "B": {"action": "simulate", "reasons": ["liquidity_blocked_insufficient_volume_simulate_instead"]},
+    }
+    record = build_book_history_record(
+        "2019-01-02", _sample_allocations(),
+        raw_scores_by_symbol={"A": 0.61, "B": 0.02},
+        target_weights_by_symbol={"A": 0.12, "B": -0.08},
+        sector_by_symbol={"A": "Technology", "B": "Fixed Income"},
+        rank_signal_policy=_SAMPLE_POLICY,
+        book_member_decisions=book_member_decisions,
+    )
+    assert record["book_member_decisions"]["A"]["action"] == "trade"
+    assert record["book_member_decisions"]["B"]["action"] == "simulate"
+    assert record["book_member_decisions"]["B"]["reasons"] == ["liquidity_blocked_insufficient_volume_simulate_instead"]
+
+
+def test_build_book_history_record_decisions_missing_keys_degrade_to_none_and_empty_list():
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+        book_member_decisions={"A": {}},
+    )
+    assert record["book_member_decisions"]["A"] == {"action": None, "reasons": []}

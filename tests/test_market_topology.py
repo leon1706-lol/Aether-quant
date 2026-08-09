@@ -53,6 +53,55 @@ def test_correlated_assets_get_stronger_links_and_cluster_together():
     assert all(ab_link.correlation > link.correlation for link in other_links)
 
 
+# ---------------------------------------------------------------------------
+# V5.2.6 - elevated_volatility_threshold
+# ---------------------------------------------------------------------------
+
+
+def _volatile_pair(swing: float, length: int = 10) -> dict:
+    # Two identical, highly-correlated series so both symbols cluster
+    # together (member_count > 1, avoiding the separate "isolated" branch)
+    # while still producing a real, computable annualized volatility.
+    series = _series([swing, -swing], length=length)
+    return {"AAA": list(series), "BBB": list(series)}
+
+
+def test_elevated_volatility_threshold_default_matches_module_constant():
+    # No override given - must reproduce ELEVATED_VOLATILITY_THRESHOLD's
+    # own module default (0.45) exactly. swing=0.1 -> annualized volatility
+    # ~1.59, comfortably above 0.45.
+    returns = _volatile_pair(swing=0.1)
+    topology = build_market_topology(returns, min_observations=5)
+    nodes_by_symbol = {node.symbol: node for node in topology.nodes}
+    assert nodes_by_symbol["AAA"].topology_risk == "elevated"
+    assert nodes_by_symbol["BBB"].topology_risk == "elevated"
+
+
+def test_elevated_volatility_threshold_configurable_narrows_elevated_classification():
+    # The SAME volatility (~1.59 annualized) that classifies "elevated"
+    # against the default 0.45 threshold no longer does once the
+    # threshold is configured above it.
+    returns = _volatile_pair(swing=0.1)
+    topology = build_market_topology(returns, min_observations=5, elevated_volatility_threshold=2.0)
+    nodes_by_symbol = {node.symbol: node for node in topology.nodes}
+    assert nodes_by_symbol["AAA"].topology_risk == "normal"
+    assert nodes_by_symbol["BBB"].topology_risk == "normal"
+
+
+def test_elevated_volatility_threshold_configurable_can_also_widen_classification():
+    # A MILD volatility that would normally classify "normal" against the
+    # default 0.45 threshold becomes "elevated" once the threshold is
+    # configured below it - proves this is a genuine two-way knob, not a
+    # one-directional cap.
+    returns = _volatile_pair(swing=0.005)
+    default_topology = build_market_topology(returns, min_observations=5)
+    narrowed_topology = build_market_topology(returns, min_observations=5, elevated_volatility_threshold=0.01)
+    default_nodes = {node.symbol: node for node in default_topology.nodes}
+    narrowed_nodes = {node.symbol: node for node in narrowed_topology.nodes}
+    assert default_nodes["AAA"].topology_risk == "normal"
+    assert narrowed_nodes["AAA"].topology_risk == "elevated"
+
+
 def test_missing_or_limited_data_does_not_crash():
     returns = {
         "THIN": [0.01, -0.02],

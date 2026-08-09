@@ -486,6 +486,7 @@ def build_book_history_record(
     sector_by_symbol: dict[str, str],
     rank_signal_policy: dict,
     full_universe_signals: dict[str, dict] | None = None,
+    book_member_decisions: dict[str, dict] | None = None,
 ) -> dict:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
@@ -527,7 +528,22 @@ def build_book_history_record(
     way to see what score/readiness a NON-selected symbol had that day.
     Each per-symbol sub-dict degrades the same `.get(..., None)` way as
     every other field here - a caller-supplied dict missing a key never
-    raises."""
+    raises.
+
+    `book_member_decisions` (V5.2.6, opt-in via
+    `phase_v2.diagnostics.book_history.include_decisions`): `None`
+    (default) reproduces this function's exact pre-V5.2.6 return shape -
+    no `"book_member_decisions"` key at all, same convention as
+    `full_universe_signals`. When given
+    `{symbol: MarketAnalysisDecision.to_dict()}` (main.py's own Pass 2,
+    collected per book member as each symbol's decision is computed),
+    adds a `"book_member_decisions"` key recording each book member's
+    final `action`/`reasons` - closes the gap where a symbol could be
+    logged here as "selected" via `book_allocations` even though it was
+    later diverted to `simulate`/`reduce_risk`/`retrain_candidate` by a
+    risk/execution gate `book_allocations` alone can never reveal (see
+    development/Problems.md - the crypto/FX zero-order-execution
+    finding)."""
     record = {
         "date": date_str,
         "rank_signal_policy": {
@@ -559,5 +575,13 @@ def build_book_history_record(
                 "security_type": signal.get("security_type"),
             }
             for symbol_key, signal in full_universe_signals.items()
+        }
+    if book_member_decisions is not None:
+        record["book_member_decisions"] = {
+            symbol_key: {
+                "action": decision.get("action"),
+                "reasons": list(decision.get("reasons", [])),
+            }
+            for symbol_key, decision in book_member_decisions.items()
         }
     return record

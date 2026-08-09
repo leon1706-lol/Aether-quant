@@ -13,6 +13,7 @@ from evaluation.rank_signal_calibration import (
     reconcile_book_history_date,
     replay_book_history_reconciliation,
     summarize_book_history_reconciliation,
+    summarize_book_member_diversion,
     summarize_universe_snapshot_by_security_type,
 )
 from portfolio.book_construction import compute_confidence_spread
@@ -398,3 +399,76 @@ def test_summarize_universe_snapshot_dates_without_universe_key_are_not_counted(
     ]
     summary = summarize_universe_snapshot_by_security_type(logged_records)
     assert summary["num_dates_with_universe_data"] == 1
+
+
+# ---------------------------------------------------------------------------
+# summarize_book_member_diversion() (V5.2.6)
+# ---------------------------------------------------------------------------
+
+
+def _decisions_record(date, decisions):
+    return {"date": date, "allocations": {}, "book_member_decisions": decisions}
+
+
+def test_summarize_book_member_diversion_no_decision_data_never_raises():
+    logged_records = [_logged_record("2020-01-01", {})]  # no "book_member_decisions" key at all
+    summary = summarize_book_member_diversion(logged_records)
+    assert summary == {
+        "num_records_with_decisions": 0,
+        "total_book_member_dates": 0,
+        "action_counts": {},
+        "reason_counts": {},
+    }
+
+
+def test_summarize_book_member_diversion_empty_list_never_raises():
+    assert summarize_book_member_diversion([]) == {
+        "num_records_with_decisions": 0,
+        "total_book_member_dates": 0,
+        "action_counts": {},
+        "reason_counts": {},
+    }
+
+
+def test_summarize_book_member_diversion_counts_actions_and_reasons():
+    logged_records = [
+        _decisions_record(
+            "2020-01-01",
+            {
+                "A": {"action": "trade", "reasons": ["trading_eligible_directional_signal_above_confidence_threshold"]},
+                "B": {"action": "simulate", "reasons": ["liquidity_blocked_insufficient_volume_simulate_instead"]},
+            },
+        ),
+        _decisions_record(
+            "2020-01-02",
+            {
+                "A": {"action": "trade", "reasons": ["trading_eligible_directional_signal_above_confidence_threshold"]},
+                "C": {"action": "reduce_risk", "reasons": ["risk_off_regime_overrides_directional_signal"]},
+            },
+        ),
+    ]
+
+    summary = summarize_book_member_diversion(logged_records)
+
+    assert summary["num_records_with_decisions"] == 2
+    assert summary["total_book_member_dates"] == 4
+    assert summary["action_counts"] == {"trade": 2, "simulate": 1, "reduce_risk": 1}
+    assert summary["reason_counts"]["trading_eligible_directional_signal_above_confidence_threshold"] == 2
+    assert summary["reason_counts"]["liquidity_blocked_insufficient_volume_simulate_instead"] == 1
+    assert summary["reason_counts"]["risk_off_regime_overrides_directional_signal"] == 1
+
+
+def test_summarize_book_member_diversion_dates_without_decisions_key_are_not_counted():
+    logged_records = [
+        _decisions_record("2020-01-01", {"A": {"action": "trade", "reasons": []}}),
+        _logged_record("2020-01-02", {}),  # no "book_member_decisions" key - toggle was presumably off
+    ]
+    summary = summarize_book_member_diversion(logged_records)
+    assert summary["num_records_with_decisions"] == 1
+    assert summary["total_book_member_dates"] == 1
+
+
+def test_summarize_book_member_diversion_missing_action_degrades_to_unknown():
+    logged_records = [_decisions_record("2020-01-01", {"A": {"reasons": []}})]
+    summary = summarize_book_member_diversion(logged_records)
+    assert summary["action_counts"] == {"unknown": 1}

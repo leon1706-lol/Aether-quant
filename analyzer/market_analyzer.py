@@ -80,6 +80,25 @@ def compute_signal_quality_score(
     return _clamp01(score), breakdown
 
 
+def compute_trade_metric(
+    confidence: float,
+    regime_confidence: float,
+    topology: dict,
+    liquidity: dict,
+    use_composite_signal_score: bool,
+) -> float:
+    """V5.2.6 (development/Problems.md) - extracted verbatim from
+    build_market_analysis_decision()'s own inline trade_metric computation
+    so a calibration tool (evaluation/confidence_threshold_calibration.py)
+    can compute the IDENTICAL statistic against historical data without
+    re-deriving the formula and risking it silently drifting apart from
+    what the live gate actually checks. Pure extraction - zero behavior
+    change, build_market_analysis_decision() now calls this instead of
+    repeating the expression inline."""
+    signal_quality_score, _ = compute_signal_quality_score(confidence, regime_confidence, topology, liquidity)
+    return signal_quality_score if use_composite_signal_score else float(confidence)
+
+
 def build_market_analysis_decision(
     signal_name: str,
     confidence: float,
@@ -100,6 +119,22 @@ def build_market_analysis_decision(
     predicted_volatility: float | None = None,
     is_currently_invested: bool = False,
     net_edge: dict | None = None,
+    # V5.2.6 (development/Problems.md) - is_book_selected/
+    # min_confidence_to_trade_book_selected let a book-selected symbol
+    # (already ranked into the top/bottom-N by a DIFFERENT metric,
+    # predicted_rank_20d, before this function ever runs) clear Priority
+    # 7 via its own, separately-calibrated confidence floor instead of
+    # being vetoed by a threshold measuring the same rank-derived
+    # confidence value against itself. min_confidence_to_trade_book_selected=None
+    # (the default) is a strict no-op - every symbol, book-selected or
+    # not, uses min_confidence_to_trade exactly as before this existed.
+    # risk_off_override_min_severity narrows Priority 2 the same way -
+    # None (the default) reproduces today's unconditional override
+    # exactly; see that priority's own comment for why a bare 0.0 default
+    # would NOT be a safe no-op.
+    is_book_selected: bool = False,
+    min_confidence_to_trade_book_selected: float | None = None,
+    risk_off_override_min_severity: float | None = None,
 ) -> MarketAnalysisDecision:
     # signal_name == "short" (Phase 3 of the 5/10 -> 9/10 roadmap,
     # portfolio/book_construction.py) is treated identically to "buy"/"sell"
@@ -147,6 +182,12 @@ def build_market_analysis_decision(
     decision_source = str(gating.get("decision_source", "unknown"))
     regime_confidence = float(regime.get("confidence", 0.0) or 0.0)
     risk_regime = str(regime.get("risk_regime", "risk_neutral"))
+    # V5.2.6 (development/Problems.md) - the continuous severity score
+    # behind risk_regime's own categorical classification (regime/
+    # market_regime.py::classify_risk_regime()) - Priority 2 below uses
+    # this to narrow its override to genuinely severe risk_off readings
+    # only, when configured to do so.
+    risk_score = float(regime.get("risk_score", 0.0) or 0.0)
     topology = topology or {}
     topology_considered = bool(topology)
     topology_risk = str(topology.get("topology_risk", "unknown")) if topology_considered else "unknown"
@@ -167,7 +208,15 @@ def build_market_analysis_decision(
     signal_quality_score, signal_quality_breakdown = compute_signal_quality_score(
         confidence, regime_confidence, topology, liquidity
     )
-    trade_metric = signal_quality_score if use_composite_signal_score else confidence
+    # Deliberately NOT calling compute_trade_metric() here even though it
+    # computes the identical value - that would recompute
+    # compute_signal_quality_score() a second time per symbol per bar in
+    # this hot loop. compute_trade_metric() exists for callers (the
+    # calibration tool) that don't already have signal_quality_score in
+    # hand; this call site does, so it reuses it directly. Both paths are
+    # provably the same formula - see compute_trade_metric()'s own
+    # docstring.
+    trade_metric = signal_quality_score if use_composite_signal_score else float(confidence)
 
     # Priority 1: reduce_risk - portfolio-level risk lock always wins.
     if trade_lock_active:
@@ -190,7 +239,30 @@ def build_market_analysis_decision(
 
     # Priority 2: reduce_risk - asset-level risk regime override even
     # without a portfolio-wide lock (e.g. risk_off + would-be trade).
-    if risk_regime == "risk_off" and signal_name in {"buy", "sell", "short"}:
+    #
+    # V5.2.6 (development/Problems.md) - narrowed to fire only when
+    # risk_score is at least risk_off_override_min_severity severe, when
+    # configured. Why a None-sentinel and not a plain 0.0 default: traced
+    # classify_risk_regime()'s three independent risk_off paths and found
+    # the drawdown-triggered path (normalized_drawdown >= threshold and
+    # volatility_regime != "low_volatility") can coincide with a
+    # risk_score as high as +0.10 (bullish trend + normal volatility +
+    # drawdown breach) - i.e. risk_off can be true even when the
+    # continuous severity score is mildly POSITIVE. A bare
+    # "risk_score <= 0.0" default would therefore NOT reproduce today's
+    # unconditional-override behavior for that case; only a None-sentinel
+    # (bypassing the severity check entirely when unconfigured) is a
+    # provably safe no-op. The model's own regime_risk_on/off/neutral and
+    # regime_signal_risk_score_scaled are active training features, so a
+    # milder risk_off reading falling through here lets the model's own
+    # already-learned regime sizing stand instead of being additionally,
+    # externally overridden by a rule the offline Sharpe number being
+    # chased was never subject to.
+    if (
+        risk_regime == "risk_off"
+        and (risk_off_override_min_severity is None or risk_score <= -risk_off_override_min_severity)
+        and signal_name in {"buy", "sell", "short"}
+    ):
         reasons.append("risk_off_regime_overrides_directional_signal")
         return MarketAnalysisDecision(
             action="reduce_risk",
@@ -350,14 +422,33 @@ def build_market_analysis_decision(
     # Gates on trade_metric, not raw confidence directly - see trade_metric's
     # definition above (identical to confidence unless
     # use_composite_signal_score=True).
+    #
+    # V5.2.6 (development/Problems.md) - a book-selected symbol's
+    # `confidence` (main.py) is DERIVED from predicted_rank_20d, the same
+    # score that already selected it into the book's top/bottom-N before
+    # this function ever runs - reusing min_confidence_to_trade verbatim
+    # compares that symbol against itself via two different names for the
+    # same information. min_confidence_to_trade_book_selected lets book
+    # members clear a separately-calibrated floor instead; None (the
+    # default) reproduces today's single-threshold behavior exactly for
+    # every symbol, book-selected or not.
+    effective_min_confidence_to_trade = (
+        min_confidence_to_trade_book_selected
+        if is_book_selected and min_confidence_to_trade_book_selected is not None
+        else min_confidence_to_trade
+    )
     if (
         trading_eligible
         and signal_name in {"buy", "sell", "short"}
-        and trade_metric >= min_confidence_to_trade
+        and trade_metric >= effective_min_confidence_to_trade
         and topology_risk != "isolated"
         and liquidity_action not in {"block", "simulate_instead"}
     ):
-        reasons.append("trading_eligible_directional_signal_above_confidence_threshold")
+        reasons.append(
+            "trading_eligible_book_selected_directional_signal_above_confidence_threshold"
+            if is_book_selected else
+            "trading_eligible_directional_signal_above_confidence_threshold"
+        )
         return MarketAnalysisDecision(
             action="trade",
             signal=signal_name,
@@ -384,7 +475,11 @@ def build_market_analysis_decision(
         if topology_risk == "isolated":
             reasons.append("topology_isolated_asset_lacks_peer_confirmation_simulate_instead")
         elif trading_eligible:
-            reasons.append("confidence_below_trade_threshold_simulate_instead")
+            reasons.append(
+                "book_selected_confidence_below_book_trade_threshold_simulate_instead"
+                if is_book_selected else
+                "confidence_below_trade_threshold_simulate_instead"
+            )
         else:
             reasons.append("observation_only_asset_directional_signal_simulate_instead")
         return MarketAnalysisDecision(

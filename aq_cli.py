@@ -747,6 +747,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_ablation.py",
         # V5.1 (Problems.md) - evaluation/rank_signal_calibration.py.
         "test_rank_signal_calibration.py",
+        # V5.2.6 (Problems.md) - evaluation/confidence_threshold_calibration.py.
+        "test_confidence_threshold_calibration.py",
     ],
 }
 
@@ -1679,6 +1681,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             replay_book_history_reconciliation,
             select_context_date_range,
             summarize_book_history_reconciliation,
+            summarize_book_member_diversion,
             summarize_universe_snapshot_by_security_type,
         )
         from portfolio.rank_signal import resolve_rank_signal_policy
@@ -1816,11 +1819,16 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         # num_dates_with_universe_data=0 for a log written without
         # include_full_universe, never raises.
         universe_summary = summarize_universe_snapshot_by_security_type(logged_records)
+        # V5.2.6 (development/Problems.md) - same "cheap, always attempted,
+        # degrades to zeros" contract as universe_summary above - reads
+        # straight off the log's own optional "book_member_decisions" key.
+        diversion_summary = summarize_book_member_diversion(logged_records)
         payload = {
             "mode": "replay_hysteresis" if replay_hysteresis else "independent",
             "per_date": per_date_results,
             "summary": summary,
             "universe_summary": universe_summary,
+            "diversion_summary": diversion_summary,
         }
         _write_evaluation_json(ML_DIR / "evaluation" / "book_history_reconciliation.json", payload)
 
@@ -1874,6 +1882,22 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     "  Universe snapshot: not available for this log - re-run the backtest with "
                     "phase_v2.diagnostics.book_history.include_full_universe=true to see per-security-type "
                     "score/readiness breakdowns for symbols that were never selected."
+                )
+            if diversion_summary["num_records_with_decisions"] > 0:
+                print(
+                    f"  Book-member diversion ({diversion_summary['num_records_with_decisions']}/"
+                    f"{summary['num_dates']} dates carry decision data, "
+                    f"{diversion_summary['total_book_member_dates']} book-member-dates total):"
+                )
+                for action, count in sorted(diversion_summary["action_counts"].items(), key=lambda item: -item[1]):
+                    print(f"    action={action}: {count}")
+                for reason, count in sorted(diversion_summary["reason_counts"].items(), key=lambda item: -item[1]):
+                    print(f"    reason={reason}: {count}")
+            else:
+                print(
+                    "  Book-member diversion: not available for this log - re-run the backtest with "
+                    "phase_v2.diagnostics.book_history.include_decisions=true to see how many book-selected "
+                    "trades were diverted to simulate/reduce_risk/retrain_candidate, and by which gate."
                 )
 
         return 0
@@ -1959,6 +1983,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # V5.1 (Problems.md) - also deliberately NOT bundled into --all, same
     # reasoning as --ablation: a heavier, two-model, opt-in-only report.
     run_calibrate_book_spread = bool(getattr(args, "calibrate_book_spread", False))
+    # V5.2.6 (development/Problems.md) - same reasoning as
+    # run_calibrate_book_spread immediately above: a heavier, opt-in-only
+    # report, not bundled into --all.
+    run_calibrate_confidence_threshold = bool(getattr(args, "calibrate_confidence_threshold", False))
     # Bare `aq evaluate` with no flags at all defaults to --rank-book - the
     # single most useful number ("is the fee drag fixed"), matching every
     # other `aq` command's "sane default when no scope flag is given"
@@ -1967,7 +1995,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # included here - Problems.md bug: --calibrate-book-spread alone used
     # to also silently run a whole extra --rank-book simulation because it
     # wasn't counted as "a flag was given".
-    if not (run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag or run_calibrate_book_spread):
+    if not (
+        run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag
+        or run_calibrate_book_spread or run_calibrate_confidence_threshold
+    ):
         run_rank_book = True
 
     report: dict = {}
@@ -2147,6 +2178,104 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 "  NOTE: this recalibrates the gate's threshold to this model's real achievable dispersion - "
                 "it does not certify the underlying rank heads are skillful. Check ml/*_training_metrics.json's "
                 "quality_status before trusting the resulting book."
+            )
+
+    if run_calibrate_confidence_threshold:
+        # V5.2.6 (development/Problems.md) - min_confidence_to_trade was a
+        # guessed constant (0.12), never checked against this codebase's
+        # actual confidence-vs-forward-return relationship - the same
+        # "guessed constant, never calibrated" problem
+        # min_rank_confidence_spread had (Problems.md #89) before
+        # --calibrate-book-spread fixed it. Mirrors that tool's exact
+        # structure.
+        from evaluation import calibrate_confidence_threshold, compute_blended_raw_scores
+        from portfolio.rank_signal import resolve_rank_signal_policy
+
+        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
+        training_metrics_by_model: dict[str, dict | None] = {}
+        for model_name, metrics_filename in (
+            ("sequence", "sequence_training_metrics.json"),
+            ("multitask", "multitask_training_metrics.json"),
+        ):
+            metrics_path = ML_DIR / metrics_filename
+            training_metrics_by_model[model_name] = (
+                json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
+            )
+        policy = resolve_rank_signal_policy(training_metrics_by_model, config)
+        active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
+
+        predictions_by_model_head: dict[str, dict[str, object]] = {}
+        for model_kind_for_head in policy["model_priority"]:
+            calib_model_filename, calib_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
+            calib_model_path = ML_DIR / calib_model_filename
+            calib_schema_path = ML_DIR / calib_schema_filename
+            if not calib_model_path.exists() or not calib_schema_path.exists():
+                continue  # best-effort - a missing model just means its heads fall through to the next model_priority entry
+            calib_model_export = json.loads(calib_model_path.read_text(encoding="utf-8"))
+            calib_feature_schema = json.loads(calib_schema_path.read_text(encoding="utf-8"))
+            calib_feature_names = calib_feature_schema["model_input_names"]
+            head_predictions: dict[str, object] = {}
+            for head_name in active_heads:
+                head_predictions[head_name] = predict_head(
+                    dataset, calib_model_export, calib_feature_names, head_name,
+                    model_kind=model_kind_for_head,
+                    sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
+                    configured_window_size=int(sequence_window_default),
+                )
+            predictions_by_model_head[model_kind_for_head] = head_predictions
+
+        dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
+
+        book_config = config.get("phase_v2", {}).get("portfolio_book", {})
+        strategy_mode = config.get("phase5", {}).get("backtest", {}).get("strategy_mode", "long_flat")
+        book_top_n = int(book_config.get("top_n", 6))
+        book_bottom_n = int(book_config.get("bottom_n", 6)) if strategy_mode == "long_short" else 0
+
+        confidence_forward_return_column = "target_return_20d"
+        if confidence_forward_return_column not in dataset.columns:
+            print(
+                f"warning: {confidence_forward_return_column!r} not in dataset; falling back to "
+                "target_return_1d - the calibrated value will then represent a 1-day move, not the "
+                "20-day move predicted_rank_20d assumes.",
+                file=sys.stderr,
+            )
+            confidence_forward_return_column = "target_return_1d"
+
+        confidence_result = calibrate_confidence_threshold(
+            dataset,
+            raw_score_column="raw_blended_score",
+            forward_return_column=confidence_forward_return_column,
+            top_n=book_top_n,
+            bottom_n=book_bottom_n,
+            round_trip_cost_fraction=float(
+                config.get("phase_v2", {}).get("liquidity", {}).get("max_round_trip_cost_fraction") or 0.001
+            ),
+            percentile=float(getattr(args, "confidence_threshold_percentile", 0.10)),
+        )
+        report["confidence_threshold_calibration"] = confidence_result
+        _write_evaluation_json(evaluation_dir / "confidence_threshold_calibration.json", confidence_result)
+        if not args.json:
+            calibrated_general = confidence_result["calibrated_min_confidence_to_trade"]
+            calibrated_book_selected = confidence_result["calibrated_min_confidence_to_trade_book_selected"]
+            print(
+                f"Calibrated min_confidence_to_trade (p{confidence_result['percentile']*100:.0f}, "
+                f"{confidence_result['num_rows_used']} paying rows used, "
+                f"{confidence_result['num_dates_skipped_thin_universe']} dates skipped thin-universe): "
+                f"{calibrated_general:.4f}"
+            )
+            print(
+                f"Calibrated min_confidence_to_trade_book_selected ({confidence_result['num_rows_used_book_selected']} "
+                f"paying book-selected rows used): {calibrated_book_selected:.4f}"
+            )
+            print(f"  Apply with: aq config set phase6.risk.min_confidence_to_trade {calibrated_general:.4f}")
+            print(
+                "  Apply with: aq config set phase6.risk.min_confidence_to_trade_book_selected "
+                f"{calibrated_book_selected:.4f}"
+            )
+            print(
+                "  NOTE: this recalibrates the gate's threshold to this model's real achievable confidence "
+                "among historically-paying trades - it does not certify the underlying rank heads are "
+                "skillful. Check ml/*_training_metrics.json's quality_status before trusting the result."
             )
 
     if run_ablation_flag:
@@ -2599,6 +2728,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--book-spread-percentile", type=float, default=0.10,
         help="Percentile (0-1) of the per-date confidence-spread distribution to use as the calibrated "
         "floor with --calibrate-book-spread (default: 0.10).",
+    )
+    evaluate_parser.add_argument(
+        "--calibrate-confidence-threshold", action="store_true",
+        help="Print a min_confidence_to_trade (and, when book-selection data is available, a separate "
+        "min_confidence_to_trade_book_selected) calibrated from this split's real confidence-vs-forward-"
+        "return relationship, mirroring --calibrate-book-spread's discipline. Not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--confidence-threshold-percentile", type=float, default=0.10,
+        help="Percentile (0-1) of the paying-trade confidence distribution to use as the calibrated floor "
+        "with --calibrate-confidence-threshold (default: 0.10).",
     )
     evaluate_parser.add_argument(
         "--reconcile-book-history", action="store_true",

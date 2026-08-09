@@ -2825,6 +2825,57 @@ def test_evaluate_calibrate_book_spread_end_to_end(tmp_path, capsys, monkeypatch
     assert written == result
 
 
+def test_evaluate_calibrate_confidence_threshold_end_to_end(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 1})
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--calibrate-confidence-threshold", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    result = payload["confidence_threshold_calibration"]
+    assert "calibrated_min_confidence_to_trade" in result
+    assert "calibrated_min_confidence_to_trade_book_selected" in result
+
+    written = json.loads((ml_dir / "evaluation" / "confidence_threshold_calibration.json").read_text(encoding="utf-8"))
+    assert written == result
+
+
+def test_evaluate_calibrate_confidence_threshold_alone_does_not_also_run_rank_book(tmp_path, capsys, monkeypatch):
+    # Same class of bug --calibrate-book-spread had (development/Problems.md):
+    # an opt-in-only flag must be counted in the "was any scope flag
+    # given" check, or it silently falls through to also running a full
+    # --rank-book simulation.
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 1})
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--calibrate-confidence-threshold", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert "rank_book" not in payload
+
+
 def test_evaluate_reconcile_book_history_end_to_end(tmp_path, capsys, monkeypatch):
     import pandas as pd
 
@@ -2872,16 +2923,79 @@ def test_evaluate_reconcile_book_history_end_to_end(tmp_path, capsys, monkeypatc
     captured = capsys.readouterr()
     assert exit_code == 0
     payload = json.loads(captured.out)
-    assert set(payload) == {"mode", "per_date", "summary", "universe_summary"}
+    assert set(payload) == {"mode", "per_date", "summary", "universe_summary", "diversion_summary"}
     assert payload["mode"] == "independent"
     assert payload["summary"]["num_dates"] == 2
     assert len(payload["per_date"]) == 2
     assert {result["date"] for result in payload["per_date"]} == set(logged_dates)
     # This fixture's records carry no "universe" key - the toggle was off.
     assert payload["universe_summary"] == {"num_dates_with_universe_data": 0, "by_security_type": {}}
+    # Nor a "book_member_decisions" key - same convention.
+    assert payload["diversion_summary"] == {
+        "num_records_with_decisions": 0, "total_book_member_dates": 0,
+        "action_counts": {}, "reason_counts": {},
+    }
 
     written = json.loads((ml_dir / "evaluation" / "book_history_reconciliation.json").read_text(encoding="utf-8"))
     assert written == payload
+
+
+def test_evaluate_reconcile_book_history_diversion_summary_end_to_end(tmp_path, capsys, monkeypatch):
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    dataset = pd.read_csv(ml_dir / "datasets" / "full_dataset.csv")
+    all_dates = sorted(dataset["date"].unique().tolist())
+    logged_dates = [all_dates[4], all_dates[7]]
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 1})
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    def _allocation_entry(role, raw_rank_score):
+        return {
+            "role": role,
+            "book_role_multiplier": 1.0 if role == "long" else -1.0,
+            "predicted_rank_20d": raw_rank_score,
+            "rank_head": "blend",
+            "raw_rank_score": raw_rank_score,
+            "target_weight": 0.5 if role == "long" else -0.5,
+            "sector": "Unknown",
+        }
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    with open(book_history_path, "w", encoding="utf-8") as book_history_file:
+        for date in logged_dates:
+            record = {
+                "date": date,
+                "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+                "allocations": {"T0": _allocation_entry("long", 0.9), "T5": _allocation_entry("short", 0.1)},
+                "book_member_decisions": {
+                    "T0": {"action": "trade", "reasons": ["trading_eligible_book_selected_directional_signal_above_confidence_threshold"]},
+                    "T5": {"action": "simulate", "reasons": ["liquidity_blocked_insufficient_volume_simulate_instead"]},
+                },
+            }
+            book_history_file.write(json.dumps(record) + "\n")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--reconcile-book-history", "--book-history-path", str(book_history_path), "--json"]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    diversion = payload["diversion_summary"]
+    assert diversion["num_records_with_decisions"] == 2
+    assert diversion["total_book_member_dates"] == 4
+    assert diversion["action_counts"] == {"trade": 2, "simulate": 2}
+    assert diversion["reason_counts"]["liquidity_blocked_insufficient_volume_simulate_instead"] == 2
 
 
 def test_evaluate_reconcile_book_history_replay_hysteresis_end_to_end(tmp_path, capsys, monkeypatch):

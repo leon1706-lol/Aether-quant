@@ -5309,3 +5309,114 @@ V5.2.5 update for the full breakdown.
 Bond ETFs are only a subset of the mismatched symbols — NVDA, GE, WFC, XOM,
 BA, and every forex/crypto pair mismatch are not bond-related and remain a
 genuinely open thread for a future round.
+
+## V5.2.6 — Fixing the crypto/FX execution-path bug and closing the live-vs-offline risk-gate gap
+
+A requested deep-dive (no code, investigation only) into the remaining
+NVDA/GE/WFC/XOM/BA/forex/crypto divergence found two dominant,
+previously-undiscovered mechanisms. This round fixes both, end to end.
+
+**Finding 1: crypto and forex orders never actually execute**, despite
+being selected into the book regularly (BTCUSD 28/55 dates, LTCUSD 42/55
+in the V5.2.5 run). `order-events.json` from two independent full
+backtests showed zero order events for any crypto/FX symbol, ever.
+Root cause: `main.py::_midpoint_bar_from_quote_bar()` hardcodes
+`volume=0.0` for forex (quote data has no trade-volume concept);
+`liquidity/market_liquidity.py::build_liquidity_decision()`'s first real
+check, `if volume == 0.0: ... block`, unconditionally vetoes every forex
+order. A live-run snapshot showed the same `volume=0.0` for a BTCUSD bar
+whose OHLC matched the raw Lean data file exactly but whose real volume
+(65.5B) never reached `on_data()` — likely a genuine Lean/Coinbase data
+delivery quirk, not diagnosable from this codebase. V5.2.4's celebrated
+"crypto/FX finally book-eligible" was, in practice, phantom — scored,
+logged, immediately discarded at the liquidity gate every single time.
+
+**Finding 2: live carries ~10 risk/execution gates with zero offline
+counterpart.** Grepped `evaluation/rank_book_simulator.py` end to end -
+the only execution-realism modeling it has, ever, is `entry_lag_bars` and
+an approximate commission floor (V5.2.1). Not all of the ~10 gates are
+"excessive" (the kill-switch and the calibrated `net_edge` cost gate are
+legitimate, bug-fix-motivated protections, deliberately untouched this
+round), but two duplicate signal the model's own active input features
+already encode (`regime_risk_on/off/neutral`, `topology_risk_normal/
+elevated/isolated`), and `min_confidence_to_trade` was never empirically
+calibrated (the same "guessed constant" problem `min_rank_confidence_spread`
+had before V5.1's `--calibrate-book-spread` fixed it) - the same
+threshold also applies unconditionally to book-selected symbols despite
+`build_market_analysis_decision()` having no way to even know a trade was
+book-selected.
+
+**The fix, five parts:**
+
+1. **Liquidity zero-volume fallback** - `build_liquidity_decision()` gains
+   `zero_volume_fallback_ddv`, applied to forex always (structural) and to
+   `quality_tier=="core"` crypto only (BTCUSD/LTCUSD - the two symbols
+   with direct evidence). Substitutes the fallback only in the downstream
+   gating math (participation rate, cost) - a missing-data workaround, not
+   a bypass; a large order or genuinely thin fallback-covered asset still
+   trips the real liquidity gates. A new per-symbol bar counter
+   (`state.json`'s new `"diagnostics"` key) will confirm the crypto scope
+   decision in the next real backtest.
+2. **Book-selection context in the confidence gate** -
+   `build_market_analysis_decision()` gains `is_book_selected`/
+   `min_confidence_to_trade_book_selected`, defaulting to today's exact
+   single-threshold behavior.
+3. **`aq evaluate --calibrate-confidence-threshold`** (new
+   `evaluation/confidence_threshold_calibration.py`) - derives the
+   threshold from the real confidence-vs-forward-return relationship, the
+   same "percentile of a real, achieved distribution" discipline
+   `--calibrate-book-spread` established. Run against the real local
+   dataset: general threshold calibrated to **0.0968** (applied to
+   config, a modest loosening from the guessed 0.12); book-selected
+   threshold calibrated to 0.8925 - dramatically stricter, but this split
+   turned out methodologically circular (book selection is already an
+   extreme-rank filter, so "confidence among book-selected rows" mostly
+   re-measures the selection's own cutoff) and was deliberately **not**
+   applied, to avoid converting a loosening mechanism into one that blocks
+   almost all book-selected trades for the wrong reason.
+4. **Narrowing the risk_off/topology-elevated overrides** -
+   `risk_off_override_min_severity` (analyzer) and
+   `elevated_volatility_threshold` (topology, now threaded through
+   `build_market_topology()` instead of a bare module constant). Replayed
+   `classify_risk_regime()`'s real formula against the dataset's own
+   `regime_signal_risk_score`/`regime_risk_off` columns - found exactly 3
+   discrete severity tiers (-0.30/69%, -0.55/20%, -0.65/11%); the 25th
+   percentile lands on the -0.55 boundary, so `risk_off_override_min_severity=0.55`
+   (applied) lets the single-mild-signal 69% majority fall through to the
+   model's own regime-aware sizing while the more severe 31% still
+   override. Also found the naive `0.0` default would NOT have been a
+   safe no-op (a drawdown-only `risk_off` classification can carry
+   `risk_score` as high as +0.10) - fixed with a `None`-sentinel instead.
+   `elevated_volatility_threshold` stayed at its 0.45 default - the only
+   available proxy data (a 20-day rolling volatility) uses a different
+   window than topology's real ~260-bar calculation, so deriving a number
+   from it would've been guessing dressed as calibration.
+5. **Book-member-decision diagnostic** - `build_book_history_record()`
+   gains an optional `book_member_decisions` key (each book member's
+   final action/reasons), closing the gap where `book_allocations` alone
+   can never show whether a selected symbol actually became a real trade.
+   Required deferring the book_history write to after Pass 2's loop
+   finishes (confirmed nothing else the write reads is mutated by Pass 2
+   in between). New `summarize_book_member_diversion()` wired into
+   `aq evaluate --reconcile-book-history`. Opt-in, turned on in config for
+   the next verification backtest.
+
+**Verification:** `py_compile` clean. 33 new tests across 7 files. Full
+suite: 2530 passed (same 11 pre-existing Docker-only errors as every prior
+round). The suite's own coverage-completeness regression guard caught a
+real gap mid-round - a new test file wasn't registered in `aq_cli.py`'s
+subsystem-bucket mapping - fixed immediately. Manual read-through confirmed
+every new config key's absence reproduces pre-V5.2.6 behavior exactly, the
+deferred book_history write still fires once per bar under the original
+gating condition, and the crypto liquidity fallback only ever activates for
+core-tier symbols.
+
+**Not yet done:** a fresh real Lean backtest (your own responsibility) to
+confirm crypto/FX finally place real orders, measure exactly how much of
+the remaining gap each gate was responsible for via the new diversion
+diagnostic, and report the net Sharpe effect - which could move either way
+now that two previously-unconditional overrides are narrowed and crypto/FX
+can finally execute.
+
+See `development/Problems.md` #92 for the full investigation, evidence,
+and honest scope notes.

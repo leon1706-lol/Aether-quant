@@ -365,6 +365,7 @@ def build_market_topology(
     correlation_stability_tolerance_percentile: float | None = None,
     correlation_change_history: list[float] | None = None,
     correlation_change_history_max_len: int = 50,
+    elevated_volatility_threshold: float = ELEVATED_VOLATILITY_THRESHOLD,
 ) -> MarketTopology:
     """`embedding_dimensions` (V4-W3, `phase_v2.topology.embedding_dimensions`,
     default 2) selects how many axes SMACOF embeds. At 2 - the default -
@@ -390,7 +391,18 @@ def build_market_topology(
     (main.py) is expected to thread `correlation_change_history` through
     bar-to-bar exactly like `previous_positions`/`previous_correlations` -
     read this call's returned `MarketTopology.correlation_change_history`
-    and pass it back in as next bar's `correlation_change_history`."""
+    and pass it back in as next bar's `correlation_change_history`.
+
+    `elevated_volatility_threshold` (V5.2.6, development/Problems.md,
+    default matches the module's own `ELEVATED_VOLATILITY_THRESHOLD`
+    constant exactly - a no-op unless a caller passes a different value)
+    is the volatility_pressure cutoff for a node's topology_risk becoming
+    "elevated" - which analyzer/market_analyzer.py::build_market_analysis_decision()'s
+    Priority 3 uses to unconditionally override any directional signal.
+    Threaded through (not just a bare module constant) so main.py can
+    raise it to a value derived from this backtest universe's own real
+    historical volatility_pressure distribution, narrowing the override
+    to genuinely extreme readings instead of a fixed, ungrounded 0.45."""
     regime_labels_by_symbol = regime_labels_by_symbol or {}
     reasons: list[str] = []
     embed_3d = embedding_dimensions == 3
@@ -636,7 +648,7 @@ def build_market_topology(
 
         if member_count_by_symbol[symbol] == 1:
             topology_risk = "isolated"
-        elif volatility_pressure >= ELEVATED_VOLATILITY_THRESHOLD:
+        elif volatility_pressure >= elevated_volatility_threshold:
             topology_risk = "elevated"
         else:
             topology_risk = "normal"

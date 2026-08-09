@@ -2,6 +2,7 @@
 
 from .learned_topology import TOPOLOGY_SOURCES, apply_learned_topology, liquidity_score_from_decision
 from .market_topology import (
+    ELEVATED_VOLATILITY_THRESHOLD,
     MarketTopology,
     TopologyCluster,
     TopologyLink,
@@ -18,4 +19,5 @@ __all__ = [
     "TOPOLOGY_SOURCES",
     "apply_learned_topology",
     "liquidity_score_from_decision",
+    "ELEVATED_VOLATILITY_THRESHOLD",
 ]

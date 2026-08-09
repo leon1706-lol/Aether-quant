@@ -1,8 +1,8 @@
-from analyzer import build_market_analysis_decision, compute_signal_quality_score
+from analyzer import build_market_analysis_decision, compute_signal_quality_score, compute_trade_metric
 
 
-def _regime(confidence=0.6, risk_regime="risk_neutral"):
-    return {"confidence": confidence, "risk_regime": risk_regime}
+def _regime(confidence=0.6, risk_regime="risk_neutral", risk_score=0.0):
+    return {"confidence": confidence, "risk_regime": risk_regime, "risk_score": risk_score}
 
 
 def _gating(decision_source="baseline_and_experts"):
@@ -561,3 +561,135 @@ def test_net_edge_passing_gate_trades():
         net_edge=passing_net_edge,
     )
     assert decision.action == "trade"
+
+
+# ---------------------------------------------------------------------------
+# V5.2.6 - is_book_selected / min_confidence_to_trade_book_selected (Priority 7)
+# ---------------------------------------------------------------------------
+
+
+def test_book_selected_uses_book_confidence_threshold_when_configured():
+    # confidence=0.09 fails the shared 0.12 floor but clears a looser,
+    # book-specific 0.05 floor.
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.09, probability_up=0.55, target_weight=0.10,
+        regime=_regime(confidence=0.6), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        is_book_selected=True, min_confidence_to_trade_book_selected=0.05,
+    )
+    assert decision.action == "trade"
+    assert "trading_eligible_book_selected_directional_signal_above_confidence_threshold" in decision.reasons
+
+
+def test_non_book_selected_ignores_book_confidence_threshold():
+    # Same low confidence, but is_book_selected=False - the looser
+    # book-specific floor must never leak into individual-signal trades.
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.09, probability_up=0.55, target_weight=0.10,
+        regime=_regime(confidence=0.6), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        is_book_selected=False, min_confidence_to_trade_book_selected=0.05,
+    )
+    assert decision.action != "trade"
+
+
+def test_book_selected_threshold_absent_falls_back_to_shared_threshold():
+    # min_confidence_to_trade_book_selected=None (the default) must
+    # reproduce pre-V5.2.6 single-threshold behavior exactly, even for a
+    # book-selected symbol.
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.09, probability_up=0.55, target_weight=0.10,
+        regime=_regime(confidence=0.6), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        is_book_selected=True, min_confidence_to_trade_book_selected=None,
+    )
+    assert decision.action != "trade"
+
+
+def test_book_selected_still_blocked_below_book_threshold():
+    # Confidence below BOTH thresholds still routes away from trade, even
+    # when is_book_selected=True - proves this isn't a bypass.
+    decision = build_market_analysis_decision(
+        signal_name="buy", confidence=0.01, probability_up=0.55, target_weight=0.10,
+        regime=_regime(confidence=0.6), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False, min_confidence_to_trade=0.12,
+        is_book_selected=True, min_confidence_to_trade_book_selected=0.05,
+    )
+    assert decision.action != "trade"
+
+
+# ---------------------------------------------------------------------------
+# V5.2.6 - risk_off_override_min_severity (Priority 2)
+# ---------------------------------------------------------------------------
+
+
+def test_priority2_risk_off_override_default_fires_regardless_of_severity():
+    # Regression: risk_off_override_min_severity absent (None, the
+    # default) must reproduce today's unconditional override, even for a
+    # mild risk_score.
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.9, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(confidence=0.8, risk_regime="risk_off", risk_score=0.10), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+    )
+    assert decision.action == "reduce_risk"
+
+
+def test_priority2_risk_off_override_suppressed_below_severity_threshold():
+    # risk_score=-0.30 (the mildest, single-signal real-world tier found
+    # in this codebase's own historical data - development/Problems.md)
+    # must fall through once severity is configured to require -0.55.
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.9, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(confidence=0.8, risk_regime="risk_off", risk_score=-0.30), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        min_confidence_to_trade=0.12, risk_off_override_min_severity=0.55,
+    )
+    assert decision.action != "reduce_risk"
+
+
+def test_priority2_risk_off_override_still_fires_above_severity_threshold():
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.9, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(confidence=0.8, risk_regime="risk_off", risk_score=-0.65), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        risk_off_override_min_severity=0.55,
+    )
+    assert decision.action == "reduce_risk"
+
+
+def test_priority2_risk_off_override_boundary_is_inclusive():
+    # risk_score exactly at -severity still overrides (<=, not <).
+    decision = build_market_analysis_decision(
+        signal_name="short", confidence=0.9, probability_up=0.2, target_weight=-0.15,
+        regime=_regime(confidence=0.8, risk_regime="risk_off", risk_score=-0.55), gating=_gating(),
+        trading_eligible=True, trade_lock_active=False,
+        risk_off_override_min_severity=0.55,
+    )
+    assert decision.action == "reduce_risk"
+
+
+# ---------------------------------------------------------------------------
+# V5.2.6 - compute_trade_metric() extraction
+# ---------------------------------------------------------------------------
+
+
+def test_compute_trade_metric_matches_inline_formula_composite_off():
+    topology = {"correlation_strength": 0.5, "topology_risk": "normal"}
+    liquidity = {"participation_rate": 0.01}
+    metric = compute_trade_metric(
+        confidence=0.42, regime_confidence=0.6, topology=topology, liquidity=liquidity,
+        use_composite_signal_score=False,
+    )
+    assert metric == 0.42
+
+
+def test_compute_trade_metric_matches_inline_formula_composite_on():
+    topology = {"correlation_strength": 0.5, "topology_risk": "normal"}
+    liquidity = {"participation_rate": 0.01}
+    expected_score, _ = compute_signal_quality_score(0.42, 0.6, topology, liquidity)
+    metric = compute_trade_metric(
+        confidence=0.42, regime_confidence=0.6, topology=topology, liquidity=liquidity,
+        use_composite_signal_score=True,
+    )
+    assert metric == expected_score

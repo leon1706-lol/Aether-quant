@@ -166,3 +166,56 @@ def test_build_liquidity_decision_falls_back_to_static_table_when_dynamic_spread
     assert decision.spread_proxy == 0.0020
 
 
+# ---------------------------------------------------------------------------
+# build_liquidity_decision — zero_volume_fallback_ddv (V5.2.6)
+# ---------------------------------------------------------------------------
+
+
+def test_zero_volume_with_fallback_ddv_allows_when_fallback_above_floor():
+    decision = _decision(
+        close=1.0, volume=0.0, target_weight=0.01, portfolio_value=100_000.0,
+        zero_volume_fallback_ddv=5_000_000_000.0,
+    )
+    assert decision.recommended_action != "block"
+    assert not any("zero_volume" == r for r in decision.reasons)
+    assert any("zero_volume_treated_as_missing_data_fallback_ddv" in r for r in decision.reasons)
+
+
+def test_zero_volume_without_fallback_still_blocks():
+    # Regression guard: zero_volume_fallback_ddv=None (the default) must
+    # reproduce pre-V5.2.6 behavior byte-for-byte.
+    decision = _decision(volume=0.0, target_weight=0.15, zero_volume_fallback_ddv=None)
+    assert decision.liquidity_risk == "blocked"
+    assert decision.recommended_action == "block"
+    assert decision.adjusted_target_weight == 0.0
+    assert any("zero_volume" in r for r in decision.reasons)
+
+
+def test_zero_volume_fallback_ddv_still_catches_illiquid_via_participation_rate():
+    # A large order against a SMALL fallback DDV must still trip the
+    # participation-rate gates - the fallback is a missing-data
+    # workaround, not a blanket bypass of the liquidity check.
+    decision = _decision(
+        close=1.0, volume=0.0, target_weight=0.9, portfolio_value=100_000.0,
+        zero_volume_fallback_ddv=50_000.0,
+    )
+    assert decision.recommended_action in {"block", "reduce_size", "simulate_instead"}
+    assert decision.recommended_action != "allow"
+
+
+def test_zero_volume_fallback_ddv_does_not_affect_reported_daily_dollar_volume():
+    decision = _decision(
+        close=1.0, volume=0.0, target_weight=0.01, portfolio_value=100_000.0,
+        zero_volume_fallback_ddv=5_000_000_000.0,
+    )
+    # Dashboard/diagnostic honesty - the REAL (zero) volume stays reported
+    # even though the gating math internally substituted the fallback.
+    assert decision.daily_dollar_volume == 0.0
+
+
+def test_zero_volume_fallback_ddv_ignored_when_volume_is_actually_nonzero():
+    with_fallback = _decision(close=100.0, volume=1_000_000, zero_volume_fallback_ddv=5_000_000_000.0)
+    without_fallback = _decision(close=100.0, volume=1_000_000, zero_volume_fallback_ddv=None)
+    assert with_fallback.to_dict() == without_fallback.to_dict()
+
+

@@ -493,3 +493,53 @@ def summarize_universe_snapshot_by_security_type(logged_records: list[dict]) -> 
         "num_dates_with_universe_data": dates_with_universe_data,
         "by_security_type": by_security_type,
     }
+
+
+def summarize_book_member_diversion(logged_records: list[dict]) -> dict:
+    """V5.2.6 (development/Problems.md) - aggregates the OPTIONAL
+    `"book_member_decisions"` key `build_book_history_record()` adds when
+    `phase_v2.diagnostics.book_history.include_decisions` was on for the
+    run that produced `logged_records` - mirrors
+    `summarize_universe_snapshot_by_security_type()`'s own shape and
+    "log carries no data, degrade to zeros" contract exactly.
+
+    Exists to replace hypothesis with measurement: `book_allocations`
+    alone can never show whether a book-selected symbol actually became
+    a real trade, or was silently diverted to `simulate`/`reduce_risk`/
+    `retrain_candidate` by a risk/execution gate downstream of selection
+    (development/Problems.md - the crypto/FX zero-order-execution
+    finding, and the live-risk-gate-vs-offline-evaluator gap). Per-run,
+    NOT per-date - a single aggregate is more useful here than a per-date
+    breakdown, since the question is "how much, in total, across this
+    whole run" rather than "on which specific date".
+
+    Returns `{"num_records_with_decisions": int, "total_book_member_dates":
+    int, "action_counts": {action: count}, "reason_counts": {reason: count}}`.
+    `num_records_with_decisions` is 0 (and both count dicts are `{}`) when
+    no record in `logged_records` carries a `"book_member_decisions"` key
+    at all - callers must check this before reading the counts, same as
+    `num_dates_with_universe_data`'s own convention above. Never raises on
+    an empty or all-missing-decisions input."""
+    num_records_with_decisions = 0
+    total_book_member_dates = 0
+    action_counts: dict[str, int] = {}
+    reason_counts: dict[str, int] = {}
+
+    for logged_record in logged_records:
+        decisions = logged_record.get("book_member_decisions")
+        if not decisions:
+            continue
+        num_records_with_decisions += 1
+        for decision in decisions.values():
+            total_book_member_dates += 1
+            action = decision.get("action") or "unknown"
+            action_counts[action] = action_counts.get(action, 0) + 1
+            for reason in decision.get("reasons", []) or []:
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+    return {
+        "num_records_with_decisions": num_records_with_decisions,
+        "total_book_member_dates": total_book_member_dates,
+        "action_counts": action_counts,
+        "reason_counts": reason_counts,
+    }

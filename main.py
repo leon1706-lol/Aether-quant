@@ -102,8 +102,18 @@ from portfolio.options_assignment_risk import (
 # above, same "sizes an ALREADY-HELD position on its own current greeks"
 # rationale, imported directly for the identical reason.
 from portfolio.options_margin_sizing import build_margin_position_sizing_for_legs
-from liquidity import TYPICAL_SPREAD_BY_TYPE, build_liquidity_decision, estimate_high_low_spread
-from topology import apply_learned_topology, build_market_topology, liquidity_score_from_decision
+from liquidity import (
+    TYPICAL_DAILY_DOLLAR_VOLUME_BY_TYPE,
+    TYPICAL_SPREAD_BY_TYPE,
+    build_liquidity_decision,
+    estimate_high_low_spread,
+)
+from topology import (
+    ELEVATED_VOLATILITY_THRESHOLD,
+    apply_learned_topology,
+    build_market_topology,
+    liquidity_score_from_decision,
+)
 # Imports directly from audit.redis_queue (not the audit package's own
 # __init__.py) so main.py's isolator-timed startup (Problems.md #16) never
 # pays for importing audit/postgres_worker.py, audit/postgres_audit.py, or
@@ -429,6 +439,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # symbol (see that method's own docstring for why) rather than
         # re-rolling a fresh, drifting estimate every bar.
         self._bond_empirical_duration_beta_cache: dict[str, float] = {}
+        # V5.2.6 (development/Problems.md) - per-symbol {"total":, "zero_volume":}
+        # counters confirming how systematic the volume=0.0 delivery issue
+        # behind the liquidity zero-volume fallback (self._zero_volume_fallback_ddv_by_type)
+        # actually is across a real run - see the fresh-bar append block in
+        # on_data() Phase 1a for where this increments.
+        self._bar_volume_diagnostic_counts_by_symbol: dict[str, dict[str, int]] = {}
         # V5.1 Phase 2 (item 8 / F2) - same pairing convention as
         # symbol_treasury_10yr_history immediately above, one per cross-asset
         # sensitivity driver (vix/real_rate/credit/dollar) - see
@@ -634,6 +650,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.sell_threshold = max(0.25, self.decision_threshold - float(phase5_backtest.get("sell_threshold_offset", 0.08)))
         self.max_position_weight = float(phase6_risk.get("max_position_weight", 0.25))
         self.min_confidence_to_trade = float(phase6_risk.get("min_confidence_to_trade", 0.12))
+        # V5.2.6 (development/Problems.md) - None (absent from config, the
+        # default) reproduces build_market_analysis_decision()'s own
+        # pre-V5.2.6 single-threshold behavior exactly - see that
+        # function's Priority 7 comment.
+        _configured_min_confidence_to_trade_book_selected = phase6_risk.get("min_confidence_to_trade_book_selected")
+        self.min_confidence_to_trade_book_selected = (
+            float(_configured_min_confidence_to_trade_book_selected)
+            if _configured_min_confidence_to_trade_book_selected is not None
+            else None
+        )
         self.trade_cooldown_bars = int(phase6_risk.get("trade_cooldown_bars", 3))
         self.max_daily_drawdown_pct = float(phase6_risk.get("max_daily_drawdown_pct", 0.03))
         self.max_total_drawdown_pct = float(phase6_risk.get("max_total_drawdown_pct", 0.12))
@@ -880,6 +906,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.regime_risk_off_drawdown_threshold = float(phase_v2_regime.get("risk_off_drawdown_threshold", 0.08))
         self.regime_risk_on_drawdown_threshold = float(phase_v2_regime.get("risk_on_drawdown_threshold", 0.03))
         self.regime_high_correlation_threshold = float(phase_v2_regime.get("high_correlation_threshold", 0.75))
+        # V5.2.6 (development/Problems.md) - None (absent from config, the
+        # default) is the ONLY safe no-op here - see
+        # build_market_analysis_decision()'s Priority 2 comment for why a
+        # bare 0.0 default would not reproduce today's unconditional
+        # risk_off override for every case.
+        _configured_risk_off_override_min_severity = phase_v2_regime.get("risk_off_override_min_severity")
+        self.risk_off_override_min_severity = (
+            float(_configured_risk_off_override_min_severity)
+            if _configured_risk_off_override_min_severity is not None
+            else None
+        )
         self.gating_baseline_weight = float(phase_v2_gating.get("baseline_weight", 0.25))
         self.gating_learned_model_enabled = bool(phase_v2_gating.get("learned_model_enabled", True))
         # Optional Phase 2 sequence-encoder blend into the gating decision
@@ -896,6 +933,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.analyzer_low_regime_confidence_threshold = float(phase_v2_analyzer.get("low_regime_confidence_threshold", 0.35))
         self.analyzer_use_composite_signal_score = bool(phase_v2_analyzer.get("use_composite_signal_score", False))
         self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
+        # V5.2.6 (development/Problems.md) - absent config reproduces
+        # ELEVATED_VOLATILITY_THRESHOLD's own module default exactly - see
+        # build_market_topology()'s own docstring for why this is worth
+        # narrowing (Priority 3's override duplicates signal the model
+        # already sees as an active input feature).
+        self.topology_elevated_volatility_threshold = float(
+            phase_v2_topology.get("elevated_volatility_threshold", ELEVATED_VOLATILITY_THRESHOLD)
+        )
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
         self.topology_embedding_iterations = int(phase_v2_topology.get("embedding_iterations", 100))
@@ -1306,6 +1351,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 else None
             ),
         }
+        # V5.2.6 (development/Problems.md) - forex structurally, and
+        # core-tier crypto (BTCUSD/LTCUSD) empirically, were found to
+        # report volume=0.0 on real bars, which build_liquidity_decision()
+        # previously treated as "genuinely zero liquidity" and
+        # unconditionally blocked - see that function's own
+        # zero_volume_fallback_ddv docstring. Absent config reproduces
+        # TYPICAL_DAILY_DOLLAR_VOLUME_BY_TYPE's module default exactly
+        # (forex + crypto both covered); an explicit empty {} in config
+        # would disable the fallback entirely, a deliberate escape hatch.
+        self._zero_volume_fallback_ddv_by_type = {
+            str(security_type): float(value)
+            for security_type, value in phase_v2_liquidity.get(
+                "zero_volume_fallback_ddv_by_type", TYPICAL_DAILY_DOLLAR_VOLUME_BY_TYPE
+            ).items()
+        }
         phase_v2_spread_estimation = phase_v2_liquidity.get("spread_estimation", {})
         self._spread_estimation_enabled = bool(phase_v2_spread_estimation.get("enabled", True))
         self._spread_estimation_min_bars = int(phase_v2_spread_estimation.get("min_bars", 2))
@@ -1404,6 +1464,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # growth (roughly the full universe x every rebalance date).
         self.book_history_include_full_universe = bool(
             phase_v2_diagnostics_book_history.get("include_full_universe", False)
+        )
+        # V5.2.6 (development/Problems.md) - opt-in, same convention as
+        # include_full_universe above: also record each book member's
+        # final MarketAnalysisDecision (action/reasons), not just that it
+        # was selected - see build_book_history_record()'s own docstring.
+        self.book_history_include_decisions = bool(
+            phase_v2_diagnostics_book_history.get("include_decisions", False)
         )
         # Live-mode transition audit event - the single highest-stakes fact
         # about a run (whether real capital is at risk) determined once here
@@ -1681,6 +1748,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "volume": float(bar.volume),
                     }
                 )
+                # V5.2.6 (development/Problems.md) - lightweight per-symbol
+                # counter confirming (or ruling out) how systematic the
+                # zero-volume delivery issue behind the liquidity fallback
+                # above actually is, bar by bar, in a real run - turns
+                # "strongly evidenced from one snapshot" into "measured
+                # across the whole backtest." Only counts genuinely fresh
+                # bars (this block is has_fresh_bar_this_tick-gated), never
+                # a borrowed/stale re-processing of the same bar.
+                volume_counts = self._bar_volume_diagnostic_counts_by_symbol.setdefault(
+                    symbol_key, {"total": 0, "zero_volume": 0}
+                )
+                volume_counts["total"] += 1
+                if float(bar.volume) == 0.0:
+                    volume_counts["zero_volume"] += 1
 
             topology_payload = topology_by_symbol.get(str(symbol))
             feature_payload = self._build_model_input(symbol, topology_payload)
@@ -2069,53 +2150,6 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self._book_target_weights = {}
                     self._last_book_neutrality_diagnostics = {}
 
-                # V5.2.2 (development/Problems.md) - opt-in, backtest-only
-                # ground-truth log of what the live book actually selected
-                # this rebalance date, so a real Lean run can later be
-                # reconciled against a fresh offline re-derivation of the
-                # same raw scores (`aq evaluate --reconcile-book-history`).
-                # Backtest-only regardless of the config toggle - makes
-                # unbounded file growth on a live/paper deployment
-                # structurally impossible, since this tool exists to
-                # diagnose backtest-vs-offline gaps, not to run forever.
-                if self.book_history_diagnostics_enabled and self.runtime_mode == "backtest" and book_allocations:
-                    try:
-                        # V5.2.3 (development/Problems.md #91) - `signals`
-                        # (Phase 1a's per-symbol payload, already built
-                        # earlier this bar) covers EVERY symbol with a bar
-                        # this tick, selected or not - unlike
-                        # `spread_check_ranks`/`pass1_state`, which only
-                        # ever contain symbols that passed the feature-
-                        # ready gate. Merging the two here is what lets a
-                        # later reconciliation see WHY a non-selected
-                        # symbol (e.g. crypto/FX) never made the book,
-                        # rather than just that it didn't.
-                        full_universe_signals = None
-                        if self.book_history_include_full_universe:
-                            full_universe_signals = {
-                                symbol_key: {
-                                    "raw_rank_score": pass1_state.get(symbol_key, {}).get("raw_rank_score"),
-                                    "feature_ready": bool(signal_payload["feature_ready"]),
-                                    "reason": signal_payload.get("reason"),
-                                    "trading_eligible": bool(signal_payload["trading_eligible"]),
-                                    "security_type": signal_payload["security_type"],
-                                }
-                                for symbol_key, signal_payload in signals.items()
-                            }
-                        record = build_book_history_record(
-                            str(self.Time.date()),
-                            book_allocations,
-                            spread_check_ranks,
-                            self._book_target_weights,
-                            self.sector_by_ticker,
-                            self._rank_signal_policy,
-                            full_universe_signals=full_universe_signals,
-                        )
-                        self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
-                        with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:
-                            book_history_file.write(json.dumps(record) + "\n")
-                    except Exception as error:
-                        self.Debug(f"book_history diagnostic write failed: {error}")
             else:
                 book_allocations = self._last_book_allocations
         else:
@@ -2136,6 +2170,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # names, so this only ever reorders a small prefix, not the whole
         # loop. A no-op (dict order unchanged) whenever the book is
         # disabled or this bar had no allocations.
+        # V5.2.6 (development/Problems.md) - collects each book member's
+        # final MarketAnalysisDecision as Pass 2 computes it, so the
+        # (deferred - see below) book_history write can record not just
+        # "this symbol was selected" (book_allocations, decided before
+        # Pass 2 even runs) but "and here is what actually happened to it"
+        # - closes the gap where a symbol logged as selected could
+        # silently have been diverted to simulate/reduce_risk/
+        # retrain_candidate by a risk/execution gate with zero visibility
+        # in the log. Local (not self.*) - only ever needed within this
+        # same on_data() call.
+        book_member_decisions: dict[str, dict] = {}
         pass1_items = list(pass1_state.items())
         if self.portfolio_book_enabled and book_allocations:
             def _book_conviction_sort_key(item: tuple[str, dict]) -> float:
@@ -2272,14 +2317,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # already computed and fed to the model as
             # liquidity_spread_proxy, rather than recomputing it here -
             # one estimate per bar, consistently used everywhere.
+            liquidity_security_type = str(asset.get("security_type", "equity"))
+            # V5.2.6 (development/Problems.md) - forex always qualifies
+            # (structurally volume-less); crypto only for "core"-tier
+            # symbols (BTCUSD/LTCUSD - the only two with direct/
+            # circumstantial zero-volume evidence), so the other ~10
+            # subscribed altcoins keep today's exact zero-volume-blocks
+            # behavior until their own data is separately confirmed.
+            zero_volume_fallback_ddv = None
+            if liquidity_security_type == "forex":
+                zero_volume_fallback_ddv = self._zero_volume_fallback_ddv_by_type.get("forex")
+            elif liquidity_security_type == "crypto" and self._asset_quality_for_symbol(symbol).get("quality_tier") == "core":
+                zero_volume_fallback_ddv = self._zero_volume_fallback_ddv_by_type.get("crypto")
             liquidity_payload = build_liquidity_decision(
                 close=float(bar.close),
                 volume=float(bar.volume),
                 target_weight=target_weight,
                 portfolio_value=float(self.Portfolio.TotalPortfolioValue),
                 annualized_volatility=float(sizing_payload.get("annualized_volatility", 0.0)),
-                security_type=str(asset.get("security_type", "equity")),
+                security_type=liquidity_security_type,
                 dynamic_spread=feature_payload.get("liquidity_spread_proxy"),
+                zero_volume_fallback_ddv=zero_volume_fallback_ddv,
                 **self._liquidity_thresholds,
             ).to_dict()
             if liquidity_payload["recommended_action"] == "reduce_size":
@@ -2400,7 +2458,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # comment for why re-deriving it caused a real 0-orders
                 # regression).
                 net_edge=net_edge_decision,
+                # V5.2.6 (development/Problems.md) - see
+                # build_market_analysis_decision()'s own Priority 2/7
+                # comments for why these two are threaded through.
+                is_book_selected=(book_allocation is not None),
+                min_confidence_to_trade_book_selected=self.min_confidence_to_trade_book_selected,
+                risk_off_override_min_severity=self.risk_off_override_min_severity,
             ).to_dict()
+            if self.book_history_include_decisions and book_allocation is not None:
+                book_member_decisions[symbol_key] = decision
 
             signal_name = decision["signal"]
             target_weight = decision["target_weight"]
@@ -2591,6 +2657,66 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self._experience_queue.push(experience_event)
             self._observation_event_log.append(experience_event)
             self._session_events.append(experience_event)
+
+        # V5.2.2 (development/Problems.md) - opt-in, backtest-only
+        # ground-truth log of what the live book actually selected this
+        # rebalance date, so a real Lean run can later be reconciled
+        # against a fresh offline re-derivation of the same raw scores
+        # (`aq evaluate --reconcile-book-history`). Backtest-only
+        # regardless of the config toggle - makes unbounded file growth
+        # on a live/paper deployment structurally impossible, since this
+        # tool exists to diagnose backtest-vs-offline gaps, not to run
+        # forever.
+        #
+        # V5.2.6 (development/Problems.md) - deferred from immediately
+        # after book_allocations was computed (pre-Pass-2) to HERE, after
+        # Pass 2's loop has finished for this bar - book_member_decisions
+        # (each book member's final trade/simulate/reduce_risk/
+        # retrain_candidate action) doesn't exist until Pass 2 has run
+        # every symbol. book_allocations/spread_check_ranks/
+        # self._book_target_weights/signals are all plain function-scope
+        # locals/instance state, untouched by Pass 2 (confirmed: Pass 2
+        # only ever reads book_allocations via book_allocations.get(...),
+        # never reassigns it), so waiting until here changes nothing else
+        # about what gets logged.
+        if self.book_history_diagnostics_enabled and self.runtime_mode == "backtest" and book_allocations:
+            try:
+                # V5.2.3 (development/Problems.md #91) - `signals`
+                # (Phase 1a's per-symbol payload, already built earlier
+                # this bar) covers EVERY symbol with a bar this tick,
+                # selected or not - unlike `spread_check_ranks`/
+                # `pass1_state`, which only ever contain symbols that
+                # passed the feature-ready gate. Merging the two here is
+                # what lets a later reconciliation see WHY a non-selected
+                # symbol (e.g. crypto/FX) never made the book, rather than
+                # just that it didn't.
+                full_universe_signals = None
+                if self.book_history_include_full_universe:
+                    full_universe_signals = {
+                        symbol_key: {
+                            "raw_rank_score": pass1_state.get(symbol_key, {}).get("raw_rank_score"),
+                            "feature_ready": bool(signal_payload["feature_ready"]),
+                            "reason": signal_payload.get("reason"),
+                            "trading_eligible": bool(signal_payload["trading_eligible"]),
+                            "security_type": signal_payload["security_type"],
+                        }
+                        for symbol_key, signal_payload in signals.items()
+                    }
+                record = build_book_history_record(
+                    str(self.Time.date()),
+                    book_allocations,
+                    spread_check_ranks,
+                    self._book_target_weights,
+                    self.sector_by_ticker,
+                    self._rank_signal_policy,
+                    full_universe_signals=full_universe_signals,
+                    book_member_decisions=(book_member_decisions if self.book_history_include_decisions else None),
+                )
+                self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:
+                    book_history_file.write(json.dumps(record) + "\n")
+            except Exception as error:
+                self.Debug(f"book_history diagnostic write failed: {error}")
 
         if close_prices_by_symbol:
             self._simulated_portfolio.mark_to_market(close_prices_by_symbol, bar_index=self.bar_index)
@@ -3682,6 +3808,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.topology_correlation_stability_tolerance_percentile if self.topology_cache_enabled else None
             ),
             correlation_change_history=self._topology_correlation_change_history if self.topology_cache_enabled else None,
+            elevated_volatility_threshold=self.topology_elevated_volatility_threshold,
         )
         deterministic_topology = deterministic_topology_result.to_dict()
         # Tuple width must match the active embedding dimensionality - a
@@ -6788,6 +6915,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "macro": self.latest_derivatives_macro_payload,
             "options_chains": self._options_chains_payload_for_state(),
             "futures_chains": self.latest_futures_chains_payload,
+        }
+        # V5.2.6 (development/Problems.md) - confirms (or rules out) the
+        # scope of the volume=0.0 delivery issue behind the liquidity
+        # zero-volume fallback, per symbol, across the whole run so far -
+        # see self._bar_volume_diagnostic_counts_by_symbol's own comment.
+        state["diagnostics"] = {
+            "zero_volume_bars_by_symbol": {
+                symbol_key: {
+                    "total_bars": counts["total"],
+                    "zero_volume_bars": counts["zero_volume"],
+                    "zero_volume_fraction": (
+                        counts["zero_volume"] / counts["total"] if counts["total"] > 0 else 0.0
+                    ),
+                }
+                for symbol_key, counts in self._bar_volume_diagnostic_counts_by_symbol.items()
+            }
         }
         state["observation"] = self._build_observation_view()
         state["performance_triggers"] = self._build_performance_triggers_view()

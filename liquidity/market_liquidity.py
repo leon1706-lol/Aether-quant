@@ -24,6 +24,24 @@ TYPICAL_SPREAD_BY_TYPE: dict[str, float] = {
     "crypto": 0.0020,
 }
 
+# V5.2.6 (development/Problems.md) - forex quote-bar data structurally never
+# carries a trade-volume figure (main.py::_midpoint_bar_from_quote_bar()
+# hardcodes volume=0.0), and core-tier crypto (BTCUSD/LTCUSD) was found to
+# report volume=0.0 on at least one real bar despite the same-date raw Lean
+# data file showing real, large trade volume - both cases were previously
+# indistinguishable from "genuinely zero liquidity" by build_liquidity_decision()
+# below, unconditionally blocking every forex/crypto order regardless of book
+# selection. Mirrors evaluation/rank_book_simulator.py::capacity_curve()'s own
+# existing precedent - "a true zero here means 'no real liquidity signal for
+# this asset,' not 'zero capacity'" - which was previously applied only
+# offline, never live. Used as a fallback DAILY DOLLAR VOLUME (not a bypass)
+# so participation-rate/round-trip-cost checks stay fully active downstream -
+# see build_liquidity_decision()'s zero_volume_fallback_ddv parameter.
+TYPICAL_DAILY_DOLLAR_VOLUME_BY_TYPE: dict[str, float] = {
+    "forex": 5_000_000_000.0,
+    "crypto": 1_000_000_000.0,
+}
+
 # Corwin & Schultz (2012) constant: 3 - 2*sqrt(2), from the paper's alpha formula.
 _CORWIN_SCHULTZ_CONSTANT = 3 - 2 * math.sqrt(2)
 
@@ -103,6 +121,7 @@ def build_liquidity_decision(
     slippage_factor: float = 0.1,
     dynamic_spread: float | None = None,
     max_round_trip_cost_fraction: float | None = None,
+    zero_volume_fallback_ddv: float | None = None,
 ) -> LiquidityDecision:
     close = float(close)
     volume = float(volume)
@@ -133,10 +152,34 @@ def build_liquidity_decision(
             reasons=["no_order_target_weight_zero"],
         )
 
-    # Zero or insufficient volume → blocked.
-    if volume == 0.0 or daily_dollar_volume < min_daily_dollar_volume:
+    # V5.2.6 (development/Problems.md) - a reported volume of EXACTLY 0.0
+    # can mean either "genuinely zero liquidity" (rare, real) or "this
+    # asset class's data feed structurally/empirically never reports
+    # volume" (forex always; core-tier crypto observed at least once) -
+    # the two were previously indistinguishable here, unconditionally
+    # blocking every forex/crypto order regardless of real-world
+    # liquidity or book selection. zero_volume_fallback_ddv=None (the
+    # default) is a strict no-op, byte-identical to pre-V5.2.6 behavior -
+    # this only ever activates for a caller (main.py) that explicitly
+    # resolves a fallback for this specific security_type. Substitutes
+    # ONLY the DOWNSTREAM gating math (participation_rate and everything
+    # derived from it) - the returned daily_dollar_volume field stays the
+    # REAL (possibly zero) value for honest dashboard/diagnostic display,
+    # and every check below still runs against the fallback figure, so a
+    # large order or a genuinely thin fallback-covered asset can still
+    # trip the participation-rate/round-trip-cost gates exactly as normal
+    # - this is a missing-data workaround, not a bypass.
+    effective_daily_dollar_volume = daily_dollar_volume
+    zero_volume_treated_as_missing = False
+    if volume == 0.0 and zero_volume_fallback_ddv is not None:
+        effective_daily_dollar_volume = float(zero_volume_fallback_ddv)
+        zero_volume_treated_as_missing = True
+        reasons.append(f"zero_volume_treated_as_missing_data_fallback_ddv_{effective_daily_dollar_volume:.0f}")
+
+    # Zero (and not covered by a fallback) or insufficient volume → blocked.
+    if (not zero_volume_treated_as_missing and volume == 0.0) or effective_daily_dollar_volume < min_daily_dollar_volume:
         reason = (
-            "zero_volume" if volume == 0.0
+            "zero_volume" if volume == 0.0 and not zero_volume_treated_as_missing
             else f"daily_dollar_volume_below_floor_{min_daily_dollar_volume:.0f}"
         )
         reasons.append(reason)
@@ -154,7 +197,7 @@ def build_liquidity_decision(
         )
 
     order_value = portfolio_value * abs(target_weight)
-    participation_rate = order_value / daily_dollar_volume
+    participation_rate = order_value / effective_daily_dollar_volume
 
     daily_vol = annualized_volatility / math.sqrt(TRADING_DAYS_PER_YEAR)
     estimated_slippage = participation_rate * daily_vol * slippage_factor

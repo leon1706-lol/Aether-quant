@@ -31,12 +31,14 @@ from .rank_book_simulator import (
     stress_test_costs,
     summarize_metric_stability,
 )
+from .confidence_threshold_calibration import calibrate_confidence_threshold
 from .rank_signal_calibration import (
     calibrate_book_confidence_spread,
     compute_blended_raw_scores,
     reconcile_book_history_date,
     replay_book_history_reconciliation,
     summarize_book_history_reconciliation,
+    summarize_book_member_diversion,
     summarize_universe_snapshot_by_security_type,
 )
 
@@ -46,6 +48,7 @@ __all__ = [
     "RankBookSimulationResult",
     "build_sequence_windows",
     "calibrate_book_confidence_spread",
+    "calibrate_confidence_threshold",
     "capacity_curve",
     "compare_static_vs_retrained",
     "compute_blended_raw_scores",
@@ -60,6 +63,7 @@ __all__ = [
     "simulate_static_baseline",
     "stress_test_costs",
     "summarize_book_history_reconciliation",
+    "summarize_book_member_diversion",
     "summarize_metric_stability",
     "summarize_universe_snapshot_by_security_type",
 ]
