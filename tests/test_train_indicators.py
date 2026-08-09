@@ -185,3 +185,45 @@ def test_build_cross_sectional_momentum_rank_features_no_nan_output_under_normal
 
     for frame in result.values():
         assert frame["cs_momentum_rank_20"].isna().sum() == 0
+
+
+def test_build_cross_sectional_momentum_rank_features_matches_pandas_rank_pct_reference():
+    # V5.2.5 regression lock: the rewritten implementation calls
+    # features.cross_sectional_momentum_rank() per (date, ticker) instead
+    # of the old pandas .rank(pct=True) groupby - this asserts the two are
+    # still byte-identical (to floating-point tolerance) on a realistic
+    # multi-ticker/multi-date/ragged-universe-size frame, so the rewrite
+    # is provably a pure internal refactor, not a behavior change.
+    rng = np.random.default_rng(7)
+    dates = pd.to_datetime([f"2020-01-{day:02d}" for day in range(1, 11)])
+    tickers = [f"T{i}" for i in range(6)]
+    asset_frames = {
+        ticker: pd.DataFrame({"date": dates, "momentum_20d": rng.normal(0, 0.1, len(dates))})
+        for ticker in tickers
+    }
+    # Drop one ticker's row on one date to exercise a ragged universe size
+    # (a date where not every ticker has a value) the same way the real
+    # pipeline's asset_frames can be misaligned across assets.
+    asset_frames["T5"] = asset_frames["T5"].iloc[1:].reset_index(drop=True)
+
+    result = build_cross_sectional_momentum_rank_features(asset_frames)
+
+    long_frame = pd.concat(
+        [
+            pd.DataFrame({"ticker": ticker, "date": frame["date"], "momentum_20d": frame["momentum_20d"]})
+            for ticker, frame in asset_frames.items()
+        ],
+        ignore_index=True,
+    )
+    universe_size_by_date = long_frame.groupby("date")["momentum_20d"].transform("size")
+    long_frame["expected_rank"] = np.where(
+        universe_size_by_date >= 2,
+        long_frame.groupby("date")["momentum_20d"].rank(pct=True),
+        0.5,
+    )
+    expected_lookup = long_frame.set_index(["ticker", "date"])["expected_rank"].to_dict()
+
+    for ticker, frame in result.items():
+        for _, row in frame.iterrows():
+            expected = expected_lookup[(ticker, row["date"])]
+            assert row["cs_momentum_rank_20"] == pytest.approx(expected)

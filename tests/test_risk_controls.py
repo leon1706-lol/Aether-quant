@@ -8,6 +8,7 @@ from risk_controls import (
     evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
     is_position_resize_permitted,
+    should_lock_in_duration_beta,
     should_scale_position,
 )
 
@@ -181,6 +182,36 @@ def test_resize_permitted_matrix_matches_book_gating_contract():
     for (scaling_enabled, book_selected, rebalance_bar), outcome in expected.items():
         assert is_position_resize_permitted(scaling_enabled, book_selected, rebalance_bar) is outcome
     assert should_scale_position(current_weight=-0.10, target_weight=-0.115, rebalance_threshold_weight=0.03) is False
+
+
+# ---------------------------------------------------------------------------
+# should_lock_in_duration_beta() - V5.2.5 (development/Problems.md #91-
+# continuation): whether enough history has accumulated to compute
+# bond_empirical_duration_beta ONCE and cache it, matching train.py's own
+# offline "compute once per ticker, broadcast unchanged" semantic instead
+# of re-rolling a fresh, drifting estimate every bar.
+# ---------------------------------------------------------------------------
+
+
+def test_should_lock_in_duration_beta_false_when_both_windows_still_filling():
+    assert should_lock_in_duration_beta(window_length=50, treasury_window_length=50, target_window_length=260) is False
+
+
+def test_should_lock_in_duration_beta_false_when_only_price_window_is_full():
+    # AND, not OR - one window clearing the bar isn't enough.
+    assert should_lock_in_duration_beta(window_length=260, treasury_window_length=50, target_window_length=260) is False
+
+
+def test_should_lock_in_duration_beta_false_when_only_treasury_window_is_full():
+    assert should_lock_in_duration_beta(window_length=50, treasury_window_length=260, target_window_length=260) is False
+
+
+def test_should_lock_in_duration_beta_true_at_exactly_the_target_boundary():
+    assert should_lock_in_duration_beta(window_length=260, treasury_window_length=260, target_window_length=260) is True
+
+
+def test_should_lock_in_duration_beta_true_when_both_windows_exceed_the_target():
+    assert should_lock_in_duration_beta(window_length=300, treasury_window_length=300, target_window_length=260) is True
 
 
 def test_compute_incremental_order_quantity_positive_delta_when_target_exceeds_current():

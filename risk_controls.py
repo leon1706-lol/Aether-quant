@@ -103,6 +103,40 @@ def is_position_resize_permitted(
     return position_scaling_enabled and (not is_book_selected or is_rebalance_bar)
 
 
+def should_lock_in_duration_beta(
+    window_length: int,
+    treasury_window_length: int,
+    target_window_length: int,
+) -> bool:
+    """V5.2.5 (development/Problems.md #91-continuation) - whether enough
+    history has accumulated to compute bond_empirical_duration_beta ONCE
+    and cache it, rather than re-rolling a fresh (and therefore drifting)
+    estimate every bar.
+
+    Bug this closes: main.py::_bond_empirical_duration_beta_for_symbol()
+    used to recompute this OLS slope from a ROLLING window every single
+    bar for the life of the backtest, while train.py::build_bond_features_by_date()
+    (the offline path that produced the model's OWN training data) computes
+    it ONCE per ticker - a single slope over that asset's entire available
+    history - and broadcasts that unchanged value to every row. The model
+    was trained on a stable, whole-history characteristic per bond asset;
+    live was feeding it a noisy, continuously-drifting value instead - an
+    out-of-training-distribution input for every bond-tagged symbol, every
+    bar, confirmed directly correlated with the bond-ETF-heavy live-vs-
+    offline selection mismatch pattern found in the V5.2.4 reconciliation.
+
+    True once BOTH the price window and the treasury-yield window have
+    reached `target_window_length` (main.py's own `self.long_bar_history_size`,
+    260 - the deque's own maxlen, the most history practically available to
+    a live algorithm that can never see future data the way an offline
+    batch process can) - mirrors train.py's own "compute once per ticker,
+    broadcast unchanged" semantic as closely as a real-time algorithm's
+    inherent lack of future history allows. Both windows must independently
+    clear the bar (AND, not OR) - a symbol with plenty of price history but
+    a still-filling treasury-yield history (or vice versa) isn't ready yet."""
+    return window_length >= target_window_length and treasury_window_length >= target_window_length
+
+
 def compute_incremental_order_quantity(
     target_quantity: float,
     current_quantity: float,

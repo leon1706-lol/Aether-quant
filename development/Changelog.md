@@ -5220,3 +5220,92 @@ exactly as predicted:
 
 See `development/Problems.md` #91's own update for the full numbers and
 next steps.
+
+## V5.2.5 — Fixing the live-vs-offline `bond_empirical_duration_beta` mismatch
+
+Continuing V5.2.4's equity-only divergence investigation (54.8% offline-vs-live
+overlap even excluding crypto/FX noise), with role mismatches confirmed zero
+across all 57 reconciled dates — the disagreement is entirely about *which*
+symbols get selected, never about direction. Three hypotheses were tested
+directly and ruled out: price data drift (NVDA/GE prices byte-identical
+between `full_dataset.csv` and Lean's own raw zip files), a scaler mismatch
+(`full_dataset.csv`'s scaled columns recomputed from the current
+`scaler_stats.json` matched to ~1e-15 — a 2-day mtime gap between the two
+files was a metadata-only rewrite, not an actual refit), and V5.2.1's
+execution-lag mechanism (re-confirmed as already ruled out back in V5.2.1
+itself — `entry_lag_bars=1` tested offline showed a negligible/slightly
+positive effect, not negative; this had been mis-stated as still-open going
+into this round and is corrected here).
+
+**One confirmed root cause: `bond_empirical_duration_beta`.** Offline
+(`train.py::build_bond_features_by_date()`) computes this OLS slope **once
+per ticker** over that asset's entire available history and broadcasts the
+unchanged value to every training row — the model was trained on a stable,
+whole-history characteristic per bond asset. Live
+(`main.py::_bond_empirical_duration_beta_for_symbol()`) was recomputing the
+same slope **every single bar** from a rolling 260-bar deque — a
+continuously-drifting, out-of-training-distribution input for the life of
+the backtest. Directly corroborated by the mismatch pattern: TLH, TLT, BIV,
+GOVT, VCIT, IEF (live-only) and SHY, VCSH, BWX (offline-only) — all bond
+ETFs, recurring constantly in the divergence lists.
+
+**Fix:** new `should_lock_in_duration_beta()` (`risk_controls.py`) — true
+once both the price window and the treasury-yield window have reached
+`self.long_bar_history_size` (260, the deque's own maxlen).
+`_bond_empirical_duration_beta_for_symbol()` now checks a new
+`self._bond_empirical_duration_beta_cache` dict before recomputing, and once
+both windows clear the bar, locks the value in permanently for the rest of
+the run — the closest a real-time algorithm can get to train.py's "compute
+once, broadcast unchanged" semantic without access to future data. Non-bond
+symbols are completely unaffected (unchanged early `return 0.0` before the
+cache check).
+
+**Secondary, code-quality fix (not an active bug today):** `cs_momentum_rank_20`
+was independently reimplemented in `train.py` via
+`pandas.groupby().rank(pct=True)` rather than calling the shared
+`features.cross_sectional_momentum_rank()` live uses. Directly tested
+against a real 104-ticker cross-section — bit-identical output (diff
+~1e-16), so this was not moving the reconciliation numbers. Rewritten anyway
+to call the shared function per (date, ticker) pair, removing the standing
+risk of the two hand-maintained implementations silently drifting apart on
+a future edit to only one of them.
+
+**Verification:** `py_compile` clean across `risk_controls.py`, `main.py`,
+`train.py`. New tests: 5 for `should_lock_in_duration_beta()`
+(`tests/test_risk_controls.py`, boundary/AND-not-OR cases), 1 regression
+test for the `cs_momentum_rank_20` rewrite
+(`tests/test_train_indicators.py`, asserts byte-identical output against
+the old `pandas.groupby().rank(pct=True)` formula on a synthetic
+ragged-universe frame). Full suite green. Manual read-through confirmed the
+duration-beta cache is never invalidated mid-run (no `RemoveSecurity`/
+dynamic-universe code exists in this algorithm) and non-bond symbols'
+early-return path is unchanged.
+
+**Fix B confirmed a true no-op.** A Codespace `aq train --dataset-only`
+rebuild (163,234 rows) followed by a reconciliation re-run against the same
+isolated V5.2.4 log produced `mean_overlap_fraction` = 49.3059%
+(independent-mode) / 53.7895% (hysteresis-replayed) — the hysteresis-replayed
+number matches the pre-fix baseline (0.5378951267984998) to every decimal
+place. The rewrite has zero measurable effect on live-vs-offline agreement,
+exactly as the direct bit-identical formula test predicted going in.
+
+**Fix A confirmed via a fresh real Lean backtest — a genuinely mixed
+result.** Sharpe improved from -4.103 to **-3.351** (a real ~0.75-point/18%
+relative improvement, same 2019-01-08→2021-03-30 window), but the
+book-reconciliation overlap metric that motivated the fix did NOT confirm
+it cleanly: independent-mode overlap actually dropped slightly (49.31% →
+48.14%), hysteresis-replayed dropped more (53.79% → 49.96%), and bond ETFs
+are still heavily present in the mismatch lists — several (TLH, TLT, SHY,
+VCSH) flipped which side of the mismatch they recur on rather than
+disappearing. `mean_raw_score_delta_abs` barely moved. Order count, fees,
+and turnover all rose slightly rather than falling. Not being reported as a
+clean root-cause closure — the Sharpe improvement is real and worth
+keeping, but the specific mechanism (whole-book cache-once semantics
+insufficiently matching train.py's true whole-history broadcast, or the
+overlap metric being too coarse to isolate one feature's effect from the
+rest of the book) is not resolved. See `development/Problems.md` #91's own
+V5.2.5 update for the full breakdown.
+
+Bond ETFs are only a subset of the mismatched symbols — NVDA, GE, WFC, XOM,
+BA, and every forex/crypto pair mismatch are not bond-related and remain a
+genuinely open thread for a future round.

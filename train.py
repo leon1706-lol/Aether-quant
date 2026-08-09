@@ -55,6 +55,7 @@ from features import (
     compute_greeks,
     credit_spread_level,
     credit_spread_proxy,
+    cross_sectional_momentum_rank,
     crypto_risk_appetite_proxy,
     distance_from_52w_high,
     empirical_duration_beta,
@@ -2124,11 +2125,15 @@ def build_cross_sectional_momentum_rank_features(asset_frames: dict[str, pd.Data
     default to 0.5, the exact middle, via that same neutral-default
     convention).
 
-    Computed here via pandas .rank(pct=True) directly (mathematically
-    identical to features.cross_sectional_momentum_rank()'s own
-    average-tie-rank formula - both are the standard percentile-rank-with-
-    averaged-ties convention) since a full per-date DataFrame already
-    exists offline, unlike main.py's runtime per-bar dict.
+    V5.2.5 (development/Problems.md #91-continuation): calls the same
+    features.cross_sectional_momentum_rank() main.py uses live, once per
+    (date, ticker) pair, instead of an independently-written pandas
+    .rank(pct=True) reimplementation - the two were verified numerically
+    identical given the same input pool, but keeping two hand-maintained
+    "should be identical" implementations around is a standing risk (a
+    future edit to one without the other silently reintroduces a live/
+    offline divergence of exactly this kind). Now provably identical by
+    construction, not just by argument.
 
     Must be called after the per-asset engineer_features() loop (needs
     momentum_20d already computed) but before build_feature_dataset()'s
@@ -2142,13 +2147,11 @@ def build_cross_sectional_momentum_rank_features(asset_frames: dict[str, pd.Data
         ],
         ignore_index=True,
     )
-    universe_size_by_date = long_frame.groupby("date")["momentum_20d"].transform("size")
-    long_frame["cs_momentum_rank_20"] = np.where(
-        universe_size_by_date >= 2,
-        long_frame.groupby("date")["momentum_20d"].rank(pct=True),
-        CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
-    )
-    rank_lookup = long_frame.set_index(["ticker", "date"])["cs_momentum_rank_20"].to_dict()
+    rank_lookup: dict[tuple[str, object], float] = {}
+    for date, group in long_frame.groupby("date"):
+        momentum_by_symbol = dict(zip(group["ticker"], group["momentum_20d"]))
+        for ticker in momentum_by_symbol:
+            rank_lookup[(ticker, date)] = cross_sectional_momentum_rank(momentum_by_symbol, ticker)
 
     updated_frames: dict[str, pd.DataFrame] = {}
     for ticker, frame in asset_frames.items():

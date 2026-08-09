@@ -123,8 +123,13 @@ visualization/grafana/
 # (roles/raw scores/weights) from a real backtest. Off by default
 # (phase_v2.diagnostics.book_history.enabled), but gitignored regardless
 # so an accidental enable+commit can't leak it - same rationale as the
-# ml/evaluation/ reports below.
-visualization/book_history.jsonl
+# ml/evaluation/ reports below. Wildcarded (not just the exact filename) so
+# the per-run isolated extracts used for reconciliation (e.g.
+# book_history_v524_only.jsonl, book_history_v525_only.jsonl - see
+# development/Problems.md #91) are covered too; book_history_v524_only.jsonl
+# was committed in V5.2.4's commit before this gap was caught, untracked
+# alongside this fix (V5.2.5).
+visualization/book_history*.jsonl
 
 # Generated evaluation reports (aq evaluate --...) - reveal historical
 # model selections/scores (book composition by date, rank scores,

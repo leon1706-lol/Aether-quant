@@ -43,6 +43,7 @@ from risk_controls import (
     evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
     is_position_resize_permitted,
+    should_lock_in_duration_beta,
     should_scale_position,
 )
 from analyzer import build_market_analysis_decision
@@ -423,6 +424,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # aligned per symbol, regardless of any other symbol's data gaps -
         # see _build_model_input()'s bond_empirical_duration_beta block.
         self.symbol_treasury_10yr_history = {}
+        # V5.2.5 (development/Problems.md #91-continuation) - locks in
+        # _bond_empirical_duration_beta_for_symbol()'s own value once per
+        # symbol (see that method's own docstring for why) rather than
+        # re-rolling a fresh, drifting estimate every bar.
+        self._bond_empirical_duration_beta_cache: dict[str, float] = {}
         # V5.1 Phase 2 (item 8 / F2) - same pairing convention as
         # symbol_treasury_10yr_history immediately above, one per cross-asset
         # sensitivity driver (vix/real_rate/credit/dollar) - see
@@ -3970,15 +3976,37 @@ class AetherQuantAlgorithm(QCAlgorithm):
         Delta-10yr-yield, both read from the two deques appended together
         in on_data() (self.symbol_long_windows / self.symbol_treasury_10yr_history) -
         guaranteed index-aligned per symbol regardless of any other
-        symbol's data gaps."""
+        symbol's data gaps.
+
+        V5.2.5 (development/Problems.md #91-continuation) - computed ONCE
+        and cached, not re-rolled every bar. train.py::build_bond_features_by_date()
+        (the offline path that produced the model's own training data)
+        computes this as a single OLS slope over a bond asset's ENTIRE
+        available history, then broadcasts that one unchanged value to
+        every row - explicitly documented there as "NOT a true rolling/
+        date-varying value." Before this fix, this method recomputed a
+        fresh slope from a rolling 260-bar window every single bar,
+        feeding the model a continuously-drifting, out-of-training-
+        distribution input for the life of the backtest - confirmed
+        directly correlated with a real live-vs-offline book-selection
+        divergence concentrated in bond ETFs (TLH, TLT, BIV, GOVT, VCIT,
+        IEF, SHY, VCSH, BWX). Locks in once should_lock_in_duration_beta()
+        says enough history has accumulated (both windows at their own
+        maxlen, self.long_bar_history_size) - the closest a real-time
+        algorithm can get to train.py's own "whole available history"
+        semantic without literally having access to future data."""
         asset = self.asset_lookup.get(str(symbol), {})
         is_bond = (asset.get("asset_class") or asset.get("security_type")) == "bond"
         if not is_bond:
             return 0.0
 
+        symbol_key = str(symbol)
+        if symbol_key in self._bond_empirical_duration_beta_cache:
+            return self._bond_empirical_duration_beta_cache[symbol_key]
+
         closes = list(self.symbol_long_windows.get(symbol, []))
         treasury_levels = list(self.symbol_treasury_10yr_history.get(symbol, []))
-        if len(closes) < 2 or len(treasury_levels) < 2:
+        if not should_lock_in_duration_beta(len(closes), len(treasury_levels), self.long_bar_history_size):
             return 0.0
 
         returns = [None] + [
@@ -3991,7 +4019,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             for i in range(1, len(treasury_levels))
         ]
         beta = empirical_duration_beta(returns, delta_yield)
-        return beta if beta is not None else 0.0
+        result = beta if beta is not None else 0.0
+        self._bond_empirical_duration_beta_cache[symbol_key] = result
+        return result
 
     def _bond_analytics_for_symbol(self, symbol) -> dict:
         """V4.6 (development/Problems.md, Roadmap "Assets" - "single-bond
