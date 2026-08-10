@@ -24,10 +24,74 @@ def is_backtest_safety_bypass_active(runtime_mode: str, bypass_flag: bool) -> bo
     representative) so this is opt-in, not implicit. Deliberately
     independent of aq trade-lock's on/off/auto override, which keeps its
     existing, separately-documented meaning unchanged in every runtime
-    mode. Scoped narrowly to the sticky total-drawdown lock and the
-    regime risk_off drawdown branch - never touches liquidity/topology/
-    cooldown/exposure gates."""
+    mode.
+
+    V5.2.7 (development/Problems.md) - CORRECTED docstring: this used to
+    claim "scoped narrowly to the sticky total-drawdown lock and the
+    regime risk_off drawdown branch," but that was never accurate once
+    V5.1 Phase 6 extended main.py's session-rollover sticky-clear branch
+    to ALSO cover any kill_switch_* trade_lock_reason, not just
+    total_drawdown_limit_breached - this flag's real effect was always
+    broader than its own docstring said. This is now the LEGACY combined
+    flag, kept only for backward compatibility (still fully functional,
+    still bundles both behaviors exactly as before) - new callers should
+    use is_sticky_trade_lock_bypass_active()/is_regime_drawdown_bypass_active()
+    below instead, which split the same two behaviors into independently
+    configurable flags while still OR-ing this legacy flag in so nobody's
+    existing config silently stops working."""
     return runtime_mode == "backtest" and bypass_flag
+
+
+def is_sticky_trade_lock_bypass_active(
+    runtime_mode: str,
+    sticky_bypass_flag: bool,
+    legacy_bypass_flag: bool,
+) -> bool:
+    """V5.2.7 (development/Problems.md) - True when a backtest is running
+    with EITHER phase_v2.backtest.bypass_sticky_trade_lock OR the legacy
+    phase_v2.backtest.bypass_safety_gates explicitly true. Controls ONLY
+    main.py's session-rollover total_drawdown_limit_breached/kill_switch_*
+    sticky-lock clear - never the regime risk_off drawdown branch (see
+    is_regime_drawdown_bypass_active() for that, now a genuinely
+    independent flag instead of the two being bundled together under one
+    name). Any non-backtest runtime_mode always returns False regardless
+    of either flag.
+
+    Bug this closes: a real backtest showed a kill-switch trip on
+    2020-02-27 stay locked for the remaining 13 months of a ~2.2-year
+    backtest (336/336 book-member decisions forced to reduce_risk in that
+    window, vs. 16% before the trip) - kill_switch_* reasons are
+    deliberately exempt from the normal daily auto-clear (a real, correct
+    safety choice for live/paper trading, where a human should decide
+    when to resume after a genuine circuit-breaker trip), but an
+    unattended historical backtest has no human to ever clear it, so a
+    single trip event silently darkens the rest of the evaluation window
+    regardless of whether the underlying conditions later recover."""
+    return runtime_mode == "backtest" and (sticky_bypass_flag or legacy_bypass_flag)
+
+
+def is_regime_drawdown_bypass_active(
+    runtime_mode: str,
+    regime_bypass_flag: bool,
+    legacy_bypass_flag: bool,
+) -> bool:
+    """V5.2.7 (development/Problems.md) - True when a backtest is running
+    with EITHER phase_v2.backtest.bypass_regime_drawdown_gate OR the
+    legacy phase_v2.backtest.bypass_safety_gates explicitly true.
+    Controls ONLY main.py::_build_regime_payload()'s
+    risk_off_drawdown_threshold override (set to infinity when active,
+    disabling just the drawdown-driven branch of classify_risk_regime -
+    the bearish-trend/high-vol and composite-risk-score branches stay
+    active regardless) - never the sticky trade-lock clear (see
+    is_sticky_trade_lock_bypass_active() for that). Any non-backtest
+    runtime_mode always returns False regardless of either flag.
+
+    Deliberately a SEPARATE flag from the sticky-lock bypass above, even
+    though both were previously bundled under the single
+    bypass_safety_gates flag - a user who wants a stuck kill-switch lock
+    to be able to clear should not be forced to also disable this
+    unrelated regime-level protection as a side effect."""
+    return runtime_mode == "backtest" and (regime_bypass_flag or legacy_bypass_flag)
 
 
 def active_position_limit_reached(
@@ -135,6 +199,81 @@ def should_lock_in_duration_beta(
     clear the bar (AND, not OR) - a symbol with plenty of price history but
     a still-filling treasury-yield history (or vice versa) isn't ready yet."""
     return window_length >= target_window_length and treasury_window_length >= target_window_length
+
+
+def compute_forex_order_units(target_weight: float, close_price: float, portfolio_value: float) -> int:
+    """V5.2.7 (development/Problems.md) - converts a target portfolio
+    weight into whole base-currency UNITS for a Forex MarketOrder - NOT a
+    lot count. QuantConnect Lean's MarketOrder() for SecurityType.Forex
+    takes raw base-currency units (e.g. MarketOrder("EURUSD", 10000) =
+    10,000 EUR), matching Portfolio[symbol].Quantity's own reporting
+    convention - standard, documented Lean/IB behavior, but UNVERIFIED
+    empirically in this repo/Lean image as of this fix. See
+    build_forex_order_sizing_record()'s notional_ratio field for the
+    direct, human-checkable confirmation this assumption needs from a
+    real backtest.
+
+    Bug this closes: main.py::_forex_lot_count_for_weight() used to
+    divide notional by (lot_size * close_price) - a full 100,000-unit
+    standard lot - which on a $100k backtest account with a realistic
+    book-member position weight (4-12%) produces a notional ($4,000-
+    $12,000) far smaller than even one lot ($67,000-$130,000+), so the
+    division always rounded to 0. Confirmed directly: forex allocations
+    that cleared every other risk/liquidity/confidence gate and reached
+    a real "trade" decision still silently produced zero Lean orders.
+
+    Deliberately does NOT round to a whole lot_size multiple either -
+    that would silently reproduce the exact same always-zero-orders bug
+    under a new name, since the same realistic position sizes are still
+    far below one full lot. Rounds to the nearest whole UNIT instead
+    (IB/Lean forex orders must be whole units, never fractional
+    currency). Returns 0 (never raises) when close_price or
+    portfolio_value is non-positive."""
+    if close_price <= 0.0 or portfolio_value <= 0.0:
+        return 0
+    notional = target_weight * portfolio_value
+    return int(round(notional / close_price))
+
+
+def build_forex_order_sizing_record(
+    date_str: str,
+    symbol: str,
+    direction: str,
+    target_weight: float,
+    portfolio_value: float,
+    close_price: float,
+    order_units: int,
+) -> dict:
+    """V5.2.7 (development/Problems.md) - a diagnostic snapshot of one
+    forex order-sizing decision, for main.py's optional (config-gated,
+    off by default, backtest-only) forex-order-sizing log. Exists
+    because compute_forex_order_units()'s "Lean forex MarketOrder takes
+    raw units" assumption cannot be verified from this Python codebase
+    alone - notional_ratio is the direct, human-checkable confirmation a
+    real backtest's log can provide instead: it should sit very close to
+    1.0 for correct sizing (only whole-unit rounding slop); a value
+    wildly off (e.g. 100x or 0.01x) is the exact, unambiguous symptom of
+    a wrong units assumption, and should be treated as disqualifying for
+    that backtest's other results until investigated.
+
+    Pure: no I/O, no `self`, never raises on well-formed inputs.
+    intended_notional == 0.0 (target_weight == 0.0) returns
+    notional_ratio=None rather than dividing by zero - a symbol with no
+    real order to place has nothing to sanity-check."""
+    intended_notional = target_weight * portfolio_value
+    implied_notional = order_units * close_price
+    return {
+        "date": date_str,
+        "symbol": symbol,
+        "direction": direction,
+        "target_weight": target_weight,
+        "portfolio_value": portfolio_value,
+        "close_price": close_price,
+        "order_units": order_units,
+        "intended_notional": intended_notional,
+        "implied_notional": implied_notional,
+        "notional_ratio": (implied_notional / intended_notional) if intended_notional != 0.0 else None,
+    }
 
 
 def compute_incremental_order_quantity(

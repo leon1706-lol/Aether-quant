@@ -1,13 +1,19 @@
+import pytest
+
 from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
+    build_forex_order_sizing_record,
     cap_target_weight,
+    compute_forex_order_units,
     compute_held_weight,
     compute_incremental_order_quantity,
     compute_position_exit_tracking_update,
     evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
     is_position_resize_permitted,
+    is_regime_drawdown_bypass_active,
+    is_sticky_trade_lock_bypass_active,
     should_lock_in_duration_beta,
     should_scale_position,
 )
@@ -80,6 +86,65 @@ def test_backtest_safety_bypass_never_active_in_paper_mode():
 def test_backtest_safety_bypass_never_active_in_live_mode():
     assert is_backtest_safety_bypass_active("live", True) is False
     assert is_backtest_safety_bypass_active("live", False) is False
+
+
+# ---------------------------------------------------------------------------
+# V5.2.7 (development/Problems.md) - is_sticky_trade_lock_bypass_active()/
+# is_regime_drawdown_bypass_active() split the legacy combined
+# bypass_safety_gates flag into two independently-configurable ones. A real
+# backtest showed a single kill-switch trip lock 336/336 (100%) of
+# book-member decisions for the remaining 13 months of a 2.2-year backtest -
+# these let that sticky-lock clearing be enabled WITHOUT also disabling the
+# unrelated regime risk_off drawdown protection, which the old single flag
+# forced as a bundled side effect.
+# ---------------------------------------------------------------------------
+
+
+def test_sticky_trade_lock_bypass_active_via_new_flag_in_backtest():
+    assert is_sticky_trade_lock_bypass_active("backtest", True, False) is True
+
+
+def test_sticky_trade_lock_bypass_active_via_legacy_flag_in_backtest():
+    # Backward compatibility - anyone with the old bypass_safety_gates=true
+    # config must keep getting the sticky-lock-clear behavior unchanged.
+    assert is_sticky_trade_lock_bypass_active("backtest", False, True) is True
+
+
+def test_sticky_trade_lock_bypass_inactive_when_neither_flag_set():
+    assert is_sticky_trade_lock_bypass_active("backtest", False, False) is False
+
+
+def test_sticky_trade_lock_bypass_never_active_outside_backtest():
+    assert is_sticky_trade_lock_bypass_active("paper", True, True) is False
+    assert is_sticky_trade_lock_bypass_active("live", True, True) is False
+
+
+def test_regime_drawdown_bypass_active_via_new_flag_in_backtest():
+    assert is_regime_drawdown_bypass_active("backtest", True, False) is True
+
+
+def test_regime_drawdown_bypass_active_via_legacy_flag_in_backtest():
+    assert is_regime_drawdown_bypass_active("backtest", False, True) is True
+
+
+def test_regime_drawdown_bypass_inactive_when_neither_flag_set():
+    assert is_regime_drawdown_bypass_active("backtest", False, False) is False
+
+
+def test_regime_drawdown_bypass_never_active_outside_backtest():
+    assert is_regime_drawdown_bypass_active("paper", True, True) is False
+    assert is_regime_drawdown_bypass_active("live", True, True) is False
+
+
+def test_sticky_bypass_and_regime_bypass_are_independent():
+    # The actual bug-closing test: setting ONLY the sticky-lock flag must
+    # never also activate the regime-drawdown bypass, and vice versa - this
+    # is the entire point of splitting the two apart.
+    assert is_sticky_trade_lock_bypass_active("backtest", True, False) is True
+    assert is_regime_drawdown_bypass_active("backtest", False, False) is False
+
+    assert is_sticky_trade_lock_bypass_active("backtest", False, False) is False
+    assert is_regime_drawdown_bypass_active("backtest", True, False) is True
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +296,79 @@ def test_compute_incremental_order_quantity_handles_negative_current_and_target_
     # the delta itself must be signed correctly for MarketOrder(delta) to
     # sell 3 more, not buy back toward flat.
     assert compute_incremental_order_quantity(target_quantity=-8, current_quantity=-5) == -3
+
+
+# ---------------------------------------------------------------------------
+# V5.2.7 (development/Problems.md) - compute_forex_order_units()/
+# build_forex_order_sizing_record(). Confirmed bug: main.py used to divide
+# notional by (lot_size * close_price) - a full 100,000-unit standard lot -
+# which on a $100k account with a realistic book-member position weight
+# (4-12%) always rounded to 0, silently discarding every forex trade that
+# had already cleared every other risk/liquidity/confidence gate.
+# ---------------------------------------------------------------------------
+
+
+def test_compute_forex_order_units_realistic_book_member_scale_is_nonzero():
+    # The literal confirmed-bug scenario: an 8% EURUSD-like position on a
+    # $100k account. Pre-fix, this rounded to 0 lots every time.
+    units = compute_forex_order_units(target_weight=0.08, close_price=1.10, portfolio_value=100_000.0)
+    assert units > 0
+    assert units == 7273
+
+
+def test_compute_forex_order_units_does_not_round_to_lot_multiple():
+    # Explicit regression guard against reintroducing the original bug
+    # under a new name - a "round to nearest whole lot_size (100,000)
+    # multiple" fix would look plausible but leaves every realistic
+    # position rounding to zero.
+    units = compute_forex_order_units(target_weight=0.08, close_price=1.10, portfolio_value=100_000.0)
+    assert units % 100_000 != 0
+    assert units != 0
+
+
+def test_compute_forex_order_units_scales_with_weight():
+    small = compute_forex_order_units(target_weight=0.04, close_price=1.10, portfolio_value=100_000.0)
+    large = compute_forex_order_units(target_weight=0.08, close_price=1.10, portfolio_value=100_000.0)
+    assert large == pytest.approx(2 * small, abs=1)
+
+
+def test_compute_forex_order_units_negative_weight_gives_negative_units():
+    units = compute_forex_order_units(target_weight=-0.08, close_price=1.10, portfolio_value=100_000.0)
+    assert units < 0
+
+
+def test_compute_forex_order_units_zero_close_price_gives_zero():
+    assert compute_forex_order_units(target_weight=0.08, close_price=0.0, portfolio_value=100_000.0) == 0
+
+
+def test_compute_forex_order_units_non_positive_portfolio_value_gives_zero():
+    assert compute_forex_order_units(target_weight=0.08, close_price=1.10, portfolio_value=0.0) == 0
+    assert compute_forex_order_units(target_weight=0.08, close_price=1.10, portfolio_value=-100.0) == 0
+
+
+def test_build_forex_order_sizing_record_notional_ratio_near_one_for_sane_inputs():
+    units = compute_forex_order_units(target_weight=0.08, close_price=1.10, portfolio_value=100_000.0)
+    record = build_forex_order_sizing_record(
+        "2019-01-08", "EURUSD", "short", 0.08, 100_000.0, 1.10, units
+    )
+    assert record["notional_ratio"] == pytest.approx(1.0, abs=0.01)
+
+
+def test_build_forex_order_sizing_record_flags_gross_mismatch():
+    # Feed it the OLD, buggy lot-based output (0, since every realistic
+    # weight rounded to 0 lots) against a real intended notional - the
+    # ratio must come back unambiguously wrong (0.0), not silently near 1.0.
+    record = build_forex_order_sizing_record(
+        "2019-01-08", "EURUSD", "short", 0.08, 100_000.0, 1.10, 0
+    )
+    assert record["notional_ratio"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_build_forex_order_sizing_record_handles_zero_intended_notional():
+    record = build_forex_order_sizing_record(
+        "2019-01-08", "EURUSD", "short", 0.0, 100_000.0, 1.10, 0
+    )
+    assert record["notional_ratio"] is None
 
 
 # ---------------------------------------------------------------------------

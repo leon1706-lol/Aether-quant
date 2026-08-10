@@ -36,13 +36,16 @@ from AlgorithmImports import *
 from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
+    build_forex_order_sizing_record,
     cap_target_weight,
+    compute_forex_order_units,
     compute_held_weight,
     compute_incremental_order_quantity,
     compute_position_exit_tracking_update,
     evaluate_non_model_exit,
-    is_backtest_safety_bypass_active,
     is_position_resize_permitted,
+    is_regime_drawdown_bypass_active,
+    is_sticky_trade_lock_bypass_active,
     should_lock_in_duration_beta,
     should_scale_position,
 )
@@ -664,12 +667,32 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.max_daily_drawdown_pct = float(phase6_risk.get("max_daily_drawdown_pct", 0.03))
         self.max_total_drawdown_pct = float(phase6_risk.get("max_total_drawdown_pct", 0.12))
         self.liquidate_on_risk_breach = bool(phase6_risk.get("liquidate_on_risk_breach", True))
-        # Opt-in, statistical/diagnostic-only: see risk_controls.py::is_backtest_safety_bypass_active()'s
-        # docstring and Problems.md for why this is a dedicated flag, not
-        # aq trade-lock's on/off/auto override. Defaults False (gates
+        # Legacy combined flag (V5.2.7: split below into
+        # bypass_sticky_trade_lock/bypass_regime_drawdown_gate - see
+        # risk_controls.py::is_backtest_safety_bypass_active()'s corrected
+        # docstring and Problems.md). Opt-in, statistical/diagnostic-only,
+        # not aq trade-lock's on/off/auto override. Defaults False (gates
         # active) and only ever takes effect when self.runtime_mode is
         # literally "backtest" - never in paper/live.
         self.bypass_safety_gates = bool(phase_v2_backtest.get("bypass_safety_gates", False))
+        # V5.2.7 (development/Problems.md) - splits the legacy combined
+        # flag above into two independently-configurable ones (see
+        # risk_controls.py::is_sticky_trade_lock_bypass_active()/
+        # is_regime_drawdown_bypass_active()'s own docstrings for exactly
+        # what each controls). Both default False (safe no-op); the
+        # legacy flag still works unchanged if set and neither new key is
+        # present, with a one-time Debug nudge toward the new keys.
+        _sticky_bypass_configured = "bypass_sticky_trade_lock" in phase_v2_backtest
+        _regime_bypass_configured = "bypass_regime_drawdown_gate" in phase_v2_backtest
+        self.bypass_sticky_trade_lock = bool(phase_v2_backtest.get("bypass_sticky_trade_lock", False))
+        self.bypass_regime_drawdown_gate = bool(phase_v2_backtest.get("bypass_regime_drawdown_gate", False))
+        if self.bypass_safety_gates and not (_sticky_bypass_configured or _regime_bypass_configured):
+            self.Debug(
+                "phase_v2.backtest.bypass_safety_gates is deprecated - it still works (bundling both "
+                "sticky-lock clearing and the regime drawdown gate, as before), but new backtests should "
+                "set phase_v2.backtest.bypass_sticky_trade_lock and/or "
+                "phase_v2.backtest.bypass_regime_drawdown_gate independently."
+            )
         self.asset_quality = self.dataset_manifest.get(
             "asset_quality",
             self.feature_schema.get("asset_quality", {}),
@@ -1472,6 +1495,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.book_history_include_decisions = bool(
             phase_v2_diagnostics_book_history.get("include_decisions", False)
         )
+        # V5.2.7 (development/Problems.md) - opt-in, backtest-only,
+        # real-orders-only diagnostic confirming
+        # _forex_order_units_for_weight()'s Lean-forex-units assumption
+        # against real data - see _log_forex_order_sizing_diagnostic()'s
+        # own docstring.
+        phase_v2_diagnostics_forex_order_sizing = self.phase_v2.get("diagnostics", {}).get("forex_order_sizing", {})
+        self.forex_order_sizing_diagnostics_enabled = bool(
+            phase_v2_diagnostics_forex_order_sizing.get("enabled", False)
+        )
+        self.forex_order_sizing_diagnostics_path = self.root_path / phase_v2_diagnostics_forex_order_sizing.get(
+            "output_path", "visualization/forex_order_sizing.jsonl"
+        )
         # Live-mode transition audit event - the single highest-stakes fact
         # about a run (whether real capital is at risk) determined once here
         # at startup. self.runtime_mode is already fully resolved above.
@@ -2073,6 +2108,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # consults is_rebalance_bar for a book-selected symbol, and no
         # symbol is ever book-selected while the book is disabled.
         is_rebalance_bar = True
+        # V5.2.6 (development/Problems.md) - default False; only ever
+        # flipped True inside the `if is_rebalance_bar:` branch below,
+        # right alongside spread_check_ranks's own fresh assignment - see
+        # that branch's comment for why the deferred book_history write
+        # further down must gate on this, not on bare book_allocations
+        # truthiness.
+        book_history_should_log_this_bar = False
         if self.portfolio_book_enabled:
             is_rebalance_bar = should_rebalance_this_bar(
                 self.bar_index,
@@ -2081,6 +2123,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 is_trading_day_bar=self.is_equity_session_bar,
             )
             if is_rebalance_bar:
+                # V5.2.6 (development/Problems.md) - True only on a bar
+                # where book_allocations/spread_check_ranks are FRESHLY
+                # computed (this branch), never on a later bar that merely
+                # carries the previous rebalance's book_allocations
+                # forward (the `else: book_allocations = self._last_book_allocations`
+                # branch below) - the deferred book_history write further
+                # down gates on this, not on bare book_allocations
+                # truthiness, which stays True on every bar between
+                # rebalances and would otherwise (a) log one record per
+                # bar instead of one per rebalance date, and (b) crash
+                # reading spread_check_ranks, which is ONLY ever assigned
+                # in this branch.
+                book_history_should_log_this_bar = True
                 # V5.1 Phase 1 (development/Problems.md #77): the
                 # confidence-spread gate must see RAW (pre-normalization)
                 # scores, never the cross-sectional percentile that
@@ -2678,8 +2733,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # locals/instance state, untouched by Pass 2 (confirmed: Pass 2
         # only ever reads book_allocations via book_allocations.get(...),
         # never reassigns it), so waiting until here changes nothing else
-        # about what gets logged.
-        if self.book_history_diagnostics_enabled and self.runtime_mode == "backtest" and book_allocations:
+        # about what gets logged - PROVIDED this only actually runs on a
+        # genuine fresh-rebalance bar (book_history_should_log_this_bar).
+        # A real bug caught by a live Lean run: gating on bare
+        # book_allocations truthiness alone crashed with "cannot access
+        # local variable 'spread_check_ranks'" on the very next bar after
+        # a rebalance, since book_allocations stays truthy (carried
+        # forward via self._last_book_allocations) on every bar between
+        # rebalances, but spread_check_ranks is only ever assigned on the
+        # bar it's freshly computed.
+        if (
+            self.book_history_diagnostics_enabled
+            and self.runtime_mode == "backtest"
+            and book_history_should_log_this_bar
+            and book_allocations
+        ):
             try:
                 # V5.2.3 (development/Problems.md #91) - `signals`
                 # (Phase 1a's per-symbol payload, already built earlier
@@ -4399,13 +4467,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _build_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
         # Statistical/diagnostic bypass only (see risk_controls.py::
-        # is_backtest_safety_bypass_active() and Problems.md): disables
+        # is_regime_drawdown_bypass_active() and Problems.md): disables
         # only the drawdown-driven branch of risk_off classification, so a
         # stale, never-recovering portfolio-drawdown number can't freeze
         # every asset's signal for the rest of a bypass-mode backtest run.
         # The bearish-trend+high-vol and composite risk-score branches of
-        # classify_risk_regime stay fully active either way.
-        bypass_active = is_backtest_safety_bypass_active(self.runtime_mode, self.bypass_safety_gates)
+        # classify_risk_regime stay fully active either way. V5.2.7 - now
+        # its own independent flag (bypass_regime_drawdown_gate), split
+        # from the sticky trade-lock bypass below - the legacy
+        # bypass_safety_gates flag still OR-ed in for backward
+        # compatibility.
+        bypass_active = is_regime_drawdown_bypass_active(
+            self.runtime_mode, self.bypass_regime_drawdown_gate, self.bypass_safety_gates
+        )
         risk_off_drawdown_threshold = float("inf") if bypass_active else self.regime_risk_off_drawdown_threshold
         vector = build_market_regime_vector(
             base_features,
@@ -5416,24 +5490,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if asset_class == "forex":
                 # V4.6 - mirrors the "future" branch above exactly (same
                 # V4.3.0 incremental-vs-absolute quantity fix, same
-                # same-direction scaling shape), lots instead of contracts.
-                pair_spec = self.forex_pair_specs.get(asset.get("ticker"), {})
-                lot_count = self._forex_lot_count_for_weight(target_weight, pair_spec, close_price, orders_allowed)
-                if lot_count == 0:
-                    return "forex_zero_lot_count"
+                # same-direction scaling shape). V5.2.7 - units, not lots,
+                # see _forex_order_units_for_weight()'s own docstring.
+                order_units_for_weight = self._forex_order_units_for_weight(target_weight, close_price, orders_allowed)
+                if order_units_for_weight == 0:
+                    return "forex_zero_order_units"
+                self._log_forex_order_sizing_diagnostic(
+                    symbol_key, "buy", target_weight, close_price, order_units_for_weight, orders_allowed
+                )
                 if orders_allowed:
                     current_quantity = float(self.Portfolio[symbol].Quantity)
-                    already_same_direction = current_quantity != 0 and (current_quantity > 0) == (lot_count > 0)
+                    already_same_direction = (
+                        current_quantity != 0 and (current_quantity > 0) == (order_units_for_weight > 0)
+                    )
                     if already_same_direction:
                         if not self.position_scaling_enabled:
                             return "kept_long_forex"
-                        delta = int(round(compute_incremental_order_quantity(lot_count, current_quantity)))
+                        delta = int(round(compute_incremental_order_quantity(order_units_for_weight, current_quantity)))
                         if delta == 0:
                             return "forex_zero_delta_kept"
                         order_quantity = delta
                         entered_note, limit_note = "scaled_long_forex", "submitted_limit_scaled_long_forex"
                     else:
-                        order_quantity = lot_count
+                        order_quantity = order_units_for_weight
                         entered_note, limit_note = "entered_long_forex", "submitted_limit_long_forex"
                     if self._try_submit_limit_order(
                         symbol, symbol_key, "forex", is_buy=True, target_weight=target_weight,
@@ -5585,24 +5664,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 return f"simulated_entered_short_futures:{permission_reason}"
 
             if asset_class == "forex":
-                # V4.6 - symmetric to the "buy" branch's forex sibling above.
-                pair_spec = self.forex_pair_specs.get(asset.get("ticker"), {})
-                lot_count = self._forex_lot_count_for_weight(target_weight, pair_spec, close_price, orders_allowed)
-                if lot_count == 0:
-                    return "forex_zero_lot_count"
+                # V4.6 - symmetric to the "buy" branch's forex sibling
+                # above. V5.2.7 - units, not lots, see
+                # _forex_order_units_for_weight()'s own docstring.
+                order_units_for_weight = self._forex_order_units_for_weight(target_weight, close_price, orders_allowed)
+                if order_units_for_weight == 0:
+                    return "forex_zero_order_units"
+                self._log_forex_order_sizing_diagnostic(
+                    symbol_key, "short", target_weight, close_price, order_units_for_weight, orders_allowed
+                )
                 if orders_allowed:
                     current_quantity = float(self.Portfolio[symbol].Quantity)
-                    already_same_direction = current_quantity != 0 and (current_quantity > 0) == (lot_count > 0)
+                    already_same_direction = (
+                        current_quantity != 0 and (current_quantity > 0) == (order_units_for_weight > 0)
+                    )
                     if already_same_direction:
                         if not self.position_scaling_enabled:
                             return "kept_short_forex"
-                        delta = int(round(compute_incremental_order_quantity(lot_count, current_quantity)))
+                        delta = int(round(compute_incremental_order_quantity(order_units_for_weight, current_quantity)))
                         if delta == 0:
                             return "forex_zero_delta_kept"
                         order_quantity = delta
                         entered_note, limit_note = "scaled_short_forex", "submitted_limit_scaled_short_forex"
                     else:
-                        order_quantity = lot_count
+                        order_quantity = order_units_for_weight
                         entered_note, limit_note = "entered_short_forex", "submitted_limit_short_forex"
                     if self._try_submit_limit_order(
                         symbol, symbol_key, "forex", is_buy=False, target_weight=target_weight,
@@ -5945,25 +6030,63 @@ class AetherQuantAlgorithm(QCAlgorithm):
         notional = target_weight * portfolio_value
         return int(round(notional / (multiplier * close_price)))
 
-    def _forex_lot_count_for_weight(self, target_weight: float, pair_spec: dict, close_price: float, orders_allowed: bool) -> int:
-        """V4.6 - the Forex sibling of _futures_contract_count_for_weight()
-        above, identical rationale (re-derives from the FINAL, post-
-        liquidity/analyzer target_weight rather than threading the
-        originally-computed lot count through unchanged). Returns 0
-        (never raises) when the pair spec is missing or price/portfolio
-        value are non-positive."""
-        lot_size = float(pair_spec.get("lot_size", 0.0) or 0.0)
-        if lot_size <= 0.0 or close_price <= 0.0:
-            return 0
+    def _forex_order_units_for_weight(self, target_weight: float, close_price: float, orders_allowed: bool) -> int:
+        """V4.6, corrected V5.2.7 (development/Problems.md) - the Forex
+        sibling of _futures_contract_count_for_weight() below (re-derives
+        from the FINAL, post-liquidity/analyzer target_weight rather than
+        threading the originally-computed quantity through unchanged),
+        but NOT the same rounding shape - futures trade in genuinely
+        discrete whole contracts (a real dollar-per-point multiplier),
+        forex can trade in arbitrary unit increments via IB. Thin wrapper
+        around risk_controls.py::compute_forex_order_units() - see that
+        function's own docstring for the confirmed bug this closes (lot-
+        sized rounding made every realistic book-member position round to
+        zero, unconditionally) and the units-convention assumption this
+        still rests on. Returns 0 (never raises) when close_price/
+        portfolio_value are non-positive."""
         portfolio_value = (
             float(self.Portfolio.TotalPortfolioValue)
             if orders_allowed
             else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
         )
-        if portfolio_value <= 0.0:
-            return 0
-        notional = target_weight * portfolio_value
-        return int(round(notional / (lot_size * close_price)))
+        return compute_forex_order_units(target_weight, close_price, portfolio_value)
+
+    def _log_forex_order_sizing_diagnostic(
+        self,
+        symbol_key: str,
+        direction: str,
+        target_weight: float,
+        close_price: float,
+        order_units: int,
+        orders_allowed: bool,
+    ) -> None:
+        """V5.2.7 (development/Problems.md) - opt-in, backtest-only,
+        real-orders-only (orders_allowed) diagnostic log confirming
+        _forex_order_units_for_weight()'s "Lean forex MarketOrder takes
+        raw units" assumption against real data - see
+        risk_controls.py::build_forex_order_sizing_record()'s own
+        docstring for what notional_ratio means and why this can't be
+        verified from this Python codebase alone. Same config-gated,
+        try/except-wrapped, self.Debug-on-failure convention as the
+        book_history diagnostic write - never fatal, never blocks a real
+        order regardless of what happens here."""
+        if not (self.forex_order_sizing_diagnostics_enabled and orders_allowed and self.runtime_mode == "backtest"):
+            return
+        try:
+            record = build_forex_order_sizing_record(
+                str(self.Time.date()),
+                symbol_key,
+                direction,
+                target_weight,
+                float(self.Portfolio.TotalPortfolioValue),
+                close_price,
+                order_units,
+            )
+            self.forex_order_sizing_diagnostics_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.forex_order_sizing_diagnostics_path, "a", encoding="utf-8") as diagnostics_file:
+                diagnostics_file.write(json.dumps(record) + "\n")
+        except Exception as error:
+            self.Debug(f"forex_order_sizing diagnostic write failed: {error}")
 
     def _short_exposure(self, orders_allowed: bool = True, exclude_symbol=None) -> float:
         """Phase 3 of the 5/10 -> 9/10 roadmap: total exposure currently
@@ -6033,22 +6156,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.current_session_date = current_date
             self.session_start_equity = portfolio_value
             # Statistical/diagnostic bypass only (see risk_controls.py::
-            # is_backtest_safety_bypass_active() and Problems.md): normally
-            # a total-drawdown breach is deliberately excluded from this
-            # daily auto-clear, for live capital preservation - since
-            # peak_equity never decreases, once liquidated to flat cash
-            # this lock would otherwise never clear again for the rest of
-            # a bypass-mode backtest run. V5.1 Phase 6 extends the same
-            # stickiness to any kill_switch_* reason (risk/kill_switch.py's
-            # module docstring) - a production circuit breaker that
-            # silently self-cleared on the very next bar/session would
-            # defeat the "requires a deliberate decision to resume" point
-            # of having one at all.
+            # is_sticky_trade_lock_bypass_active() and Problems.md):
+            # normally a total-drawdown breach is deliberately excluded
+            # from this daily auto-clear, for live capital preservation -
+            # since peak_equity never decreases, once liquidated to flat
+            # cash this lock would otherwise never clear again for the
+            # rest of a bypass-mode backtest run. V5.1 Phase 6 extends the
+            # same stickiness to any kill_switch_* reason
+            # (risk/kill_switch.py's module docstring) - a production
+            # circuit breaker that silently self-cleared on the very next
+            # bar/session would defeat the "requires a deliberate decision
+            # to resume" point of having one at all. V5.2.7 - confirmed
+            # via a real backtest that this stickiness devastates an
+            # UNATTENDED backtest specifically: one kill-switch trip
+            # locked 336/336 (100%) of book-member decisions for the
+            # remaining 13 months of a 2.2-year run, with no human ever
+            # available to clear it. Now its own independent flag
+            # (bypass_sticky_trade_lock), split from the regime drawdown
+            # bypass above - the legacy bypass_safety_gates flag still
+            # OR-ed in for backward compatibility.
             trade_lock_reason_is_sticky = self.trade_lock_reason == "total_drawdown_limit_breached" or str(
                 self.trade_lock_reason or ""
             ).startswith("kill_switch_")
-            if not trade_lock_reason_is_sticky or is_backtest_safety_bypass_active(
-                self.runtime_mode, self.bypass_safety_gates
+            if not trade_lock_reason_is_sticky or is_sticky_trade_lock_bypass_active(
+                self.runtime_mode, self.bypass_sticky_trade_lock, self.bypass_safety_gates
             ):
                 self.trade_lock_active = False
                 self.trade_lock_reason = None

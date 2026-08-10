@@ -5420,3 +5420,130 @@ can finally execute.
 
 See `development/Problems.md` #92 for the full investigation, evidence,
 and honest scope notes.
+
+**Update (2026-08-10):** the first real Lean backtest attempt crashed on
+the bar right after the first rebalance -
+`cannot access local variable 'spread_check_ranks'` - a genuine bug the
+unit suite couldn't catch (main.py has no direct unit coverage by
+established convention). Design 5's deferred book_history write gated on
+bare `book_allocations` truthiness, which stays true on every bar between
+rebalances (carried forward), while `spread_check_ranks` is only assigned
+on the bar it's freshly computed. Fixed with a new
+`book_history_should_log_this_bar` flag that's only ever `True` on a
+genuine fresh-rebalance bar. Full suite re-run clean (2505 passed). The
+Stage 2 backtest needs to be re-run - the crashed attempt produced no
+usable data.
+
+**Update (2026-08-10):** the re-run succeeded (`backtests/2026-08-10_15-04-53`):
+Sharpe -2.984, up from -3.351, 437 orders, $407 fees. The new
+`book_member_decisions` diagnostic surfaced two further bugs, fixed in
+V5.2.7 below: forex orders still never execute (a lot-sizing bug
+downstream of this round's liquidity fix), and a 2020-02-27 kill-switch
+trip that stayed stuck, by design, for the remaining 13+ months of the
+backtest.
+
+## V5.2.7 — Fixing the forex order-sizing bug and the sticky kill-switch lockout
+
+V5.2.6's first successful real backtest, read through the new
+`book_member_decisions` diagnostic, exposed two further problems sitting
+just downstream of everything that round fixed. This round closes both.
+
+**Bug 1: forex orders can never execute at this portfolio's scale,
+regardless of any gate.** `main.py::_forex_lot_count_for_weight()` divided
+intended notional by a full 100,000-unit standard lot's dollar value. On a
+$100k account with a realistic 4-12% book-member position weight, notional
+($4,000-$12,000) never reaches even one lot ($67,000-$130,000+), so the
+division always rounded to 0. Confirmed directly: 6 forex allocations in
+the 2026-08-10 backtest correctly cleared every gate and reached
+`_apply_signal()`'s `"trade"` decision, then silently produced zero real
+orders. Traced `lot_count` all the way to `MarketOrder()`/
+`_try_submit_limit_order()` - no lot-to-unit conversion happens anywhere
+downstream, so whatever this function returns is the literal order
+quantity Lean receives.
+
+**Fix:** new `risk_controls.py::compute_forex_order_units()` - converts a
+target weight directly into whole base-currency units
+(`round(notional / close_price)`), matching QuantConnect Lean's documented
+Forex `MarketOrder()` convention (raw units, not lots) - standard,
+documented behavior, but unverified empirically in this repo/Lean image
+until a real backtest confirms it. Deliberately does **not** round to a
+lot-size multiple - an earlier draft of this fix did exactly that and
+still produced 0 for the confirmed-bug scenario, silently failing to fix
+anything while looking more sophisticated; a regression test
+(`test_compute_forex_order_units_does_not_round_to_lot_multiple`) guards
+against reintroducing that mistake. `_forex_lot_count_for_weight()`
+renamed `_forex_order_units_for_weight()`, now a thin wrapper; the dead
+`pair_spec` lookup at both forex call sites (never used by anything
+downstream) removed. New opt-in `forex_order_sizing.jsonl` diagnostic log
+(`phase_v2.diagnostics.forex_order_sizing`, enabled this round) records
+`notional_ratio` (implied/intended notional) per real forex order - should
+sit close to 1.0; a gross mismatch (100x, 0.01x) would be the direct,
+human-checkable signal that the units assumption is wrong.
+
+**Bug 2: a sticky kill-switch trip locked out the entire book for 13+
+months.** The kill-switch tripped once on 2020-02-27
+(`kill_switch_rolling_sharpe_below_floor`) and never auto-cleared -
+deliberately, since `kill_switch_*` sticky-lock reasons are intentionally
+exempt from the daily auto-clear (appropriate for live trading, where a
+human decides when to resume). Measured directly: 40.4% of book-member
+decisions reached `"trade"` before the trip; **336/336 (100%) were forced
+to `reduce_risk`** for the remaining 13 months after it - dwarfing every
+other gate, including everything V5.2.6 touched. Found while
+investigating: `risk_controls.py::is_backtest_safety_bypass_active()`'s
+docstring claimed a narrower scope than its actual effect -
+`bypass_safety_gates` has, for some time, cleared both the total-drawdown
+lock *and* any `kill_switch_*` sticky reason together at session rollover,
+bundled under one flag.
+
+**Fix:** two new pure functions, `is_sticky_trade_lock_bypass_active()`
+and `is_regime_drawdown_bypass_active()`, splitting the legacy combined
+flag's two previously-bundled effects (sticky-lock clearing at session
+rollover vs. the regime risk_off drawdown override) into independently
+configurable `phase_v2.backtest.bypass_sticky_trade_lock`/
+`bypass_regime_drawdown_gate` keys. The legacy `bypass_safety_gates` flag
+still works unchanged (OR'd into both new functions) with a one-time
+`Debug` nudge toward the new keys. This round's config deliberately turns
+**only** `bypass_sticky_trade_lock` on (`bypass_regime_drawdown_gate`
+stays off) - isolating which of the two previously-bundled behaviors is
+actually responsible for any change, and directly testing whether
+unblocking the 13-month lockout closes a meaningful share of the
+remaining Sharpe gap. `evaluate_kill_switch()` itself stays completely
+stateless and untouched - "does it stay locked" was always `main.py`'s own
+session-rollover responsibility, not the kill-switch's.
+
+**Verification:** `py_compile` clean across `main.py`/`risk_controls.py`.
+18 new tests in `tests/test_risk_controls.py` (65 passed in that file
+alone). Full suite: 2523 passed, 14 deselected (`2505 + 18 new = 2523`,
+same pre-existing Docker-only exclusion as every prior round, nothing new). Manual read-through confirmed: the dead
+`pair_spec` line is gone at both forex call sites; the diagnostic write is
+gated to backtest-only, real-orders-only (`orders_allowed=True`), matching
+`book_history`'s own convention; the `Debug` nudge fires at most once
+(`Initialize()` only runs once); both new config keys' absence reproduces
+today's `bypass_safety_gates`-only behavior exactly.
+
+**Not in scope this round:** a more elaborate kill-switch recovery
+mechanism (e.g. requiring N consecutive clean bars before clearing) -
+deliberately assessed as over-engineering beyond what this round's
+evidence calls for; any change to `build_forex_position_sizing()`/
+`risk/forex_risk.py`'s margin estimation (confirmed it never feeds
+`MarketOrder` directly); root-causing whether Lean's forex `MarketOrder()`
+truly takes raw units beyond what the `notional_ratio` diagnostic can
+observationally confirm; re-litigating any V5.2.6 fix (confirmed working
+as designed by the same 2026-08-10 backtest - 6 forex allocations
+legitimately reached `"trade"`, proof the V5.2.6 gate chain functions
+correctly right up to where this round's Bug 1 sits just downstream).
+
+**Not yet done - the user's own responsibility per this arc's established
+Lean-backtest-is-user-run convention:** one fresh real Lean backtest (with
+`forex_order_sizing.jsonl` diagnostics and `bypass_sticky_trade_lock`
+already enabled in config) to confirm (a) `notional_ratio` sits close to
+1.0, (b) real forex order events finally appear in `order-events.json`,
+(c) the kill-switch lockout genuinely clears at the next session instead
+of staying stuck, and (d) the net Sharpe/order-count effect - reported
+honestly regardless of direction, since unblocking 13 months of dark
+trading could improve Sharpe substantially or reveal the model's
+post-COVID-crash predictions weren't actually good enough to justify
+re-engaging.
+
+See `development/Problems.md` #93 for the full investigation, evidence,
+and honest scope notes.

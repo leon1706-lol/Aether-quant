@@ -1817,6 +1817,10 @@
                 "output_path": "visualization/book_history.jsonl",
                 "include_full_universe": true,
                 "include_decisions": true
+            },
+            "forex_order_sizing": {
+                "enabled": true,
+                "output_path": "visualization/forex_order_sizing.jsonl"
             }
         },
         "performance_triggers": {
@@ -1863,7 +1867,9 @@
             "allow_live_orders": false
         },
         "backtest": {
-            "bypass_safety_gates": false
+            "bypass_safety_gates": false,
+            "bypass_sticky_trade_lock": true,
+            "bypass_regime_drawdown_gate": false
         },
         "paper_trading": {
             "brokerage": "lean_paper_brokerage",
