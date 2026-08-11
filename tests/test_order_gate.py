@@ -315,6 +315,16 @@ def test_classify_order_status_pending_variants():
         assert classify_order_status(status_name) == "pending"
 
 
+def test_classify_order_status_cancel_pending():
+    """V5.2.8 (development/Problems.md #34) - real Lean OrderStatus value,
+    confirmed appearing 23 times (paired 1:1 with "canceled") across 33
+    sampled real order-events.json files. Previously fell through to
+    "unknown" (which every caller already treats identically to
+    "pending") - this makes the classification explicit rather than
+    incidental."""
+    assert classify_order_status("CancelPending") == "pending"
+
+
 def test_classify_order_status_unknown_string_returns_unknown_not_raises():
     assert classify_order_status("SomethingLeanMightActuallyCallIt") == "unknown"
     assert classify_order_status("") == "unknown"

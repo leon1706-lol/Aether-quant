@@ -3564,6 +3564,71 @@ def build_date_group_ids(dates: np.ndarray) -> np.ndarray:
     return inverse.astype(np.int64)
 
 
+# V5.2.8 (development/Problems.md #94) - a small, real, calibrated floor
+# (never exactly 0.0 - a date must always contribute SOME gradient,
+# same "never let one exotic input silently kill a whole term" reasoning
+# risk_off_override_min_severity's own None-sentinel design already
+# established for the live analyzer).
+_GATE_FRIENDLINESS_WEIGHT_FLOOR = 0.1
+
+
+def compute_gate_friendliness_weight_by_date(frame: pd.DataFrame, risk_off_override_min_severity: float = 0.0) -> dict:
+    """V5.2.8 (development/Problems.md #94) - per-date scalar weight in
+    (0, 1] approximating what fraction of that date's cross-section would
+    have cleared the SAME two STATELESS, asset-level gates
+    analyzer/market_analyzer.py::build_market_analysis_decision() applies
+    at Priority 2 (regime risk_off override) and Priority 3 (topology
+    elevated/isolated override). risk_off_override_min_severity should be
+    the caller's already-resolved phase_v2.regime_detection.
+    risk_off_override_min_severity value (the same V5.2.6-calibrated
+    number the live analyzer uses, default 0.55 in config.json) - this
+    function takes it as a plain float rather than a config dict, matching
+    this codebase's convention of pure functions taking already-resolved
+    scalars (e.g. risk_controls.py::assess_drawdown_lock()) rather than
+    reaching into config themselves.
+
+    Deliberately narrower than the full live decision chain - the
+    liquidity block/thin gate is NOT included here: build_liquidity_decision()'s
+    real classification needs raw daily-dollar-volume history plus an
+    order-size assumption that isn't stored in this dataset in the needed
+    shape (only the already-log-scaled liquidity_log_dollar_volume
+    column exists), and approximating it with a newly-guessed percentile
+    threshold would repeat exactly the "guessed constant" mistake this
+    codebase has already found and fixed more than once (development/
+    Problems.md #89/#90) - better to model two real gates precisely than
+    three gates including one built on a shaky proxy. The portfolio-level
+    kill-switch/drawdown-lock is excluded for the same reason
+    evaluation/kill_switch_replay.py excludes it from ITS approximation:
+    no per-row training-dataset equivalent exists (it's path-dependent on
+    the actual book's own realized history, not a per-asset market
+    condition). Keeping both sides of this round's gate-awareness work
+    (evaluation and training) scoped to the same excluded set is
+    deliberate, for consistency and honesty about what neither attempts.
+
+    A date with zero rows, or missing every needed column, degrades to
+    weight 1.0 (today's exact uniform behavior for that date) rather than
+    raising - this function must never be able to crash a training run."""
+    required_columns = {"date", "topology_risk_elevated", "topology_risk_isolated", "regime_risk_off", "regime_signal_risk_score"}
+    if not required_columns.issubset(frame.columns):
+        return {str(date): 1.0 for date in frame["date"].unique()} if "date" in frame.columns else {}
+
+    risk_off_override_min_severity = float(risk_off_override_min_severity or 0.0)
+
+    weights: dict = {}
+    for date, group in frame.groupby("date"):
+        n = len(group)
+        if n == 0:
+            weights[str(date)] = 1.0
+            continue
+        topology_gated = (group["topology_risk_elevated"] == 1) | (group["topology_risk_isolated"] == 1)
+        risk_off_active = group["regime_risk_off"] == 1
+        severity = group["regime_signal_risk_score"].abs()
+        regime_gated = risk_off_active & (severity >= risk_off_override_min_severity)
+        eligible_fraction = float((~(topology_gated | regime_gated)).mean())
+        weights[str(date)] = max(eligible_fraction, _GATE_FRIENDLINESS_WEIGHT_FLOOR)
+    return weights
+
+
 # ---------------------------------------------------------------------------
 # V5.1 Phase 3 (item 1) - cross-sectional ranking losses. Hand-written
 # (n ~= 70 assets/date => O(n^2) ~= 5k pairwise ops per date, trivial) -
@@ -3605,7 +3670,12 @@ def soft_rank_within_groups(scores: torch.Tensor, group_ids: torch.Tensor, tempe
 
 
 def soft_spearman_loss(
-    predictions: torch.Tensor, targets: torch.Tensor, group_ids: torch.Tensor, mask: torch.Tensor, temperature: float
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    group_ids: torch.Tensor,
+    mask: torch.Tensor,
+    temperature: float,
+    date_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Per date, Pearson correlation between soft_rank(predictions) and
     targets (already a [0,1] percentile rank, a positive affine transform
@@ -3620,7 +3690,18 @@ def soft_spearman_loss(
     exactly the same reason (0.0 would misrepresent "undefined" as "no
     correlation", pulling the mean toward zero for no real reason).
     Returns a true zero (no gradient) when nothing is valid, matching
-    masked_mse_loss()'s contract."""
+    masked_mse_loss()'s contract.
+
+    date_weights (V5.2.8, development/Problems.md #94): optional, one
+    weight per ROW aligned to `group_ids` (NOT per-group directly - see
+    compute_gate_friendliness_weight_by_date()'s caller for how this is
+    built). Within each date, the group's mean weight scales that date's
+    contribution to the final average - a date entirely populated by
+    gate-friendly rows (weight ~1.0) contributes normally, a date the
+    live gates would have mostly blocked contributes less. None (the
+    default) reproduces today's exact uniform mean - BYTE-IDENTICAL,
+    enforced by tests/test_train_ranking_loss.py's own parity test, not
+    just assumed."""
     valid = mask & ~torch.isnan(targets)
     if not torch.any(valid):
         return torch.zeros((), device=predictions.device)
@@ -3628,9 +3709,11 @@ def soft_spearman_loss(
     valid_predictions = predictions[valid]
     valid_targets = targets[valid]
     valid_group_ids = group_ids[valid]
+    valid_date_weights = date_weights[valid] if date_weights is not None else None
     soft_ranks = soft_rank_within_groups(valid_predictions, valid_group_ids, temperature)
 
     correlations = []
+    weights = []
     for group in torch.unique(valid_group_ids):
         group_mask = valid_group_ids == group
         group_rank = soft_ranks[group_mask]
@@ -3646,14 +3729,24 @@ def soft_spearman_loss(
         denominator = torch.sqrt((rank_centered**2).sum() * (target_centered**2).sum())
         correlation = (rank_centered * target_centered).sum() / denominator
         correlations.append(correlation)
+        weights.append(valid_date_weights[group_mask].mean() if valid_date_weights is not None else torch.ones((), device=predictions.device))
 
     if not correlations:
         return torch.zeros((), device=predictions.device)
-    return -torch.stack(correlations).mean()
+    stacked_correlations = torch.stack(correlations)
+    if date_weights is None:
+        return -stacked_correlations.mean()
+    stacked_weights = torch.stack(weights)
+    return -(stacked_correlations * stacked_weights).sum() / stacked_weights.sum()
 
 
 def listnet_loss(
-    predictions: torch.Tensor, targets: torch.Tensor, group_ids: torch.Tensor, mask: torch.Tensor, temperature: float
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    group_ids: torch.Tensor,
+    mask: torch.Tensor,
+    temperature: float,
+    date_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Per date, cross-entropy H(softmax(targets/temperature),
     softmax(predictions/temperature)) - the standard ListNet objective
@@ -3663,7 +3756,10 @@ def listnet_loss(
     distributions in [0,1] is non-negative by construction) and minimized
     when the two softmax distributions coincide, i.e. when predictions are
     a positive affine function of targets. Dates with fewer than 2 valid
-    rows are skipped. Returns a true zero when nothing is valid."""
+    rows are skipped. Returns a true zero when nothing is valid.
+
+    date_weights: see soft_spearman_loss()'s own docstring - identical
+    contract and None-default parity guarantee."""
     valid = mask & ~torch.isnan(targets)
     if not torch.any(valid):
         return torch.zeros((), device=predictions.device)
@@ -3671,8 +3767,10 @@ def listnet_loss(
     valid_predictions = predictions[valid]
     valid_targets = targets[valid]
     valid_group_ids = group_ids[valid]
+    valid_date_weights = date_weights[valid] if date_weights is not None else None
 
     losses = []
+    weights = []
     for group in torch.unique(valid_group_ids):
         group_mask = valid_group_ids == group
         group_predictions = valid_predictions[group_mask]
@@ -3682,14 +3780,23 @@ def listnet_loss(
         prediction_log_softmax = torch.log_softmax(group_predictions / temperature, dim=0)
         target_softmax = torch.softmax(group_targets / temperature, dim=0)
         losses.append(-(target_softmax * prediction_log_softmax).sum())
+        weights.append(valid_date_weights[group_mask].mean() if valid_date_weights is not None else torch.ones((), device=predictions.device))
 
     if not losses:
         return torch.zeros((), device=predictions.device)
-    return torch.stack(losses).mean()
+    stacked_losses = torch.stack(losses)
+    if date_weights is None:
+        return stacked_losses.mean()
+    stacked_weights = torch.stack(weights)
+    return (stacked_losses * stacked_weights).sum() / stacked_weights.sum()
 
 
 def compute_cross_sectional_ranking_loss(
-    head_output: torch.Tensor, head_target: torch.Tensor, group_ids: torch.Tensor, ranking_loss_config: dict
+    head_output: torch.Tensor,
+    head_target: torch.Tensor,
+    group_ids: torch.Tensor,
+    ranking_loss_config: dict,
+    date_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Dispatcher on ranking_loss_config["objective"] in
     {"mse", "soft_spearman", "listnet"} (default "mse", reproducing
@@ -3706,7 +3813,15 @@ def compute_cross_sectional_ranking_loss(
     mse_anchor_weight=0.1) live in config.json, not here - this function
     always reads them from ranking_loss_config, never hardcodes a
     fallback, so a caller can never silently diverge from what got
-    logged/trained with."""
+    logged/trained with.
+
+    date_weights (V5.2.8, development/Problems.md #94): passed straight
+    through to soft_spearman_loss()/listnet_loss() - see their own
+    docstrings. Never applied to the mse_anchor_weight term (that term
+    exists purely to anchor output SCALE, not to express the ranking
+    objective itself - weighting it the same way would fight its own
+    purpose). None (the default) is a strict no-op, same as those two
+    functions' own contract."""
     mask = ~torch.isnan(head_target)
     objective = str(ranking_loss_config.get("objective", "mse"))
     if objective == "mse":
@@ -3715,10 +3830,10 @@ def compute_cross_sectional_ranking_loss(
     temperature = float(ranking_loss_config.get("temperature", 0.05))
     mse_anchor_weight = float(ranking_loss_config.get("mse_anchor_weight", 0.0))
     if objective == "soft_spearman":
-        ranking_loss = soft_spearman_loss(head_output, head_target, group_ids, mask, temperature)
+        ranking_loss = soft_spearman_loss(head_output, head_target, group_ids, mask, temperature, date_weights)
     elif objective == "listnet":
         listnet_temperature = float(ranking_loss_config.get("listnet_temperature", temperature))
-        ranking_loss = listnet_loss(head_output, head_target, group_ids, mask, listnet_temperature)
+        ranking_loss = listnet_loss(head_output, head_target, group_ids, mask, listnet_temperature, date_weights)
     else:
         raise ValueError(f"compute_cross_sectional_ranking_loss: unknown objective {objective!r}")
 
@@ -4636,6 +4751,7 @@ def compute_combined_multitask_loss(
     consistency_loss_weight: float = 0.0,
     date_group_ids: torch.Tensor | None = None,
     ranking_loss_config: dict | None = None,
+    date_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Combined loss for both AetherNetMultiTaskHorizons and
     AetherNetSequenceMultiTaskHorizons (identical head-name dict shape,
@@ -4674,7 +4790,17 @@ def compute_combined_multitask_loss(
     through compute_cross_sectional_ranking_loss() instead of a bare
     masked_mse_loss() call. GUARDRAIL: when either is None (the default),
     this is BYTE-IDENTICAL to the pre-Phase-3 code path - every existing
-    positional caller/test is completely unaffected."""
+    positional caller/test is completely unaffected.
+
+    date_weights (V5.2.8, development/Problems.md #94): optional, passed
+    straight through to compute_cross_sectional_ranking_loss() whenever
+    the ranking-loss path is active - built by
+    compute_gate_friendliness_weight_by_date() and looked up per-row via
+    date_group_ids by the caller (train_multitask.py/train_sequence.py),
+    config-gated off by default
+    (phase_v2.training.gate_aware_ranking_weights.enabled). None is a
+    strict no-op - has no effect at all unless use_ranking_loss is also
+    True, matching date_group_ids/ranking_loss_config's own contract."""
     loss = (
         direction_loss_weight * direction_criterion(outputs["direction"], targets["direction"])
         + magnitude_loss_weight * nn.functional.mse_loss(outputs["magnitude"], targets["magnitude"])
@@ -4690,7 +4816,7 @@ def compute_combined_multitask_loss(
             head_loss = masked_bce_with_logits_loss(outputs[head_name], targets[head_name], mask)
         elif use_ranking_loss:
             head_loss = compute_cross_sectional_ranking_loss(
-                outputs[head_name], targets[head_name], date_group_ids, ranking_loss_config
+                outputs[head_name], targets[head_name], date_group_ids, ranking_loss_config, date_weights
             )
         else:
             head_loss = masked_mse_loss(outputs[head_name], targets[head_name], mask)

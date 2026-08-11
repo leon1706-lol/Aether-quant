@@ -65,6 +65,7 @@ from train import (
     build_optimizer,
     compute_binary_metrics,
     compute_combined_multitask_loss,
+    compute_gate_friendliness_weight_by_date,
     compute_masked_binary_metrics,
     compute_masked_regression_metrics,
     compute_purged_cv_rank_ic_diagnostic,
@@ -307,6 +308,20 @@ def main() -> int:
         ranking_loss_config = training_config.get("ranking_loss") if batch_mode == "cross_sectional" else None
         if ranking_loss_config is not None and args.ranking_objective is not None:
             ranking_loss_config = {**ranking_loss_config, "objective": args.ranking_objective}
+        # V5.2.8 (development/Problems.md #94) - opt-in, default-off gate-
+        # aware ranking weight (see compute_gate_friendliness_weight_by_date()'s
+        # own docstring). Same "nested under this trainer's own config
+        # block" convention as ranking_loss immediately above, not a
+        # separate shared namespace. Only meaningful when a ranking loss
+        # is actually active - byte-identical to before this existed
+        # whenever disabled or ranking_loss_config is None.
+        gate_aware_ranking_weights_enabled = (
+            ranking_loss_config is not None
+            and bool(training_config.get("gate_aware_ranking_weights", {}).get("enabled", False))
+        )
+        risk_off_override_min_severity = float(
+            full_config.get("phase_v2", {}).get("regime_detection", {}).get("risk_off_override_min_severity") or 0.0
+        )
         swa_config = training_config.get("swa", {})
         swa_enabled = bool(swa_config.get("enabled", False))
         swa_start_epoch_fraction = float(swa_config.get("start_epoch_fraction", 0.7))
@@ -405,6 +420,19 @@ def main() -> int:
             if ranking_loss_config is not None
             else None
         )
+        # V5.2.8 (development/Problems.md #94) - per-ROW weight tensor
+        # aligned to train_date_group_ids (each row gets its date's own
+        # weight), built once here rather than per-batch/per-epoch since
+        # neither the dataset nor the config changes during training.
+        # None whenever the feature is disabled - byte-identical training
+        # loop below in that case.
+        if gate_aware_ranking_weights_enabled:
+            weight_by_date = compute_gate_friendliness_weight_by_date(train_frame, risk_off_override_min_severity)
+            train_date_weights = torch.as_tensor(
+                [weight_by_date.get(str(date), 1.0) for date in train_dates_array], dtype=torch.float32
+            )
+        else:
+            train_date_weights = None
 
         model = AetherNetMultiTaskHorizons(
             input_dim=len(feature_names),
@@ -495,6 +523,9 @@ def main() -> int:
                         torch.as_tensor(train_date_group_ids[row_indices], dtype=torch.int64, device=device)
                         if train_date_group_ids is not None
                         else None,
+                        train_date_weights[torch.as_tensor(row_indices, dtype=torch.long)].to(device)
+                        if train_date_weights is not None
+                        else None,
                     )
                     for row_indices in epoch_batches
                 )
@@ -504,11 +535,12 @@ def main() -> int:
                         batch[0].to(device),
                         {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:])},
                         None,
+                        None,
                     )
                     for batch in train_loader
                 )
 
-            for batch_features, batch_targets, batch_group_ids in batch_source:
+            for batch_features, batch_targets, batch_group_ids, batch_date_weights in batch_source:
                 optimizer.zero_grad()
                 outputs = model(batch_features)
                 loss = compute_combined_multitask_loss(
@@ -522,6 +554,7 @@ def main() -> int:
                     consistency_loss_weight,
                     date_group_ids=batch_group_ids,
                     ranking_loss_config=ranking_loss_config,
+                    date_weights=batch_date_weights,
                 )
                 loss.backward()
                 optimizer.step()

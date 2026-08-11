@@ -296,3 +296,123 @@ def test_dispatcher_listnet_uses_listnet_temperature_when_provided():
     # Different temperatures on the same inputs must produce different
     # loss values (temperature genuinely changes the softmax sharpness).
     assert result_a.item() != pytest.approx(result_b.item())
+
+
+# ---------------------------------------------------------------------------
+# date_weights (V5.2.8, development/Problems.md #94)
+# ---------------------------------------------------------------------------
+
+
+def test_soft_spearman_loss_date_weights_none_matches_omitted():
+    torch.manual_seed(5)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    mask = torch.ones(8, dtype=torch.bool)
+
+    omitted = soft_spearman_loss(predictions, targets, group_ids, mask, temperature=0.05)
+    explicit_none = soft_spearman_loss(predictions, targets, group_ids, mask, temperature=0.05, date_weights=None)
+
+    assert torch.equal(omitted, explicit_none)
+
+
+def test_soft_spearman_loss_uniform_weights_match_unweighted():
+    torch.manual_seed(6)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    mask = torch.ones(8, dtype=torch.bool)
+
+    unweighted = soft_spearman_loss(predictions, targets, group_ids, mask, temperature=0.05)
+    uniformly_weighted = soft_spearman_loss(
+        predictions, targets, group_ids, mask, temperature=0.05, date_weights=torch.ones(8)
+    )
+
+    assert torch.allclose(unweighted, uniformly_weighted, atol=1e-6)
+
+
+def test_soft_spearman_loss_down_weighting_a_date_changes_the_loss():
+    torch.manual_seed(7)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    mask = torch.ones(8, dtype=torch.bool)
+    weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 0.1, 0.1, 0.1, 0.1])
+
+    unweighted = soft_spearman_loss(predictions, targets, group_ids, mask, temperature=0.05)
+    weighted = soft_spearman_loss(predictions, targets, group_ids, mask, temperature=0.05, date_weights=weights)
+
+    assert unweighted.item() != pytest.approx(weighted.item())
+
+
+def test_listnet_loss_date_weights_none_matches_omitted():
+    torch.manual_seed(8)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    mask = torch.ones(8, dtype=torch.bool)
+
+    omitted = listnet_loss(predictions, targets, group_ids, mask, temperature=0.1)
+    explicit_none = listnet_loss(predictions, targets, group_ids, mask, temperature=0.1, date_weights=None)
+
+    assert torch.equal(omitted, explicit_none)
+
+
+def test_listnet_loss_uniform_weights_match_unweighted():
+    torch.manual_seed(9)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    mask = torch.ones(8, dtype=torch.bool)
+
+    unweighted = listnet_loss(predictions, targets, group_ids, mask, temperature=0.1)
+    uniformly_weighted = listnet_loss(predictions, targets, group_ids, mask, temperature=0.1, date_weights=torch.ones(8))
+
+    assert torch.allclose(unweighted, uniformly_weighted, atol=1e-6)
+
+
+def test_listnet_loss_down_weighting_a_date_changes_the_loss():
+    torch.manual_seed(10)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    mask = torch.ones(8, dtype=torch.bool)
+    weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 0.1, 0.1, 0.1, 0.1])
+
+    unweighted = listnet_loss(predictions, targets, group_ids, mask, temperature=0.1)
+    weighted = listnet_loss(predictions, targets, group_ids, mask, temperature=0.1, date_weights=weights)
+
+    assert unweighted.item() != pytest.approx(weighted.item())
+
+
+def test_dispatcher_date_weights_none_matches_omitted_for_soft_spearman():
+    torch.manual_seed(11)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    config = {"objective": "soft_spearman", "temperature": 0.05, "mse_anchor_weight": 0.1}
+
+    omitted = compute_cross_sectional_ranking_loss(predictions, targets, group_ids, config)
+    explicit_none = compute_cross_sectional_ranking_loss(predictions, targets, group_ids, config, date_weights=None)
+
+    assert torch.equal(omitted, explicit_none)
+
+
+def test_dispatcher_date_weights_does_not_affect_mse_anchor_term():
+    """The mse_anchor_weight term anchors output SCALE, not the ranking
+    objective itself - date_weights must never reach it. Isolate this by
+    comparing the "with weights" case against a manually-computed
+    weighted-ranking-loss-plus-UNWEIGHTED-anchor value."""
+    torch.manual_seed(12)
+    predictions = torch.randn(8)
+    targets = torch.rand(8)
+    group_ids = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    mask = torch.ones(8, dtype=torch.bool)
+    weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 0.1, 0.1, 0.1, 0.1])
+    config = {"objective": "soft_spearman", "temperature": 0.05, "mse_anchor_weight": 0.3}
+
+    combined = compute_cross_sectional_ranking_loss(predictions, targets, group_ids, config, date_weights=weights)
+    expected_ranking = soft_spearman_loss(predictions, targets, group_ids, mask, temperature=0.05, date_weights=weights)
+    expected_anchor = masked_mse_loss(predictions, targets, mask)
+
+    assert combined.item() == pytest.approx((expected_ranking + 0.3 * expected_anchor).item(), abs=1e-6)

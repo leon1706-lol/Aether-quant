@@ -725,6 +725,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V5.1 Phase 4 (item 4) - multi-model walk-forward subprocess/net-
         # performance-simulation helpers.
         "test_walk_forward_multimodel.py",
+        # V5.2.8 (Problems.md #94) - train.py::compute_gate_friendliness_weight_by_date().
+        "test_train_gate_friendliness.py",
     ],
     "retraining": [
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
@@ -749,6 +751,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_rank_signal_calibration.py",
         # V5.2.6 (Problems.md) - evaluation/confidence_threshold_calibration.py.
         "test_confidence_threshold_calibration.py",
+        # V5.2.8 (Problems.md #94) - evaluation/kill_switch_replay.py.
+        "test_kill_switch_replay.py",
     ],
 }
 
@@ -1987,6 +1991,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # run_calibrate_book_spread immediately above: a heavier, opt-in-only
     # report, not bundled into --all.
     run_calibrate_confidence_threshold = bool(getattr(args, "calibrate_confidence_threshold", False))
+    # V5.2.8 (development/Problems.md #94) - same reasoning as --ablation/
+    # --calibrate-book-spread above: a heavier, investigation-only report,
+    # not bundled into --all.
+    run_replay_kill_switch = bool(getattr(args, "replay_kill_switch", False))
     # Bare `aq evaluate` with no flags at all defaults to --rank-book - the
     # single most useful number ("is the fee drag fixed"), matching every
     # other `aq` command's "sane default when no scope flag is given"
@@ -1997,7 +2005,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # wasn't counted as "a flag was given".
     if not (
         run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag
-        or run_calibrate_book_spread or run_calibrate_confidence_threshold
+        or run_calibrate_book_spread or run_calibrate_confidence_threshold or run_replay_kill_switch
     ):
         run_rank_book = True
 
@@ -2035,6 +2043,40 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
             print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
             print(f"  Δnet_sharpe vs entry_lag_bars=0: {lagged_result.net_sharpe - result.net_sharpe:+.4f}")
+
+    # V5.2.8 (development/Problems.md #94) - reuses --rank-book's own
+    # `result` (per_date/per_date_net_return) when that flag was also
+    # given, rather than recomputing simulate_rank_book() a second time;
+    # computes it fresh (entry_lag_bars=0, the same default --rank-book
+    # uses) when --replay-kill-switch is passed on its own.
+    if run_replay_kill_switch:
+        from evaluation.kill_switch_replay import (
+            replay_kill_switch_over_dataset,
+            summarize_kill_switch_replay,
+        )
+
+        kill_switch_replay_result = result if run_rank_book else simulate_rank_book(dataset, **base_kwargs)
+        kill_switch_config = config.get("phase_v2", {}).get("risk", {}).get("kill_switch", {})
+        phase6_risk = config.get("phase6", {}).get("risk", {})
+        daily_portfolio_returns = dict(
+            zip(kill_switch_replay_result.per_date, kill_switch_replay_result.per_date_net_return)
+        )
+        replay_records = replay_kill_switch_over_dataset(
+            kill_switch_replay_result.per_date,
+            daily_portfolio_returns,
+            kill_switch_config,
+            max_daily_drawdown_pct=float(phase6_risk.get("max_daily_drawdown_pct", 0.03)),
+            max_total_drawdown_pct=float(phase6_risk.get("max_total_drawdown_pct", 0.12)),
+        )
+        replay_summary = summarize_kill_switch_replay(replay_records)
+        report["kill_switch_replay"] = {"summary": replay_summary, "per_date": replay_records}
+        _write_evaluation_json(evaluation_dir / "kill_switch_replay.json", report["kill_switch_replay"])
+        if not args.json:
+            print(
+                f"Kill-switch replay (APPROXIMATION - see development/Problems.md #94): "
+                f"{replay_summary['trip_count']} trips across {replay_summary['total_dates']} dates, "
+                f"{replay_summary['locked_days']} locked days ({replay_summary['locked_day_fraction']:.2%})"
+            )
 
     if run_capacity:
         cap = capacity_curve(
@@ -2758,6 +2800,14 @@ def build_parser() -> argparse.ArgumentParser:
         "walk-forward across the log's dates (carrying held allocations forward, same as main.py's live "
         "book) instead of reconciling each date independently - tells a real divergence apart from the "
         "live book correctly holding an incumbent a from-scratch reselection wouldn't naturally pick.",
+    )
+    evaluate_parser.add_argument(
+        "--replay-kill-switch", action="store_true",
+        help="V5.2.8: day-by-day OFFLINE replay of the kill-switch + sticky trade-lock state machine "
+        "(evaluation/kill_switch_replay.py) against the rank book's own simulated return series - an "
+        "explicitly approximate estimate of how much of the run would have been locked out, without "
+        "needing a real Lean backtest. Not included in --all - investigation-only, see development/"
+        "Problems.md #94 for the caveats.",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

@@ -42,13 +42,46 @@ without pulling in the training stack, the same torch-free-core convention
   torch-free port of `train.py::build_sequence_tensor_dataset()`
   (`build_sequence_windows()`), cross-validated against the original in
   `tests/test_model_predictions.py`.
+- `ablation.py::run_ablation(...)` — isolates the contribution of
+  neutrality/hysteresis/cost-model by re-running the simulation with each
+  turned off in turn. Runtime-only mechanisms with no offline equivalent
+  (gating, topology sizing) report an honest `not_offline_measurable`
+  sentinel instead of a fabricated number.
+- `rank_signal_calibration.py` — `calibrate_book_confidence_spread()`
+  (derives `min_rank_confidence_spread` from real per-date score
+  dispersion); `reconcile_book_history_date()`/
+  `replay_book_history_reconciliation()`/
+  `summarize_book_history_reconciliation()` (compares a real Lean
+  backtest's logged book selections against a fresh offline
+  re-derivation — independent or hysteresis-replayed); `summarize_book_member_diversion()`
+  (aggregates each book member's final action/reasons, V5.2.6).
+- `confidence_threshold_calibration.py` — derives `min_confidence_to_trade`
+  from the real confidence-vs-forward-return relationship, same
+  percentile-of-a-real-distribution discipline as the book-spread
+  calibration above.
+- `kill_switch_replay.py::replay_kill_switch_over_dataset(...)`/
+  `summarize_kill_switch_replay(...)` (V5.2.8) — a day-by-day offline
+  replay of the kill-switch + sticky trade-lock state machine against the
+  rank book's own return series. Explicitly approximate (see its own
+  module docstring): no bypass flags, no `net_edge`/book-selection
+  modeling, only the two dataset-derivable `evaluate_kill_switch()`
+  inputs plus the drawdown-lock breach.
 
 ## CLI
 
-`aq evaluate --rank-book | --capacity | --stress | --calibrate-edge | --all`
-(see the root README's CLI Reference) — writes `ml/evaluation/*.json`,
-consumed by `monitoring/evaluation_state.py` for the webui's Evaluation tab
-(`/api/evaluation`).
+`aq evaluate` (see the root README's CLI Reference for full flag
+descriptions):
+
+- Simulation: `--rank-book`, `--capacity`, `--stress`, `--all` (bundles
+  the three plus `--calibrate-edge`)
+- Calibration: `--calibrate-edge`, `--calibrate-book-spread`,
+  `--calibrate-confidence-threshold`
+- Reconciliation: `--reconcile-book-history`, `--replay-hysteresis`
+- Diagnostics/investigation (not in `--all`): `--ablation`,
+  `--replay-kill-switch` (V5.2.8), `--walk-forward-summary`
+
+Writes `ml/evaluation/*.json`, consumed by `monitoring/evaluation_state.py`
+for the webui's Evaluation tab (`/api/evaluation`).
 
 ## Config
 

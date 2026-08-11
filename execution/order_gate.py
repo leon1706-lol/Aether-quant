@@ -209,7 +209,19 @@ def resolve_limit_price(
 # full casing-risk writeup) into a single small function, so a casing fix
 # is a one-line change here rather than a hunt through main.py's
 # on_order_event()/_process_pending_limit_order_timeouts().
-PENDING_ORDER_STATUS_NAMES = ("New", "Submitted", "PartiallyFilled", "UpdateSubmitted")
+#
+# V5.2.8 (development/Problems.md #34) - "CancelPending" added after
+# scanning 33 real order-events.json files across backtests/2026-07-*/
+# and backtests/2026-08-*/: Lean's real OrderStatus.CancelPending appears
+# 23 times (e.g. backtests/2026-08-11_09-56-24, paired 1:1 with 23
+# "canceled" records - a genuine unfilled-timeout cancel lifecycle,
+# directly confirmed on individual records, e.g. HYG qty 15 @
+# limitPrice=54.30, fillQuantity=0.0). Previously fell through to
+# "unknown", which every caller already treats identically to "pending" -
+# so this is a precision/self-documentation fix, not a behavior change.
+# PartiallyFilled has never once appeared across those 33 files - a real,
+# permanent, still-unexercised-in-practice caveat, not a gap to close here.
+PENDING_ORDER_STATUS_NAMES = ("New", "Submitted", "PartiallyFilled", "UpdateSubmitted", "CancelPending")
 TERMINAL_FILLED_STATUS_NAMES = ("Filled",)
 TERMINAL_CANCELED_STATUS_NAMES = ("Canceled", "Invalid")
 

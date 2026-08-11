@@ -65,6 +65,7 @@ from train import (
     build_sequence_tensor_dataset,
     compute_binary_metrics,
     compute_combined_multitask_loss,
+    compute_gate_friendliness_weight_by_date,
     compute_masked_binary_metrics,
     compute_masked_regression_metrics,
     compute_purged_cv_rank_ic_diagnostic,
@@ -302,6 +303,15 @@ def main() -> int:
         ranking_loss_config = training_config.get("ranking_loss") if batch_mode == "cross_sectional" else None
         if ranking_loss_config is not None and args.ranking_objective is not None:
             ranking_loss_config = {**ranking_loss_config, "objective": args.ranking_objective}
+        # V5.2.8 (development/Problems.md #94) - see train_multitask.py's
+        # identical block for the full rationale.
+        gate_aware_ranking_weights_enabled = (
+            ranking_loss_config is not None
+            and bool(training_config.get("gate_aware_ranking_weights", {}).get("enabled", False))
+        )
+        risk_off_override_min_severity = float(
+            full_config.get("phase_v2", {}).get("regime_detection", {}).get("risk_off_override_min_severity") or 0.0
+        )
         swa_config = training_config.get("swa", {})
         swa_enabled = bool(swa_config.get("enabled", False))
         swa_start_epoch_fraction = float(swa_config.get("start_epoch_fraction", 0.7))
@@ -409,6 +419,21 @@ def main() -> int:
             )
         train_dates_array = train_dates.to_numpy() if hasattr(train_dates, "to_numpy") else np.asarray(train_dates)
         train_date_group_ids = build_date_group_ids(train_dates_array) if ranking_loss_config is not None else None
+        # V5.2.8 (development/Problems.md #94) - see train_multitask.py's
+        # identical block for the full rationale. `eligible` (not
+        # train_features/train_dates, which are already sequence-tensor
+        # shaped) still carries the per-row topology/regime columns this
+        # needs - filtered the same way _split_sequence_tensors() itself
+        # filters by split internally.
+        if gate_aware_ranking_weights_enabled:
+            weight_by_date = compute_gate_friendliness_weight_by_date(
+                eligible[eligible["split"] == "train"], risk_off_override_min_severity
+            )
+            train_date_weights = torch.as_tensor(
+                [weight_by_date.get(str(date), 1.0) for date in train_dates_array], dtype=torch.float32
+            )
+        else:
+            train_date_weights = None
         validation_date_group_ids = (
             torch.as_tensor(build_date_group_ids(np.asarray(validation_dates)), dtype=torch.int64, device=device)
             if ranking_loss_config is not None
@@ -496,6 +521,9 @@ def main() -> int:
                         torch.as_tensor(train_date_group_ids[row_indices], dtype=torch.int64, device=device)
                         if train_date_group_ids is not None
                         else None,
+                        train_date_weights[torch.as_tensor(row_indices, dtype=torch.long)].to(device)
+                        if train_date_weights is not None
+                        else None,
                     )
                     for row_indices in epoch_batches
                 )
@@ -505,11 +533,12 @@ def main() -> int:
                         batch[0].to(device),
                         {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:])},
                         None,
+                        None,
                     )
                     for batch in train_loader
                 )
 
-            for batch_features, batch_targets, batch_group_ids in batch_source:
+            for batch_features, batch_targets, batch_group_ids, batch_date_weights in batch_source:
                 optimizer.zero_grad()
                 outputs = model(batch_features)
                 loss = compute_combined_multitask_loss(
@@ -523,6 +552,7 @@ def main() -> int:
                     consistency_loss_weight,
                     date_group_ids=batch_group_ids,
                     ranking_loss_config=ranking_loss_config,
+                    date_weights=batch_date_weights,
                 )
                 loss.backward()
                 optimizer.step()

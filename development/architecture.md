@@ -646,6 +646,25 @@ trip also pushes a `live_mode_transition` audit event
 (`{"event": "kill_switch_tripped", ...}`), queryable via
 `aq kill-switch --history`.
 
+**Backtest-only sticky-lock/regime-drawdown bypass (V5.2.7, distinct from
+the `aq trade-lock`/`aq kill-switch` contracts above):**
+`risk_controls.py::is_sticky_trade_lock_bypass_active()` controls ONLY the
+session-rollover sticky-lock clear (`main.py`, `runtime_mode == "backtest"`
+only) via `phase_v2.backtest.bypass_sticky_trade_lock`;
+`is_regime_drawdown_bypass_active()` controls ONLY the regime `risk_off`
+drawdown override via `phase_v2.backtest.bypass_regime_drawdown_gate`. Both
+default `false` and both OR in the legacy combined
+`phase_v2.backtest.bypass_safety_gates` flag for backward compatibility
+(one-time `Debug` nudge toward the split flags when only the legacy one is
+set). Never active outside `runtime_mode == "backtest"`. See
+`development/Problems.md` #93 for why this was split (a real backtest
+showed one kill-switch trip locking 336/336 book-member decisions for 13+
+months with no bypass) and #94 for `evaluation/kill_switch_replay.py`
+(V5.2.8) — a day-by-day OFFLINE approximation of this same sticky-lock
+behavior, useful for sanity-checking a threshold change before spending a
+real Lean backtest, but explicitly not a substitute for one (no bypass
+flags are modeled — it always represents the honest, non-bypassed case).
+
 `execution/reconciliation.py::reconcile_positions()` compares the book's
 intended per-symbol weights against the broker's (or the simulated
 portfolio's) actual holdings and classifies every discrepancy as matched,
