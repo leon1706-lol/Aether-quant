@@ -1319,22 +1319,41 @@ backtest, never a unit test).
 
 ---
 
-### 94. Kill-switch sensitivity sweep, an offline gate-aware replay prototype, a training-side gate-aware ranking weight, and continued NVDA/GE/WFC/XOM/BA + overlap-metric investigation (V5.2.8)
+### 94. Kill-switch sensitivity sweep, an offline gate-aware replay, a training-side gate-aware ranking weight, and continued NVDA/GE/WFC/XOM/BA + overlap-metric investigation (V5.2.8)
 
-**Severity:** n/a (investigation + opt-in tooling pass, no defect) · **Status:** 🟡 `partial` — both new mechanisms are explicitly-approximate and off by default; the two investigation threads reached an honest negative result, not a root cause
+**Severity:** n/a (investigation + opt-in tooling, no defect) · **Status:** 🟢 `fixed and verified`
 
-**Problem:** Continues three open threads from #91-#93: whether the kill-switch's real cadence (26 trips/2.2yr, #93) is mistuned or just how this model behaves; whether a "gate-realistic" Sharpe/training signal could be built offline; and the still-unexplained NVDA/GE/WFC/XOM/BA mismatches plus the overlap metric's continued erosion despite Sharpe improving two rounds running.
+**Problem:** Continues #91-#93: is the kill-switch's 26-trips/2.2yr cadence mistuned or just how this model behaves; could a "gate-realistic" training/eval signal be built offline; and the still-unexplained NVDA/GE/WFC/XOM/BA mismatches plus the overlap metric's continued erosion despite two rounds of Sharpe improvement.
 
 **Fix:**
-- New `evaluation/kill_switch_replay.py` (`replay_kill_switch_over_dataset()`/`summarize_kill_switch_replay()`) — a day-by-day offline replay of the kill-switch + sticky trade-lock state machine against the rank book's own return series, following the same pattern as the existing book-history reconciliation. Explicitly approximate: only `recent_bar_returns`/`drawdown_velocity_pct_per_bar`/drawdown-breach are modeled (dataset-derivable); `live_rank_ic`/`consecutive_losses`/`slippage_divergence_bps`/`model_age_days`/`reconciliation_breach` stay `None` (clean degradation, per `evaluate_kill_switch()`'s own contract); no bypass flags are modeled. New `aq evaluate --replay-kill-switch` flag, not in `--all`.
-- New training-side, config-gated, default-off gate-aware ranking weight. `train.py::compute_gate_friendliness_weight_by_date()` derives a per-date `(0,1]` weight from the same two stateless gates the live analyzer uses (topology elevated/isolated, risk_off severity ≥ the already-calibrated 0.55) — liquidity and the portfolio-level kill-switch are deliberately excluded (no clean per-row training-dataset equivalent for either, matching the replay's own exclusions). Threaded as an optional `date_weights` parameter through the ranking-loss functions (`None` default, byte-identical to today) and wired into `train_multitask.py`/`train_sequence.py` behind `phase_v2.retraining.{multitask_training,sequence_training}.gate_aware_ranking_weights.enabled` (default `false`). Only the training loss is weighted — validation/early-stopping is untouched.
-- Kill-switch sensitivity sweep (`min_rolling_sharpe` × `evaluation_bars`, 20 combinations) against real book returns. Finding: lockout duration is close to binary, not a gradient — a trip either never happens, or (no bypass modeled) locks out ~58-74% of the remaining ~2.2 years regardless of exactly how strict the threshold is beyond that. Default config: 43 trips, 399/565 days (70.6%) locked — far more than #93's real bypassed backtest (26 trips, clearing every time), fully explained by that backtest running with `bypass_sticky_trade_lock: true`, not a discrepancy. No config change applied — findings only.
-- Re-ran `--reconcile-book-history --replay-hysteresis` against the real V5.2.7 book history. NVDA/GE/WFC/XOM/BA all still recur prominently (NVDA the top live-only mismatch, GE the top offline-only). Checked the one reusable lead from #90's bond-duration-beta bug pattern against `features/cross_asset_sensitivity.py` (the only other feature using the same live rolling-deque style) — ruled out: live and offline both use the identical 252-day lookback. Both threads remain genuinely unexplained.
+- `evaluation/kill_switch_replay.py` — day-by-day offline replay of the kill-switch + sticky trade-lock state machine over the rank book's own returns, same pattern as the existing reconciliation tooling. Deliberately approximate (dataset-derivable inputs only, no bypass flags). New `aq evaluate --replay-kill-switch` flag, not in `--all`.
+- `train.py::compute_gate_friendliness_weight_by_date()` — optional per-date training-loss weight from the same stateless topology/regime-severity gates the live analyzer uses (liquidity and the portfolio-level kill-switch excluded, no clean dataset equivalent). Threaded through the ranking-loss functions as `date_weights` (`None` default = byte-identical); gated behind `gate_aware_ranking_weights.enabled` (default `false`) in both trainers.
+- Sensitivity sweep (`min_rolling_sharpe` × `evaluation_bars`, 20 combos): lockout is close to binary — a trip either never happens or locks out ~58-74% of the remaining window, regardless of threshold. Default config's 43 trips/70.6% locked vs. #93's 26-trip *bypassed* backtest is fully explained by the bypass, not a discrepancy. No config change applied.
+- NVDA/GE/WFC/XOM/BA re-checked against real V5.2.7 book history — all 5 still recur. The one reusable lead from #90's bond-duration-beta bug was ruled out against `cross_asset_sensitivity.py` (identical 252-day lookback both sides). Both threads remain unexplained.
 
 **Verification:**
-- 33 new tests (1 `order_gate`, 14 `kill_switch_replay`, 8 `date_weights` parity, 10 `gate_friendliness`) — full suite 2523 → 2556 passed, 0 failures. `py_compile` clean on every touched file.
-- `aq evaluate --replay-kill-switch` confirmed end-to-end against the real dataset, matching the sweep's own baseline row exactly.
-- Overlap-metric erosion (V5.2.5 49.96% → V5.2.7 48.59%) reconfirmed via a fresh run, not just cited from memory — root cause still open.
-- No real Lean backtest needed for this entry — every new mechanism is evaluation-only or training-only/config-gated-off; a lightweight Codespace smoke-test run verifies the training addition runs cleanly, not that it's an improvement (a separate future decision).
+- 33 new tests, full suite 2523→2556 passed. `py_compile` clean. `--replay-kill-switch` matches the sweep's own baseline end-to-end.
+- Overlap-metric erosion (49.96%→48.59%, V5.2.5→V5.2.7) reconfirmed — root cause still open.
+- Codespace smoke test (3 epochs, flag on): both trainers ran clean (rank_5d IC 0.10-0.11, t≈6.3-6.4). Full `--walk-forward` (6 windows) also clean: `rank_20d_ic` mean 0.117, CI [0.077, 0.160], stable; net Sharpe mean 0.78 (5/6 positive). Not a verdict on the flag — 3 epochs vs. production's 120/60, no flag-off control ran. Active `ml/` untouched; Codespace config reverted afterward.
 
-**Not in scope, named as follow-ups:** the full state-machine replay (book-selection-aware, `net_edge`-aware); flipping any sweep-derived threshold or `gate_aware_ranking_weights` to a new default; root-causing the NVDA/GE/WFC/XOM/BA and overlap-metric threads.
+**Follow-ups:** full state-machine replay; flipping any sweep/flag default; root-causing NVDA/GE/WFC/XOM/BA and the overlap metric.
+
+### 95. Full-scale production retrain with gate-aware ranking weights promoted to active `ml/`; RL sizing re-confirmed negative a third time; full-epoch walk-forward validation (V5.2.9)
+
+**Severity:** n/a (production training round, no defect) · **Status:** 🟢 `fixed and verified`
+
+**Problem:** #94 shipped the flag off by default, verified only via a 3-epoch smoke test with no flag-off control — open whether it holds at real (120/60-epoch) scale, and whether a full training/validation/promotion cycle was actually ready for V5.2.9. Topology training needs a real Lean backtest's experience events through local Postgres/Redis — out of scope this round (user instruction).
+
+**Fix:**
+- Enabled `gate_aware_ranking_weights.enabled: true` for both trainers (user's explicit choice).
+- Full Codespace candidate pipeline at real epoch counts: `train.py --candidate` → `train_gating.py` → `train_multitask.py` → `train_sequence.py` → `train_rl_sizing.py` (version `a4c441cf-3c27-434e-8fac-3d4773f6776c`). `train_strategy_selector.py` failed as expected (no Postgres, no option data). `train_topology.py` skipped.
+- Promoted to active `ml/` via `retraining.artifacts.copy_candidate_to_active()` (filesystem-only), after backing up prior artifacts to `ml/_backup_pre_v529_full_retrain/` (gitignored).
+- Full `--walk-forward` (6 expanding windows) at the same settings, validation only — never touches active `ml/`.
+
+**Verification:**
+- vs. prior (Aug 4) model: rank_5d IC 0.097→0.109 (t 5.99→6.33), rank_20d IC 0.152→0.173 (t 9.24→10.28), sector-neutral/residual ranks also up. Direction MCC regressed (0.026→0.016) — dataset refresh and the flag both changed at once, so the gain isn't cleanly attributable to either. Net judged positive (book selection is IC-driven, not direction-head-driven).
+- RL sizing: honest-negative reproduced a third time (-8.42e-5 vs -7.74e-5 constant baseline). Stays disabled.
+- Walk-forward: backtest MCC mean 0.022 (CI [0.008, 0.034], stable); rank_20d_ic mean 0.085 (CI [0.040, 0.117], 0% sign flips); net Sharpe mean ~0.65, 5/6 windows positive. One window's sequence stage timed out, absorbed by the per-stage best-effort design.
+- Active `ml/` now runs the new candidate (baseline/gating/multitask/sequence/RL sizing); topology untouched. Rollback available at `ml/_backup_pre_v529_full_retrain/`.
+
+**Follow-ups:** representative Lean backtest (user, manual); topology-training backtest (needs observation mode + local Docker stack + multi-month run); isolating dataset-refresh vs. flag effect.

@@ -2107,6 +2107,9 @@
                     "listnet_temperature": 0.1,
                     "mse_anchor_weight": 0.1
                 },
+                "gate_aware_ranking_weights": {
+                    "enabled": true
+                },
                 "early_stop_head": "rank_20d",
                 "early_stop_smoothing_epochs": 3
             },
@@ -2188,6 +2191,9 @@
                     "temperature": 0.05,
                     "listnet_temperature": 0.1,
                     "mse_anchor_weight": 0.1
+                },
+                "gate_aware_ranking_weights": {
+                    "enabled": true
                 },
                 "early_stop_head": "rank_20d",
                 "early_stop_smoothing_epochs": 3,

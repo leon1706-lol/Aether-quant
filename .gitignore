@@ -73,6 +73,14 @@ ml/versions/
 # rank-pivot roadmap work, development/Problems.md#43) - a local backup,
 # never meant to be committed.
 ml/_backup_pre_rank_pivot/
+# Manual pre-smoke-test snapshot (rollback point before the V5.2.8
+# gate_aware_ranking_weights Codespace smoke test, development/Problems.md#94)
+# - a local backup, never meant to be committed.
+ml/_backup_pre_v528_gate_aware_smoke_test/
+# Manual pre-full-retrain snapshot (rollback point before the V5.2.9
+# full production retrain with gate_aware_ranking_weights enabled) - a
+# local backup, never meant to be committed.
+ml/_backup_pre_v529_full_retrain/
 ml/model.pt
 ml/scaler.pkl
 ml/*.pkl
