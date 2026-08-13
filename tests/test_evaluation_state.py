@@ -8,7 +8,7 @@ def test_every_section_degrades_to_not_evaluated_on_a_fresh_checkout(tmp_path):
 
     for key in (
         "rank_book", "capacity", "stress", "ablation", "walk_forward",
-        "book_spread_calibration", "book_history_reconciliation",
+        "book_spread_calibration", "book_history_reconciliation", "kill_switch_replay",
     ):
         assert state[key]["status"] == "not_evaluated"
         assert "hint" in state[key]
@@ -113,3 +113,14 @@ def test_book_history_reconciliation_section_reads_the_real_report_file(tmp_path
     state = build_evaluation_state(ml_dir=tmp_path)
 
     assert state["book_history_reconciliation"] == payload
+
+
+def test_kill_switch_replay_section_reads_the_real_report_file(tmp_path):
+    evaluation_dir = tmp_path / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    payload = {"summary": {"trip_count": 78, "locked_days": 415, "locked_day_fraction": 0.7345}, "per_date": []}
+    (evaluation_dir / "kill_switch_replay.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    state = build_evaluation_state(ml_dir=tmp_path)
+
+    assert state["kill_switch_replay"] == payload

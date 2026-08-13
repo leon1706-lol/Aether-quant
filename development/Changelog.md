@@ -1266,3 +1266,18 @@ See `development/Problems.md` #94 for the full investigation, evidence, and hone
 - Walk-forward: backtest MCC mean 0.0221 (95% CI [0.0082, 0.0342], stable); rank_20d_ic mean 0.0849 (CI [0.0404, 0.1173], 0% sign flips); net Sharpe mean ~0.65, 5/6 windows positive. One window's sequence stage timed out, absorbed cleanly by walk-forward's best-effort design.
 
 See `development/Problems.md` #95 for full evidence and scope notes. A representative Lean backtest against this new candidate is left to the user (manual run); topology training remains a distinct, unscoped follow-up.
+
+## V5.2.10 — README Backtest Results split into Lean/Offline Evaluation/Walk-Forward/Other Metrics/Disclaimer, all auto-updating
+
+**Summary:** V5.2.9's real Lean backtest (Sharpe -1.72) plus a full offline cross-analysis (`--reconcile-book-history --replay-hysteresis`, `--replay-kill-switch`, both models' `--all`) surfaced a lot of numbers worth keeping visible, not just chat output. Restructures the README's Backtest Results section into five auto-regenerating subsections instead of one, and fixes a couple of real bugs the work surfaced along the way.
+
+**Shipped:**
+- README `## Backtest Results` split into `### Lean Backtest` (unchanged), `### Offline Evaluation`, `### Walk-Forward Training/Testing`, `### Other Metrics` (real vs. offline comparison), `### Disclaimer` — each with a compact table plus a foldable full-stats `<details>` block, matching Lean's existing pattern. Replaces a stale, Phase-4.12.3-era caveats block that had drifted out of date. Table of Contents and CLI Reference both updated to match (also added a previously-missing `aq paper-readiness` TOC entry).
+- New `generate_evaluation_report.py`, wired into `cmd_evaluate` (3 exit points) and `cmd_backtest`, mirroring `generate_backtest_report.py`'s marker-replace/never-fail contract. Reads `ml/evaluation/*.json` and the newest `ml/versions/walk-forward-*/walk_forward_summary.json`; every section degrades to a placeholder, never a crash, when its source is missing.
+- `cmd_evaluate` now additionally persists per-model-suffixed copies (`rank_book_simulation_{model}.json` etc.) alongside the existing unsuffixed files — fixes a real bug where evaluating `multitask` after `sequence` silently clobbered the first model's data with no way to compare both.
+- `monitoring/evaluation_state.py` now also surfaces `kill_switch_replay.json` — an existing gap, never wired into the webui's evaluation state before.
+- Other Metrics' kill-switch row now shows the *real* trip count (parsed from the Lean run's own log), not just the offline replay estimate — the comparison is the entire point of the section.
+
+**Verification:**
+- 15 new tests (`test_generate_evaluation_report.py` ×14, `test_evaluation_state.py` ×1); 16 existing `cmd_evaluate` tests updated with a mock for the new README-refresh call — caught during development that without it, running the test suite would have silently overwritten the real project README.md. Full suite: 2574 passed, 0 failures (excluding the real-Lean-backtest-dependent `test_lean_backtest_ml_coverage.py`, excluded by default per its own established convention).
+- Real numbers now on the page: Lean -1.72 vs. offline sequence/multitask +1.52/+1.33 vs. walk-forward mean +0.65 (gaps of +3.24/+2.37); book-history reconciliation 24% mean overlap, 0/174 exact matches, 870/1464 book-member decisions diverted to `reduce_risk`; kill-switch 0 real trips vs. 78 offline-replay-estimated trips (73.5% locked) — a striking confirmation the replay tool is a deliberate over-estimate, not a bug.

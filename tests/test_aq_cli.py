@@ -2645,6 +2645,7 @@ def test_evaluate_errors_when_dataset_missing(tmp_path, capsys, monkeypatch):
     config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", tmp_path / "ml")
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--rank-book"])
@@ -2682,6 +2683,7 @@ def test_evaluate_rank_book_end_to_end_writes_report_and_prints_json(tmp_path, c
     config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--rank-book", "--model", "sequence", "--json"])
@@ -2706,6 +2708,7 @@ def test_evaluate_bare_invocation_defaults_to_rank_book(tmp_path, capsys, monkey
     config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate"])
@@ -2725,6 +2728,7 @@ def test_evaluate_all_flag_runs_every_report(tmp_path, capsys, monkeypatch):
     config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--all", "--json"])
@@ -2755,6 +2759,7 @@ def test_evaluate_calibrate_edge_regresses_on_the_configured_horizon_return(tmp_
     config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--calibrate-edge", "--json"])
@@ -2787,6 +2792,7 @@ def test_evaluate_calibrate_edge_falls_back_to_1d_when_horizon_column_missing(tm
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--calibrate-edge", "--json"])
@@ -2809,6 +2815,7 @@ def test_evaluate_calibrate_book_spread_end_to_end(tmp_path, capsys, monkeypatch
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--calibrate-book-spread", "--json"])
@@ -2835,6 +2842,7 @@ def test_evaluate_calibrate_confidence_threshold_end_to_end(tmp_path, capsys, mo
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--calibrate-confidence-threshold", "--json"])
@@ -2865,6 +2873,7 @@ def test_evaluate_calibrate_confidence_threshold_alone_does_not_also_run_rank_bo
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--calibrate-confidence-threshold", "--json"])
@@ -2892,6 +2901,7 @@ def test_evaluate_reconcile_book_history_end_to_end(tmp_path, capsys, monkeypatc
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     def _allocation_entry(role, raw_rank_score):
         return {
@@ -2956,6 +2966,7 @@ def test_evaluate_reconcile_book_history_diversion_summary_end_to_end(tmp_path, 
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     def _allocation_entry(role, raw_rank_score):
         return {
@@ -3014,6 +3025,7 @@ def test_evaluate_reconcile_book_history_replay_hysteresis_end_to_end(tmp_path, 
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     def _allocation_entry(role, raw_rank_score):
         return {
@@ -3068,6 +3080,7 @@ def test_evaluate_reconcile_book_history_universe_summary_appears_when_logged(tm
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     def _allocation_entry(role, raw_rank_score):
         return {
@@ -3120,6 +3133,7 @@ def test_evaluate_reconcile_book_history_missing_file_errors(tmp_path, capsys, m
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(
@@ -3149,6 +3163,7 @@ def test_evaluate_calibrate_book_spread_respects_long_flat_strategy_mode(tmp_pat
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--calibrate-book-spread", "--json"])
@@ -3173,6 +3188,7 @@ def test_evaluate_preset_overlay_never_writes_config_json(tmp_path, capsys, monk
     config_path.write_text(original_text, encoding="utf-8")
     monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
     monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(["evaluate", "--rank-book", "--preset", "aggressive", "--json"])

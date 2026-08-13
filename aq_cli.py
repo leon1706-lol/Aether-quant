@@ -662,7 +662,7 @@ def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
 # default run.
 _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "cli": [
-        "test_aq_cli.py", "test_generate_backtest_report.py",
+        "test_aq_cli.py", "test_generate_backtest_report.py", "test_generate_evaluation_report.py",
         "test_lean_config_render.py", "test_dockerignore_secrets.py", "test_secret_scan.py",
         "test_profile_inference.py", "test_profile_subsystems.py", "test_lean_runtime_imports.py",
     ],
@@ -858,6 +858,10 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             print("Updated README.md's Backtest Results section.")
     except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
         print(f"warning: failed to update README.md's backtest results ({error})", file=sys.stderr)
+    # Also refreshes Other Metrics (Lean-vs-offline comparison) with this
+    # backtest's fresh Sharpe, rather than leaving it stale until the next
+    # `aq evaluate` run - same self-guarding, never-fail contract as above.
+    _refresh_readme_evaluation_sections()
     if exit_code != 0:
         print(
             "note: `lean backtest` returned a non-zero exit code. If the run reached the end date and "
@@ -1585,6 +1589,21 @@ def _write_evaluation_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
 
+def _refresh_readme_evaluation_sections() -> None:
+    """Best-effort call to generate_evaluation_report.py after any `aq
+    evaluate` flag that could have changed what's on ml/evaluation/ or
+    ml/versions/walk-forward-*/ - mirrors cmd_backtest()'s own "a report-
+    generation bug must never fail the real command" contract. Lazily
+    imported for the same reason as this function's pandas/torch imports
+    above: every other `aq` subcommand's startup must stay unaffected."""
+    try:
+        from generate_evaluation_report import update_readme_evaluation_sections
+
+        update_readme_evaluation_sections()
+    except Exception as exc:  # noqa: BLE001 - report generation must never break `aq evaluate`
+        print(f"warning: README evaluation-section refresh failed: {exc}", file=sys.stderr)
+
+
 _EVALUATE_MODEL_ARTIFACTS = {
     "sequence": ("sequence_model.json", "sequence_feature_schema.json"),
     "multitask": ("multitask_model.json", "multitask_feature_schema.json"),
@@ -1666,6 +1685,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             net_performance_windows = summary.get("net_performance_by_window") or []
             if net_performance_windows:
                 print(f"  net_performance: {len(net_performance_windows)} window(s) with a simulated book")
+        _refresh_readme_evaluation_sections()
         return 0
 
     # V5.2.2 (development/Problems.md) - `aq evaluate --reconcile-book-history`
@@ -1904,6 +1924,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     "trades were diverted to simulate/reduce_risk/retrain_candidate, and by which gate."
                 )
 
+        _refresh_readme_evaluation_sections()
         return 0
 
     ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
@@ -2016,6 +2037,14 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         result = simulate_rank_book(dataset, **base_kwargs)
         report["rank_book"] = result.to_dict()
         _write_evaluation_json(evaluation_dir / "rank_book_simulation.json", report["rank_book"])
+        # Additive, per-model copy alongside the unsuffixed "last run" file
+        # above (untouched - monitoring/evaluation_state.py's webui feed
+        # and existing tests depend on that exact fixed name) - lets a
+        # multitask run and a sequence run coexist on disk instead of the
+        # second silently clobbering the first, for callers (e.g.
+        # generate_evaluation_report.py) that want to compare both models
+        # at once rather than only "whichever ran last".
+        _write_evaluation_json(evaluation_dir / f"rank_book_simulation_{model_kind}.json", report["rank_book"])
         if not args.json:
             print(f"Rank book ({model_kind}/{head}, split={split}, entry_lag_bars={base_kwargs['entry_lag_bars']}):")
             print(f"  gross_sharpe={result.gross_sharpe:.4f}  net_sharpe={result.net_sharpe:.4f}")
@@ -2039,6 +2068,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         lagged_result = simulate_rank_book(dataset, **lag_kwargs)
         report["rank_book_entry_lag_1"] = lagged_result.to_dict()
         _write_evaluation_json(evaluation_dir / "rank_book_simulation_entry_lag_1.json", report["rank_book_entry_lag_1"])
+        _write_evaluation_json(
+            evaluation_dir / f"rank_book_simulation_entry_lag_1_{model_kind}.json", report["rank_book_entry_lag_1"]
+        )
         if not args.json:
             print(f"Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
             print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
@@ -2087,6 +2119,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         )
         report["capacity"] = cap
         _write_evaluation_json(evaluation_dir / "capacity_report.json", cap)
+        _write_evaluation_json(evaluation_dir / f"capacity_report_{model_kind}.json", cap)
         if not args.json:
             print(f"Capacity: ${cap['capacity_usd']:,.0f} (binding: {cap['binding_ticker']})")
             for row in cap["per_top_n"]:
@@ -2099,6 +2132,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         )
         report["stress"] = stress
         _write_evaluation_json(evaluation_dir / "cost_stress_report.json", {"stress": stress})
+        _write_evaluation_json(evaluation_dir / f"cost_stress_report_{model_kind}.json", {"stress": stress})
         if not args.json:
             print("Cost stress test:")
             for row in stress:
@@ -2345,6 +2379,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(report, indent=2, default=str))
 
+    _refresh_readme_evaluation_sections()
     return 0
 
 

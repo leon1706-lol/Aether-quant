@@ -37,7 +37,8 @@ def _not_evaluated(hint: str) -> dict:
 
 def build_evaluation_state(ml_dir: Path | None = None) -> dict:
     """Reads ml/evaluation/{rank_book_simulation,capacity_report,
-    cost_stress_report}.json plus the newest
+    cost_stress_report,ablation_report,book_spread_calibration,
+    book_history_reconciliation,kill_switch_replay}.json plus the newest
     ml/versions/walk-forward-*/walk_forward_summary.json (Phase 4 - absent
     until that phase ships, degrades the same way). Every section is
     independently optional; a partial `aq evaluate` run (e.g. just
@@ -61,6 +62,10 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
     # aggregate summary + universe_summary once V5.2.3's
     # include_full_universe toggle has been used for a run).
     book_history_reconciliation = _load_json(evaluation_dir / "book_history_reconciliation.json")
+    # V5.2.8 (development/Problems.md #94) - `aq evaluate --replay-kill-switch`'s
+    # persisted payload, never wired into this state builder until now -
+    # same honest gap book_history_reconciliation had before V5.2.3.
+    kill_switch_replay = _load_json(evaluation_dir / "kill_switch_replay.json")
 
     # Every section follows the same shape convention: the raw report dict
     # when present, or {"status": "not_evaluated", "hint": ...} when not -
@@ -80,6 +85,7 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
         "book_spread_calibration": book_spread_calibration or _not_evaluated("run `aq evaluate --calibrate-book-spread`"),
         "book_history_reconciliation": book_history_reconciliation
         or _not_evaluated("run `aq evaluate --reconcile-book-history` (needs a backtest with phase_v2.diagnostics.book_history.enabled=true first)"),
+        "kill_switch_replay": kill_switch_replay or _not_evaluated("run `aq evaluate --replay-kill-switch`"),
     }
 
 
