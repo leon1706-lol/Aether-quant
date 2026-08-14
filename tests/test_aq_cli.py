@@ -2933,7 +2933,9 @@ def test_evaluate_reconcile_book_history_end_to_end(tmp_path, capsys, monkeypatc
     captured = capsys.readouterr()
     assert exit_code == 0
     payload = json.loads(captured.out)
-    assert set(payload) == {"mode", "per_date", "summary", "universe_summary", "diversion_summary"}
+    assert set(payload) == {
+        "mode", "per_date", "summary", "universe_summary", "diversion_summary", "universe_presence_summary",
+    }
     assert payload["mode"] == "independent"
     assert payload["summary"]["num_dates"] == 2
     assert len(payload["per_date"]) == 2

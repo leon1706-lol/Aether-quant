@@ -1281,3 +1281,25 @@ See `development/Problems.md` #95 for full evidence and scope notes. A represent
 **Verification:**
 - 15 new tests (`test_generate_evaluation_report.py` ×14, `test_evaluation_state.py` ×1); 16 existing `cmd_evaluate` tests updated with a mock for the new README-refresh call — caught during development that without it, running the test suite would have silently overwritten the real project README.md. Full suite: 2574 passed, 0 failures (excluding the real-Lean-backtest-dependent `test_lean_backtest_ml_coverage.py`, excluded by default per its own established convention).
 - Real numbers now on the page: Lean -1.72 vs. offline sequence/multitask +1.52/+1.33 vs. walk-forward mean +0.65 (gaps of +3.24/+2.37); book-history reconciliation 24% mean overlap, 0/174 exact matches, 870/1464 book-member decisions diverted to `reduce_risk`; kill-switch 0 real trips vs. 78 offline-replay-estimated trips (73.5% locked) — a striking confirmation the replay tool is a deliberate over-estimate, not a bug.
+
+## V5.3.1 — Limit-order docs/testing/tooling (#34) and book-history reconciliation bugs (#91), closed as completely as possible without a live Lean run
+
+**Summary:** Deep research (5 parallel investigation passes) plus direct verification found `phase_v2.limit_orders` has actually been on by default all along (docs said otherwise), a second real bug beneath V5.2.5's bond-duration-beta fix, and a real hardcoded-assumption bug in the reconciliation tool itself — plus ruled out one suspected divergence source (FX/crypto) as a measurement artifact, and caught V5.2.10's own "0 real kill-switch trips" claim as never having been a real measurement. No live Lean backtest this round (out of scope) — every fix and check below is offline.
+
+**Shipped:**
+- Corrected 2 stale "limit orders are off by default" claims (`main.py`, `execution/README.md`); investigated the future/option fallback asymmetry and found it deliberate (no change made, correcting the original plan).
+- Extracted `should_clear_pending_limit_order()`/`resolve_limit_order_timeout_action()` into `execution/order_gate.py` — `main.py` can't be imported outside a real Lean process, so this is the only way to unit-test the `PartiallyFilled` handling path end-to-end.
+- New `evaluation/limit_fill_simulator.py` (`aq evaluate --simulate-limit-fills`) and standalone `scripts/order_events_audit.py` — two new offline diagnostics for limit-order behavior, neither needing a live backtest.
+- `main.py:598`'s warm-up floor raised from `21` to `self.long_bar_history_size` (`260`) — closes a real cold-start gap in `bond_empirical_duration_beta` (and, for free, `cross_asset_sensitivity`) that V5.2.5's fix didn't reach.
+- `reconcile_book_history_date()`/`replay_book_history_reconciliation()` (`evaluation/rank_signal_calibration.py`) now read real per-date `trading_eligible` from the logged `"universe"` payload instead of hardcoding `True`.
+- New `summarize_universe_presence_by_symbol()`, run-segmented (not averaged across `book_history.jsonl`'s cumulative history) — the "FX/crypto absent 32% of the time" finding turned out to be 100%-absent-in-one-old-run diluted by 5 clean newer runs, not a live bug.
+- `generate_evaluation_report.py::_count_real_kill_switch_trips()` now always returns `None` (the real trip-audit event is Redis-only and never reaches the text log it was counting) — README renders an honest caveat instead of a fake `0`.
+
+**Verification:**
+- 37 new tests across `test_order_gate.py` (9), `test_limit_fill_simulator.py` (8, new file), `test_order_events_audit.py` (9, new file), `test_rank_signal_calibration.py` (9), `test_generate_evaluation_report.py` (2). Full suite: 2574 → 2609 passed, 0 failures.
+- `--simulate-limit-fills` and `order_events_audit.py` both sanity-checked against real data (82.95% fill rate; exact 23/23 cancel-pairing reproduced from 43 real backtest folders).
+- Reconciliation eligibility fix re-verified against real V5.2.9 data: correctly applied, zero net effect on this dataset's overlap metric (an honest finding, not a bug).
+- Bond warm-up fix's real-world effect is unverifiable this round (needs a live Lean run) — stated plainly rather than guessed.
+- NVDA/GE/WFC/XOM/BA: sector-neutrality hypothesis ruled out by direct code proof, not just absence of a pattern — remains open.
+
+See `development/Problems.md` #96/#97 for full evidence and scope notes.

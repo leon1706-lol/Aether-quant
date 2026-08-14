@@ -280,10 +280,26 @@ def reconcile_book_history_date(
          "per_symbol_deltas": {symbol: {"raw_score_delta", "weight_delta"}}}
 
     `overlap_fraction` is `symbols_matched / (logged | offline)`, `None`
-    when both sides are empty (nothing to compare, not a 0% overlap)."""
+    when both sides are empty (nothing to compare, not a 0% overlap).
+
+    V5.3.1 (development/Problems.md #91/#97): `trading_eligible` used to
+    be hardcoded `True` for every symbol here, regardless of whether the
+    real live run actually considered it eligible that date - now read
+    from `logged_record["universe"][symbol]["trading_eligible"]` when
+    that data is present (`phase_v2.diagnostics.book_history.
+    include_full_universe` was on for the run that produced this log),
+    the SAME real per-date eligibility main.py's own book construction
+    used (main.py:2768). Falls back to `True` (today's exact prior
+    behavior, byte-identical) for any symbol missing from `"universe"` or
+    for a log with no `"universe"` key at all - never a KeyError."""
+    universe = logged_record.get("universe") or {}
     normalized = cross_sectional_rank_scores(raw_scores_by_symbol)
     candidates = {
-        symbol: {"predicted_rank_20d": rank, "trading_eligible": True} for symbol, rank in normalized.items()
+        symbol: {
+            "predicted_rank_20d": rank,
+            "trading_eligible": universe.get(symbol, {}).get("trading_eligible", True),
+        }
+        for symbol, rank in normalized.items()
     }
     offline_allocations = build_rank_based_book(
         candidates,
@@ -348,9 +364,19 @@ def replay_book_history_reconciliation(
         if raw_scores_by_symbol is None:
             continue
 
+        # V5.3.1 (development/Problems.md #91/#97) - reads real per-date
+        # trading_eligible from the logged "universe" payload when
+        # available, same as reconcile_book_history_date() above (see its
+        # docstring); falls back to True (unchanged prior behavior) when
+        # absent.
+        universe = logged_record.get("universe") or {}
         normalized = cross_sectional_rank_scores(raw_scores_by_symbol)
         candidates = {
-            symbol: {"predicted_rank_20d": rank, "trading_eligible": True} for symbol, rank in normalized.items()
+            symbol: {
+                "predicted_rank_20d": rank,
+                "trading_eligible": universe.get(symbol, {}).get("trading_eligible", True),
+            }
+            for symbol, rank in normalized.items()
         }
         offline_allocations = build_rank_based_book(
             candidates,
@@ -493,6 +519,84 @@ def summarize_universe_snapshot_by_security_type(logged_records: list[dict]) -> 
         "num_dates_with_universe_data": dates_with_universe_data,
         "by_security_type": by_security_type,
     }
+
+
+def summarize_universe_presence_by_symbol(logged_records: list[dict]) -> dict:
+    """V5.3.1 (development/Problems.md #91/#97) - `visualization/
+    book_history.jsonl` is a cumulative, NEVER-rotated log: every real
+    backtest run's records get appended to the same file, one after
+    another, forever. Averaging a per-symbol statistic across the whole
+    file (as an earlier round of this investigation did, finding "FX/crypto
+    absent from the universe on 32% of dates") silently mixes many
+    different runs together - a genuine, now-fixed gap in one old run can
+    look like a smaller, still-live problem once diluted into the average
+    of several newer, clean runs. This function segments `logged_records`
+    into contiguous runs FIRST (a run boundary is detected wherever the
+    date sequence goes backwards - `record["date"] < previous_record["date"]`,
+    since a single real backtest always logs forward in time), then
+    computes each symbol's universe-absence rate PER RUN, so a stale run's
+    numbers can never dilute a fresh run's, and a genuine regression in
+    the MOST RECENT run (`result["runs"][-1]`) is always visible on its
+    own, not averaged away.
+
+    Absence here means "not a key in that date's `universe` payload at
+    all" (main.py's `signals` dict, main.py:2761-2772 - the SAME data that
+    also feeds real book candidacy, main.py:1735-1736's `continue` gate -
+    see development/Problems.md #97 for why this is a real book-
+    construction signal, not merely a diagnostic one). Only symbols that
+    appear in the universe payload on AT LEAST one date within a run are
+    scored for that run (an unrelated ticker that's never in ANY
+    universe snapshot isn't "100% absent", it's simply out of scope).
+
+    Same "log carries no data, degrade to zeros" contract as
+    summarize_universe_snapshot_by_security_type() - a `logged_records`
+    with no `"universe"` key anywhere returns `{"num_runs_detected": 0,
+    "runs": []}`, never raises.
+
+    Returns `{"num_runs_detected": int, "runs": [{"start_date", "end_date",
+    "num_records", "absence_rate_by_symbol": {symbol: float}}, ...]}`,
+    runs in the same chronological order as `logged_records` itself."""
+    runs: list[list[dict]] = []
+    current_run: list[dict] = []
+    previous_date: str | None = None
+    for record in logged_records:
+        date = record.get("date")
+        if previous_date is not None and date is not None and date < previous_date:
+            if current_run:
+                runs.append(current_run)
+            current_run = []
+        current_run.append(record)
+        previous_date = date if date is not None else previous_date
+
+    if current_run:
+        runs.append(current_run)
+
+    run_summaries: list[dict] = []
+    for run_records in runs:
+        universe_records = [record for record in run_records if record.get("universe")]
+        num_records = len(universe_records)
+        if num_records == 0:
+            continue
+
+        all_symbols: set[str] = set()
+        for record in universe_records:
+            all_symbols.update(record["universe"].keys())
+
+        absence_rate_by_symbol = {
+            symbol: 1.0 - (sum(1 for record in universe_records if symbol in record["universe"]) / num_records)
+            for symbol in all_symbols
+        }
+
+        run_summaries.append(
+            {
+                "start_date": universe_records[0].get("date"),
+                "end_date": universe_records[-1].get("date"),
+                "num_records": num_records,
+                "absence_rate_by_symbol": absence_rate_by_symbol,
+            }
+        )
+
+    return {"num_runs_detected": len(run_summaries), "runs": run_summaries}
 
 
 def summarize_book_member_diversion(logged_records: list[dict]) -> dict:

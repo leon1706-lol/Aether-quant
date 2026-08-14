@@ -14,6 +14,7 @@ from evaluation.rank_signal_calibration import (
     replay_book_history_reconciliation,
     summarize_book_history_reconciliation,
     summarize_book_member_diversion,
+    summarize_universe_presence_by_symbol,
     summarize_universe_snapshot_by_security_type,
 )
 from portfolio.book_construction import compute_confidence_spread
@@ -213,6 +214,74 @@ def test_reconcile_book_history_date_missing_target_weight_never_crashes():
     assert result["per_symbol_deltas"]["A"]["raw_score_delta"] == pytest.approx(0.0)
 
 
+def _logged_record_with_universe(date, allocations, universe):
+    return {"date": date, "allocations": allocations, "universe": universe}
+
+
+def test_reconcile_book_history_date_uses_logged_trading_eligible_when_present():
+    # _RAW_SCORES = {"A": 0.9, "B": 0.7, "C": 0.3, "D": 0.1} - D (lowest)
+    # is offline's natural bottom1/short pick. Marking D ineligible in the
+    # logged universe must exclude it, falling through to the next-lowest
+    # eligible name, C.
+    logged = _logged_record_with_universe(
+        "2020-01-01",
+        {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)},
+        {"D": {"trading_eligible": False}},
+    )
+    result = reconcile_book_history_date(logged, _RAW_SCORES, top_n=1, bottom_n=1)
+
+    assert "D" not in result["offline_symbols"]["short"]
+    assert result["offline_symbols"]["short"] == ["C"]
+
+
+def test_reconcile_book_history_date_defaults_to_eligible_when_universe_absent():
+    # No "universe" key at all - byte-identical to pre-fix behavior
+    # (every symbol trading_eligible=True).
+    logged = _logged_record(
+        "2020-01-01",
+        {"A": _allocation_entry("long", 0.9), "C": _allocation_entry("short", 0.3)},
+    )
+    result = reconcile_book_history_date(logged, _RAW_SCORES, top_n=1, bottom_n=1)
+
+    assert result["offline_symbols"]["short"] == ["D"]  # unaffected - D still wins naturally
+
+
+def test_reconcile_book_history_date_defaults_to_eligible_when_symbol_missing_from_universe():
+    # "universe" is present but doesn't mention every symbol - missing
+    # symbols still default to eligible, not silently excluded.
+    logged = _logged_record_with_universe(
+        "2020-01-01",
+        {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)},
+        {"A": {"trading_eligible": True}},  # C, D not mentioned at all
+    )
+    result = reconcile_book_history_date(logged, _RAW_SCORES, top_n=1, bottom_n=1)
+
+    assert result["offline_symbols"]["short"] == ["D"]
+
+
+def test_replay_book_history_reconciliation_uses_per_date_logged_trading_eligible():
+    logged_records = [
+        _logged_record_with_universe(
+            "2020-01-01", {"A": _allocation_entry("long", 0.9), "C": _allocation_entry("short", 0.3)}, {"D": {"trading_eligible": False}}
+        ),
+        _logged_record_with_universe(
+            "2020-01-02", {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)}, {}
+        ),
+    ]
+    raw_scores_by_date = {"2020-01-01": _RAW_SCORES, "2020-01-02": _RAW_SCORES}
+
+    results = replay_book_history_reconciliation(logged_records, raw_scores_by_date, top_n=1, bottom_n=1)
+
+    # Date 1: D excluded (ineligible that date) -> offline's natural
+    # bottom1 pick falls through to C.
+    assert results[0]["offline_symbols"]["short"] == ["C"]
+    # Date 2: no universe data logged that date -> D defaults back to
+    # eligible and (hysteresis_rank_margin=0.0, no incumbency tolerance)
+    # is re-picked as the natural bottom1 - confirms the exclusion is
+    # per-date, not carried across dates via held_allocations.
+    assert results[1]["offline_symbols"]["short"] == ["D"]
+
+
 def test_summarize_book_history_reconciliation_empty_list_never_raises():
     summary = summarize_book_history_reconciliation([])
     assert summary == {
@@ -399,6 +468,81 @@ def test_summarize_universe_snapshot_dates_without_universe_key_are_not_counted(
     ]
     summary = summarize_universe_snapshot_by_security_type(logged_records)
     assert summary["num_dates_with_universe_data"] == 1
+
+
+# ---------------------------------------------------------------------------
+# summarize_universe_presence_by_symbol() (V5.3.1)
+# ---------------------------------------------------------------------------
+
+
+def _universe_with_symbols(symbols):
+    """Minimal universe payload: just the keys, with a fixed body - only
+    key presence/absence matters to summarize_universe_presence_by_symbol()."""
+    return {symbol: {"raw_rank_score": 0.5, "feature_ready": True, "trading_eligible": True, "security_type": "equity"} for symbol in symbols}
+
+
+def test_summarize_universe_presence_empty_list_never_raises():
+    assert summarize_universe_presence_by_symbol([]) == {"num_runs_detected": 0, "runs": []}
+
+
+def test_summarize_universe_presence_no_universe_data_never_raises():
+    logged_records = [_logged_record("2020-01-01", {})]
+    assert summarize_universe_presence_by_symbol(logged_records) == {"num_runs_detected": 0, "runs": []}
+
+
+def test_summarize_universe_presence_single_run_computes_absence_rate():
+    logged_records = [
+        _universe_record("2020-01-01", _universe_with_symbols(["AAPL", "BTCUSD"])),
+        _universe_record("2020-01-02", _universe_with_symbols(["AAPL"])),  # BTCUSD absent this date
+        _universe_record("2020-01-03", _universe_with_symbols(["AAPL"])),  # BTCUSD absent this date
+    ]
+
+    result = summarize_universe_presence_by_symbol(logged_records)
+
+    assert result["num_runs_detected"] == 1
+    run = result["runs"][0]
+    assert run["num_records"] == 3
+    assert run["absence_rate_by_symbol"]["AAPL"] == pytest.approx(0.0)
+    assert run["absence_rate_by_symbol"]["BTCUSD"] == pytest.approx(2 / 3)
+
+
+def test_summarize_universe_presence_segments_by_run_via_date_decrease():
+    # Two runs concatenated in one log file: dates go 01-01, 01-02, then
+    # BACK to 01-01 - a real date-decrease, the run-boundary signal.
+    logged_records = [
+        _universe_record("2020-01-01", _universe_with_symbols(["BTCUSD"])),  # run 0: BTCUSD present here
+        _universe_record("2020-01-02", {}),  # run 0, no universe data logged that date
+        _universe_record("2020-01-01", _universe_with_symbols(["AAPL"])),  # run 1 starts - BTCUSD now absent
+        _universe_record("2020-01-02", _universe_with_symbols(["AAPL"])),
+    ]
+
+    result = summarize_universe_presence_by_symbol(logged_records)
+
+    assert result["num_runs_detected"] == 2
+    run_0, run_1 = result["runs"]
+    assert run_0["num_records"] == 1  # only the one universe-bearing record in run 0
+    assert "BTCUSD" in run_0["absence_rate_by_symbol"]
+    assert run_1["num_records"] == 2
+    assert "BTCUSD" not in run_1["absence_rate_by_symbol"]  # never appeared in run 1's universe at all
+    assert run_1["absence_rate_by_symbol"]["AAPL"] == pytest.approx(0.0)
+
+
+def test_summarize_universe_presence_reproduces_the_real_run_segmented_finding():
+    # Regression guard for the actual investigation this function shipped
+    # to formalize: an old run where a symbol is 100% absent, followed by
+    # a newer run where it's always present, must show up as two
+    # DIFFERENT per-run absence rates (1.0, then 0.0) - never averaged
+    # into one misleading 50% figure.
+    old_run = [_universe_record(f"2019-01-{i:02d}", _universe_with_symbols(["AAPL"])) for i in range(1, 4)]
+    new_run = [_universe_record(f"2019-01-{i:02d}", _universe_with_symbols(["AAPL", "BTCUSD"])) for i in range(1, 4)]
+    logged_records = old_run + new_run
+
+    result = summarize_universe_presence_by_symbol(logged_records)
+
+    assert result["num_runs_detected"] == 2
+    old_summary, new_summary = result["runs"]
+    assert "BTCUSD" not in old_summary["absence_rate_by_symbol"]  # never seen at all in the old run
+    assert new_summary["absence_rate_by_symbol"]["BTCUSD"] == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------

@@ -490,13 +490,13 @@ backtest, never a unit test).
 
 **Problem:** Every real order was an all-or-nothing `MarketOrder()`/`SetHoldings()` market fill across all 5 asset-class call sites, with no limit-order alternative.
 
-**Fix:** New config-gated (`phase_v2.limit_orders`, default off) real `LimitOrder()` support for all 5 asset classes: a shared `_try_submit_limit_order()` helper, a real `on_order_event()` fill callback, and per-asset-class timeout/fallback-to-market handling. A real sign bug (re-deriving futures quantity sign from `is_buy` instead of using the already-correctly-signed value) and an option contract-vs-chain-symbol bookkeeping bug were both caught and fixed during implementation.
+**Fix:** New config-gated (`phase_v2.limit_orders`) real `LimitOrder()` support for all 5 asset classes: a shared `_try_submit_limit_order()` helper, a real `on_order_event()` fill callback, per-asset-class timeout/fallback-to-market handling. Caught and fixed a futures quantity-sign bug and an option contract-vs-chain-symbol bookkeeping bug during implementation.
 
 **Verification:**
-- 12 pure-function tests plus 4 CLI reachability tests, plus 1 new test (V5.2.8) for `classify_order_status("CancelPending")`.
-- **Confirmed firing in a real backtest** (2026-07-20, see #54) — Lean's own log showed a real `LimitPrice was rounded` message, proving the underlying Lean API assumptions hold in practice.
-- **V5.2.8: `OrderStatus` casing confirmed more exhaustively.** Scanned 33 real `order-events.json` files across `backtests/2026-07-*`/`backtests/2026-08-*`. Real statuses observed: `{submitted, filled, canceled, cancelPending, invalid}` — `cancelPending` appears 23 times, always paired 1:1 with a following `canceled` (e.g. `backtests/2026-08-11_09-56-24`: 644/620/23/23), directly confirmed on individual records to be genuine unfilled-timeout cancels (e.g. `HYG` qty 15 @ `limitPrice=54.30`, `fillQuantity=0.0`). `classify_order_status()` now explicitly classifies `"CancelPending"` as `"pending"` (previously fell through to `"unknown"`, which every caller already treated identically — a precision fix, not a behavior change).
-- **Permanent, honest caveat, not a pending action:** `PartiallyFilled` has never once appeared across those 33 files — still genuinely unexercised in practice.
+- 12 pure-function tests + 4 CLI reachability tests.
+- Confirmed firing in a real backtest (2026-07-20, #54) — a real `LimitPrice was rounded` log line.
+- V5.2.8: scanned 33 real `order-events.json` files. Statuses observed: `{submitted, filled, canceled, cancelPending, invalid}` — `cancelPending` always pairs 1:1 with `canceled` (e.g. 644/620/23/23), confirmed genuine unfilled-timeout cancels. `classify_order_status()` now classifies `"CancelPending"` explicitly (precision fix, no behavior change). `PartiallyFilled` never once appeared — a permanent, honest caveat.
+- V5.3.1 (#96): confirmed `enabled: true` by default all along (this entry's own text above was stale — corrected in the inline docs, left here as historical record); evidence widened to 45 files, same pattern holds. `PartiallyFilled`'s downstream handling now directly unit-tested via two extracted pure functions. Two new offline diagnostic tools shipped.
 
 ---
 
@@ -1276,15 +1276,15 @@ backtest, never a unit test).
 
 **Severity:** 9/10 · **Status:** 🟡 `partial` (V5.2.2–V5.2.5)
 
-**Problem:** After #90's fix failed to close the Sharpe gap, a ground-truth reconciliation tool (`visualization/book_history.jsonl` + `aq evaluate --reconcile-book-history`) was built and run against a real 2026-08-07 backtest (112 rebalance dates). It found: (1) crypto/FX (BTCUSD/LTCUSD + 15 FX pairs) appeared in offline's top/bottom-6 on 107/112 dates but in the live book on 0/112 — subscription, eligibility, and data availability were all directly ruled out; (2) equities-only overlap was only 34.6–54.8% with 0–1 exact-match dates, a real selection divergence independent of crypto/FX.
+**Problem:** After #90's fix failed to close the Sharpe gap, a new reconciliation tool (`visualization/book_history.jsonl` + `aq evaluate --reconcile-book-history`) ran against a real backtest (112 rebalance dates) and found: (1) crypto/FX appeared in offline's top/bottom-6 on 107/112 dates but the live book on 0/112 — subscription/eligibility/data ruled out; (2) equities-only overlap was only 34.6–54.8%, a real divergence independent of crypto/FX.
 
-**Fix:** V5.2.4 traced and fixed the crypto/FX cause: `self.bar_index` incremented on every asset-class tick (equity and crypto/FX arrive as separate `Slice`/`on_data()` calls), running at ~2x real trading-day pace and never coinciding with equity-driven rebalance bars. Fixed via new `self.is_equity_session_bar` gating the single `bar_index` increment site, which fixed ~20+ downstream `bar_index`-keyed consumers for free; `should_rebalance_this_bar()` gained an `is_trading_day_bar` param; kill-switch inputs moved to dedicated gated trackers; a second, independent bug (`should_exit_non_selected_book_symbol()`) fixed where an empty `book_allocations` for any reason force-sold the entire book instead of only genuine rotate-outs; crypto/FX made genuinely book-eligible by processing symbols on their last-known bar when no fresh tick exists. V5.2.5 then tested two further hypotheses: `cs_momentum_rank_20` dedup (confirmed a true no-op, rewritten anyway for maintainability) and `bond_empirical_duration_beta` (confirmed a real bug — live recomputed this OLS slope every bar from a rolling 260-bar deque instead of `train.py`'s train-time compute-once-broadcast-over-full-history semantic, an out-of-distribution input for bond ETFs every bar); fixed via `should_lock_in_duration_beta()` plus a cache that locks the value once both price/treasury windows fill.
+**Fix:** V5.2.4 — `self.bar_index` incremented on every asset-class tick (~2x real trading pace, never coinciding with equity rebalance bars); fixed via `self.is_equity_session_bar` gating the increment site (fixed ~20+ downstream consumers for free), plus a second bug where an empty `book_allocations` force-sold the whole book instead of only rotate-outs, plus crypto/FX made book-eligible via last-known-bar processing. V5.2.5 — ruled out `cs_momentum_rank_20` dedup as a true no-op; found and fixed a real `bond_empirical_duration_beta` bug (live recomputed the OLS slope every bar from a rolling window instead of `train.py`'s compute-once-broadcast semantic) via `should_lock_in_duration_beta()`.
 
 **Verification:**
-- V5.2.4 confirmed via real Lean backtest (2026-08-09): `bar_index` cadence fixed (mean gap 10.29 business days vs. 5.2 pre-fix), orders/fees roughly halved (392 vs. 768; $372 vs. $664.70), crypto/FX genuinely selected (189 non-equity selections across 57 dates), Sharpe improved −4.421→−4.103 but gap not closed; reconciliation `mean_overlap_fraction` rose 34.6%→49.3% (53.8% with `--replay-hysteresis`)
-- V5.2.5 `cs_momentum_rank_20` fix confirmed bit-for-bit no-op via Codespace dataset rebuild + reconciliation re-run (49.3059%/53.7895%, unchanged to the decimal)
-- V5.2.5 bond duration-beta fix confirmed via a fresh real Lean backtest (2026-08-09) — mixed result: reconciliation overlap did NOT improve (48.14%/49.96%, slightly worse than pre-fix; bond ETFs still heavily recurring in mismatches, sides flipped rather than resolved), but live Sharpe improved materially (−4.103→−3.351, ~18% relative), with orders/fees rising slightly (431 vs. 392; $402 vs. $372)
-- Honest open items: NVDA/GE/WFC/XOM/BA and forex/crypto mismatches remain unexplained; price-data and scaler-mismatch hypotheses directly ruled out (byte-identical / ~1e-15 match); role mismatches (long/short direction) confirmed zero across all 57 dates — divergence is purely about which symbols get selected, not direction
+- V5.2.4: `bar_index` cadence fixed (10.29 vs 5.2 business days), orders/fees roughly halved (392 vs 768; $372 vs $664.70), Sharpe −4.421→−4.103 (gap not closed), overlap 34.6%→49.3% (53.8% with `--replay-hysteresis`).
+- V5.2.5: `cs_momentum_rank_20` confirmed bit-for-bit no-op. Duration-beta fix: overlap did NOT improve (48.14%/49.96%, bond ETFs still recurring, sides flipped not resolved), but Sharpe improved −4.103→−3.351 (~18%).
+- Open items: NVDA/GE/WFC/XOM/BA and forex/crypto mismatches unexplained; price-data/scaler ruled out (byte-identical); role mismatches confirmed zero — divergence is purely which symbols get selected.
+- V5.3.1 (#97): two more real bugs found and fixed — a deeper `bond_empirical_duration_beta` cold-start gap, and the reconciliation tool's own hardcoded eligibility assumption. FX/crypto's "still absent" appearance ruled out as a stale-log artifact (already fixed since V5.2.4). NVDA/GE/WFC/XOM/BA's sector-neutrality hypothesis ruled out by direct code proof. See #92-#96 for the intervening rounds.
 
 ---
 ### 92. Deep-dive into the remaining NVDA/GE/WFC/XOM/BA/forex/crypto divergence finds crypto/FX never actually trade, and a systemic live-vs-offline risk-gate gap (V5.2.6)
@@ -1357,3 +1357,48 @@ backtest, never a unit test).
 - Active `ml/` now runs the new candidate (baseline/gating/multitask/sequence/RL sizing); topology untouched. Rollback available at `ml/_backup_pre_v529_full_retrain/`.
 
 **Follow-ups:** representative Lean backtest (user, manual); topology-training backtest (needs observation mode + local Docker stack + multi-month run); isolating dataset-refresh vs. flag effect.
+
+---
+
+### 96. Real limit-order support: stale docs corrected, `PartiallyFilled` made testable, two new offline diagnostic tools (V5.3.1, closes #34)
+
+**Severity:** 6/10 · **Status:** 🟡 `partial`
+
+**Problem:** `phase_v2.limit_orders.enabled` has actually been `true` since before 2026-07-20, but `Problems.md`, `Changelog.md`, `execution/README.md`, and a `main.py` comment all still said "default off." `PartiallyFilled` has never fired in 45 real backtest folders — genuinely unexercised — and `main.py`'s partial-fill logic couldn't be unit-tested at all (`main.py` isn't importable outside a real Lean process, confirmed).
+
+**Fix:**
+- Corrected the stale "default off" claim in `main.py` and `execution/README.md`.
+- Investigated the `fallback_to_market_on_timeout` future/option=`false` asymmetry (planned as a gap) — found a real, deliberate rationale already in `main.py`'s comment (margin/expiry risk) and left it unchanged, correcting the plan rather than blindly applying it.
+- Extracted `should_clear_pending_limit_order()`/`resolve_limit_order_timeout_action()` into `execution/order_gate.py` as pure functions, wired into `main.py` (behavior-preserving) — makes the partial-fill/remaining-quantity contract unit-testable for the first time.
+- New `evaluation/limit_fill_simulator.py` + `aq evaluate --simulate-limit-fills` (`--limit-fill-offset-sweep`) — offline counterfactual fill/timeout-rate estimate reusing the real `resolve_limit_price()`.
+- New standalone `scripts/order_events_audit.py` — walks every real `order-events.json`, reporting a status histogram, fill latency, and an honestly-labeled upper-bound fallback proxy.
+- `max_slippage_divergence_bps` (`1e12`, disabled) deliberately left uncalibrated — deriving a number from synthetic fill data would conflate "would a hypothetical order fill" with "how far did a real fill diverge," a different question.
+
+**Verification:**
+- 26 new tests (9 order-gate, 8 limit-fill-simulator, 9 order-events-audit). Full suite green (see #97 for the combined count).
+- `--simulate-limit-fills` vs. real dataset: 82.95% fill rate, directionally consistent with real order-events evidence.
+- `order_events_audit.py` vs. all 43 real backtest folders: reproduces the verified 23/23 `cancelPending`/`canceled` pairing exactly, plus a new observation (8 `"invalid"` statuses, already handled).
+- `PartiallyFilled` remains unexercised in real data (no live Lean run this round) — but the logic itself is now proven correct via direct unit tests, not just "never seen."
+
+---
+
+### 97. Book-history reconciliation: bond duration-beta's deeper cold-start bug, reconciliation-tool eligibility fix, FX/crypto absence resolved (log artifact), misleading kill-switch count corrected (V5.3.1, continues #91-#95)
+
+**Severity:** 9/10 → 6/10 · **Status:** 🟡 `partial`
+
+**Problem:** Beneath the already-shipped V5.2.4/V5.2.5/V5.2.7 fixes, two real bugs remained undiscovered: `bond_empirical_duration_beta`'s cold-start window, and the reconciliation tool's own hardcoded eligibility assumption. A third suspected cause (FX/crypto missing from book candidacy) turned out to be a measurement artifact. A fourth issue surfaced along the way: V5.2.10's own "0 real kill-switch trips" README claim was never a real measurement.
+
+**Fix:**
+- **Bond warm-up floor** (`main.py:598`): V5.2.5 stopped the beta from recomputing every bar once locked, but never fixed how long it took to lock in the first time — the two `maxlen=260` deques feeding it fill only from live bars, and the warm-up floor was hardcoded to `21`. Raised to `self.long_bar_history_size` (260) — Lean's warm-up runs the identical window-building logic real bars do (confirmed no `is_warming_up` gate on the append), so this front-loads the accumulation instead of leaving ~230 bars per backtest at a locked `0.0`. Bonus: fixes the identical cold-start gap for `cross_asset_sensitivity` for free.
+- **Reconciliation eligibility fix**: `reconcile_book_history_date()`/`replay_book_history_reconciliation()` (`evaluation/rank_signal_calibration.py`) hardcoded `trading_eligible: True` for every symbol, ignoring the real per-date value already logged in `book_history.jsonl`'s `"universe"` field. Now reads it (falls back to `True` for older logs).
+- **FX/crypto absence ruled out as a live bug**: the "32% absent" finding was an artifact of averaging across `book_history.jsonl`'s cumulative, never-rotated history as one continuous run. New `summarize_universe_presence_by_symbol()` segments by run first — real data shows 100% absence in the single oldest (pre-V5.2.4) run, 0% in the 5 subsequent runs. No threshold change made; the new function ships wired into `--reconcile-book-history`'s output so a future regression is always visible in the most recent run alone.
+- **Misleading kill-switch count corrected**: `_count_real_kill_switch_trips()` counted a string that never reaches the Lean text log (the real trip-audit event is Redis-Stream-only, fails silently without a broker) — always returned `0`. Now always returns `None`; README renders an honest "not measurable" caveat. The Disclaimer's own prior "far fewer trips" claim (same bad `0`) corrected too.
+- **NVDA/GE/WFC/XOM/BA**: sector-neutrality-cap hypothesis ruled out via direct code proof, not just absence of a pattern — `apply_book_neutrality()` only reweights an already-selected book, so it structurally cannot affect which symbols get selected. The 5 tickers also don't cluster in one sector. Divergence remains genuinely unexplained.
+
+**Verification:**
+- 11 new tests (5 universe-presence + 4 reconciliation-eligibility + 2 kill-switch-count). Combined with #96: full suite 2574 → 2609 passed, 0 failures.
+- Bond warm-up fix unverifiable against a real backtest this round — verified only via code-read execution-order proof plus the existing `should_lock_in_duration_beta()` boundary test at exactly 260.
+- Reconciliation eligibility fix re-run against real V5.2.9 data: correctly applied (zero ineligible symbols now appear in mismatch lists), but zero net effect on this dataset's `mean_overlap_fraction` (24.02%, unchanged) — honest finding, not a broken fix.
+- FX/crypto run-segmentation reproduced exactly by hand and by the new function's own tests.
+
+**Follow-ups:** a real Lean backtest to confirm the bond warm-up fix's actual effect on overlap; NVDA/GE/WFC/XOM/BA remains open, next lead is the ranking/hysteresis path itself, not gates or neutrality.

@@ -39,6 +39,7 @@ from .rank_signal_calibration import (
     replay_book_history_reconciliation,
     summarize_book_history_reconciliation,
     summarize_book_member_diversion,
+    summarize_universe_presence_by_symbol,
     summarize_universe_snapshot_by_security_type,
 )
 
@@ -65,5 +66,6 @@ __all__ = [
     "summarize_book_history_reconciliation",
     "summarize_book_member_diversion",
     "summarize_metric_stability",
+    "summarize_universe_presence_by_symbol",
     "summarize_universe_snapshot_by_security_type",
 ]

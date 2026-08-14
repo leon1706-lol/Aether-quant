@@ -66,6 +66,13 @@ without pulling in the training stack, the same torch-free-core convention
   module docstring): no bypass flags, no `net_edge`/book-selection
   modeling, only the two dataset-derivable `evaluate_kill_switch()`
   inputs plus the drawdown-lock breach.
+- `limit_fill_simulator.py::simulate_limit_fills(...)`/
+  `sweep_limit_fill_offsets(...)` (V5.3.1) — an offline counterfactual
+  estimate of how often a real limit order would fill vs. time out,
+  reusing `execution/order_gate.py::resolve_limit_price()` against the
+  dataset's own high/low bars. Answers a different question than the real
+  order-events evidence (development/Problems.md #34/#96): "would this
+  signal have filled," not "did the real book's actual orders fill."
 
 ## CLI
 
@@ -78,7 +85,8 @@ descriptions):
   `--calibrate-confidence-threshold`
 - Reconciliation: `--reconcile-book-history`, `--replay-hysteresis`
 - Diagnostics/investigation (not in `--all`): `--ablation`,
-  `--replay-kill-switch` (V5.2.8), `--walk-forward-summary`
+  `--replay-kill-switch` (V5.2.8), `--simulate-limit-fills` (V5.3.1,
+  `--limit-fill-offset-sweep`), `--walk-forward-summary`
 
 Writes `ml/evaluation/*.json`, consumed by `monitoring/evaluation_state.py`
 for the webui's Evaluation tab (`/api/evaluation`).

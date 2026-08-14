@@ -9,10 +9,12 @@ from execution import (
     liquidity_cost_fraction,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
+    resolve_limit_order_timeout_action,
     resolve_limit_price,
     resolve_order_permission,
     resolve_runtime_mode,
     resolve_slippage_bps,
+    should_clear_pending_limit_order,
     simulate_fill,
     slippage_amount,
 )
@@ -457,3 +459,66 @@ def test_is_real_order_placement_false_when_orders_not_allowed_even_for_real_loo
     # a real-shaped execution_note under that mode is a Lean-bug signal, not
     # something to ever audit as a genuine placement.
     assert is_real_order_placement("liquidated_on_sell", orders_allowed=False) is False
+
+
+# V5.3.1 (development/Problems.md #34/#96) - should_clear_pending_limit_order()/
+# resolve_limit_order_timeout_action() are pure extractions of on_order_event()/
+# _process_pending_limit_order_timeouts()'s decision logic (main.py can't be
+# imported outside a real Lean process - `python -c "import main"` raises
+# NameError: name 'QCAlgorithm' is not defined - so this is the only way to
+# unit-test the PartiallyFilled handling path end-to-end, not just at the
+# classify_order_status() step).
+
+
+def test_should_clear_pending_limit_order_partially_filled_stays_open():
+    # classify_order_status("PartiallyFilled") == "pending" - a partial
+    # fill must never clear the tracked record, regardless of all_legs_filled.
+    assert should_clear_pending_limit_order("pending", all_legs_filled=False) is False
+    assert should_clear_pending_limit_order("pending", all_legs_filled=True) is False
+
+
+def test_should_clear_pending_limit_order_unknown_stays_open():
+    assert should_clear_pending_limit_order("unknown", all_legs_filled=True) is False
+
+
+def test_should_clear_pending_limit_order_filled_requires_all_legs():
+    assert should_clear_pending_limit_order("filled", all_legs_filled=False) is False
+    assert should_clear_pending_limit_order("filled", all_legs_filled=True) is True
+
+
+def test_should_clear_pending_limit_order_canceled_always_clears():
+    assert should_clear_pending_limit_order("canceled", all_legs_filled=False) is True
+    assert should_clear_pending_limit_order("canceled", all_legs_filled=True) is True
+
+
+def test_resolve_limit_order_timeout_action_partial_fill_falls_back_to_remaining_quantity_only():
+    # The headline contract: an order originally for e.g. 15 units, now
+    # sitting at quantity_remaining=4.0 (a real partial fill mid-timeout-
+    # window), must fall back for exactly 4, never the original 15 - this
+    # function's signature never even receives the original size, making
+    # the wrong-quantity failure mode structurally impossible.
+    action = resolve_limit_order_timeout_action("pending", quantity_remaining=4.0, fallback_enabled=True)
+    assert action == {"should_cancel": True, "fallback_market_quantity": 4.0}
+
+
+def test_resolve_limit_order_timeout_action_no_fallback_when_disabled():
+    action = resolve_limit_order_timeout_action("pending", quantity_remaining=10.0, fallback_enabled=False)
+    assert action == {"should_cancel": True, "fallback_market_quantity": None}
+
+
+def test_resolve_limit_order_timeout_action_zero_remaining_no_market_order():
+    # Fully filled but the status hasn't caught up yet - no fallback order
+    # for a zero quantity.
+    action = resolve_limit_order_timeout_action("pending", quantity_remaining=0.0, fallback_enabled=True)
+    assert action == {"should_cancel": True, "fallback_market_quantity": None}
+
+
+def test_resolve_limit_order_timeout_action_unknown_status_also_cancels_and_falls_back():
+    action = resolve_limit_order_timeout_action("unknown", quantity_remaining=7.5, fallback_enabled=True)
+    assert action == {"should_cancel": True, "fallback_market_quantity": 7.5}
+
+
+@pytest.mark.parametrize("status", ["filled", "canceled"])
+def test_resolve_limit_order_timeout_action_already_resolved_is_noop(status):
+    action = resolve_limit_order_timeout_action(status, quantity_remaining=99.0, fallback_enabled=True)
+    assert action == {"should_cancel": False, "fallback_market_quantity": None}

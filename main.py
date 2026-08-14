@@ -142,10 +142,12 @@ from execution import (
     reconcile_positions,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
+    resolve_limit_order_timeout_action,
     resolve_limit_price,
     resolve_order_permission,
     resolve_runtime_mode,
     resolve_slippage_bps,
+    should_clear_pending_limit_order,
 )
 from execution.live_credentials_io import load_live_credentials, load_postgres_dsn
 from execution.paper_readiness_io import read_paper_trading_config
@@ -595,7 +597,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
             symbol for symbol in self.symbols if self.asset_lookup[str(symbol)]["security_type"] == "equity"
         ]
 
-        self.set_warm_up(max(int(self.runtime["warmup_bars"]), 21), self.resolution)
+        # V5.3.1 (development/Problems.md #91/#97) - floor raised from 21
+        # to self.long_bar_history_size (260, already assigned above at
+        # __init__ time, well before this line runs). V5.2.5's
+        # should_lock_in_duration_beta() fix stopped bond_empirical_
+        # duration_beta from RECOMPUTING every bar once locked, but never
+        # fixed how long it takes to lock in for the FIRST time:
+        # self.symbol_long_windows/self.symbol_treasury_10yr_history (both
+        # maxlen=long_bar_history_size) are appended only from live bars,
+        # gated by has_fresh_bar_this_tick - NOT by self.is_warming_up
+        # (confirmed by reading on_data()'s Phase 1a loop: the append has
+        # no warm-up gate, while the later inference step explicitly does)
+        # - so Lean's warm-up period DOES run the same window-building
+        # logic real bars do. At the old floor (21, far short of 260),
+        # roughly the first ~230 live-accumulated bars of every backtest
+        # computed this feature (and, for free, the identical-shaped
+        # cross_asset_sensitivity driver histories) from a locked 0.0
+        # neutral default, while train.py::build_bond_features_by_date()
+        # broadcasts the true whole-training-history value from day one -
+        # a real train/live mismatch for about the first calendar year of
+        # every backtest, on top of (not fixed by) V5.2.5's own change.
+        # Cannot be verified against a real backtest this round (no live
+        # Lean run in scope) - see Problems.md #97 for that caveat.
+        self.set_warm_up(max(int(self.runtime["warmup_bars"]), self.long_bar_history_size), self.resolution)
 
     def _ensure_ready(self) -> None:
         """One-time setup deferred out of initialize() (see the comment
@@ -1404,14 +1428,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
             phase_v2_fill_slippage.get("max_bps", MAX_LIQUIDITY_SLIPPAGE_BPS)
         )
         # Real limit-order support (execution/risk realism pass, part 2) -
-        # config-gated, default OFF. When disabled, every routing call site
-        # in _apply_signal()/_apply_option_order() takes the EXACT same
-        # MarketOrder()/SetHoldings() branch it always has - this whole
-        # block changes nothing about today's behavior unless explicitly
-        # turned on. See execution/README.md's "Real limit orders" section
-        # for the full design and development/Problems.md #34 for the
-        # writeup, including the PascalCase/casing risks only a real Lean
-        # backtest can settle.
+        # config-gated (phase_v2.limit_orders.enabled), ON by default since
+        # V5.2.x for all 5 asset classes and extensively exercised in real
+        # backtests since 2026-07-20 (development/Problems.md #34/#96 -
+        # 45 real order-events.json files show continuous limit-order
+        # activity). When disabled, every routing call site in
+        # _apply_signal()/_apply_option_order() takes the EXACT same
+        # MarketOrder()/SetHoldings() branch it always has. See
+        # execution/README.md's "Real limit orders" section for the full
+        # design.
         phase_v2_limit_orders = self.phase_v2.get("limit_orders", {})
         self.limit_orders_enabled = bool(phase_v2_limit_orders.get("enabled", False))
         self.limit_orders_asset_classes = set(
@@ -6805,29 +6830,33 @@ class AetherQuantAlgorithm(QCAlgorithm):
             fell_back = False
             for ticket, target_symbol in zip(pending["tickets"], pending["target_symbols"]):
                 status = classify_order_status(getattr(ticket.Status, "name", str(ticket.Status)))
-                if status in ("filled", "canceled"):
+                # V5.3.1 (development/Problems.md #34/#96) - the actual
+                # decision (cancel? fall back, and for how much?) now lives
+                # in execution.order_gate.resolve_limit_order_timeout_action(),
+                # a pure function unit-tested directly (main.py itself
+                # can't be imported outside a real Lean process). Its own
+                # docstring carries the "status is 'pending' or 'unknown'
+                # here... 'unknown' must be treated as still-pending"
+                # reasoning that used to live in this comment; nothing
+                # about the decision logic changed, only where it lives.
+                # Per-asset-class fallback, not a single global flag - see
+                # limit_order_fallback_to_market_by_asset_class's own
+                # comment in _ensure_ready() for the equity/crypto/bond-vs-
+                # future/option rationale.
+                action = resolve_limit_order_timeout_action(
+                    status,
+                    ticket.QuantityRemaining,
+                    self.limit_order_fallback_to_market_by_asset_class.get(pending["asset_class"], True),
+                )
+                if not action["should_cancel"]:
                     # Already resolved (filled/canceled) by on_order_event()
                     # this bar or an earlier one - no cancel/fallback needed
                     # for this leg.
                     continue
-                # status is "pending" or "unknown" here - classify_order_status()'s
-                # own docstring says "unknown" must be treated as still-pending
-                # (conservative: never mistakes an unrecognized status for a
-                # resolved order). Falling through to the cancel/fallback path
-                # below for both cases means an order Lean reports with a status
-                # name this codebase doesn't yet recognize still gets a real
-                # ticket.Cancel() instead of silently losing tracking of a
-                # possibly-still-open order. See development/Problems.md.
                 ticket.Cancel()
-                # Per-asset-class, not a single global flag - see
-                # limit_order_fallback_to_market_by_asset_class's own comment
-                # in _ensure_ready() for the equity/crypto/bond-vs-future/
-                # option rationale.
-                if self.limit_order_fallback_to_market_by_asset_class.get(pending["asset_class"], True):
-                    remaining = ticket.QuantityRemaining
-                    if remaining != 0:
-                        self.MarketOrder(target_symbol, remaining)
-                        fell_back = True
+                if action["fallback_market_quantity"] is not None:
+                    self.MarketOrder(target_symbol, action["fallback_market_quantity"])
+                    fell_back = True
             if fell_back:
                 self.last_trade_bar_by_symbol[pending["chain_symbol"]] = self.bar_index
             for target_symbol in pending["target_symbols"]:
@@ -6879,19 +6908,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return
 
         status = classify_order_status(getattr(order_event.Status, "name", str(order_event.Status)))
+        all_legs_filled = all(
+            classify_order_status(getattr(ticket.Status, "name", str(ticket.Status))) == "filled"
+            for ticket in pending["tickets"]
+        )
+        # V5.3.1 (development/Problems.md #34/#96) - the clearing decision
+        # now lives in execution.order_gate.should_clear_pending_limit_order(),
+        # a pure function unit-tested directly (see that function's
+        # docstring for why "pending"/"unknown"/"PartiallyFilled" must
+        # never clear the record). Nothing about the decision changed,
+        # only where it lives.
+        if not should_clear_pending_limit_order(status, all_legs_filled):
+            return
         if status == "filled":
-            all_legs_filled = all(
-                classify_order_status(getattr(ticket.Status, "name", str(ticket.Status))) == "filled"
-                for ticket in pending["tickets"]
-            )
-            if not all_legs_filled:
-                return
             self.last_trade_bar_by_symbol[pending["chain_symbol"]] = self.bar_index
-            for target_symbol in pending["target_symbols"]:
-                self.pending_limit_orders.pop(str(target_symbol), None)
-        elif status == "canceled":
-            for target_symbol in pending["target_symbols"]:
-                self.pending_limit_orders.pop(str(target_symbol), None)
+        for target_symbol in pending["target_symbols"]:
+            self.pending_limit_orders.pop(str(target_symbol), None)
 
     def _track_slippage_divergence(self, order_event) -> None:
         """V5.1 Phase 6 (production safety) - feeds risk/kill_switch.py::

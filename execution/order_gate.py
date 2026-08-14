@@ -239,6 +239,64 @@ def classify_order_status(status_name: str) -> str:
     return "unknown"
 
 
+# V5.3.1 (development/Problems.md #34/#96) - main.py's on_order_event()/
+# _process_pending_limit_order_timeouts() cannot themselves be unit-tested
+# (main.py imports QCAlgorithm from AlgorithmImports, which only resolves
+# inside a real Lean process - confirmed: `python -c "import main"` raises
+# NameError outside one). These two functions are a pure restatement of
+# those methods' decision logic, extracted so classify_order_status("Partially
+# Filled") == "pending" (already tested above) has a testable path all the
+# way through to "does the pending-order record correctly stay open, and
+# does a subsequent timeout fall back for only the REMAINING quantity" -
+# not just proven at the classification step. main.py calls these two
+# functions instead of inlining the equivalent branches.
+
+
+def should_clear_pending_limit_order(status: str, all_legs_filled: bool) -> bool:
+    """Mirrors on_order_event()'s clearing decision: a tracked pending-
+    limit-order record should be POPPED (stop tracking it) only when it's
+    genuinely resolved - "filled" (and only once every leg of a multi-leg
+    combo has filled, not on the first leg alone) or "canceled". Every
+    other status - "pending", "unknown", and critically "PartiallyFilled"
+    (which classify_order_status() maps to "pending") - returns False, so
+    a partial fill leaves the record tracked for
+    resolve_limit_order_timeout_action() to eventually resolve, exactly as
+    main.py's own on_order_event() docstring already documents.
+
+    `all_legs_filled` is irrelevant (never even inspected) unless
+    status == "filled" - a "canceled" leg always clears regardless of the
+    other legs' state, matching main.py's existing elif branch."""
+    if status == "filled":
+        return all_legs_filled
+    return status == "canceled"
+
+
+def resolve_limit_order_timeout_action(
+    status: str,
+    quantity_remaining: float,
+    fallback_enabled: bool,
+) -> dict:
+    """Mirrors _process_pending_limit_order_timeouts()'s per-leg branch
+    once a tracked order has sat unfilled for
+    phase_v2.limit_orders.unfilled_timeout_bars bars: an already-resolved
+    leg ("filled"/"canceled" - main.py's own comment: resolved by
+    on_order_event() this bar or an earlier one) needs no action here.
+    Any other status - "pending", "unknown", or "PartiallyFilled" (which
+    classify_order_status() maps to "pending") - gets canceled, with a
+    market-order fallback for exactly `quantity_remaining` (never the
+    order's original size, which this function deliberately never
+    receives - a partial fill's leftover quantity is structurally the
+    only number that can ever be returned here) when fallback_enabled and
+    there IS a nonzero remainder.
+
+    Returns {"should_cancel": bool, "fallback_market_quantity": float | None}.
+    """
+    if status in ("filled", "canceled"):
+        return {"should_cancel": False, "fallback_market_quantity": None}
+    fallback_market_quantity = quantity_remaining if (fallback_enabled and quantity_remaining != 0) else None
+    return {"should_cancel": True, "fallback_market_quantity": fallback_market_quantity}
+
+
 # Pure classification of main.py::_apply_signal()/_apply_option_order()'s
 # execution_note return strings into "was a REAL order actually placed" -
 # used by the audit-log hook (development/Problems.md #42) at its single

@@ -665,6 +665,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_aq_cli.py", "test_generate_backtest_report.py", "test_generate_evaluation_report.py",
         "test_lean_config_render.py", "test_dockerignore_secrets.py", "test_secret_scan.py",
         "test_profile_inference.py", "test_profile_subsystems.py", "test_lean_runtime_imports.py",
+        "test_order_events_audit.py",
     ],
     "audit": [
         "test_hash_chain.py", "test_audit_queue.py", "test_postgres_audit.py",
@@ -753,6 +754,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_confidence_threshold_calibration.py",
         # V5.2.8 (Problems.md #94) - evaluation/kill_switch_replay.py.
         "test_kill_switch_replay.py",
+        # V5.3.1 (Problems.md #34/#96) - evaluation/limit_fill_simulator.py.
+        "test_limit_fill_simulator.py",
     ],
 }
 
@@ -1706,6 +1709,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             select_context_date_range,
             summarize_book_history_reconciliation,
             summarize_book_member_diversion,
+            summarize_universe_presence_by_symbol,
             summarize_universe_snapshot_by_security_type,
         )
         from portfolio.rank_signal import resolve_rank_signal_policy
@@ -1847,12 +1851,19 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         # degrades to zeros" contract as universe_summary above - reads
         # straight off the log's own optional "book_member_decisions" key.
         diversion_summary = summarize_book_member_diversion(logged_records)
+        # V5.3.1 (development/Problems.md #91/#97) - same "cheap, always
+        # attempted, degrades to zeros" contract, run-segmented (not
+        # averaged across the log's whole cumulative history) so a future
+        # regression is always visible in the MOST RECENT run's own
+        # numbers, never diluted by older, already-fixed runs.
+        universe_presence_summary = summarize_universe_presence_by_symbol(logged_records)
         payload = {
             "mode": "replay_hysteresis" if replay_hysteresis else "independent",
             "per_date": per_date_results,
             "summary": summary,
             "universe_summary": universe_summary,
             "diversion_summary": diversion_summary,
+            "universe_presence_summary": universe_presence_summary,
         }
         _write_evaluation_json(ML_DIR / "evaluation" / "book_history_reconciliation.json", payload)
 
@@ -1923,6 +1934,21 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     "phase_v2.diagnostics.book_history.include_decisions=true to see how many book-selected "
                     "trades were diverted to simulate/reduce_risk/retrain_candidate, and by which gate."
                 )
+            if universe_presence_summary["num_runs_detected"] > 0:
+                most_recent_run = universe_presence_summary["runs"][-1]
+                top_absent = sorted(
+                    most_recent_run["absence_rate_by_symbol"].items(), key=lambda item: -item[1]
+                )[:10]
+                print(
+                    f"  Universe presence, most recent run only ({most_recent_run['start_date']} to "
+                    f"{most_recent_run['end_date']}, {most_recent_run['num_records']} dates, "
+                    f"{universe_presence_summary['num_runs_detected']} runs detected in this log total - "
+                    "book_history.jsonl is cumulative/never-rotated, see summarize_universe_presence_by_symbol()'s "
+                    "docstring):"
+                )
+                for symbol, absence_rate in top_absent:
+                    if absence_rate > 0:
+                        print(f"    {symbol}: absent from universe on {absence_rate:.1%} of this run's dates")
 
         _refresh_readme_evaluation_sections()
         return 0
@@ -2016,6 +2042,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # --calibrate-book-spread above: a heavier, investigation-only report,
     # not bundled into --all.
     run_replay_kill_switch = bool(getattr(args, "replay_kill_switch", False))
+    # V5.3.1 (development/Problems.md #34/#96) - same reasoning as
+    # --replay-kill-switch above: a heavier, investigation-only report,
+    # not bundled into --all.
+    run_simulate_limit_fills = bool(getattr(args, "simulate_limit_fills", False))
     # Bare `aq evaluate` with no flags at all defaults to --rank-book - the
     # single most useful number ("is the fee drag fixed"), matching every
     # other `aq` command's "sane default when no scope flag is given"
@@ -2027,6 +2057,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     if not (
         run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag
         or run_calibrate_book_spread or run_calibrate_confidence_threshold or run_replay_kill_switch
+        or run_simulate_limit_fills
     ):
         run_rank_book = True
 
@@ -2109,6 +2140,45 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 f"{replay_summary['trip_count']} trips across {replay_summary['total_dates']} dates, "
                 f"{replay_summary['locked_days']} locked days ({replay_summary['locked_day_fraction']:.2%})"
             )
+
+    # V5.3.1 (development/Problems.md #34/#96) - offline counterfactual:
+    # "how often would a real limit order have filled" without needing a
+    # live Lean run. Deliberately independent of --rank-book above - it
+    # simulates a signal firing on every row, not just book-selected ones
+    # (see evaluation/limit_fill_simulator.py's own docstring for why
+    # that's a different, complementary question, not a replay of the
+    # real order-events.json evidence).
+    if run_simulate_limit_fills:
+        from evaluation.limit_fill_simulator import simulate_limit_fills, sweep_limit_fill_offsets
+
+        limit_orders_config = config.get("phase_v2", {}).get("limit_orders", {})
+        timeout_bars = int(limit_orders_config.get("unfilled_timeout_bars", 3))
+        offset_sweep_arg = getattr(args, "limit_fill_offset_sweep", None)
+        if offset_sweep_arg:
+            offsets = [float(value) for value in offset_sweep_arg.split(",")]
+            limit_fill_result = sweep_limit_fill_offsets(dataset, unfilled_timeout_bars=timeout_bars, offset_multipliers=offsets)
+        else:
+            configured_offset = float(limit_orders_config.get("offset_multiplier", 1.0))
+            limit_fill_result = simulate_limit_fills(dataset, unfilled_timeout_bars=timeout_bars, offset_multiplier=configured_offset)
+        report["limit_fill_simulation"] = limit_fill_result
+        _write_evaluation_json(evaluation_dir / "limit_fill_simulation.json", limit_fill_result)
+        if not args.json:
+            print(f"Limit-fill simulation (APPROXIMATION, unfilled_timeout_bars={timeout_bars}):")
+            if offset_sweep_arg:
+                for multiplier, result_for_multiplier in limit_fill_result.items():
+                    overall = result_for_multiplier["overall"]
+                    print(
+                        f"  offset_multiplier={multiplier}: fill_rate={overall['fill_rate']:.2%} "
+                        f"timeout_rate={overall['timeout_rate']:.2%} num_signals={overall['num_signals']}"
+                    )
+            else:
+                overall = limit_fill_result["overall"]
+                print(
+                    f"  overall: fill_rate={overall['fill_rate']:.2%} timeout_rate={overall['timeout_rate']:.2%} "
+                    f"num_signals={overall['num_signals']}"
+                )
+                for security_type, stats in sorted(limit_fill_result["by_asset_class"].items()):
+                    print(f"  {security_type}: fill_rate={stats['fill_rate']:.2%} num_signals={stats['num_signals']}")
 
     if run_capacity:
         cap = capacity_curve(
@@ -2843,6 +2913,18 @@ def build_parser() -> argparse.ArgumentParser:
         "explicitly approximate estimate of how much of the run would have been locked out, without "
         "needing a real Lean backtest. Not included in --all - investigation-only, see development/"
         "Problems.md #94 for the caveats.",
+    )
+    evaluate_parser.add_argument(
+        "--simulate-limit-fills", action="store_true",
+        help="V5.3.1: offline counterfactual (evaluation/limit_fill_simulator.py) estimating how often a "
+        "real limit order would fill vs. time out, using the existing dataset's own high/low bars and "
+        "phase_v2.limit_orders' pricing/timeout config - without needing a real Lean backtest. Not "
+        "included in --all - investigation-only, see development/Problems.md #34/#96 for the caveats.",
+    )
+    evaluate_parser.add_argument(
+        "--limit-fill-offset-sweep", default=None,
+        help="Comma-separated offset_multiplier values to sweep with --simulate-limit-fills (default: a "
+        "single run at the configured phase_v2.limit_orders.offset_multiplier).",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

@@ -107,8 +107,12 @@ charge the identical estimate.
 
 ## Real limit orders
 
-Config-gated alternative to market orders, default **off** (disabled =
-every routing call site byte-for-byte unchanged).
+Config-gated alternative to market orders (`phase_v2.limit_orders.enabled`),
+**on by default** since V5.2.x for all 5 asset classes — extensively
+exercised in real backtests since 2026-07-20 (development/Problems.md
+#34/#96: 45 real `order-events.json` files show continuous limit-order
+activity, 2,370-4,103 fills per run in several). Disabling it makes every
+routing call site byte-for-byte identical to the plain market-order path.
 
 **Casing convention**: this codebase calls the Lean API in **PascalCase**
 (`self.MarketOrder`, `self.SetHoldings`, `self.SetSlippageModel`) but

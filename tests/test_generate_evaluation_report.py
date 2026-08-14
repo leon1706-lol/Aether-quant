@@ -206,7 +206,6 @@ def test_build_other_metrics_markdown_computes_gap_when_both_sides_present(tmp_p
     import generate_evaluation_report as report_module
 
     monkeypatch.setattr(report_module, "_load_lean_sharpe", lambda: (-1.72, "2019-01-01 to 2021-04-02"))
-    monkeypatch.setattr(report_module, "_count_real_kill_switch_trips", lambda: None)
     eval_summary = {"sequence": {"rank_book": _rank_book(net_sharpe=1.52)}, "multitask": {"rank_book": _rank_book(net_sharpe=1.33)}}
 
     body = _build_other_metrics_markdown(eval_summary, None, None, None)
@@ -221,7 +220,6 @@ def test_build_other_metrics_markdown_includes_reconciliation_and_kill_switch_wh
     import generate_evaluation_report as report_module
 
     monkeypatch.setattr(report_module, "_load_lean_sharpe", lambda: (None, None))
-    monkeypatch.setattr(report_module, "_count_real_kill_switch_trips", lambda: 0)
     reconciliation = {
         "mode": "replay_hysteresis",
         "summary": {"num_dates": 174, "num_dates_exact_match": 0, "mean_overlap_fraction": 0.24, "mean_raw_score_delta_abs": 0.12},
@@ -236,6 +234,46 @@ def test_build_other_metrics_markdown_includes_reconciliation_and_kill_switch_wh
     assert "reduce_risk" in body
     assert "78" in body
     assert "73.5%" in body
+
+
+def test_build_other_metrics_markdown_kill_switch_shows_not_measurable_caveat_not_a_fake_zero():
+    # V5.3.1 (development/Problems.md #91/#97) - the real Lean row must
+    # never render as if "0" were a genuine trip count.
+    kill_switch_replay = {"summary": {"trip_count": 78, "locked_day_fraction": 0.7345}}
+
+    body = _build_other_metrics_markdown({}, None, None, kill_switch_replay)
+
+    assert "not measurable from a standalone backtest" in body
+    assert "| Real Lean backtest | 0 |" not in body
+
+
+def test_count_real_kill_switch_trips_always_returns_none(tmp_path, monkeypatch):
+    """Direct (unmocked) test of the real function body - proves it
+    returns None even against a fixture log file that DOES contain the
+    literal trip string, since the real trip-audit event never reaches
+    the text log at all (Redis-only, fails silently without a broker)."""
+    import generate_backtest_report
+    import generate_evaluation_report as report_module
+
+    backtests_dir = tmp_path / "backtests" / "2026-01-01_00-00-00"
+    backtests_dir.mkdir(parents=True)
+    result_json_path = backtests_dir / "111.json"
+    result_json_path.write_text(
+        '{"statistics": {"Sharpe Ratio": "1.0"}, "charts": {"Strategy Equity": {"series": {"Equity": '
+        '{"values": [[1546387200, 100000.0, 100000.0, 100000.0, 100000.0]]}}}, "Benchmark": {"series": '
+        '{"Benchmark": {"values": [[1546387200, 100.0]]}}}}}',
+        encoding="utf-8",
+    )
+    log_path = backtests_dir / "111-log.txt"
+    log_path.write_text("some log line\nkill_switch_tripped\nkill_switch_tripped\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        report_module,
+        "find_latest_backtest_result_json",
+        lambda: generate_backtest_report.find_latest_backtest_result_json(tmp_path / "backtests"),
+    )
+
+    assert report_module._count_real_kill_switch_trips() is None
 
 
 def test_update_readme_evaluation_sections_replaces_all_markers(tmp_path, monkeypatch):
