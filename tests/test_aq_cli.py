@@ -2935,7 +2935,9 @@ def test_evaluate_reconcile_book_history_end_to_end(tmp_path, capsys, monkeypatc
     payload = json.loads(captured.out)
     assert set(payload) == {
         "mode", "per_date", "summary", "universe_summary", "diversion_summary", "universe_presence_summary",
+        "run_metadata",
     }
+    assert payload["run_metadata"]["num_runs_detected"] == 1
     assert payload["mode"] == "independent"
     assert payload["summary"]["num_dates"] == 2
     assert len(payload["per_date"]) == 2
@@ -3146,6 +3148,260 @@ def test_evaluate_reconcile_book_history_missing_file_errors(tmp_path, capsys, m
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "not found" in captured.err
+
+
+def _reconcile_allocation_entry(role, raw_rank_score):
+    return {
+        "role": role,
+        "book_role_multiplier": 1.0 if role == "long" else -1.0,
+        "predicted_rank_20d": raw_rank_score,
+        "rank_head": "blend",
+        "raw_rank_score": raw_rank_score,
+        "target_weight": 0.5 if role == "long" else -0.5,
+        "sector": "Unknown",
+    }
+
+
+def _write_two_run_book_history(path, run_0_dates, run_1_dates):
+    """Two synthetic backtest runs concatenated into one file, exactly the
+    way visualization/book_history.jsonl accumulates real runs forever
+    (development/Problems.md #91/#97/#99) - run_1 comes SECOND in the
+    file but its dates are chronologically earlier than run_0's own start,
+    producing a genuine date-decrease run boundary."""
+    with open(path, "w", encoding="utf-8") as book_history_file:
+        for date in run_0_dates:
+            record = {
+                "date": date,
+                "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+                "allocations": {"T0": _reconcile_allocation_entry("long", 0.9), "T5": _reconcile_allocation_entry("short", 0.1)},
+            }
+            book_history_file.write(json.dumps(record) + "\n")
+        for date in run_1_dates:
+            record = {
+                "date": date,
+                "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+                "allocations": {"T1": _reconcile_allocation_entry("long", 0.8), "T4": _reconcile_allocation_entry("short", 0.2)},
+            }
+            book_history_file.write(json.dumps(record) + "\n")
+
+
+def _setup_two_run_reconcile_fixture(tmp_path, monkeypatch, extra_book_config=None):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    import pandas as pd
+
+    dataset = pd.read_csv(ml_dir / "datasets" / "full_dataset.csv")
+    all_dates = sorted(dataset["date"].unique().tolist())
+    run_0_dates = [all_dates[2], all_dates[7]]
+    run_1_dates = [all_dates[1], all_dates[5]]
+
+    book_config = {"top_n": 1, "bottom_n": 1}
+    book_config.update(extra_book_config or {})
+    config = _evaluate_config(portfolio_book=book_config)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    _write_two_run_book_history(book_history_path, run_0_dates, run_1_dates)
+    return book_history_path, run_0_dates, run_1_dates
+
+
+def test_evaluate_reconcile_book_history_defaults_to_most_recent_run_only(tmp_path, capsys, monkeypatch):
+    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--reconcile-book-history", "--book-history-path", str(book_history_path), "--json"]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["mode"] == "independent"
+    assert payload["run_metadata"]["num_runs_detected"] == 2
+    assert payload["run_metadata"]["selected_run_index"] == 1
+    assert {result["date"] for result in payload["per_date"]} == set(run_1_dates)
+    assert "all_runs" not in payload
+
+
+def test_evaluate_reconcile_book_history_replay_hysteresis_also_run_isolated(tmp_path, capsys, monkeypatch):
+    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(
+        tmp_path, monkeypatch, extra_book_config={"hysteresis_rank_margin": 0.3}
+    )
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate", "--reconcile-book-history", "--replay-hysteresis",
+            "--book-history-path", str(book_history_path), "--json",
+        ]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["mode"] == "replay_hysteresis"
+    assert payload["run_metadata"]["selected_run_index"] == 1
+    # The hysteresis walk must never see run 0's dates at all - a
+    # cross-run-contaminated chain would carry held_allocations from run
+    # 0's last date into run 1's first date.
+    assert {result["date"] for result in payload["per_date"]} == set(run_1_dates)
+
+
+def test_evaluate_reconcile_book_history_run_index_selects_older_run(tmp_path, capsys, monkeypatch):
+    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate", "--reconcile-book-history", "--reconcile-run-index", "0",
+            "--book-history-path", str(book_history_path), "--json",
+        ]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["run_metadata"]["selected_run_index"] == 0
+    assert {result["date"] for result in payload["per_date"]} == set(run_0_dates)
+
+
+def test_evaluate_reconcile_book_history_negative_run_index_normalizes(tmp_path, capsys, monkeypatch):
+    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate", "--reconcile-book-history", "--reconcile-run-index", "-2",
+            "--book-history-path", str(book_history_path), "--json",
+        ]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["run_metadata"]["selected_run_index"] == 0  # -2 == index 0 with 2 runs detected
+    assert {result["date"] for result in payload["per_date"]} == set(run_0_dates)
+
+
+def test_evaluate_reconcile_book_history_run_index_out_of_range_errors(tmp_path, capsys, monkeypatch):
+    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate", "--reconcile-book-history", "--reconcile-run-index", "5",
+            "--book-history-path", str(book_history_path),
+        ]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "out of range" in captured.err
+
+
+def test_evaluate_reconcile_book_history_all_runs_reports_each_independently(tmp_path, capsys, monkeypatch):
+    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate", "--reconcile-book-history", "--reconcile-all-runs",
+            "--book-history-path", str(book_history_path), "--json",
+        ]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert len(payload["all_runs"]) == 2
+    assert {r["date"] for r in payload["all_runs"][0]["per_date"]} == set(run_0_dates)
+    assert {r["date"] for r in payload["all_runs"][1]["per_date"]} == set(run_1_dates)
+    # Top-level default keys are additive alongside all_runs, not replaced
+    # by it - they still mirror the most recent run.
+    assert {r["date"] for r in payload["per_date"]} == set(run_1_dates)
+    assert payload["run_metadata"]["selected_run_index"] == 1
+
+
+def test_evaluate_reconcile_book_history_tie_break_matches_configured_universe_order(tmp_path, capsys, monkeypatch):
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    (ml_dir / "datasets").mkdir(parents=True, exist_ok=True)
+
+    # B and C share IDENTICAL feature values on every day (a genuine exact
+    # tie in the model's raw output, not just close scores - the sequence
+    # model reads a 2-bar window, so both bars must match). A and D are
+    # clearly lower so the tie between B/C alone decides the single
+    # top_n=1 slot.
+    dates = pd.bdate_range("2020-01-01", periods=4)
+    rows = []
+    for i, date in enumerate(dates):
+        tied_value = 0.5 if i == 3 else 0.1 * i
+        for ticker, f1, f2 in [
+            ("A", -1.0, -1.0),
+            ("B", tied_value, tied_value),
+            ("C", tied_value, tied_value),
+            ("D", -0.5, -0.5),
+        ]:
+            rows.append(
+                {
+                    "date": date.strftime("%Y-%m-%d"), "ticker": ticker, "split": "backtest",
+                    "target_return_1d": 0.0, "target_return_20d": 0.0,
+                    "liquidity_log_dollar_volume": 15.0, "f1": f1, "f2": f2,
+                }
+            )
+    pd.DataFrame(rows).to_csv(ml_dir / "datasets" / "full_dataset.csv", index=False)
+    test_date = dates[3].strftime("%Y-%m-%d")
+
+    config = _evaluate_config(portfolio_book={"top_n": 1, "bottom_n": 0})
+    config["phase5"]["backtest"]["strategy_mode"] = "long_flat"
+    # Configured universe order puts C before B - the dataset's own CSV
+    # row order (and hence pandas groupby order) puts B before C. If the
+    # tie-break fix (development/Problems.md #91/#97/#99) works,
+    # reconciliation must follow the CONFIGURED order (C wins), not the
+    # dataset's natural row order (which would pick B).
+    config["phase1"]["universe"] = {"assets": [{"ticker": "C"}, {"ticker": "B"}, {"ticker": "A"}, {"ticker": "D"}]}
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    with open(book_history_path, "w", encoding="utf-8") as book_history_file:
+        record = {
+            "date": test_date,
+            "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+            "allocations": {"C": _reconcile_allocation_entry("long", 0.9)},
+        }
+        book_history_file.write(json.dumps(record) + "\n")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--reconcile-book-history", "--book-history-path", str(book_history_path), "--json"]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    result = payload["per_date"][0]
+    assert result["role_mismatches"] == []
+    assert result["symbols_only_logged"] == []
+    assert result["symbols_only_offline"] == []
 
 
 def test_evaluate_calibrate_book_spread_respects_long_flat_strategy_mode(tmp_path, capsys, monkeypatch):

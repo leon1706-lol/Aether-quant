@@ -1706,6 +1706,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             compute_blended_raw_scores,
             reconcile_book_history_date,
             replay_book_history_reconciliation,
+            segment_logged_records_by_run,
             select_context_date_range,
             summarize_book_history_reconciliation,
             summarize_book_member_diversion,
@@ -1747,8 +1748,49 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"error: {book_history_path} contains no usable records.", file=sys.stderr)
             return 1
 
-        recorded_dates = sorted({record["date"] for record in logged_records if record.get("date")})
-        logged_records_by_date = {record["date"]: record for record in logged_records if record.get("date")}
+        # V5.3.2 (development/Problems.md #91/#97/#99) - book_history.jsonl
+        # is a cumulative, NEVER-rotated log: every real backtest run's
+        # records are appended to the same file forever. Reconciling
+        # against it unsegmented (the pre-V5.3.2 behavior) silently merges
+        # unrelated runs together - confirmed against the real file: 160 of
+        # 174 unique dates recur across more than one run, one date in as
+        # many as 8 - and a --replay-hysteresis walk carries held
+        # allocations across a real run boundary as if it were one
+        # continuous backtest. Segment FIRST; default to the MOST RECENT
+        # run only, never a silent cross-run merge.
+        run_segments = segment_logged_records_by_run(logged_records)
+        if not run_segments:
+            print(f"error: {book_history_path} contains no dated records.", file=sys.stderr)
+            return 1
+
+        reconcile_all_runs = bool(getattr(args, "reconcile_all_runs", False))
+        reconcile_run_index_arg = getattr(args, "reconcile_run_index", None)
+        requested_indices = (
+            list(range(len(run_segments)))
+            if reconcile_all_runs
+            else [reconcile_run_index_arg if reconcile_run_index_arg is not None else -1]
+        )
+        selected_run_indices: list[int] = []
+        for raw_index in requested_indices:
+            normalized_index = raw_index if raw_index >= 0 else raw_index + len(run_segments)
+            if not (0 <= normalized_index < len(run_segments)):
+                print(
+                    f"error: --reconcile-run-index {raw_index} out of range - {len(run_segments)} run(s) "
+                    f"detected in {book_history_path}.", file=sys.stderr,
+                )
+                return 1
+            selected_run_indices.append(normalized_index)
+
+        run_metadata_by_index: dict[int, dict] = {}
+        for i, run_records in enumerate(run_segments):
+            run_dates = [record["date"] for record in run_records if record.get("date")]
+            run_metadata_by_index[i] = {
+                "num_runs_detected": len(run_segments),
+                "selected_run_index": i,
+                "start_date": run_dates[0] if run_dates else None,
+                "end_date": run_dates[-1] if run_dates else None,
+                "num_records": len(run_records),
+            }
 
         recon_dataset_path = ML_DIR / "datasets" / "full_dataset.csv"
         if not recon_dataset_path.exists():
@@ -1759,13 +1801,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             full_dataset = full_dataset[full_dataset["training_eligible"]].reset_index(drop=True)
 
         sequence_window_default = config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30)
-        recon_min_date, recon_max_date = select_context_date_range(
-            full_dataset, recorded_dates, window_size=int(sequence_window_default)
-        )
-        context_dataset = full_dataset[
-            (full_dataset["date"] >= recon_min_date) & (full_dataset["date"] <= recon_max_date)
-        ].reset_index(drop=True)
-
         rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
         training_metrics_by_model: dict[str, dict | None] = {}
         for model_name, metrics_filename in (
@@ -1779,46 +1814,27 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         policy = resolve_rank_signal_policy(training_metrics_by_model, config)
         active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
 
-        predictions_by_model_head: dict[str, dict[str, object]] = {}
-        for model_kind_for_head in policy["model_priority"]:
-            recon_model_filename, recon_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
-            recon_model_path = ML_DIR / recon_model_filename
-            recon_schema_path = ML_DIR / recon_schema_filename
-            if not recon_model_path.exists() or not recon_schema_path.exists():
-                continue  # best-effort - same convention as --calibrate-book-spread above
-            recon_model_export = json.loads(recon_model_path.read_text(encoding="utf-8"))
-            recon_feature_schema = json.loads(recon_schema_path.read_text(encoding="utf-8"))
-            recon_feature_names = recon_feature_schema["model_input_names"]
-            head_predictions: dict[str, object] = {}
-            for head_name in active_heads:
-                head_predictions[head_name] = predict_head(
-                    context_dataset, recon_model_export, recon_feature_names, head_name,
-                    model_kind=model_kind_for_head,
-                    sequence_feature_schema=recon_feature_schema if model_kind_for_head == "sequence" else None,
-                    configured_window_size=int(sequence_window_default),
-                )
-            predictions_by_model_head[model_kind_for_head] = head_predictions
-
-        context_dataset["raw_blended_score"] = compute_blended_raw_scores(
-            context_dataset, predictions_by_model_head, policy
-        )
+        # V5.3.2 (development/Problems.md #91/#97/#99) - the SAME symbol
+        # order main.py's self.symbols uses (config.json's
+        # phase1.universe.assets, in file order) - cross_sectional_rank_scores()/
+        # _select_book_group() are both Python-stable sorts keyed only on
+        # score, so an exact tie between two symbols resolves by dict
+        # insertion order. Live builds its raw-scores dict in self.symbols
+        # order; this reconciliation tool previously built it from a pandas
+        # groupby (dataset row order) - a different, uncorrelated order -
+        # so a tied pair near a top/bottom-N boundary could pick a
+        # different winner offline than live with byte-identical scores.
+        # Re-inserting in this canonical order before it ever reaches
+        # cross_sectional_rank_scores() fixes that, with zero changes to
+        # the live decision path itself.
+        canonical_symbol_order = [
+            str(asset.get("ticker")) for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+        ]
 
         book_config = config.get("phase_v2", {}).get("portfolio_book", {})
         strategy_mode = config.get("phase5", {}).get("backtest", {}).get("strategy_mode", "long_flat")
         book_top_n = int(book_config.get("top_n", 6))
         book_bottom_n = int(book_config.get("bottom_n", 6)) if strategy_mode == "long_short" else 0
-
-        recorded_subset = context_dataset[context_dataset["date"].isin(recorded_dates)]
-        raw_scores_by_date: dict[str, dict[str, float]] = {}
-        for recon_date, group in recorded_subset.groupby("date", sort=True):
-            if recon_date not in logged_records_by_date:
-                continue
-            raw_scores_by_date[recon_date] = {
-                str(ticker): float(score)
-                for ticker, score in zip(group["ticker"], group["raw_blended_score"])
-                if score is not None and not (isinstance(score, float) and pd.isna(score))
-            }
-
         # V5.2.3 (development/Problems.md #91) - --replay-hysteresis
         # switches from independently reconciling each date (the
         # V5.2.2 default - can't tell a real divergence apart from
@@ -1826,71 +1842,194 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         # replay of offline's OWN selection history, carrying hysteresis
         # forward the same way main.py's live book does.
         replay_hysteresis = bool(getattr(args, "replay_hysteresis", False))
-        if replay_hysteresis:
-            hysteresis_rank_margin = float(book_config.get("hysteresis_rank_margin", 0.0))
-            ordered_logged_records = [logged_records_by_date[d] for d in recorded_dates if d in raw_scores_by_date]
-            per_date_results = replay_book_history_reconciliation(
-                ordered_logged_records, raw_scores_by_date,
-                top_n=book_top_n, bottom_n=book_bottom_n, hysteresis_rank_margin=hysteresis_rank_margin,
-            )
-        else:
-            per_date_results = [
-                reconcile_book_history_date(
-                    logged_records_by_date[recon_date], raw_scores_by_symbol, top_n=book_top_n, bottom_n=book_bottom_n
-                )
-                for recon_date, raw_scores_by_symbol in raw_scores_by_date.items()
-            ]
+        hysteresis_rank_margin = float(book_config.get("hysteresis_rank_margin", 0.0))
 
-        summary = summarize_book_history_reconciliation(per_date_results)
-        # Cheap and always attempted (pure, reads straight off the log's
-        # own "universe" keys - no re-inference) - degrades to
-        # num_dates_with_universe_data=0 for a log written without
-        # include_full_universe, never raises.
-        universe_summary = summarize_universe_snapshot_by_security_type(logged_records)
-        # V5.2.6 (development/Problems.md) - same "cheap, always attempted,
-        # degrades to zeros" contract as universe_summary above - reads
-        # straight off the log's own optional "book_member_decisions" key.
-        diversion_summary = summarize_book_member_diversion(logged_records)
-        # V5.3.1 (development/Problems.md #91/#97) - same "cheap, always
-        # attempted, degrades to zeros" contract, run-segmented (not
-        # averaged across the log's whole cumulative history) so a future
-        # regression is always visible in the MOST RECENT run's own
-        # numbers, never diluted by older, already-fixed runs.
-        universe_presence_summary = summarize_universe_presence_by_symbol(logged_records)
-        payload = {
-            "mode": "replay_hysteresis" if replay_hysteresis else "independent",
-            "per_date": per_date_results,
-            "summary": summary,
-            "universe_summary": universe_summary,
-            "diversion_summary": diversion_summary,
-            "universe_presence_summary": universe_presence_summary,
-        }
+        def _reconcile_one_run(run_records: list[dict]) -> dict:
+            # V5.3.2: each run gets its OWN context date range/predictions -
+            # previously computed once over the entire cumulative file's
+            # date span even when only one small run was being reconciled.
+            recorded_dates = sorted({record["date"] for record in run_records if record.get("date")})
+            logged_records_by_date = {record["date"]: record for record in run_records if record.get("date")}
+
+            recon_min_date, recon_max_date = select_context_date_range(
+                full_dataset, recorded_dates, window_size=int(sequence_window_default)
+            )
+            context_dataset = full_dataset[
+                (full_dataset["date"] >= recon_min_date) & (full_dataset["date"] <= recon_max_date)
+            ].reset_index(drop=True)
+
+            predictions_by_model_head: dict[str, dict[str, object]] = {}
+            for model_kind_for_head in policy["model_priority"]:
+                recon_model_filename, recon_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
+                recon_model_path = ML_DIR / recon_model_filename
+                recon_schema_path = ML_DIR / recon_schema_filename
+                if not recon_model_path.exists() or not recon_schema_path.exists():
+                    continue  # best-effort - same convention as --calibrate-book-spread above
+                recon_model_export = json.loads(recon_model_path.read_text(encoding="utf-8"))
+                recon_feature_schema = json.loads(recon_schema_path.read_text(encoding="utf-8"))
+                recon_feature_names = recon_feature_schema["model_input_names"]
+                head_predictions: dict[str, object] = {}
+                for head_name in active_heads:
+                    head_predictions[head_name] = predict_head(
+                        context_dataset, recon_model_export, recon_feature_names, head_name,
+                        model_kind=model_kind_for_head,
+                        sequence_feature_schema=recon_feature_schema if model_kind_for_head == "sequence" else None,
+                        configured_window_size=int(sequence_window_default),
+                    )
+                predictions_by_model_head[model_kind_for_head] = head_predictions
+
+            context_dataset["raw_blended_score"] = compute_blended_raw_scores(
+                context_dataset, predictions_by_model_head, policy
+            )
+
+            recorded_subset = context_dataset[context_dataset["date"].isin(recorded_dates)]
+            raw_scores_by_date: dict[str, dict[str, float]] = {}
+            for recon_date, group in recorded_subset.groupby("date", sort=True):
+                if recon_date not in logged_records_by_date:
+                    continue
+                scores_lookup = {
+                    str(ticker): float(score)
+                    for ticker, score in zip(group["ticker"], group["raw_blended_score"])
+                    if score is not None and not (isinstance(score, float) and pd.isna(score))
+                }
+                ordered_scores = {
+                    ticker: scores_lookup[ticker] for ticker in canonical_symbol_order if ticker in scores_lookup
+                }
+                ordered_scores.update({t: s for t, s in scores_lookup.items() if t not in ordered_scores})
+                raw_scores_by_date[recon_date] = ordered_scores
+
+            if replay_hysteresis:
+                ordered_logged_records = [
+                    logged_records_by_date[d] for d in recorded_dates if d in raw_scores_by_date
+                ]
+                per_date_results = replay_book_history_reconciliation(
+                    ordered_logged_records, raw_scores_by_date,
+                    top_n=book_top_n, bottom_n=book_bottom_n, hysteresis_rank_margin=hysteresis_rank_margin,
+                )
+            else:
+                per_date_results = [
+                    reconcile_book_history_date(
+                        logged_records_by_date[recon_date], raw_scores_by_symbol,
+                        top_n=book_top_n, bottom_n=book_bottom_n,
+                    )
+                    for recon_date, raw_scores_by_symbol in raw_scores_by_date.items()
+                ]
+
+            summary = summarize_book_history_reconciliation(per_date_results)
+            # Cheap and always attempted (pure, reads straight off the log's
+            # own "universe" keys - no re-inference) - degrades to
+            # num_dates_with_universe_data=0 for a log written without
+            # include_full_universe, never raises. V5.3.2: computed over
+            # this RUN's own records only, not the whole cumulative file.
+            universe_summary = summarize_universe_snapshot_by_security_type(run_records)
+            # V5.2.6 (development/Problems.md) - same "cheap, always attempted,
+            # degrades to zeros" contract as universe_summary above - reads
+            # straight off the log's own optional "book_member_decisions" key.
+            diversion_summary = summarize_book_member_diversion(run_records)
+            # V5.3.1 (development/Problems.md #91/#97) - summarize_universe_presence_by_symbol()
+            # does its own internal run-segmentation too, but since run_records
+            # is already a single run here, it always reports exactly one.
+            universe_presence_summary = summarize_universe_presence_by_symbol(run_records)
+            return {
+                "mode": "replay_hysteresis" if replay_hysteresis else "independent",
+                "per_date": per_date_results,
+                "summary": summary,
+                "universe_summary": universe_summary,
+                "diversion_summary": diversion_summary,
+                "universe_presence_summary": universe_presence_summary,
+            }
+
+        if reconcile_all_runs:
+            all_runs_payloads = []
+            for i in selected_run_indices:
+                run_payload = _reconcile_one_run(run_segments[i])
+                run_payload["run_metadata"] = run_metadata_by_index[i]
+                all_runs_payloads.append(run_payload)
+            # Top-level default keys mirror the most-recent run (last in
+            # selected_run_indices, since run_segments is chronological) -
+            # --reconcile-all-runs is additive on top of the normal default
+            # output, never a replacement for it.
+            payload = dict(all_runs_payloads[-1])
+            payload["all_runs"] = all_runs_payloads
+        else:
+            selected_index = selected_run_indices[0]
+            payload = _reconcile_one_run(run_segments[selected_index])
+            payload["run_metadata"] = run_metadata_by_index[selected_index]
+
         _write_evaluation_json(ML_DIR / "evaluation" / "book_history_reconciliation.json", payload)
 
         if args.json:
             print(json.dumps(payload, indent=2, default=str))
         else:
-            print(f"Book-history reconciliation ({book_history_path}): {summary['num_dates']} dates")
+            def _print_run_result(run_payload: dict, label: str) -> None:
+                run_summary = run_payload["summary"]
+                run_universe_summary = run_payload["universe_summary"]
+                run_diversion_summary = run_payload["diversion_summary"]
+                run_universe_presence_summary = run_payload["universe_presence_summary"]
+                run_meta = run_payload["run_metadata"]
+                print(f"{label}{run_meta['start_date']}..{run_meta['end_date']}, {run_summary['num_dates']} dates:")
+                print(
+                    f"  exact_match={run_summary['num_dates_exact_match']}/{run_summary['num_dates']}  "
+                    f"mean_overlap_fraction={run_summary['mean_overlap_fraction']}"
+                )
+                print(
+                    f"  mean_raw_score_delta_abs={run_summary['mean_raw_score_delta_abs']}  "
+                    f"mean_weight_delta_abs={run_summary['mean_weight_delta_abs']} "
+                    f"({run_summary['num_dates_with_weight_logged']}/{run_summary['num_dates']} dates had a "
+                    "logged weight)"
+                )
+                print(
+                    f"  symbols_only_logged_total={run_summary['num_symbols_only_logged_total']}  "
+                    f"symbols_only_offline_total={run_summary['num_symbols_only_offline_total']}"
+                )
+                if run_universe_summary["num_dates_with_universe_data"] > 0:
+                    print(
+                        f"  Universe snapshot ({run_universe_summary['num_dates_with_universe_data']}/"
+                        f"{run_summary['num_dates']} dates carry full-universe data):"
+                    )
+                    for security_type, stats in sorted(run_universe_summary["by_security_type"].items()):
+                        print(
+                            f"    {security_type}: mean_raw_rank_score={stats['mean_raw_rank_score']}  "
+                            f"feature_ready_rate={stats['feature_ready_rate']}  "
+                            f"trading_eligible_rate={stats['trading_eligible_rate']} "
+                            f"(n={stats['num_symbol_dates']})"
+                        )
+                if run_diversion_summary["num_records_with_decisions"] > 0:
+                    print(
+                        f"  Book-member diversion ({run_diversion_summary['num_records_with_decisions']}/"
+                        f"{run_summary['num_dates']} dates carry decision data, "
+                        f"{run_diversion_summary['total_book_member_dates']} book-member-dates total):"
+                    )
+                    for action, count in sorted(
+                        run_diversion_summary["action_counts"].items(), key=lambda item: -item[1]
+                    ):
+                        print(f"    action={action}: {count}")
+                    for reason, count in sorted(
+                        run_diversion_summary["reason_counts"].items(), key=lambda item: -item[1]
+                    ):
+                        print(f"    reason={reason}: {count}")
+                if run_universe_presence_summary["num_runs_detected"] > 0:
+                    top_absent = sorted(
+                        run_universe_presence_summary["runs"][0]["absence_rate_by_symbol"].items(),
+                        key=lambda item: -item[1],
+                    )[:10]
+                    for symbol, absence_rate in top_absent:
+                        if absence_rate > 0:
+                            print(f"    {symbol}: absent from universe on {absence_rate:.1%} of this run's dates")
+
             print(
-                f"  exact_match={summary['num_dates_exact_match']}/{summary['num_dates']}  "
-                f"mean_overlap_fraction={summary['mean_overlap_fraction']}"
-            )
-            print(
-                f"  mean_raw_score_delta_abs={summary['mean_raw_score_delta_abs']}  "
-                f"mean_weight_delta_abs={summary['mean_weight_delta_abs']} "
-                f"({summary['num_dates_with_weight_logged']}/{summary['num_dates']} dates had a logged weight)"
-            )
-            print(
-                f"  symbols_only_logged_total={summary['num_symbols_only_logged_total']}  "
-                f"symbols_only_offline_total={summary['num_symbols_only_offline_total']}"
+                f"Book-history reconciliation ({book_history_path}): "
+                f"{payload['run_metadata']['num_runs_detected']} run(s) detected total "
+                "(cumulative, never-rotated log)."
             )
             if replay_hysteresis:
                 print(
                     "  NOTE: this reconciliation REPLAYS hysteresis (--replay-hysteresis) - offline's own "
                     "held allocations are carried forward date-by-date, the same way main.py's live book "
-                    "does. The first reconciled date still starts from a COLD (empty) held-allocations "
-                    "state regardless of the book's true earlier history, so early dates may show a "
-                    "colder-start mismatch than mid-series dates."
+                    "does, WITHIN each run only (V5.3.2: never across a run boundary). The first reconciled "
+                    "date of each run still starts from a COLD (empty) held-allocations state regardless of "
+                    "the book's true earlier history, so early dates may show a colder-start mismatch than "
+                    "mid-series dates."
                 )
             else:
                 print(
@@ -1900,55 +2039,12 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     "before concluding anything is actually wrong. Pass --replay-hysteresis for the "
                     "hysteresis-aware alternative."
                 )
-            if universe_summary["num_dates_with_universe_data"] > 0:
-                print(
-                    f"  Universe snapshot ({universe_summary['num_dates_with_universe_data']}/"
-                    f"{summary['num_dates']} dates carry full-universe data):"
-                )
-                for security_type, stats in sorted(universe_summary["by_security_type"].items()):
-                    print(
-                        f"    {security_type}: mean_raw_rank_score={stats['mean_raw_rank_score']}  "
-                        f"feature_ready_rate={stats['feature_ready_rate']}  "
-                        f"trading_eligible_rate={stats['trading_eligible_rate']} "
-                        f"(n={stats['num_symbol_dates']})"
-                    )
+            if reconcile_all_runs:
+                num_runs = len(payload["all_runs"])
+                for position, run_payload in enumerate(payload["all_runs"]):
+                    _print_run_result(run_payload, f"Run {position + 1}/{num_runs} (")
             else:
-                print(
-                    "  Universe snapshot: not available for this log - re-run the backtest with "
-                    "phase_v2.diagnostics.book_history.include_full_universe=true to see per-security-type "
-                    "score/readiness breakdowns for symbols that were never selected."
-                )
-            if diversion_summary["num_records_with_decisions"] > 0:
-                print(
-                    f"  Book-member diversion ({diversion_summary['num_records_with_decisions']}/"
-                    f"{summary['num_dates']} dates carry decision data, "
-                    f"{diversion_summary['total_book_member_dates']} book-member-dates total):"
-                )
-                for action, count in sorted(diversion_summary["action_counts"].items(), key=lambda item: -item[1]):
-                    print(f"    action={action}: {count}")
-                for reason, count in sorted(diversion_summary["reason_counts"].items(), key=lambda item: -item[1]):
-                    print(f"    reason={reason}: {count}")
-            else:
-                print(
-                    "  Book-member diversion: not available for this log - re-run the backtest with "
-                    "phase_v2.diagnostics.book_history.include_decisions=true to see how many book-selected "
-                    "trades were diverted to simulate/reduce_risk/retrain_candidate, and by which gate."
-                )
-            if universe_presence_summary["num_runs_detected"] > 0:
-                most_recent_run = universe_presence_summary["runs"][-1]
-                top_absent = sorted(
-                    most_recent_run["absence_rate_by_symbol"].items(), key=lambda item: -item[1]
-                )[:10]
-                print(
-                    f"  Universe presence, most recent run only ({most_recent_run['start_date']} to "
-                    f"{most_recent_run['end_date']}, {most_recent_run['num_records']} dates, "
-                    f"{universe_presence_summary['num_runs_detected']} runs detected in this log total - "
-                    "book_history.jsonl is cumulative/never-rotated, see summarize_universe_presence_by_symbol()'s "
-                    "docstring):"
-                )
-                for symbol, absence_rate in top_absent:
-                    if absence_rate > 0:
-                        print(f"    {symbol}: absent from universe on {absence_rate:.1%} of this run's dates")
+                _print_run_result(payload, "Reconciled run (")
 
         _refresh_readme_evaluation_sections()
         return 0
@@ -2905,6 +3001,21 @@ def build_parser() -> argparse.ArgumentParser:
         "walk-forward across the log's dates (carrying held allocations forward, same as main.py's live "
         "book) instead of reconciling each date independently - tells a real divergence apart from the "
         "live book correctly holding an incumbent a from-scratch reselection wouldn't naturally pick.",
+    )
+    reconcile_run_group = evaluate_parser.add_mutually_exclusive_group()
+    reconcile_run_group.add_argument(
+        "--reconcile-run-index", type=int, default=None,
+        help="V5.3.2: with --reconcile-book-history, reconcile only the run at this 0-indexed position "
+        "within the log's own run-segmented history (negative indices count from the end, -1 == most "
+        "recent - the default). book_history.jsonl is a cumulative, never-rotated log - every historical "
+        "real backtest's records are appended forever - so reconciling without this flag defaults to the "
+        "LATEST run only, never a silent cross-run merge (development/Problems.md #91/#97/#99).",
+    )
+    reconcile_run_group.add_argument(
+        "--reconcile-all-runs", action="store_true",
+        help="V5.3.2: with --reconcile-book-history, reconcile EVERY run segment independently (each its "
+        "own held-allocations/summary, never merged across a run boundary) instead of just the most "
+        "recent - for investigating an older run's own numbers, not for combining them into one figure.",
     )
     evaluate_parser.add_argument(
         "--replay-kill-switch", action="store_true",

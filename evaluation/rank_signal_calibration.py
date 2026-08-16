@@ -349,6 +349,22 @@ def replay_book_history_reconciliation(
     just this function's own cold start, not live's. A caller printing
     this should say so, not just print the raw numbers.
 
+    PRECONDITION (V5.3.2, development/Problems.md #91/#97/#99): `logged_records`
+    must be a SINGLE run's own records - e.g. one element of
+    `segment_logged_records_by_run()`'s return - never the raw cumulative
+    `visualization/book_history.jsonl` content as-is. That file accumulates
+    every historical backtest forever; passing its unsegmented content here
+    silently carries `held_allocations` across a real run boundary as if it
+    were one continuous backtest, corrupting incumbency for any symbol near
+    a selection boundary on those dates (confirmed empirically: 160 of 174
+    unique dates in the real file recur across more than one run, one date
+    in as many as 8). This is exactly the bug aq_cli.py's
+    --reconcile-book-history dispatch now guards against at the call site by
+    segmenting first - this function itself does not enforce it, since it
+    has no way to distinguish "one real run" from "one caller-assembled
+    slice" and never should (its whole job is to replay whatever forward-
+    sorted sequence of dates it's handed).
+
     Returns a list of `_build_reconciliation_result()`-shaped dicts, one
     per record in `logged_records`, in the same order. A `logged_record`
     with no matching entry in `raw_scores_by_date` (e.g. that date fell
@@ -521,6 +537,46 @@ def summarize_universe_snapshot_by_security_type(logged_records: list[dict]) -> 
     }
 
 
+def segment_logged_records_by_run(logged_records: list[dict]) -> list[list[dict]]:
+    """V5.3.2 (development/Problems.md #91/#97/#99) - `visualization/
+    book_history.jsonl` (and any log built the same way) is a cumulative,
+    NEVER-rotated file: every real backtest run's records get appended to
+    the same file, one after another, forever - a single real backtest
+    always logs forward in time, so a run boundary is wherever the date
+    sequence goes backwards (`record["date"] < previous_record["date"]`).
+    Extracted from summarize_universe_presence_by_symbol() (V5.3.1) so
+    aq_cli.py's --reconcile-book-history dispatch can reuse the identical
+    boundary-detection logic instead of re-deriving it a second time (see
+    that command's own V5.3.2 fix for why reconciling against an
+    unsegmented cumulative log silently merges unrelated runs together -
+    confirmed against the real file: 160 of 174 unique dates recur across
+    more than one run, one date in as many as 8).
+
+    A record with a missing `"date"` never triggers a boundary and is
+    folded into whichever run is currently open.
+
+    Returns the run segments (each a list of `logged_records` entries, in
+    original order) in the same chronological order as `logged_records`
+    itself - `result[-1]` is always the most recent run. Empty input
+    returns `[]`, never raises."""
+    runs: list[list[dict]] = []
+    current_run: list[dict] = []
+    previous_date: str | None = None
+    for record in logged_records:
+        date = record.get("date")
+        if previous_date is not None and date is not None and date < previous_date:
+            if current_run:
+                runs.append(current_run)
+            current_run = []
+        current_run.append(record)
+        previous_date = date if date is not None else previous_date
+
+    if current_run:
+        runs.append(current_run)
+
+    return runs
+
+
 def summarize_universe_presence_by_symbol(logged_records: list[dict]) -> dict:
     """V5.3.1 (development/Problems.md #91/#97) - `visualization/
     book_history.jsonl` is a cumulative, NEVER-rotated log: every real
@@ -531,12 +587,10 @@ def summarize_universe_presence_by_symbol(logged_records: list[dict]) -> dict:
     different runs together - a genuine, now-fixed gap in one old run can
     look like a smaller, still-live problem once diluted into the average
     of several newer, clean runs. This function segments `logged_records`
-    into contiguous runs FIRST (a run boundary is detected wherever the
-    date sequence goes backwards - `record["date"] < previous_record["date"]`,
-    since a single real backtest always logs forward in time), then
-    computes each symbol's universe-absence rate PER RUN, so a stale run's
-    numbers can never dilute a fresh run's, and a genuine regression in
-    the MOST RECENT run (`result["runs"][-1]`) is always visible on its
+    into contiguous runs FIRST (via segment_logged_records_by_run(), V5.3.2),
+    then computes each symbol's universe-absence rate PER RUN, so a stale
+    run's numbers can never dilute a fresh run's, and a genuine regression
+    in the MOST RECENT run (`result["runs"][-1]`) is always visible on its
     own, not averaged away.
 
     Absence here means "not a key in that date's `universe` payload at
@@ -556,20 +610,7 @@ def summarize_universe_presence_by_symbol(logged_records: list[dict]) -> dict:
     Returns `{"num_runs_detected": int, "runs": [{"start_date", "end_date",
     "num_records", "absence_rate_by_symbol": {symbol: float}}, ...]}`,
     runs in the same chronological order as `logged_records` itself."""
-    runs: list[list[dict]] = []
-    current_run: list[dict] = []
-    previous_date: str | None = None
-    for record in logged_records:
-        date = record.get("date")
-        if previous_date is not None and date is not None and date < previous_date:
-            if current_run:
-                runs.append(current_run)
-            current_run = []
-        current_run.append(record)
-        previous_date = date if date is not None else previous_date
-
-    if current_run:
-        runs.append(current_run)
+    runs = segment_logged_records_by_run(logged_records)
 
     run_summaries: list[dict] = []
     for run_records in runs:

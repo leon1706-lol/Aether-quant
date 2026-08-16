@@ -486,7 +486,7 @@ backtest, never a unit test).
 
 ### 34. Real limit-order support — every tradable asset class, config-gated
 
-**Severity:** 6/10 · **Status:** 🟡 `partial`
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (V5.3.1, #96; `PartiallyFilled` staying unobserved is a permanent, honest caveat — not a blocker, see below)
 
 **Problem:** Every real order was an all-or-nothing `MarketOrder()`/`SetHoldings()` market fill across all 5 asset-class call sites, with no limit-order alternative.
 
@@ -497,6 +497,7 @@ backtest, never a unit test).
 - Confirmed firing in a real backtest (2026-07-20, #54) — a real `LimitPrice was rounded` log line.
 - V5.2.8: scanned 33 real `order-events.json` files. Statuses observed: `{submitted, filled, canceled, cancelPending, invalid}` — `cancelPending` always pairs 1:1 with `canceled` (e.g. 644/620/23/23), confirmed genuine unfilled-timeout cancels. `classify_order_status()` now classifies `"CancelPending"` explicitly (precision fix, no behavior change). `PartiallyFilled` never once appeared — a permanent, honest caveat.
 - V5.3.1 (#96): confirmed `enabled: true` by default all along (this entry's own text above was stale — corrected in the inline docs, left here as historical record); evidence widened to 45 files, same pattern holds. `PartiallyFilled`'s downstream handling now directly unit-tested via two extracted pure functions. Two new offline diagnostic tools shipped.
+- **V5.3.1 real backtest confirmation (2026-08-14, #98):** the extracted pure-function refactor (`should_clear_pending_limit_order()`/`resolve_limit_order_timeout_action()`) was live-exercised for the first time — real order-events show the identical `cancelPending`/`canceled` 12/12 pairing as every prior run, zero regressions from the refactor. `PartiallyFilled` still never appeared (permanent caveat, not a defect — Lean's own fill granularity at Daily resolution makes true partials rare/absent by construction). Marking this entry green.
 
 ---
 
@@ -617,15 +618,14 @@ backtest, never a unit test).
 
 **Severity:** 9/10 · **Status:** 🟢 `fixed` (see #52/#54)
 
-**Problem:** A second backtest run after #41's threshold recalibration produced bit-identical results to the pre-fix run (same 14 trades, same profit to the cent) — proving the calibration change had zero effect on actual trades. Root causes spanned two layers: trading logic (a soft position-cap overshoot let 14 buys fire in the first 5 days; risk vetoes blocked sells as well as buys so nothing ever exited; the sell threshold sat ~10σ from live model output; the drawdown circuit breaker was neutered by config; no stop-loss/trailing/max-holding-age exit existed at all) and training (early stopping shipped untrained epoch-1 checkpoints; threshold search picked degenerate near-corner operating points; the MoE blend diluted skill toward 0.5; acceptance gates didn't test for skill; 35/85 inputs were static per-ticker one-hots; crypto trained on ~52 rows; and the trading path ignored `rank_20d`/`rank_5d`, the only statistically significant signal in the codebase).
+**Problem:** A second backtest after #41's threshold recalibration produced bit-identical results to the pre-fix run (same 14 trades, same profit) — the calibration change had zero effect on actual trades. Root causes spanned trading logic (soft position-cap overshoot, sell-vetoing risk logic, a sell threshold ~10σ from live output, a neutered drawdown breaker, no stop-loss/trailing/max-holding-age exit) and training (untrained epoch-1 checkpoints from broken early stopping, degenerate threshold search, MoE blend diluting skill to 0.5, no skill-floor gates, 35/85 static one-hot inputs, ~52-row crypto training, and the trading path ignoring `rank_20d`/`rank_5d` — the only statistically significant signal in the codebase).
 
-**Fix:** Rewrote early-stopping with a `min_best_epoch` floor, added non-degenerate threshold-search bounds, unified asset-context column selection, removed dead features, raised `min_training_rows` and skill-floor gates, zeroed out no-skill experts in gating, enabled `portfolio_book` to trade `rank_20d` directly, added an exit-veto bypass (sells always execute), non-model safety exits (max holding age + trailing stop), an adaptive sell band, a same-bar position-cap fix, and re-armed the drawdown circuit breaker. Also fixed a crash where `InteractiveBrokersFeeModel` was applied to crypto, which Lean's fee model doesn't support.
+**Fix:** Rewrote early-stopping (`min_best_epoch` floor), non-degenerate threshold-search bounds, unified asset-context columns, removed dead features, raised `min_training_rows`/skill-floor gates, zeroed no-skill experts, wired `portfolio_book` to trade `rank_20d` directly, added an exit-veto bypass, non-model safety exits (max holding age + trailing stop), an adaptive sell band, a same-bar position-cap fix, and re-armed the drawdown breaker. Also fixed a crypto/`InteractiveBrokersFeeModel` crash.
 
 **Verification:**
-- Real `aq backtest` (2026-07-17): 653 orders (vs. stuck-at-14), 11.1% real drawdown — confirms the mechanical fixes work, but net profit was still -4.6%/Sharpe -0.59 at that point (edge not yet profitable).
-- New/extended unit tests across `train.py`, gating, `market_analyzer`, `validation_gate`, expert models, `portfolio_book_construction`.
-- `main.py`'s own logic has no direct unit tests by convention (Lean-runtime wiring verified only by a real backtest); the pure-function pieces it calls are unit-tested.
-- Superseded by #52/#54: the rank-pivot roadmap's 2026-07-20 real backtest was profitable (Sharpe 0.403, Net +10.4%), with caveats — see #54.
+- Real backtest (2026-07-17): 653 orders (vs. stuck-at-14), 11.1% drawdown — mechanical fixes confirmed, but still -4.6%/Sharpe -0.59 (edge not yet profitable).
+- New/extended unit tests across `train.py`, gating, `market_analyzer`, `validation_gate`, experts, `portfolio_book_construction`.
+- Superseded by #52/#54: the rank-pivot roadmap's 2026-07-20 backtest was profitable (Sharpe 0.403, Net +10.4%).
 
 ---
 
@@ -1262,44 +1262,43 @@ backtest, never a unit test).
 
 **Severity:** 9/10 · **Status:** 🟢 `fixed` (V5.2.1; the investigation this entry's own open caveat seeded was continued and closed through #91-#93)
 
-**Problem:** With #89's fixes, the book traded continuously but Sharpe was −4.42 (gated) / −4.18 (bypassed, ruling out the risk-lock layer) against +0.26 to +2.18 for the same model/window evaluated offline. Three independently-verified, compounding mechanisms: (1) the offline simulator never modeled the ~1-bar execution lag — live fills at the next bar's open, offline credited the same-day return; a live-side `MarketOnCloseOrder` fix was researched and ruled out as structurally impossible at Daily resolution; (2) V4.3.0 position-scaling (`should_scale_position()`) ran every bar with no awareness of `is_rebalance_bar`, firing resize orders on non-rebalance bars and pushing live order count (768–1106) far above offline's rebalance-only turnover assumption; (3) the cost gate sized against the full target notional even for small incremental resizes, under-costing exactly the resizes mechanism #2 generated versus Lean's real floor-dominated commission (~$0.85–1.09/order).
+**Problem:** With #89's fixes, the book traded continuously but Sharpe was −4.42 (gated)/−4.18 (bypassed) against +0.26 to +2.18 offline. Three compounding mechanisms: (1) offline never modeled the ~1-bar execution lag (live fills at the next bar's open); a live `MarketOnCloseOrder` fix was ruled out as impossible at Daily resolution; (2) V4.3.0 position-scaling fired resize orders on non-rebalance bars, pushing live order count (768–1106) far above offline's rebalance-only assumption; (3) the cost gate under-costed those resizes against Lean's real floor-dominated commission (~$0.85–1.09/order).
 
-**Fix:** `simulate_rank_book()` gained opt-in `entry_lag_bars` (default 0, no-op); `aq evaluate --rank-book` now always prints both `entry_lag_bars=0` and `=1` as an explicit "lag tax." New `is_position_resize_permitted()` gates book-selected symbol resizing to rebalance bars only (full exits/kill-switch/drawdown lock untouched). Cost gate's `order_value` now reflects the actual incremental trade delta via a new shared `compute_held_weight()` helper.
+**Fix:** `simulate_rank_book()` gained opt-in `entry_lag_bars`; new `is_position_resize_permitted()` gates resizing to rebalance bars only; cost gate's `order_value` now reflects the actual incremental trade delta.
 
 **Verification:**
-- Full suite green (2428 passed), dependency scour clean
-- Update: follow-up real Lean backtest (2026-08-07) showed Sharpe −4.421 — essentially unchanged. All three fixed mechanisms empirically ruled out as the explanation (position-scaling churn structurally dormant, execution lag tested offline as negligible/slightly positive, kill-switch lockout real but insufficient alone); three further hypotheses also exhausted — see #91 for the ground-truth diagnostic tool built next
+- Full suite green (2428 passed).
+- Update: follow-up real backtest (2026-08-07) showed Sharpe −4.421 — essentially unchanged. All three mechanisms empirically ruled out as the explanation — see #91 for the ground-truth diagnostic tool built next.
 
 ---
 
 ### 91. Book-history reconciliation (V5.2.2/V5.2.3) finds two unexplained live-vs-offline selection divergences
 
-**Severity:** 9/10 · **Status:** 🟡 `partial` (V5.2.2–V5.2.5)
+**Severity:** 9/10 · **Status:** 🟡 `partial` — crypto/FX divergence resolved (V5.3.1/#97); NVDA/GE/WFC/XOM/BA divergence still open
 
-**Problem:** After #90's fix failed to close the Sharpe gap, a new reconciliation tool (`visualization/book_history.jsonl` + `aq evaluate --reconcile-book-history`) ran against a real backtest (112 rebalance dates) and found: (1) crypto/FX appeared in offline's top/bottom-6 on 107/112 dates but the live book on 0/112 — subscription/eligibility/data ruled out; (2) equities-only overlap was only 34.6–54.8%, a real divergence independent of crypto/FX.
+**Problem:** After #90's fix failed to close the Sharpe gap, a new reconciliation tool (`aq evaluate --reconcile-book-history`) ran against a real backtest (112 dates) and found: (1) crypto/FX in offline's top/bottom-6 on 107/112 dates but live's book on 0/112; (2) equities-only overlap only 34.6–54.8%, independent of crypto/FX.
 
-**Fix:** V5.2.4 — `self.bar_index` incremented on every asset-class tick (~2x real trading pace, never coinciding with equity rebalance bars); fixed via `self.is_equity_session_bar` gating the increment site (fixed ~20+ downstream consumers for free), plus a second bug where an empty `book_allocations` force-sold the whole book instead of only rotate-outs, plus crypto/FX made book-eligible via last-known-bar processing. V5.2.5 — ruled out `cs_momentum_rank_20` dedup as a true no-op; found and fixed a real `bond_empirical_duration_beta` bug (live recomputed the OLS slope every bar from a rolling window instead of `train.py`'s compute-once-broadcast semantic) via `should_lock_in_duration_beta()`.
+**Fix:** V5.2.4 — `self.bar_index` incremented on every asset-class tick instead of only equity session bars; fixed via `self.is_equity_session_bar` gating (fixed ~20+ downstream consumers for free), plus a force-sell bug (empty `book_allocations` sold the whole book, not just rotate-outs), plus crypto/FX made book-eligible via last-known-bar processing. V5.2.5 — fixed `bond_empirical_duration_beta` recomputing every bar instead of compute-once-broadcast, via `should_lock_in_duration_beta()`.
 
 **Verification:**
-- V5.2.4: `bar_index` cadence fixed (10.29 vs 5.2 business days), orders/fees roughly halved (392 vs 768; $372 vs $664.70), Sharpe −4.421→−4.103 (gap not closed), overlap 34.6%→49.3% (53.8% with `--replay-hysteresis`).
-- V5.2.5: `cs_momentum_rank_20` confirmed bit-for-bit no-op. Duration-beta fix: overlap did NOT improve (48.14%/49.96%, bond ETFs still recurring, sides flipped not resolved), but Sharpe improved −4.103→−3.351 (~18%).
-- Open items: NVDA/GE/WFC/XOM/BA and forex/crypto mismatches unexplained; price-data/scaler ruled out (byte-identical); role mismatches confirmed zero — divergence is purely which symbols get selected.
-- V5.3.1 (#97): two more real bugs found and fixed — a deeper `bond_empirical_duration_beta` cold-start gap, and the reconciliation tool's own hardcoded eligibility assumption. FX/crypto's "still absent" appearance ruled out as a stale-log artifact (already fixed since V5.2.4). NVDA/GE/WFC/XOM/BA's sector-neutrality hypothesis ruled out by direct code proof. See #92-#96 for the intervening rounds.
+- V5.2.4: orders/fees roughly halved (392 vs 768), Sharpe −4.42→−4.10, overlap 34.6%→49.3% (53.8% hysteresis-replayed).
+- V5.2.5: overlap barely moved (48-50%) but Sharpe improved −4.10→−3.35 (~18%).
+- V5.3.1 (#97/#98): crypto/FX divergence confirmed a stale-log measurement artifact, not a live bug — resolved. NVDA/GE/WFC/XOM/BA: sector-neutrality ruled out by direct code proof; remains genuinely unexplained.
+- V5.3.2 (#99): two real reconciliation-tool bugs found and fixed (cross-run log contamination, live-vs-offline tie-break order) — neither explains this divergence. Real measured evidence now points at a genuine raw-score computation discrepancy for these 5 tickers specifically, not a selection-boundary artifact. Still open.
 
 ---
 ### 92. Deep-dive into the remaining NVDA/GE/WFC/XOM/BA/forex/crypto divergence finds crypto/FX never actually trade, and a systemic live-vs-offline risk-gate gap (V5.2.6)
 
 **Severity:** 10/10 · **Status:** 🟢 `fixed` (V5.2.6)
 
-**Problem:** Crypto/FX were regularly selected into the book but never placed a single real order in any backtest — forex's synthetic quote-bar conversion hardcodes `volume=0.0`, which unconditionally trips the liquidity gate's zero-volume block. Separately, live carries ~10 risk/execution gates offline's Sharpe-number engine never models at all, and two of them (`risk_off`/`topology_elevated` overrides) duplicate signal the model already has as an active input feature.
+**Problem:** Crypto/FX were regularly selected into the book but never placed a single real order — forex's synthetic quote-bar conversion hardcodes `volume=0.0`, tripping the liquidity gate's zero-volume block. Separately, live carries ~10 risk/execution gates offline's Sharpe engine never models, two of which duplicate signal the model already has as an active input feature.
 
-**Fix:** Added a `zero_volume_fallback_ddv` liquidity fallback (forex always, crypto only for `quality_tier=="core"` symbols) that substitutes a realistic daily-dollar-volume estimate for downstream gating math without bypassing the real participation/cost gates. Added book-selection-aware confidence thresholds, narrowed the `risk_off`/`topology_elevated` overrides using real-data-derived severity thresholds (not guessed), and shipped `aq evaluate --calibrate-confidence-threshold` plus a new `book_member_decisions` diagnostic for future gate-attribution analysis.
+**Fix:** Added `zero_volume_fallback_ddv` (forex always, crypto only `quality_tier=="core"`) substituting a realistic daily-dollar-volume estimate without bypassing the real participation/cost gates. Added book-selection-aware confidence thresholds, narrowed `risk_off`/`topology_elevated` overrides using real-data-derived thresholds, shipped `aq evaluate --calibrate-confidence-threshold` + a `book_member_decisions` diagnostic.
 
 **Verification:**
-- 33 new tests across 7 files; full suite 2530 passed.
-- Real Lean backtest (2026-08-10, `backtests/2026-08-10_15-04-53`) confirmed Sharpe improved -4.103 → -2.984 after this fix plus V5.2.4/V5.2.5's prior fixes.
-- A first backtest attempt crashed on a genuine deferred-write bug (`spread_check_ranks` UnboundLocalError) that only a real bar-to-bar Lean run could catch — fixed and the re-run succeeded.
-- This same successful run then surfaced two further, previously-undiscovered bugs (forex order sizing, sticky kill-switch lockout) — see #93.
+- 33 new tests; full suite 2530 passed.
+- Real backtest (2026-08-10) confirmed Sharpe -4.103→-2.984. A first attempt crashed on a genuine deferred-write bug (`spread_check_ranks` UnboundLocalError), only catchable via a real bar-to-bar Lean run — fixed, re-run succeeded.
+- Surfaced two further bugs (forex order sizing, sticky kill-switch lockout) — see #93.
 
 ---
 
@@ -1307,15 +1306,15 @@ backtest, never a unit test).
 
 **Severity:** 9/10 · **Status:** 🟢 `fixed` (V5.2.7)
 
-**Problem:** `_forex_lot_count_for_weight()` divided notional by a full 100,000-unit lot's dollar value — at realistic book-member position weights (4-12% of account), notional never reached even one lot, so every forex order silently rounded to zero. Separately, a kill-switch trip on 2020-02-27 never auto-cleared (by design, for live capital preservation) and locked 100% of book-member decisions into `reduce_risk` for the remaining 13 months of a 2.2-year backtest.
+**Problem:** `_forex_lot_count_for_weight()` divided notional by a full 100,000-unit lot's dollar value — at realistic 4-12% position weights, notional never reached one lot, so every forex order silently rounded to zero. Separately, a kill-switch trip on 2020-02-27 never auto-cleared and locked 100% of book-member decisions into `reduce_risk` for the remaining 13 months.
 
-**Fix:** New `compute_forex_order_units()` sizes orders in raw base-currency units instead of lots (an earlier lot-rounding design was caught and rejected in review — it would have reproduced the same zero-order bug under a new name). Split the legacy `bypass_safety_gates` flag into two independent flags, `bypass_sticky_trade_lock`/`bypass_regime_drawdown_gate`, and enabled only the sticky-lock bypass this round to isolate its effect.
+**Fix:** New `compute_forex_order_units()` sizes orders in raw base-currency units instead of lots (an earlier lot-rounding design was caught in review — it would have reproduced the same bug under a new name). Split `bypass_safety_gates` into `bypass_sticky_trade_lock`/`bypass_regime_drawdown_gate`; enabled only the sticky-lock bypass this round to isolate its effect.
 
 **Verification:**
-- 18 new tests; full suite 2523 passed, 0 failures (2505 + 18 new).
-- Real Lean backtest (2026-08-11, `backtests/2026-08-11_09-56-24`) confirmed Sharpe -2.984 → -2.17. `notional_ratio` sat within 0.15% of 1.0 across all 193 diagnostic records; 220 real forex fills appeared for the first time ever across 9 pairs.
-- Kill-switch now trips 26 separate times across the run and clears every time (vs. once, stuck forever) — 120 `trade` decisions occur post-fix, 109 of them after the first trip, structurally impossible before.
-- Crypto (BTCUSD/LTCUSD) still never trades — a separate, unresolved Lean/Coinbase zero-volume delivery quirk, out of scope for this round.
+- 18 new tests; full suite 2523 passed.
+- Real backtest (2026-08-11) confirmed Sharpe -2.984→-2.17. `notional_ratio` within 0.15% of 1.0 across 193 records; 220 real forex fills across 9 pairs for the first time ever.
+- Kill-switch now trips 26 times and clears every time (vs. once, stuck forever).
+- Crypto (BTCUSD/LTCUSD) still never trades — a separate, unresolved Lean/Coinbase zero-volume delivery quirk, out of scope.
 
 ---
 
@@ -1323,82 +1322,114 @@ backtest, never a unit test).
 
 **Severity:** n/a (investigation + opt-in tooling, no defect) · **Status:** 🟢 `fixed and verified`
 
-**Problem:** Continues #91-#93: is the kill-switch's 26-trips/2.2yr cadence mistuned or just how this model behaves; could a "gate-realistic" training/eval signal be built offline; and the still-unexplained NVDA/GE/WFC/XOM/BA mismatches plus the overlap metric's continued erosion despite two rounds of Sharpe improvement.
+**Problem:** Continues #91-#93: is the kill-switch's 26-trips/2.2yr cadence mistuned or just how this model behaves; could a "gate-realistic" training signal be built offline; NVDA/GE/WFC/XOM/BA and the overlap metric's continued erosion remain unexplained.
 
 **Fix:**
-- `evaluation/kill_switch_replay.py` — day-by-day offline replay of the kill-switch + sticky trade-lock state machine over the rank book's own returns, same pattern as the existing reconciliation tooling. Deliberately approximate (dataset-derivable inputs only, no bypass flags). New `aq evaluate --replay-kill-switch` flag, not in `--all`.
-- `train.py::compute_gate_friendliness_weight_by_date()` — optional per-date training-loss weight from the same stateless topology/regime-severity gates the live analyzer uses (liquidity and the portfolio-level kill-switch excluded, no clean dataset equivalent). Threaded through the ranking-loss functions as `date_weights` (`None` default = byte-identical); gated behind `gate_aware_ranking_weights.enabled` (default `false`) in both trainers.
-- Sensitivity sweep (`min_rolling_sharpe` × `evaluation_bars`, 20 combos): lockout is close to binary — a trip either never happens or locks out ~58-74% of the remaining window, regardless of threshold. Default config's 43 trips/70.6% locked vs. #93's 26-trip *bypassed* backtest is fully explained by the bypass, not a discrepancy. No config change applied.
-- NVDA/GE/WFC/XOM/BA re-checked against real V5.2.7 book history — all 5 still recur. The one reusable lead from #90's bond-duration-beta bug was ruled out against `cross_asset_sensitivity.py` (identical 252-day lookback both sides). Both threads remain unexplained.
+- New `evaluation/kill_switch_replay.py` (`aq evaluate --replay-kill-switch`) — day-by-day offline replay of the kill-switch + sticky trade-lock state machine over the rank book's own returns. Deliberately approximate (dataset-derivable inputs only, no bypass flags).
+- New `train.py::compute_gate_friendliness_weight_by_date()` — optional per-date training-loss weight from the stateless topology/regime-severity gates; threaded through as `date_weights` (`None` default = byte-identical), gated behind `gate_aware_ranking_weights.enabled` (default `false`).
+- Sensitivity sweep (20 combos): lockout is near-binary — a trip either never happens or locks out ~58-74% of the remaining window. #93's 26-trip *bypassed* result is fully explained by the bypass, not a discrepancy. No config change applied.
+- NVDA/GE/WFC/XOM/BA re-checked against real V5.2.7 data — all 5 still recur; the one reusable lead (bond-duration-beta) was ruled out. Both threads remain unexplained.
 
 **Verification:**
-- 33 new tests, full suite 2523→2556 passed. `py_compile` clean. `--replay-kill-switch` matches the sweep's own baseline end-to-end.
-- Overlap-metric erosion (49.96%→48.59%, V5.2.5→V5.2.7) reconfirmed — root cause still open.
-- Codespace smoke test (3 epochs, flag on): both trainers ran clean (rank_5d IC 0.10-0.11, t≈6.3-6.4). Full `--walk-forward` (6 windows) also clean: `rank_20d_ic` mean 0.117, CI [0.077, 0.160], stable; net Sharpe mean 0.78 (5/6 positive). Not a verdict on the flag — 3 epochs vs. production's 120/60, no flag-off control ran. Active `ml/` untouched; Codespace config reverted afterward.
+- 33 new tests, full suite 2523→2556. `--replay-kill-switch` matches the sweep's own baseline end-to-end.
+- Overlap-metric erosion (49.96%→48.59%) reconfirmed — root cause still open.
+- Codespace smoke test (3 epochs, flag on) and 6-window `--walk-forward` both ran clean, but neither is a verdict on the flag at production (120/60-epoch) scale — no flag-off control ran.
 
-**Follow-ups:** full state-machine replay; flipping any sweep/flag default; root-causing NVDA/GE/WFC/XOM/BA and the overlap metric.
+**Follow-ups:** full state-machine replay; root-causing NVDA/GE/WFC/XOM/BA and the overlap metric.
 
 ### 95. Full-scale production retrain with gate-aware ranking weights promoted to active `ml/`; RL sizing re-confirmed negative a third time; full-epoch walk-forward validation (V5.2.9)
 
 **Severity:** n/a (production training round, no defect) · **Status:** 🟢 `fixed and verified`
 
-**Problem:** #94 shipped the flag off by default, verified only via a 3-epoch smoke test with no flag-off control — open whether it holds at real (120/60-epoch) scale, and whether a full training/validation/promotion cycle was actually ready for V5.2.9. Topology training needs a real Lean backtest's experience events through local Postgres/Redis — out of scope this round (user instruction).
+**Problem:** #94 shipped the flag off by default, verified only via a 3-epoch smoke test with no flag-off control — open whether it holds at real (120/60-epoch) scale, and whether a full training/validation/promotion cycle was ready. Topology training needs a real Lean backtest's experience events through local Postgres/Redis — out of scope (user instruction).
 
-**Fix:**
-- Enabled `gate_aware_ranking_weights.enabled: true` for both trainers (user's explicit choice).
-- Full Codespace candidate pipeline at real epoch counts: `train.py --candidate` → `train_gating.py` → `train_multitask.py` → `train_sequence.py` → `train_rl_sizing.py` (version `a4c441cf-3c27-434e-8fac-3d4773f6776c`). `train_strategy_selector.py` failed as expected (no Postgres, no option data). `train_topology.py` skipped.
-- Promoted to active `ml/` via `retraining.artifacts.copy_candidate_to_active()` (filesystem-only), after backing up prior artifacts to `ml/_backup_pre_v529_full_retrain/` (gitignored).
-- Full `--walk-forward` (6 expanding windows) at the same settings, validation only — never touches active `ml/`.
+**Fix:** Enabled `gate_aware_ranking_weights.enabled: true` (user's explicit choice). Full Codespace candidate pipeline at real epoch counts (baseline/gating/multitask/sequence/RL sizing); `train_strategy_selector`/`train_topology` skipped (no Postgres/option data, no Lean experience events). Promoted to active `ml/` (backed up to `ml/_backup_pre_v529_full_retrain/`). Full 6-window `--walk-forward` at the same settings, validation only.
 
 **Verification:**
-- vs. prior (Aug 4) model: rank_5d IC 0.097→0.109 (t 5.99→6.33), rank_20d IC 0.152→0.173 (t 9.24→10.28), sector-neutral/residual ranks also up. Direction MCC regressed (0.026→0.016) — dataset refresh and the flag both changed at once, so the gain isn't cleanly attributable to either. Net judged positive (book selection is IC-driven, not direction-head-driven).
-- RL sizing: honest-negative reproduced a third time (-8.42e-5 vs -7.74e-5 constant baseline). Stays disabled.
-- Walk-forward: backtest MCC mean 0.022 (CI [0.008, 0.034], stable); rank_20d_ic mean 0.085 (CI [0.040, 0.117], 0% sign flips); net Sharpe mean ~0.65, 5/6 windows positive. One window's sequence stage timed out, absorbed by the per-stage best-effort design.
-- Active `ml/` now runs the new candidate (baseline/gating/multitask/sequence/RL sizing); topology untouched. Rollback available at `ml/_backup_pre_v529_full_retrain/`.
+- vs. prior model: rank_5d IC 0.097→0.109, rank_20d IC 0.152→0.173, sector-neutral/residual ranks also up. Direction MCC regressed slightly — dataset refresh and the flag both changed at once, not cleanly attributable. Net judged positive.
+- RL sizing: honest-negative reproduced a third time. Stays disabled.
+- Walk-forward: rank_20d_ic mean 0.085 (stable, 0% sign flips), net Sharpe mean ~0.65 (5/6 windows positive).
+- Active `ml/` now runs the new candidate; topology untouched. Rollback available.
 
-**Follow-ups:** representative Lean backtest (user, manual); topology-training backtest (needs observation mode + local Docker stack + multi-month run); isolating dataset-refresh vs. flag effect.
+**Follow-ups:** representative Lean backtest (user, manual); topology-training backtest; isolating dataset-refresh vs. flag effect.
 
 ---
 
 ### 96. Real limit-order support: stale docs corrected, `PartiallyFilled` made testable, two new offline diagnostic tools (V5.3.1, closes #34)
 
-**Severity:** 6/10 · **Status:** 🟡 `partial`
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified`
 
-**Problem:** `phase_v2.limit_orders.enabled` has actually been `true` since before 2026-07-20, but `Problems.md`, `Changelog.md`, `execution/README.md`, and a `main.py` comment all still said "default off." `PartiallyFilled` has never fired in 45 real backtest folders — genuinely unexercised — and `main.py`'s partial-fill logic couldn't be unit-tested at all (`main.py` isn't importable outside a real Lean process, confirmed).
+**Problem:** `phase_v2.limit_orders.enabled` was actually `true` by default all along, but `Problems.md`/`Changelog.md`/`execution/README.md`/a `main.py` comment all claimed "default off." `PartiallyFilled` had never fired in 45 real backtests, and `main.py`'s partial-fill logic wasn't unit-testable at all (not importable outside a real Lean process).
 
-**Fix:**
-- Corrected the stale "default off" claim in `main.py` and `execution/README.md`.
-- Investigated the `fallback_to_market_on_timeout` future/option=`false` asymmetry (planned as a gap) — found a real, deliberate rationale already in `main.py`'s comment (margin/expiry risk) and left it unchanged, correcting the plan rather than blindly applying it.
-- Extracted `should_clear_pending_limit_order()`/`resolve_limit_order_timeout_action()` into `execution/order_gate.py` as pure functions, wired into `main.py` (behavior-preserving) — makes the partial-fill/remaining-quantity contract unit-testable for the first time.
-- New `evaluation/limit_fill_simulator.py` + `aq evaluate --simulate-limit-fills` (`--limit-fill-offset-sweep`) — offline counterfactual fill/timeout-rate estimate reusing the real `resolve_limit_price()`.
-- New standalone `scripts/order_events_audit.py` — walks every real `order-events.json`, reporting a status histogram, fill latency, and an honestly-labeled upper-bound fallback proxy.
-- `max_slippage_divergence_bps` (`1e12`, disabled) deliberately left uncalibrated — deriving a number from synthetic fill data would conflate "would a hypothetical order fill" with "how far did a real fill diverge," a different question.
+**Fix:** Corrected the stale docs. Investigated the future/option `fallback_to_market_on_timeout=false` asymmetry — found a real, deliberate rationale already in `main.py` (margin/expiry risk) and left it unchanged. Extracted `should_clear_pending_limit_order()`/`resolve_limit_order_timeout_action()` into `execution/order_gate.py`, wired into `main.py` (behavior-preserving) — makes the partial-fill contract unit-testable for the first time. Shipped two new offline diagnostics: `evaluation/limit_fill_simulator.py` (`aq evaluate --simulate-limit-fills`) and standalone `scripts/order_events_audit.py`. Left `max_slippage_divergence_bps` deliberately uncalibrated (synthetic fill data would answer a different question than real slippage).
 
 **Verification:**
-- 26 new tests (9 order-gate, 8 limit-fill-simulator, 9 order-events-audit). Full suite green (see #97 for the combined count).
-- `--simulate-limit-fills` vs. real dataset: 82.95% fill rate, directionally consistent with real order-events evidence.
-- `order_events_audit.py` vs. all 43 real backtest folders: reproduces the verified 23/23 `cancelPending`/`canceled` pairing exactly, plus a new observation (8 `"invalid"` statuses, already handled).
-- `PartiallyFilled` remains unexercised in real data (no live Lean run this round) — but the logic itself is now proven correct via direct unit tests, not just "never seen."
+- 26 new tests; full suite green (see #97 for the combined count).
+- `--simulate-limit-fills` vs. real dataset: 82.95% fill rate, directionally consistent with real order-events evidence. `order_events_audit.py` reproduces the verified 23/23 `cancelPending`/`canceled` pairing across 43 real backtests.
+- 2026-08-14 real backtest (#98) ran this exact refactored code live for the first time: `cancelPending`/`canceled` still pair 12/12, zero regressions. `PartiallyFilled` still never appeared — permanent, expected caveat (Lean's Daily-resolution fills), not a defect.
 
 ---
 
 ### 97. Book-history reconciliation: bond duration-beta's deeper cold-start bug, reconciliation-tool eligibility fix, FX/crypto absence resolved (log artifact), misleading kill-switch count corrected (V5.3.1, continues #91-#95)
 
-**Severity:** 9/10 → 6/10 · **Status:** 🟡 `partial`
+**Severity:** 9/10 → 4/10 · **Status:** 🟡 `partial` (bond warm-up fix itself now 🟢 verified, see #98; NVDA/GE/WFC/XOM/BA stays open)
 
-**Problem:** Beneath the already-shipped V5.2.4/V5.2.5/V5.2.7 fixes, two real bugs remained undiscovered: `bond_empirical_duration_beta`'s cold-start window, and the reconciliation tool's own hardcoded eligibility assumption. A third suspected cause (FX/crypto missing from book candidacy) turned out to be a measurement artifact. A fourth issue surfaced along the way: V5.2.10's own "0 real kill-switch trips" README claim was never a real measurement.
+**Problem:** Beneath the already-shipped V5.2.4/V5.2.5/V5.2.7 fixes, two real bugs remained: `bond_empirical_duration_beta`'s cold-start window, and the reconciliation tool's own hardcoded eligibility assumption. A third suspected cause (FX/crypto missing from book candidacy) turned out to be a measurement artifact. A fourth surfaced along the way: V5.2.10's "0 real kill-switch trips" README claim was never a real measurement.
 
 **Fix:**
-- **Bond warm-up floor** (`main.py:598`): V5.2.5 stopped the beta from recomputing every bar once locked, but never fixed how long it took to lock in the first time — the two `maxlen=260` deques feeding it fill only from live bars, and the warm-up floor was hardcoded to `21`. Raised to `self.long_bar_history_size` (260) — Lean's warm-up runs the identical window-building logic real bars do (confirmed no `is_warming_up` gate on the append), so this front-loads the accumulation instead of leaving ~230 bars per backtest at a locked `0.0`. Bonus: fixes the identical cold-start gap for `cross_asset_sensitivity` for free.
-- **Reconciliation eligibility fix**: `reconcile_book_history_date()`/`replay_book_history_reconciliation()` (`evaluation/rank_signal_calibration.py`) hardcoded `trading_eligible: True` for every symbol, ignoring the real per-date value already logged in `book_history.jsonl`'s `"universe"` field. Now reads it (falls back to `True` for older logs).
-- **FX/crypto absence ruled out as a live bug**: the "32% absent" finding was an artifact of averaging across `book_history.jsonl`'s cumulative, never-rotated history as one continuous run. New `summarize_universe_presence_by_symbol()` segments by run first — real data shows 100% absence in the single oldest (pre-V5.2.4) run, 0% in the 5 subsequent runs. No threshold change made; the new function ships wired into `--reconcile-book-history`'s output so a future regression is always visible in the most recent run alone.
-- **Misleading kill-switch count corrected**: `_count_real_kill_switch_trips()` counted a string that never reaches the Lean text log (the real trip-audit event is Redis-Stream-only, fails silently without a broker) — always returned `0`. Now always returns `None`; README renders an honest "not measurable" caveat. The Disclaimer's own prior "far fewer trips" claim (same bad `0`) corrected too.
-- **NVDA/GE/WFC/XOM/BA**: sector-neutrality-cap hypothesis ruled out via direct code proof, not just absence of a pattern — `apply_book_neutrality()` only reweights an already-selected book, so it structurally cannot affect which symbols get selected. The 5 tickers also don't cluster in one sector. Divergence remains genuinely unexplained.
+- **Bond warm-up floor** (`main.py:598`, `21`→`self.long_bar_history_size`=260): the two `maxlen=260` deques feeding the beta fill during warm-up too (no `is_warming_up` gate), but the old floor left them far short of full, locking the beta at `0.0` for ~230 bars/backtest. Bonus: fixes the identical cold-start gap for `cross_asset_sensitivity` for free.
+- **Reconciliation eligibility fix**: `reconcile_book_history_date()`/`replay_book_history_reconciliation()` now read real per-date `trading_eligible` from `book_history.jsonl`'s `"universe"` field instead of hardcoding `True`.
+- **FX/crypto ruled out as a live bug**: new run-segmented `summarize_universe_presence_by_symbol()` shows 100% absence only in one old pre-V5.2.4 run, 0% since — the "32% absent" figure was a cumulative-log averaging artifact, wired into `--reconcile-book-history`'s output so it can't hide again.
+- **Kill-switch count corrected**: `_count_real_kill_switch_trips()` now always returns `None` (the real event is Redis-only, never reaches the text log it was counting) instead of a fake `0`.
+- **NVDA/GE/WFC/XOM/BA**: sector-neutrality ruled out by direct code proof (`apply_book_neutrality()` only reweights an already-selected book) — remains unexplained.
 
 **Verification:**
-- 11 new tests (5 universe-presence + 4 reconciliation-eligibility + 2 kill-switch-count). Combined with #96: full suite 2574 → 2609 passed, 0 failures.
-- Bond warm-up fix unverifiable against a real backtest this round — verified only via code-read execution-order proof plus the existing `should_lock_in_duration_beta()` boundary test at exactly 260.
-- Reconciliation eligibility fix re-run against real V5.2.9 data: correctly applied (zero ineligible symbols now appear in mismatch lists), but zero net effect on this dataset's `mean_overlap_fraction` (24.02%, unchanged) — honest finding, not a broken fix.
-- FX/crypto run-segmentation reproduced exactly by hand and by the new function's own tests.
+- 11 new tests; combined with #96, full suite 2574→2609, 0 failures.
+- Bond warm-up fix: confirmed via a real A/B backtest — see #98 (Sharpe -1.72→-1.034, orders roughly halved, no downside found).
+- Reconciliation eligibility fix: correctly applied, zero net effect on `mean_overlap_fraction` (24.02%) — #98 later found this re-run's target was itself a contaminated multi-run log, so the code fix stays verified via unit tests but 24.02% isn't a clean single-run number.
+- FX/crypto segmentation reproduced by hand and by tests.
 
-**Follow-ups:** a real Lean backtest to confirm the bond warm-up fix's actual effect on overlap; NVDA/GE/WFC/XOM/BA remains open, next lead is the ranking/hysteresis path itself, not gates or neutrality.
+**Follow-ups:** NVDA/GE/WFC/XOM/BA remains open — next lead is the ranking/hysteresis path itself, not gates or neutrality. See #99 (V5.3.2) for two real reconciliation-tooling bugs fixed and what they did (and didn't) explain.
+
+---
+
+### 98. Real V5.3.1 backtest (2026-08-14): Sharpe improves again; a suspected new "7-month disengagement regression" turns out to be pre-existing, not caused by B1 — corrects a same-session investigation error
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed and verified` (B1 specifically); the underlying gap's root cause stays 🟡 open, see Follow-ups
+
+**Problem:** The first real V5.3.1 backtest (`backtests/2026-08-14_18-46-38`, Sharpe **-1.034**) initially looked like a severe new regression: only 11 new `book_history.jsonl` records, orders down to 230 (from 476), an apparent ~7-month engagement gap from 2019-01-01. The comparison target, `book_history_v529_only.jsonl`, turned out to be an undiscovered 7-run cumulative log — the same contamination class #97/B2 already fixed elsewhere, missed here initially.
+
+**Fix (self-correction):** Isolated the true immediately-prior real backtest (`backtests/2026-08-13_11-30-21`, Sharpe -1.72) and found the identical signature in its own `order-events.json`: a 202-day gap, same re-engagement dates. `git diff` confirms `main.py`'s only functional changes between the two runs were #96's refactor (behavior-preserving) and #97's warm-up floor — `config.json` unchanged. Clean A/B result: gap shrank (202→169 days), orders roughly halved, Sharpe improved (-1.72→-1.034). No evidence the warm-up fix caused or worsened anything.
+
+**Verification:**
+- Gap analysis run directly against both real backtests' own `order-events.json` (not the cumulative log) — pre-B1 202-day gap, post-B1 169-day gap.
+- Record-diff confirms the isolation methodology was sound; only the comparison target was wrong.
+- Isolated reconciliation re-run (11 genuinely-new records): `mean_overlap_fraction` 35.08%, 0/11 exact matches — real number, too thin a sample to compare against #97's contaminated 24.02%.
+- #97's other fixes re-confirmed clean: FX/crypto 0% absent, kill-switch count correct.
+
+**Follow-ups:** why `min_rank_confidence_spread` (0.5014) rejects nearly every selection for ~7 months starting January 2019 is a genuine open question — pre-existing, not a regression, scoped as its own future investigation.
+
+**Update (V5.3.2) — closed, documented not a bug:** `ml/sequence_training_metrics.json` and `ml/multitask_training_metrics.json` both carry a `backtest.<head>_ranking_quality.observed.per_era` diagnostic (#71). Checked all 4 combinations (sequence/multitask × rank_5d/rank_20d): every one independently shows strong, significant IC in era 0 (2019-01-01→2019-03-31, t≈2.5-3.1), a simultaneous collapse to statistically-insignificant IC in eras 1-2 (2019-04-01→2019-09-27, t between 0.09 and 0.87), then a sharp recovery in era 3 (t up to 6.7) — the exact window the real backtests disengage in. Four independently-trained model/head combinations agreeing this precisely rules out a model-specific quirk: this is a genuine low-dispersion, near-zero-edge stretch in the real historical data, and `min_rank_confidence_spread`'s entire documented purpose is to refuse trading exactly when this happens. No code change to the gate itself. Also ruled out this round as alternate causes: the regime/drawdown gate (`bypass_regime_drawdown_gate`) is stateless, per-symbol, per-bar, and never empties `book_allocations` — confirmed via `main.py:4493-4521`/`main.py:2770-2775` — so it cannot produce a total, zero-log-entry gap; the sticky kill-switch lock has been bypassed since #93 and confirmed clearing every time, not sticky. The sequence model's zero-padding during its own ~30-live-bar post-warmup fill (`main.py:3496-3507`) is real but far too small to be the cause (30 bars vs. the ~187-260 day observed gap), and is deliberate train/serve parity with `train.py` — not changed.
+
+**Bonus, quantified finding — not applied this round:** the currently-active rank head is `rank_5d`, not `rank_20d` (`rank_20d` is demoted for era-sign instability, confirmed via `resolve_rank_signal_policy()`). `min_rank_confidence_spread=0.5014` was calibrated once in #89, before this demotion existed. Re-running `aq evaluate --calibrate-book-spread` against the *current* active head returns **0.2901** — and the natural per-date spread's own median is **0.36**, already below the live threshold. This means the current 0.5014 is likely rejecting a meaningful share of *all* dates, not just the genuine Apr-Sep 2019 no-skill stretch — real and worth a future round, but deliberately not applied to `config.json` here (no real Lean backtest available this round to verify its actual effect on engagement/Sharpe, and bundling it would have confounded #99's reconciliation-fix comparison).
+
+---
+
+### 99. Reconciliation tool's own cross-run contamination and live-vs-offline tie-break order fixed; NVDA/GE/WFC/XOM/BA re-measured — neither bug explains it, but the real evidence now points somewhere new (V5.3.2, continues #91/#97)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (the two tooling bugs); NVDA/GE/WFC/XOM/BA stays 🟡 open with a new, sharper lead
+
+**Problem:** Beneath #97's fixes, two real bugs remained in the reconciliation *tooling itself* (not the live decision path): (1) `--reconcile-book-history`/`--replay-hysteresis` deduplicated dates across `visualization/book_history.jsonl`'s entire cumulative history (last-write-wins) before reconciling — confirmed empirically: of 469 real records / 174 unique dates, **160 dates (92%) recur across more than one historical run**, one date in as many as 8 — so the hysteresis walk silently carried `held_allocations` across real run boundaries as if one continuous backtest, and every overlap number this project has ever reported for this tool was measuring a contaminated mix. (2) `cross_sectional_rank_scores()`/`_select_book_group()` are Python-stable sorts keyed only on rank, so an exact tie resolves by the caller's raw-scores dict insertion order — live builds that dict in `self.symbols`' fixed universe order (`config.json`'s `phase1.universe.assets`), but the reconciliation tooling built it from a pandas `groupby` (dataset row order), a different, uncorrelated order. A tied pair near a top/bottom-N boundary could pick a different winner live vs. offline with byte-identical scores.
+
+**Fix:**
+- New `evaluation/rank_signal_calibration.py::segment_logged_records_by_run()` (extracted from #97's `summarize_universe_presence_by_symbol()`, itself refactored to use it — behavior-preserving).
+- `aq_cli.py`'s `--reconcile-book-history` dispatch (both the hysteresis-replay and independent-per-date paths, which shared the same contaminated construction) now segments first and defaults to the **most recent run only** — never a silent cross-run merge. New `--reconcile-run-index N` (0-indexed, negative from the end) and `--reconcile-all-runs` (every run independently, never merged) flags. Default JSON payload shape stays byte-identical, additively gains `run_metadata`; `--reconcile-all-runs` additively appends `all_runs`.
+- `aq_cli.py`'s raw-scores construction now re-inserts each date's scores in `config.json`'s `phase1.universe.assets` order (the same source `main.py` derives `self.symbols` from) before they reach `cross_sectional_rank_scores()` — zero changes to the live decision path itself (`portfolio/rank_signal.py`/`portfolio/book_construction.py` untouched), since live was already internally consistent and the gap was purely in offline tooling.
+- `replay_book_history_reconciliation()`'s docstring updated to state its input must be a single run's own records, never the raw cumulative file.
+
+**Verification:**
+- 12 new tests (`test_rank_signal_calibration.py`: 4 for `segment_logged_records_by_run()`; `test_aq_cli.py`: 7 for run-isolation/flags + 1 tie-break fixture proving reconciliation now follows configured-universe order instead of dataset row order; `test_portfolio_book_construction.py`: 1 documenting `build_rank_based_book()`'s tie-break is deliberately insertion-order-dependent). Full suite 2609→2624, 0 failures (11 pre-existing Docker-unavailable errors unrelated to this round).
+- Re-run against the real `visualization/book_history.jsonl` (8 runs detected, matching the hand count above): default (most-recent run, 11 dates) reproduces the earlier hand-isolated 35.08% overlap exactly — confirms the fix is correct, not just plausible. `--reconcile-all-runs` shows overlap 21-35% across all 8 runs individually — fairly stable, so #97's old contaminated 24.02% figure wasn't wildly off in *magnitude*, just methodologically invalid.
+- **NVDA/GE/WFC/XOM/BA, measured on the densest real run (112 dates):** both bugs fixed, but neither explains this divergence. Mismatch rates stay high (XOM 93%, WFC 78%, NVDA 69%, GE 52%, BA 48% of their appearances) and, critically, on the dates these 5 tickers **do** appear matched on both sides, their raw-score deltas are large (0.11-0.21 on a [0,1] percentile scale) — a genuine tie-break artifact would show near-*zero* deltas on matched days and only flip the rare truly-tied day. Also strongly directional: "live selects it, offline's fresh re-derivation doesn't" outnumbers the reverse roughly 4-5:1 for all 5 tickers, sustained across the whole 2+ year run, not just near run boundaries (rules out a cold-start artifact too).
+
+**New lead (not yet root-caused):** the evidence now points at a real, persistent raw-score computation discrepancy between live and offline for these 5 tickers specifically, not a selection-boundary artifact of any kind. Next step for a future round: compare live's rolling-window feature computation (`main.py`'s deques) against offline's dataset-precomputed features for these 5 tickers directly, looking for a data/feature-pipeline difference specific to them (e.g. corporate-action history, a data-vendor discontinuity, or a rolling-window fill difference) rather than continuing to look at gates, hysteresis mechanics, or tie-breaks — all three are now ruled out by direct evidence across #91/#97/#99.

@@ -1298,8 +1298,27 @@ See `development/Problems.md` #95 for full evidence and scope notes. A represent
 **Verification:**
 - 37 new tests across `test_order_gate.py` (9), `test_limit_fill_simulator.py` (8, new file), `test_order_events_audit.py` (9, new file), `test_rank_signal_calibration.py` (9), `test_generate_evaluation_report.py` (2). Full suite: 2574 → 2609 passed, 0 failures.
 - `--simulate-limit-fills` and `order_events_audit.py` both sanity-checked against real data (82.95% fill rate; exact 23/23 cancel-pairing reproduced from 43 real backtest folders).
-- Reconciliation eligibility fix re-verified against real V5.2.9 data: correctly applied, zero net effect on this dataset's overlap metric (an honest finding, not a bug).
-- Bond warm-up fix's real-world effect is unverifiable this round (needs a live Lean run) — stated plainly rather than guessed.
+- Reconciliation eligibility fix re-verified against real V5.2.9 data: correctly applied, zero net effect on this dataset's overlap metric — later flagged (see below) as measured against a contaminated multi-run sample, so the specific 24.02% figure isn't a clean read; the code fix itself stays verified via unit tests either way.
 - NVDA/GE/WFC/XOM/BA: sector-neutrality hypothesis ruled out by direct code proof, not just absence of a pattern — remains open.
 
-See `development/Problems.md` #96/#97 for full evidence and scope notes.
+**Update (2026-08-14):** a real Lean backtest (`backtests/2026-08-14_18-46-38`, Sharpe -1.034, up from -1.72) confirmed the bond warm-up fix live. Initial comparison against a believed-clean "prior run" snapshot suggested a severe new ~7-month book-disengagement regression — this was itself a data-contamination artifact (the "prior run" file was an undiscovered 7-run cumulative log); the true immediately-prior real backtest already showed the identical gap, so the fix is now verified with no evidence of any downside. Full story, including the self-caught investigation error, in `development/Problems.md` #98.
+
+See `development/Problems.md` #96/#97/#98 for full evidence and scope notes.
+
+## V5.3.2 — Root-causing #91/#97 (NVDA/GE/WFC/XOM/BA divergence) and #98 (confidence-spread disengagement gap)
+
+**Summary:** An in-depth, no-stone-unturned research pass (3 parallel investigation agents plus direct data analysis, no live Lean backtest) closed #98 as genuine model behavior (not a bug) and found two real, fixable bugs in the reconciliation tooling for #91/#97 — but those two fixes turned out not to explain the NVDA/GE/WFC/XOM/BA divergence; the real, measured evidence now points somewhere new.
+
+**Shipped:**
+- #98 closed: `ml/sequence_training_metrics.json`/`ml/multitask_training_metrics.json`'s own per-era diagnostic shows all 4 model/head combinations (sequence/multitask × rank_5d/rank_20d) independently collapse to statistically-insignificant IC in the exact Apr-Sep 2019 window the real backtests disengage in — a genuine no-edge stretch, `min_rank_confidence_spread` working as documented. Regime/drawdown gate and sticky kill-switch lock both directly ruled out as alternate causes. No code change to the gate.
+- New `evaluation/rank_signal_calibration.py::segment_logged_records_by_run()`, extracted from #97's `summarize_universe_presence_by_symbol()` (refactored to use it, behavior-preserving).
+- `aq_cli.py`'s `--reconcile-book-history` now segments `book_history.jsonl` by run before reconciling and defaults to the most recent run only, never a silent cross-run merge (confirmed: 92% of real logged dates recur across multiple historical runs). New `--reconcile-run-index`/`--reconcile-all-runs` flags.
+- Fixed a live-vs-offline tie-break order mismatch: the reconciliation tool now builds its raw-scores dict in `config.json`'s configured universe order (matching `main.py`'s live `self.symbols` order) instead of pandas groupby row order — zero changes to the live decision path itself.
+- Reported (not applied): `min_rank_confidence_spread` recalibrated against the currently-active `rank_5d` head returns 0.2901 vs. the live 0.5014 — real drift, deliberately deferred to a future round with a real Lean backtest to verify.
+
+**Verification:**
+- 12 new tests across `test_rank_signal_calibration.py`, `test_aq_cli.py`, `test_portfolio_book_construction.py`. Full suite: 2609 → 2624 passed, 0 failures (11 pre-existing Docker-unavailable errors, unrelated).
+- Re-run against real `visualization/book_history.jsonl`: default output reproduces the earlier hand-isolated 35.08% overlap exactly; `--reconcile-all-runs` shows 21-35% overlap across all 8 real runs individually.
+- NVDA/GE/WFC/XOM/BA re-measured on the densest real run: both bugs fixed, neither explains the divergence. Matched-day raw-score deltas are large (0.11-0.21, not near-zero as a tie-break artifact would show) and strongly directional (live selects, offline doesn't, ~4-5:1) — points at a real feature/data-computation discrepancy for these 5 tickers specifically, not a selection-boundary artifact. Stays open with a sharper, evidenced next lead.
+
+See `development/Problems.md` #98/#99 for full evidence and scope notes.

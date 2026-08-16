@@ -124,6 +124,24 @@ def test_build_rank_based_book_empty_when_only_one_side_has_candidates():
     assert book == {}
 
 
+def test_build_rank_based_book_tie_break_follows_candidates_insertion_order():
+    # _select_book_group()'s selection sort is a Python-stable sort keyed
+    # only on rank - a genuine tie resolves by insertion order of the
+    # `candidates` dict, not any inherent property of the tied symbols.
+    # This is DELIBERATE and load-bearing (development/Problems.md
+    # #91/#97/#99): aq_cli.py's --reconcile-book-history now depends on
+    # this staying insertion-order-based, re-inserting its own raw-scores
+    # dict in main.py's live self.symbols order before it ever reaches
+    # this function, specifically so offline's tie-break matches live's.
+    # A future change making this alphabetical (or any order not driven
+    # by the caller's dict) would silently break that fix.
+    candidates_b_first = {"B": _candidate(0.9), "C": _candidate(0.9), "A": _candidate(0.1)}
+    assert set(build_rank_based_book(candidates_b_first, top_n=1, bottom_n=0)) == {"B"}
+
+    candidates_c_first = {"C": _candidate(0.9), "B": _candidate(0.9), "A": _candidate(0.1)}
+    assert set(build_rank_based_book(candidates_c_first, top_n=1, bottom_n=0)) == {"C"}
+
+
 def test_build_rank_based_book_zero_top_n_returns_empty():
     candidates = {"A": _candidate(0.9), "B": _candidate(0.1)}
 

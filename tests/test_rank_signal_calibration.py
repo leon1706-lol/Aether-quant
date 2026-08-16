@@ -12,6 +12,7 @@ from evaluation.rank_signal_calibration import (
     compute_blended_raw_scores,
     reconcile_book_history_date,
     replay_book_history_reconciliation,
+    segment_logged_records_by_run,
     summarize_book_history_reconciliation,
     summarize_book_member_diversion,
     summarize_universe_presence_by_symbol,
@@ -479,6 +480,51 @@ def _universe_with_symbols(symbols):
     """Minimal universe payload: just the keys, with a fixed body - only
     key presence/absence matters to summarize_universe_presence_by_symbol()."""
     return {symbol: {"raw_rank_score": 0.5, "feature_ready": True, "trading_eligible": True, "security_type": "equity"} for symbol in symbols}
+
+
+# ---------------------------------------------------------------------------
+# segment_logged_records_by_run()
+# ---------------------------------------------------------------------------
+
+
+def test_segment_logged_records_by_run_empty_list_returns_empty():
+    assert segment_logged_records_by_run([]) == []
+
+
+def test_segment_logged_records_by_run_single_run_returns_one_segment():
+    logged_records = [_logged_record(f"2020-01-{i:02d}", {}) for i in (1, 2, 3)]
+
+    segments = segment_logged_records_by_run(logged_records)
+
+    assert len(segments) == 1
+    assert segments[0] == logged_records
+
+
+def test_segment_logged_records_by_run_two_runs_split_on_date_decrease():
+    run_0 = [_logged_record("2020-01-01", {}), _logged_record("2020-01-02", {})]
+    run_1 = [_logged_record("2020-01-01", {}), _logged_record("2020-01-02", {}), _logged_record("2020-01-03", {})]
+    logged_records = run_0 + run_1
+
+    segments = segment_logged_records_by_run(logged_records)
+
+    assert len(segments) == 2
+    assert segments[0] == run_0
+    assert segments[1] == run_1
+
+
+def test_segment_logged_records_by_run_missing_date_folds_into_open_run():
+    # A record with no "date" key must never itself trigger a boundary,
+    # and must not reset previous_date either - the run stays open across it.
+    logged_records = [
+        _logged_record("2020-01-01", {}),
+        {"allocations": {}},  # no "date" key at all
+        _logged_record("2020-01-02", {}),
+    ]
+
+    segments = segment_logged_records_by_run(logged_records)
+
+    assert len(segments) == 1
+    assert segments[0] == logged_records
 
 
 def test_summarize_universe_presence_empty_list_never_raises():
