@@ -1274,7 +1274,7 @@ backtest, never a unit test).
 
 ### 91. Book-history reconciliation (V5.2.2/V5.2.3) finds two unexplained live-vs-offline selection divergences
 
-**Severity:** 9/10 · **Status:** 🟡 `partial` — crypto/FX divergence resolved (V5.3.1/#97); NVDA/GE/WFC/XOM/BA divergence still open
+**Severity:** 9/10 → 3/10 · **Status:** 🟡 `partial` — crypto/FX divergence resolved (V5.3.1/#97); NVDA/GE/WFC/XOM/BA root-caused and mostly fixed (V5.3.3/#100) — XOM/WFC/GE/NVDA measurably improved, BA still open
 
 **Problem:** After #90's fix failed to close the Sharpe gap, a new reconciliation tool (`aq evaluate --reconcile-book-history`) ran against a real backtest (112 dates) and found: (1) crypto/FX in offline's top/bottom-6 on 107/112 dates but live's book on 0/112; (2) equities-only overlap only 34.6–54.8%, independent of crypto/FX.
 
@@ -1372,7 +1372,7 @@ backtest, never a unit test).
 
 ### 97. Book-history reconciliation: bond duration-beta's deeper cold-start bug, reconciliation-tool eligibility fix, FX/crypto absence resolved (log artifact), misleading kill-switch count corrected (V5.3.1, continues #91-#95)
 
-**Severity:** 9/10 → 4/10 · **Status:** 🟡 `partial` (bond warm-up fix itself now 🟢 verified, see #98; NVDA/GE/WFC/XOM/BA stays open)
+**Severity:** 9/10 → 3/10 · **Status:** 🟡 `partial` (bond warm-up fix itself now 🟢 verified, see #98; NVDA/GE/WFC/XOM/BA root-caused and mostly fixed, see #100 — BA still open)
 
 **Problem:** Beneath the already-shipped V5.2.4/V5.2.5/V5.2.7 fixes, two real bugs remained: `bond_empirical_duration_beta`'s cold-start window, and the reconciliation tool's own hardcoded eligibility assumption. A third suspected cause (FX/crypto missing from book candidacy) turned out to be a measurement artifact. A fourth surfaced along the way: V5.2.10's "0 real kill-switch trips" README claim was never a real measurement.
 
@@ -1417,7 +1417,7 @@ backtest, never a unit test).
 
 ### 99. Reconciliation tool's own cross-run contamination and live-vs-offline tie-break order fixed; NVDA/GE/WFC/XOM/BA re-measured — neither bug explains it, but the real evidence now points somewhere new (V5.3.2, continues #91/#97)
 
-**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (the two tooling bugs); NVDA/GE/WFC/XOM/BA stays 🟡 open with a new, sharper lead
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (the two tooling bugs); NVDA/GE/WFC/XOM/BA's new lead was chased down and mostly fixed, see #100 — BA still open
 
 **Problem:** Beneath #97's fixes, two real bugs remained in the reconciliation *tooling itself* (not the live decision path): (1) `--reconcile-book-history`/`--replay-hysteresis` deduplicated dates across `visualization/book_history.jsonl`'s entire cumulative history (last-write-wins) before reconciling — confirmed empirically: of 469 real records / 174 unique dates, **160 dates (92%) recur across more than one historical run**, one date in as many as 8 — so the hysteresis walk silently carried `held_allocations` across real run boundaries as if one continuous backtest, and every overlap number this project has ever reported for this tool was measuring a contaminated mix. (2) `cross_sectional_rank_scores()`/`_select_book_group()` are Python-stable sorts keyed only on rank, so an exact tie resolves by the caller's raw-scores dict insertion order — live builds that dict in `self.symbols`' fixed universe order (`config.json`'s `phase1.universe.assets`), but the reconciliation tooling built it from a pandas `groupby` (dataset row order), a different, uncorrelated order. A tied pair near a top/bottom-N boundary could pick a different winner live vs. offline with byte-identical scores.
 
@@ -1433,3 +1433,41 @@ backtest, never a unit test).
 - **NVDA/GE/WFC/XOM/BA, measured on the densest real run (112 dates):** both bugs fixed, but neither explains this divergence. Mismatch rates stay high (XOM 93%, WFC 78%, NVDA 69%, GE 52%, BA 48% of their appearances) and, critically, on the dates these 5 tickers **do** appear matched on both sides, their raw-score deltas are large (0.11-0.21 on a [0,1] percentile scale) — a genuine tie-break artifact would show near-*zero* deltas on matched days and only flip the rare truly-tied day. Also strongly directional: "live selects it, offline's fresh re-derivation doesn't" outnumbers the reverse roughly 4-5:1 for all 5 tickers, sustained across the whole 2+ year run, not just near run boundaries (rules out a cold-start artifact too).
 
 **New lead (not yet root-caused):** the evidence now points at a real, persistent raw-score computation discrepancy between live and offline for these 5 tickers specifically, not a selection-boundary artifact of any kind. Next step for a future round: compare live's rolling-window feature computation (`main.py`'s deques) against offline's dataset-precomputed features for these 5 tickers directly, looking for a data/feature-pipeline difference specific to them (e.g. corporate-action history, a data-vendor discontinuity, or a rolling-window fill difference) rather than continuing to look at gates, hysteresis mechanics, or tie-breaks — all three are now ruled out by direct evidence across #91/#97/#99.
+
+**Update (V5.3.2) — root cause found for 4 of 5 tickers, see #100.** The next-lead comparison above found it: 63 of 77 equity tickers had no local Lean split/dividend factor file, silently leaving offline's training data unadjusted while live was always correctly adjusted. See #100 for the fix and the real, measured (mixed but net-positive) improvement.
+
+---
+
+### 100. Missing Lean split/dividend factor files for 63 of 77 equity tickers — offline trained on raw, unadjusted prices while live was always correct; fixed for the 5 tracked tickers, real measured improvement for 4 of them (V5.3.3, continues #91/#97/#99)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed and verified` (root cause + fix); NVDA and BA's residual divergence stay 🟡 open
+
+**Problem:** `train.py::apply_split_adjustments()` backward-adjusts each ticker's OHLCV using a local factor file (`data/equity/usa/factor_files/<ticker>.csv`) — Lean's own format, the same adjustment `DataNormalizationMode.Adjusted` already applies to `main.py`'s live/backtest feed automatically. When the local file is missing, `load_factor_file()` returns `None` and `apply_split_adjustments()` silently no-ops (`if factors is None: return frame`) — offline trains on **raw, unadjusted prices**, live never has this problem. Direct count: of 104 configured assets (77 equities), only 22 had a local factor file. The other **63, including all 5 of #91/#97/#99's tracked tickers**, didn't — a local/incomplete data pull (this whole `data/` tree is gitignored), not a deliberate decision anywhere in the code.
+
+Verified the mechanism with real yfinance data for the exact backtest window (2019-01-01–2021-04-02): XOM (9 dividends, $7.78/share), WFC (9, $3.24/share), BA (5, $10.275/share) all paid material, real, uncorrected dividends; GE additionally had a real corporate-action event on 2019-02-26 (a 1.04 factor, the Wabtec spinoff). Each creates an artificial single-day return dip in offline's uncorrected raw prices that corrupts trailing return/momentum features for a window afterward — exactly matching the observed directional bias (offline's dividend-depressed score ranks these tickers lower than live's correct one). NVDA's dividend is negligible ($0.036/share) and its only splits are both after the window; checked whether Lean's backward-adjustment convention could still matter and confirmed a pure split factor is a constant multiplicative scalar that cancels out exactly in both return-ratio features and `liquidity_log_dollar_volume` — **NVDA is not explained by this mechanism**, reported honestly rather than force-fit.
+
+**Fix:**
+- New `data_pipeline/factor_file_backfill.py`, matching `dividend_backfill.py`'s established two-safety-boundary convention (`--apply`/dry-run-by-default, deferred `import yfinance`). Derives real Lean-format factor files from yfinance's own dividend/split history via the standard backward-adjustment algorithm (cumulative product working backward from the most recent event), validated directly against a real on-disk factor file's exact format and step-boundary behavior. Tickers with zero real corporate-action history are skipped (no file written) rather than given a sentinel-only file — behaviorally identical through `load_factor_file()`'s existing `None` fallback, lower risk.
+- Ran it for real: `python -m data_pipeline.factor_file_backfill --apply` wrote 63 new factor files (85 total now on disk), zero fetch failures across the full universe.
+- `aq train --dataset-only` regenerated `ml/datasets/*.csv` with the new files picked up automatically — **zero changes to `train.py` itself**; `load_factor_file()`/`apply_split_adjustments()` already did the right thing the moment a file exists.
+- `min_rank_confidence_spread` recalibrated fresh (must happen *after* the dataset regeneration, since the fix changes the input distribution being calibrated) and applied to `config.json` this round: **0.2831** (close to V5.3.2's pre-fix 0.2901, confirming the calibration is stable) replacing the stale `0.5014` from #89 — updated in all three places it's configured (the live `phase_v2.portfolio_book` key plus both `phase_v2.presets.moderate`/`aggressive` copies, which are stored as flat dotted-string dict keys `aq config set` cannot reach — required a direct JSON edit, confirmed via `_set_config_value()`'s segment-by-segment path resolution).
+
+**Verification:**
+- 14 new tests (`tests/test_factor_file_backfill.py`) — pure factor-math, write/read round-trip directly against `train.py::load_factor_file()` (the real consumer contract), yfinance-unavailable graceful degradation. Full suite 2624→2638, 0 failures (11 pre-existing Docker-unavailable errors unrelated).
+- **Mechanical fix confirmed on real data**: compared `close_to_close_return_1d` before/after regeneration on every real, exact ex-dividend date for XOM/WFC/BA/GE (fetched directly from yfinance, not guessed). Every single event shows the identical, correct pattern — the day *of* the event unchanged, the day *after* shows a real, positive correction matching the event's own magnitude almost exactly (GE's 2019-02-27 correction: +4.08%, matching its 1.04 spinoff factor to two decimal places).
+- **Divergence re-measured against the corrected dataset** (`--reconcile-book-history --replay-hysteresis --reconcile-all-runs`, densest real run, 112 dates) — real, measured, mixed-but-net-positive: XOM's mismatch rate dropped 93%→65% (the cleanest, largest, uncomplicated dividend history), WFC 78%→71%, GE 52%→47%, NVDA 69%→59% (a real second-order effect — fixing 62 *other* tickers' scores shifts the cross-sectional percentile NVDA is ranked against, even though NVDA's own raw score is unaffected). BA stayed flat (48%→49%, mean matched-day delta slightly worse) — plausibly explained by genuine 2020 COVID-era price volatility swamping the adjustment effect, not yet confirmed. Aggregate `mean_overlap_fraction` across all 8 runs moved in both directions by a few points (some up, some down) — expected, since correcting 5 tickers' scores also shifts which *other* borderline tickers clear the top/bottom-N cutoff, not a clean unconfounded signal on its own.
+- Confirmed via code reading, not assumed: this fix does **not** change `main.py`'s live/backtest behavior at all (`main.py` never used factor files — Lean was always correct). It only affects future model retrains and the offline reconciliation tool's own ground truth. The recalibration change, by contrast, does change the live decision path via `config.json` — the user's own real `aq backtest` run (pending as of this entry) is the test for that, not this fix.
+
+**Follow-ups:** BA's flat result and NVDA's still-partial divergence remain open — BA plausibly swamped by real 2020 volatility, NVDA needs a different mechanism entirely (dividend/split-adjustment is definitively ruled out for it). A full model retrain on the corrected dataset is explicitly out of scope this round (Codespace-only per this project's established rule) — a natural next step once the user's pending real backtest confirms the recalibration is safe.
+
+---
+
+### 101. `aq evaluate --all`'s non-JSON reporting crashed on Windows — a Greek Δ character isn't in the cp1252 console codec
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** Refreshing the README's offline evaluation numbers post-#100 (`aq evaluate --all --model sequence`/`--model multitask`, non-`--json`) crashed both runs with `UnicodeEncodeError: 'charmap' codec can't encode character 'Δ'` — `aq_cli.py`'s "lag tax" delta-print line (`f"  Δnet_sharpe vs entry_lag_bars=0: ..."`) used a literal Δ, which isn't in Windows' default `cp1252` console codec (unlike the em-dashes used safely elsewhere in this file). The crash happened mid-`--all`, after rank-book's own reporting but *before* capacity/stress/calibrate-edge ran and before the README refresh call — so every `--all` run on a real Windows console had been silently leaving capacity/cost-stress numbers stale and the README never refreshed, with no error surfaced anywhere but stderr.
+
+**Fix:** Replaced the Δ with the ASCII `delta_net_sharpe` label.
+
+**Verification:** `python -m py_compile aq_cli.py` clean; `tests/test_aq_cli.py` (216 tests) still green; both `--all` re-runs (sequence and multitask) completed end-to-end afterward with no crash, correctly refreshing capacity/cost-stress/README sections that had been silently stuck since Aug 13.

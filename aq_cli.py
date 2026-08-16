@@ -701,7 +701,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     ],
     "data-pipeline": [
         "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
-        "test_dividend_backfill.py",
+        "test_dividend_backfill.py", "test_factor_file_backfill.py",
     ],
     "webui": [
         "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
@@ -2201,7 +2201,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         if not args.json:
             print(f"Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
             print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
-            print(f"  Δnet_sharpe vs entry_lag_bars=0: {lagged_result.net_sharpe - result.net_sharpe:+.4f}")
+            print(f"  delta_net_sharpe vs entry_lag_bars=0: {lagged_result.net_sharpe - result.net_sharpe:+.4f}")
 
     # V5.2.8 (development/Problems.md #94) - reuses --rank-book's own
     # `result` (per_date/per_date_net_return) when that flag was also
