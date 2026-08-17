@@ -1341,3 +1341,16 @@ See `development/Problems.md` #98/#99 for full evidence and scope notes.
 - README's offline evaluation numbers refreshed against the corrected dataset for both models (`aq evaluate --all --model sequence`/`--model multitask`, after the Δ fix): multitask net Sharpe **1.334→1.681** (up), sequence net Sharpe **1.517→0.997** (down) — a genuinely mixed, real result, not a uniform improvement; some of sequence's prior apparent edge was plausibly benefiting from the uncorrected dividend-dip artifact. Capacity, cost-stress, and the Sharpe-gap comparison table all refreshed consistently alongside it.
 
 See `development/Problems.md` #100/#101 for full evidence and scope notes.
+
+## V5.3.3 real backtest verification (2026-08-17) — factor-file fix confirmed strongly live; confidence-spread recalibration regressed Sharpe
+
+**Summary:** The user's real `aq backtest` (2019-01-01–2021-04-02, ~6.8h) tested both V5.3.3 changes. Clean single-variable A/B against the prior real run (`backtests/2026-08-14_18-46-38`) since the factor-file fix never touches `main.py`'s live path — only the recalibration does.
+
+**Result:**
+- Orders 230→695, unique trading days 130→360 (the lower confidence-spread threshold re-engaging far more dates, as predicted).
+- **Sharpe regressed: -1.034→-1.798.** Net Profit -1.60%→-5.51%. Root-caused via the equity curve and #98's own per-era IC diagnostic: the lower threshold now trades through 111 of ~124 days in the *known* no-skill era (Apr-Sep 2019) and through two more weak/negative-IC eras in 2020 that the old threshold correctly avoided. The calibration methodology (natural score-dispersion percentile) can't distinguish "the model differentiates symbols" from "that differentiation is actually correct."
+- **Factor-file fix (#100) confirmed far more strongly live than the offline-only estimate suggested**: fresh reconciliation against this run's own `book_history.jsonl` (56 dates, the densest live sample yet) — GE mismatch 52%→15%, BA 48%→12%, NVDA 69%→25%, WFC 78%→55%, overall overlap fraction 56.9% (the best of the whole investigation). XOM showed 100% mismatch but on only 9 appearances — flagged, not concluded.
+
+**Recommendation:** reconsider/partially revert the applied `min_rank_confidence_spread` value in a future round; the factor-file fix itself should stay as-is.
+
+See `development/Problems.md` #102 for full evidence.
