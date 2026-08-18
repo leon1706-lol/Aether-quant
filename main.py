@@ -75,6 +75,14 @@ from portfolio import (
     should_rebalance_this_bar,
 )
 from portfolio.book_neutrality import apply_book_neutrality
+# V5.3.5 (development/Problems.md #102) - a genuinely light, direct
+# submodule import (not routed through portfolio/__init__.py, though that
+# package is itself safe today) so a future addition there can never
+# silently pull something heavy into this exact import - see
+# evaluation/rank_ic_core.py's own module docstring (imported
+# transitively below) for the isolator-timeout class of failure this is
+# written to avoid.
+from portfolio.rolling_ic_gate import compute_rolling_ic_state, evaluate_rolling_ic_gate
 # V4.4 - held-contract/held-legs sizing (development/Problems.md): sizes an
 # ALREADY-HELD contract/spread on its own current greeks. Imported directly
 # (not routed through risk/asset_class_router.py::route_position_sizing(),
@@ -879,6 +887,37 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         self.portfolio_book_hysteresis_rank_margin = float(
             phase_v2_portfolio_book.get("hysteresis_rank_margin", 0.0)
+        )
+        # V5.3.5 (development/Problems.md #102) - a rolling TRAILING
+        # realized-IC book-engagement veto, independent of
+        # min_rank_confidence_spread (see portfolio/rolling_ic_gate.py's
+        # own module docstring for why this is a separate mechanism, not
+        # folded into that gate). `enabled` defaults False - a full no-op
+        # until deliberately calibrated and flipped, same convention as
+        # every other new gate in this codebase. self._rolling_ic_event_buffer
+        # is a flat, in-memory deque of {"ticker", "created_at",
+        # "resolved_predicted_rank_20d", "close_price"} dicts, appended
+        # every bar in Pass 1c below using the pre-normalization
+        # raw_rank_score (same rationale spread_check_ranks already
+        # documents) - the exact same precedent as
+        # self._kill_switch_return_history/self._probability_up_history_by_symbol
+        # further down this method. Sized generously (universe_size x
+        # (rolling_window_days + horizon_days) x a small margin) - trivial
+        # memory for a flat list of small dicts, and oversizing costs
+        # nothing since compute_rolling_ic_state() itself restricts to the
+        # trailing rolling_window_days UNIQUE resolved dates regardless of
+        # how much history the buffer happens to hold.
+        phase_v2_rolling_ic_gate = self.phase_v2.get("rolling_ic_gate", {})
+        self.rolling_ic_gate_enabled = bool(phase_v2_rolling_ic_gate.get("enabled", False))
+        self.rolling_ic_gate_horizon_days = int(phase_v2_rolling_ic_gate.get("horizon_days", 20))
+        self.rolling_ic_gate_rolling_window_days = int(phase_v2_rolling_ic_gate.get("rolling_window_days", 40))
+        self._rolling_ic_gate_config = dict(phase_v2_rolling_ic_gate)
+        self._rolling_ic_event_buffer: deque = deque(
+            maxlen=max(
+                1,
+                len(self.symbols)
+                * (self.rolling_ic_gate_rolling_window_days + self.rolling_ic_gate_horizon_days + 20),
+            )
         )
         # Non-model safety exits (development/Problems.md): main.py used to
         # have NO stop-loss/take-profit/trailing/max-age exit at all - a
@@ -2077,6 +2116,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # stale bare variable.
                 "corporate_action_payload": corporate_action_payload,
             }
+            # V5.3.5 (development/Problems.md #102) - append this bar's
+            # PRE-NORMALIZATION raw_rank_score (never the post-normalization
+            # cross-sectional percentile, which always looks "dispersed" by
+            # construction regardless of real skill - same rationale
+            # spread_check_ranks documents above) into the rolling rank-IC
+            # event buffer, gated behind rolling_ic_gate_enabled - zero
+            # cost when off (the default). Skips a symbol with no rank
+            # this bar (raw_rank_score is None - model still warming up),
+            # matching evaluation.rank_ic_core.resolve_realized_rank_ic_observations()'s
+            # own "model unavailable" skip contract, never fabricates one.
+            # bar.close mirrors Pass 2's own close_price = float(bar.close)
+            # read on this exact same bar object further down.
+            if self.rolling_ic_gate_enabled and raw_rank_score is not None:
+                self._rolling_ic_event_buffer.append(
+                    {
+                        "ticker": symbol_key,
+                        "created_at": f"{self.Time.date()}T00:00:00Z",
+                        "resolved_predicted_rank_20d": raw_rank_score,
+                        "close_price": float(bar.close),
+                    }
+                )
             asset = self.asset_lookup[str(symbol)]
             book_candidates[symbol_key] = {
                 "predicted_rank_20d": predicted_rank_20d,
@@ -2176,6 +2236,33 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     for symbol_key, state in pass1_state.items()
                     if state["raw_rank_score"] is not None
                 }
+                # V5.3.5 (development/Problems.md #102) - computed BEFORE
+                # build_rank_based_book() so its result can be threaded
+                # through as a second, independent veto - see
+                # portfolio/book_construction.py::_select_book_group()'s
+                # own docstring for the exact ordering contract (spread
+                # veto still wins when both would fire the same bar).
+                # rolling_ic_gate_result stays None when disabled (the
+                # shipped default) - build_rank_based_book()'s own
+                # None-default contract then reproduces today's exact
+                # behavior, byte-identical, same convention as every other
+                # optional parameter added this round.
+                rolling_ic_gate_result = None
+                if self.rolling_ic_gate_enabled:
+                    rolling_ic_state = compute_rolling_ic_state(
+                        list(self._rolling_ic_event_buffer),
+                        horizon_days=self.rolling_ic_gate_horizon_days,
+                        rolling_window_days=self.rolling_ic_gate_rolling_window_days,
+                        min_names_per_date=int(self._rolling_ic_gate_config.get("min_names_per_date", 10)),
+                    )
+                    rolling_ic_gate_result = evaluate_rolling_ic_gate(rolling_ic_state, self._rolling_ic_gate_config)
+                # Output-by-mutation slot (book_construction.py's own
+                # docstring explains why this is a dict-to-mutate rather
+                # than a build_rank_based_book() return-type change) -
+                # populated whenever either veto fires; read below when
+                # book_history is written, same "only ever assigned in
+                # this branch" convention spread_check_ranks already uses.
+                book_gate_veto_reason: dict[str, str] = {}
                 book_allocations = build_rank_based_book(
                     book_candidates,
                     top_n=self.portfolio_book_top_n,
@@ -2195,6 +2282,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     previous_allocations=self._last_book_allocations or None,
                     hysteresis_rank_margin=self.portfolio_book_hysteresis_rank_margin,
                     spread_check_ranks=spread_check_ranks,
+                    rolling_ic_gate_result=rolling_ic_gate_result,
+                    veto_reason_out=book_gate_veto_reason,
                 )
                 self._last_book_allocations = book_allocations
 
@@ -2766,12 +2855,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # a rebalance, since book_allocations stays truthy (carried
         # forward via self._last_book_allocations) on every bar between
         # rebalances, but spread_check_ranks is only ever assigned on the
-        # bar it's freshly computed.
+        # bar it's freshly computed. book_history_should_log_this_bar
+        # alone is the correct, sufficient gate for that reason - it is
+        # ONLY ever True inside the same branch that freshly assigns both
+        # spread_check_ranks and book_gate_veto_reason.
+        #
+        # V5.3.5 (development/Problems.md #102) - deliberately no longer
+        # `and book_allocations`: a genuine rebalance bar whose
+        # build_rank_based_book() call came back EMPTY (either veto) used
+        # to leave zero trace in this log, making it impossible to tell
+        # from book_history.jsonl alone whether a disengaged stretch came
+        # from min_rank_confidence_spread, the new rolling-IC gate, or
+        # anything else - see build_book_history_record()'s own
+        # gate_veto_reason docstring paragraph.
         if (
             self.book_history_diagnostics_enabled
             and self.runtime_mode == "backtest"
             and book_history_should_log_this_bar
-            and book_allocations
         ):
             try:
                 # V5.2.3 (development/Problems.md #91) - `signals`
@@ -2804,6 +2904,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self._rank_signal_policy,
                     full_universe_signals=full_universe_signals,
                     book_member_decisions=(book_member_decisions if self.book_history_include_decisions else None),
+                    gate_veto_reason=book_gate_veto_reason.get("reason"),
                 )
                 self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:

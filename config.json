@@ -1739,6 +1739,14 @@
             },
             "hysteresis_rank_margin": 0.05
         },
+        "rolling_ic_gate": {
+            "enabled": true,
+            "horizon_days": 20,
+            "rolling_window_days": 40,
+            "min_resolved_dates_required": 20,
+            "min_rolling_mean_ic": 0.02,
+            "min_names_per_date": 10
+        },
         "exits": {
             "enabled": true,
             "max_holding_bars": 20,

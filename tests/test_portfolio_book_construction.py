@@ -179,6 +179,98 @@ def test_build_rank_based_book_engages_when_spread_clears_confidence_floor():
 
 
 # ---------------------------------------------------------------------------
+# rolling_ic_gate_result / veto_reason_out (V5.3.5, development/Problems.md #102)
+# ---------------------------------------------------------------------------
+
+
+def test_build_rank_based_book_none_rolling_ic_gate_result_is_byte_identical_to_before():
+    # The critical regression guard: not passing this new parameter at all
+    # must reproduce every existing caller's exact behavior.
+    candidates = {"A": _candidate(0.95), "B": _candidate(0.05)}
+
+    book = build_rank_based_book(candidates, top_n=1, bottom_n=1)
+
+    assert book["A"].role == "long"
+    assert book["B"].role == "short"
+
+
+def test_build_rank_based_book_rolling_ic_gate_vetoes_even_when_spread_clears():
+    candidates = {"A": _candidate(0.95), "B": _candidate(0.05)}
+    rolling_ic_gate_result = {"engaged": False, "reason": "rolling_ic_below_floor"}
+
+    book = build_rank_based_book(
+        candidates, top_n=1, bottom_n=1, min_rank_confidence_spread=0.0,
+        rolling_ic_gate_result=rolling_ic_gate_result,
+    )
+
+    assert book == {}
+
+
+def test_build_rank_based_book_rolling_ic_gate_engaged_does_not_veto():
+    candidates = {"A": _candidate(0.95), "B": _candidate(0.05)}
+    rolling_ic_gate_result = {"engaged": True, "reason": "rolling_ic_above_floor"}
+
+    book = build_rank_based_book(
+        candidates, top_n=1, bottom_n=1, rolling_ic_gate_result=rolling_ic_gate_result,
+    )
+
+    assert book["A"].role == "long"
+    assert book["B"].role == "short"
+
+
+def test_build_rank_based_book_veto_reason_out_populated_for_spread_veto():
+    candidates = {"A": _candidate(0.52), "B": _candidate(0.51), "C": _candidate(0.49), "D": _candidate(0.48)}
+    veto_reason_out: dict = {}
+
+    book = build_rank_based_book(
+        candidates, top_n=2, bottom_n=2, min_rank_confidence_spread=0.5, veto_reason_out=veto_reason_out,
+    )
+
+    assert book == {}
+    assert veto_reason_out["reason"] == "min_rank_confidence_spread_below_floor"
+
+
+def test_build_rank_based_book_veto_reason_out_populated_for_rolling_ic_veto():
+    candidates = {"A": _candidate(0.95), "B": _candidate(0.05)}
+    rolling_ic_gate_result = {"engaged": False, "reason": "rolling_ic_below_floor"}
+    veto_reason_out: dict = {}
+
+    book = build_rank_based_book(
+        candidates, top_n=1, bottom_n=1, rolling_ic_gate_result=rolling_ic_gate_result,
+        veto_reason_out=veto_reason_out,
+    )
+
+    assert book == {}
+    assert veto_reason_out["reason"] == "rolling_ic_below_floor"
+
+
+def test_build_rank_based_book_veto_reason_out_untouched_when_book_engages():
+    candidates = {"A": _candidate(0.95), "B": _candidate(0.05)}
+    veto_reason_out: dict = {}
+
+    book = build_rank_based_book(candidates, top_n=1, bottom_n=1, veto_reason_out=veto_reason_out)
+
+    assert book != {}
+    assert veto_reason_out == {}
+
+
+def test_build_rank_based_book_spread_checked_before_rolling_ic_gate():
+    # Both would veto - the spread check runs first (deterministic reason
+    # when multiple gates would independently disengage the same day).
+    candidates = {"A": _candidate(0.52), "B": _candidate(0.51), "C": _candidate(0.49), "D": _candidate(0.48)}
+    rolling_ic_gate_result = {"engaged": False, "reason": "rolling_ic_below_floor"}
+    veto_reason_out: dict = {}
+
+    book = build_rank_based_book(
+        candidates, top_n=2, bottom_n=2, min_rank_confidence_spread=0.5,
+        rolling_ic_gate_result=rolling_ic_gate_result, veto_reason_out=veto_reason_out,
+    )
+
+    assert book == {}
+    assert veto_reason_out["reason"] == "min_rank_confidence_spread_below_floor"
+
+
+# ---------------------------------------------------------------------------
 # spread_check_ranks (V5.1 Phase 1, development/Problems.md #77)
 #
 # The regression this reproduces: main.py feeds build_rank_based_book()
@@ -926,3 +1018,22 @@ def test_build_book_history_record_decisions_missing_keys_degrade_to_none_and_em
         book_member_decisions={"A": {}},
     )
     assert record["book_member_decisions"]["A"] == {"action": None, "reasons": []}
+
+
+def test_build_book_history_record_omits_gate_veto_reason_key_when_none():
+    # V5.3.5 - gate_veto_reason=None (the default) must reproduce the
+    # exact pre-#102 record shape - no "gate_veto_reason" key at all.
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+    )
+    assert "gate_veto_reason" not in record
+
+
+def test_build_book_history_record_includes_gate_veto_reason_when_provided():
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+        gate_veto_reason="rolling_ic_below_floor",
+    )
+    assert record["gate_veto_reason"] == "rolling_ic_below_floor"

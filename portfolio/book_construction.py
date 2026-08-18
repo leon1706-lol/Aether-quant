@@ -190,6 +190,8 @@ def _select_book_group(
     previous_allocations: dict[str, BookAllocation] | None = None,
     hysteresis_rank_margin: float = 0.0,
     spread_check_ranks: dict[str, float] | None = None,
+    rolling_ic_gate_result: dict | None = None,
+    veto_reason_out: dict | None = None,
 ) -> dict[str, BookAllocation]:
     """Core discrete top-N-long / bottom-N-short selection over an already-
     filtered `{symbol: predicted_rank_20d}` pool - shared by the pooled
@@ -218,8 +220,32 @@ def _select_book_group(
     that day - a normalized-scale spread check is statistically
     meaningless, it can never distinguish a genuinely dispersed day from a
     noisy one. Passing the pre-normalization raw scores here restores the
-    gate's actual purpose: does the RAW output show real dispersion."""
+    gate's actual purpose: does the RAW output show real dispersion.
+
+    `rolling_ic_gate_result` (V5.3.5, development/Problems.md #102):
+    optional output of portfolio.rolling_ic_gate.evaluate_rolling_ic_gate() -
+    an INDEPENDENT second veto alongside min_rank_confidence_spread above.
+    Default None is a strict no-op (byte-identical to before this
+    parameter existed) - same "missing/degraded signal never changes
+    trading behavior" contract every optional overlay in this function
+    already guarantees. Where the dispersion check asks "did the model
+    differentiate symbols today," this one asks "has the model's recent
+    trailing prediction quality actually been good" - #102 found a real
+    backtest where the answer to the first question was "yes" throughout
+    a stretch where the honest answer to the second was "no."
+
+    `veto_reason_out` (V5.3.5, development/Problems.md #102): optional
+    output-by-mutation dict - when not None, this function sets
+    `veto_reason_out["reason"]` to a short string identifying WHY `{}` was
+    returned, for each of the veto paths below. Deliberately NOT a return-
+    type change (this function has real callers beyond main.py - the
+    offline reconciliation/ablation/capacity tools - that must never need
+    to change how they read this function's result just to get a
+    diagnostic only main.py's own book-history logging wants); a caller
+    that doesn't pass this argument is completely unaffected."""
     if len(eligible_ranks) < 2 or top_n <= 0:
+        if veto_reason_out is not None:
+            veto_reason_out["reason"] = "thin_universe_or_zero_top_n"
         return {}
     spread_ranks = spread_check_ranks if spread_check_ranks is not None else eligible_ranks
 
@@ -249,6 +275,8 @@ def _select_book_group(
         )
 
     if not long_symbols:
+        if veto_reason_out is not None:
+            veto_reason_out["reason"] = "no_long_candidates"
         return {}
     # bottom_n > 0 means a short side was actually requested - if nothing
     # was left over to fill it (long_n consumed the whole eligible pool),
@@ -258,6 +286,8 @@ def _select_book_group(
     # strategy_mode enforcement) is a deliberate long-only request, not a
     # degenerate case - falls through to the long-only book below.
     if bottom_n > 0 and not short_symbols:
+        if veto_reason_out is not None:
+            veto_reason_out["reason"] = "no_short_candidates"
         return {}
 
     if short_symbols:
@@ -267,7 +297,21 @@ def _select_book_group(
         # means for a given selection.
         spread = compute_confidence_spread(long_symbols, short_symbols, spread_ranks, eligible_ranks)
         if spread is not None and spread < min_rank_confidence_spread:
+            if veto_reason_out is not None:
+                veto_reason_out["reason"] = "min_rank_confidence_spread_below_floor"
             return {}
+
+    # V5.3.5 (development/Problems.md #102) - an INDEPENDENT second veto,
+    # checked regardless of whether a short leg was requested (unlike the
+    # spread check above, which only has meaning for a two-sided book):
+    # the model can look genuinely dispersed today (clearing the check
+    # above) while its recent TRAILING predictions have carried near-zero
+    # or negative realized skill - a real backtest showed this happens,
+    # and that the dispersion-only gate can't tell the difference.
+    if rolling_ic_gate_result is not None and not rolling_ic_gate_result["engaged"]:
+        if veto_reason_out is not None:
+            veto_reason_out["reason"] = rolling_ic_gate_result["reason"]
+        return {}
 
     allocations: dict[str, BookAllocation] = {}
     for symbol in long_symbols:
@@ -296,6 +340,8 @@ def build_rank_based_book(
     previous_allocations: dict[str, BookAllocation] | None = None,
     hysteresis_rank_margin: float = 0.0,
     spread_check_ranks: dict[str, float] | None = None,
+    rolling_ic_gate_result: dict | None = None,
+    veto_reason_out: dict | None = None,
 ) -> dict[str, BookAllocation]:
     """Discrete top-N-long / bottom-N-short book construction from each
     symbol's predicted_rank_20d for this bar. Continuous rank-weighted
@@ -375,7 +421,21 @@ def build_rank_based_book(
     the PRE-normalization score when the caller's `book_candidates`
     predicted_rank_20d values are already a cross-sectional percentile.
     Defaults to None (falls back to book_candidates' own predicted_rank_20d,
-    byte-identical to before this parameter existed)."""
+    byte-identical to before this parameter existed).
+
+    `rolling_ic_gate_result`/`veto_reason_out` (V5.3.5, development/
+    Problems.md #102): threaded straight through to _select_book_group() -
+    see that function's own docstring. Both default to None, a strict
+    no-op. With `per_asset_class_slots`, `rolling_ic_gate_result` is
+    applied identically to every class's own selection (this signal is
+    portfolio-wide, not asset-class-specific, unlike min_rank_confidence_spread
+    which already gets a note above about being checked per class); if
+    more than one class vetoes, `veto_reason_out` ends up holding
+    whichever class's reason was computed last - an accepted, documented
+    simplification, since the only thing that consumes this diagnostic
+    (main.py's book-history logging) only reads it when the OVERALL
+    `allocations` result comes back completely empty, at which point any
+    one real reason is more useful than none."""
     eligible = {
         symbol: candidate
         for symbol, candidate in book_candidates.items()
@@ -387,6 +447,7 @@ def build_rank_based_book(
         return _select_book_group(
             eligible_ranks, top_n, bottom_n, min_rank_confidence_spread,
             previous_allocations, hysteresis_rank_margin, spread_check_ranks,
+            rolling_ic_gate_result, veto_reason_out,
         )
 
     allocations: dict[str, BookAllocation] = {}
@@ -400,6 +461,7 @@ def build_rank_based_book(
             _select_book_group(
                 class_eligible_ranks, class_top_n, class_bottom_n, min_rank_confidence_spread,
                 previous_allocations, hysteresis_rank_margin, spread_check_ranks,
+                rolling_ic_gate_result, veto_reason_out,
             )
         )
     return allocations
@@ -487,6 +549,7 @@ def build_book_history_record(
     rank_signal_policy: dict,
     full_universe_signals: dict[str, dict] | None = None,
     book_member_decisions: dict[str, dict] | None = None,
+    gate_veto_reason: str | None = None,
 ) -> dict:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
@@ -543,7 +606,20 @@ def build_book_history_record(
     later diverted to `simulate`/`reduce_risk`/`retrain_candidate` by a
     risk/execution gate `book_allocations` alone can never reveal (see
     development/Problems.md - the crypto/FX zero-order-execution
-    finding)."""
+    finding).
+
+    `gate_veto_reason` (V5.3.5, development/Problems.md #102): `None`
+    (default) omits the key entirely, same convention as the two fields
+    above. When main.py calls this on a genuine rebalance bar whose
+    `build_rank_based_book()` call came back empty, it passes the
+    `veto_reason_out["reason"]` string that call populated (see
+    `_select_book_group()`'s own docstring) - without this, a vetoed
+    rebalance bar left ZERO trace in this log (the write was gated on
+    `book_allocations` being truthy), making it impossible to tell from
+    the log alone whether a disengaged stretch came from
+    `min_rank_confidence_spread` or the new rolling-IC gate, or anything
+    else. main.py now writes a record on every genuine rebalance bar
+    regardless of whether `book_allocations` came back empty."""
     record = {
         "date": date_str,
         "rank_signal_policy": {
@@ -584,4 +660,6 @@ def build_book_history_record(
             }
             for symbol_key, decision in book_member_decisions.items()
         }
+    if gate_veto_reason is not None:
+        record["gate_veto_reason"] = gate_veto_reason
     return record

@@ -80,6 +80,7 @@ from data_pipeline.fred_backfill import bond_reference_series, load_cached_fred_
 from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
 from evaluation.model_predictions import predict_head
 from evaluation.rank_book_simulator import capacity_curve, simulate_rank_book, stress_test_costs, summarize_metric_stability
+from evaluation.rank_ic_core import rank_ic_from_arrays
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
 from regime import build_market_regime_vector
@@ -3899,82 +3900,17 @@ def _rank_ic_from_arrays(
     dates: np.ndarray,
     non_overlapping_stride: int = 1,
 ) -> dict:
-    """Torch-free core of compute_rank_ic() (Phase 6 of the 5/10 -> 9/10
-    roadmap) - plain numpy arrays in, so this is usable from a lightweight
-    production monitoring job (performance/rank_ic_monitor.py, fed rows
-    from a Postgres query) without a torch dependency, not just from
-    training-time tensors. compute_rank_ic() below is now a thin wrapper
-    that converts tensors to numpy and calls this - both callers share the
-    identical, tested logic, zero duplication.
-
-    Per-date Spearman rank correlation ("rank-IC") between a model's raw
-    rank_5d/20d prediction score and the realized cross-sectional rank
-    target (target_rank_5d/20d - already a per-date percentile rank of
-    forward return, see build_cross_sectional_rank_targets()). This is the
-    standard evaluation metric for a cross-sectional/long-short signal,
-    replacing "win condition" from absolute-direction MCC now that Phase 4
-    exists: a mean rank-IC of 0.02-0.05 with a real t-stat is a genuine,
-    monetizable edge in this literature, unlike 1d-direction MCC's noise
-    band.
-
-    Spearman(A, B) = Pearson(rank(A), rank(B)); target_rank is already
-    rank(realized return) rescaled to [0, 1] (a positive affine transform,
-    which Pearson is invariant to), so only the model's own raw prediction
-    needs an explicit per-date rank transform before a plain Pearson
-    correlation against target_rank directly reproduces the true Spearman
-    correlation between prediction and realized return.
-
-    `non_overlapping_stride` (e.g. 5 for the 5d horizon, 20 for the 20d
-    horizon) subsamples to every Nth unique date before computing -
-    consecutive daily rows share most of their forward-return window, so
-    the naive daily IC series is autocorrelated and its plain t-stat
-    overstates significance; the non-overlapping subsample gives a more
-    honest (if noisier, fewer-observation) significance check. Pass 1
-    (default) for the full, autocorrelated series.
-
-    Dates with fewer than 2 eligible (non-NaN target) assets, or zero
-    variance on either side (e.g. every asset tied), contribute no IC
-    value for that date (skipped, not a spurious 0.0 - which would
-    misrepresent "undefined" as "no correlation")."""
-    frame = pd.DataFrame({"date": np.asarray(dates), "prediction": predictions, "target_rank": targets})
-    frame = frame.dropna(subset=["target_rank"])
-
-    if non_overlapping_stride > 1:
-        unique_dates = sorted(frame["date"].unique())
-        keep_dates = set(unique_dates[::non_overlapping_stride])
-        frame = frame[frame["date"].isin(keep_dates)]
-
-    ic_values = []
-    for _, group in frame.groupby("date"):
-        if len(group) < 2:
-            continue
-        prediction_rank = group["prediction"].rank(pct=True)
-        if prediction_rank.nunique() < 2 or group["target_rank"].nunique() < 2:
-            continue
-        correlation = float(np.corrcoef(prediction_rank, group["target_rank"])[0, 1])
-        if not np.isnan(correlation):
-            ic_values.append(correlation)
-
-    if not ic_values:
-        return {"mean_ic": 0.0, "std_ic": 0.0, "t_stat": 0.0, "num_dates": 0, "ic_values": []}
-
-    ic_array = np.asarray(ic_values)
-    mean_ic = float(ic_array.mean())
-    std_ic = float(ic_array.std(ddof=1)) if len(ic_array) >= 2 else 0.0
-    t_stat = float(mean_ic / (std_ic / np.sqrt(len(ic_array)))) if std_ic > 0 else 0.0
-    # ic_values (Phase 2 of the 5/10 -> 9/10 roadmap): the raw per-date
-    # series, previously discarded once the aggregate stats above were
-    # computed - callers now need it for bootstrap_ic_confidence_interval()
-    # rather than recomputing this whole function from scratch. Additive
-    # dict key, backward-compatible with every existing caller that only
-    # reads mean_ic/std_ic/t_stat/num_dates.
-    return {
-        "mean_ic": mean_ic,
-        "std_ic": std_ic,
-        "t_stat": t_stat,
-        "num_dates": int(len(ic_array)),
-        "ic_values": [float(value) for value in ic_values],
-    }
+    """V5.3.5 (development/Problems.md #102) - thin re-export.
+    The actual implementation now lives in
+    evaluation/rank_ic_core.py::rank_ic_from_arrays() (moved, not
+    duplicated) so main.py's live decision path can import the torch-free
+    IC core directly without pulling in this module's heavy torch/sklearn
+    imports (development/Problems.md #16 - the Lean 90-second isolator
+    timeout this exact class of import risk already caused once). This
+    alias exists purely so every existing internal call site in this file
+    (compute_rank_ic(), bootstrap_ic_confidence_interval(), era-stability
+    checks) keeps working unchanged. See the real docstring there."""
+    return rank_ic_from_arrays(predictions, targets, dates, non_overlapping_stride)
 
 
 def compute_rank_ic(

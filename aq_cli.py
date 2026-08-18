@@ -689,6 +689,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_options_greeks.py", "test_simulated_portfolio.py", "test_options_assignment_risk.py",
         # V5.1 Phase 1 (development/Problems.md #73) - portfolio/rank_signal.py.
         "test_rank_signal.py",
+        # V5.3.5 (development/Problems.md #102) - portfolio/rolling_ic_gate.py.
+        "test_rolling_ic_gate.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -756,6 +758,10 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_kill_switch_replay.py",
         # V5.3.1 (Problems.md #34/#96) - evaluation/limit_fill_simulator.py.
         "test_limit_fill_simulator.py",
+        # V5.3.5 (Problems.md #102) - evaluation/rank_ic_core.py,
+        # evaluation/rolling_ic_gate_calibration.py, evaluation/
+        # rolling_ic_gate_replay.py.
+        "test_rank_ic_core.py", "test_rolling_ic_gate_calibration.py", "test_rolling_ic_gate_replay.py",
     ],
 }
 
@@ -2134,10 +2140,18 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # run_calibrate_book_spread immediately above: a heavier, opt-in-only
     # report, not bundled into --all.
     run_calibrate_confidence_threshold = bool(getattr(args, "calibrate_confidence_threshold", False))
+    # V5.3.5 (development/Problems.md #102) - same reasoning as
+    # run_calibrate_book_spread/run_calibrate_confidence_threshold above: a
+    # heavier, opt-in-only report, not bundled into --all.
+    run_calibrate_rolling_ic_floor = bool(getattr(args, "calibrate_rolling_ic_floor", False))
     # V5.2.8 (development/Problems.md #94) - same reasoning as --ablation/
     # --calibrate-book-spread above: a heavier, investigation-only report,
     # not bundled into --all.
     run_replay_kill_switch = bool(getattr(args, "replay_kill_switch", False))
+    # V5.3.5 (development/Problems.md #102) - same reasoning as
+    # --replay-kill-switch above: a heavier, investigation-only report,
+    # not bundled into --all.
+    run_replay_rolling_ic_gate = bool(getattr(args, "replay_rolling_ic_gate", False))
     # V5.3.1 (development/Problems.md #34/#96) - same reasoning as
     # --replay-kill-switch above: a heavier, investigation-only report,
     # not bundled into --all.
@@ -2152,8 +2166,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # wasn't counted as "a flag was given".
     if not (
         run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag
-        or run_calibrate_book_spread or run_calibrate_confidence_threshold or run_replay_kill_switch
-        or run_simulate_limit_fills
+        or run_calibrate_book_spread or run_calibrate_confidence_threshold or run_calibrate_rolling_ic_floor
+        or run_replay_kill_switch or run_replay_rolling_ic_gate or run_simulate_limit_fills
     ):
         run_rank_book = True
 
@@ -2421,6 +2435,174 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 "it does not certify the underlying rank heads are skillful. Check ml/*_training_metrics.json's "
                 "quality_status before trusting the resulting book."
             )
+
+    if run_calibrate_rolling_ic_floor:
+        # V5.3.5 (development/Problems.md #102) - min_rolling_mean_ic was
+        # about to be shipped as a guessed constant, the same
+        # "guessed-then-calibrated" gap min_rank_confidence_spread had
+        # (Problems.md #89) before --calibrate-book-spread fixed it.
+        # Mirrors that tool's exact structure, including recomputing the
+        # blended raw score fresh rather than reusing a value from a
+        # different block - see run_calibrate_book_spread above for why
+        # that duplication is this file's own established convention.
+        from evaluation import compute_blended_raw_scores
+        from evaluation.rolling_ic_gate_calibration import calibrate_rolling_ic_floor
+        from portfolio.rank_signal import resolve_rank_signal_policy
+
+        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
+        training_metrics_by_model: dict[str, dict | None] = {}
+        for model_name, metrics_filename in (
+            ("sequence", "sequence_training_metrics.json"),
+            ("multitask", "multitask_training_metrics.json"),
+        ):
+            metrics_path = ML_DIR / metrics_filename
+            training_metrics_by_model[model_name] = (
+                json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
+            )
+        policy = resolve_rank_signal_policy(training_metrics_by_model, config)
+        active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
+
+        predictions_by_model_head: dict[str, dict[str, object]] = {}
+        for model_kind_for_head in policy["model_priority"]:
+            calib_model_filename, calib_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
+            calib_model_path = ML_DIR / calib_model_filename
+            calib_schema_path = ML_DIR / calib_schema_filename
+            if not calib_model_path.exists() or not calib_schema_path.exists():
+                continue  # best-effort - a missing model just means its heads fall through to the next model_priority entry
+            calib_model_export = json.loads(calib_model_path.read_text(encoding="utf-8"))
+            calib_feature_schema = json.loads(calib_schema_path.read_text(encoding="utf-8"))
+            calib_feature_names = calib_feature_schema["model_input_names"]
+            head_predictions: dict[str, object] = {}
+            for head_name in active_heads:
+                head_predictions[head_name] = predict_head(
+                    dataset, calib_model_export, calib_feature_names, head_name,
+                    model_kind=model_kind_for_head,
+                    sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
+                    configured_window_size=int(sequence_window_default),
+                )
+            predictions_by_model_head[model_kind_for_head] = head_predictions
+
+        dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
+
+        rolling_ic_gate_config = config.get("phase_v2", {}).get("rolling_ic_gate", {})
+        rolling_ic_result = calibrate_rolling_ic_floor(
+            dataset,
+            raw_score_column="raw_blended_score",
+            horizon_days=int(rolling_ic_gate_config.get("horizon_days", 20)),
+            rolling_window_days=int(rolling_ic_gate_config.get("rolling_window_days", 40)),
+            percentile=float(getattr(args, "rolling_ic_floor_percentile", 0.10)),
+            min_names_per_date=int(rolling_ic_gate_config.get("min_names_per_date", 10)),
+        )
+        report["rolling_ic_floor_calibration"] = rolling_ic_result
+        _write_evaluation_json(evaluation_dir / "rolling_ic_floor_calibration.json", rolling_ic_result)
+        if not args.json:
+            calibrated_floor = rolling_ic_result["calibrated_min_rolling_mean_ic"]
+            distribution = rolling_ic_result["rolling_ic_distribution"]
+            print(
+                f"Calibrated min_rolling_mean_ic (p{rolling_ic_result['percentile']*100:.0f}, "
+                f"{rolling_ic_result['num_samples_used']} samples used, "
+                f"{rolling_ic_result['num_samples_skipped_insufficient_history']} skipped insufficient-history): "
+                f"{calibrated_floor:.4f}"
+            )
+            print(
+                f"  Distribution: min={distribution['min']}, p10={distribution['p10']}, "
+                f"median={distribution['median']}, p75={distribution['p75']}, max={distribution['max']}"
+            )
+            print(f"  Apply with: aq config set phase_v2.rolling_ic_gate.min_rolling_mean_ic {calibrated_floor:.4f}")
+            print(
+                "  NOTE: only sets the threshold - phase_v2.rolling_ic_gate.enabled still defaults to false. "
+                "Check --replay-rolling-ic-gate's per-era breakdown before flipping it on live."
+            )
+
+    if run_replay_rolling_ic_gate:
+        # V5.3.5 (development/Problems.md #102) - the critical pre-main.py
+        # checkpoint: recomputes the blended raw score fresh (same
+        # duplication convention as run_calibrate_rolling_ic_floor above),
+        # then replays the gate day-by-day at the same rebalance cadence
+        # phase_v2.portfolio_book.rebalance_every_bars uses live, and
+        # reports engagement broken down by the three known bad eras.
+        #
+        # Always evaluated as ENABLED regardless of
+        # phase_v2.rolling_ic_gate.enabled's live default (False) - this
+        # is a "what would happen IF this were live" diagnostic, the same
+        # relationship evaluation/kill_switch_replay.py's own replay has
+        # to the live kill switch (which has no master on/off flag to
+        # begin with). Everything else - crucially min_rolling_mean_ic -
+        # is read from config as-is, so this reports honestly against
+        # whatever floor is currently configured (the shipped -1e12
+        # sentinel gives a trivial always-engaged result until
+        # --calibrate-rolling-ic-floor's value has actually been applied
+        # with `aq config set`).
+        from evaluation import compute_blended_raw_scores
+        from evaluation.rolling_ic_gate_replay import (
+            replay_rolling_ic_gate_over_dataset,
+            summarize_rolling_ic_gate_replay,
+        )
+        from portfolio.rank_signal import resolve_rank_signal_policy
+
+        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
+        training_metrics_by_model: dict[str, dict | None] = {}
+        for model_name, metrics_filename in (
+            ("sequence", "sequence_training_metrics.json"),
+            ("multitask", "multitask_training_metrics.json"),
+        ):
+            metrics_path = ML_DIR / metrics_filename
+            training_metrics_by_model[model_name] = (
+                json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
+            )
+        policy = resolve_rank_signal_policy(training_metrics_by_model, config)
+        active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
+
+        predictions_by_model_head: dict[str, dict[str, object]] = {}
+        for model_kind_for_head in policy["model_priority"]:
+            replay_model_filename, replay_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
+            replay_model_path = ML_DIR / replay_model_filename
+            replay_schema_path = ML_DIR / replay_schema_filename
+            if not replay_model_path.exists() or not replay_schema_path.exists():
+                continue  # best-effort - a missing model just means its heads fall through to the next model_priority entry
+            replay_model_export = json.loads(replay_model_path.read_text(encoding="utf-8"))
+            replay_feature_schema = json.loads(replay_schema_path.read_text(encoding="utf-8"))
+            replay_feature_names = replay_feature_schema["model_input_names"]
+            head_predictions: dict[str, object] = {}
+            for head_name in active_heads:
+                head_predictions[head_name] = predict_head(
+                    dataset, replay_model_export, replay_feature_names, head_name,
+                    model_kind=model_kind_for_head,
+                    sequence_feature_schema=replay_feature_schema if model_kind_for_head == "sequence" else None,
+                    configured_window_size=int(sequence_window_default),
+                )
+            predictions_by_model_head[model_kind_for_head] = head_predictions
+
+        dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
+
+        rolling_ic_gate_config = dict(config.get("phase_v2", {}).get("rolling_ic_gate", {}))
+        rolling_ic_gate_config["enabled"] = True
+        rebalance_every_bars = int(config.get("phase_v2", {}).get("portfolio_book", {}).get("rebalance_every_bars", 10))
+        rebalance_dates = sorted(dataset["date"].unique())[::max(1, rebalance_every_bars)]
+
+        replay_records = replay_rolling_ic_gate_over_dataset(
+            dataset,
+            raw_score_column="raw_blended_score",
+            rebalance_dates=rebalance_dates,
+            horizon_days=int(rolling_ic_gate_config.get("horizon_days", 20)),
+            rolling_window_days=int(rolling_ic_gate_config.get("rolling_window_days", 40)),
+            gate_config=rolling_ic_gate_config,
+            min_names_per_date=int(rolling_ic_gate_config.get("min_names_per_date", 10)),
+        )
+        replay_summary = summarize_rolling_ic_gate_replay(replay_records)
+        report["rolling_ic_gate_replay"] = {"summary": replay_summary, "per_date": replay_records}
+        _write_evaluation_json(evaluation_dir / "rolling_ic_gate_replay.json", report["rolling_ic_gate_replay"])
+        if not args.json:
+            overall = replay_summary["overall"]
+            print(
+                f"Rolling-IC gate replay (floor={rolling_ic_gate_config.get('min_rolling_mean_ic')}): "
+                f"{overall['disengaged_days']}/{overall['total_dates']} rebalance dates disengaged "
+                f"({overall['disengaged_day_fraction']:.2%})"
+            )
+            for era_name, era_stats in replay_summary["by_era"].items():
+                fraction = era_stats["disengaged_day_fraction"]
+                fraction_display = f"{fraction:.2%}" if fraction is not None else "n/a (no dates in era)"
+                print(f"  {era_name}: {era_stats['disengaged_days']}/{era_stats['total_dates']} disengaged ({fraction_display})")
 
     if run_calibrate_confidence_threshold:
         # V5.2.6 (development/Problems.md) - min_confidence_to_trade was a
@@ -2984,6 +3166,19 @@ def build_parser() -> argparse.ArgumentParser:
         "with --calibrate-confidence-threshold (default: 0.10).",
     )
     evaluate_parser.add_argument(
+        "--calibrate-rolling-ic-floor", action="store_true",
+        help="V5.3.5 (development/Problems.md #102): print a phase_v2.rolling_ic_gate.min_rolling_mean_ic "
+        "calibrated from this split's real walk-forward rolling trailing-IC distribution (portfolio/"
+        "rolling_ic_gate.py's own aggregation, no-lookahead - see evaluation/rolling_ic_gate_calibration.py's "
+        "docstring), mirroring --calibrate-book-spread's discipline. Not included in --all - loads both "
+        "models' predictions, a heavier run like --ablation.",
+    )
+    evaluate_parser.add_argument(
+        "--rolling-ic-floor-percentile", type=float, default=0.10,
+        help="Percentile (0-1) of the rolling-IC distribution to use as the calibrated floor with "
+        "--calibrate-rolling-ic-floor (default: 0.10).",
+    )
+    evaluate_parser.add_argument(
         "--reconcile-book-history", action="store_true",
         help="V5.2.2: compare a real Lean backtest's logged book selections "
         "(phase_v2.diagnostics.book_history) against a fresh offline re-derivation of the same raw "
@@ -3024,6 +3219,14 @@ def build_parser() -> argparse.ArgumentParser:
         "explicitly approximate estimate of how much of the run would have been locked out, without "
         "needing a real Lean backtest. Not included in --all - investigation-only, see development/"
         "Problems.md #94 for the caveats.",
+    )
+    evaluate_parser.add_argument(
+        "--replay-rolling-ic-gate", action="store_true",
+        help="V5.3.5 (development/Problems.md #102): day-by-day, no-lookahead OFFLINE replay of "
+        "portfolio/rolling_ic_gate.py's engagement decision (evaluation/rolling_ic_gate_replay.py) at "
+        "phase_v2.net_performance's rebalance cadence, with a per-era breakdown against the three known "
+        "bad eras this round's research found - the critical pre-main.py checkpoint before flipping "
+        "phase_v2.rolling_ic_gate.enabled live. Not included in --all - investigation-only.",
     )
     evaluate_parser.add_argument(
         "--simulate-limit-fills", action="store_true",
