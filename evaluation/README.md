@@ -73,6 +73,14 @@ without pulling in the training stack, the same torch-free-core convention
   dataset's own high/low bars. Answers a different question than the real
   order-events evidence (development/Problems.md #34/#96): "would this
   signal have filled," not "did the real book's actual orders fill."
+- `feature_reconciliation.py::reconcile_feature_snapshot(...)`/
+  `summarize_feature_reconciliation(...)` (V5.3.5.3, Problems.md #91/#100)
+  — diffs ONE symbol's logged live feature values (book_history.jsonl's
+  allowlist-bounded `feature_snapshot` field) against full_dataset.csv's
+  same (ticker, date) rows: per-feature deltas, tolerance-gated
+  (abs AND rel), NaN-degrading, worst offenders aggregated first. Pure
+  diff core only — the CLI (`aq evaluate --reconcile-features --symbol
+  XOM`) owns all I/O and joins.
 
 ## CLI
 
@@ -83,7 +91,8 @@ descriptions):
   the three plus `--calibrate-edge`)
 - Calibration: `--calibrate-edge`, `--calibrate-book-spread`,
   `--calibrate-confidence-threshold`
-- Reconciliation: `--reconcile-book-history`, `--replay-hysteresis`
+- Reconciliation: `--reconcile-book-history`, `--replay-hysteresis`,
+  `--reconcile-features` (V5.3.5.3, requires `--symbol`)
 - Diagnostics/investigation (not in `--all`): `--ablation`,
   `--replay-kill-switch` (V5.2.8), `--simulate-limit-fills` (V5.3.1,
   `--limit-fill-offset-sweep`), `--walk-forward-summary`

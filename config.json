@@ -1824,7 +1824,9 @@
                 "enabled": true,
                 "output_path": "visualization/book_history.jsonl",
                 "include_full_universe": true,
-                "include_decisions": true
+                "include_decisions": true,
+                "include_feature_snapshot": true,
+                "feature_snapshot_symbols": ["XOM"]
             },
             "forex_order_sizing": {
                 "enabled": true,

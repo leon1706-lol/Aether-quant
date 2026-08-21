@@ -37,6 +37,7 @@ Ships config-gated OFF by default (phase_v2.portfolio_book.enabled: false)
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 
 
@@ -550,6 +551,7 @@ def build_book_history_record(
     full_universe_signals: dict[str, dict] | None = None,
     book_member_decisions: dict[str, dict] | None = None,
     gate_veto_reason: str | None = None,
+    feature_snapshot: dict[str, dict] | None = None,
 ) -> dict:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
@@ -619,7 +621,27 @@ def build_book_history_record(
     the log alone whether a disengaged stretch came from
     `min_rank_confidence_spread` or the new rolling-IC gate, or anything
     else. main.py now writes a record on every genuine rebalance bar
-    regardless of whether `book_allocations` came back empty."""
+    regardless of whether `book_allocations` came back empty.
+
+    `feature_snapshot` (V5.3.5.3 Workstream B, development/Problems.md
+    #91/#100): `None` (default) omits the key entirely, same convention
+    as the three fields above. When given `{symbol: {feature: value}}`
+    (main.py's own `pass1_state[symbol]["feature_payload"]["base_features"]`
+    dict, captured ONLY for the symbols in
+    `phase_v2.diagnostics.book_history.feature_snapshot_symbols`'s
+    allowlist and only when
+    `phase_v2.diagnostics.book_history.include_feature_snapshot` is on),
+    adds a `"feature_snapshot"` key - the raw per-feature values the live
+    model actually saw for those symbols that bar. Exists so
+    `evaluation/feature_reconciliation.py::reconcile_feature_snapshot()`
+    can diff these against the same (ticker, date) row of
+    `ml/datasets/full_dataset.csv`: XOM is the one tracked ticker whose
+    live-vs-offline book-selection mismatch never resolved across
+    #91/#97/#99/#100, and until this field existed there was nothing in
+    the log to diff feature-by-feature. Allowlist-bounded by design -
+    without it every bar would serialize ~77 symbols x dozens of floats,
+    ballooning this log for a diagnostic only ever needed for a handful
+    of tickers."""
     record = {
         "date": date_str,
         "rank_signal_policy": {
@@ -662,4 +684,9 @@ def build_book_history_record(
         }
     if gate_veto_reason is not None:
         record["gate_veto_reason"] = gate_veto_reason
+    if feature_snapshot is not None:
+        record["feature_snapshot"] = {
+            symbol_key: dict(snapshot) if isinstance(snapshot, Mapping) else snapshot
+            for symbol_key, snapshot in feature_snapshot.items()
+        }
     return record

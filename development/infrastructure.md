@@ -699,6 +699,13 @@ similar) applied atomically via `aq config preset --apply <name>`
 can be compared against the offline rank-book simulator for free before
 either one costs a Lean backtest.
 
+Note that every `aq evaluate` investigation tool (`--reconcile-features`
+included, V5.3.5.3) is pure-local Python: it reads
+`ml/datasets/*.csv` and a `book_history.jsonl` log directly — no Docker,
+no Redis, no Postgres needed. The only thing that ever requires the Lean
+Docker stack is producing a new `book_history.jsonl` (i.e., running a real
+backtest with `phase_v2.diagnostics.book_history.enabled=true`).
+
 ## Connecting Between Containers
 
 Within the Compose network, services use their service names:

@@ -34,7 +34,7 @@ import sys
 import time
 import urllib.request
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from datetime import date
 from importlib.metadata import version as installed_version
 from pathlib import Path
@@ -762,6 +762,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # evaluation/rolling_ic_gate_calibration.py, evaluation/
         # rolling_ic_gate_replay.py.
         "test_rank_ic_core.py", "test_rolling_ic_gate_calibration.py", "test_rolling_ic_gate_replay.py",
+        # V5.3.5.3 (Problems.md #91/#100) - evaluation/feature_reconciliation.py.
+        "test_feature_reconciliation.py",
     ],
 }
 
@@ -1695,6 +1697,211 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             if net_performance_windows:
                 print(f"  net_performance: {len(net_performance_windows)} window(s) with a simulated book")
         _refresh_readme_evaluation_sections()
+        return 0
+
+    # V5.3.5.3 Workstream B (development/Problems.md #91/#100) -
+    # `aq evaluate --reconcile-features --symbol XOM` diffs the RAW feature
+    # values the live path logged for one symbol (the optional
+    # "feature_snapshot" key on book_history.jsonl records, written when
+    # phase_v2.diagnostics.book_history.include_feature_snapshot is on and
+    # the symbol is in feature_snapshot_symbols' allowlist - see main.py's
+    # write site) against the SAME (ticker, date) row of full_dataset.csv -
+    # per-feature, not a single mismatch number: XOM is the one tracked
+    # ticker whose live-vs-offline divergence never resolved across
+    # #91/#97/#99/#100, and this is the tool that either names the exact
+    # diverging feature(s) or rules the lead out cleanly.
+    # Early-return, same precedent as --reconcile-book-history below, and
+    # deliberately MUCH lighter: no model artifacts, no re-inference at all
+    # - a pure log-vs-dataset diff. Not included in --all,
+    # investigation-only like --replay-kill-switch.
+    if getattr(args, "reconcile_features", False):
+        from evaluation import segment_logged_records_by_run
+        from evaluation.feature_reconciliation import (
+            reconcile_feature_snapshot,
+            summarize_feature_reconciliation,
+        )
+
+        target_symbol = str(getattr(args, "symbol", "") or "").strip().upper()
+        if not target_symbol:
+            print(
+                "error: --reconcile-features requires --symbol <TICKER> "
+                "(e.g. --symbol XOM).",
+                file=sys.stderr,
+            )
+            return 1
+
+        book_history_path_arg = getattr(args, "book_history_path", None)
+        diagnostics_config = config.get("phase_v2", {}).get("diagnostics", {}).get("book_history", {})
+        book_history_path = (
+            Path(book_history_path_arg)
+            if book_history_path_arg
+            else ROOT_DIR / diagnostics_config.get("output_path", "visualization/book_history.jsonl")
+        )
+        if not book_history_path.exists():
+            print(
+                f"error: {book_history_path} not found - run a backtest with "
+                "phase_v2.diagnostics.book_history.enabled=true first.",
+                file=sys.stderr,
+            )
+            return 1
+
+        logged_records: list[dict] = []
+        with open(book_history_path, "r", encoding="utf-8") as book_history_file:
+            for line_number, raw_line in enumerate(book_history_file, start=1):
+                stripped_line = raw_line.strip()
+                if not stripped_line:
+                    continue
+                try:
+                    logged_records.append(json.loads(stripped_line))
+                except json.JSONDecodeError as error:
+                    print(
+                        f"warning: skipping malformed line {line_number} in {book_history_path}: {error}",
+                        file=sys.stderr,
+                    )
+        if not logged_records:
+            print(f"error: {book_history_path} contains no usable records.", file=sys.stderr)
+            return 1
+
+        # Same cumulative-log discipline as --reconcile-book-history
+        # (#91/#97/#99): segment FIRST, default to the most recent run only.
+        run_segments = segment_logged_records_by_run(logged_records)
+        if not run_segments:
+            print(f"error: {book_history_path} contains no dated records.", file=sys.stderr)
+            return 1
+        reconcile_all_runs = bool(getattr(args, "reconcile_all_runs", False))
+        reconcile_run_index_arg = getattr(args, "reconcile_run_index", None)
+        requested_indices = (
+            list(range(len(run_segments)))
+            if reconcile_all_runs
+            else [reconcile_run_index_arg if reconcile_run_index_arg is not None else -1]
+        )
+        selected_run_indices: list[int] = []
+        for raw_index in requested_indices:
+            normalized_index = raw_index if raw_index >= 0 else raw_index + len(run_segments)
+            if not (0 <= normalized_index < len(run_segments)):
+                print(
+                    f"error: --reconcile-run-index {raw_index} out of range - {len(run_segments)} run(s) "
+                    f"detected in {book_history_path}.", file=sys.stderr,
+                )
+                return 1
+            selected_run_indices.append(normalized_index)
+
+        recon_dataset_path = ML_DIR / "datasets" / "full_dataset.csv"
+        if not recon_dataset_path.exists():
+            print(f"error: {recon_dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
+            return 1
+        full_dataset = pd.read_csv(recon_dataset_path)
+        dataset_has_ticker_column = "ticker" in full_dataset.columns
+        rows_by_date_ticker: dict[tuple[str, str], dict] = {}
+        if dataset_has_ticker_column:
+            # (date, ticker) -> row dict, built vectorized - O(rows) once,
+            # then O(1) lookups per logged snapshot below.
+            rows_by_date_ticker = {
+                (str(date), str(ticker)): row
+                for (date, ticker), row in full_dataset.set_index(["date", "ticker"]).to_dict("index").items()
+            }
+
+        per_run_payloads = []
+        total_compared_dates = 0
+        for run_index in selected_run_indices:
+            run_records = run_segments[run_index]
+            records_with_snapshot = [
+                record for record in run_records if isinstance(record.get("feature_snapshot"), dict)
+            ]
+            matching_snapshots = []
+            snapshot_keys_seen: set[str] = set()
+            num_missing_offline_rows = 0
+            per_date_results = []
+            for record in records_with_snapshot:
+                snapshot_entry = record["feature_snapshot"].get(target_symbol)
+                if snapshot_entry is None:
+                    # Allowlist may cover several symbols; only this one's
+                    # entries reconcile. Track near-miss keys for the error
+                    # message so a ticker/symbol_key spelling mismatch is
+                    # immediately visible instead of silently zero.
+                    snapshot_keys_seen.update(str(key).upper() for key in record["feature_snapshot"])
+                    continue
+                if not isinstance(snapshot_entry, Mapping):
+                    continue
+                date_str = str(record.get("date", ""))
+                offline_row = rows_by_date_ticker.get((date_str, target_symbol)) if dataset_has_ticker_column else None
+                if offline_row is None:
+                    num_missing_offline_rows += 1
+                    continue
+                per_date_results.append(reconcile_feature_snapshot(snapshot_entry, offline_row))
+                matching_snapshots.append(date_str)
+
+            summary = summarize_feature_reconciliation(per_date_results)
+            total_compared_dates += len(per_date_results)
+            run_dates = [record["date"] for record in run_records if record.get("date")]
+            per_run_payloads.append({
+                "run_metadata": {
+                    "num_runs_detected": len(run_segments),
+                    "selected_run_index": run_index,
+                    "start_date": run_dates[0] if run_dates else None,
+                    "end_date": run_dates[-1] if run_dates else None,
+                    "num_records": len(run_records),
+                    "num_records_scanned": len(records_with_snapshot),
+                    "num_dates_reconciled": len(per_date_results),
+                    "num_dates_missing_offline_row": num_missing_offline_rows,
+                    "snapshot_symbol_keys_seen": sorted(snapshot_keys_seen),
+                },
+                "summary": summary,
+                "per_date": [
+                    {"date": date_str, **result}
+                    for date_str, result in zip(matching_snapshots, per_date_results)
+                ],
+            })
+
+        payload = dict(per_run_payloads[-1]) if per_run_payloads else {}
+        if len(per_run_payloads) > 1:
+            payload["all_runs"] = per_run_payloads
+
+        _write_evaluation_json(ML_DIR / "evaluation" / "feature_reconciliation.json", payload)
+
+        if args.json:
+            print(json.dumps(payload, indent=2, default=str))
+        else:
+            last_meta = payload.get("run_metadata", {})
+            print(
+                f"Feature reconciliation for {target_symbol} ({book_history_path}): "
+                f"{last_meta.get('num_records_scanned', 0)} record(s) carried a feature_snapshot, "
+                f"{last_meta.get('num_dates_reconciled', 0)} reconciled against full_dataset.csv."
+            )
+            if last_meta.get("num_dates_missing_offline_row"):
+                print(
+                    f"  {last_meta['num_dates_missing_offline_row']} snapshot date(s) had no matching "
+                    "(date, ticker) row in the dataset - skipped, not counted as divergences."
+                )
+            summary = payload.get("summary", {})
+            if summary.get("num_dates", 0) == 0 or summary.get("num_dates_with_comparison", 0) == 0:
+                keys_hint = ", ".join(last_meta.get("snapshot_symbol_keys_seen", [])[:10])
+                print(
+                    f"  NO comparable snapshots found for {target_symbol}. Either the diagnostic flags were "
+                    "off during that run (set phase_v2.diagnostics.book_history.include_feature_snapshot=true "
+                    f"+ add \"{target_symbol}\" to feature_snapshot_symbols, then re-run a backtest)"
+                    + (f"; snapshot keys seen in the log: [{keys_hint}]" if keys_hint else "")
+                    + ".",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"  compared={summary['num_features_compared_per_date']['mean']:.1f} features/date avg  "
+                    f"divergent_dates={summary['dates_with_any_divergence']}/{summary['num_dates']}  "
+                    f"total_divergences={summary['total_divergences']}"
+                )
+                top_offenders = summary.get("features_diverged_most_often", [])
+                if top_offenders:
+                    print("  Worst offenders by divergence count:")
+                    for entry in top_offenders:
+                        print(
+                            f"    {entry['feature']}: diverged on {entry['diverged_count']} date(s) "
+                            f"({entry['diverged_fraction']:.1%}), max_abs_delta={entry['max_abs_delta']:.6g}, "
+                            f"mean_abs_delta={entry['mean_abs_delta']:.6g}"
+                        )
+                never_compared = summary.get("features_never_compared", [])
+                if never_compared:
+                    print(f"  Features present live but NEVER in the offline row: {never_compared}")
         return 0
 
     # V5.2.2 (development/Problems.md) - `aq evaluate --reconcile-book-history`
@@ -3177,6 +3384,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--rolling-ic-floor-percentile", type=float, default=0.10,
         help="Percentile (0-1) of the rolling-IC distribution to use as the calibrated floor with "
         "--calibrate-rolling-ic-floor (default: 0.10).",
+    )
+    evaluate_parser.add_argument(
+        "--reconcile-features", action="store_true",
+        help="V5.3.5.3 Workstream B (development/Problems.md #91/#100): diff ONE symbol's logged live "
+        "feature values (book_history.jsonl's optional 'feature_snapshot' key, written when "
+        "phase_v2.diagnostics.book_history.include_feature_snapshot is on and the symbol is in "
+        "feature_snapshot_symbols) against full_dataset.csv's same (ticker, date) row - per-feature "
+        "deltas, worst offenders first. Requires --symbol. Not included in --all - investigation-only.",
+    )
+    evaluate_parser.add_argument(
+        "--symbol", default=None,
+        help="Ticker to reconcile with --reconcile-features (e.g. --symbol XOM). Matched "
+        "case-insensitively against each record's feature_snapshot keys.",
     )
     evaluate_parser.add_argument(
         "--reconcile-book-history", action="store_true",

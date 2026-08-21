@@ -3068,6 +3068,120 @@ def test_evaluate_reconcile_book_history_replay_hysteresis_end_to_end(tmp_path, 
     assert len(payload["per_date"]) == 2
 
 
+def test_evaluate_reconcile_features_end_to_end(tmp_path, capsys, monkeypatch):
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    dataset = pd.read_csv(ml_dir / "datasets" / "full_dataset.csv")
+    xom_rows = dataset[dataset["ticker"] == "T3"].copy()
+    xom_rows["ticker"] = "XOM"
+    dataset = pd.concat([dataset, xom_rows], ignore_index=True)
+    dataset.to_csv(ml_dir / "datasets" / "full_dataset.csv", index=False)
+
+    all_dates = sorted(dataset["date"].unique().tolist())
+    logged_dates = [all_dates[4], all_dates[7]]
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    def _snapshot_for_date(date, ticker, diverge):
+        # Pull the true offline row so one feature can be deliberately
+        # corrupted to exercise the divergence path.
+        row = dataset[(dataset["date"] == date) & (dataset["ticker"] == ticker)].iloc[0]
+        snapshot = {"f1": float(row["f1"]), "f2": float(row["f2"]),
+                    "liquidity_log_dollar_volume": float(row["liquidity_log_dollar_volume"])}
+        if diverge:
+            snapshot["f1"] = float(row["f1"]) + 5.0
+        return snapshot
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    with open(book_history_path, "w", encoding="utf-8") as book_history_file:
+        for index, date in enumerate(logged_dates):
+            record = {
+                "date": date,
+                "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+                "allocations": {},
+                "feature_snapshot": {"XOM": _snapshot_for_date(date, "XOM", diverge=(index == 0))},
+            }
+            book_history_file.write(json.dumps(record) + "\n")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--reconcile-features", "--symbol", "xom",
+         "--book-history-path", str(book_history_path), "--json"]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["run_metadata"]["num_dates_reconciled"] == 2
+    assert payload["run_metadata"]["num_records_scanned"] == 2
+    assert payload["run_metadata"]["num_dates_missing_offline_row"] == 0
+    assert payload["summary"]["num_dates"] == 2
+    assert payload["summary"]["dates_with_any_divergence"] == 1
+    assert payload["summary"]["total_divergences"] == 1
+    offender_features = [entry["feature"] for entry in payload["summary"]["features_diverged_most_often"]]
+    assert "f1" in offender_features
+
+    written = json.loads((ml_dir / "evaluation" / "feature_reconciliation.json").read_text(encoding="utf-8"))
+    assert written == payload
+
+
+def test_evaluate_reconcile_features_no_snapshots_degrades_cleanly(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    with open(book_history_path, "w", encoding="utf-8") as book_history_file:
+        record = {
+            "date": "2020-01-06",
+            "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+            "allocations": {},
+        }
+        book_history_file.write(json.dumps(record) + "\n")
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--reconcile-features", "--symbol", "XOM",
+         "--book-history-path", str(book_history_path), "--json"]
+    )
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["run_metadata"]["num_dates_reconciled"] == 0
+    assert payload["summary"]["num_dates"] == 0
+
+
+def test_evaluate_reconcile_features_requires_symbol(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--reconcile-features"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "--symbol" in captured.err
+
+
 def test_evaluate_reconcile_book_history_universe_summary_appears_when_logged(tmp_path, capsys, monkeypatch):
     import pandas as pd
 

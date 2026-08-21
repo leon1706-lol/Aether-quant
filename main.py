@@ -1559,6 +1559,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.book_history_include_decisions = bool(
             phase_v2_diagnostics_book_history.get("include_decisions", False)
         )
+        # V5.3.5.3 Workstream B (development/Problems.md #91/#100) - opt-in,
+        # allowlist-bounded, same convention as the two toggles above: also
+        # record the raw `base_features` dict the model actually saw for the
+        # ALLOWLISTED symbols on each logged rebalance bar, so
+        # `aq evaluate --reconcile-features` can diff live feature values
+        # against full_dataset.csv row-by-row (XOM's unresolved divergence).
+        # Off by default; bounded by feature_snapshot_symbols because an
+        # unbounded snapshot would serialize ~77 symbols x dozens of floats
+        # every rebalance bar for a diagnostic only ever needed for a few.
+        self.book_history_include_feature_snapshot = bool(
+            phase_v2_diagnostics_book_history.get("include_feature_snapshot", False)
+        )
+        self.book_history_feature_snapshot_symbols = frozenset(
+            str(symbol).upper()
+            for symbol in phase_v2_diagnostics_book_history.get("feature_snapshot_symbols", [])
+        )
         # V5.2.7 (development/Problems.md) - opt-in, backtest-only,
         # real-orders-only diagnostic confirming
         # _forex_order_units_for_weight()'s Lean-forex-units assumption
@@ -2895,6 +2911,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         }
                         for symbol_key, signal_payload in signals.items()
                     }
+                # V5.3.5.3 Workstream B (#91/#100) - raw base_features for
+                # ALLOWLISTED symbols only (see the Initialize() comment).
+                # Ticker match, not str(symbol) match, so the allowlist in
+                # config.json can use plain tickers ("XOM") regardless of
+                # how Lean stringifies each Symbol. A symbol without a bar,
+                # or whose features never went ready this bar, is simply
+                # absent from that bar's snapshot - reconcile-features
+                # degrades on missing dates by design.
+                feature_snapshot = None
+                if self.book_history_include_feature_snapshot and self.book_history_feature_snapshot_symbols:
+                    feature_snapshot = {}
+                    for symbol_key, state in pass1_state.items():
+                        ticker = str(self.asset_lookup.get(symbol_key, {}).get("ticker", symbol_key)).upper()
+                        if ticker not in self.book_history_feature_snapshot_symbols:
+                            continue
+                        base_features = state.get("feature_payload", {}).get("base_features")
+                        if isinstance(base_features, dict) and base_features:
+                            feature_snapshot[symbol_key] = dict(base_features)
+                    if not feature_snapshot:
+                        feature_snapshot = None
                 record = build_book_history_record(
                     str(self.Time.date()),
                     book_allocations,
@@ -2905,6 +2941,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     full_universe_signals=full_universe_signals,
                     book_member_decisions=(book_member_decisions if self.book_history_include_decisions else None),
                     gate_veto_reason=book_gate_veto_reason.get("reason"),
+                    feature_snapshot=feature_snapshot,
                 )
                 self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:
@@ -2938,6 +2975,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self._inference_pool.shutdown(wait=False, cancel_futures=True)
             except Exception as error:
                 self.Debug(f"Inference pool shutdown failed (non-fatal, algorithm already finished): {error}")
+
+        # V5.3.5.3 (development/Problems.md #104) - the chronic
+        # "Failed to shutdown python ... timed out" hang fires inside Lean's
+        # embedded-interpreter teardown ONLY on runs that completed normally;
+        # runs killed by a mid-run Python runtime error always tear down
+        # cleanly (verified across all 86 local backtest logs - see #104).
+        # That means something created during NORMAL bar processing is still
+        # alive when CPython finalizes, and threading._shutdown() joins it
+        # until Lean's 10s isolator kills the interpreter. This probe dumps
+        # every still-alive thread (name + daemon flag) plus the module-level
+        # suspects into the log BEFORE that teardown starts, so the next real
+        # backtest names the culprit deterministically instead of another
+        # round of guesswork. Pure logging - zero behavior change.
+        try:
+            import threading as _threading
+
+            alive = [
+                f"{thread.name}(daemon={thread.daemon})"
+                for thread in _threading.enumerate()
+                if thread is not _threading.current_thread()
+            ]
+            self.Debug(f"shutdown-probe: alive_threads={alive or '[]'}")
+        except Exception as error:
+            self.Debug(f"shutdown-probe failed (non-fatal): {error}")
 
     def _load_json(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))

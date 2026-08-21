@@ -676,6 +676,23 @@ that path isn't active. A breach beyond `max_tolerated_drift` becomes one
 of the kill switch's own trigger inputs, so an unreconciled position
 doesn't just sit logged, it can stop trading.
 
+**Feature-snapshot diagnostic and per-feature reconciliation (V5.3.5.3,
+Problems.md #91/#100):** `build_book_history_record()`'s additive,
+allowlist-bounded `feature_snapshot` field records, for the tickers named
+in `phase_v2.diagnostics.book_history.feature_snapshot_symbols` (only when
+`include_feature_snapshot` is on), the raw `base_features` values main.py's
+model actually saw that bar — closing the last blind spot in the
+live-vs-offline investigation lineage (#91/#97/#99/#100): until now the log
+carried scores and decisions but never feature VALUES, so a symbol-level
+divergence could be observed but never explained.
+`evaluation/feature_reconciliation.py::reconcile_feature_snapshot()` diffs
+one such snapshot against full_dataset.csv's same (ticker, date) row —
+pure, tolerance-gated (abs AND rel), NaN-degrading — and
+`aq evaluate --reconcile-features --symbol XOM` aggregates those diffs
+across a run into `ml/evaluation/feature_reconciliation.json`, worst
+offenders first. Investigation-only (never in `--all`); no model artifacts
+or re-inference involved.
+
 `retraining/auto_rollback.py::select_rollback_target()` is a separate pure
 selector deciding whether the currently-active model should be rolled
 back — off by default (`phase_v2.retraining.auto_rollback.enabled: false`,

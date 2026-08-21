@@ -1037,3 +1037,42 @@ def test_build_book_history_record_includes_gate_veto_reason_when_provided():
         gate_veto_reason="rolling_ic_below_floor",
     )
     assert record["gate_veto_reason"] == "rolling_ic_below_floor"
+
+
+def test_build_book_history_record_omits_feature_snapshot_key_when_none():
+    # V5.3.5.3 Workstream B (#91/#100) - feature_snapshot=None (the default)
+    # must reproduce the exact pre-V5.3.5.3 record shape - no
+    # "feature_snapshot" key at all, same convention as every optional field
+    # above.
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+    )
+    assert "feature_snapshot" not in record
+
+
+def test_build_book_history_record_includes_feature_snapshot_when_provided():
+    feature_snapshot = {
+        "XOM": {"return_5d": 0.012, "volatility_20d": 0.155, "volume_zscore": -0.4},
+    }
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+        feature_snapshot=feature_snapshot,
+    )
+    assert record["feature_snapshot"]["XOM"]["return_5d"] == 0.012
+    assert record["feature_snapshot"]["XOM"]["volume_zscore"] == -0.4
+
+
+def test_build_book_history_record_feature_snapshot_is_copied_not_aliased():
+    # The emitted record must be a defensive copy of the caller's dict -
+    # mutating the record must never leak back into main.py's live
+    # pass1_state feature_payload (it stays alive for later bars).
+    caller_snapshot = {"XOM": {"return_5d": 0.012}}
+    record = build_book_history_record(
+        "2019-01-02", {}, raw_scores_by_symbol={}, target_weights_by_symbol={},
+        sector_by_symbol={}, rank_signal_policy={},
+        feature_snapshot=caller_snapshot,
+    )
+    record["feature_snapshot"]["XOM"]["return_5d"] = 999.0
+    assert caller_snapshot["XOM"]["return_5d"] == 0.012
