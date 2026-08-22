@@ -467,6 +467,7 @@ and how it's wired in, this table is the index.
 | [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook, start commands for every service, SQL inspection snippets, port reference |
 | [`development/Changelog.md`](development/Changelog.md) | Detailed, append-only, per-phase build history, what was built, when, and why |
 | [`development/Problems.md`](development/Problems.md) | Append-only audit log of bugs and infrastructure issues, each with a severity rating and fixed/open status |
+| [`development/backups/`](development/backups/README.md) | Frozen pre-condensation snapshots of the two files above (restore points only — never edited) |
 
 ## Backtest Results
 

@@ -23,5 +23,8 @@ root `README.md` so that file stays short and scannable.
   codebase, each with a severity rating (1 = cosmetic, 10 = critical
   data-loss/safety issue) and a `fixed`/`open` status. Also append-only for
   the same reason as the changelog.
+- `backups/` — frozen pre-condensation snapshots of Changelog.md and
+  Problems.md taken before each condensing pass (restore points only, see
+  `backups/README.md`).
 
 More development-process documents can live here over time.
