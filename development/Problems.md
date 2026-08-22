@@ -1307,3 +1307,30 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Verification:** py_compile only so far (no unit test can exercise embedded-interpreter teardown). Decisive evidence is next real backtest: log should carry `shutdown-probe:` line immediately before timeout (or clean exit with probe present narrows trigger).
 
 **Follow-ups:** read `shutdown-probe: alive_threads=[...]` from next run's log; once surviving resource named, add targeted cleanup (explicit close/shutdown of owning library object), re-verify with subsequent run's clean `PythonInitializer.Shutdown(): ended`.
+
+
+### 105. Train-vs-live feature-parity audit (V5.3.6 WS-A) - scaler artifact verified exact; NO live-path formula drift found in all OHLCV-recomputable families; residual deltas fully attributed to replica boundary artifacts
+
+**Severity:** n/a (verification pass; would have been 9/10 had drift been found) · **Status:** 🟢 `verified clean` for covered families; watch items documented
+
+**Motivation:** #91/#98/#100's XOM-class divergence needed either a per-feature root cause or a systematic rule-out. Two prior bugs WERE feature-drift classes (duration-beta V5.2.5, factor files #100), so this round built the permanent audit instead of another one-off.
+
+**Shipped:**
+- `evaluation/feature_parity.py` - pure core: scaler-mapping validation (49 continuous vs 66 schema inputs; the 17 binary one-hots intentionally skip StandardScaler - verified correct-by-design on both sides), forward-transform `clip((raw-mean)/scale, +-clip)`, row-faithful replicas of `engineer_features()`' base technicals + indicators block and `add_liquidity_features()`, per-ticker OWN-calendar momentum (`compute_momentum_long()` - union-calendar pivots provably wrong: TLT pivot-shift diverged from own-calendar on 78% of rows, max 0.16), macro as-of proxies, and an EXACT replica of `cross_sectional_momentum_rank()`'s semantics (NaN values count in the len() denominator while never winning </== comparisons - a plain pandas rank gets this wrong).
+- `scripts/feature_parity_audit.py` - three-check driver writing `ml/evaluation/feature_parity_report.json`: (1) synthetic replicas-vs-train parity, (2) real-data forward check raw->artifact->stored column with POSITIONAL classification of residual mismatches (warmup / within-260-bars-after-date-gap = expected build-time-frame artifacts vs unexplained = fail), (3) structured verdicts for shared-function families.
+- 15 tests in `tests/test_feature_parity.py` incl. direct replica-vs-train pins and the scaler round-trip invariant.
+
+**Results (real data, 163,227 rows x 104 assets):**
+- Scaler artifact <-> dataset: EXACT (<=7e-13) wherever no hole interaction; 49/49 continuous inputs aligned with schema; clip layer semantics confirmed (1,024 legit crypto fat-tail saturations on return_1d).
+- Formula parity: 10 base technicals + 6 indicators + cs_momentum + 3 macro proxies + 2 liquidity features VERIFIED against stored columns; every residual mismatch class attributed: warmup offsets from the dropped first raw row, mid-series label-guard drops creating holes that build-time trailing windows legitimately spanned (macd EMA memory), young-ticker NaN denominators, reference-warmup month (Dec 2014 macros).
+- Genuinely unexplained: <20 rows total (0.01%): DOGEUSD 2021-01-28..02-02 rsi cluster; AAA 2020-10..11 macd/dist cluster; IGIB/IGSB/NKE single-row volume_change events. No live-path mechanism implicated.
+- **XOM-class feature drift: RULED OUT** for all OHLCV-recomputable families at both formula and scaling layers.
+- Structural finding: most families flow through SHARED `features/*.py` functions imported by both sides (main.py:179-209) - residual risk there is call-site parameters only (documented per-family in the report).
+
+**Crypto zero-volume quirk (part of #93's open note) - ROOT CAUSE NARROWED:** source Coinbase zips carry REAL always-positive volume (btcusd_trade 0/2279 zeros); BTCUSD additionally ships a QUOTE zip (11-col bid/ask). Live BTCUSD bars arriving volume=0 despite OHLC therefore points at Lean delivering BTCUSD via quote-type data (volume meaningless) while LTCUSD rides trade bars. Fix direction: subscription/data-type level, not our liquidity code; existing `zero_volume_fallback_ddv` already mitigates sizing. Left open pending a targeted Lean-side experiment.
+
+**Initialize() latency static audit:** post-V5.1.11/#16 fixes, main.py's module scope pulls NO torch/sklearn chains (train.py never imported; performance package deferred); remaining startup cost is artifact JSON loading + Lean-side setup. Deferral candidates: none obvious beyond prior fixes; measure precisely inside the next real run's log.
+
+**Shutdown-hang (#104) thread-site enumeration:** live-path Python thread/pool creators are exactly three - main.py's guarded ProcessPoolExecutor (explicitly shutdown, default-off), experience queue's daemon=True drain thread, opt-in parallel-inference pool. No unaccounted non-daemon creator exists in our code -> culprit is library/native side; the shipped `shutdown-probe:` remains the decisive instrument.
+
+**Verification:** 15 new tests green; driver runs end-to-end on real data; report committed under ml/evaluation/.

@@ -764,6 +764,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_rank_ic_core.py", "test_rolling_ic_gate_calibration.py", "test_rolling_ic_gate_replay.py",
         # V5.3.5.3 (Problems.md #91/#100) - evaluation/feature_reconciliation.py.
         "test_feature_reconciliation.py",
+        "test_feature_parity.py",
     ],
 }
 
