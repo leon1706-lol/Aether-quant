@@ -96,6 +96,59 @@ shipped and why, e.g.
 V5.3.6 Fixing the forex order-sizing bug and closing the live-vs-offline gap
 ```
 
+## Versioning (SemVer) and deprecation policy
+
+Releases are tagged `vMAJOR.MINOR.PATCH` and follow [Semantic
+Versioning](https://semver.org/) adapted to this project's reality:
+
+- **MAJOR** — anything that can silently change results or break an
+  existing setup: config schema removals/rename, CLI flag or output-format
+  breaks (`aq` command surface, JSON artifact shapes), log record field
+  changes in `book_history.jsonl`/audit streams, model artifact contract
+  changes requiring retraining to keep working, Python version floor bumps.
+- **MINOR** — new subsystems, modules, or features shipped backward-
+  compatibly (the repo's established convention: additive `None`-default
+  parameters, new `phase_v2.*` flags defaulting to `false`). A MINOR bump
+  never changes behavior for an unmodified `config.json`.
+- **PATCH** — bug fixes, diagnostics, docs, test-only changes. No behavior
+  change beyond fixing what was broken.
+- Fourth components (e.g. `v5.3.5.3`) are tolerated for follow-up patch
+  rounds within the same MINOR; treat them as PATCH-level.
+
+Historical note: pre-2026-08 versions were numbered loosely (`V5.2.x`
+carried feature work). Semver applies strictly from now on.
+
+**Deprecation policy:**
+
+1. Nothing user-visible is removed silently. A deprecated config key, CLI
+   flag, JSON artifact field, or log record field keeps working exactly as
+   before and emits a warning (CLI stderr / `self.Debug()` inside Lean).
+2. Deprecations are announced in the release notes AND get a
+   `development/Problems.md`-referenced entry in `development/Changelog.md`
+   stating what replaces them.
+3. Deprecated surfaces are removed no earlier than the next MAJOR release,
+   and only after at least one full MINOR cycle with the warning in place.
+   Exceptions require an explicit maintainer decision documented in the
+   changelog entry that removes it.
+4. Internal functions/modules (anything under `tests/`, private helpers)
+   may be refactored away in any release — this policy covers only
+   surfaces a user or integrator can observe.
+
+## Releases (GitHub Releases + changelog per tag)
+
+Releasing is a manual, deliberate act: push a tag `vX.Y.Z` on `main`. The
+existing `release.yml` workflow then publishes PyPI + GHCR Docker images
+and additionally creates a **GitHub Release** for the tag whose notes link
+the matching `development/Changelog.md` entry plus auto-generated commit
+notes. To make a release:
+
+1. Finish the round's `development/Changelog.md` entry with a header whose
+   version matches the tag (e.g. tag `v5.3.6` ↔ header `## V5.3.6 ...`).
+2. Tag and push: `git tag v5.3.6 && git push origin v5.3.6`.
+3. The workflow builds everything; check the Actions run and the resulting
+   GitHub Release page. If the Changelog section is missing, the release
+   still publishes but its body says so — don't let that ship.
+
 ## License
 
 The project is licensed under PolyForm Noncommercial 1.0.0. Contributions
