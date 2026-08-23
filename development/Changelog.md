@@ -1747,3 +1747,8 @@ and instrumented (#104).
 **Shipped:** evaluation/feature_parity.py; scripts/feature_parity_audit.py (+ ml/evaluation/feature_parity_report.json); tests/test_feature_parity.py (15, registered in _SUBSYSTEM_TEST_FILES under evaluation).
 
 **Verification:** suite green for new files; driver OVERALL report committed with positional classifications and analysis notes.
+
+
+## V5.3.6 completion — WS-B/D/E/C analyses banked; first fully-synced Codespace retrain pulled back (not promoted)
+
+**Added:** scripts/gate_sweep.py + promotion_gate_null_calibration.py + overlap_vs_sharpe_analysis.py with JSON results under ml/evaluation/; Problems.md #106 records the numbers: offline book net Sharpe +1.497; IC floor 0.05 doubles bad-era disengagement at zero era_0 cost offline; kill-switch zero offline trips at every grid point (live-only sensitivity); null calibration shows the t>=2 bar is genuine (2.75% FP) while era-flip blocking is not (66% of noise runs flip >=2 eras - real model flips only 1). Codespace round-trip executed end-to-end via scp -F route (gh cs cp broken): full pipeline trained on synced tree, artifacts parked in ml/versions/codespace_v536_20260823/ pending user promotion decision.

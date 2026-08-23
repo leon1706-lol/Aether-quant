@@ -1334,3 +1334,22 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Shutdown-hang (#104) thread-site enumeration:** live-path Python thread/pool creators are exactly three - main.py's guarded ProcessPoolExecutor (explicitly shutdown, default-off), experience queue's daemon=True drain thread, opt-in parallel-inference pool. No unaccounted non-daemon creator exists in our code -> culprit is library/native side; the shipped `shutdown-probe:` remains the decisive instrument.
 
 **Verification:** 15 new tests green; driver runs end-to-end on real data; report committed under ml/evaluation/.
+
+
+### 106. Gate sweep, kill-switch offline finding, promotion-gate null calibration, overlap-vs-Sharpe pairs, first Codespace retrain on synced tree (V5.3.6 WS-B/C/D/E + training)
+
+**Severity:** n/a (calibration/verification round) · **Status:** 🟡 `results banked; live decisions pending user`
+
+**WS-B gate sweep** (`scripts/gate_sweep.py` -> `ml/evaluation/gate_sweep_results.json`; multitask rank_5d mirror, 2019+ window, 82 rebalance dates):
+- Base offline book: **net Sharpe +1.497 / gross +1.567** - the offline edge is real; the gap to live -1.8 remains execution-side.
+- Rolling-IC floor grid (w40): floor 0.00 -> era_0 0% disengaged, bad eras 31/33/11%; **floor 0.02 (#103 calibrated) -> era_0 0%, bad eras 37.5/33/11%**; floor 0.05 -> era_0 still 0%, bad eras 56/44/22%. Aggressive 0.05 doubles bad-era coverage at zero good-era cost OFFLINE - candidate for the next A/B decision.
+- Same-day dispersion floors: even p50 bites era_0 22% (p90 kills it 67%) - reconfirms #102's core lesson that dispersion floors cannot separate skill.
+- **WS-D kill-switch grid**: ZERO trips at all nine min_rolling_sharpe x evaluation_bars combos over offline returns -> the live 26-trip/run sensitivity is a LIVE-PATH phenomenon and cannot be floor-tuned from offline replay alone.
+
+**WS-E promotion-gate null calibration** (`scripts/promotion_gate_null_calibration.py` -> JSON; 400 perms of within-date target-rank shuffles): P(null t>=2.0)=**2.75%** so the t-bar is a genuine filter and the real signal's t=2.61 sits beyond null p99. BUT **66% of skill-free runs show >=2 negative eras (mode=2)** -> `era_sign_instability` blocking promotion at 2 flipped eras is statistically uncalibrated/too strict; recommend replacing raw flip counts with a null-comparison rule (flag only beyond null p95, or per-era mean t-test). Real model shows only 1 negative era - better than two-thirds of pure noise.
+
+**WS-C overlap-vs-Sharpe** (`scripts/overlap_vs_sharpe_analysis.py` -> JSON): collection tooling fixed (launcher-log parsing; ordinal pairing documented - sim-window matching is ambiguous because all real runs share one window). Only 3 unique dated segments have computable overlaps today: 0.226/-1.034, 0.269/-1.798, 0.491/-1.832 - highest overlap paired with worst Sharpe, directionally consistent with history but n=3 inconclusive by definition. Accumulates automatically with future runs.
+
+**First Codespace retrain on fully synced tree:** code+ml(806MB incl datasets)+data(213MB) synced via scp -F route (`gh cs cp` broken); pipeline completed (~10 min: baseline val-acc 0.5306 best_epoch 41, 4 experts trained, gating eligible bullish/bearish/sideways); artifacts pulled back to `ml/versions/codespace_v536_20260823/` (NOT promoted - promotion is an explicit user decision). Codespace stopped after pull. Bugs found en route: `gh cs cp` upload broken in current gh (use ssh-config+scp); PowerShell `$()` expansion corrupts remote find commands (single-quote remote commands); engineer-side drop is the LAST row (shift(-1) target NaN), not the first.
+
+**Follow-ups:** decide rolling-IC floor (0.02 shipped vs 0.05 aggressive) and confidence-spread fate before next A/B backtest; adopt null-calibrated era rule behind a flag if agreed; accumulate WS-C pairs from future runs.
