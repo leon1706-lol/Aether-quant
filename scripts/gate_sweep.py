@@ -18,7 +18,6 @@ import json
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -31,7 +30,6 @@ from evaluation import (  # noqa: E402
     select_context_date_range,
 )
 from evaluation.kill_switch_replay import replay_kill_switch_over_dataset, summarize_kill_switch_replay  # noqa: E402
-from evaluation.rolling_ic_gate_calibration import calibrate_rolling_ic_floor  # noqa: E402
 from evaluation.rolling_ic_gate_replay import (  # noqa: E402
     _era_for_date,
     replay_rolling_ic_gate_over_dataset,

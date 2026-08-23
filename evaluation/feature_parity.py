@@ -266,7 +266,7 @@ def compute_macro_proxies_replica(
 
     result = pd.DataFrame({"date": all_dates})
     result["macro_yield_curve_slope_proxy"] = [
-        yield_curve_slope_proxy(l, s) for l, s in zip(long_value, short_value)
+        yield_curve_slope_proxy(long_v, short_v) for long_v, short_v in zip(long_value, short_value)
     ]
     result["macro_credit_spread_proxy"] = [
         credit_spread_proxy(hy, ig) for hy, ig in zip(high_yield_value, investment_grade_value)

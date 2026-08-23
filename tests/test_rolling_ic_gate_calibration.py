@@ -6,7 +6,6 @@ is its direct sibling for the new gate.
 """
 
 import pandas as pd
-import pytest
 
 from evaluation.rolling_ic_gate_calibration import build_event_buffer, calibrate_rolling_ic_floor
 from portfolio.rolling_ic_gate import compute_rolling_ic_state

@@ -242,7 +242,6 @@ def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, 
 def check_cross_sectional_and_macro(dataset: pd.DataFrame, scaler_mapping: dict[str, tuple[float, float, float]]) -> dict:
     """cs_momentum_rank_20 + the three macro proxies against stored columns,
     using per-ticker OWN-calendar momentum (never a union pivot)."""
-    from evaluation.feature_parity import compute_momentum_long
 
     results: dict[str, dict] = {}
     momentum_long = compute_momentum_long(dataset)

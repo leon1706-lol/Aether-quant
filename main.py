@@ -62,7 +62,7 @@ from risk.forex_risk import load_forex_pair_specs
 from risk.futures_risk import build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source
 from risk.kill_switch import evaluate_kill_switch
 from risk.manual_override import read_kill_switch_manual_override, read_manual_trade_lock_override
-from risk.position_sizing import build_dynamic_position_sizing, cost_sizing_multiplier
+from risk.position_sizing import cost_sizing_multiplier
 from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
 from portfolio import (
     build_book_history_record,
@@ -96,7 +96,6 @@ from portfolio.options_strategy import (
     build_covered_protective_position_sizing,
     build_multi_leg_position_sizing_for_legs,
     build_options_position_sizing_for_contract,
-    build_vertical_spread_position_sizing_for_legs,
     classify_volatility_view,
     net_debit_or_credit_for_legs,
     option_auto_close_due,

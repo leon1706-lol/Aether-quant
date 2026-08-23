@@ -47,3 +47,68 @@ pythonpath = ["."]
 markers = [
     "lean_backtest: real `lean backtest .` integration test (over an hour wall-clock) - excluded from `aq test`'s default run, included via `aq test --lean`/`--full`.",
 ]
+
+# V5.3.9 - Python lint job in ci.yml. Deliberately narrow rule set (E/F =
+# pycodestyle errors + pyflakes) calibrated to the EXISTING codebase style
+# so CI hardens without a mass style migration:
+# - line-length 240 matches the documented long-line convention of
+#   main.py/aq_cli.py/train.py
+# - main.py is exempt from E501/F403/F405: Lean's AlgorithmImports star-
+#   import pattern makes those structural (see #16/#69 lineage)
+# - __init__.py files are exempt from F401: package re-export convention
+[tool.ruff]
+line-length = 240
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"webui/**" = ["E", "F"]
+"main.py" = ["E501", "F403", "F405"]
+"**/__init__.py" = ["F401"]
+"scripts/profile_inference.py" = ["E501"]
+
+# V5.3.9 - coverage configuration for the ci.yml fail-under gate.
+[tool.coverage.run]
+source = [
+    "aq_cli",
+    "analyzer",
+    "audit",
+    "data_pipeline",
+    "evaluation",
+    "execution",
+    "experience",
+    "experts",
+    "features",
+    "inference",
+    "liquidity",
+    "monitoring",
+    "moe",
+    "notifications",
+    "performance",
+    "portfolio",
+    "regime",
+    "retraining",
+    "risk",
+    "storage",
+    "topology",
+    "risk_controls",
+    "train_multitask",
+    "train_sequence",
+    "train_gating",
+]
+omit = [
+    "*/tests/*",
+    "tests/*",
+    "scripts/*",
+    "webui/*",
+    "*/__main__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

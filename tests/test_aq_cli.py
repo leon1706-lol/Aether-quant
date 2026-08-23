@@ -583,7 +583,6 @@ def test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket():
     # flag) appears in exactly one bucket" so a future new test file
     # missing from every bucket fails CI instead of just quietly working
     # via the flag-less default run.
-    from pathlib import Path
 
     real_files = {
         p.name for p in (aq_cli.ROOT_DIR / "tests").glob("test_*.py")
@@ -2610,10 +2609,10 @@ def _write_tiny_dataset(ml_dir, feature_names=("f1", "f2"), num_tickers=6, num_d
     rng = np.random.default_rng(0)
     dates = pd.bdate_range("2020-01-01", periods=num_days)
     rows = []
-    for date in dates:
+    for row_date in dates:
         for i in range(num_tickers):
             row = {
-                "date": date.strftime("%Y-%m-%d"),
+                "date": row_date.strftime("%Y-%m-%d"),
                 "ticker": f"T{i}",
                 "split": "backtest",
                 "target_return_1d": float(rng.normal(0, 0.01)),
@@ -3462,7 +3461,7 @@ def test_evaluate_reconcile_book_history_tie_break_matches_configured_universe_o
     # top_n=1 slot.
     dates = pd.bdate_range("2020-01-01", periods=4)
     rows = []
-    for i, date in enumerate(dates):
+    for i, row_date in enumerate(dates):
         tied_value = 0.5 if i == 3 else 0.1 * i
         for ticker, f1, f2 in [
             ("A", -1.0, -1.0),
@@ -3472,7 +3471,7 @@ def test_evaluate_reconcile_book_history_tie_break_matches_configured_universe_o
         ]:
             rows.append(
                 {
-                    "date": date.strftime("%Y-%m-%d"), "ticker": ticker, "split": "backtest",
+                    "date": row_date.strftime("%Y-%m-%d"), "ticker": ticker, "split": "backtest",
                     "target_return_1d": 0.0, "target_return_20d": 0.0,
                     "liquidity_log_dollar_volume": 15.0, "f1": f1, "f2": f2,
                 }
@@ -3566,7 +3565,7 @@ def test_evaluate_preset_overlay_never_writes_config_json(tmp_path, capsys, monk
     args = parser.parse_args(["evaluate", "--rank-book", "--preset", "aggressive", "--json"])
     exit_code = args.func(args)
 
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert exit_code == 0
     # config.json on disk is byte-for-byte untouched - --preset is an
     # in-memory overlay only, never a write.

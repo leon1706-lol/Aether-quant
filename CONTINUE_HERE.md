@@ -1,36 +1,27 @@
-# CONTINUE HERE — V5.3.6 session break 2026-08-23
+# CONTINUE HERE — V5.3.9 session break 2026-08-23 (evening)
 
-## State snapshot
-- Committed through `c0389bd` + this commit (sweeps + docs).
-- **Codespace `aq-Training-Ground-Fixed`**: STOPPED after this commit. Code extracted at `~/aq` (torch 2.13.0+cpu OK) and full `ml/` synced (806MB incl datasets). Disk persists while stopped — no re-sync needed tomorrow except pulling back RESULTS.
-- SSH access recipe that works:
-  `gh cs ssh --config -c aq-sshd-only-test-7v49pjgx6jg43r7g6 | Out-File -Encoding ascii $env:TEMP\cs_ssh_config`
-  then `ssh -F $env:TEMP\cs_ssh_config cs.aq-sshd-only-test-7v49pjgx6jg43r7g6.main "<cmd>"`
-  (plain `gh cs cp` is BROKEN in this gh version; use scp -F instead)
+## Done so far this round
+- requirements-dev.txt: +pytest-cov, +ruff
+- pyproject.toml: [tool.ruff] (line-length 240, E/F, per-file ignores for main.py star-imports / __init__ re-exports / scripts/profile_inference E501) + [tool.coverage.run/report] source+omit config
+- ruff check: **ALL CLEAN** (604 findings triaged → 23 auto-fixed, 16 hand-fixed incl. dead-store `rank_signal_config` removals ×3 in aq_cli.py, loop-var shadow renames in test_aq_cli, underscore-unused locals in trainers)
+- **Coverage measured locally: TOTAL 82%** → calibrated CI gate = `--cov-fail-under=80`
+- `.github/workflows/ci.yml` REWRITTEN with 5 jobs:
+  python-tests (matrix ubuntu+windows, pytest --cov --cov-fail-under=80, coverage.xml artifact on ubuntu) ·
+  python-lint (ruff + py_compile) · webui-tests (+`npx vitest run --pool=threads` before build) ·
+  cli-smoke (pip install -e .; aq --help/evaluate --help/config get phase1.universe.name/secrets-check) ·
+  workflows-lint (actionlint)
+- `.github/workflows/release.yml`: added NON-BLOCKING `tag-tests` job (visibility only, deliberately NOT in needs chains — user decision)
+- tests/test_ci_workflows.py: **7 meta-tests ALL GREEN** pinning triggers/matrix/cov-gate/vitest-in-CI/ruff/py_compile/release-non-blocking/three-publish-targets/README-MC-docs
 
-## Tomorrow's queue (in order)
-1. **Training run** on codespace:
-   `cd ~/aq && nohup python3 train.py > train.log 2>&1 &` then poll `tail -5 train.log`
-   (~15-30 min expected). Then also `python3 train_multitask.py`, `train_sequence.py`,
-   `train_gating.py` if time permits.
-2. **Pull results back**: tar `ml/versions/*` + refreshed active `ml/*.json` → scp to local
-   `ml/versions/codespace_v536_YYYYMMDD/` (NOT promoted to active ml — promotion is user's call).
-3. **Stop codespace**: `gh cs stop -c aq-sshd-only-test-7v49pjgx6jg43r7g6`
-4. **Docs**: fold today's sweep/null-calibration numbers into Problems.md (#106 entry:
-   gate sweep table + kill-switch offline-zero-trips finding + promotion-gate null
-   calibration 66%-finding) and Changelog V5.3.6 completion entry.
-5. **WS-C finisher**: fix overlap↔sharpe join (parse each backtest log's
-   `Dates: Start/End` line — regex exists in scripts/overlap_vs_sharpe_analysis.py,
-   needs debug against real log format) → Spearman rho → close #95's metric question.
-6. Closeout: full `aq test`, vault regen + HANDOFF, final commit(s).
+## Remaining queue tomorrow (in order)
+1. **tests/test_monte_carlo.py +3 edge cases**: all-positive series ⇒ P(neg)==0 exactly; block_size ≥ n clamps safely (no crash); n_plot_points > n handled.
+2. **tests/test_generate_evaluation_report.py +1**: Monte Carlo markers render the not-run-yet fallback when ml/evaluation/monte_carlo.json is absent (call update_readme_evaluation_sections on a README fixture containing the markers).
+3. **Full pytest suite** run (`python -m pytest -q -m "not lean_backtest"`) — expect ~2747+ green.
+4. **Docs**: Problems.md #109 (CI hardening round), Changelog V5.3.9 entry, README "Development & CI" paragraph, CONTRIBUTING CI-expectations note, architecture.md CI touch, evaluation/README nothing new needed.
+5. **Vault**: generate_code_graph + regenerate_vault --append-handoff.
+6. **Final report in chat** + suggested commit message (user commits manually).
 
-## Results already banked today (ml/evaluation/)
-- `feature_parity_report.json` — NO live-path drift; scaler artifact exact (#105)
-- `gate_sweep_results.json` — IC floor 0.02 spares era_0 (0%) w/ bad-era 33-37%;
-  aggressive 0.05 doubles bad-era coverage still era_0=0%; base sim net Sharpe
-  **+1.497** (multitask rank_5d mirror); spread floors bite era_0 even at p50;
-  **kill-switch ZERO trips on offline returns at all 9 combos** → live 26-trip
-  sensitivity is live-path only, not offline-calibratable
-- `promotion_gate_null_calibration.json` — **P(null t≥2)=2.75%** (t-bar genuine);
-  **null runs show ≥2 negative eras 66% of time (mode=2)** → era_sign_instability
-  criterion statistically uncalibrated/too strict; recommend null-comparison gating
+## Notes
+- ruff auto-fix removed some imports across repo — full suite was NOT yet re-run after that; do it at step 3 and fix anything that surfaces.
+- ci.yml windows leg uses pip cache via setup-python `cache: "pip"`.
+- actionlint job downloads latest binary each run (no pin) — acceptable, flagged in #109 if it ever breaks.

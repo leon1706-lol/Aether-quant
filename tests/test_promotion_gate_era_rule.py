@@ -5,7 +5,6 @@ any-flip failure and delegates blocking to max_era_sign_flip_fraction."""
 
 from __future__ import annotations
 
-import copy
 import json
 from pathlib import Path
 

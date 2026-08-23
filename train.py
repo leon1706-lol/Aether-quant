@@ -33,7 +33,6 @@ import pandas as pd
 import torch
 from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
 from features import (
-    BOND_FEATURE_NAMES,
     CREDIT_SPREAD_LEVEL_NEUTRAL,
     CREDIT_SPREAD_NEUTRAL,
     CROSS_ASSET_SENSITIVITY_FEATURE_NAMES,
@@ -42,7 +41,6 @@ from features import (
     YIELD_CURVE_CURVATURE_NEUTRAL,
     YIELD_CURVE_LEVEL_NEUTRAL,
     YIELD_CURVE_SLOPE_NEUTRAL,
-    ALT_DATA_FEATURE_NAMES,
     FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
     IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL,
     IMPLIED_VOLATILITY_LEVEL_NEUTRAL,
@@ -76,7 +74,7 @@ from features import (
     yield_curve_level,
     yield_curve_slope_proxy,
 )
-from data_pipeline.fred_backfill import bond_reference_series, load_cached_fred_series, series_change_asof, series_value_asof
+from data_pipeline.fred_backfill import load_cached_fred_series, series_change_asof, series_value_asof
 from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
 from evaluation.model_predictions import predict_head
 from evaluation.rank_book_simulator import capacity_curve, simulate_rank_book, stress_test_costs, summarize_metric_stability

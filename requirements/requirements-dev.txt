@@ -55,3 +55,10 @@ matplotlib>=3.8.0
 # compiler (MSVC on Windows), which this file can't install for you - see
 # cpp_inference_ext/README.md.
 pybind11>=2.10
+
+# V5.3.9 - CI hardening: coverage gate (pytest --cov-fail-under in ci.yml)
+pytest-cov>=5.0.0
+
+# V5.3.9 - Python lint job in ci.yml + local parity (
+uff check .)
+ruff>=0.6.0

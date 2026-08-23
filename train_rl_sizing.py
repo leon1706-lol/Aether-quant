@@ -184,7 +184,7 @@ def fit_policy(
     {"weights": (n_actions, n_features), "bias": (n_actions,),
     "history": [mean_expected_reward per epoch]} as plain nested lists,
     JSON-serializable directly."""
-    rng = np.random.default_rng(seed)
+    _rng = np.random.default_rng(seed)
     n_rows, n_features = standardized_states.shape
     n_actions = rewards_by_action.shape[1]
     weights = np.zeros((n_actions, n_features))

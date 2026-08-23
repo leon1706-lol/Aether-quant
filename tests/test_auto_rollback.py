@@ -1,6 +1,5 @@
 """Tests for retraining/auto_rollback.py - V5.1 Phase 6 (production safety)."""
 
-import pytest
 
 from retraining.auto_rollback import select_rollback_target
 

@@ -6,7 +6,6 @@ before the module-under-test's deferred `from ib_insync import ...`
 statements run.
 """
 
-import json
 import sys
 import types
 from datetime import date, datetime

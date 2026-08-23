@@ -13,7 +13,6 @@ one function every other test in this file deliberately avoids.
 """
 
 from datetime import date
-from pathlib import Path
 from zipfile import ZipFile
 
 from data_pipeline.yfinance_backfill import (

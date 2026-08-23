@@ -9,6 +9,28 @@ on:
     tags: ["v*.*.*"]
 
 jobs:
+  # V5.3.9 - NON-BLOCKING visibility job: runs the full offline suite on the
+  # tagged commit so release-time gaps are visible right next to the
+  # artifacts. Deliberately NOT wired into `needs:` of the publish jobs
+  # (user decision): releases proceed regardless; read this job's result to
+  # see where the gaps are.
+  tag-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+
+      - name: Run full offline suite (visibility only - does not gate the release)
+        run: pytest -m "not lean_backtest" -ra
+
   publish-pypi:
     runs-on: ubuntu-latest
     environment: pypi # must match the Environment name configured in PyPI's Trusted Publisher setup

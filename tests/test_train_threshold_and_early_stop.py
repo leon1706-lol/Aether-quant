@@ -11,7 +11,7 @@ baseline, multitask AND sequence models alike.
 import torch
 import torch.nn as nn
 
-from train import compute_binary_metrics, find_optimal_threshold, is_new_best_epoch
+from train import find_optimal_threshold, is_new_best_epoch
 
 
 def test_is_new_best_epoch_refuses_before_min_epoch():
@@ -64,7 +64,7 @@ def test_find_optimal_threshold_falls_back_to_unconstrained_when_everything_dege
     # falling back to the plain best-scoring threshold rather than the
     # never-searched default 0.5.
     torch.manual_seed(0)
-    n = 200
+    _n = 200
     logits = torch.cat([torch.full((190,), 5.0), torch.full((10,), -5.0)])
     targets = torch.cat([torch.ones(190), torch.zeros(10)])
     criterion = nn.BCEWithLogitsLoss()

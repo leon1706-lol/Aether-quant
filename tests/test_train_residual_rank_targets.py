@@ -5,7 +5,6 @@ repo: no test classes, module-level helpers, plain dicts/DataFrames.
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from train import build_residual_rank_targets, cross_sectional_residualize
 

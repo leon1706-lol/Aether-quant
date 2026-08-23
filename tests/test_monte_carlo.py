@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from evaluation.monte_carlo import run_monte_carlo
 

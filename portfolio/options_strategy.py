@@ -25,6 +25,7 @@ for this codebase's newest decision-layer additions.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 
@@ -491,7 +492,6 @@ def build_vertical_spread_position_sizing_for_legs(
 # See development/Problems.md for the full writeup.
 # ---------------------------------------------------------------------------
 
-import math
 
 
 @dataclass(frozen=True)

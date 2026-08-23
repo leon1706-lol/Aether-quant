@@ -1,12 +1,49 @@
 name: CI
 
+# V5.3.9 - deep CI suite: windows+ubuntu pytest matrix with a calibrated
+# coverage fail-under gate (82% measured - 2), ruff lint, the full webui
+# vitest suite, an offline CLI smoke battery, and workflow self-validation.
 on:
   push:
     branches: [main]
   pull_request:
 
 jobs:
-  test:
+  python-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Syntax-check main.py (no Lean runtime available in CI - see development/Problems.md #69)
+        run: python -m py_compile main.py
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+          pip install pytest-cov
+
+      - name: Run full test suite with coverage gate
+        run: >
+          pytest -m "not lean_backtest" -ra
+          --cov --cov-report=term-missing --cov-report=xml
+          --cov-fail-under=80
+
+      - name: Upload coverage artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  python-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,21 +52,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Syntax-check main.py (no Lean runtime available in CI - see development/Problems.md #69)
+      - name: Install ruff
+        run: pip install "ruff>=0.6.0"
+
+      - name: Ruff check (E/F ruleset calibrated in pyproject.toml)
+        run: ruff check .
+
+      - name: Syntax-check main.py
         run: python -m py_compile main.py
 
-      - name: Install dependencies
-        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
-
-      - name: Run tests
-        run: pytest
-        # tests/test_lean_backtest_ml_coverage.py self-skips: this runner
-        # does have the `lean` binary (installed via requirements-dev.txt),
-        # but not a usable local Lean Data folder (data/** is gitignored -
-        # see .gitignore) that a real `lean backtest .` needs just to boot,
-        # regardless of universe/config. See development/Problems.md#10.
-
-  webui:
+  webui-tests:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -46,4 +78,40 @@ jobs:
       - run: npm ci
       - run: npx tsc -b
       - run: npx oxlint
+      # V5.3.9 - the full frontend suite finally runs in CI too.
+      - run: npx vitest run --pool=threads
       - run: npm run build
+
+  cli-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package editable
+        run: |
+          pip install -r requirements/requirements.txt
+          pip install -e .
+
+      - name: CLI smoke battery (offline, deterministic)
+        run: |
+          aq --help > /dev/null
+          aq evaluate --help > /dev/null
+          aq config get phase1.universe.name
+          aq secrets-check
+
+  workflows-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download actionlint
+        run: |
+          curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- latest
+          echo "$PWD/actionlint" >> "$GITHUB_PATH"
+
+      - name: Validate workflow files
+        run: actionlint -color

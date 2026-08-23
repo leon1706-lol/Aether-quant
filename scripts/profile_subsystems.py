@@ -63,7 +63,6 @@ from __future__ import annotations
 
 import argparse
 import cProfile
-import json
 import pstats
 import random
 import sys
@@ -73,7 +72,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.profile_inference import percentile, summarize_durations  # noqa: E402
+from scripts.profile_inference import summarize_durations  # noqa: E402
 
 from analyzer import build_market_analysis_decision  # noqa: E402
 from features.technical_indicators import (  # noqa: E402

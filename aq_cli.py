@@ -2017,7 +2017,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             full_dataset = full_dataset[full_dataset["training_eligible"]].reset_index(drop=True)
 
         sequence_window_default = config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30)
-        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
         training_metrics_by_model: dict[str, dict | None] = {}
         for model_name, metrics_filename in (
             ("sequence", "sequence_training_metrics.json"),
@@ -2460,7 +2459,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 print(f"  final_return p5/p50/p95 = {fr['p5']}% / {fr['p50']}% / {fr['p95']}%  | P(neg)={mc['prob_negative_return']}")
                 print(f"  sharpe p5/p95 = {sh['p5']} / {sh['p95']}  | maxDD p95 = {md['p95']}%")
         if not args.json:
-            print(f"Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
+            print("Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
             print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
             print(f"  delta_net_sharpe vs entry_lag_bars=0: {lagged_result.net_sharpe - result.net_sharpe:+.4f}")
 
@@ -2614,7 +2613,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation import calibrate_book_confidence_spread, compute_blended_raw_scores
         from portfolio.rank_signal import resolve_rank_signal_policy
 
-        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
         training_metrics_by_model: dict[str, dict | None] = {}
         for model_name, metrics_filename in (
             ("sequence", "sequence_training_metrics.json"),
@@ -2696,7 +2694,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation.rolling_ic_gate_calibration import calibrate_rolling_ic_floor
         from portfolio.rank_signal import resolve_rank_signal_policy
 
-        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
         training_metrics_by_model: dict[str, dict | None] = {}
         for model_name, metrics_filename in (
             ("sequence", "sequence_training_metrics.json"),
@@ -2787,7 +2784,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         )
         from portfolio.rank_signal import resolve_rank_signal_policy
 
-        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
         training_metrics_by_model: dict[str, dict | None] = {}
         for model_name, metrics_filename in (
             ("sequence", "sequence_training_metrics.json"),
@@ -2862,7 +2858,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation import calibrate_confidence_threshold, compute_blended_raw_scores
         from portfolio.rank_signal import resolve_rank_signal_policy
 
-        rank_signal_config = config.get("phase_v2", {}).get("rank_signal", {})
         training_metrics_by_model: dict[str, dict | None] = {}
         for model_name, metrics_filename in (
             ("sequence", "sequence_training_metrics.json"),
