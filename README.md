@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-2723%2F2723%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="2723 of 2723 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-2738%2F2738%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="2738 of 2738 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -84,7 +84,7 @@ through an explicit expected-cost gate, the book is dollar- and
 sector-neutral with hysteresis, walk-forward validation spans six regimes
 including COVID, and an automated kill switch, position reconciliation,
 and rollback mechanism now sit in front of live trading. Everything below
-is built, tested (<!-- AQ:TEST_COUNT_START -->2723<!-- AQ:TEST_COUNT_END -->
+is built, tested (<!-- AQ:TEST_COUNT_START -->2738<!-- AQ:TEST_COUNT_END -->
 tests) and wired end-to-end inside Lean.
 
 - **Backtest:** the numbers in [Backtest Results](#backtest-results) below
@@ -132,6 +132,7 @@ status`). Remaining, still-open items:
 - [Development Documentation](#development-documentation)
 - [Backtest Results](#backtest-results)
   - [Lean Backtest](#lean-backtest)
+  - [Monte Carlo Simulation](#monte-carlo-simulation)
   - [Offline Evaluation](#offline-evaluation)
   - [Walk-Forward Training/Testing](#walk-forward-trainingtesting)
   - [Other Metrics](#other-metrics)
@@ -450,7 +451,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->2723<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->2738<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -531,6 +532,58 @@ Lean's own result JSON, chart, headline table, and full stats all
 overwritten, never hand-edited, so nothing here goes stale relative to your
 last backtest.
 
+### Monte Carlo Simulation
+
+Monte Carlo simulation testing layer (`aq evaluate --rank-book --monte-carlo`):
+the offline rank book's daily net returns are stationary-block-bootstrapped
+into thousands of alternative equity histories — risk stated as a
+distribution, not a single path. Auto-refreshes with every `aq evaluate`
+run; the red line is the average of all generated runs.
+
+<!-- AQ:MONTECARLO_START -->
+1000-run stationary-block bootstrap of the offline rank book's daily net returns
+(method=`block`, block=20d, seed=42). The red line marks the
+average of all generated runs; faint lines are individual resampled histories.
+
+![Monte Carlo equity curves](development/monte_carlo_equity_curves.png)
+
+| Metric | p5 | p50 | p95 |
+|---|---|---|---|
+| Final return | -1.997911% | 9.383797% | 21.449402% |
+| Annualized Sharpe | -0.180362 | 0.996916 | 2.519184 |
+| Max drawdown | 2.055742% | 4.782714% | 9.108808% |
+| P(negative total return): **0.095** |||
+<!-- AQ:MONTECARLO_END -->
+
+<!-- AQ:MONTECARLO_FULL_STATS_START -->
+Deeper distribution statistics across all Monte Carlo runs:
+
+**Final total return (%)**
+
+| p5 | p25 | p50 | p75 | p95 |
+|---|---|---|---|---|
+| -1.997911 | 4.942038 | 9.383797 | 14.249014 | 21.449402 |
+
+**Annualized Sharpe**
+
+| p5 | p25 | p50 | p75 | p95 |
+|---|---|---|---|---|
+| -0.180362 | 0.524577 | 0.996916 | 1.547445 | 2.519184 |
+
+**Max drawdown (%)**
+
+| p5 | p25 | p50 | p75 | p95 |
+|---|---|---|---|---|
+| 2.055742 | 3.438596 | 4.782714 | 6.090146 | 9.108808 |
+
+- Best run total return: **35.2395%**
+- Worst run total return: **-12.1537%**
+- Probability of a negative total return: **0.095**
+- Config: n_runs=1000, method=`block`, block_size=20d, seed=42 (pinned - the section only changes when underlying results change)
+
+The red line in the chart above is the element-wise AVERAGE of all run equity curves; faint blue lines are the individual bootstrap histories.
+<!-- AQ:MONTECARLO_FULL_STATS_END -->
+
 ### Offline Evaluation
 
 Rank-book simulation (`aq evaluate --all`) net of costs, run over the full
@@ -550,7 +603,7 @@ separately re-derived approximation. Two models feed the live ensemble
 | Cost drag (bps/yr) | 7.9 | 18.2 |
 | Capacity (USD) | 4,396,756 | 3,901,573 |
 
-_Backtest split, full history. Last updated 2026-08-23 18:29 UTC (auto-generated by `aq evaluate --all`)._
+_Backtest split, full history. Last updated 2026-08-23 20:06 UTC (auto-generated by `aq evaluate --all`)._
 <!-- AQ:EVAL_END -->
 
 <details>
@@ -648,7 +701,7 @@ distinct from the single final model shown above.
 | residual_rank_20d_ic | 0.0112 | [-0.0131, 0.0318] | yes |
 | net_sharpe (per-window) | 0.654 | — | 5/6 windows positive |
 
-6 expanding/rolling windows, run `walk-forward-a9cd8cfb-24f0-4963-b80b-8ee299df2613`. Last updated 2026-08-23 18:29 UTC (auto-generated by `aq train --walk-forward`).
+6 expanding/rolling windows, run `walk-forward-a9cd8cfb-24f0-4963-b80b-8ee299df2613`. Last updated 2026-08-23 20:06 UTC (auto-generated by `aq train --walk-forward`).
 <!-- AQ:WALKFORWARD_END -->
 
 <details>
@@ -716,7 +769,7 @@ Book-member decision outcomes (672 total, real Lean run):
 | Real Lean backtest (2019-01-01 to 2021-04-02) | _not measurable from a standalone backtest (see Disclaimer)_ | — |
 | Offline replay (approximation, see Disclaimer) | 78 | 73.5% |
 
-_Last updated 2026-08-23 18:29 UTC (auto-generated by `aq evaluate`)._
+_Last updated 2026-08-23 20:06 UTC (auto-generated by `aq evaluate`)._
 <!-- AQ:OTHER_METRICS_END -->
 
 Regenerated on every `aq evaluate` run
@@ -761,7 +814,7 @@ whatever combination of the above has actually been run.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->2723<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->2738<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -971,6 +1024,7 @@ aq evaluate --calibrate-book-spread [--book-spread-percentile P]
 aq evaluate --calibrate-confidence-threshold [--confidence-threshold-percentile P]
 aq evaluate --reconcile-book-history [--book-history-path PATH] [--replay-hysteresis]
 aq evaluate --reconcile-features --symbol TICKER [--book-history-path PATH]
+aq evaluate --monte-carlo [--mc-runs N] [--mc-block-size B] [--mc-seed S] [--mc-method block|iid]
 aq evaluate --replay-kill-switch
 aq evaluate --simulate-limit-fills [--limit-fill-offset-sweep 0.5,1.0,2.0]
 aq evaluate --walk-forward-summary [--run-id <id>]
@@ -990,6 +1044,7 @@ backtest.
 - `--calibrate-confidence-threshold [--confidence-threshold-percentile P]`: print a `min_confidence_to_trade` (and, when book-selection data is available, a separate book-selected threshold) calibrated from this split's real confidence-vs-forward-return relationship. Not included in `--all`.
 - `--reconcile-book-history [--book-history-path PATH] [--replay-hysteresis]`: compare a real Lean backtest's logged book selections (`phase_v2.diagnostics.book_history`) against a fresh offline re-derivation — ground truth for diagnosing live-vs-offline divergence. `--replay-hysteresis` walks forward carrying held allocations the way `main.py`'s live book does, instead of reconciling each date independently. Not included in `--all`.
 - `--reconcile-features --symbol TICKER [--book-history-path PATH]`: (V5.3.5.3) diff ONE symbol's logged live feature values (the allowlist-bounded `feature_snapshot` field written when `phase_v2.diagnostics.book_history.include_feature_snapshot` is on) against `full_dataset.csv`'s same (ticker, date) rows — per-feature deltas, worst offenders first, aggregated into `ml/evaluation/feature_reconciliation.json`. The tool that either names the exact diverging feature behind a live-vs-offline mismatch or rules the lead out cleanly. Not included in `--all`.
+- `--monte-carlo [--mc-runs N] [--mc-block-size B] [--mc-seed S] [--mc-method block|iid]`: (V5.3.8) Monte Carlo simulation testing layer — stationary-block bootstraps the base rank-book run's daily net returns into N alternative equity histories and refreshes the README's Monte Carlo section: all-run curves chart with the red average line + foldable deep-stat tables (return/Sharpe/maxDD percentiles, loss probability). Pinned seed by default so the README only changes when underlying results change. Implies the base `--rank-book` simulation; not included in `--all`.
 - `--replay-kill-switch`: (V5.2.8) day-by-day OFFLINE replay of the kill-switch + sticky trade-lock state machine against the rank book's own return series — an explicitly approximate estimate of how much of a run would have been locked out, without spending a real Lean backtest. See `development/Problems.md` #94 for the caveats. Not included in `--all`.
 - `--simulate-limit-fills [--limit-fill-offset-sweep 0.5,1.0,2.0]`: (V5.3.1) offline counterfactual estimate of how often a real limit order would fill vs. time out, using the dataset's own high/low bars and `phase_v2.limit_orders`' pricing/timeout config. See `development/Problems.md` #34/#96 for the caveats. Not included in `--all`.
 - `--all`: run `--rank-book`, `--capacity`, `--stress` and `--calibrate-edge` together.

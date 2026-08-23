@@ -766,6 +766,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_feature_reconciliation.py",
         "test_feature_parity.py",
         "test_promotion_gate_era_rule.py",
+        "test_monte_carlo.py",
     ],
 }
 
@@ -2335,6 +2336,11 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     )
 
     run_rank_book = bool(args.rank_book or args.all)
+    # V5.3.8 - Monte Carlo layer rides on top of the base rank-book run's
+    # daily net returns, so requesting it implicitly requests the sim.
+    run_monte_carlo = bool(getattr(args, "monte_carlo", False))
+    if run_monte_carlo:
+        run_rank_book = True
     run_capacity = bool(args.capacity or args.all)
     run_stress = bool(args.stress or args.all)
     run_calibrate = bool(args.calibrate_edge or args.all)
@@ -2377,6 +2383,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag
         or run_calibrate_book_spread or run_calibrate_confidence_threshold or run_calibrate_rolling_ic_floor
         or run_replay_kill_switch or run_replay_rolling_ic_gate or run_simulate_limit_fills
+        or run_monte_carlo
     ):
         run_rank_book = True
 
@@ -2421,6 +2428,37 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         _write_evaluation_json(
             evaluation_dir / f"rank_book_simulation_entry_lag_1_{model_kind}.json", report["rank_book_entry_lag_1"]
         )
+        if run_monte_carlo:
+            # V5.3.8 - Monte Carlo layer: stationary-block bootstrap of this
+            # base run's daily NET returns into n_runs alternative equity
+            # histories. Pure core in evaluation/monte_carlo.py; heavy runs
+            # matrix persisted as .npz next to the JSON (README renderer owns
+            # the PNG), summary + avg/band curves go in the JSON.
+            from evaluation.monte_carlo import run_monte_carlo
+
+            import numpy as _np_mc
+
+            mc = run_monte_carlo(
+                result.per_date_net_return,
+                n_runs=int(getattr(args, "mc_runs", 1000)),
+                block_size=int(getattr(args, "mc_block_size", 20)),
+                seed=int(getattr(args, "mc_seed", 42)),
+                method=str(getattr(args, "mc_method", "block")),
+            )
+            mc_payload = {k: v for k, v in mc.items() if k != "runs_curves"}
+            mc_payload["model_kind"] = model_kind
+            mc_payload["head"] = head
+            mc_payload["split"] = split
+            _write_evaluation_json(evaluation_dir / "monte_carlo.json", mc_payload)
+            _np_mc.savez_compressed(evaluation_dir / "monte_carlo_curves.npz", runs_curves=_np_mc.asarray(mc["runs_curves"]))
+            if not args.json:
+                fr = mc["final_return_pct"]
+                md = mc["max_drawdown"]
+                sh = mc["sharpe"]
+                print(f"Monte Carlo ({mc['status']}): {mc['config']['n_runs']} runs "
+                      f"(method={mc['config']['method']}, block={mc['config']['block_size']}, seed={mc['config']['seed']})")
+                print(f"  final_return p5/p50/p95 = {fr['p5']}% / {fr['p50']}% / {fr['p95']}%  | P(neg)={mc['prob_negative_return']}")
+                print(f"  sharpe p5/p95 = {sh['p5']} / {sh['p95']}  | maxDD p95 = {md['p95']}%")
         if not args.json:
             print(f"Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
             print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
@@ -3462,6 +3500,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated offset_multiplier values to sweep with --simulate-limit-fills (default: a "
         "single run at the configured phase_v2.limit_orders.offset_multiplier).",
     )
+    evaluate_parser.add_argument(
+        "--monte-carlo", action="store_true",
+        help="V5.3.8: Monte Carlo simulation testing layer (evaluation/monte_carlo.py) - stationary-block "
+        "bootstraps the base rank-book run's daily net returns into --mc-runs alternative equity histories, "
+        "writing ml/evaluation/monte_carlo.json + monte_carlo_curves.npz and refreshing the README's Monte "
+        "Carlo section (curves chart + red average line + foldable deep stats). Requires/implies the base "
+        "--rank-book simulation. Not included in --all.",
+    )
+    evaluate_parser.add_argument("--mc-runs", type=int, default=1000,
+                                 help="Number of Monte Carlo resampled equity runs (default: 1000).")
+    evaluate_parser.add_argument("--mc-block-size", type=int, default=20,
+                                 help="Stationary block bootstrap block length in days (default: 20).")
+    evaluate_parser.add_argument("--mc-seed", type=int, default=42,
+                                 help="RNG seed - pinned by default so the README stays stable unless results change.")
+    evaluate_parser.add_argument("--mc-method", choices=["block", "iid"], default="block",
+                                 help="Resampling method (default: block = stationary block bootstrap).")
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")
     evaluate_parser.add_argument("--split", default=None, help="Dataset split to evaluate: train/validation/backtest/all (default: backtest)")

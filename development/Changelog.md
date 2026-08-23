@@ -1759,3 +1759,10 @@ and instrumented (#104).
 **Shipped:** era_rule gate selector + tests (6); extended null study under the gates own 90-day scheme (promotion_gate_null_gate_scheme.json: null flips ZERO, real 0.222 -> strict criterion validated, fraction knob calibrated context recorded). Full Codespace retrain with rule active (baseline+experts exit0; gating/multitask/sequence via --version-id v537cs20260823 after fixing bare-invocation exit-2). Promoted unconditionally per user: backup ml/_backup_pre_v537/, 12 artifacts + expert_models promoted. Offline eval of promoted multitask rank book: net Sharpe 1.6805/1.6933(lag1), +10.61% return, -2.63% maxDD. Sequence: 0.997/0.955.
 
 **Blocked:** walk-forward died at window 5 in three consecutive configs due to Codespace VM reboots (uptime evidence per attempt; swapon prohibited) - partials preserved under ml/versions/v537cs20260823/ml/versions/walk-forward-*; relaunch ready when infra allows.
+
+
+## V5.3.8 — Monte Carlo simulation testing layer: aq evaluate --rank-book --monte-carlo with auto-refreshing README section (1000-run curves chart, red average line, foldable deep stats)
+
+**Shipped:** evaluation/monte_carlo.py (stationary block bootstrap / iid; seeded; pure numpy) + CLI flags (--mc-runs/--mc-block-size/--mc-seed/--mc-method) writing ml/evaluation/monte_carlo.json + monte_carlo_curves.npz + generate_evaluation_report.py rendering the new README subsection between Lean Backtest and Offline Evaluation: all-run equity chart (faint blue, red average line) auto-regenerated every evaluate run + foldable percentile/deep-stats block. 9 dedicated tests; suite green.
+
+**First real run:** promoted multitask book resampled 1000x -> final return p5/p50/p95 -2.00/+9.38/+21.45%, P(neg)=9.5%, maxDD p95 9.11%.

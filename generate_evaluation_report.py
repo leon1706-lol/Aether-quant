@@ -64,6 +64,12 @@ WALKFORWARD_FULL_STATS_MARKER_END = "<!-- AQ:WALKFORWARD_FULL_STATS_END -->"
 OTHER_METRICS_MARKER_START = "<!-- AQ:OTHER_METRICS_START -->"
 OTHER_METRICS_MARKER_END = "<!-- AQ:OTHER_METRICS_END -->"
 
+MONTECARLO_MARKER_START = "<!-- AQ:MONTECARLO_START -->"
+MONTECARLO_MARKER_END = "<!-- AQ:MONTECARLO_END -->"
+MONTECARLO_FULL_STATS_MARKER_START = "<!-- AQ:MONTECARLO_FULL_STATS_START -->"
+MONTECARLO_FULL_STATS_MARKER_END = "<!-- AQ:MONTECARLO_FULL_STATS_END -->"
+MONTECARLO_CHART_PATH = ROOT_DIR / "development" / "monte_carlo_equity_curves.png"
+
 _MODEL_KINDS = ("sequence", "multitask")
 
 
@@ -418,6 +424,122 @@ def _build_other_metrics_markdown(
 # --------------------------------------------------------------------------
 
 
+def load_monte_carlo() -> tuple[dict | None, object]:
+    """Loads ml/evaluation/monte_carlo.json (+ curves .npz) - (summary, runs)
+    where runs is the downsampled per-run curve matrix for the PNG, or
+    (None, None) when either file is missing/unreadable."""
+    summary = _load_json(EVALUATION_DIR / "monte_carlo.json")
+    if not isinstance(summary, dict):
+        return None, None
+    runs = None
+    npz_path = EVALUATION_DIR / "monte_carlo_curves.npz"
+    try:
+        import numpy as np
+
+        with np.load(npz_path) as payload:
+            runs = payload["runs_curves"]
+    except Exception:
+        runs = None
+    return summary, runs
+
+
+def _render_monte_carlo_chart(runs, avg_curve: list[float], config: dict, out_path: Path) -> bool:
+    """Draws every resampled run as a faint line plus the red average -
+    regenerated on every evaluate run so the README visual is always in sync."""
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import numpy as np
+        import matplotlib.pyplot as plt
+    except Exception:
+        return False
+    if runs is None or getattr(runs, "size", 0) == 0 or not avg_curve:
+        return False
+    fig, ax = plt.subplots(figsize=(11, 6), dpi=140)
+    x = np.arange(runs.shape[1])
+    for row in runs:
+        ax.plot(x, row, color="#6f9fc4", alpha=0.05, lw=0.5, zorder=1)
+    ax.plot(x, avg_curve, color="red", lw=2.4, zorder=3,
+            label=f"Average of all {config.get('n_runs', '?')} runs")
+    ax.axhline(1.0, color="black", lw=0.8, ls="--", zorder=2, label="Start (1.0x)")
+    ax.set_xlabel("Trading days (resampled)")
+    ax.set_ylabel("Equity multiple (start = 1.0x)")
+    ax.set_title(
+        f"Monte Carlo equity curves - {config.get('n_runs')} runs, "
+        f"method={config.get('method')}, block={config.get('block_size')}d, seed={config.get('seed')}"
+    )
+    ax.grid(alpha=0.25)
+    ax.legend(loc="best")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path)
+    plt.close(fig)
+    return True
+
+
+def _build_monte_carlo_compact_markdown(summary: dict | None) -> str:
+    if not isinstance(summary, dict):
+        return (
+            "Monte Carlo simulation has not been run yet - generate it with\n"
+            "`aq evaluate --rank-book --monte-carlo` (see CLI Reference)."
+        )
+    fr = summary["final_return_pct"]
+    sh = summary["sharpe"]
+    md = summary["max_drawdown"]
+    cfg = summary["config"]
+    lines = [
+        f"{cfg['n_runs']}-run stationary-block bootstrap of the offline rank book's daily net returns",
+        f"(method=`{cfg['method']}`, block={cfg['block_size']}d, seed={cfg['seed']}). The red line marks the"
+        "\naverage of all generated runs; faint lines are individual resampled histories.",
+        "",
+        f"![Monte Carlo equity curves]({MONTECARLO_CHART_PATH.relative_to(ROOT_DIR).as_posix()})",
+        "",
+        "| Metric | p5 | p50 | p95 |",
+        "|---|---|---|---|",
+        f"| Final return | {fr['p5']}% | {fr['p50']}% | {fr['p95']}% |",
+        f"| Annualized Sharpe | {sh['p5']} | {sh['p50']} | {sh['p95']} |",
+        f"| Max drawdown | {md['p5']}% | {md['p50']}% | {md['p95']}% |",
+        f"| P(negative total return): **{summary['prob_negative_return']}** |||",
+    ]
+    return "\n".join(lines)
+
+
+def _build_monte_carlo_full_stats_markdown(summary: dict | None) -> str:
+    if not isinstance(summary, dict):
+        return "No Monte Carlo data on disk yet."
+    cfg = summary["config"]
+
+    def table(title: str, stats: dict) -> list[str]:
+        return [
+            f"**{title}**",
+            "",
+            "| p5 | p25 | p50 | p75 | p95 |",
+            "|---|---|---|---|---|",
+            f"| {stats['p5']} | {stats['p25']} | {stats['p50']} | {stats['p75']} | {stats['p95']} |",
+            "",
+        ]
+
+    lines = [
+        "Deeper distribution statistics across all Monte Carlo runs:",
+        "",
+        *table("Final total return (%)", summary["final_return_pct"]),
+        *table("Annualized Sharpe", summary["sharpe"]),
+        *table("Max drawdown (%)", summary["max_drawdown"]),
+        f"- Best run total return: **{summary['best_run_total_return']}%**",
+        f"- Worst run total return: **{summary['worst_run_total_return']}%**",
+        f"- Probability of a negative total return: **{summary['prob_negative_return']}**",
+        f"- Config: n_runs={cfg['n_runs']}, method=`{cfg['method']}`, block_size={cfg['block_size']}d, "
+        f"seed={cfg['seed']} (pinned - the section only changes when underlying results change)",
+        "",
+        "The red line in the chart above is the element-wise AVERAGE of all run "
+        "equity curves; faint blue lines are the individual bootstrap histories.",
+    ]
+    return "\n".join(lines)
+
+
+
+
+
 def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
     """Idempotently rebuilds Offline Evaluation, Walk-Forward Training/
     Testing, and Other Metrics from whatever currently exists on disk -
@@ -434,6 +556,24 @@ def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
     walk_forward_summary = load_latest_walk_forward_summary()
     reconciliation = _load_json(EVALUATION_DIR / "book_history_reconciliation.json")
     kill_switch_replay = _load_json(EVALUATION_DIR / "kill_switch_replay.json")
+
+    mc_summary, mc_runs = load_monte_carlo()
+    if mc_summary is not None and mc_summary.get("status") == "OK":
+        _render_monte_carlo_chart(mc_runs, mc_summary.get("avg_curve", []), mc_summary.get("config", {}), MONTECARLO_CHART_PATH)
+
+    updated = _replace_between_markers(text, MONTECARLO_MARKER_START, MONTECARLO_MARKER_END, _build_monte_carlo_compact_markdown(mc_summary))
+    if updated is not None:
+        text, changed = updated, True
+
+    updated = _replace_between_markers(
+        text,
+        MONTECARLO_FULL_STATS_MARKER_START,
+        MONTECARLO_FULL_STATS_MARKER_END,
+        _build_monte_carlo_full_stats_markdown(mc_summary),
+    )
+    if updated is not None:
+        text, changed = updated, True
+
 
     updated = _replace_between_markers(text, EVAL_MARKER_START, EVAL_MARKER_END, _build_eval_compact_markdown(eval_summary))
     if updated is not None:

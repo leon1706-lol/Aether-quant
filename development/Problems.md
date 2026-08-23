@@ -1370,3 +1370,17 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 
 **V5.3.7 completion addendum:** full 8-family Codespace retrain executed on the synced tree WITH `era_rule: "flip_fraction"` active; gating/multitask/sequence candidates built via `--version-id v537cs20260823` (bare invocations exit-2 on required --version-id - fixed en route). **Walk-forward is infrastructure-blocked**: three consecutive VM reboots killed the job at window 5 across baseline-only / multitask / multitask+sequence configs (uptime evidence; 7.8GB CS RAM; swapon prohibited in container) - partial windows 0..3 preserved under `ml/versions/v537cs20260823/ml/versions/walk-forward-*`; relaunch command ready. Candidate promoted unconditionally per user decision: 15 prior artifacts backed up to `ml/_backup_pre_v537/`, 12 top-level artifact files + expert_models/ promoted (per-family metrics JSONs for gating/multitask/sequence remained pre-V5.3.7 - display-only staleness, recoverable by rerunning the three trainers). Offline evaluation of the PROMOTED multitask rank book: **net Sharpe 1.6805 (lag0) / 1.6933 (lag1)**, net return +10.61%, maxDD -2.63%, turnover 1.32x - above the pre-V5.3.6 mirror (+1.497). Sequence: net Sharpe 0.997/0.955.
+
+
+### 108. Monte Carlo simulation testing layer — `aq evaluate --rank-book --monte-carlo` with auto-refreshing README section (all-run curves chart + red average line + foldable deep stats)
+
+**Severity:** n/a (verification-layer feature) · **Status:** 🟢 `shipped and live-verified`
+
+**Shipped:**
+- `evaluation/monte_carlo.py` - pure, seeded, numpy-only core: stationary block bootstrap (default 20-day blocks; `iid` variant) of the offline rank book's daily NET returns into N=1000 alternative equity histories. Emits per-run downsampled curves, the element-wise average curve (the README's red line), and return/Sharpe/maxDD percentile tables + loss probability. Degrades cleanly under 30 samples.
+- CLI: `aq evaluate --monte-carlo [--mc-runs --mc-block-size --mc-seed --mc-method]` (implies base `--rank-book`). Writes `ml/evaluation/monte_carlo.json` (summary+avg+band) and `monte_carlo_curves.npz` (full runs matrix for the PNG).
+- README "live updates": new `### Monte Carlo Simulation` subsection between Lean Backtest and Offline Evaluation, driven by `AQ:MONTECARLO_*` markers handled in `generate_evaluation_report.py`; every evaluate run regenerates `development/monte_carlo_equity_curves.png` (all runs faint blue + red average + start baseline) and the foldable deep-stats block.
+
+**First real run (promoted multitask book, 565 days):** final return p5/p50/p95 = **-2.00% / +9.38% / +21.45%**, Sharpe p5/p95 = -0.18 / 2.52, maxDD p95 = 9.11%, P(negative) = 9.5%. I.e., even resampling away the lucky path ordering leaves a >95% probability of a positive total return with sub-10% tail drawdowns.
+
+**Verification:** 9 dedicated tests (seeded determinism, shapes/downsampling, avg==mean-of-runs, zero-return degenerate, percentile ordering on a losing series, short-input degrade, unknown method skip, block-vs-iid smoke, config echo) + full suite green.

@@ -81,6 +81,13 @@ without pulling in the training stack, the same torch-free-core convention
   (abs AND rel), NaN-degrading, worst offenders aggregated first. Pure
   diff core only — the CLI (`aq evaluate --reconcile-features --symbol
   XOM`) owns all I/O and joins.
+- `monte_carlo.py::run_monte_carlo(...)` (V5.3.8) — stationary-block (or
+  i.i.d.) bootstrap of the offline rank book's daily NET returns into N
+  alternative equity histories: per-run curves, red average curve,
+  return/Sharpe/maxDD percentile distributions, loss probability.
+  Deterministic given seed; pure numpy core — the CLI
+  (`aq evaluate --rank-book --monte-carlo`) owns inference + persistence +
+  README chart/section refresh.
 
 ## CLI
 
@@ -93,6 +100,8 @@ descriptions):
   `--calibrate-confidence-threshold`
 - Reconciliation: `--reconcile-book-history`, `--replay-hysteresis`,
   `--reconcile-features` (V5.3.5.3, requires `--symbol`)
+- Monte Carlo (V5.3.8): `--rank-book --monte-carlo`
+  (`--mc-runs/--mc-block-size/--mc-seed/--mc-method`)
 - Diagnostics/investigation (not in `--all`): `--ablation`,
   `--replay-kill-switch` (V5.2.8), `--simulate-limit-fills` (V5.3.1,
   `--limit-fill-offset-sweep`), `--walk-forward-summary`
