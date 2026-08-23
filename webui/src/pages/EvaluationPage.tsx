@@ -6,6 +6,7 @@ import { WalkForwardStabilityPanel } from '../components/evaluation/WalkForwardS
 import { AblationPanel } from '../components/evaluation/AblationPanel'
 import { BookSpreadCalibrationPanel } from '../components/evaluation/BookSpreadCalibrationPanel'
 import { BookHistoryReconciliationPanel } from '../components/evaluation/BookHistoryReconciliationPanel'
+import { MonteCarloPanel } from '../components/evaluation/MonteCarloPanel'
 
 // V5.1 Phase 0 - the cost-aware rank-book evaluation dashboard: "is the fee
 // drag fixed", breadth/capacity, and cost-stress robustness, all sourced
@@ -27,6 +28,7 @@ export function EvaluationPage(_props: { state: RuntimeState | undefined }) {
       <AblationPanel evaluation={evaluation} />
       <BookSpreadCalibrationPanel evaluation={evaluation} />
       <BookHistoryReconciliationPanel evaluation={evaluation} />
+      <MonteCarloPanel evaluation={evaluation} />
     </div>
   )
 }

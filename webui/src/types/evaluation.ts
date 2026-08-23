@@ -212,6 +212,51 @@ export interface EvaluationState {
   walk_forward: WalkForwardSummary | NotEvaluated
   book_spread_calibration: BookSpreadCalibrationReport | NotEvaluated
   book_history_reconciliation: BookHistoryReconciliationReport | NotEvaluated
+  // V5.3.8 - optional (rather than required) so legacy test fixtures that
+  // predate the section keep compiling; the backend ALWAYS serves the key.
+  kill_switch_replay?: KillSwitchReplayReport | NotEvaluated
+  monte_carlo?: MonteCarloReport | NotEvaluated
+}
+
+// V5.2.8 replay payload served by the backend but never yet rendered by any
+// panel - kept permissive (typed properly whenever a consumer appears).
+export interface KillSwitchReplayReport {
+  summary?: Record<string, unknown>
+  per_date?: unknown[]
+  [key: string]: unknown
+}
+
+// V5.3.8 - Monte Carlo layer (aq evaluate --rank-book --monte-carlo).
+export interface MonteCarloConfig {
+  n_runs: number
+  block_size: number
+  seed: number
+  method: 'block' | 'iid' | string
+  trading_days_per_year?: number
+}
+
+export interface MonteCarloPercentiles {
+  p5: number
+  p25: number
+  p50: number
+  p75: number
+  p95: number
+}
+
+export interface MonteCarloReport {
+  status?: string
+  config: MonteCarloConfig
+  avg_curve: number[]
+  pct_band: Record<'p5' | 'p25' | 'p75' | 'p95', number[]>
+  final_return_pct: MonteCarloPercentiles
+  sharpe: MonteCarloPercentiles
+  max_drawdown: MonteCarloPercentiles
+  prob_negative_return: number
+  best_run_total_return: number
+  worst_run_total_return: number
+  model_kind?: string
+  head?: string
+  split?: string
 }
 
 export function isNotEvaluated(value: unknown): value is NotEvaluated {

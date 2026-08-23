@@ -66,6 +66,10 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
     # persisted payload, never wired into this state builder until now -
     # same honest gap book_history_reconciliation had before V5.2.3.
     kill_switch_replay = _load_json(evaluation_dir / "kill_switch_replay.json")
+    # V5.3.8 - Monte Carlo layer's persisted summary (avg curve + percentile
+    # bands + config); the heavy runs matrix lives in the sibling .npz and is
+    # intentionally NOT surfaced here.
+    monte_carlo = _load_json(evaluation_dir / "monte_carlo.json")
 
     # Every section follows the same shape convention: the raw report dict
     # when present, or {"status": "not_evaluated", "hint": ...} when not -
@@ -86,6 +90,7 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
         "book_history_reconciliation": book_history_reconciliation
         or _not_evaluated("run `aq evaluate --reconcile-book-history` (needs a backtest with phase_v2.diagnostics.book_history.enabled=true first)"),
         "kill_switch_replay": kill_switch_replay or _not_evaluated("run `aq evaluate --replay-kill-switch`"),
+        "monte_carlo": monte_carlo or _not_evaluated("run `aq evaluate --rank-book --monte-carlo`"),
     }
 
 

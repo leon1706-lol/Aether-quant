@@ -124,3 +124,27 @@ def test_kill_switch_replay_section_reads_the_real_report_file(tmp_path):
     state = build_evaluation_state(ml_dir=tmp_path)
 
     assert state["kill_switch_replay"] == payload
+
+
+def test_monte_carlo_section_degrades_to_not_evaluated_on_fresh_checkout(tmp_path):
+    state = build_evaluation_state(ml_dir=tmp_path)
+    section = state["monte_carlo"]
+    assert section["status"] == "not_evaluated"
+    assert "--monte-carlo" in section["hint"]
+
+
+def test_monte_carlo_section_reads_the_real_report_file(tmp_path):
+    evaluation_dir = tmp_path / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    payload = {
+        "status": "OK",
+        "config": {"n_runs": 1000, "block_size": 20, "seed": 42, "method": "block"},
+        "avg_curve": [1.0, 1.02],
+        "final_return_pct": {"p5": -2.0, "p25": 3.0, "p50": 9.38, "p75": 15.0, "p95": 21.45},
+        "prob_negative_return": 0.095,
+    }
+    (evaluation_dir / "monte_carlo.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    state = build_evaluation_state(ml_dir=tmp_path)
+
+    assert state["monte_carlo"] == payload

@@ -1766,3 +1766,6 @@ and instrumented (#104).
 **Shipped:** evaluation/monte_carlo.py (stationary block bootstrap / iid; seeded; pure numpy) + CLI flags (--mc-runs/--mc-block-size/--mc-seed/--mc-method) writing ml/evaluation/monte_carlo.json + monte_carlo_curves.npz + generate_evaluation_report.py rendering the new README subsection between Lean Backtest and Offline Evaluation: all-run equity chart (faint blue, red average line) auto-regenerated every evaluate run + foldable percentile/deep-stats block. 9 dedicated tests; suite green.
 
 **First real run:** promoted multitask book resampled 1000x -> final return p5/p50/p95 -2.00/+9.38/+21.45%, P(neg)=9.5%, maxDD p95 9.11%.
+
+
+**V5.3.8 webui addendum:** MonteCarloPanel on the Evaluation page (SVG avg curve + p5/p95 band, percentile table, loss probability), monte_carlo served via /api/evaluation, TS types added; vitest 100/100 (23 files) incl. 4 new panel tests, tsc + production build clean.
