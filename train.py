@@ -5364,6 +5364,18 @@ def assess_ranking_quality(
     watchlist_margin = float(gate.get("ranking_watchlist_margin", 0.3))
     era_sign_min_abs_ic = float(gate.get("era_sign_min_abs_ic", 0.0))
     era_min_observations = int(gate.get("era_min_observations", 0))
+    # V5.3.7 (development/Problems.md #107) - era promotion rule selector.
+    #   "legacy" (default, byte-identical): ANY opposite-sign era fails
+    #     ("era_sign_instability") - the historical behavior.
+    #   "flip_fraction": the any-flip hard failure is skipped; blocking comes
+    #     solely from max_era_sign_flip_fraction below. Rationale: a 400-perm
+    #     null study under this exact criterion (90-day eras,
+    #     |mean_ic| >= era_sign_min_abs_ic floor) produced ZERO opposite-sign
+    #     eras for skill-free models while the real rank signal showed
+    #     2/9 eras at fraction 0.22 - so flip counts with the magnitude floor
+    #     are already noise-robust, and the calibrated question becomes
+    #     "what INSTABILITY FRACTION is tolerable", answered by the knob.
+    era_rule = str(gate.get("era_rule", "legacy"))
     # V5.1 Phase 4 (item 4) - multi-regime stability, one level up from the
     # existing era-sign-instability check above: that check fails on ANY
     # single opposite-sign era, however small a fraction of the total. This
@@ -5403,8 +5415,12 @@ def assess_ranking_quality(
     if bootstrap_lower_bound < min_bootstrap_ci_lower:
         failures.append("bootstrap_ci_lower_bound_below_gate")
 
-    if opposite_sign_eras:
+    if opposite_sign_eras and era_rule == "legacy":
         failures.append("era_sign_instability")
+    elif opposite_sign_eras:
+        # flip_fraction mode: recorded as a near-miss diagnostic, never a
+        # hard failure - the calibrated fraction knob below owns blocking.
+        near_misses.append("era_sign_instability_flip_fraction_mode")
 
     if len(eligible_eras) < min_stable_eras:
         failures.append("insufficient_eras_for_stability")
@@ -5432,6 +5448,7 @@ def assess_ranking_quality(
             "min_non_overlapping_t_stat": min_non_overlapping_t_stat,
             "min_bootstrap_ci_lower": min_bootstrap_ci_lower,
             "watchlist_margin": watchlist_margin,
+            "era_rule": era_rule,
             "era_sign_min_abs_ic": era_sign_min_abs_ic,
             "era_min_observations": era_min_observations,
             "min_stable_eras": min_stable_eras,

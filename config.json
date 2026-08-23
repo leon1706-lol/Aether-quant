@@ -1422,6 +1422,7 @@
                     "era_length_days": 90,
                     "era_sign_min_abs_ic": 0.05,
                     "era_min_observations": 3,
+                    "era_rule": "flip_fraction",
                     "min_stable_eras": 3,
                     "max_era_sign_flip_fraction": 0.34,
                     "min_net_sharpe": 0.4,

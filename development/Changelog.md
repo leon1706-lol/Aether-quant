@@ -1752,3 +1752,10 @@ and instrumented (#104).
 ## V5.3.6 completion — WS-B/D/E/C analyses banked; first fully-synced Codespace retrain pulled back (not promoted)
 
 **Added:** scripts/gate_sweep.py + promotion_gate_null_calibration.py + overlap_vs_sharpe_analysis.py with JSON results under ml/evaluation/; Problems.md #106 records the numbers: offline book net Sharpe +1.497; IC floor 0.05 doubles bad-era disengagement at zero era_0 cost offline; kill-switch zero offline trips at every grid point (live-only sensitivity); null calibration shows the t>=2 bar is genuine (2.75% FP) while era-flip blocking is not (66% of noise runs flip >=2 eras - real model flips only 1). Codespace round-trip executed end-to-end via scp -F route (gh cs cp broken): full pipeline trained on synced tree, artifacts parked in ml/versions/codespace_v536_20260823/ pending user promotion decision.
+
+
+## V5.3.7 completion — era_rule flip_fraction shipped + full retrain promoted; promoted multitask offline net Sharpe 1.68; walk-forward infrastructure-blocked (documented)
+
+**Shipped:** era_rule gate selector + tests (6); extended null study under the gates own 90-day scheme (promotion_gate_null_gate_scheme.json: null flips ZERO, real 0.222 -> strict criterion validated, fraction knob calibrated context recorded). Full Codespace retrain with rule active (baseline+experts exit0; gating/multitask/sequence via --version-id v537cs20260823 after fixing bare-invocation exit-2). Promoted unconditionally per user: backup ml/_backup_pre_v537/, 12 artifacts + expert_models promoted. Offline eval of promoted multitask rank book: net Sharpe 1.6805/1.6933(lag1), +10.61% return, -2.63% maxDD. Sequence: 0.997/0.955.
+
+**Blocked:** walk-forward died at window 5 in three consecutive configs due to Codespace VM reboots (uptime evidence per attempt; swapon prohibited) - partials preserved under ml/versions/v537cs20260823/ml/versions/walk-forward-*; relaunch ready when infra allows.

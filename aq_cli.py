@@ -765,6 +765,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V5.3.5.3 (Problems.md #91/#100) - evaluation/feature_reconciliation.py.
         "test_feature_reconciliation.py",
         "test_feature_parity.py",
+        "test_promotion_gate_era_rule.py",
     ],
 }
 
