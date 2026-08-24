@@ -768,6 +768,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_promotion_gate_era_rule.py",
         "test_aq_test_ruff_flag.py",
         "test_ci_workflows.py",
+        "test_impact_model.py",
+        "test_v543_new_features.py",
         "test_bar_synthesis_parity.py",
         "test_rollback_hardening.py",
         "test_rl_sizing_v541.py",

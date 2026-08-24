@@ -1807,3 +1807,15 @@ and instrumented (#104).
 
 **Shipped:** evaluation/impact_model.py (Almgren sqrt-impact formula); integrated into rank_book_simulator as optional cost layer (phase_v2.costs.impact_model, default off). Residual_rank_20d documented as non-promotable (#112) and explicitly demoted in config.json.
 **CI fixes:** python-lint reverted to bare ruff (aq test --ruff required pandas import chain); pip-audit dependency-CVE job added; duplicate py_compile removed.
+
+
+## V5.4.3 — Factor-neutralization check, HRP allocation, benchmark comparison baselines, README restructure; CI registration gap fixed
+
+**Shipped:**
+- `evaluation/factor_neutralization_check.py::compute_factor_exposure()` — OLS regression of book returns onto market/momentum factors reporting alpha Sharpe, R², loadings, and per-factor variance contribution. Pure numpy/pandas.
+- `portfolio/hrp_allocation.py` — Hierarchical Risk Parity (López de Prado 2016): scipy Ward linkage on correlation distance → quasi-diagonal ordering → recursive bisection by inverse-variance → weights summing to 1.0.
+- `evaluation/benchmark_comparison.py` — momentum top-N, mean-reversion bottom-N, and random-entry baselines on the same dataset/window for edge-vs-benchmark context.
+- CI: `test_impact_model.py`, `test_v543_new_features.py`, `test_bar_synthesis_parity.py` registered in `_SUBSYSTEM_TEST_FILES` (subsystem-mapping guard caught the gap).
+- README restructured: Continuous Integration section moved above Open Source Files and linked from main TOC; Monte Carlo visual description updated to explicitly mention light blue semi-transparent individual-run lines.
+
+**Verification:** 2790 tests green (up from 2757); ruff clean; vitest 100/100; production build clean.
