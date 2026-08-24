@@ -3166,24 +3166,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         return resolution_map.get(resolution_name, Resolution.DAILY)
 
     def _midpoint_bar_from_quote_bar(self, quote_bar):
-        """V4.6 - forex quote-bar (bid/ask) to trade-bar-shaped midpoint
-        OHLC, so every other per-bar computation in on_data() (which reads
-        bar.open/.high/.low/.close/.volume unconditionally, the same shape
-        every other asset class's TradeBar already provides) works
-        unchanged for a forex symbol. Volume is always 0.0 - forex quote
-        data carries no trade-volume concept. Returns None (never raises)
-        when no quote bar exists either this bar, or it's missing a
-        bid/ask side."""
-        if quote_bar is None or quote_bar.Bid is None or quote_bar.Ask is None:
-            return None
-        return SimpleNamespace(
-            open=(float(quote_bar.Bid.Open) + float(quote_bar.Ask.Open)) / 2.0,
-            high=(float(quote_bar.Bid.High) + float(quote_bar.Ask.High)) / 2.0,
-            low=(float(quote_bar.Bid.Low) + float(quote_bar.Ask.Low)) / 2.0,
-            close=(float(quote_bar.Bid.Close) + float(quote_bar.Ask.Close)) / 2.0,
-            volume=0.0,
-        )
-
+        """V5.3.10 - thin delegation to data_pipeline.bar_synthesis."""
+        return midpoint_bar_from_quote_bar(quote_bar)
     def _add_asset(self, asset: dict):
         ticker = asset["ticker"]
         security_type = asset["security_type"]
@@ -3655,18 +3639,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         return magnitudes, volatilities
 
     def _pad_sequence_history(self, history: list[list[float]]) -> list[list[float]]:
-        """Left-pads a rolling per-symbol feature-history buffer with zero
-        vectors up to self.sequence_window_size - the same padding
-        convention _run_sequence_model() and
-        train.py::build_sequence_tensor_dataset() both use. Pure, no side
-        effects - factored out so the per-symbol path (_run_sequence_model())
-        and the V4.9 symbol-batching precompute step (on_data()'s Phase 1b)
-        apply IDENTICAL padding, never two slightly-different
-        implementations drifting apart."""
-        input_width = len(history[0])
-        padding_needed = self.sequence_window_size - len(history)
-        return [[0.0] * input_width for _ in range(max(0, padding_needed))] + list(history)
-
+        """V5.3.10 - thin delegation to data_pipeline.bar_synthesis."""
+        return pad_sequence_history(history, self.sequence_window_size)
     def _run_sequence_model(self, symbol) -> dict | None:
         """Phase 2: runs the optional causal-TCN sequence encoder
         (train_sequence.py/AetherNetSequenceMultiTask) over this symbol's

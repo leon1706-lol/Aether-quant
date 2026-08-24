@@ -1776,3 +1776,8 @@ and instrumented (#104).
 **Shipped:** ci.yml rewritten to five jobs (python-tests matrix with --cov-fail-under=80 calibrated from the measured 82% baseline + coverage.xml artifact; python-lint running the newly adopted ruff E/F ruleset - 604 pre-existing findings triaged to zero; webui-tests now executing the full vitest suite before build; cli-smoke editable-install battery incl. aq secrets-check; workflows-lint via actionlint). release.yml gained a deliberately NON-BLOCKING tag-tests job so tagged releases always proceed while gaps stay visible on the run. tests/test_ci_workflows.py pins the entire structure (7 meta-tests). Coverage config standardized in pyproject.toml.
 
 **Verification:** ruff clean; full suite 2751 passed / 11 deselected including all new meta/edge tests.
+
+
+## V5.3.10 — CI regression fixes (requirements parse meta-test, pinned actionlint), aq test --ruff flag, main.py extraction batch #1
+
+**Shipped:** Fixed two CI regressions from V5.3.9's ci.yml rewrite (corrupted requirements-dev.txt line + fragile actionlint PATH-append pattern). Added aq test --ruff flag (lint gate before pytest). main.py extraction batch #1: midpoint_bar_from_quote_bar + pad_sequence_history extracted to data_pipeline/bar_synthesis.py with thin main.py delegations.

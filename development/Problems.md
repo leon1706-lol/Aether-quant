@@ -1407,3 +1407,16 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 - Coverage config lives in pyproject ([tool.coverage.run/report]) with source/omit lists so local runs match CI exactly.
 
 **Verification:** ruff clean; full suite 2751 passed / 11 deselected locally including the new meta tests (the subsystem-mapping guard itself caught the unregistered test file mid-round - working as designed).
+
+
+### 110. V5.3.10 - CI regression fixes (requirements parse meta-test, pinned actionlint single-step) + aq test --ruff flag + main.py extraction batch #1
+
+**Severity:** n/a · **Status:** 🟢 `shipped`
+
+**CI regressions fixed:** requirements-dev.txt had a PowerShell-backtick-mangled line (`uff check .)`) failing ubuntu install at 9s; actionlint two-step PATH-append pattern lost the binary between steps. Both root-caused from GH run logs, fixed, and pinned by meta-tests (`test_every_requirements_line_parses_as_a_valid_requirement` and `test_actionlint_is_pinned_to_a_fixed_version`).
+
+**aq test --ruff:** new flag runs ruff check . before pytest so lint failures fail fast; ci.yml python-lint job uses it (single source of truth).
+
+**main.py extraction batch #1:** `_midpoint_bar_from_quote_bar()` -> `data_pipeline/bar_synthesis.py::midpoint_bar_from_quote_bar()`; `_pad_sequence_history()` -> same module::`pad_sequence_history()`. Thin delegations in main.py; bodies verbatim in the module.
+
+**Verification:** py_compile clean; ruff clean; 2757 tests green.

@@ -52,11 +52,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install ruff
-        run: pip install "ruff>=0.6.0"
+      - name: Install package + ruff
+        run: |
+          pip install "ruff>=0.6.0"
+          pip install -e .
 
-      - name: Ruff check (E/F ruleset calibrated in pyproject.toml)
-        run: ruff check .
+      # V5.3.10 - single source of truth: the exact invocation lives in
+      # aq_cli.py::cmd_test (--ruff), so local devs and CI can never drift.
+      - name: Lint via aq test --ruff
+        run: aq test --ruff
 
       - name: Syntax-check main.py
         run: python -m py_compile main.py
@@ -108,10 +112,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download actionlint
+      # V5.3.10 - single-step pinned install + validate: the previous two-step
+      # pattern (PATH append, then bare `actionlint`) failed with
+      # "command not found" on the runner. Pinned to v1.7.7 for
+      # reproducibility (meta-tested in tests/test_ci_workflows.py).
+      - name: Validate workflow files (actionlint v1.7.7)
         run: |
-          curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- latest
-          echo "$PWD/actionlint" >> "$GITHUB_PATH"
-
-      - name: Validate workflow files
-        run: actionlint -color
+          curl -sSL -o actionlint.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint -no-color -verbose

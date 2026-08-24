@@ -49,14 +49,13 @@ def test_ci_python_tests_matrix_includes_windows_and_coverage_gate():
     assert "--cov-fail-under=80" in script, "coverage fail-under gate must stay at >= 80"
 
 
-def test_ci_python_lint_job_runs_ruff_and_py_compile():
+def test_ci_python_lint_job_uses_aq_test_ruff_and_py_compile():
     ci = _load(CI)
     steps = ci["jobs"]["python-lint"]["steps"]
-    names = [s.get("name", "") for s in steps]
     scripts = [s.get("run", "") for s in steps]
-    assert any("Ruff check" in n for n in names)
-    # The py_compile gate may live in the step name OR its run script.
-    assert any("py_compile main.py" in n or "py_compile main.py" in s for n, s in zip(names, scripts))
+    joined = "\n".join(scripts)
+    assert any("aq test --ruff" in s for s in scripts), "lint job must use aq test --ruff (single source of truth)"
+    assert any("py_compile main.py" in s for s in scripts)
 
 
 def test_ci_webui_job_runs_vitest_before_build():
@@ -97,3 +96,38 @@ def test_readme_documents_the_monte_carlo_cli_surface():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "--monte-carlo" in readme
     assert "### Monte Carlo Simulation" in readme
+
+
+def test_every_requirements_line_parses_as_a_valid_requirement():
+    """Pins the V5.3.10 regression: a PowerShell-mangled append split a
+    comment mid-word, leaving `uff check .)` as an unparsable requirement
+    that failed the ubuntu install job after 9 seconds. Every non-comment,
+    non-empty line of every requirements file must parse."""
+    from packaging.requirements import Requirement
+
+    for req_file in sorted((ROOT / "requirements").glob("*.txt")):
+        for line_no, raw in enumerate(
+            req_file.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                Requirement(line)
+            except Exception as error:  # noqa: BLE001
+                pytest.fail(f"{req_file.name}:{line_no} invalid requirement {line!r}: {error}")
+
+
+def test_actionlint_is_pinned_to_a_fixed_version():
+    """The first workflows-lint implementation downloaded `latest` via a
+    third-party script and then lost the binary between steps (command not
+    found). Pinned single-step install + explicit relative invocation."""
+    release = _load(RELEASE)
+    assert "tag-tests" in release["jobs"]
+
+    ci = _load(CI)
+    lint_steps = ci["jobs"]["workflows-lint"]["steps"]
+    run_scripts = [s.get("run", "") for s in lint_steps]
+    joined = "\n".join(run_scripts)
+    assert "actionlint_1.7.7" in joined, "actionlint must be version-pinned"
+    assert "./actionlint" in joined, "must invoke the extracted binary explicitly"

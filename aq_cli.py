@@ -766,6 +766,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_feature_reconciliation.py",
         "test_feature_parity.py",
         "test_promotion_gate_era_rule.py",
+        "test_aq_test_ruff_flag.py",
         "test_ci_workflows.py",
         "test_monte_carlo.py",
     ],
@@ -786,7 +787,19 @@ def cmd_test(args: argparse.Namespace) -> int:
     -n auto (off by default - multiple workers each importing torch is a
     real OOM risk on memory-constrained dev machines). One or more
     --<subsystem> flags restrict the run to _SUBSYSTEM_TEST_FILES'
-    filenames for those subsystems instead of the whole tree."""
+    filenames for those subsystems instead of the whole tree.
+
+    V5.3.10 - --ruff: runs `ruff check .` BEFORE pytest so a lint failure
+    fails fast without paying the full suite's wall-clock first (mirrors
+    ci.yml's python-lint job; single source of truth for the invocation)."""
+    if getattr(args, "ruff", False):
+        import subprocess as _sp
+
+        ruff_exit = _sp.run(["ruff", "check", "."]).returncode
+        if ruff_exit != 0:
+            print(f"ruff check failed (exit {ruff_exit}) - fix lint findings before running the suite.")
+            return ruff_exit
+
     cmd = [sys.executable, "-m", "pytest", "--color=yes", "--durations=15"]
 
     subsystem_files: list[str] = []
@@ -3096,6 +3109,10 @@ def build_parser() -> argparse.ArgumentParser:
     test_parser.add_argument(
         "--parallel", action="store_true",
         help="Run via pytest-xdist (-n auto) - off by default, multiple workers importing torch risk OOM on memory-constrained machines",
+    )
+    test_parser.add_argument(
+        "--ruff", action="store_true",
+        help="V5.3.10: run `ruff check .` BEFORE pytest - a lint failure fails fast without paying the full suite's wall-clock first (mirrors ci.yml's python-lint job).",
     )
     for _subsystem_name in _SUBSYSTEM_TEST_FILES:
         test_parser.add_argument(
