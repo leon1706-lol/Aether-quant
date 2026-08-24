@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import aq_cli
-import pytest
 
 
 def test_ruff_flag_defaults_to_false():
@@ -34,7 +33,6 @@ def test_ruff_flag_clean_repo_passes_through(monkeypatch, capsys):
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--ruff"])
 
-    original_pytest = aq_cli._run_captured
     captured_cmd = []
     monkeypatch.setattr(aq_cli, "_run_captured", lambda cmd, cwd=None: (captured_cmd.append(cmd), (0, "2751 passed"))[1])
 

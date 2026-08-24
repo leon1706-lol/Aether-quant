@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 
 from data_pipeline.bar_synthesis import midpoint_bar_from_quote_bar, pad_sequence_history
