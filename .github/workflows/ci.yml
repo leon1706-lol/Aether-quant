@@ -65,8 +65,26 @@ jobs:
       - name: Syntax-check main.py
         run: python -m py_compile main.py
 
-      - name: Syntax-check main.py
-        run: python -m py_compile main.py
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit runtime dependencies for known CVEs
+        run: |
+          pip install -r requirements/requirements.txt
+          pip-audit --requirement requirements/requirements.txt --desc
+
+      - name: Audit dev dependencies for known CVEs
+        run: |
+          pip-audit --requirement requirements/requirements-dev.txt --desc
 
   webui-tests:
     runs-on: ubuntu-latest

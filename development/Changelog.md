@@ -1781,3 +1781,9 @@ and instrumented (#104).
 ## V5.3.10 — CI regression fixes (requirements parse meta-test, pinned actionlint), aq test --ruff flag, main.py extraction batch #1
 
 **Shipped:** Fixed two CI regressions from V5.3.9's ci.yml rewrite (corrupted requirements-dev.txt line + fragile actionlint PATH-append pattern). Added aq test --ruff flag (lint gate before pytest). main.py extraction batch #1: midpoint_bar_from_quote_bar + pad_sequence_history extracted to data_pipeline/bar_synthesis.py with thin main.py delegations.
+
+
+## V5.3.11 — CI python-lint fix (bare ruff, no editable-import chain) + pip-audit dependency-CVE scanning job
+
+**Fixed:** python-lint job reverted to bare `ruff check .` (the `aq test --ruff` invocation required importing pandas via the aq_cli module chain, but the lint job intentionally runs in a minimal environment without full deps). Duplicate py_compile step removed.
+**Added:** dependency-audit job running pip-audit against both runtime and dev requirements files on every push/PR - catches known CVEs before release.

@@ -1420,3 +1420,16 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **main.py extraction batch #1:** `_midpoint_bar_from_quote_bar()` -> `data_pipeline/bar_synthesis.py::midpoint_bar_from_quote_bar()`; `_pad_sequence_history()` -> same module::`pad_sequence_history()`. Thin delegations in main.py; bodies verbatim in the module.
 
 **Verification:** py_compile clean; ruff clean; 2757 tests green.
+
+
+### 111. V5.3.11 - CI python-lint job fixed (bare ruff, no editable-install import chain); duplicate py_compile step removed; pip-audit dependency-CVE scanning job added
+
+**Severity:** n/a (CI infrastructure) · **Status:** 🟢 `shipped`
+
+**Problem:** the `python-lint` job (V5.3.10) used `aq test --ruff` which requires importing aq_cli → data_pipeline.fetch → pandas — but the lint job intentionally has a minimal environment (ruff only, no full deps). Result: ModuleNotFoundError at ~9 seconds. Additionally, a duplicated "Syntax-check main.py" step existed in the same job.
+
+**Fix:** reverted to bare `ruff check .` (the lint job's minimal environment is by design; local devs use `aq test --ruff` where full deps are installed). Removed the duplicate py_compile step. Meta-test updated to match.
+
+**NEW: dependency-audit job** — `pip-audit --requirement requirements/*.txt` scanning for known CVEs against both runtime and dev dependencies on every push/PR. Catches supply-chain vulnerabilities before they reach a release tag.
+
+**Verification:** ci.yml parses cleanly with 6 jobs; meta-tests updated to match.
