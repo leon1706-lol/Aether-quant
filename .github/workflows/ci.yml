@@ -65,6 +65,9 @@ jobs:
       - name: Syntax-check main.py
         run: python -m py_compile main.py
 
+      - name: Syntax-check main.py
+        run: python -m py_compile main.py
+
   webui-tests:
     runs-on: ubuntu-latest
     defaults:
