@@ -1794,3 +1794,10 @@ and instrumented (#104).
 **RL sizing:** compute_action_reward() gained asymmetric_penalty_weight (>1.0 penalizes foregone profit on winners); RL_SIZING_STATE_KEYS gained regime_trend_bullish/bearish/sideways one-hots for regime-conditional policy learning. 6 tests. Codespace retrain ready but not yet executed.
 **Auto-rollback:** rollback_hardening.py with compute_degradation_score() (continuous 0-1) and select_rollback_target_dry_run(). 6 tests.
 **Prediction provenance:** per-session sequence-vs-multitask counters logged at shutdown. Tests pending Lean runtime.
+
+
+## V5.4.2 — Critical missing-import fix (bar_synthesis), parity tests, pre-backtest audit, pip-audit job
+
+**Critical fix (#113):** V5.3.10's extraction of midpoint synthesis + sequence padding to data_pipeline/bar_synthesis.py never added the import to main.py → NameError crash on forex path + silent sequence-model death. Fixed + 5 parity tests added.
+**CI fixes:** python-lint reverted to bare ruff (aq test --ruff requires full deps); duplicate py_compile removed; pip-audit dependency-CVE scanning job added.
+**Verification:** 2769 tests green; config validated for backtest readiness.

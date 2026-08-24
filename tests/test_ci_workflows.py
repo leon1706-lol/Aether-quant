@@ -49,12 +49,17 @@ def test_ci_python_tests_matrix_includes_windows_and_coverage_gate():
     assert "--cov-fail-under=80" in script, "coverage fail-under gate must stay at >= 80"
 
 
-def test_ci_python_lint_job_uses_aq_test_ruff_and_py_compile():
+def test_ci_python_lint_job_runs_ruff_and_py_compile():
     ci = _load(CI)
     steps = ci["jobs"]["python-lint"]["steps"]
     scripts = [s.get("run", "") for s in steps]
     joined = "\n".join(scripts)
-    assert any("aq test --ruff" in s for s in scripts), "lint job must use aq test --ruff (single source of truth)"
+    # V5.3.11 FIX: lint job runs bare `ruff check .` (NOT `aq test --ruff`)
+    # because the minimal environment intentionally has no pandas/torch/etc -
+    # `aq test --ruff` requires the full package import chain. Local devs use
+    # `aq test --ruff`; CI uses bare ruff for speed.
+    assert any("ruff check ." in s for s in scripts), "lint job must run ruff directly"
+    assert "aq test --ruff" not in joined, "lint job must NOT import aq_cli chain"
     assert any("py_compile main.py" in s for s in scripts)
 
 

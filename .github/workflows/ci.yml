@@ -52,15 +52,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install package + ruff
-        run: |
-          pip install "ruff>=0.6.0"
-          pip install -e .
+      # V5.3.11 FIX: bare `ruff check .` — NOT `aq test --ruff` (which
+      # requires importing aq_cli → pandas via the full package chain, but
+      # this job intentionally has a minimal environment). Local devs use
+      # `aq test --ruff`; CI uses bare ruff for speed.
+      - name: Install ruff
+        run: pip install "ruff>=0.6.0"
 
-      # V5.3.10 - single source of truth: the exact invocation lives in
-      # aq_cli.py::cmd_test (--ruff), so local devs and CI can never drift.
-      - name: Lint via aq test --ruff
-        run: aq test --ruff
+      - name: Ruff check (E/F ruleset calibrated in pyproject.toml)
+        run: ruff check .
 
       - name: Syntax-check main.py
         run: python -m py_compile main.py

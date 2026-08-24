@@ -214,6 +214,7 @@ from data_pipeline.fred_backfill import (
     series_change_asof,
     series_value_asof,
 )
+from data_pipeline.bar_synthesis import midpoint_bar_from_quote_bar, pad_sequence_history
 from data_pipeline.dividend_backfill import load_cached_dividend_schedule
 
 # volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/

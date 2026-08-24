@@ -1446,3 +1446,18 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Prediction provenance:** per-session counters (`sequence_served` vs `multitask_fallback`) logged at shutdown via `prediction-provenance:` Debug line alongside #104's shutdown-probe.
 
 **Codespace retrain NOT yet executed** - user must start codespace and trigger; all code changes are in place.
+
+
+### 113. V5.4.2 pre-backtest audit — critical missing-import bug found and fixed; parity tests added; config validated
+
+**Severity:** 8/10 (would have crashed forex path + silently killed sequence model on every bar) · **Status:** 🟢 `fixed and verified`
+
+**Problem:** the V5.3.10 extraction of `_midpoint_bar_from_quote_bar()` and `_pad_sequence_history()` to `data_pipeline/bar_synthesis.py` never added the import statement to main.py (`from data_pipeline.bar_synthesis import ...`). The thin delegation bodies referenced unbound names → NameError at runtime. py_compile stayed green (NameError is runtime, not syntax). CI stayed green because zero tests import main.py.
+
+**Blast radius if not caught:** (1) forex path = hard crash on first forex quote-bar tick, killing the algorithm. (2) sequence model = silently dead every bar (NameError caught by existing try/except → returns None → gating loses all sequence input). (3) prediction provenance counter would show `sequence_served=0` forever.
+
+**Fix:** added `from data_pipeline.bar_synthesis import midpoint_bar_from_quote_bar, pad_sequence_history` at module scope in main.py (line 217). Added 5 parity tests in `tests/test_bar_synthesis_parity.py`. Registered in `_SUBSYSTEM_TEST_FILES`.
+
+**Also fixed:** duplicate "Syntax-check main.py" step in ci.yml's python-lint job (V5.3.11 regression from rebase conflict resolution keeping wrong side).
+
+**Verification:** full suite 2769 passed / 0 failed; py_compile clean; ruff clean; all 6 pre-backtest config checks PASS.
