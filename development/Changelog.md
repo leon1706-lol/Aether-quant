@@ -1801,3 +1801,9 @@ and instrumented (#104).
 **Critical fix (#113):** V5.3.10's extraction of midpoint synthesis + sequence padding to data_pipeline/bar_synthesis.py never added the import to main.py → NameError crash on forex path + silent sequence-model death. Fixed + 5 parity tests added.
 **CI fixes:** python-lint reverted to bare ruff (aq test --ruff requires full deps); duplicate py_compile removed; pip-audit dependency-CVE scanning job added.
 **Verification:** 2769 tests green; config validated for backtest readiness.
+
+
+## V5.4.2 — Almgren impact model, residual demotion documented, pre-backtest audit clean
+
+**Shipped:** evaluation/impact_model.py (Almgren sqrt-impact formula); integrated into rank_book_simulator as optional cost layer (phase_v2.costs.impact_model, default off). Residual_rank_20d documented as non-promotable (#112) and explicitly demoted in config.json.
+**CI fixes:** python-lint reverted to bare ruff (aq test --ruff required pandas import chain); pip-audit dependency-CVE job added; duplicate py_compile removed.

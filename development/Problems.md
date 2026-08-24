@@ -1461,3 +1461,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Also fixed:** duplicate "Syntax-check main.py" step in ci.yml's python-lint job (V5.3.11 regression from rebase conflict resolution keeping wrong side).
 
 **Verification:** full suite 2769 passed / 0 failed; py_compile clean; ruff clean; all 6 pre-backtest config checks PASS.
+
+
+### 112. V5.4.2 - residual_rank_20d head documented as non-promotable; factor-neutralization check scoped for V5.4.3; Almgren impact model shipped; residual head excluded from decision process via config
+
+**Severity:** n/a (signal-quality documentation) · **Status:** 🟡 `documented; improvement attempt deferred to V5.4.3`
+
+**Finding:** `residual_rank_20d` (the market/sector/size-neutral rank target) has never cleared its promotion gate across any retrain round. Its IC is consistently ~0.01 with t-stat < 1.0 — statistically indistinguishable from noise after neutralization overhead. The active heads list (`rank_20d` 0.5, `rank_5d` 0.5) never included it, so no live behavior change from this entry.
+**Action taken:** added `residual_rank_20d` to the documented demoted list in config.json. Factor-neutralization check (decomposing book Sharpe into alpha vs factor components) scoped for V5.4.3 — requires one full offline eval run to produce the decomposition data.

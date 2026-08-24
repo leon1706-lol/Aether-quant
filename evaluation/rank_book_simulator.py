@@ -97,6 +97,7 @@ def _simulate_rank_book_core(
     entry_lag_bars: int = 0,
     min_commission_usd: float = 0.0,
     assumed_portfolio_value_usd: float = 0.0,
+    impact_model_config: dict | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -255,6 +256,28 @@ def _simulate_rank_book_core(
                 names_traded = sum(1 for delta in deltas_by_symbol.values() if delta != 0.0)
                 cost_this_date += names_traded * min_commission_usd / assumed_portfolio_value_usd
             total_cost_return += cost_this_date
+
+            # V5.4.2 - Almgren-style impact model (optional, off by default).
+            # Simplified date-level estimate: uses aggregate turnover and a
+            # configured daily vol + eta to approximate sqrt-impact cost.
+            if impact_model_config and impact_model_config.get("enabled", False):
+                from evaluation.impact_model import compute_sqrt_impact_bps
+
+                eta = float(impact_model_config.get("eta", 0.5))
+                daily_vol = float(impact_model_config.get("daily_volatility", 0.02))
+                adv = float(impact_model_config.get("avg_daily_dollar_volume", 50_000_000))
+                pv = assumed_portfolio_value_usd if assumed_portfolio_value_usd > 0 else 1e6
+                impact_bps = compute_sqrt_impact_bps(
+                    trade_size_fraction=turnover_this_rebalance,
+                    daily_volatility=daily_vol,
+                    avg_daily_dollar_volume=adv,
+                    portfolio_value=pv,
+                    eta=eta,
+                )
+                impact_cost = impact_bps / 1e4
+                cost_this_date += impact_cost
+                total_cost_return += impact_cost
+
             num_rebalances += 1
             held_weights = new_weights
 

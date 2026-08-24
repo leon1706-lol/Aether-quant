@@ -1307,3 +1307,16 @@ artifacts alongside a **non-blocking test-visibility job** - releases are
 deliberately never gated (user decision), but any gap is visible directly
 on the release run. See `.github/workflows/ci.yml` /
 `.github/workflows/release.yml` and `CONTRIBUTING.md`.
+
+
+## Open Source Files
+
+| File | Purpose |
+|---|---|
+| [`LICENSE`](LICENSE) | PolyForm Noncommercial 1.0.0 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute: setup, testing, code conventions, CI expectations |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community conduct policy |
+| [`SECURITY.md`](SECURITY.md) | Security vulnerability reporting policy |
+| [`RUNBOOK.md`](RUNBOOK.md) | Operational procedures: kill-switch trips, reconciliation breaches, data gaps |
+| [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | Exact steps to reproduce every claimed number |
+| [`development/backups/`](development/backups/README.md) | Pre-condensation snapshots of development records |

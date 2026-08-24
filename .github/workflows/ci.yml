@@ -8,12 +8,19 @@ on:
     branches: [main]
   pull_request:
 
+# V5.4.2 - cancel superseded runs on rapid-fire pushes (ported from Aether-Vault)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   python-tests:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -67,6 +74,7 @@ jobs:
 
   dependency-audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -88,6 +96,7 @@ jobs:
 
   webui-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: webui
@@ -109,6 +118,7 @@ jobs:
 
   cli-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -130,6 +140,7 @@ jobs:
 
   workflows-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
