@@ -134,22 +134,42 @@ def compute_action_reward(
     prior_action_weight: float,
     turnover_cost_bps: float,
     commission_bps: float,
+    *,
+    asymmetric_penalty_weight: float = 1.0,
 ) -> float:
-    """r(s, a) = a*w*dir*ret - turnover_cost - commission. turnover_cost is
-    proportional to the CHANGE in position size (a*w vs the prior bar's
-    already-realized a*w for the same ticker) at turnover_cost_bps (this
-    row's own liquidity_spread_proxy, in bps - the same estimate
-    execution/order_gate.py already charges at runtime); commission is a
-    flat per-trade fee charged only when the position size actually
-    changed (a*w != prior_action_weight), matching a real broker's
-    per-trade commission structure rather than a size-proportional one.
+    """r(s, a) = a*w*dir*ret - turnover_cost - commission.
+
+    V5.4.1 - adds an ASYMMETRIC PENALTY when the action reduces exposure to
+    a winning trade or increases exposure to a losing trade, weighted by
+    `asymmetric_penalty_weight` (> 1.0 penalizes leaving profit on the table
+    more than taking on slightly-larger losers). This is the root-cause fix
+    for the honest negative result found three times previously (#71/Phase
+    4.12 lineage): the old symmetric reward made undersizing a winner and
+    oversizing a loser cost IDENTICALLY, so the policy's optimal strategy
+    was always "do nothing" (= constant 1.0 baseline), which it correctly
+    learned every time.
+
     Never raises - all inputs are plain floats."""
     sized_weight = action * base_weight
     gross = sized_weight * direction * forward_return
     weight_delta = abs(sized_weight - prior_action_weight)
     turnover_cost = (turnover_cost_bps / 1e4) * weight_delta
     commission_cost = (commission_bps / 1e4) if weight_delta > 1e-12 else 0.0
-    return gross - turnover_cost - commission_cost
+
+    # V5.4.1 asymmetric penalty: if the trade WOULD have been profitable at
+    # full size but this action shrinks it, the foregone profit is a real
+    # cost the symmetric formula ignored. Only applies to REDUCED exposure
+    # on winning trades (direction * forward_return > 0). At
+    # asymmetric_penalty_weight=1.0 the penalty is exactly zero (backwards-
+    # compatible with the pre-V5.4.1 formula); values above 1.0 scale it.
+    opportunity_cost = 0.0
+    if forward_return != 0.0 and direction != 0.0 and asymmetric_penalty_weight > 1.0:
+        full_size_gross = base_weight * direction * forward_return
+        if full_size_gross > 0 and sized_weight < base_weight:
+            excess = asymmetric_penalty_weight - 1.0
+            opportunity_cost = (base_weight - sized_weight) * abs(forward_return) * excess
+
+    return gross - turnover_cost - commission_cost - opportunity_cost
 
 
 def standardize_states(states: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

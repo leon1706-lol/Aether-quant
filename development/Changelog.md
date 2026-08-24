@@ -1787,3 +1787,10 @@ and instrumented (#104).
 
 **Fixed:** python-lint job reverted to bare `ruff check .` (the `aq test --ruff` invocation required importing pandas via the aq_cli module chain, but the lint job intentionally runs in a minimal environment without full deps). Duplicate py_compile step removed.
 **Added:** dependency-audit job running pip-audit against both runtime and dev requirements files on every push/PR - catches known CVEs before release.
+
+
+## V5.4.1 — RL sizing asymmetric reward fix (root-cause of 3× honest negative), regime conditioning, auto-rollback dry-run + degradation score, prediction provenance counters
+
+**RL sizing:** compute_action_reward() gained asymmetric_penalty_weight (>1.0 penalizes foregone profit on winners); RL_SIZING_STATE_KEYS gained regime_trend_bullish/bearish/sideways one-hots for regime-conditional policy learning. 6 tests. Codespace retrain ready but not yet executed.
+**Auto-rollback:** rollback_hardening.py with compute_degradation_score() (continuous 0-1) and select_rollback_target_dry_run(). 6 tests.
+**Prediction provenance:** per-session sequence-vs-multitask counters logged at shutdown. Tests pending Lean runtime.

@@ -1433,3 +1433,16 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **NEW: dependency-audit job** — `pip-audit --requirement requirements/*.txt` scanning for known CVEs against both runtime and dev dependencies on every push/PR. Catches supply-chain vulnerabilities before they reach a release tag.
 
 **Verification:** ci.yml parses cleanly with 6 jobs; meta-tests updated to match.
+
+
+### 112. V5.4.1 - RL sizing reward asymmetry fix (root-cause of 3× honest negative), regime conditioning in state vector, auto-rollback hardening (dry-run + degradation score), prediction provenance counters, topology EWM option deferred
+
+**Severity:** n/a (model-improvement round) · **Status:** 🟡 `code shipped; RL retrain pending user codespace run`
+
+**RL sizing root cause identified and fixed:** the reward function was SYMMETRIC - undersizing a winner and oversizing a loser cost identically, so "do nothing" (constant 1.0 baseline) was always optimal, which the policy correctly learned every time (3× honest negative). Fixed with an `asymmetric_penalty_weight` parameter (>1.0 penalizes foregone profit on winning trades). Also added regime trend one-hots (`regime_trend_bullish/bearish/sideways`) to `RL_SIZING_STATE_KEYS` so the linear policy can learn regime-conditional sizing.
+
+**Auto-rollback hardened:** new `retraining/rollback_hardening.py` with `compute_degradation_score()` (continuous 0-1 weighted composite) and `select_rollback_target_dry_run()` (same return shape + `dry_run: True` + degradation score for audit without execution).
+
+**Prediction provenance:** per-session counters (`sequence_served` vs `multitask_fallback`) logged at shutdown via `prediction-provenance:` Debug line alongside #104's shutdown-probe.
+
+**Codespace retrain NOT yet executed** - user must start codespace and trigger; all code changes are in place.

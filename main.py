@@ -1349,6 +1349,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.sequence_feature_schema, int(phase_v2_sequence.get("window_size", 30))
         )
         self.symbol_feature_history = {symbol: deque(maxlen=self.sequence_window_size) for symbol in self.symbols}
+        # V5.4.1 - per-session counters for prediction provenance tracking.
+        self._sequence_predictions_served = 0
+        self._multitask_fallback_count = 0
         # V4.9 Priority 1 - batches the sequence encoder across ALL pending
         # symbols in one call (inference/exported_model.py::
         # run_exported_sequence_multitask_model_batched()) instead of one
@@ -2055,6 +2058,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             result = inference_results[symbol_key]
             baseline_probability_up = result["baseline_probability"]
             sequence_prediction = result["sequence_result"]
+            # V5.4.1 - prediction provenance counters
+            if sequence_prediction is not None:
+                self._sequence_predictions_served += 1
+            else:
+                self._multitask_fallback_count += 1
             expert_probabilities = result["expert_probabilities"]
             multitask_payload = result["multitask_result"]
             baseline_magnitude = multitask_payload.get("magnitude") if multitask_payload else None
@@ -2996,6 +3004,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if thread is not _threading.current_thread()
             ]
             self.Debug(f"shutdown-probe: alive_threads={alive or '[]'}")
+            self.Debug(
+                f"prediction-provenance: sequence_served={self._sequence_predictions_served} "
+                f"multitask_fallback={self._multitask_fallback_count}"
+            )
         except Exception as error:
             self.Debug(f"shutdown-probe failed (non-fatal): {error}")
 

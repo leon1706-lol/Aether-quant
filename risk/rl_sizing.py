@@ -53,6 +53,12 @@ RL_SIZING_STATE_KEYS = [
     "alt_implied_volatility_level",
     "alt_implied_vol_term_structure",
     "alt_financial_conditions_change",
+    # V5.4.1 - regime trend one-hots: lets the linear policy learn
+    # regime-conditional sizing (e.g. be more conservative in bearish)
+    # rather than a single global multiplier that averages across regimes.
+    "regime_trend_bullish",
+    "regime_trend_bearish",
+    "regime_trend_sideways",
 ]
 
 DEFAULT_MIN_RL_MULTIPLIER = 0.6
