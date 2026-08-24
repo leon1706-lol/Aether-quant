@@ -766,6 +766,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_feature_reconciliation.py",
         "test_feature_parity.py",
         "test_promotion_gate_era_rule.py",
+        "test_ci_workflows.py",
         "test_monte_carlo.py",
     ],
 }

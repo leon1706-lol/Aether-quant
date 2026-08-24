@@ -98,3 +98,23 @@ def test_config_echo_in_result():
         "method": "iid",
         "trading_days_per_year": 252,
     }
+
+
+def test_all_positive_series_yields_exactly_zero_loss_probability():
+    result = run_monte_carlo(_returns(200, seed=21) + 0.05, n_runs=50)
+    assert result["prob_negative_return"] == 0.0
+    assert result["worst_run_total_return"] > 0.0
+
+
+def test_block_size_larger_than_series_clamps_safely():
+    r = _returns(40, seed=8)
+    result = run_monte_carlo(r, n_runs=10, block_size=500)
+    assert result["status"] == "OK"
+    assert result["config"]["n_runs"] == 10
+
+
+def test_n_plot_points_larger_than_series_is_handled():
+    result = run_monte_carlo(_returns(30, seed=4), n_runs=5, n_plot_points=900)
+    assert result["status"] == "OK"
+    curves = result["runs_curves"]
+    assert curves.shape[1] == 30  # clamped to series length

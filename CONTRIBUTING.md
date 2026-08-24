@@ -154,3 +154,14 @@ notes. To make a release:
 The project is licensed under PolyForm Noncommercial 1.0.0. Contributions
 are licensed under the same terms: by opening a PR you agree that your
 contribution may be used non-commercially only.
+
+
+## CI expectations
+
+CI runs the full offline suite (both Ubuntu and Windows) with an 80%
+coverage fail-under gate, `ruff check .`, the complete vitest frontend
+suite, a CLI smoke battery, and actionlint. A red CI job means "do not
+merge as-is" even when your local run was green - platform variance is
+exactly what these extra runners exist to catch. Tag-push releases run one
+extra NON-BLOCKING visibility job (`tag-tests`) so gaps show up next to the
+release without failing it.

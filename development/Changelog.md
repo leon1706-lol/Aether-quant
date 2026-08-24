@@ -1769,3 +1769,10 @@ and instrumented (#104).
 
 
 **V5.3.8 webui addendum:** MonteCarloPanel on the Evaluation page (SVG avg curve + p5/p95 band, percentile table, loss probability), monte_carlo served via /api/evaluation, TS types added; vitest 100/100 (23 files) incl. 4 new panel tests, tsc + production build clean.
+
+
+## V5.3.9 — Deep GitHub Actions testing suite: win+ubuntu pytest matrix with 80% coverage gate, ruff lint job, vitest in CI, CLI smoke battery, actionlint, workflow meta-tests; non-blocking tag-release visibility
+
+**Shipped:** ci.yml rewritten to five jobs (python-tests matrix with --cov-fail-under=80 calibrated from the measured 82% baseline + coverage.xml artifact; python-lint running the newly adopted ruff E/F ruleset - 604 pre-existing findings triaged to zero; webui-tests now executing the full vitest suite before build; cli-smoke editable-install battery incl. aq secrets-check; workflows-lint via actionlint). release.yml gained a deliberately NON-BLOCKING tag-tests job so tagged releases always proceed while gaps stay visible on the run. tests/test_ci_workflows.py pins the entire structure (7 meta-tests). Coverage config standardized in pyproject.toml.
+
+**Verification:** ruff clean; full suite 2751 passed / 11 deselected including all new meta/edge tests.

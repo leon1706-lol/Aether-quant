@@ -318,3 +318,53 @@ def test_update_readme_evaluation_sections_returns_false_when_markers_missing(tm
 
 def test_update_readme_evaluation_sections_returns_false_when_readme_missing(tmp_path):
     assert update_readme_evaluation_sections(tmp_path / "does_not_exist.md") is False
+
+
+def test_monte_carlo_markers_render_not_run_yet_fallback_when_json_absent(tmp_path, monkeypatch):
+    """V5.3.8/9 - the Monte Carlo section must degrade to its not-run-yet
+    fallback (never crash) when ml/evaluation/monte_carlo.json + .npz are
+    absent, and render real values when the summary exists."""
+    import generate_evaluation_report as report_module
+
+    evaluation_dir = tmp_path / "ml" / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    monkeypatch.setattr(report_module, "EVALUATION_DIR", evaluation_dir)
+    monkeypatch.setattr(report_module, "_load_lean_sharpe", lambda: (None, None))
+    monkeypatch.setattr(report_module, "_count_real_kill_switch_trips", lambda: None)
+
+    markers = (
+        "<!-- AQ:MONTECARLO_START -->old mc<!-- AQ:MONTECARLO_END -->\n"
+        "<!-- AQ:MONTECARLO_FULL_STATS_START -->old deep<!-- AQ:MONTECARLO_FULL_STATS_END -->\n"
+    )
+    readme_path = tmp_path / "README.md"
+    readme_path.write_text("# Aether Quant\n\n" + markers, encoding="utf-8")
+
+    updated = update_readme_evaluation_sections(readme_path)
+    assert updated is True
+    text = readme_path.read_text(encoding="utf-8")
+    assert "old mc" not in text and "old deep" not in text
+    assert "Monte Carlo simulation has not been run yet" in text
+
+    # Now write a minimal summary + curves npz and confirm real rendering.
+    import numpy as np
+
+    payload = {
+        "status": "OK",
+        "config": {"n_runs": 1000, "block_size": 20, "seed": 42, "method": "block"},
+        "avg_curve": [1.0, 1.03],
+        "pct_band": {"p5": [1.0, 0.98], "p25": [1.0, 1.0], "p75": [1.0, 1.05], "p95": [1.0, 1.08]},
+        "final_return_pct": {"p5": -2.0, "p25": 3.0, "p50": 9.38, "p75": 15.0, "p95": 21.45},
+        "sharpe": {"p5": -0.18, "p25": 0.6, "p50": 1.4, "p75": 2.0, "p95": 2.52},
+        "max_drawdown": {"p5": 1.0, "p25": 3.0, "p50": 5.0, "p75": 7.0, "p95": 9.11},
+        "prob_negative_return": 0.095,
+        "best_run_total_return": 31.2,
+        "worst_run_total_return": -6.4,
+    }
+    (evaluation_dir / "monte_carlo.json").write_text(json.dumps(payload), encoding="utf-8")
+    np.savez_compressed(evaluation_dir / "monte_carlo_curves.npz", runs_curves=np.ones((10, 2)))
+
+    updated = update_readme_evaluation_sections(readme_path)
+    assert updated is True
+    text = readme_path.read_text(encoding="utf-8")
+    assert "1000-run stationary-block bootstrap" in text
+    assert "![](development/monte_carlo_equity_curves.png)" in text or            "(development/monte_carlo_equity_curves.png)" in text

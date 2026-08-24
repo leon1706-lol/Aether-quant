@@ -750,3 +750,15 @@ gh codespace cp -c <codespace-name> remote:/tmp/aether-quant-ml.tgz .\aether-qua
 tar -xzf .\aether-quant-ml.tgz
 gh codespace stop -c <codespace-name>
 ```
+
+
+## GitHub Actions (V5.3.9+)
+
+`ci.yml`: python-tests (ubuntu+windows matrix, full offline suite,
+coverage.xml artifact, --cov-fail-under=80), python-lint (ruff),
+webui-tests (tsc, oxlint, vitest --pool=threads, build), cli-smoke
+(editable install + offline battery incl. secrets-check), workflows-lint
+(actionlint). `release.yml`: on `v*.*.*` tags -> tag-tests (visibility
+only, non-gating by design) -> publish-pypi (Trusted Publisher OIDC) ->
+publish-docker (ghcr.io, gha layer cache) -> github-release (auto notes +
+Changelog link).

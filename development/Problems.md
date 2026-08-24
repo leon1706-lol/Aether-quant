@@ -1387,3 +1387,23 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 
 **V5.3.8 webui integration addendum:** Monte Carlo surfaced as a first-class evaluation panel — `webui/src/components/evaluation/MonteCarloPanel.tsx` (config echo, inline SVG average curve with p5/p95 band, return/Sharpe/maxDD percentile table, loss probability + best/worst) mounted on the Evaluation page; `monitoring/evaluation_state.py` now serves `monte_carlo.json` via `/api/evaluation` (`monte_carlo` key, honest not-evaluated fallback). TS types added (`MonteCarloReport` etc.; legacy fixtures tolerated via optional keys). Tests: 4 vitest component tests (empty state, config/distribution render, SVG paths present, backend not_evaluated parity), 2 python state tests, full vitest suite **100/100 across 23 files**, `tsc -b --noEmit` clean, production build clean. Bugs found en route: float artifact in fixture (9.38-2=7.380000000000001) and missing KillSwitchReplayReport TS type — both fixed.
+
+
+### 109. Deep GitHub Actions testing suite — windows+ubuntu matrix with calibrated coverage gate, ruff lint, vitest in CI, CLI smoke battery, actionlint, workflow meta-tests; non-blocking release visibility (V5.3.9)
+
+**Severity:** n/a (verification-infrastructure round) · **Status:** 🟢 `shipped`
+
+**Gap list found when auditing ci.yml:** the 100 vitest frontend tests never ran in CI; no Python lint existed; no coverage measurement/gate; Linux-only runners despite Windows being the dev platform (past platform bugs like #10's float-summation variance were exactly this class); `release.yml` published PyPI/Docker/GitHub-Release on tag push with zero test visibility.
+
+**Shipped:**
+- `ci.yml` rewritten to five jobs:
+  1. `python-tests` — matrix `[ubuntu-latest, windows-latest]`, full offline suite with coverage (`--cov-fail-under=80`, calibrated from the measured 82% total on this suite minus two points of slack), coverage.xml artifact uploaded from the ubuntu leg.
+  2. `python-lint` — NEW ruff job (E/F ruleset calibrated to existing style: line-length 240, main.py star-import exemptions per Lean pattern, `__init__.py` re-export exemption). Adopted into requirements-dev.txt for local parity; **604 pre-existing findings triaged to zero** (23 auto-fixed unused imports, remainder hand-fixed: dead stores incl. three unused `rank_signal_config` assignments, loop-variable shadowing, ambiguous names).
+  3. `webui-tests` — the pre-existing tsc/oxlint/build job now ALSO runs `npx vitest run --pool=threads`: the frontend suite finally executes in CI.
+  4. `cli-smoke` — editable install + deterministic offline battery (`aq --help`, `aq evaluate --help`, `aq config get phase1.universe.name`, `aq secrets-check`) catching packaging drift.
+  5. `workflows-lint` — actionlint validating both workflow files.
+- `release.yml`: NON-BLOCKING `tag-tests` visibility job added per user decision — releases still proceed regardless of test results; gaps are visible directly on the tag run instead.
+- `tests/test_ci_workflows.py` — 7 meta-tests pinning triggers, matrix contents, the coverage gate value, vitest-in-CI ordering, ruff/py_compile presence, the deliberately non-gated release structure, all three publish targets, and the README's `--monte-carlo` documentation.
+- Coverage config lives in pyproject ([tool.coverage.run/report]) with source/omit lists so local runs match CI exactly.
+
+**Verification:** ruff clean; full suite 2751 passed / 11 deselected locally including the new meta tests (the subsystem-mapping guard itself caught the unregistered test file mid-round - working as designed).
