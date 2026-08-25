@@ -85,11 +85,14 @@ topology risk, liquidity) from `base_features`/`confidence`; returns `None`
 (no-op) if any key is missing or the flag is off. `_softmax_argmax_index()`
 is deterministic — argmax over the trained policy, never samples at runtime.
 Trained by `train_rl_sizing.py`: softmax policy-gradient over
-`ml/datasets/validation_dataset.csv`, reward = realized PnL net of fees.
-`aq train --rl-sizing-only` wires it like `_train_topology_only()`. **Ships
-disabled**: backtest expected reward (`-8.542e-5`) underperformed the
-constant-`1.0` baseline (`-8.264e-5`) — documented in
-`development/Problems.md` #71 rather than re-tuned.
+`ml/datasets/validation_dataset.csv`, reward = realized PnL net of fees
+(asymmetrically weighted so oversizing is punished more than undersizing —
+the V5.4.1 fix for an earlier reward that made the policy look honestly
+negative). `aq train --rl-sizing-only` wires it like `_train_topology_only()`.
+**Ships
+disabled** pending a retrain demonstrating positive expected reward over
+the constant-`1.0` baseline (see `development/Problems.md` #71 and the
+V5.4.1 changelog entry).
 `PositionSizingDecision.rl_multiplier`/`.rl_sizing_reason`. All chain
 multipliers render in the webui's `AssetSizingTable.tsx` as a `label×value`
 chip, muted at `1.0`.
@@ -131,92 +134,35 @@ max_margin_utilization,margin_source}`, off by default.
 
 ### Options — `portfolio/options_strategy.py` (lives in `portfolio/`, needs the option chain)
 
-- **Single-leg**: `build_options_position_sizing()` — BSM greeks
-  (`features/options_greeks.py`) size a long call/put by target delta
-  (scales with confidence), capped by a vega risk budget. Config:
-  `phase_v2.options_risk.{enabled,target_delta_at_full_confidence,
-  max_vega_budget_pct_of_equity,risk_free_rate}`, off by default.
-- **Vertical spread**: `phase_v2.options_risk.spread_strategy`
-  (`"single_leg"`/`"vertical"`) → `build_vertical_spread_position_sizing()`/
-  `select_vertical_spread_legs()` — sized by **net** vega (long − short);
-  `short_leg_delta_offset` (default `0.20`); short leg filtered to the
-  risk-capping strike side explicitly. `main.py::_apply_option_order()`
-  places it atomically (`OptionStrategies.bull_call_spread()`/
-  `bear_put_spread()` + `self.Buy(strategy, quantity)`); closing liquidates
-  each leg independently, not atomic (Problems.md #38).
-- **Full 43-strategy registry** (Problems.md #59):
-  `MULTI_LEG_STRATEGY_REGISTRY`, one `StrategySpec` per `OptionStrategies`
-  factory (factory name, `arg_order`, per-leg side/ratio/right/strike_role
-  transcribed from Lean's `OptionStrategies.cs`), grouped into shape families
-  (vertical, straddle, strangle, butterfly, iron condor/butterfly, calendar,
-  backspread, ladder, naked, covered/protective, collar, 3 arbitrage
-  families), one shared selector per family. Gated by
-  `phase_v2.options_risk.multi_leg_strategies_enabled` (default `false`).
-  - **3 sizing paradigms**: vega budget (`build_multi_leg_position_sizing()`,
-    bounded-risk shapes, sizes by `abs(net_vega)`); margin
-    (`portfolio/options_margin_sizing.py` — Reg-T-style naked/uncovered-leg/
-    bounded-max-loss margin, mirrors `futures_risk.py`'s soft-target/
-    hard-ceiling shape, first approximation not broker-accurate, hard-gated
-    to `runtime_mode == "backtest"` as a code invariant); equity-ratio
-    (`build_covered_protective_position_sizing()` — option leg(s)
-    floor-rounded off the held equity quantity; `main.py` never submits
-    Lean's bundled `covered_call`/`protective_put`/`protective_collar`
-    factory, only the option leg(s), force-liquidated once equity no longer
-    covers them).
-  - Risk-tier notes: of the 4 ladders, only `bull_call_ladder`/
-    `bear_put_ladder` are net-short/unbounded; of the 4 backspreads, only the
-    inverted `short_*` variants are unbounded.
-  - **Volatility-view gating**: `atm_implied_volatility()`/
-    `classify_volatility_view()` classify `predicted_volatility`
-    (annualized ×√252 at the `main.py` call site) against chain ATM IV into
-    long_vol/short_vol/neutral — gates straddle/strangle/iron-condor/
-    butterfly selection only.
-  - **Strategy selection**: `phase_v2.options_risk.enabled_strategy_names`
-    is an ordered priority list (first match that sizes wins).
-    `risk_tier_preference` (`"defined_risk_first"` default) reorders
-    defined-risk names ahead of unbounded ones. Per-asset override via
-    `"options_strategy_override": {"enabled_strategy_names": [...]}` on a
-    `phase1.universe.assets` entry (`resolve_enabled_strategy_names()`).
-  - **Learned reranking** (Problems.md #61):
-    `route_multi_leg_option_sizing(..., strategy_selector_scores=None)` —
-    falsy (default) reproduces static `order_enabled_strategies()` ordering
-    byte-identically; when present, `rerank_enabled_strategies_by_score()`
-    reranks by score. Model: `train_strategy_selector.py`/
-    `inference/strategy_selector_inference.py` (`portfolio/README.md`).
-    Ships dormant (`phase_v2.strategy_selector.enabled=false`).
-  - **Arbitrage detector** (Problems.md #60):
-    `portfolio/options_arbitrage_detector.py` — box-spread/put-call-parity/
-    jelly-roll fair value vs. chain market price via a configurable bps
-    threshold (`phase_v2.options_risk.arbitrage_detector`, default
-    `enabled: false`); resolves strike/expiry roles from
-    `MULTI_LEG_STRATEGY_REGISTRY` directly.
-- **Held-position sizing**: `build_options_position_sizing_for_contract()`/
-  `build_vertical_spread_position_sizing_for_legs()` size the actually-held
-  contract/legs on current greeks, skipping chain selection (share
-  `_size_single_leg_contract()`/`_size_vertical_spread()` with the chain-first
-  sizers). Multi-position book: `phase_v2.options_risk.max_positions_per_underlying`
-  (default `1`); tracked in `main.py`'s
-  `self.option_positions_by_symbol: dict[str, list[dict]]`
-  (`_apply_option_order()`/`_apply_option_multi_leg_order()`;
-  `_liquidate_option_record()` closes one, `_liquidate_position()` closes all).
-- **Combo limit orders**: `main.py::_try_submit_multi_leg_limit_order()` — N-leg
-  combo via Lean's `ComboLimitOrder` (`_apply_option_multi_leg_order()`).
-  Note: supersedes the earlier 2-leg-only `_try_submit_spread_limit_order()`/
-  `_apply_option_spread_order()`, folded into "multi_leg" with the full
-  registry. `pending_limit_orders` keyed by order-target Symbol, not chain
-  symbol_key, so concurrent positions on one underlying don't collide.
-- **Anti-thrashing**: `rotate_on_drift` (below), `phase_v2.options_risk.rotation_cooldown_bars`
-  (default `5`), same-bar netting (re-sizes new legs against post-liquidation
-  `Portfolio.TotalPortfolioValue`). `_active_position_count()` resolves each
-  Symbol to its chain-level identity first, so a 4-leg position counts once,
-  not once per leg.
-- **Dividend/assignment risk** (Problems.md #61):
-  `portfolio/options_assignment_risk.py` + `data_pipeline/dividend_backfill.py`,
-  and `features/options_greeks.py::baw_american_price()` (Barone-Adesi-Whaley)
-  — pure feature/signal modules, no `risk/` involvement (`portfolio/README.md`).
-- **Verification status**: every combo-order path (single-leg, vertical,
-  43-strategy registry, margin sizing) is code-complete but
-  Lean-API-unverified — no real Lean backtest has placed a combo option order.
+Sizing for options is chain-aware, so the modules live in `portfolio/` —
+see `portfolio/README.md` for the full options design (the 43-strategy
+registry, held-position sizing, combo limit orders, assignment risk).
+The sizing-relevant summary:
+
+- **3 sizing paradigms**, dispatched by strategy shape: vega budget
+  (`build_options_position_sizing()` single-leg / `build_multi_leg_position_sizing()`
+  for bounded-risk multi-leg shapes, sized by `abs(net_vega)`); margin
+  (`portfolio/options_margin_sizing.py` — naked/uncovered-leg/
+  bounded-max-loss margin, hard-gated to `runtime_mode == "backtest"`);
+  equity-ratio (`build_covered_protective_position_sizing()` — option
+  legs sized off the held equity quantity).
+- **Volatility-view gating**: `classify_volatility_view()` classifies
+  `predicted_volatility` against chain ATM IV into
+  long_vol/short_vol/neutral — gates straddle/strangle/iron-condor/
+  butterfly selection only.
+- **Strategy selection**: `phase_v2.options_risk.enabled_strategy_names`
+  is an ordered priority list (first match that sizes wins) +
+  `risk_tier_preference` (defined-risk-first by default) + optional
+  per-asset override. A trained strategy-selector model can rerank the
+  list (`route_multi_leg_option_sizing(..., strategy_selector_scores=...)`,
+  dormant by default).
+- Config: `phase_v2.options_risk.{enabled,target_delta_at_full_confidence,
+  max_vega_budget_pct_of_equity,risk_free_rate,spread_strategy,
+  multi_leg_strategies_enabled,max_positions_per_underlying,
+  rotation_cooldown_bars,arbitrage_detector}`, off by default.
+- **Verification status**: every combo-order path is code-complete but
+  Lean-API-unverified — no real Lean backtest has placed a combo option
+  order.
 
 ### Forex — `forex_risk.py`
 
@@ -240,13 +186,12 @@ Individual-bond trading is infeasible under this Lean version (no
 `SecurityType.Bond`) — reframed as bond-ETF duration/convexity in
 `features/bond_features.py` (`portfolio/README.md`).
 
-## Adding to / rotating an existing position (Problems.md #57, #58)
+## Adding to / rotating an existing position
 
-`risk_controls.py` (repo root) closes a bug where a repeated same-direction
-signal either fully blocked (equity/crypto/bond) or silently restacked an
-absolute sizing target as an incremental order every bar
-(futures/options — dormant bug, reachable only when those risk modules are
-enabled):
+`risk_controls.py` (repo root) governs whether an already-open position may
+be scaled toward a fresh target, instead of either fully blocking
+(equity/crypto/bond) or restacking an absolute target as an incremental
+order every bar (futures/options):
 
 - `should_scale_position(current_weight, target_weight,
   rebalance_threshold_weight=0.03)` — equity/crypto/bond churn guard: resubmit
@@ -254,27 +199,15 @@ enabled):
 - `compute_incremental_order_quantity(target_quantity, current_quantity)` —
   signed delta a `MarketOrder`/`self.Buy` submits to converge a
   discrete-contract instrument (futures/options/spreads) toward its fresh
-  absolute target. Applied unconditionally (churn guard is simply "integer
-  delta rounds to nonzero" — no weight threshold applies to a margin/vega
-  budget target).
+  absolute target (churn guard is "integer delta rounds to nonzero").
 
 Gated by `phase_v2.functionality.position_scaling.{enabled,rotate_on_drift}`,
-both off by default:
-- `enabled` — whether an already-open matching position may be topped up.
-  `false` = byte-identical pre-existing behavior (`kept_long`/`kept_short`
-  for equity/crypto/bond; safe no-op for futures/options).
-- `rotate_on_drift` — whether a drifted option contract/spread (different
-  strike/expiry) is rotated: `Liquidate()` old, fresh entry same bar.
-  Independent of `enabled` — a same-bar reenter carries real transient
-  margin/vega exposure a same-instrument top-up doesn't.
-
-Scale-down: single-leg — `delta == 0` is the only no-op, negative delta sells
-via `MarketOrder(contract_symbol, delta)`. Multi-leg —
-`self.Sell(strategy, abs(delta))` (Sell-side sibling of `self.Buy()` entry).
-None of `build_futures_position_sizing()`/`build_options_position_sizing()`/
-`build_vertical_spread_position_sizing()` needed signature changes — the bug
-was purely `main.py`'s execution layer treating an absolute target as
-incremental.
+both off by default (`enabled` = may top up an open matching position;
+`rotate_on_drift` = a drifted option contract/spread is rotated
+`Liquidate()` → fresh entry same bar — independent of `enabled` because a
+same-bar reenter carries real transient margin/vega exposure). Scale-down:
+single-leg negative delta sells via `MarketOrder(contract_symbol, delta)`;
+multi-leg via `self.Sell(strategy, abs(delta))`.
 
 ## Liquidating positions when an asset class is disabled
 
@@ -317,36 +250,26 @@ See `development/architecture.md`'s Kill-Switch, Reconciliation, and
 Auto-Rollback Contract, including `execution/reconciliation.py` and
 `retraining/auto_rollback.py`.
 
-## Backtest safety-gate bypass flags (`risk_controls.py`, V5.2.7)
+## Backtest safety-gate bypass flags (`risk_controls.py`)
 
 Three flags, all backtest-only (`runtime_mode == "backtest"`, else always
-`False`) and off by default. The legacy flag still works standalone; new
-code should prefer the two split flags, which both OR the legacy flag in for
-backward compatibility.
+`False`) and off by default. The legacy flag still works standalone; the
+two split flags both OR the legacy flag in for backward compatibility:
 
 - `is_backtest_safety_bypass_active(runtime_mode, bypass_flag)` —
-  **legacy/combined**, `phase_v2.backtest.bypass_safety_gates`. Its old
-  docstring claimed a narrow scope, but it always covered both behaviors
-  below at once. Kept for backward compatibility only.
-- `is_sticky_trade_lock_bypass_active(runtime_mode, sticky_bypass_flag,
-  legacy_bypass_flag)` — true when backtesting with EITHER
+  **legacy/combined**, `phase_v2.backtest.bypass_safety_gates` (covers both
+  behaviors below at once; kept for backward compatibility).
+- `is_sticky_trade_lock_bypass_active(...)` — backtesting with
   `phase_v2.backtest.bypass_sticky_trade_lock` OR the legacy flag. Controls
   **only** `main.py`'s session-rollover clear of a
   `total_drawdown_limit_breached`/`kill_switch_*` sticky lock — never the
-  regime drawdown branch. Fixes a real bug: `kill_switch_*` reasons are
-  deliberately exempt from the normal daily auto-clear (correct for
-  live/paper, where a human decides when to resume) but an unattended
-  backtest has no human to clear it — one real case stayed locked 13 months
-  of a 2.2-year backtest after a single trip.
-- `is_regime_drawdown_bypass_active(runtime_mode, regime_bypass_flag,
-  legacy_bypass_flag)` — true when backtesting with EITHER
+  regime drawdown branch. (Rationale: `kill_switch_*` locks are exempt from
+  the normal daily auto-clear — correct for live/paper where a human
+  decides — but an unattended backtest has no human to clear it.)
+- `is_regime_drawdown_bypass_active(...)` — backtesting with
   `phase_v2.backtest.bypass_regime_drawdown_gate` OR the legacy flag.
   Controls **only** `main.py::_build_regime_payload()`'s
   `risk_off_drawdown_threshold` override (set to infinity when active) —
-  never the sticky trade-lock clear. The bearish-trend/high-vol and
-  composite-risk-score branches of `classify_risk_regime` stay active
-  regardless.
-
-The two split flags are deliberately independent: unsticking a stuck
-kill-switch lock shouldn't force disabling the unrelated regime-drawdown
-protection too.
+  never the sticky trade-lock clear. The two flags are deliberately
+  independent: unsticking a stuck kill-switch lock shouldn't force
+  disabling the unrelated regime-drawdown protection too.

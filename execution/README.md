@@ -44,8 +44,7 @@ expected cost.
   median (0.5), scaled down when `holding_bars` < the rank head's forward
   horizon. `trade_direction` (+1 long/-1 short) must be the sign of the
   trade being evaluated — measures edge in the direction of the trade, not
-  just the long-side edge; without it every short was vetoed
-  unconditionally (Problems.md — net-edge gate blocked 100% of shorts).
+  just the long-side edge.
   `None` prediction → `0.0`.
 - `build_net_edge_decision(predicted_rank, liquidity_payload, order_value,
   cost_config, *, trade_direction=1)` — consumed by
@@ -107,18 +106,18 @@ charge the identical estimate.
 
 ## Real limit orders
 
-Config-gated alternative to market orders (`phase_v2.limit_orders.enabled`),
-**on by default** since V5.2.x for all 5 asset classes — extensively
-exercised in real backtests since 2026-07-20 (development/Problems.md
-#34/#96: 45 real `order-events.json` files show continuous limit-order
-activity, 2,370-4,103 fills per run in several). Disabling it makes every
-routing call site byte-for-byte identical to the plain market-order path.
+Config-gated alternative to market orders (`phase_v2.limit_orders.enabled`):
+the code default is `false` (a global kill switch — disabling it makes every
+routing call site byte-for-byte identical to the plain market-order path),
+but the shipped `config.json` turns it **on** for all 5 asset classes,
+where it has been extensively exercised in real backtests since 2026-07-20
+(development/Problems.md #34/#96: 45 real `order-events.json` files show
+continuous limit-order activity, 2,370-4,103 fills per run in several).
 
 **Casing convention**: this codebase calls the Lean API in **PascalCase**
 (`self.MarketOrder`, `self.SetHoldings`, `self.SetSlippageModel`) but
 overrides Lean's virtual callbacks in **snake_case** (`initialize`,
-`on_data`) — `quantconnect-stubs` is all-snake_case and does not match this
-project's proven precedent. Limit-order code follows the same split:
+`on_data`). Limit-order code follows the same split:
 PascalCase calls (`self.LimitOrder(...)`, `ticket.Cancel()`,
 `OrderStatus.Filled`), snake_case override (`on_order_event`).
 
@@ -136,11 +135,9 @@ PascalCase calls (`self.LimitOrder(...)`, `ticket.Cancel()`,
   - `TERMINAL_FILLED_STATUS_NAMES` = `Filled`
   - `TERMINAL_CANCELED_STATUS_NAMES` = `Canceled`, `Invalid`
 
-  `CancelPending` (V5.2.8) was added after scanning 33 real
-  `order-events.json` files — `OrderStatus.CancelPending` appeared 23 times,
-  1:1 with confirmed unfilled-timeout cancels (previously fell through to
-  `"unknown"`, already treated as pending — a precision fix, not a behavior
-  change). `PartiallyFilled` has never appeared in that sample.
+  All spellings verified against real `order-events.json` exports
+  (`CancelPending` appeared 23 times, 1:1 with confirmed unfilled-timeout
+  cancels).
 
 Config `phase_v2.limit_orders` (`main.py::_ensure_ready()`): `enabled`
 (default `false`, global kill switch), `asset_classes` (default all 5),
@@ -178,17 +175,6 @@ a cooldown for a trade that never happened. Disabled: no change. Risk: if
 **Observation-mode fills untouched** — `_try_submit_limit_order()` only
 runs inside `if orders_allowed:`, unreachable from simulated `enter_long()`;
 no fill-uncertainty modeling was added to `SimulatedPortfolioState`.
-
-**Unverified until a real Lean backtest confirms**, priority order:
-`OrderStatus` enum casing (highest risk — if wrong, `classify_order_status()`
-returns `"unknown"` for everything and orders sit until timeout-cancel,
-degrading safely); whether `ticket.Cancel()`/`self.LimitOrder(...)` work via
-PascalCase at all; whether `on_order_event` is dispatched by the real
-engine; whether it fires with the option contract symbol (assumed) vs.
-chain symbol; whether `CalculateOrderQuantity` gives `SetHoldings`-parity
-quantities for every asset type (never called elsewhere before this pass);
-real fill-rate sanity (does this beat `fallback_to_market_on_timeout`
-firing on most trades anyway).
 
 ## Config-read caching (`config_cache.py`)
 

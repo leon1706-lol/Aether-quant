@@ -34,76 +34,25 @@ Aether Quant is not a single static strategy. It's a **dynamic system**.
 At its core, an ensemble of neural models predicts, for every asset every
 day, a multi-horizon view of the market: **direction** at 1, 5 and 20 days,
 expected **return magnitude** and **volatility**, and the signal it actually
-trades on: each asset's **cross-sectional rank** (its predicted relative
-strength against the rest of the universe), which drives a market-neutral
-**long/short book**. Those predictions come from a **Mixture-of-Experts**
-ensemble (bullish/bearish/sideways/volatility specialists) routed by a
-learned gating network, alongside a **causal-TCN sequence encoder** that
-adds temporal structure the flat-MLP trunk can't see. All of it reads one
-feature pipeline that folds in a **market-regime detector**, a **3D market
-topology** layer (a deterministic correlation embedding with a learned
-probabilistic overlay), and a **liquidity/market-impact engine** that
-adjusts sizing to real trading conditions. A **unified multi-asset-class
-layer** trades equities, crypto, bonds, futures, options, and Forex through
-one coherent portfolio, with real yield-curve/duration features for bonds,
-margin-aware sizing for futures, Black-Scholes-greeks-based sizing for
-options, and shared cross-asset macro signals (yield curve shape, futures
-term structure, options sentiment, options-implied volatility/financial
-conditions) feeding every asset's prediction, not
-just its own. And a **controlled retraining loop** lets the model itself
-evolve as markets do, all wired together and validated end-to-end inside
-QuantConnect's Lean engine. The thesis this project exists to test is simple
-to state and hard to prove: **markets are non-stationary, so a trading model
-should be too.** Every subsystem here exists to make the model adapt to
-regime shifts, changing correlation structure, and liquidity conditions.
-
-## Quickstart
-
-```powershell
-pip install aether-quant     # published CLI + backend
-aq --help                    # explore commands
-
-# ...or from a clone, to train and backtest end-to-end:
-pip install -e . && python train.py && aq backtest
-```
-
-`aq backtest` needs Docker Desktop and the Lean CLI running; see
-[Getting Started](#getting-started) and [Requirements](#requirements) for the
-full setup.
-
-## Current Status
-
-**V4 complete. V5.1 complete.** V4 built the full multi-asset-class
-architecture (equities, crypto, bonds, futures, options, Forex), the ML
-stack, and the retraining loop. V5.1 rebuilt the trading model and
-execution path to actually pay for its own costs and to survive running
-unattended: the model now trains directly against cross-sectional rank
-(not a proxy MSE loss), targets are residualized against market/sector/size
-so they measure real skill instead of beta, every trade decision runs
-through an explicit expected-cost gate, the book is dollar- and
-sector-neutral with hysteresis, walk-forward validation spans six regimes
-including COVID, and an automated kill switch, position reconciliation,
-and rollback mechanism now sit in front of live trading. Everything below
-is built, tested (<!-- AQ:TEST_COUNT_START -->2834<!-- AQ:TEST_COUNT_END -->
-tests) and wired end-to-end inside Lean.
-
-- **Backtest:** the numbers in [Backtest Results](#backtest-results) below
-  predate V5.1 and don't yet reflect the new model, cost gate, or
-  neutral book — a fresh backtest against the V5.1 pipeline hasn't been
-  run yet (see [Roadmap](#roadmap)).
-- **Signal quality:** the new cross-sectional ranking objective lifted
-  `rank_5d`'s non-overlapping t-stat to 6+ across every seed and objective
-  tried, easily its strongest result to date. `rank_20d` improved but still
-  falls just short of this project's own promotion bar; `residual_rank_20d`
-  (the new market/sector/size-neutral head) isn't promotable yet either.
-  The offline rank-book simulator shows a genuinely positive, balanced
-  net Sharpe after costs across all six walk-forward windows.
-- **Not paper/live-deployable yet**: Interactive Brokers has never been
-  tested against a real Gateway (see [Known Limitations](#known-limitations)),
-  and the new kill-switch/reconciliation machinery, while fully unit-tested,
-  hasn't run against a live broker connection either.
-- **Next:** the Lean backtest that validates the V5.1 pipeline end-to-end,
-  then IB testing — see [Roadmap](#roadmap).
+trades on: each asset's **cross-sectional rank**, which drives a
+market-neutral **long/short book**. Predictions come from a
+**Mixture-of-Experts** ensemble (bullish/bearish/sideways/volatility
+specialists) routed by a learned gating network, plus a **causal-TCN
+sequence encoder**, all reading one feature pipeline that folds in a
+**market-regime detector**, a **3D market topology** layer, and a
+**liquidity/market-impact engine**. A **unified multi-asset-class layer**
+trades equities, crypto, bonds, futures, options, and Forex through one
+coherent portfolio — real yield-curve features for bonds, margin-aware
+sizing for futures, greeks-based sizing for options, and shared cross-asset
+macro signals feeding every asset's prediction — while a **controlled
+retraining loop** lets the model evolve as markets do. Everything is wired
+together and validated end-to-end inside QuantConnect's Lean engine. The
+thesis this project exists to test: **markets are non-stationary, so a
+trading model should be too.** Every subsystem here exists to make the model
+adapt to regime shifts, changing correlation structure, and liquidity
+conditions. The [Architecture](#architecture) section below has the full
+picture; [`development/architecture.md`](development/architecture.md) goes
+deeper still.
 
 ## Known Limitations
 
@@ -119,8 +68,6 @@ status`). Remaining, still-open items:
 
 ## Table of Contents
 
-- [Quickstart](#quickstart)
-- [Current Status](#current-status)
 - [Known Limitations](#known-limitations)
 - [Download](#download)
 - [Getting Started](#getting-started)
@@ -130,7 +77,6 @@ status`). Remaining, still-open items:
 - [Project Structure](#project-structure)
 - [Module Documentation](#module-documentation)
 - [Development Documentation](#development-documentation)
-- [Continuous Integration](#continuous-integration)
 - [Open Source Files](#open-source-files)
 - [Backtest Results](#backtest-results)
   - [Lean Backtest](#lean-backtest)
@@ -166,9 +112,7 @@ status`). Remaining, still-open items:
   - [`aq audit-log`](#aq-audit-log)
   - [`aq status`](#aq-status)
 - [Release Process](#release-process)
-- [Runbook](#runbook)
 - [Roadmap](#roadmap)
-- [Contributing](#contributing)
 
 ---
 
@@ -479,6 +423,18 @@ and how it's wired in, this table is the index.
 | [`development/Problems.md`](development/Problems.md) | Append-only audit log of bugs and infrastructure issues, each with a severity rating and fixed/open status |
 | [`development/backups/`](development/backups/README.md) | Frozen pre-condensation snapshots of the two files above (restore points only — never edited) |
 
+## Open Source Files
+
+| File | Purpose |
+|---|---|
+| [`LICENSE`](LICENSE) | PolyForm Noncommercial 1.0.0 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute: setup, testing, code conventions, CI expectations |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community conduct policy |
+| [`SECURITY.md`](SECURITY.md) | Security vulnerability reporting policy |
+| [`RUNBOOK.md`](RUNBOOK.md) | Operational procedures: everyday commands, cloud training, kill-switch trips, reconciliation breaches, data gaps |
+| [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | Exact steps to reproduce every claimed number |
+| [`development/backups/`](development/backups/README.md) | Pre-condensation snapshots of development records |
+
 ## Backtest Results
 
 ### Lean Backtest
@@ -614,7 +570,7 @@ separately re-derived approximation. Two models feed the live ensemble
 | Cost drag (bps/yr) | 7.9 | 18.2 |
 | Capacity (USD) | 4,396,756 | 3,901,573 |
 
-_Backtest split, full history. Last updated 2026-08-25 10:59 UTC (auto-generated by `aq evaluate --all`)._
+_Backtest split, full history. Last updated 2026-08-25 17:49 UTC (auto-generated by `aq evaluate --all`)._
 <!-- AQ:EVAL_END -->
 
 <details>
@@ -717,7 +673,7 @@ SPY/TLT) shows its skip reason instead of fabricated numbers.
 | sp500 | 1.214 | 56.39% | public benchmark |
 | 60_40 | 1.624 | 43.06% | public benchmark |
 
-_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Last updated 2026-08-25 10:59 UTC (auto-generated by `aq evaluate --benchmarks`)._
+_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Last updated 2026-08-25 17:49 UTC (auto-generated by `aq evaluate --benchmarks`)._
 <!-- AQ:BENCHMARK_END -->
 
 ### Walk-Forward Training/Testing
@@ -738,7 +694,7 @@ distinct from the single final model shown above.
 | residual_rank_20d_ic | 0.0112 | [-0.0131, 0.0318] | yes |
 | net_sharpe (per-window) | 0.654 | — | 5/6 windows positive |
 
-6 expanding/rolling windows, run `walk-forward-a9cd8cfb-24f0-4963-b80b-8ee299df2613`. Last updated 2026-08-25 10:59 UTC (auto-generated by `aq train --walk-forward`).
+6 expanding/rolling windows, run `walk-forward-a9cd8cfb-24f0-4963-b80b-8ee299df2613`. Last updated 2026-08-25 17:49 UTC (auto-generated by `aq train --walk-forward`).
 <!-- AQ:WALKFORWARD_END -->
 
 <details>
@@ -806,7 +762,7 @@ Book-member decision outcomes (672 total, real Lean run):
 | Real Lean backtest (2019-01-01 to 2021-04-02) | _not measurable from a standalone backtest (see Disclaimer)_ | — |
 | Offline replay (approximation, see Disclaimer) | 78 | 73.5% |
 
-_Last updated 2026-08-25 10:59 UTC (auto-generated by `aq evaluate`)._
+_Last updated 2026-08-25 17:49 UTC (auto-generated by `aq evaluate`)._
 <!-- AQ:OTHER_METRICS_END -->
 
 Regenerated on every `aq evaluate` run
@@ -863,24 +819,11 @@ it. See [`tests/README.md`](tests/README.md) for the suite's conventions.
 
 ## CLI Reference
 
-The easiest way to get the `aq` command is straight from PyPI (see
-[Download](#download) above), no source checkout needed:
-
-```powershell
-pip install aether-quant
-```
-
-For local development (this repo cloned, a virtual environment active),
-`pip install -e .` registers the same `aq` command directly from source
-instead, without waiting on a PyPI release:
-
-```powershell
-pip install -e .
-```
-
-Either way, `aq --help` gives the full command list. Every command except
-`aq trade-lock` and `aq fetch` is a thin `subprocess` wrapper around a
-command already documented elsewhere in this README:
+Get the `aq` command from PyPI (`pip install aether-quant`, see
+[Download](#download)) or, for local development, straight from source
+(`pip install -e .`). Either way, `aq --help` gives the full command list.
+Every command except `aq trade-lock` and `aq fetch` is a thin `subprocess`
+wrapper around a command already documented elsewhere in this README:
 
 #### `aq train`
 ```text
@@ -1236,53 +1179,6 @@ done from here):
 - Create a "Trusted Publisher" on pypi.org for this project (pointing at `leon1706-lol/Aether-quant` + the `release.yml` workflow file).
 - After the very first tag push: check the **Packages** tab of this repo to see whether the new `aether-quant` package is private, and switch it to public if needed so `docker pull` works for everyone.
 
-## Runbook
-
-Everyday local commands (assumes the [Getting Started](#getting-started) setup
-is done and the venv is active: `.\.venv\Scripts\Activate.ps1`).
-
-```powershell
-# Rebuild model artifacts
-python train.py                 # full dataset build + train
-python train.py --dataset-only  # dataset/scaler/manifest only
-
-# Recommended pre-commit workflow
-pytest tests/
-aq backtest                     # runs `lean backtest .`, refreshes Backtest Results
-aq report <backtest-folder> <result-id>   # official Lean HTML report
-git status
-
-# Inspect a finished backtest
-Get-ChildItem .\backtests\<backtest-folder>\*-summary.json
-
-# Webui (two terminals) -> http://localhost:3002 (Overview) / /risk
-uvicorn monitoring.api_server:app --port 8001 --reload
-cd webui; npm run dev
-```
-
-**Train in the cloud (GitHub Codespaces)** instead, useful on a
-memory-constrained machine where a full retrain can take hours of wall-clock
-time while barely using any CPU (see `development/Problems.md` #50/#52):
-
-```powershell
-gh codespace create --repo <owner>/Aether-quant --branch main --machine basicLinux32gb
-gh codespace ssh -c <codespace-name>
-# inside the Codespace:
-cd Aether-quant && python train.py
-# back on your local machine:
-gh codespace ssh -c <codespace-name> -- "cd Aether-quant && tar czf /tmp/aether-quant-ml.tgz ml"
-gh codespace cp -c <codespace-name> remote:/tmp/aether-quant-ml.tgz .\aether-quant-ml.tgz
-tar -xzf .\aether-quant-ml.tgz
-gh codespace stop -c <codespace-name>
-```
-
-Before training, first sync any local uncommitted source/data changes to the
-Codespace; afterward verify the whole extracted `ml/` artifact tree (not just
-JSON summaries) before stopping it. Model artifacts are gitignored and the
-SSH copy keeps them out of the public repo. Lean/Docker backtests can't run in
-a Codespace (see `development/infrastructure.md`'s "Cloud Training via GitHub
-Codespaces" section for why); those stay local.
-
 ## Roadmap
 
 All finished work and changes can be found in
@@ -1313,13 +1209,6 @@ If pursued, sequence it as its own workstream, in this order:
 3. **Execution/latency infrastructure**: slippage/latency-aware, queue-position-aware execution and a low-latency event-driven runtime, replacing the daily-bar `on_data()` callback and the 30s+ polling background workers.
 4. Further out: real broker/exchange connectivity beyond paper trading, continuous/online retraining, multi-timeframe ensembles, and reinforcement-learning-based position sizing/execution.
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes following the existing module structure (see [`development/Changelog.md`](development/Changelog.md) for this project's development history)
-4. Open a Pull Request
-
 ---
 
 <p align="center">
@@ -1332,30 +1221,3 @@ If pursued, sequence it as its own workstream, in this order:
   <sub>Aether Quant</sub>
 </div>
 
-
-## Continuous Integration
-
-Every push to `main` and every PR runs a five-job pipeline: the full offline
-pytest suite on **Ubuntu and Windows** with an **80% coverage fail-under
-gate** (calibrated from the real measured baseline), `ruff` linting, the
-complete frontend vitest suite plus type-check and production build, an
-offline `aq` CLI smoke battery (editable install, help surfaces,
-`aq secrets-check`, live config read), and `actionlint` validation of both
-workflow files. Tag pushes additionally produce PyPI/Docker/GitHub-Release
-artifacts alongside a **non-blocking test-visibility job** - releases are
-deliberately never gated (user decision), but any gap is visible directly
-on the release run. See `.github/workflows/ci.yml` /
-`.github/workflows/release.yml` and `CONTRIBUTING.md`.
-
-
-## Open Source Files
-
-| File | Purpose |
-|---|---|
-| [`LICENSE`](LICENSE) | PolyForm Noncommercial 1.0.0 |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute: setup, testing, code conventions, CI expectations |
-| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community conduct policy |
-| [`SECURITY.md`](SECURITY.md) | Security vulnerability reporting policy |
-| [`RUNBOOK.md`](RUNBOOK.md) | Operational procedures: kill-switch trips, reconciliation breaches, data gaps |
-| [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | Exact steps to reproduce every claimed number |
-| [`development/backups/`](development/backups/README.md) | Pre-condensation snapshots of development records |

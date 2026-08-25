@@ -119,13 +119,14 @@ flowchart TB
 - `liquidity/`: Per-asset liquidity and market-impact engine — DDV proxy, participation rate, slippage estimate, spread proxy.
 - `experience/`: Redis-buffered observation and trade events with PostgreSQL persistence.
 - `retraining/`: Controlled retraining — planner, candidate training gate, validation/backtest gates, Aether-Vault commit, promotion and rollback.
+- `evaluation/`: Offline, torch-free evaluation — `rank_book_simulator.py` (the live decision path's offline mirror), `capacity_curve`/`stress_test_costs`, `ablation.py`, `monte_carlo.py` (bootstrap risk distribution), `benchmark_comparison.py` + `public_benchmarks.py` (strategy + SPY/60-40 baselines), `impact_model.py` (Almgren impact calibration), `kill_switch_replay.py`, calibration/reconciliation tooling.
 - `risk/`: Dynamic position sizing, leverage limits, drawdown controls, exposure caps, `asset_class_router.py` (routes sizing per asset class), `futures_risk.py`/`forex_risk.py` (per-class margin/lot sizing), `rl_sizing.py` (offline-trained sizing overlay, default off).
 - `portfolio/`: Stage-2 long/short book construction (`build_rank_based_book()`, config-selectable HRP sizing via `apply_hrp_weights()`/`hrp_allocation.py`, V5.4.4) and `options_strategy.py` (all 43 QuantConnect `OptionStrategies`, registry-driven).
-- `features/`: Pure, train/runtime-shared feature functions — `macro_features.py`/`bond_features.py` (real yield-curve/credit-spread), `alt_data_features.py` (VIX-derived implied volatility + financial-conditions), `derivatives_macro_features.py`, `options_greeks.py`, `technical_indicators.py`.
+- `features/`: Pure, train/runtime-shared feature functions — `macro_features.py`/`bond_features.py` (real yield-curve/credit-spread), `alt_data_features.py` (VIX-derived implied volatility + financial-conditions), `derivatives_macro_features.py`, `options_greeks.py`, `cross_asset_sensitivity.py`, `technical_indicators.py`.
 - `execution/`: Live/paper credential and readiness plumbing (`live_credentials.py`, `paper_readiness_report.py`/`_scheduler.py`), order-gate/limit-order support.
-- `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology and the historical `visualization/grafana/*` exports (equity curves, asset performance, observation/metrics snapshots).
+- `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology, the historical `visualization/grafana/*` exports (equity curves, asset performance, observation/metrics snapshots) and `ml/evaluation/*.json` via `/api/evaluation`.
 - `notifications/`: Telegram alerting (Telegram alerts) — polls `performance_triggers` (every trigger type, not just drawdown) and `experience_events` (`event_type="session_summary"`) directly from Postgres via its own `telegram-worker` Docker service; never imported by `main.py`/Lean.
-- `webui/`: React/Vite single-page app — Overview (3D scene, heatmap, signals), Risk (sizing table with per-multiplier chips, liquidity panel, macro/alt-data snapshot), Topology (3D cluster view), Tracing (equity curves, asset performance), Neural Network (per-network stats, all 3 ranking-quality promotion gates with a per-era diagnostic table), Options & Strategy (held multi-leg positions, 43-strategy catalog browser, Forex pair detail).
+- `webui/`: React/Vite single-page app — Overview (3D scene, heatmap, signals), Risk (sizing table with per-multiplier chips, liquidity panel, macro/alt-data snapshot), Topology (3D cluster view), Tracing (equity curves, asset performance), Neural Network (per-network stats, all 3 ranking-quality promotion gates with a per-era diagnostic table), Options & Strategy (held multi-leg positions, 43-strategy catalog browser, Forex pair detail), Evaluation (rank book, capacity/stress, walk-forward, ablation, reconciliation, Monte Carlo, benchmarks).
 
 ## Redis Experience Queue
 
@@ -212,11 +213,10 @@ DDL is embedded in `postgres_worker.py` — no Alembic, no migration files.
 
 ### Container
 
-`Dockerfile.workers` (shared with `performance-trigger-worker` and
-`telegram-worker` since the Docker image consolidation — see
-`requirements/README.md`) builds a minimal `python:3.11-slim` image with
-`redis>=5.0.0`, `psycopg[binary]>=3.1`, `numpy>=1.24.0`, and
-`requests>=2.31.0`. The `experience-worker` service in `docker-compose.yml`
+All workers share the one consolidated `Dockerfile` (image
+`aether-quant-engine`, built via `docker compose build engine` — see
+`requirements/README.md` for why the per-worker Dockerfiles were
+consolidated). The `experience-worker` service in `docker-compose.yml`
 depends on `redis:healthy` and `postgres:healthy` and runs
 `restart: unless-stopped`. Since observation mode, the image also copies `execution/`
 (not just `experience/`) — `experience/__init__.py` imports
@@ -462,13 +462,13 @@ Package split (mirrors the pure/IO/worker convention already established by
   `validate`, `backtest`, `commit`, `promote`, `rollback`, `status`) as an
   independent CLI subcommand for manual/staged use regardless of whether the
   worker is running.
-- Unlike `experience-worker`/`performance-trigger-worker`'s minimal images,
-  `Dockerfile.retraining_worker` needs the full training stack (`torch`,
-  `pandas`, `scikit-learn`, `joblib`) plus `experts/`, `regime/` and
+- The retraining worker runs the same consolidated `aether-quant-engine`
+  image as every other worker (full training stack included — `torch`,
+  `pandas`, `scikit-learn`, `joblib` — plus `experts/`, `regime/` and
   `train.py` itself, because `orchestrator.py`'s `train()` stage
   subprocess-invokes `train.py --candidate` directly rather than importing
   it — training is CPU/GPU-heavy and must not share the worker's own
-  Postgres connection lifetime or block its event loop.
+  Postgres connection lifetime or block its event loop).
 
 Dashboard/API: `visualization/grafana/retraining_status.json` (written by
 `retraining/status_export.py`, the sole writer — `main.py` never connects to
@@ -880,7 +880,7 @@ Topology risk feeds directly into the market analyzer: `elevated` forces `reduce
 
 **x/y placement is a real distance-preserving embedding (post-the Tracing dashboard architecture audit), not the original cosmetic layout.** The original 3D-coordinate implementation placed cluster centroids and within-cluster members by `index -> angle` on a fixed ellipse — cluster membership was real, but position within/between clusters was arbitrary (two highly-correlated clusters could land on opposite sides of the circle). This was replaced with `_stress_majorize_2d(...)`: SMACOF (Scaling by MAjorizing a COmplicated Function), an iterative stress-majorization algorithm run over the full pairwise correlation-distance matrix across all eligible symbols (not just within-cluster pairs), seeded from the old cosmetic layout for determinism and fast convergence — no randomness anywhere, so `build_market_topology(...)` stays fully deterministic given the same inputs (the existing `test_stable_coordinates_are_deterministic` test still passes unchanged). The result is rescaled to fit the existing `NEUTRAL_DIMENSIONS` `[0,100]x[0,100]` bounds via a single isometric scale factor (not independent per-axis stretching, which would distort the very distances the embedding exists to preserve) — the webui's `TopologyScene3D.tsx` needed no changes, since it already normalizes off `topology.dimensions`. The z-axis (volatility encoding) is untouched. `phase_v2.topology.embedding_iterations` (default 100) controls the iteration count.
 
-**Vectorized with numpy (latency-optimization pass, post-the static/dynamic architecture audit).** `_stress_majorize_2d` was pure Python (an O(N² × iterations) nested loop, the dominant per-bar cost in the whole topology layer) — this module's "no numpy/scipy" convention, referenced above and in the Non-Deterministic Topology section below, is retired for `market_topology.py` specifically now that a real measured bottleneck justifies it. Same inputs/outputs/iteration count/seeding as the pure-Python version; `tests/test_market_topology.py::test_stress_majorize_2d_matches_pure_python_reference` is the parity guard. The pairwise-correlation loop in `build_market_topology()` stays pure Python on purpose — it truncates each pair to the shorter of the two series' lengths (`_pearson_correlation`), and eligible symbols do not all share a common window length in this codebase (staggered asset onboarding, thin markets like ETHUSD/LTCUSD), so a single vectorized `np.corrcoef` call isn't a safe drop-in replacement. `topology/learned_topology.py`'s smaller `O(N² × 5)` pairwise-feature-distance cost was deliberately left pure Python too — at this project's universe size (10 assets), it's genuinely negligible next to SMACOF's cost, and vectorizing it would mean restructuring `apply_learned_topology()`'s per-node try/except (deliberate per-node fallback isolation on malformed data) for no measurable benefit.
+**Vectorized with numpy (latency-optimization pass, post-the static/dynamic architecture audit).** `_stress_majorize_2d` was pure Python (an O(N² × iterations) nested loop, the dominant per-bar cost in the whole topology layer) — this module's "no numpy/scipy" convention, referenced above and in the Non-Deterministic Topology section below, is retired for `market_topology.py` specifically now that a real measured bottleneck justifies it. Same inputs/outputs/iteration count/seeding as the pure-Python version; `tests/test_market_topology.py::test_stress_majorize_2d_matches_pure_python_reference` is the parity guard. The pairwise-correlation loop in `build_market_topology()` stays pure Python on purpose — it truncates each pair to the shorter of the two series' lengths (`_pearson_correlation`), and eligible symbols do not all share a common window length in this codebase (staggered asset onboarding, thin markets like ETHUSD/LTCUSD), so a single vectorized `np.corrcoef` call isn't a safe drop-in replacement. `topology/learned_topology.py`'s smaller `O(N² × 5)` pairwise-feature-distance cost was deliberately left pure Python too — at this project's universe size (104 assets), it's genuinely negligible next to SMACOF's cost, and vectorizing it would mean restructuring `apply_learned_topology()`'s per-node try/except (deliberate per-node fallback isolation on malformed data) for no measurable benefit.
 
 **Warm-started seeding + early convergence exit (same pass, behavior-changing).** `build_market_topology()` accepts an optional `previous_positions` dict; for any eligible symbol present in it, SMACOF seeds from that value instead of the cosmetic angle-based layout (symbols absent — new to the universe, or isolated last bar — still fall back to the cosmetic seed). `main.py` stores every bar's final node `(x, y)` positions in `self._previous_topology_positions` and passes it in as `previous_positions` on the next bar, gated by `phase_v2.topology.warm_start_enabled` (default `true`). `_stress_majorize_2d` also accepts `convergence_tolerance` (`phase_v2.topology.convergence_tolerance`, default `0.01`): once every point's per-iteration movement drops below it, the loop exits before `embedding_iterations` — this is what actually turns a good warm start into fewer iterations, since a warm start alone doesn't save time if it always still runs the full fixed budget. **This changes bar-by-bar topology output values** — historical backtest results and any already-promoted models trained/validated against the old fixed-iteration, fresh-cosmetic-seed-every-bar behavior will not reproduce bit-for-bit after this shipped. Setting `warm_start_enabled: false` reproduces the exact pre-warm-start (vectorized-but-cold) behavior exactly (`tests/test_market_topology.py::test_warm_start_disabled_matches_omitting_previous_positions`), so it is a genuine, redeploy-free rollback switch, not just a default toggle.
 
@@ -966,8 +966,9 @@ a candidate purely for missing topology artifacts), but included in
 `av add <version_dir>` call automatically, since the whole candidate
 directory is already added). `retraining/worker.py`'s `RetrainingWorker`
 calls `train_topology()` in this same spot — no new automatic surface area
-beyond what controlled retraining already established; `auto_promote` still defaults
-`False`.
+beyond what controlled retraining already established; `auto_promote`
+defaults `true` (with `auto_promote_blocked_in_live_mode` as the separate
+live-mode guard).
 
 **Retrain triggers** — `performance/triggers.py` adds 5 new types:
 
@@ -1031,10 +1032,10 @@ badge, aggregate confidence/uncertainty/stress/mismatch stats) and
 positions still move smoothly, but which layer produced them stays
 visible.
 
-**Docker:** `Dockerfile.retraining_worker` now also copies `topology/` and
-`train_topology.py` (its `requirements-retraining-worker.txt` already had
-numpy/scikit-learn/psycopg from controlled retraining, so no dependency changes were
-needed).
+**Docker:** the consolidated `aether-quant-engine` image copies `topology/`
+and `train_topology.py` (its requirements already had
+numpy/scikit-learn/psycopg from controlled retraining, so no dependency
+changes were needed).
 
 ## Liquidity Engine Contract
 
@@ -1076,6 +1077,7 @@ Pages:
 - `/risk` Risk: risk core panel, asset sizing table, liquidity and execution impact panel
 - `/topology` Topology: 3D cluster view with regime/risk colouring, readable cluster list
 - `/neural-network` Neural Network (the neural-network visualization / Lean backtesting integration): interactive 3D view of every real neural network in the project (baseline model + all 4 experts, side by side, one camera/orbit) plus a live layer/node/edge stats box — see Neural Network Visualization Contract below
+- `/evaluation` Evaluation: the offline rank-book evaluation dashboard — see `evaluation/README.md` and the Benchmark Comparison notes above
 - `/tracing` Tracing (the Tracing dashboard): runtime metrics snapshot, asset performance (diverging Sharpe bars), backtest equity curve (per-ticker strategy vs buy-and-hold), observation-mode equity curve and drawdown — the native replacement for the removed Grafana instance
 
 The FastAPI server (`monitoring/api_server.py`) exposes:
@@ -1084,6 +1086,7 @@ The FastAPI server (`monitoring/api_server.py`) exposes:
 - `GET /api/scene` — 3D scene payload
 - `GET /api/topology` — topology state with nodes, links and cluster summary
 - `GET /api/neural-network` — layer/node/edge breakdown of every trained network (the neural-network visualization / Lean backtesting integration, see below)
+- `GET /api/evaluation` — the `ml/evaluation/*.json` reports (rank book, capacity/stress, walk-forward, ablation, Monte Carlo, benchmark comparison, reconciliation), each section degrading independently to `not_evaluated`
 - `GET /api/grafana/*` — JSON and CSV feeds read from `visualization/grafana/*`; the path is unchanged from when Grafana consumed it, now consumed by the webui's Tracing page instead (see the Tracing dashboard)
 - `GET /` — serves the built React app (only when `webui/dist/` exists)
 
@@ -1383,15 +1386,17 @@ contextual bandit**, explicitly not off-policy/online RL — no
 exploration data exists in this environment, so every action's reward is
 computable in closed form from the already-known forward return.
 Softmax policy-gradient over a small discrete action set of sizing
-multipliers, reward = realized PnL net of fees. Runtime inference is
+multipliers, reward = realized PnL net of fees (asymmetrically weighted
+since V5.4.1's reward fix, which root-caused an earlier "honest negative"
+to the reward treating oversizing and undersizing symmetrically). Runtime
+inference is
 deterministic argmax, never sampled, feeding the `rl_multiplier` in the
-sizing chain (see Multi-Asset-Class Architecture). Its honest,
-twice-confirmed result: the learned policy's backtest expected reward
-underperforms the trivial constant-`1.0` baseline, so it ships
-**disabled** by default per its own pre-committed abandon criterion — a
-genuine negative result, documented rather than hidden. RL can
-plausibly reduce turnover/cost on top of a real edge; it cannot
-manufacture one where the underlying signal doesn't clear costs.
+sizing chain (see Multi-Asset-Class Architecture). It ships
+**disabled** by default pending a retrain demonstrating positive expected
+reward over the constant-`1.0` baseline — the abandon criterion stays
+pre-committed: RL can plausibly reduce turnover/cost on top of a real
+edge; it cannot manufacture one where the underlying signal doesn't clear
+costs.
 
 ## Cost-Aware Cross-Sectional Ranking Contract
 
@@ -1452,6 +1457,14 @@ never a crash. `aq evaluate --benchmarks` (in `--all`) persists them to
 `ml/evaluation/benchmark_comparison.json`; the README's Benchmark
 Comparison section auto-refreshes from it and the webui's Evaluation tab
 renders it via `/api/evaluation`'s `benchmarks` key (`BenchmarkPanel`).
+Two more evaluation layers complete the picture: `evaluation/monte_carlo.py`
+stationary-block-bootstraps the book's daily net returns into thousands of
+alternative equity histories (risk stated as a distribution — return/
+Sharpe/maxDD percentiles, loss probability; the README's chart draws every
+individual run as a light-blue line under the red average), and
+`evaluation/impact_model.py` fits an Almgren-style square-root impact
+model to the book's own rebalance turnover so cost estimates scale
+honestly with order size instead of assuming flat bps.
 `retraining/validation_gate.py::evaluate_ranking_promotion_gate()`
 finally wires the ranking-quality and net-performance verdicts
 (`train.py::assess_ranking_quality()`/`assess_net_performance_quality()`,
@@ -1486,7 +1499,7 @@ The `Dockerfile` is a two-stage build:
 
 | Service | Host port | Container port |
 |---|---|---|
-| aether-quant (FastAPI + webui) | 8001 | 8000 |
+| engine / aether-quant-engine (FastAPI + webui) | 8001 | 8000 |
 | Redis | 6380 | 6379 |
 | PostgreSQL | 5433 | 5432 |
 | Lean (profile) | — | — |
@@ -1595,10 +1608,9 @@ are `VARCHAR NOT NULL`, not unique-constrained, so an empty default is safe),
 with `action` falling back to `event_type` so a session_summary row stays
 filterable.
 
-**Docker:** `telegram-worker` service, built from the shared
-`Dockerfile.workers`/`requirements/requirements-workers.txt` (also used by
-`experience-worker`/`performance-trigger-worker` since the Docker image
-consolidation), depends only on `postgres` (no Redis — this worker never
+**Docker:** `telegram-worker` service, built from the same consolidated
+`aether-quant-engine` image as every other worker, depends only on
+`postgres` (no Redis — this worker never
 touches the experience stream directly). Its image must copy `execution/`
 in addition to `experience/`/`performance/` — importing
 `performance.postgres_triggers` initializes `performance/__init__.py`
@@ -1606,8 +1618,7 @@ in addition to `experience/`/`performance/` — importing
 `.simulated_portfolio` → `execution.order_gate` — the same transitive-import
 lesson already learned in `development/Problems.md` #1/#2 for the
 experience/trigger workers, applied proactively here rather than discovered
-after a broken build. `requirements-workers.txt` includes `numpy` for the
-same reason.
+after a broken build.
 
 **Config:** new `phase_v2.telegram` block (`enabled`,
 `min_severity_for_trigger_alert`, `session_summary_enabled`,
@@ -1665,7 +1676,7 @@ entry) and are therefore stuck `observation_only` per
 - `write_lean_zip()`'s merge always lets **existing real Lean rows win** on
   any overlapping date; Yahoo data only fills genuinely missing dates.
 - `yfinance` is a dev-only dependency (`requirements/requirements-dev.txt`),
-  never in `requirements.txt`/`requirements-runtime.txt`.
+  never in `requirements.txt`.
 
 Usage: `python -m data_pipeline.yfinance_backfill [--tickers ETHUSD LTCUSD] [--apply]`.
 
@@ -1958,7 +1969,8 @@ reference so the question doesn't get re-investigated from scratch later.
    different data source and storage layer entirely, not a config flag.
 2. **Trading throttled to roughly one decision per symbol per few days.**
    `phase6.risk.trade_cooldown_bars` (default `3`) blocks a signal flip
-   inside that window; combined with daily bars and ~10 symbols, a backtest
+   inside that window; combined with daily bars and a 104-asset universe, a
+   backtest
    produces on the order of single-digit orders per day across the whole
    book. HFT strategies place hundreds to thousands of orders per second.
 3. **Orders now support real limit-order execution, config-gated and

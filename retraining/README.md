@@ -66,20 +66,26 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
   currently-active model should be rolled back given live degradation
   signals, a minimum runway since promotion, a cooldown since the last
   rollback, and a target that previously passed the validation gate.
+- `rollback_hardening.py` (V5.4.1, pure) — hardening utilities for the
+  above: `compute_degradation_score()` (a continuous 0–1 weighted
+  composite replacing pass/fail-only signals) and
+  `select_rollback_target_dry_run()` (the same return shape as
+  `select_rollback_target()` plus `dry_run: True` and the degradation
+  score, for audit without execution).
 - `orchestrator.py` — `plan`/`train`/`validate`/`backtest`/`commit`/
   `promote`/`rollback`/`status`, each usable as a library function or a CLI
   subcommand (`python -m retraining.orchestrator <stage> ...`) for
-  manual/staged runs independent of the worker. V2-17.5 adds
-  `train_topology`, a second, independently-failable subprocess
-  (`../train_topology.py --version-id <id>`) run between `train` and
-  `validate` — its failure is logged as a note and never rejects the
-  candidate. `train_gating` (`../train_gating.py`), `train_multitask`
+  manual/staged runs independent of the worker, plus `train_strategy_selector`.
+  Independently-failable subprocess stages run between `train` and
+  `validate`, in order: `train_topology` (`../train_topology.py`), `train_gating`
+  (`../train_gating.py`), `train_multitask`
   (`../train_multitask.py`, the joint direction+magnitude+volatility
-  trainer) and `train_sequence` (`../train_sequence.py`, the Phase 2
-  causal-TCN sequence encoder — see `inference/README.md`/`moe/README.md`/
-  `risk/README.md`) are three more independently-failable subprocess
-  stages with the exact same best-effort contract, run right after
-  `train_topology` in that order.
+  trainer), `train_sequence` (`../train_sequence.py`, the causal-TCN
+  sequence encoder — see `inference/README.md`/`moe/README.md`/
+  `risk/README.md`) and `train_strategy_selector`
+  (`../train_strategy_selector.py`, dormant until real option positions
+  trade). Each one's failure is logged as a note and never rejects the
+  candidate.
 - `worker.py` — `RetrainingWorker`, a continuous loop through the same
   stages (now including `train_topology`, `train_gating`, `train_multitask`
   and `train_sequence`), toggled by `phase_v2.retraining.enabled`.
@@ -105,10 +111,14 @@ active* in production degrading, not whether a new candidate is ready. It
 feeds `auto_rollback.select_rollback_target()` live signals
 (`_live_degradation_signals()`: `main.py`'s kill-switch state read from
 `visualization/state.json`, plus recent `sharpe_degradation_trigger`/
-`rank_ic_decay_trigger` rows from `performance_triggers`) and, only when
+`rank_ic_decay_trigger` rows from `performance_triggers`), scores the
+situation with `rollback_hardening.compute_degradation_score()`, and, only
+when
 the selector agrees, calls the existing `orchestrator.rollback()` and
 pushes a notification through the same trigger-table → Telegram pathway
-every other alert already uses. Off by default
+every other alert already uses. `select_rollback_target_dry_run()` gives
+the full verdict + degradation score without executing anything. Off by
+default
 (`phase_v2.retraining.auto_rollback.enabled: false`) — an automatic
 weight swap is the most consequential single action this system can
 take. `aq retrain auto-rollback --status` and the `retraining_status.json`

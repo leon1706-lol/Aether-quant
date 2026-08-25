@@ -31,9 +31,9 @@ Out of scope:
   evaluation gaps, or whether the model is any good belong in issues and
   `development/Problems.md`, not here.
 - **Interactive Brokers live-trading risk.** The project is documented as
-  not paper/live-deployable (`README.md` → Current Status / Known
-  Limitations); IB has never been tested against a real Gateway. Do not run
-  it live, and do not report losses from doing so.
+  not paper/live-deployable (`README.md` → Known Limitations); IB has
+  never been tested against a real Gateway. Do not run it live, and do not
+  report losses from doing so.
 - **Any financial losses from using this code.** It exists to test a thesis;
   it carries no warranty.
 

@@ -5,16 +5,18 @@ warning signs in live/observation/backtest activity — but never retrains
 anything itself. `retrain_candidate` is a flag consumed by `retraining/`
 (V2-17), not an action taken here.
 
-- `triggers.py` (pure) — 15 trigger functions
+- `triggers.py` (pure) — 17 trigger functions
   (`observation_count_trigger`, `drawdown_trigger`,
   `sharpe_degradation_trigger`, `win_rate_trigger`,
   `confidence_decay_trigger`, `regime_shift_trigger`,
-  `liquidity_warning_trigger`, `risk_lock_trigger`, and, added in V2-17.5,
+  `liquidity_warning_trigger`, `risk_lock_trigger`,
   `topology_uncertainty_trigger`, `topology_regime_mismatch_trigger`,
   `cluster_drift_trigger`, `model_topology_disagreement_trigger`,
-  `trigger_frequency_spike`) plus `evaluate_all_triggers()`, operating on
+  `trigger_frequency_spike`, `live_order_permission_blocked_trigger`,
+  `executed_trade_count_trigger`, `sustained_drawdown_trigger`) plus
+  `evaluate_all_triggers()`, operating on
   the same source-agnostic `list[dict]` of experience-event dicts that
-  `experience/observation_metrics.py` established in V2-15 — reuses its
+  `experience/observation_metrics.py` established — reuses its
   `simulated_sharpe`/`simulated_max_drawdown` rather than reimplementing
   them. Each fired trigger carries `severity` (breach-ratio rule: ≥1.5x
   past threshold → `critical`) and a `retrain_candidate` boolean. The four
@@ -22,14 +24,15 @@ anything itself. `retrain_candidate` is a flag consumed by `retraining/`
   breach plus a minimum fraction of individually-breaching bars) so a
   single noisy observation never fires them; `trigger_frequency_spike` is a
   meta-trigger over trigger *rows*, not events, and is the one exception
-  wired in only when `evaluate_all_triggers()`'s new optional
-  `recent_triggers` argument is supplied. V2-22 adds
-  `live_order_permission_blocked_trigger` — a deployment-health trigger
+  wired in only when `evaluate_all_triggers()`'s optional
+  `recent_triggers` argument is supplied.
+  `live_order_permission_blocked_trigger` is a deployment-health trigger
   (fires `critical` when `mode == "live"` but orders are still being
-  simulated) that's deliberately excluded from `retrain_candidate` via a
-  `_NON_RETRAIN_TRIGGERS` set, since a broker misconfiguration is an ops
-  problem, not something a new model version fixes.
-- **`rank_ic_decay_trigger()` (Phase 6 of the 5/10 -> 9/10 roadmap)** — the
+  simulated); `executed_trade_count_trigger` and `sustained_drawdown_trigger`
+  are the other two members of the `_NON_RETRAIN_TRIGGERS` set — a broker
+  misconfiguration or an execution-volume anomaly is an ops problem, not
+  something a new model version fixes.
+- **`rank_ic_decay_trigger()`** — the
   one trigger whose input isn't the standard `events` list.
   `performance/rank_ic_monitor.py::compute_realized_rank_ic_observations()`
   self-joins ordinary `experience_events` rows (no new table needed —
@@ -45,20 +48,20 @@ anything itself. `retrain_candidate` is a flag consumed by `retraining/`
   reachable from the real running worker, not just direct unit tests.
 - `postgres_triggers.py` (IO) — embedded DDL for the durable
   `performance_triggers` table (the system of record — separate from
-  `experience_events` so Grafana/V2-17 can query it cleanly) plus a
+  `experience_events` so dashboards/retraining can query it cleanly) plus a
   `performance_trigger_watermark` table for incremental polling, suppression
-  -window dedup on insert, `fetch_candidate_triggers()` (added in V2-17)
+  -window dedup on insert, `fetch_candidate_triggers()`
   for `retraining/planning.py` to read `retrain_candidate=true` rows, and
-  (V2-17.5) `fetch_recent_events()` (a true rolling-window read, distinct
+  `fetch_recent_events()` (a true rolling-window read, distinct
   from the incremental `fetch_events_since()`), `fetch_triggers_since()`
   and `fetch_last_retraining_at()` (best-effort, never raises).
 - `trigger_worker.py` — standalone worker (`python -m
   performance.trigger_worker [--once]`) that polls `experience_events` past
-  the watermark to advance it cheaply, but (V2-17.5) evaluates triggers
-  over a real rolling window instead — the last `rolling_window_events`
+  the watermark to advance it cheaply, and evaluates triggers
+  over a real rolling window — the last `rolling_window_events`
   observations bounded to `rolling_window_days` or since the last
-  promoted/validated retrain, whichever is more recent — fixing the V2-16
-  limitation where evaluation only ever saw whatever arrived since the
+  promoted/validated retrain, whichever is more recent — rather than only
+  whatever arrived since the
   last poll. Also resolves that same rolling-window history into
   `rank_ic_observations` (via `rank_ic_monitor.py::compute_realized_rank_ic_observations()`)
   and passes them into `evaluate_all_triggers()`, closing the loop so
@@ -69,7 +72,7 @@ anything itself. `retrain_candidate` is a flag consumed by `retraining/`
 - `main.py` additionally keeps a fast, **non-durable**, in-memory-only view
   (`_build_performance_triggers_view()`) for the current run's dashboard —
   the Postgres table populated by `trigger_worker.py` is the only source
-  V2-17 reads from.
+  `retraining/` reads from.
 
 Dashboard/API: `visualization/grafana/performance_triggers.json`,
 `/api/grafana/performance-triggers`, and the webui's

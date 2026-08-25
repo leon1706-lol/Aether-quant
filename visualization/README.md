@@ -43,7 +43,7 @@ have no direct frontend consumer — the latter reaches the UI nested inside
 is orphaned: `/api/grafana/metrics-snapshot` serves
 `runtime_metrics_snapshot.json`.
 
-- `book_history.jsonl` — V5.2.2 diagnostic, off by default
+- `book_history.jsonl` — diagnostic, off by default
   (`phase_v2.diagnostics.book_history.enabled`). One JSON line per
   rebalance date, logging the live book's actual selections during a real
   Lean **backtest** (never written in live/paper mode, regardless of the
@@ -53,19 +53,16 @@ is orphaned: `/api/grafana/metrics-snapshot` serves
   `evaluation/rank_signal_calibration.py::reconcile_book_history_date()`.
   Not served by `/api/grafana/` like every other file above — it's a
   standalone diagnostic artifact, not runtime state.
-  - V5.2.3 (development/Problems.md #91) adds an opt-in second toggle,
-    `phase_v2.diagnostics.book_history.include_full_universe` (also off by
-    default, additive to the toggle above): when on, each record also gets
-    a `"universe"` key with EVERY symbol that had a bar this rebalance date
-    (selected or not) — `raw_rank_score`, `feature_ready`, `reason` (when
-    not ready), `trading_eligible`, `security_type`. Exists because the
-    V5.2.2 log alone could not show why a symbol was never selected (e.g.
-    a whole asset class silently absent from the live book) — only that it
-    wasn't. `aq evaluate --reconcile-book-history` always attempts a
-    per-`security_type` summary of this data when present, and
-    `--replay-hysteresis` switches the reconciliation itself from
-    independent-per-date to a walk-forward replay of offline's own
-    hysteresis, carried forward the same way the live book's
-    `_last_book_allocations` is. Both the reconciliation report and the
-    book-spread-calibration report are also surfaced in the webui's
-    Evaluation tab via `GET /api/evaluation` (`monitoring/evaluation_state.py`).
+  - Opt-in extras via `phase_v2.diagnostics.book_history`:
+    `include_full_universe` adds a per-record `"universe"` key with every
+    symbol that had a bar that date (selected or not), and
+    `include_decisions` adds each book member's final action/reasons.
+    `--replay-hysteresis` switches the reconciliation from
+    independent-per-date to a walk-forward replay; both the reconciliation
+    and book-spread-calibration reports surface in the webui's Evaluation
+    tab via `GET /api/evaluation`.
+  - Local-only siblings (gitignored, regenerable): versioned
+    `book_history_v5*.jsonl` snapshots from earlier diagnostic runs and
+    `forex_order_sizing.jsonl` (the
+    `phase_v2.diagnostics.forex_order_sizing` per-real-order notional
+    ratio log — should sit near 1.0 when sizing is correct).

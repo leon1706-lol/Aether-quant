@@ -8,7 +8,7 @@ How to reproduce every number claimed in this README.
 
 - **Python:** 3.11 (CI runs on 3.11; local dev on 3.14)
 - **OS:** Windows 10/11 (dev), Ubuntu 22.04 (CI)
-- **Key packages:** torch 2.13.0+cpu, pandas, scikit-learn (see `requirements/requirements.txt`)
+- **Key packages:** torch (>= 2.0.0, CPU build fine), pandas, scikit-learn (see `requirements/requirements.txt` for the full pinned set)
 
 ## Data pipeline
 
@@ -36,10 +36,11 @@ python train_sequence.py          # causal TCN sequence encoder
 ## Offline evaluation
 
 ```powershell
-aq evaluate --rank-book --model multitask   # net Sharpe ~1.68 (V5.4.2)
+aq evaluate --rank-book --model multitask   # net Sharpe ~1.68
 aq evaluate --rank-book --model sequence    # net Sharpe ~1.00
-aq evaluate --monte-carlo                   # 1000-run bootstrap
-aq evaluate --all                           # capacity/stress/calibrate-edge
+aq evaluate --rank-book --monte-carlo       # 1000-run bootstrap
+aq evaluate --benchmarks                    # strategy + SPY/60-40 baselines
+aq evaluate --all                           # capacity/stress/calibrate-edge/benchmarks
 ```
 
 ## Lean backtest
@@ -50,12 +51,15 @@ aq backtest    # requires Docker Desktop + local Lean data folder
 
 ---
 
-## Claimed numbers (as of V5.4.2)
+## Claimed numbers (as of V5.4.4)
 
 | Source | Metric | Value | Commit |
 |---|---|---|---|
-| Offline rank-book (multitask) | Net Sharpe | **1.6805** | `746bfb4` |
-| Monte Carlo p5/p95 return | −2.00% / +21.45% | | same |
-| Walk-forward net Sharpe mean | ~0.65 | V5.2.9 retrain | |
+| Offline rank-book (multitask) | Net Sharpe | **1.681** | `6e89379` (V5.4.4) |
+| Offline rank-book (sequence) | Net Sharpe | 0.997 | same |
+| Monte Carlo bootstrap | p5/p95 total return | −2.00% / +21.45% | same |
+| Benchmark: SPY buy-and-hold | Net Sharpe | 1.214 | same |
+| Benchmark: 60/40 SPY-TLT | Net Sharpe | 1.624 | same |
+| Walk-forward (out-of-sample) | Mean per-window net Sharpe | ~0.65 | V5.2.9 retrain |
 
-These are **offline** numbers using the torch-free simulator — not a substitute for a real Lean backtest, which includes slippage, entry lag, and execution realism the offline model approximates but does not replicate exactly.
+These are **offline** numbers using the torch-free simulator — not a substitute for a real Lean backtest, which includes slippage, entry lag, and execution realism the offline model approximates but does not replicate exactly. The README's evaluation sections are regenerated from `ml/evaluation/*.json` on every `aq evaluate` run, so they always reflect the latest local run rather than this table.

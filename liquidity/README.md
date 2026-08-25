@@ -12,8 +12,7 @@ It computes, per asset per bar:
 - `order_value` / `participation_rate` — how large the intended order is
   relative to that proxy
 - `estimated_slippage` — `participation_rate * daily_volatility * slippage_factor`
-- `spread_proxy` — **dynamic since the static/dynamic architecture audit**:
-  `market_liquidity.py::estimate_high_low_spread(...)` implements the
+- `spread_proxy` — dynamic: `market_liquidity.py::estimate_high_low_spread(...)` implements the
   Corwin & Schultz (2012) high-low bid-ask spread estimator, computed from
   each asset's own recent daily high/low ranges (`main.py` pulls these from
   `self.symbol_windows[symbol]`, already collected every bar — no new
@@ -22,6 +21,13 @@ It computes, per asset per bar:
   `phase_v2.liquidity.spread_estimation.min_bars` worth of history exists,
   or if the estimator's per-window result is degenerate.
 - `estimated_round_trip_cost` — slippage + spread proxy
+- **zero-volume DDV fallback** — when a bar's volume is exactly zero (a
+  known data-quality artifact, not a real no-trade day),
+  `TYPICAL_DAILY_DOLLAR_VOLUME_BY_TYPE` supplies a per-security-type
+  typical DDV (configurable via
+  `phase_v2.liquidity.zero_volume_fallback_ddv_by_type`) so the decision
+  degrades to a conservative estimate instead of classifying every such
+  bar as `blocked`.
 
 and classifies `liquidity_risk`/`recommended_action`:
 
@@ -39,7 +45,7 @@ already-reduced weight. All thresholds live in `config.json`'s
 `liquidity_warning_trigger` watches this module's `block`/`reduce_size`
 rate over a rolling window (explicitly excluding `simulate_instead`, which
 is observation-mode routing, not a liquidity problem) and can flag
-`retrain_candidate=true` for V2-17 to pick up.
+`retrain_candidate=true` for `retraining/` to pick up.
 
 ## Genuine model input feature (Phase 1 remainder)
 
@@ -59,45 +65,26 @@ two subsystems.
   circular. A documented adaptation of the original plan text, not an
   oversight.
 - **Must run on the raw per-asset frame, before `train.py::engineer_features()`** —
-  a real off-by-one bug was found and fixed here during development:
-  `engineer_features()` always drops each asset's first raw row (no
-  previous close to compute a return from), so calling
-  `add_liquidity_features()` *after* it meant `spread_proxy`'s trailing
-  window was silently missing the true first bar for roughly each asset's
-  first 25 rows — a real discrepancy from `main.py`'s live
-  `self.symbol_windows`, which does include that bar (high/low pairs,
-  unlike returns, are legitimately usable from the very first raw bar).
-  Confirmed via a standalone train/runtime parity script before and after
-  the fix (mismatch → exact match). See `development/Changelog.md`'s
-  "Phase 1 remainder + Phase 2" entry for the full writeup.
+  `engineer_features()` drops each asset's first raw row, so calling
+  `add_liquidity_features()` *after* it would leave `spread_proxy`'s
+  trailing window silently missing the true first bar for roughly each
+  asset's first 25 rows — a real discrepancy from `main.py`'s live
+  `self.symbol_windows`, which does include that bar. Verified via a
+  train/runtime parity script (see `development/Changelog.md`'s
+  "Phase 1 remainder + Phase 2" entry).
 - `main.py::_build_model_input()` computes the same spread estimate once,
   before running any model, and the later `build_liquidity_decision()`
   call (the real sizing/liquidity decision) reuses that exact value
   instead of recomputing it a second time.
 
-**V2-23.1, closed.** The original plan was to calibrate the spread proxy
-from real historical fill/slippage data once the experience pipeline
-(V2-13/14) accumulated enough history. A deeper look found that premise had
-no data to stand on: Lean backtest fills never had a `SlippageModel` set
-(only an `InteractiveBrokersFeeModel`, which is a transaction *fee*, not
-price-impact slippage), and observation-mode's `SimulatedPortfolioState`
-always calls `execution.order_gate.simulate_fill(...)` with the default
-`slippage_bps=0.0` — so no realized spread/slippage had ever been recorded
-anywhere in `experience_events` to calibrate from. Rather than build new
-fill-telemetry instrumentation from scratch as a prerequisite, V2-23.1
-shipped via `estimate_high_low_spread()` instead — a published, closed-form
-estimator that needs only the OHLC data already collected every bar. Same
-end goal (a real, dynamic, per-asset spread estimate instead of a static
-lookup), no new instrumentation, no waiting for data to accumulate.
-
-**Follow-up (execution/risk realism pass): the "no SlippageModel was ever
-set" gap above is now closed.** `estimated_round_trip_cost` (this module's
-output) is no longer computed and discarded — `main.py` now attaches a
-real `SlippageModel` to every security (reading this value every bar) and
-threads it into observation-mode's simulated fills too. See
-`execution/README.md`'s "Real fill slippage" section for the full wiring;
-this module itself is unchanged (the fix was entirely in how its existing
-output gets consumed, not in the estimator).
+The spread proxy is the Corwin & Schultz (2012) high-low estimator — a
+published, closed-form estimate needing only the OHLC data already
+collected every bar, chosen over calibrating from realized fills after an
+audit found no realized spread/slippage had ever been recorded in
+`experience_events` to calibrate from. `main.py` now also attaches a real
+Lean `SlippageModel` to every security reading this module's
+`estimated_round_trip_cost` every bar (see `execution/README.md`'s
+"Real fill slippage" section).
 
 ## A harder floor: `max_round_trip_cost_fraction`
 

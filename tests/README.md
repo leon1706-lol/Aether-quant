@@ -7,8 +7,9 @@ keep two copies aligned.
 
 Conventions (established since the first V2 test files and followed
 throughout): one test file per source module (`tests/test_<module>.py`),
-no test classes — plain `def test_...():` functions — and no shared
-`conftest.py`; each file carries its own module-level fixtures/helpers
+plain `def test_...():` functions — newer files (V5.3+) may group related
+tests into `class TestX:` namespaces, still with no shared `conftest.py`;
+each file carries its own module-level fixtures/helpers
 (`_sample_x()` builders, `_make_conn_mock()` for Postgres-backed modules),
 duplicated across files rather than centralized.
 

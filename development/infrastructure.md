@@ -13,7 +13,8 @@ Grafana used to be part of this stack, but was removed — the webui's tracing p
 distinct from the sibling `aether-vault-*` project's containers on the
 same machine. The app (`engine` service) and every worker service
 (`experience-worker`, `performance-trigger-worker`, `telegram-worker`,
-`paper-readiness-scheduler`, `retraining-worker`) all run from the same
+`paper-readiness-scheduler`, `retraining-worker`, `audit-worker`) all run
+from the same
 built image, `aether-quant-engine` — one `Dockerfile`, `docker compose
 build engine`, no more per-worker Dockerfiles. See
 `requirements/README.md` for why this replaced three separate images.
@@ -667,6 +668,25 @@ gh codespace cp -e "remote:Aether-quant/ml/*.json" ./ml/ -c <codespace-name>
 gh codespace stop -c <codespace-name>
 ```
 
+**Before training**, sync anything the Codespace doesn't have yet
+(gitignored-but-needed data, uncommitted source changes):
+
+```powershell
+gh codespace cp -c <codespace-name> -r .\ml remote:Aether-quant\ml
+```
+
+**For large/many-file transfers** (walk-forward artifact trees, batch
+source syncs), `gh codespace cp -r` is unreliable — observed dropping
+files silently mid-batch with no non-zero exit code. Archive first, copy
+the single tarball, extract locally, and always verify file presence/mtime
+afterward:
+
+```powershell
+gh codespace ssh -c <codespace-name> -- "cd Aether-quant && tar czf /tmp/aether-quant-ml.tgz ml"
+gh codespace cp -c <codespace-name> remote:/tmp/aether-quant-ml.tgz .\aether-quant-ml.tgz
+tar -xzf .\aether-quant-ml.tgz
+```
+
 `ml/` model artifacts are gitignored (see `.gitignore` — every generated
 `ml/*.json`/`.pkl` file, not just the baseline ones), so **no trained
 weights or datasets ever need to touch the public GitHub repo** to move
@@ -733,23 +753,14 @@ an explicit escape hatch and bypasses the local-image build.
 
 ## Codespace Training Handoff
 
-Before a cloud training run, confirm local source changes are present in the
-Codespace (commit/push them or copy the changed files over with `gh codespace
-cp`). Training stays Python-only in the Codespace; local Lean/Docker
-backtests stay on the workstation. After training, copy the entire required
-model artifact tree back to local `ml/` (not just the summary JSON), verify
-the copied files and timestamps, then stop the Codespace immediately:
+The complete workflow (create → connect → train → sync artifacts → stop)
+lives in "Cloud Training via GitHub Codespaces" above. Summary: sync
+needed files up before training, train Python-only inside the Codespace
+(Lean/Docker backtests stay local), pull the entire `ml/` artifact tree
+back after (tarball for anything large, verify file presence/mtime), and
+`gh codespace stop` immediately when done — Codespaces only bill while
+running.
 
-```powershell
-# local -> Codespace, if needed before training
-gh codespace cp -c <codespace-name> -r .\ml remote:Aether-quant\ml
-
-# Codespace -> local after training; archive first for large/many artifacts
-gh codespace ssh -c <codespace-name> -- "cd Aether-quant && tar czf /tmp/aether-quant-ml.tgz ml"
-gh codespace cp -c <codespace-name> remote:/tmp/aether-quant-ml.tgz .\aether-quant-ml.tgz
-tar -xzf .\aether-quant-ml.tgz
-gh codespace stop -c <codespace-name>
-```
 
 
 ## GitHub Actions (V5.3.9+)

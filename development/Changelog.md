@@ -1839,3 +1839,23 @@ and instrumented (#104).
 - Packaging (Problems.md #115): installed `aq` console script raised `ModuleNotFoundError: No module named 'evaluation'` on `aq evaluate` — `evaluation`/`portfolio`/`features`/`audit`/`inference`/`analyzer` added to `[tool.setuptools] packages` and `generate_evaluation_report` to `py-modules` per the list's own transitive-import rule (aq_cli has imported them function-level for many versions; pytest/Lean masked it).
 
 **Verification:** 2834 tests green; vitest 103/103; ruff clean; real `aq evaluate --benchmarks` run verified end-to-end (820 dates × 93 tickers, README section populated: rank book multitask 1.681 vs momentum 0.476 / SP500 1.214 / 60-40 1.624 / mean-reversion −0.119 / random −0.217).
+
+## V5.4.5 — Documentation debt paydown: main README restructure, sub-README coverage, dev-doc index completion
+
+**Shipped:**
+- Main README restructured for readability (no content loss — everything removed here lives on elsewhere):
+  - "Quickstart" section deleted (exact duplicate of Download); "Current Status" section deleted entirely (stale V5.1-era prose, superseded by Backtest Results + Known Limitations + Changelog).
+  - "Contributing" bottom section deleted (CONTRIBUTING.md in Open Source Files is the single source); "Continuous Integration" bottom section deleted (CI expectations live in CONTRIBUTING.md, workflow details in `.github/workflows/`).
+  - The README's "Runbook" section moved into `RUNBOOK.md` as "Everyday commands" + "Train in the cloud (GitHub Codespaces)" sections; the incident procedures stay RUNBOOK's core.
+  - "Open Source Files" table relocated from below the footer to its TOC position (after Development Documentation), so the author footer is now literally the end of the file.
+  - TOC rebuilt to match the new body order; intro paragraph and CLI Reference intro tightened without dropping any factual claim.
+  - All six auto-generated result sections (Lean/Monte Carlo/Offline/Benchmarks/Walk-forward/Other Metrics) verified marker-complete and CLI-refreshable (`aq backtest`, `aq evaluate`); public benchmarks confirmed end-to-end since V5.4.4, nothing to implement.
+- Sub-README coverage completed: `.devcontainer/README.md` and `.githooks/README.md` added (the last two tracked folders without one; `.github/` deliberately excluded). Every other tracked folder already had a current README.
+- `development/README.md` index completed: `asset_universe.md` and `project_structure.md` were missing from it; `architecture.md`'s entry updated from "V2 system architecture" to the full-subsystem description.
+- `development/project_structure.md`: tree extended with `.devcontainer/` and `.githooks/`.
+- `SECURITY.md`: stale "README → Current Status / Known Limitations" reference fixed to point at Known Limitations only (Current Status no longer exists).
+- `REPRODUCIBILITY.md`: two broken claimed-numbers table rows (Monte Carlo p5/p95, walk-forward mean) had their columns realigned.
+
+**Environment note:** local venv had drifted from `requirements/requirements.txt` (+`requirements-dev.txt`) — `httpx` (declared since the FRED backfill work) and the whole dev extra set (ruff, pytest-cov, ...) were simply not installed, breaking test collection at import. Reinstalled both files; no repo change needed or made.
+
+**Verification:** 2834/2834 tests green (`aq test`, badge refreshed); `ruff check .` clean after dev-extras install; README local links + heading anchors all resolve (scripted check); no inbound references to any deleted section remained (grepped).

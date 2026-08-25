@@ -14,36 +14,53 @@ codebase.
 - `profile_inference.py` — cProfile + wall-clock harness for `main.py`'s
   per-bar inference hot path (`inference/exported_model.py`), also
   exposed as `aq profile` (see the main README's CLI Reference). Loads
-  the real exported model weights already on disk under `ml/` (baseline,
-  all 4 experts, multitask, expert-multitask, sequence — never
-  synthetic/random weights, since the point is realistic layer shapes and
-  call volume, not realistic predictions) and applies the same
-  `convert_state_dict_arrays()` load-time optimization `main.py` uses,
-  feeds them pre-generated (outside the profiled region, so measurement
-  overhead never gets counted as inference cost) synthetic-but-correctly-
-  shaped input vectors, and runs them in a loop sized to approximate a
-  real backtest's call volume. Writes a `pstats` dump AND independent
-  wall-clock tail-latency percentiles (p50/p95/p99/max/mean) - the two
-  together are more trustworthy than either alone (cProfile's own
-  instrumentation adds overhead; wall-clock alone says nothing about
-  where the time goes).
+  the real exported model weights already on disk under `ml/` (never
+  synthetic weights — realistic layer shapes and call volume), feeds
+  correctly-shaped synthetic inputs generated outside the profiled region,
+  and writes a `pstats` dump plus independent wall-clock tail-latency
+  percentiles.
 
   ```powershell
   aq profile --iterations 10000
-  aq profile --iterations 10000 --batched   # use the batched + precomputed-stack-cached expert path (V4.9: also runs an additive sequence-encoder symbol-batching comparison)
-  aq profile --parallel --pool-workers 4    # V4.9: real ProcessPoolExecutor IPC-overhead benchmark vs. a sequential baseline
+  aq profile --iterations 10000 --batched   # batched + stack-cached expert path + sequence-batching comparison
+  aq profile --parallel --pool-workers 4    # ProcessPoolExecutor IPC-overhead benchmark vs. sequential
   ```
 
-  A real `lean backtest .` run is off the table for repeated profiling on
-  a normal dev machine (well over an hour wall-clock) — this harness
-  exists so the hot path can be profiled in seconds/minutes instead, using
-  real weights so the result still means something. See
-  `development/Problems.md` #31/#32 for what this found and fixed across
-  two passes: a Python per-timestep loop in the sequence model's causal
-  convolution, per-expert dispatch overhead in the 4-expert loop, and (the
-  biggest single win) redundant weight-array/stack rebuilding on every
-  single call — a combined -89.2% reduction in profiled cost. See
-  `inference/README.md` for the full technical writeup.
-
   Output files (`profile_inference_output*.txt`) are gitignored —
-  regenerable, not source.
+  regenerable, not source. See `development/Problems.md` #31/#32 for what
+  profiling found and fixed, and `inference/README.md` for the writeup.
+
+- `profile_subsystems.py` — wall-clock breakdown of every per-bar
+  subsystem (features, inference, topology, regime, liquidity, analyzer)
+  against the real exported artifacts; the broader sibling of
+  `profile_inference.py`. Run via `aq profile --subsystems` if exposed, or
+  directly: `python scripts/profile_subsystems.py`.
+
+- `feature_parity_audit.py` (V5.3.6) — audits that every feature computed
+  offline by `train.py` has a runtime twin in `main.py`'s feature build
+  (the train/inference parity contract), reporting per-feature match
+  status.
+
+- `gate_sweep.py` / `gate_sweep_score_stage.py` (V5.3.6) — sweep the
+  rank-book engagement gates (`min_rank_confidence_spread` x
+  `hysteresis_rank_margin` grids) over the dataset, then score the swept
+  configurations; writes `ml/evaluation/gate_sweep_results.json` +
+  `gate_sweep_scored.csv`.
+
+- `overlap_vs_sharpe_analysis.py` (V5.3.6) — correlates live-vs-offline
+  book-selection overlap fractions against realized offline net Sharpe,
+  quantifying how much selection divergence costs.
+
+- `promotion_gate_null_calibration.py` (V5.3.6) /
+  `promotion_gate_null_gate_scheme.py` (V5.3.7) — calibrate the promotion
+  gate's null distribution (shuffle-based) and evaluate alternative
+  gate schemes against it, so promotion thresholds are derived from real
+  data instead of guessed.
+
+- `order_events_audit.py` (V5.3.1) — parses real Lean `order-events.json`
+  exports into fill-rate/slippage/casing statistics; the evidence base
+  behind the limit-order work in `execution/README.md`.
+
+- `render_lean_credentials.py` — renders Lean's credential
+  configuration from local env/secret state (used by the `aq backtest`
+  flow on hosts where Lean needs explicit credentials).

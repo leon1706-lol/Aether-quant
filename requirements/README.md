@@ -7,7 +7,7 @@ auto-detect and bind-mount a dependency file from the project root.
 |---|---|---|
 | `requirements/requirements.txt` | local dev, `train.py`, and the consolidated `Dockerfile` | Full app/worker stack, including `redis`, `psycopg[binary]`, `torch`, `pandas`, and `lean` |
 | `requirements/requirements-dev.txt` | local dev and tests | Lean CLI, pytest, formatting, test doubles, offline data helpers, and report-generation extras |
-| `requirements/lean-runtime.txt` | `Dockerfile.lean` / the local image used by `aq backtest` | Only packages missing from the pinned QuantConnect image; currently `redis` |
+| `requirements/lean-runtime.txt` | `Dockerfile.lean` / the local image used by `aq backtest` | Only packages missing from the pinned QuantConnect image; currently `redis` + `httpx[http2]` |
 
 ## Local LEAN image
 

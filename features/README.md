@@ -45,11 +45,17 @@ by construction, never re-derived independently in either one.
   real front/next-month or chain-aggregate lookup — see
   `train.py::build_derivatives_macro_features_by_date()`'s docstring and
   `development/Problems.md` #29.
+- `cross_asset_sensitivity.py` (V5.1 Phase 2/F2) — per-asset macro
+  **sensitivity betas** (rolling regression of each asset's return against
+  ΔVIX/Δreal-rate/Δcredit/Δdollar) so macro actually varies
+  cross-sectionally instead of shifting every asset equally — broadcast-
+  constant macro features are rank-invariant and can never move the
+  cross-sectional ranking. Imported by BOTH `train.py` and `main.py` for
+  train/inference parity by construction.
 - `sector_map.py` (V5.1 Phase 0, `development/Problems.md` #75) —
   `load_sector_mapping()`, reading `data/reference/sector_mapping.json`
-  (expanded from 29 to 103 of 104 universe tickers this phase; a new
-  `"Forex"` pseudo-sector covers all 15 forex pairs, previously
-  `"Unknown"`). `train.py::load_sector_mapping()` is now a thin delegate
+  (a `"Forex"` pseudo-sector covers all 15 forex pairs). `train.py::load_sector_mapping()`
+  is a thin delegate
   to this module — `main.py` cannot import `train.py` (torch), so the
   file-read/comment-stripping logic lives here where both callers can
   share it. Consumed by `portfolio/book_neutrality.py` and

@@ -7,15 +7,15 @@ Owns the V2 Mixture-of-Experts layer:
 - expert weight blending
 - final MoE signal composition
 
-This package will build on the existing `train.py` feature pipeline and `main.py` Lean inference loop.
+This package builds on the existing `train.py` feature pipeline and `main.py` Lean inference loop.
 
-Current V2-9 behavior:
+Core behavior:
 
 - `moe/gating.py` scores expert models with quality status, regime alignment and validation/backtest performance
 - `stable` and `watchlist` experts can contribute to the final signal
 - `disabled_for_gating` experts are ignored by the manager
 - `main.py` loads local expert JSON exports from `ml/expert_models/<expert>/model_weights.json`
-- runtime state now includes `moe_gating`, expert probabilities and the final MoE probability per asset
+- runtime state includes `moe_gating`, expert probabilities and the final MoE probability per asset
 - if expert artifacts are missing, the runtime falls back to the baseline model
 
 ## Real learned gating weights (optional, additive, always-falls-back)
@@ -105,27 +105,13 @@ the full writeup.
 
 ## Phase 2 sequence encoder now optionally blends into the gating decision
 
-**Evaluated all three candidate integration points — gating, market
-analyzer, position sizing — and chose gating.** The sequence encoder
-(`train.py::AetherNetSequenceMultiTask`, see `inference/README.md`'s
-Phase 2 section) was, until this pass, informational-only: computed every
-bar but never reached a trading decision. Gating is the natural fit
-because it is already the single funnel every other prediction source
-(baseline, experts, multitask heads) passes through before
-`final_probability_up`/`final_magnitude`/`final_volatility` reach the
-market analyzer and position sizing — adding the sequence model here
-means analyzer and sizing benefit automatically, with no separate wiring
-and no risk of the two paths disagreeing. The market analyzer was
-deliberately **not** given its own direct sequence-model input — it stays
-the one fully deterministic decision layer in the system (see
-`analyzer/README.md`), the same reasoning that already kept
-`topology_confidence`/`topology_disagreement` and the multitask
-magnitude/volatility fields out of its routing logic. Position sizing was
-not given a second, parallel sequence-model input either — it already
-optionally consumes `final_volatility` (`risk/README.md`'s "Predicted
-volatility" section), so once the sequence model contributes to that same
-`final_volatility` via gating, sizing benefits transitively without a
-duplicate code path that could drift out of sync.
+The sequence encoder (`train.py::AetherNetSequenceMultiTask`, see
+`inference/README.md`) blends into the gating decision — gating was chosen
+over the market analyzer (which stays the one fully deterministic decision
+layer, see `analyzer/README.md`) or position sizing (which already consumes
+`final_volatility` transitively) because gating is the single funnel every
+other prediction source already passes through, so analyzer and sizing
+benefit automatically with no duplicate code paths.
 
 - `build_gating_decision(..., sequence_prediction=None, sequence_weight=0.0)`
   gains two new optional params. `sequence_prediction` is the exact
@@ -147,17 +133,11 @@ duplicate code path that could drift out of sync.
   `final_volatility` already don't have their own `decision_source`
   variants either.
 - **Off by default** (`phase_v2.gating_network.sequence_weight: 0.0`) —
-  byte-identical to pre-this-change behavior whenever it's `0.0` or
-  `sequence_prediction` is `None` (model not loaded, or the per-symbol
-  30-bar history buffer isn't full yet). This mirrors
-  `phase_v2.dynamic_risk.use_predicted_volatility`'s convention for any
-  new signal that changes a real trading decision
-  (`final_probability_up` itself, not just a shrink-only sizing
-  multiplier) — deliberately more conservative than
-  `topology_sizing_multiplier()`'s default-`true` shrink-only factor,
-  since this can move the probability in either direction. Set a nonzero
-  weight (e.g. `0.2`, the same order of magnitude as `baseline_weight`'s
-  default `0.25`) to actually exercise it in a backtest.
+  byte-identical whenever it's `0.0` or `sequence_prediction` is `None`
+  (model not loaded, or the per-symbol 30-bar history buffer isn't full
+  yet). Set a nonzero weight (e.g. `0.2`, the same order of magnitude as
+  `baseline_weight`'s default `0.25`) to actually exercise it in a
+  backtest.
 - Wired via `main.py`: `self.gating_sequence_weight` (config-parsed
   alongside `self.gating_baseline_weight`) and the already-computed
   `sequence_prediction` (from `self._run_sequence_model()`) are both

@@ -20,24 +20,29 @@ Pages (`src/pages/`):
   Readiness, Multi-Asset-Class Readiness; Audit Log, Monitoring Feeds, Raw
   State (right).
 - `RiskPage.tsx` — risk core panel, asset volatility/sizing table (with a
-  per-multiplier chip breakdown — confidence/topology/rank/RL/cost — added
-  incrementally, `development/Problems.md` #71), liquidity and
+  per-multiplier chip breakdown — confidence/topology/rank/RL/cost), liquidity and
   execution-impact panel, a Macro & Alt-Data Snapshot panel
   (`MacroSnapshotPanel.tsx` — real Treasury yield-curve/credit-spread and
   VIX-derived options-implied-vol/financial-conditions numbers,
-  `main.py::_write_state()`'s `state["macro"]`), plus (V5.1) Rank Signal
+  `main.py::_write_state()`'s `state["macro"]`), a derivatives-macro panel
+  (`DerivativesMacroPanel.tsx` — futures term-structure/options sentiment
+  features), plus (V5.1) Rank Signal
   (`RankSignalPanel.tsx`, the resolved head-blend policy), Net Edge
   (`NetEdgePanel.tsx`, expected-edge-vs-cost per symbol), Book Neutrality
   (`BookNeutralityPanel.tsx`, dollar/sector-neutral diagnostics from the
   last rebalance), and Sensitivity (`SensitivityPanel.tsx`, per-symbol
   macro betas).
 - `EvaluationPage.tsx` (V5.1) — the offline, cost-aware evaluation of the
-  active model (`GET /api/evaluation`): rank-book performance
+  active model (`GET /api/evaluation`), eight panels: rank-book performance
   (gross-vs-net Sharpe, turnover, cost drag), capacity/cost-stress,
   walk-forward stability (per-metric mean/CI/sign-flip across windows),
-  and an ablation panel (Δ net Sharpe vs. a static buy-and-hold baseline
+  ablation (Δ net Sharpe vs. a static buy-and-hold baseline
   per mechanism, with unmeasurable mechanisms shown muted rather than
-  omitted).
+  omitted), book-spread calibration, book-history reconciliation,
+  Monte Carlo simulation (distribution table + inline average-curve/p95
+  band SVG) and the benchmark comparison panel (`BenchmarkPanel.tsx`,
+  V5.4.4 — the rank book's net Sharpe vs. momentum/mean-reversion/random
+  strategy baselines and SPY/60-40 public benchmarks).
 - `OptionsStrategyPage.tsx` (Phase 4.8) — held multi-leg option positions
   with per-leg dividend-driven assignment-risk scores, a dividend-schedule
   summary, the learned strategy-selector model's per-symbol scores (a
@@ -61,12 +66,14 @@ Pages (`src/pages/`):
   asset table — which grows a row per asset — has room to grow downward.
   Replaces the Grafana instance that used to be the only consumer of these
   feeds — Grafana has been removed from `docker-compose.yml` entirely.
-- `NeuralNetworkPage.tsx` (V2-20) — interactive 3D diagram
+- `NeuralNetworkPage.tsx` — interactive 3D diagram
   (`components/neuralnet/NeuralNetworkScene3D.tsx`) plus a stats panel
   (`NeuralNetworkStatsPanel.tsx`) of every trained network's layer/node/edge
   structure: the baseline model, the 4 MoE experts, and the optional
   learned gating blend (`moe/gating.py`'s `ml/gating_model.json`, once
-  `train_gating.py`/`aq train --gating-only` has produced one). Fetches
+  `train_gating.py`/`aq train --gating-only` has produced one), plus the
+  learned topology overlay's training recipe (`TrainingRecipePanel.tsx`).
+  Fetches
   `GET /api/neural-network` on its own hook (`useNeuralNetwork()`), not the
   shared `/api/state` blob. The scene's `NETWORK_ORDER` array controls
   which networks actually render and in what order — a new network
@@ -75,13 +82,12 @@ Pages (`src/pages/`):
   cluster prototypes are the one thing deliberately left out entirely (not
   a layered network), shown instead as a labelled `excluded` entry.
   `NeuralNetworkStatsPanel.tsx`'s `RankingQualityGate` sub-component
-  (V4.12.2, `development/Problems.md` #71) renders the promotion-gate
+  renders the promotion-gate
   verdict for **all three** ranking heads (`rank_5d`/`rank_20d`/
-  `sector_neutral_rank_20d`, not just `rank_20d` as before), each with a
+  `sector_neutral_rank_20d`), each with a
   collapsible per-era diagnostic table (era window, n, mean IC, t-stat,
   opposite-sign/insufficient-data flagged) sourced from
-  `train.py::assess_ranking_quality_from_predictions()`'s `observed.per_era`
-  — previously typed and persisted but never rendered anywhere.
+  `train.py::assess_ranking_quality_from_predictions()`'s `observed.per_era`.
 
 Monitoring panels live under `src/components/monitoring/`
 (`PerformanceTriggersPanel.tsx`, `RetrainingStatusPanel.tsx`,

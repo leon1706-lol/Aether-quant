@@ -1,12 +1,35 @@
 # data_pipeline
 
-Owns the V2 Lean-data pipeline contract.
+Owns the Lean-data pipeline contract and the data-ingestion tooling around
+it.
 
-The current rule stays simple and important: training and backtesting use the local Lean `data/` folder. This package describes that contract for later V2 modules such as MoE experts, regime detection, topology modeling, dynamic risk and the volatility dashboard.
+The core rule stays simple and important: training and backtesting use the local Lean `data/` folder. This package describes that contract for the downstream modules (MoE experts, regime detection, topology modeling, dynamic risk, the dashboards) so they can depend on a stable manifest.
 
-It does not replace `train.py`; it wraps and documents the existing dataset pipeline so later modules can depend on a stable manifest.
+It does not replace `train.py`; it wraps and documents the existing dataset pipeline.
 
-## Yahoo Finance historical data backfill (V2-19.5)
+## Modules
+
+- `v2_manifest.py` — the V2 metadata contract for the Lean-data training
+  pipeline (the "stable manifest" the rule above promises).
+- `fetch.py` — `aq fetch` (see below).
+- `yfinance_backfill.py` — Yahoo Finance historical backfill (see below).
+- `fred_backfill.py` — Treasury yield/credit-spread backfill (see below).
+- `ib_backfill.py` — Interactive Brokers futures/options backfill (see below).
+- `factor_file_backfill.py` — Lean-format split/dividend **factor-file**
+  backfill (the price-adjustment factors Lean reads alongside the price
+  zips; the missing-factor-file class of data-quality issue behind
+  `development/Problems.md` #91/#97/#99).
+- `dividend_backfill.py` — real ex-dividend history via `yfinance`, with
+  next-date projection from historical cadence; feeds
+  `portfolio/options_assignment_risk.py`'s early-assignment scoring.
+- `bar_synthesis.py` (V5.3.10) — pure functions extracted from `main.py`
+  so they are unit-testable without a Lean runtime:
+  `midpoint_bar_from_quote_bar()` (synthesizes a bar from forex/crypto
+  quote bars) and `pad_sequence_history()` (pads short history for the
+  sequence encoder), plus the adaptive sell-threshold helper. Parity-tested
+  in `tests/test_bar_synthesis_parity.py`.
+
+## Yahoo Finance historical data backfill
 
 `yfinance_backfill.py` is a deliberate, narrow exception to the rule above:
 it is the first thing in this package that reaches outside the local Lean
@@ -143,11 +166,9 @@ publication_lag_days, periods_back)` are the lag-aware lookups both
 `_fred_series_asof()` bisect the bond features use, since that helper has
 no lag parameter and would silently look ahead on a lagged series.
 
-Candidate series were screened before adding: `BAMLH0A0HYM2` (high-yield
-OAS) was found to have only ~2 years of trailing history via FRED's free
-endpoint (unusable for this project's 2014-2021 training window without a
-paid API key) and was dropped; `STLFSI4` was rejected as
-near-collinear with `NFCI` (pick one, not both).
+Candidate series were screened before adding (`BAMLH0A0HYM2` dropped for
+insufficient free-endpoint history, `STLFSI4` rejected as near-collinear
+with `NFCI`) — see `development/Changelog.md` for the screening details.
 
 ## Interactive Brokers historical backfill (`ib_backfill.py`) — futures/options only
 

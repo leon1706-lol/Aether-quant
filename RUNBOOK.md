@@ -2,6 +2,58 @@
 
 What to do when things go wrong. Each section: **Symptoms → Diagnosis → Resolution**.
 
+## Everyday commands
+
+Assumes the root README's [Getting Started](README.md#getting-started) setup
+is done and the venv is active: `.\.venv\Scripts\Activate.ps1`.
+
+```powershell
+# Rebuild model artifacts
+python train.py                 # full dataset build + train
+python train.py --dataset-only  # dataset/scaler/manifest only
+
+# Recommended pre-commit workflow
+pytest tests/
+aq backtest                     # runs `lean backtest .`, refreshes Backtest Results
+aq report <backtest-folder> <result-id>   # official Lean HTML report
+git status
+
+# Inspect a finished backtest
+Get-ChildItem .\backtests\<backtest-folder>\*-summary.json
+
+# Webui (two terminals) -> http://localhost:3002 (Overview) / /risk
+uvicorn monitoring.api_server:app --port 8001 --reload
+cd webui; npm run dev
+```
+
+## Train in the cloud (GitHub Codespaces)
+
+Useful on a memory-constrained machine where a full retrain can take hours of
+wall-clock time while barely using any CPU (see `development/Problems.md` #50/#52):
+
+```powershell
+gh codespace create --repo <owner>/Aether-quant --branch main --machine basicLinux32gb
+gh codespace ssh -c <codespace-name>
+# inside the Codespace:
+cd Aether-quant && python train.py
+# back on your local machine:
+gh codespace ssh -c <codespace-name> -- "cd Aether-quant && tar czf /tmp/aether-quant-ml.tgz ml"
+gh codespace cp -c <codespace-name> remote:/tmp/aether-quant-ml.tgz .\aether-quant-ml.tgz
+tar -xzf .\aether-quant-ml.tgz
+gh codespace stop -c <codespace-name>
+```
+
+Before training, first sync any local uncommitted source/data changes to the
+Codespace; afterward verify the whole extracted `ml/` artifact tree (not just
+JSON summaries) before stopping it. Model artifacts are gitignored and the
+SSH copy keeps them out of the public repo. Lean/Docker backtests can't run in
+a Codespace (see `development/infrastructure.md`'s "Cloud Training via GitHub
+Codespaces" section for why); those stay local.
+
+---
+
+## Incident procedures
+
 ---
 
 ## 1. Kill switch trips repeatedly (>5× per run)
@@ -17,7 +69,7 @@ aq kill-switch --history
 
 **Resolution:**
 - If clustered: no action needed — the system correctly disengaged. Review after run completes.
-- If uniform: consider raising `phase_v2.risk.kill_switch.min_rolling_sharpe` (currently 0.30). Run `aq evaluate --replay-kill-switch` to test candidate thresholds offline first.
+- If uniform: consider raising `phase_v2.risk.kill_switch.min_rolling_sharpe` (see `config.json` for the current value). Run `aq evaluate --replay-kill-switch` to test candidate thresholds offline first.
 
 ---
 

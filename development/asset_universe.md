@@ -1,27 +1,20 @@
 # Asset Universe
 
 The trading universe currently spans **104 assets**: 55 stocks/broad-market
-ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs
-(Phase 4.12). It is defined in `config.json`'s `phase1.universe.assets` and
+ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs.
+It is defined in `config.json`'s `phase1.universe.assets` and
 shared across training, validation, and backtesting
 (`phase1.universe.common_window`: `2014-12-01` to `2021-03-31`).
 
-It was expanded from an original 30-asset universe (Phase 3 of the rank-pivot
-roadmap, `Problems.md` #52) specifically to strengthen the cross-sectional
-`rank_20d` signal, which scales with names-per-date, and deliberately
-rebalanced toward bonds/crypto (54% equity / 30% bond / 12% crypto by count
-at the time) rather than staying equity-heavy. V4.10 added the 15 forex
-pairs (45% equity / 25% bond / 13% crypto / 17% forex by count at the time,
-`development/Problems.md` #66) — a genuinely new asset class fetched via
-`aq fetch forex`, not a rebalance of the existing three. Phase 4.12 added 15
-more equities — WFC, GS, HON, CAT, BA, UNP, GE, ABT, MRK, NKE, SBUX, ORCL,
-ADBE, TXN, T — chosen to fill sectors the universe was thin on
-(financials/industrials/healthcare/consumer/tech/telecom), fetched via real
-`aq fetch stock --apply` calls, specifically to keep pushing the cross-sectional
-`rank_20d` breadth lever that measurably moved the signal's significance in
-V4.11 (53% equity / 21% bond / 12% crypto / 14% forex by count today,
-`development/Problems.md` #71). All 15 are confirmed **Trading**-eligible in
-the Phase 4.12 retrain's `ml/dataset_manifest.json`.
+The universe was deliberately grown — from an original 30 assets
+(`Problems.md` #52) to add bonds/crypto, then 15 forex pairs in V4.10
+(`Problems.md` #66), then 15 sector-filling equities in Phase 4.12
+(WFC, GS, HON, CAT, BA, UNP, GE, ABT, MRK, NKE, SBUX, ORCL, ADBE, TXN, T,
+`Problems.md` #71) — specifically to strengthen the cross-sectional
+`rank_20d` signal, which scales with names-per-date. Today's mix is 53%
+equity / 21% bond / 12% crypto / 14% forex by count; all Phase-4.12
+additions are confirmed **Trading**-eligible in that retrain's
+`ml/dataset_manifest.json`.
 
 The bond ETF sleeve (Phase 1 of the 5/10 to 9/10 roadmap, see
 [`Changelog.md`](Changelog.md)) spans the duration curve

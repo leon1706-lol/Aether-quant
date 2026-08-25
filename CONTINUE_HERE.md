@@ -1,34 +1,34 @@
-# CONTINUE HERE — V5.4.4 COMPLETE 2026-08-25 (morning)
+# CONTINUE HERE — V5.4.5 COMPLETE 2026-08-25 (docs phase)
 
-Nothing pending from this round. V5.4.4 shipped in full:
+Nothing pending from this round. V5.4.5 was the documentation-debt phase and
+shipped in full:
 
-1. Public benchmarks (`evaluation/public_benchmarks.py`) + strategy
-   baselines surfaced END-TO-END: `aq evaluate --benchmarks` (in `--all`)
-   -> ml/evaluation/benchmark_comparison.json -> README "Benchmark
-   Comparison" auto-section (AQ:BENCHMARK markers) -> webui BenchmarkPanel
-   via /api/evaluation's `benchmarks` key.
-2. HRP live book sizing (`phase_v2.portfolio_book.allocation_method`,
-   default "rank" byte-identical) + single-sided full-gross fix.
-3. CI python-lint fix (V5.4.3's two ruff findings).
-4. Monte Carlo README chart + test-badge clobberer bugs (Problems.md #114)
-   - guard in update_readme_evaluation_sections, mocked badge writer.
-5. Packaging gap fixed (Problems.md #115): installed `aq` console script
-   now works for evaluate/audit (evaluation/portfolio/features/audit/
-   inference/analyzer added to packages; generate_evaluation_report to
-   py-modules). RE-RAN `pip install -e .` already.
-6. mean_reversion_baseline un-placeholdered (real next-day accrual).
+1. Main README restructured: Quickstart / Current Status / Contributing /
+   Continuous Integration sections removed (each duplicated a dedicated doc);
+   Runbook section moved into `RUNBOOK.md`; Open Source Files table moved to
+   its TOC position so the author footer ends the file; TOC rebuilt; intro +
+   CLI intro tightened; all six auto-generated result sections verified
+   marker-complete and CLI-refreshable (benchmarks already end-to-end from
+   V5.4.4 — nothing missing).
+2. Sub-README coverage complete: `.devcontainer/` + `.githooks/` READMEs
+   added (last two tracked folders without one); prior-session debloat pass
+   across ~24 module READMEs stands.
+3. `development/README.md` index completed (asset_universe + project_structure
+   were missing); project_structure tree extended; SECURITY.md stale Current
+   Status reference fixed; REPRODUCIBILITY.md table columns realigned.
+4. Environment repaired: local venv had drifted from requirements (httpx and
+   all dev extras missing) — reinstalled both requirement files.
 
-Verified: python **2834/2834** (aq test), vitest **103/103**, ruff clean,
-real benchmarks run live in README (multitask rank book 1.681 vs SP500
-1.214 / 60-40 1.624 / momentum 0.476 / MR -0.119 / random -0.217,
-backtest split, 820 dates x 93 tickers). Docs: Changelog V5.4.4,
-Problems.md #114+#115, architecture.md, evaluation/README.md,
-portfolio/README.md, root README (section + TOC + CLI row), vault graph +
-HANDOFF all updated.
+Verified: python **2834/2834** (`aq test`, badge refreshed), ruff clean,
+README link+anchor scripted check green, no inbound links to deleted
+sections.
 
 ## If continuing in a future session
-- Suggested commit message is in the chat handoff (user commits manually).
-- Optional follow-ups discussed but NOT scheduled: flip
-  `allocation_method` to `"hrp"` + run an AQ backtest for Lean-side
-  validation; rebuild engine docker image before next compose use; no
-  codespace/model training needed this round.
+- Suggested commit message: "V5.4.5 documentation debt paydown: README
+  restructure, sub-README coverage, dev-doc index completion".
+- User decisions still open from V5.4.4: flip `allocation_method` to `"hrp"`
+  + AQ backtest for Lean-side validation; rebuild engine docker image before
+  next compose use.
+- This round changed docs only — no docker rebuild strictly required, but if
+  the image should carry the new README/docs, rebuild after commit.
+- No codespace/model training needed this round.

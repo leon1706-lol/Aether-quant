@@ -13,8 +13,10 @@ description and a link to each package's own README, is in the root README's
 
 ```text
 aether-quant/
-├── .github/                     # CI workflows (tests, webui build, release)
-├── development/                 # Architecture docs, changelog, problems log, backtest chart
+├── .devcontainer/                 # Codespaces / Dev Container definition (+ README)
+├── .githooks/                     # Opt-in pre-commit secret-scan hook (+ README)
+├── .github/                       # CI workflows (tests, webui build, release)
+├── development/                   # Architecture docs, changelog, problems log, backtest chart
 ├── data/                        # Local Lean data folder (equities, crypto, bonds, Forex)
 ├── data_pipeline/                # Lean-data contract + Yahoo Finance / FRED (bond + alt-data) / IB historical backfill
 ├── analyzer/                    # Central market analyzer (final per-asset decision layer)
@@ -52,10 +54,17 @@ aether-quant/
 ├── train_multitask.py           # Offline trainer for the joint direction+magnitude+volatility model
 ├── train_sequence.py            # Offline trainer for the causal-TCN sequence encoder
 ├── train_rl_sizing.py           # Offline trainer for the RL sizing overlay (contextual bandit, default off)
+├── train_strategy_selector.py   # Offline trainer for the options strategy-selector model (dormant until options trade)
 ├── generate_backtest_report.py  # Regenerates the README's Backtest Results section
+├── generate_evaluation_report.py # Regenerates the README's evaluation sections (Monte Carlo chart, benchmarks, ...)
+├── risk_controls.py             # Pure position-scaling / exit-tracking / forex-units helpers
 ├── aq_cli.py                    # `aq` convenience CLI
 ├── config.json                  # Runtime configuration (phase1 / phase_v2 blocks)
 ├── lean.json                    # Lean engine + brokerage configuration
 ├── docker-compose.yml           # Local infrastructure (Lean, Redis, PostgreSQL, workers)
-└── pyproject.toml               # Package metadata, `aq` entry point, pytest config
+├── Dockerfile                   # Consolidated app/worker image (`aether-quant-engine`)
+├── Dockerfile.lean              # Project-local Lean engine layer used by `aq backtest`
+├── RUNBOOK.md                   # Incident procedures (Symptoms -> Diagnosis -> Resolution)
+├── REPRODUCIBILITY.md           # Exact re-run recipe for the published numbers
+└── pyproject.toml               # Package metadata, `aq` entry point, pytest/ruff/coverage config
 ```

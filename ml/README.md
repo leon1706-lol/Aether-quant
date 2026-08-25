@@ -38,13 +38,18 @@ by running the training pipeline.
   (`train_gating.py`/`aq train --gating-only`, `moe/README.md`), optional
   and off by default until trained.
 - `rl_sizing_model.json`, `rl_sizing_feature_schema.json`,
-  `rl_sizing_training_metrics.json` (Phase 4.12, `development/Problems.md`
-  #71) — the offline contextual-bandit sizing overlay
-  (`train_rl_sizing.py`/`aq train --rl-sizing-only`, `risk/README.md`).
-  Off by default (`phase_v2.dynamic_risk.rl_sizing_enabled`); this
+  `rl_sizing_training_metrics.json` — the offline contextual-bandit sizing
+  overlay (`train_rl_sizing.py`/`aq train --rl-sizing-only`,
+  `risk/README.md`). Off by default
+  (`phase_v2.dynamic_risk.rl_sizing_enabled`); this
   project's first real training run of it produced an honest negative
-  result (backtest expected reward below the constant-baseline), so it
+  result (backtest expected reward below the constant-baseline — later
+  root-caused and fixed in V5.4.1's asymmetric-reward fix), so it
   ships disabled per its own pre-committed abandon criterion.
+- `topology_model.json`, `topology_feature_schema.json`,
+  `topology_training_metrics.json` — the learned KMeans-prototype overlay
+  over the deterministic 3D topology embedding (`train_topology.py`/
+  `aq train --topology-only`, `topology/README.md`).
 
 **Candidate models (V2-17)** — `versions/<model_version_id>/`: the exact
 same artifact set as above (`model_weights.json`, `model.pt`,
@@ -68,8 +73,12 @@ market/sector/size-**residualized** cross-sectional rank
 (`rank_5d`/`rank_20d`/`residual_rank_5d`/`residual_rank_20d`, plus a
 disabled-by-default `beta_neutral_rank_20d`).
 
-`evaluation/` (top-level, alongside this folder, not inside it) holds
-`aq evaluate`'s output — `rank_book_simulation.json`, `capacity_report.json`,
-`cost_stress_report.json`, `ablation_report.json` — the offline,
-cost-aware evaluation of whatever model is currently active. See
-`evaluation/README.md`.
+**Evaluation reports** — `ml/evaluation/*.json` holds `aq evaluate`'s
+output: `rank_book_simulation.json` (+ per-model/`entry_lag_1` variants),
+`capacity_report.json`, `cost_stress_report.json`, `ablation_report.json`,
+`monte_carlo.json` (+ the `monte_carlo_curves.npz` per-run matrix),
+`benchmark_comparison.json`, `kill_switch_replay.json`,
+`rolling_ic_gate_replay.json`, `book_history_reconciliation.json` and the
+calibration reports — the offline, cost-aware evaluation of whatever model
+is currently active. See `evaluation/README.md`. (The top-level `evaluation/`
+directory is the *code* package, not these outputs.)
