@@ -120,3 +120,50 @@ class TestBenchmarkBaselines:
 
         result = random_entry_baseline([f"T{i}" for i in range(12)], n_days=300)
         assert abs(result["net_sharpe"]) < 1.5  # should be near zero
+
+    def test_mean_reversion_no_longer_placeholder_zero(self):
+        # V5.4.4: this baseline previously accrued a hardcoded
+        # `weight_sum * 0.001` placeholder -> structurally 0.0 Sharpe AND
+        # 0.0% return regardless of the data. A strongly trending universe
+        # (half the names rising, half falling) must now produce a
+        # nonzero result - MR shorts the trend winners, so it should lean
+        # negative here.
+        from evaluation.benchmark_comparison import mean_reversion_baseline
+
+        rng = np.random.default_rng(42)
+        n = 60
+        drifts = np.linspace(-0.004, 0.004, 12)
+        log_rets = np.cumsum(rng.normal(0, 0.005, (n, 12)) + drifts[None, :], axis=0)
+        close = pd.DataFrame(
+            100 * np.exp(log_rets),
+            columns=[f"T{i}" for i in range(12)],
+            index=pd.bdate_range("2019-01-01", periods=n),
+        )
+        result = mean_reversion_baseline(close)
+        assert not (result["net_sharpe"] == 0.0 and result["total_return_pct"] == 0.0)
+        assert result["total_return_pct"] < 0.0
+
+    def test_mean_reversion_known_value_deterministic(self):
+        # T_A rises +1%/day, T_B falls -0.5%/day. With top_n=bottom_n=1
+        # and a single rebalance (rebalance_every huge), the book is long
+        # the FALLER and short the RISER from day `lookback` on: each
+        # accrued day earns exactly r_B - r_A = -1.5%.
+        from evaluation.benchmark_comparison import mean_reversion_baseline
+
+        n = 25
+        dates = pd.bdate_range("2019-01-01", periods=n)
+        close = pd.DataFrame(
+            {
+                "T_A": 100 * np.power(1.01, np.arange(n)),
+                "T_B": 100 * np.power(0.995, np.arange(n)),
+            },
+            index=dates,
+        )
+        lookback = 5
+        result = mean_reversion_baseline(close, lookback=lookback, top_n=1, bottom_n=1, rebalance_every=1000)
+        # Accrual starts at di=lookback (the single rebalance) and earns
+        # (1 - 0.015) per day through di=n-2 (last next-day pair).
+        accrued_days = n - 1 - lookback
+        expected_total = (0.985**accrued_days - 1.0) * 100.0
+        assert result["total_return_pct"] == pytest.approx(round(expected_total, 2), abs=1e-6)
+        assert result["net_sharpe"] < 0

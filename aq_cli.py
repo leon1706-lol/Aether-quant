@@ -774,6 +774,10 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_rollback_hardening.py",
         "test_rl_sizing_v541.py",
         "test_monte_carlo.py",
+        # V5.4.4 - evaluation/public_benchmarks.py (SP500 + 60-40 public
+        # baselines) and the HRP live-book-sizing integration tests.
+        "test_public_benchmarks.py",
+        "test_hrp_book_sizing.py",
     ],
 }
 
@@ -2359,6 +2363,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     run_monte_carlo = bool(getattr(args, "monte_carlo", False))
     if run_monte_carlo:
         run_rank_book = True
+    # V5.4.4 - benchmark comparison: cheap (pure pandas over the dataset's
+    # own close pivot, no model inference), so it rides in --all and the
+    # README's benchmark section auto-refreshes on every full evaluate run.
+    run_benchmarks = bool(getattr(args, "benchmarks", False) or args.all)
     run_capacity = bool(args.capacity or args.all)
     run_stress = bool(args.stress or args.all)
     run_calibrate = bool(args.calibrate_edge or args.all)
@@ -2401,7 +2409,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         run_rank_book or run_capacity or run_stress or run_calibrate or run_ablation_flag
         or run_calibrate_book_spread or run_calibrate_confidence_threshold or run_calibrate_rolling_ic_floor
         or run_replay_kill_switch or run_replay_rolling_ic_gate or run_simulate_limit_fills
-        or run_monte_carlo
+        or run_monte_carlo or run_benchmarks
     ):
         run_rank_book = True
 
@@ -2481,6 +2489,30 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print("Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
             print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
             print(f"  delta_net_sharpe vs entry_lag_bars=0: {lagged_result.net_sharpe - result.net_sharpe:+.4f}")
+
+    # V5.4.4 - benchmark comparison over the SAME dataset window/split the
+    # rank book just ran on (the `dataset` frame is already split-filtered
+    # above, so the pivot - and every baseline number - is automatically
+    # like-for-like with the rank book's own window). Pure pandas over the
+    # dataset's own close columns; zero new data dependencies, zero model
+    # inference. Missing close column or missing SPY/TLT degrades to
+    # SKIPPED entries inside the report, never a crash.
+    if run_benchmarks:
+        from evaluation.benchmark_comparison import close_pivot_from_frame, run_all_baselines
+
+        benchmark_close_pivot = close_pivot_from_frame(dataset)
+        benchmark_report = run_all_baselines(benchmark_close_pivot)
+        benchmark_report["model_kind"] = model_kind
+        benchmark_report["head"] = head
+        benchmark_report["split"] = split
+        report["benchmarks"] = benchmark_report
+        _write_evaluation_json(evaluation_dir / "benchmark_comparison.json", benchmark_report)
+        if not args.json:
+            print(f"Benchmarks (split={split}, {len(benchmark_close_pivot)} dates x {benchmark_close_pivot.shape[1]} tickers):")
+            for baseline in benchmark_report["baselines"]:
+                sharpe = baseline["net_sharpe"]
+                sharpe_str = f"{sharpe:+.4f}" if sharpe is not None else "  n/a "
+                print(f"  {baseline['strategy']:<14} net_sharpe={sharpe_str}  total_return={baseline['total_return_pct']}%  [{baseline.get('status', 'OK')}]")
 
     # V5.2.8 (development/Problems.md #94) - reuses --rank-book's own
     # `result` (per_date/per_date_net_return) when that flag was also
@@ -3534,6 +3566,14 @@ def build_parser() -> argparse.ArgumentParser:
                                  help="RNG seed - pinned by default so the README stays stable unless results change.")
     evaluate_parser.add_argument("--mc-method", choices=["block", "iid"], default="block",
                                  help="Resampling method (default: block = stationary block bootstrap).")
+    evaluate_parser.add_argument(
+        "--benchmarks", action="store_true",
+        help="V5.4.4: benchmark comparison (evaluation/benchmark_comparison.py + "
+        "evaluation/public_benchmarks.py) - runs the momentum/mean-reversion/random-entry strategy "
+        "baselines AND the SP500 buy-and-hold + daily-rebalanced 60/40 SPY-TLT public baselines over "
+        "the SAME dataset window/split as the rank book, writing ml/evaluation/benchmark_comparison.json "
+        "and refreshing the README's Benchmark Comparison section. Included in --all.",
+    )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")
     evaluate_parser.add_argument("--split", default=None, help="Dataset split to evaluate: train/validation/backtest/all (default: backtest)")

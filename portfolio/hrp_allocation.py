@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.spatial.distance import squareform
 
 
@@ -42,8 +42,6 @@ def compute_hrp_weights(returns: pd.DataFrame) -> pd.Series:
     link = linkage(condensed, method="ward")
 
     # Quasi-diagonal ordering (dendrogram leaf order)
-    from scipy.cluster.hierarchy import leaves_list
-
     ordered = leaves_list(link).tolist()
 
     # Recursive bisection
@@ -95,8 +93,14 @@ def build_hrp_allocation(
     gross_exposure: float = 1.0,
 ) -> dict[str, float]:
     """Builds an HRP-weighted allocation dict for the current book's long and
-    short legs. Longs get positive HRP weights × gross/2, shorts get negative.
-    Falls back to equal weight within each leg when HRP can't converge."""
+    short legs. With BOTH legs populated, longs get positive HRP weights ×
+    gross/2 and shorts negative × gross/2 (dollar-neutral book). A
+    SINGLE-SIDED book (one leg empty - e.g. the long-only book
+    `phase5.backtest.strategy_mode: "long_flat"` produces, the shipped
+    default) gives the present leg the FULL gross - V5.4.4 fix: the
+    original unconditional gross/2 split silently halved a long-only
+    book's exposure. Falls back to equal weight within each leg when HRP
+    can't converge."""
     all_selected = selected_tickers_long + selected_tickers_short
     if not all_selected:
         return {}
@@ -126,8 +130,12 @@ def build_hrp_allocation(
             result[t] = -equal_w
         return result
 
-    long_weight_total = gross_exposure / 2.0
-    short_weight_total = -gross_exposure / 2.0
+    # V5.4.4 - two-sided books split gross evenly (dollar-neutral);
+    # single-sided books give the present leg the full gross (see
+    # docstring - the unconditional gross/2 split would have halved the
+    # default long_flat book's exposure).
+    long_weight_total = gross_exposure / 2.0 if selected_tickers_short else gross_exposure
+    short_weight_total = -(gross_exposure / 2.0 if selected_tickers_long else gross_exposure)
 
     long_hrp_sum = sum(hrp_all.get(t, 0.0) for t in selected_tickers_long)
     short_hrp_sum = sum(hrp_all.get(t, 0.0) for t in selected_tickers_short)

@@ -148,3 +148,28 @@ def test_monte_carlo_section_reads_the_real_report_file(tmp_path):
     state = build_evaluation_state(ml_dir=tmp_path)
 
     assert state["monte_carlo"] == payload
+
+
+def test_benchmarks_section_degrades_to_not_evaluated_on_fresh_checkout(tmp_path):
+    state = build_evaluation_state(ml_dir=tmp_path)
+    section = state["benchmarks"]
+    assert section["status"] == "not_evaluated"
+    assert "--benchmarks" in section["hint"]
+
+
+def test_benchmarks_section_reads_the_real_report_file(tmp_path):
+    evaluation_dir = tmp_path / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    payload = {
+        "baselines": [
+            {"strategy": "momentum", "net_sharpe": 0.41, "total_return_pct": 3.2},
+            {"strategy": "sp500", "net_sharpe": 0.88, "total_return_pct": 12.4, "status": "OK"},
+            {"strategy": "60_40", "net_sharpe": None, "total_return_pct": None, "status": "SKIPPED: no TLT"},
+        ],
+        "split": "backtest",
+    }
+    (evaluation_dir / "benchmark_comparison.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    state = build_evaluation_state(ml_dir=tmp_path)
+
+    assert state["benchmarks"] == payload

@@ -33,8 +33,17 @@ aq = "aq_cli:main"
 # Lean container both masked it by putting the repo root on sys.path
 # directly). `data_pipeline` was added the same way, after `aq_cli.py`
 # gained `from data_pipeline.fetch import ...` for the `aq fetch` command.
-py-modules = ["aq_cli", "generate_backtest_report"]
-packages = ["risk", "execution", "data_pipeline"]
+# V5.4.4: `evaluation`/`portfolio`/`features`/`audit`/`inference`/
+# `analyzer` added after the installed `aq` console script was found
+# raising `ModuleNotFoundError: No module named 'evaluation'` on
+# `aq evaluate` - aq_cli.py has imported these in-process (function-level,
+# so pytest and the Lean container masked it the same way as the
+# `execution` case above) since long before this round; transitively:
+# `evaluation` -> `portfolio` (rank_book_simulator),
+# `inference` (model_predictions), `analyzer` (confidence_threshold_
+# calibration -> market_analyzer).
+py-modules = ["aq_cli", "generate_backtest_report", "generate_evaluation_report"]
+packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

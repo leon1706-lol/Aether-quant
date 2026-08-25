@@ -1730,6 +1730,7 @@
       "bottom_n": 6,
       "min_rank_confidence_spread": 0.2831,
       "rebalance_every_bars": 10,
+      "allocation_method": "rank",
       "neutrality": {
         "enabled": true,
         "dollar_neutral": true,

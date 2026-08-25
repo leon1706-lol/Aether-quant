@@ -120,7 +120,7 @@ flowchart TB
 - `experience/`: Redis-buffered observation and trade events with PostgreSQL persistence.
 - `retraining/`: Controlled retraining — planner, candidate training gate, validation/backtest gates, Aether-Vault commit, promotion and rollback.
 - `risk/`: Dynamic position sizing, leverage limits, drawdown controls, exposure caps, `asset_class_router.py` (routes sizing per asset class), `futures_risk.py`/`forex_risk.py` (per-class margin/lot sizing), `rl_sizing.py` (offline-trained sizing overlay, default off).
-- `portfolio/`: Stage-2 long/short book construction (`build_rank_based_book()`) and `options_strategy.py` (all 43 QuantConnect `OptionStrategies`, registry-driven).
+- `portfolio/`: Stage-2 long/short book construction (`build_rank_based_book()`, config-selectable HRP sizing via `apply_hrp_weights()`/`hrp_allocation.py`, V5.4.4) and `options_strategy.py` (all 43 QuantConnect `OptionStrategies`, registry-driven).
 - `features/`: Pure, train/runtime-shared feature functions — `macro_features.py`/`bond_features.py` (real yield-curve/credit-spread), `alt_data_features.py` (VIX-derived implied volatility + financial-conditions), `derivatives_macro_features.py`, `options_greeks.py`, `technical_indicators.py`.
 - `execution/`: Live/paper credential and readiness plumbing (`live_credentials.py`, `paper_readiness_report.py`/`_scheduler.py`), order-gate/limit-order support.
 - `monitoring/`: FastAPI JSON API serving `visualization/state.json`, scene, topology and the historical `visualization/grafana/*` exports (equity curves, asset performance, observation/metrics snapshots).
@@ -1424,7 +1424,14 @@ cap → sector-neutralize by shrinking any bucket that exceeds its net cap,
 never demeaning it to exact zero → dollar-neutralize by scaling the larger
 leg down → a final gross-exposure cap), with hysteresis in
 `portfolio/book_construction.py` so an incumbent position isn't churned
-out on a marginal rank change alone.
+out on a marginal rank change alone. V5.4.4 makes the book's SIZING
+method config-selectable
+(`phase_v2.portfolio_book.allocation_method`, default `"rank"` =
+the confidence formula, byte-identical): `"hrp"` re-weights the same
+selected symbols with Hierarchical Risk Parity inverse-variance weights
+(`book_construction.py::apply_hrp_weights()` → `hrp_allocation.py`,
+return history from each symbol's rolling 25-bar window) BEFORE the
+neutrality pass consumes them — selection never changes, only sizing.
 
 `evaluation/rank_book_simulator.py::simulate_rank_book()` is a torch-free
 offline mirror of this same live decision chain — same top-N/bottom-N
@@ -1435,6 +1442,16 @@ re-runs it with individual mechanisms (neutrality, hysteresis, cost model)
 disabled in turn to isolate their contribution; a mechanism with no
 offline equivalent (gating, topology sizing) returns an explicit
 "not measurable this way" sentinel rather than a fabricated number.
+`evaluation/benchmark_comparison.py` (V5.4.3) and
+`evaluation/public_benchmarks.py` (V5.4.4) compute naive-strategy
+(momentum/mean-reversion/random) and public (buy-and-hold SPY, daily-
+rebalanced 60% SPY / 40% TLT) baselines on the same `close_pivot` window
+and with the same Sharpe formula, so the book's edge is always stated
+relative to something — missing SPY/TLT degrades to a `SKIPPED` status,
+never a crash. `aq evaluate --benchmarks` (in `--all`) persists them to
+`ml/evaluation/benchmark_comparison.json`; the README's Benchmark
+Comparison section auto-refreshes from it and the webui's Evaluation tab
+renders it via `/api/evaluation`'s `benchmarks` key (`BenchmarkPanel`).
 `retraining/validation_gate.py::evaluate_ranking_promotion_gate()`
 finally wires the ranking-quality and net-performance verdicts
 (`train.py::assess_ranking_quality()`/`assess_net_performance_quality()`,

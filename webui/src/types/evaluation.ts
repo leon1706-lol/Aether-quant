@@ -216,6 +216,8 @@ export interface EvaluationState {
   // predate the section keep compiling; the backend ALWAYS serves the key.
   kill_switch_replay?: KillSwitchReplayReport | NotEvaluated
   monte_carlo?: MonteCarloReport | NotEvaluated
+  // V5.4.4 - optional for the same reason as monte_carlo above.
+  benchmarks?: BenchmarkComparisonReport | NotEvaluated
 }
 
 // V5.2.8 replay payload served by the backend but never yet rendered by any
@@ -261,4 +263,22 @@ export interface MonteCarloReport {
 
 export function isNotEvaluated(value: unknown): value is NotEvaluated {
   return typeof value === 'object' && value !== null && (value as { status?: string }).status === 'not_evaluated'
+}
+
+// V5.4.4 - benchmark comparison (aq evaluate --benchmarks): naive strategy
+// baselines + public benchmarks over the rank book's own dataset window.
+export interface BenchmarkBaseline {
+  strategy: string
+  net_sharpe: number | null
+  total_return_pct: number | null
+  // public_benchmarks entries carry "OK" / "SKIPPED: <reason>"; strategy
+  // baselines have no status key (implicitly OK).
+  status?: string
+}
+
+export interface BenchmarkComparisonReport {
+  baselines: BenchmarkBaseline[]
+  model_kind?: string
+  head?: string
+  split?: string
 }

@@ -2,9 +2,11 @@
 
 from .book_construction import (
     BookAllocation,
+    apply_hrp_weights,
     build_book_history_record,
     build_rank_based_book,
     normalize_per_asset_class_slots,
+    pct_returns_from_closes,
     should_exit_non_selected_book_symbol,
     should_rebalance_this_bar,
 )
@@ -24,11 +26,13 @@ __all__ = [
     "BookAllocation",
     "OptionsPositionDecision",
     "apply_book_neutrality",
+    "apply_hrp_weights",
     "build_book_history_record",
     "build_options_position_sizing",
     "build_rank_based_book",
     "cross_sectional_rank_scores",
     "normalize_per_asset_class_slots",
+    "pct_returns_from_closes",
     "resolve_rank_signal_policy",
     "select_raw_rank_score",
     "select_single_leg_contract",

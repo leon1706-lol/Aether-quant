@@ -2739,9 +2739,93 @@ def test_evaluate_all_flag_runs_every_report(tmp_path, capsys, monkeypatch):
     assert set(payload) == {
         "rank_book", "rank_book_entry_lag_1", "capacity", "stress",
         "calibrated_edge_bps_per_rank_unit", "calibrated_edge_forward_return_column",
+        "benchmarks",
     }
     assert (ml_dir / "evaluation" / "capacity_report.json").exists()
     assert (ml_dir / "evaluation" / "cost_stress_report.json").exists()
+    assert (ml_dir / "evaluation" / "benchmark_comparison.json").exists()
+
+
+def test_evaluate_benchmarks_end_to_end(tmp_path, capsys, monkeypatch):
+    """V5.4.4 - `aq evaluate --benchmarks` runs all five baselines over the
+    dataset's own close pivot (SPY/TLT present -> public baselines OK) and
+    persists ml/evaluation/benchmark_comparison.json."""
+    import numpy as np
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+
+    # Tiny dataset WITH a close column and SPY/TLT rows so the public
+    # baselines compute (the default _write_tiny_dataset has neither).
+    (ml_dir / "datasets").mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(0)
+    dates = pd.bdate_range("2020-01-01", periods=40)
+    rows = []
+    for ticker in ("SPY", "TLT", "T0", "T1", "T2", "T3"):
+        closes = 100 * np.exp(np.cumsum(rng.normal(0, 0.01, 40)))
+        for di, row_date in enumerate(dates):
+            rows.append({
+                "date": row_date.strftime("%Y-%m-%d"),
+                "ticker": ticker,
+                "split": "backtest",
+                "close": float(closes[di]),
+                "target_return_1d": float(rng.normal(0, 0.01)),
+                "target_return_20d": float(rng.normal(0, 0.03)),
+                "liquidity_log_dollar_volume": 15.0,
+                "f1": float(rng.normal()),
+                "f2": float(rng.normal()),
+            })
+    (ml_dir / "datasets" / "full_dataset.csv").write_text(pd.DataFrame(rows).to_csv(index=False))
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--benchmarks", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    strategies = [b["strategy"] for b in payload["benchmarks"]["baselines"]]
+    assert strategies == ["momentum", "mean_reversion", "random_entry", "sp500", "60_40"]
+    by_strategy = {b["strategy"]: b for b in payload["benchmarks"]["baselines"]}
+    assert by_strategy["sp500"]["status"] == "OK"
+    assert by_strategy["60_40"]["status"] == "OK"
+    assert by_strategy["sp500"]["net_sharpe"] is not None
+
+    written = json.loads((ml_dir / "evaluation" / "benchmark_comparison.json").read_text(encoding="utf-8"))
+    assert written == payload["benchmarks"]
+
+
+def test_evaluate_benchmarks_missing_close_column_degrades_to_skipped(tmp_path, capsys, monkeypatch):
+    """V5.4.4 - a dataset without a close column (e.g. an older build)
+    must produce SKIPPED public baselines, never a crash."""
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--benchmarks", "--json"])
+    exit_code = args.func(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    by_strategy = {b["strategy"]: b for b in payload["benchmarks"]["baselines"]}
+    assert by_strategy["sp500"]["net_sharpe"] is None
+    assert by_strategy["sp500"]["status"].startswith("SKIPPED")
+    assert by_strategy["momentum"]["net_sharpe"] is not None
 
 
 def test_evaluate_calibrate_edge_regresses_on_the_configured_horizon_return(tmp_path, capsys, monkeypatch):

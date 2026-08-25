@@ -468,6 +468,82 @@ def build_rank_based_book(
     return allocations
 
 
+def pct_returns_from_closes(closes: list) -> list[float]:
+    """V5.4.4 - close-to-close simple returns from a symbol's rolling
+    close window (main.py's `self.symbol_windows[symbol]` "close" values,
+    oldest first). The per-symbol return history `apply_hrp_weights()`
+    consumes for its covariance estimation.
+
+    Pairs containing a missing/non-positive close are SKIPPED (not
+    emitted as NaN/inf/-1.0) - a split-adjusted 0 or a None from a
+    partially-populated window would otherwise poison the covariance
+    matrix HRP estimates downstream (a 0 CURRENT close would emit a
+    -100% return, a variance bomb, even though its previous close is
+    technically usable). Fewer than 2 usable closes returns [] (no
+    return can exist without at least one previous close to diff
+    against)."""
+    returns: list[float] = []
+    for previous_close, current_close in zip(closes, closes[1:]):
+        if (
+            previous_close is None
+            or current_close is None
+            or previous_close <= 0.0
+            or current_close <= 0.0
+        ):
+            continue
+        returns.append(current_close / previous_close - 1.0)
+    return returns
+
+
+def apply_hrp_weights(
+    book_allocations: dict[str, BookAllocation],
+    returns_by_symbol: dict[str, list[float]],
+    gross_exposure: float = 1.0,
+) -> dict[str, float]:
+    """V5.4.4 - HRP book SIZING over an already-selected book. Replaces
+    the per-symbol confidence formula (min(max_position_weight,
+    0.10+0.15*confidence) * book_role_multiplier) with Hierarchical Risk
+    Parity inverse-variance weights derived from the selected symbols'
+    return correlation structure - SAME symbols, SAME roles, different
+    sizing only. Selection (build_rank_based_book()) always runs first
+    and is never affected; this function must be called with its output.
+
+    `returns_by_symbol` is `{symbol_key: [close-to-close returns]}` -
+    main.py builds it from each selected symbol's own rolling window
+    (self.symbol_windows, the 25-bar deque) via pct_returns_from_closes();
+    symbols missing from the dict (or with < 2 usable returns) are simply
+    excluded from the covariance estimation by build_hrp_allocation()'s
+    own filtering, never a KeyError.
+
+    Per-leg weight contract (mirrors portfolio/hrp_allocation.py::
+    build_hrp_allocation(), which this delegates to): with BOTH legs
+    populated each leg sums to +/-gross_exposure/2 (dollar-neutral book);
+    a single-sided book (long_flat strategy_mode, bottom_n=0) gives the
+    present leg the FULL gross. Insufficient history (< 2 symbols with
+    usable returns) or an HRP convergence failure degrades to equal
+    weight within each leg - sizing always covers exactly the selected
+    symbol set, {} only when book_allocations itself is empty.
+
+    Deliberately a lazy import of portfolio.hrp_allocation inside the
+    function body: that module imports scipy at module scope, and this
+    keeps book_construction.py (imported by main.py on EVERY run, HRP
+    engaged or not) scipy-free on the default "rank" path - the same
+    isolator-timeout/import-weight concern that keeps evaluation/
+    rank_ic_core.py torch-free (development/Problems.md #16/#102)."""
+    if not book_allocations:
+        return {}
+    long_symbols = [symbol for symbol, allocation in book_allocations.items() if allocation.role == "long"]
+    short_symbols = [symbol for symbol, allocation in book_allocations.items() if allocation.role == "short"]
+    from portfolio.hrp_allocation import build_hrp_allocation
+
+    return build_hrp_allocation(
+        returns_by_symbol,
+        selected_tickers_long=long_symbols,
+        selected_tickers_short=short_symbols,
+        gross_exposure=gross_exposure,
+    )
+
+
 def should_rebalance_this_bar(
     bar_index: int,
     rebalance_every_bars: int,

@@ -1,6 +1,10 @@
 import json
 
+import pytest
+
 from generate_evaluation_report import (
+    BENCHMARK_MARKER_END,
+    BENCHMARK_MARKER_START,
     EVAL_FULL_STATS_MARKER_END,
     EVAL_FULL_STATS_MARKER_START,
     EVAL_MARKER_END,
@@ -11,6 +15,7 @@ from generate_evaluation_report import (
     WALKFORWARD_FULL_STATS_MARKER_START,
     WALKFORWARD_MARKER_END,
     WALKFORWARD_MARKER_START,
+    _build_benchmark_markdown,
     _build_eval_compact_markdown,
     _build_eval_full_stats_markdown,
     _build_other_metrics_markdown,
@@ -331,6 +336,17 @@ def test_monte_carlo_markers_render_not_run_yet_fallback_when_json_absent(tmp_pa
     monkeypatch.setattr(report_module, "EVALUATION_DIR", evaluation_dir)
     monkeypatch.setattr(report_module, "_load_lean_sharpe", lambda: (None, None))
     monkeypatch.setattr(report_module, "_count_real_kill_switch_trips", lambda: None)
+    # V5.4.4 (Problems.md #114) - guard spy: a tmp readme must NEVER
+    # trigger a chart render (the guard in update_readme_evaluation_sections()
+    # skips it), otherwise every test-suite run would clobber the REAL
+    # development/monte_carlo_equity_curves.png with fixture data - the
+    # exact bug that left the README chart showing only the average line.
+    render_calls = []
+    monkeypatch.setattr(
+        report_module,
+        "_render_monte_carlo_chart",
+        lambda *a, **kw: render_calls.append(a) or False,
+    )
 
     markers = (
         "<!-- AQ:MONTECARLO_START -->old mc<!-- AQ:MONTECARLO_END -->\n"
@@ -344,6 +360,7 @@ def test_monte_carlo_markers_render_not_run_yet_fallback_when_json_absent(tmp_pa
     text = readme_path.read_text(encoding="utf-8")
     assert "old mc" not in text and "old deep" not in text
     assert "Monte Carlo simulation has not been run yet" in text
+    assert render_calls == []
 
     # Now write a minimal summary + curves npz and confirm real rendering.
     import numpy as np
@@ -368,3 +385,177 @@ def test_monte_carlo_markers_render_not_run_yet_fallback_when_json_absent(tmp_pa
     text = readme_path.read_text(encoding="utf-8")
     assert "1000-run stationary-block bootstrap" in text
     assert "![](development/monte_carlo_equity_curves.png)" in text or            "(development/monte_carlo_equity_curves.png)" in text
+    # Still NO render: this readme is a tmp file, not the real repo README -
+    # the fixture's degenerate 10-flat-run matrix must stay in tmp.
+    assert render_calls == []
+
+
+def test_monte_carlo_chart_renders_when_refreshing_real_readme(tmp_path, monkeypatch):
+    """V5.4.4 (Problems.md #114) - the other side of the guard: when the
+    call DOES target the real README (README_PATH patched to the hermetic
+    tmp stand-in), the chart renders to MONTECARLO_CHART_PATH. Fully
+    hermetic - ROOT_DIR/EVALUATION_DIR/README_PATH/MONTECARLO_CHART_PATH
+    all point into tmp_path, so no repo asset is touched."""
+    import numpy as np
+
+    import generate_evaluation_report as report_module
+
+    root = tmp_path / "repo"
+    evaluation_dir = root / "ml" / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    development_dir = root / "development"
+    development_dir.mkdir()
+    chart_path = development_dir / "monte_carlo_equity_curves.png"
+    readme_path = root / "README.md"
+
+    monkeypatch.setattr(report_module, "ROOT_DIR", root)
+    monkeypatch.setattr(report_module, "EVALUATION_DIR", evaluation_dir)
+    monkeypatch.setattr(report_module, "README_PATH", readme_path)
+    monkeypatch.setattr(report_module, "MONTECARLO_CHART_PATH", chart_path)
+    monkeypatch.setattr(report_module, "_load_lean_sharpe", lambda: (None, None))
+    monkeypatch.setattr(report_module, "_count_real_kill_switch_trips", lambda: None)
+
+    payload = {
+        "status": "OK",
+        "config": {"n_runs": 5, "block_size": 20, "seed": 42, "method": "block"},
+        "avg_curve": [1.0, 1.03],
+        "pct_band": {"p5": [1.0, 0.98], "p25": [1.0, 1.0], "p75": [1.0, 1.05], "p95": [1.0, 1.08]},
+        "final_return_pct": {"p5": -2.0, "p25": 3.0, "p50": 9.38, "p75": 15.0, "p95": 21.45},
+        "sharpe": {"p5": -0.18, "p25": 0.6, "p50": 1.4, "p75": 2.0, "p95": 2.52},
+        "max_drawdown": {"p5": 1.0, "p25": 3.0, "p50": 5.0, "p75": 7.0, "p95": 9.11},
+        "prob_negative_return": 0.095,
+        "best_run_total_return": 31.2,
+        "worst_run_total_return": -6.4,
+    }
+    (evaluation_dir / "monte_carlo.json").write_text(json.dumps(payload), encoding="utf-8")
+    np.savez_compressed(evaluation_dir / "monte_carlo_curves.npz", runs_curves=np.linspace(0.9, 1.2, 10).reshape(5, 2))
+
+    readme_path.write_text(
+        "# Aether Quant\n\n<!-- AQ:MONTECARLO_START -->old<!-- AQ:MONTECARLO_END -->\n"
+        "<!-- AQ:MONTECARLO_FULL_STATS_START -->old deep<!-- AQ:MONTECARLO_FULL_STATS_END -->\n",
+        encoding="utf-8",
+    )
+    updated = update_readme_evaluation_sections(readme_path)
+    assert updated is True
+    # The chart rendered this time (real-README path), from the fixture's
+    # 5 distinct runs.
+    assert chart_path.exists()
+    assert chart_path.stat().st_size > 0
+
+
+def test_render_monte_carlo_chart_draws_every_individual_run(tmp_path, monkeypatch):
+    """V5.4.4 regression guard for the README visual: the chart must draw
+    EVERY individual bootstrap run (light blue lines), not just the red
+    average - the shipped PNG once showed only the average because it
+    predated the individual-run renderer. Verified by intercepting every
+    ax.plot() call: one per run, plus the average and the 1.0x baseline,
+    and the union of plotted y-data must span the individual runs'
+    extremes (autoscale only covers them if they are actually drawn)."""
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.axes
+    import numpy as np
+
+    import generate_evaluation_report as report_module
+
+    runs = np.linspace(0.5, 1.5, 7).reshape(7, 1) * np.ones((1, 4))
+    plotted_y = []
+    original_plot = matplotlib.axes.Axes.plot
+
+    def _recording_plot(self, *args, **kwargs):
+        # ax.plot(x, y, ...) - capture the y data of every call.
+        if len(args) >= 2:
+            plotted_y.append(np.asarray(args[1], dtype=float))
+        return original_plot(self, *args, **kwargs)
+
+    monkeypatch.setattr(matplotlib.axes.Axes, "plot", _recording_plot)
+
+    out_path = tmp_path / "monte_carlo_equity_curves.png"
+    ok = report_module._render_monte_carlo_chart(
+        runs, [1.0, 1.01, 1.02, 1.03], {"n_runs": 7, "method": "block", "block_size": 20, "seed": 42}, out_path
+    )
+    assert ok is True
+    assert out_path.exists()
+    # 7 individual runs + 1 average = 8 recorded plot calls (the 1.0x
+    # baseline uses axhline(), which doesn't route through Axes.plot).
+    assert len(plotted_y) == 7 + 1
+    all_y = np.concatenate(plotted_y)
+    assert all_y.min() == pytest.approx(0.5, abs=1e-9)
+    assert all_y.max() == pytest.approx(1.5, abs=1e-9)
+
+
+def test_render_monte_carlo_chart_degrades_gracefully_without_runs(tmp_path):
+    """Missing/empty runs matrix or empty average curve -> False (no
+    chart written, never a crash) - the not-run-yet README fallback
+    depends on this contract."""
+    import numpy as np
+
+    import generate_evaluation_report as report_module
+
+    out_path = tmp_path / "monte_carlo_equity_curves.png"
+    assert report_module._render_monte_carlo_chart(None, [1.0], {}, out_path) is False
+    assert report_module._render_monte_carlo_chart(np.ones((3, 2)), [], {}, out_path) is False
+    assert not out_path.exists()
+
+
+def test_benchmark_markdown_not_run_yet_fallback():
+    """V5.4.4 - no benchmark_comparison.json -> honest fallback text, never
+    a crash (same contract as every other section builder here)."""
+    text = _build_benchmark_markdown(None, {})
+    assert "has not been run yet" in text
+    assert "--benchmarks" in text
+
+
+def test_benchmark_markdown_renders_rank_book_rows_then_baselines():
+    """V5.4.4 - the rank book's own net Sharpe rows come first (the number
+    being benchmarked, per model), then every baseline in report order;
+    SKIPPED baselines show their reason instead of fabricated numbers."""
+    summary = {
+        "baselines": [
+            {"strategy": "momentum", "net_sharpe": 0.4123, "total_return_pct": 3.21},
+            {"strategy": "sp500", "net_sharpe": 0.8801, "total_return_pct": 12.4, "status": "OK"},
+            {"strategy": "60_40", "net_sharpe": None, "total_return_pct": None, "status": "SKIPPED: no TLT"},
+        ],
+        "split": "backtest",
+    }
+    eval_summary = {
+        "multitask": {"rank_book": {"net_sharpe": 1.6805, "net_total_return": 0.1061}},
+        "sequence": None,
+    }
+    text = _build_benchmark_markdown(summary, eval_summary)
+    lines = text.splitlines()
+    # Rank book row first, then baselines in report order.
+    assert lines[2].startswith("| **Rank book (multitask)** | 1.681 | 10.61% |")
+    assert "momentum" in lines[3]
+    assert "sp500" in lines[4]
+    # SKIPPED baseline: em-dash metrics + the reason in the note column.
+    assert "| 60_40 | — | —% |" in lines[5]
+    assert "SKIPPED: no TLT" in lines[5]
+    assert "auto-generated by `aq evaluate --benchmarks`" in text
+
+
+def test_benchmark_markers_replaced_in_readme(tmp_path, monkeypatch):
+    """V5.4.4 - the AQ:BENCHMARK marker block is part of the standard
+    section-refresh sweep (and degrades to its fallback when no report
+    exists yet)."""
+    import generate_evaluation_report as report_module
+
+    evaluation_dir = tmp_path / "ml" / "evaluation"
+    evaluation_dir.mkdir(parents=True)
+    monkeypatch.setattr(report_module, "EVALUATION_DIR", evaluation_dir)
+    monkeypatch.setattr(report_module, "_load_lean_sharpe", lambda: (None, None))
+    monkeypatch.setattr(report_module, "_count_real_kill_switch_trips", lambda: None)
+
+    readme_path = tmp_path / "README.md"
+    readme_path.write_text(
+        "# Aether Quant\n\n"
+        f"{BENCHMARK_MARKER_START}old benchmarks{BENCHMARK_MARKER_END}\n",
+        encoding="utf-8",
+    )
+    updated = update_readme_evaluation_sections(readme_path)
+    assert updated is True
+    text = readme_path.read_text(encoding="utf-8")
+    assert "old benchmarks" not in text
+    assert "has not been run yet" in text

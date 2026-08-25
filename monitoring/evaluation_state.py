@@ -70,6 +70,10 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
     # bands + config); the heavy runs matrix lives in the sibling .npz and is
     # intentionally NOT surfaced here.
     monte_carlo = _load_json(evaluation_dir / "monte_carlo.json")
+    # V5.4.4 - benchmark comparison's persisted report (strategy + public
+    # baselines over the rank book's own window); rendered by the
+    # Evaluation tab's Benchmark Comparison panel.
+    benchmarks = _load_json(evaluation_dir / "benchmark_comparison.json")
 
     # Every section follows the same shape convention: the raw report dict
     # when present, or {"status": "not_evaluated", "hint": ...} when not -
@@ -91,6 +95,7 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
         or _not_evaluated("run `aq evaluate --reconcile-book-history` (needs a backtest with phase_v2.diagnostics.book_history.enabled=true first)"),
         "kill_switch_replay": kill_switch_replay or _not_evaluated("run `aq evaluate --replay-kill-switch`"),
         "monte_carlo": monte_carlo or _not_evaluated("run `aq evaluate --rank-book --monte-carlo`"),
+        "benchmarks": benchmarks or _not_evaluated("run `aq evaluate --benchmarks`"),
     }
 
 

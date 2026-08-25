@@ -35,6 +35,14 @@ def test_ruff_flag_clean_repo_passes_through(monkeypatch, capsys):
 
     captured_cmd = []
     monkeypatch.setattr(aq_cli, "_run_captured", lambda cmd, cwd=None: (captured_cmd.append(cmd), (0, "2751 passed"))[1])
+    # V5.4.4 (development/Problems.md #114) - the sibling cmd_test tests in
+    # test_aq_cli.py all mock the badge writer; this one didn't, so every
+    # full-suite run re-wrote the REAL README badge with this fixture's
+    # hardcoded "2751 passed" string - the badge silently reset to a
+    # years-stale count on every `aq test` despite the real suite being
+    # larger. Mocked here like every sibling; the badge writer's own
+    # behavior is covered by test_update_readme_test_badge_* (tmp paths).
+    monkeypatch.setattr(aq_cli, "_update_readme_test_badge", lambda passed, failed: None)
 
     exit_code = aq_cli.cmd_test(args)
     assert exit_code == 0

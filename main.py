@@ -67,8 +67,10 @@ from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
 from portfolio import (
     build_book_history_record,
     build_rank_based_book,
+    apply_hrp_weights,
     cross_sectional_rank_scores,
     normalize_per_asset_class_slots,
+    pct_returns_from_closes,
     resolve_rank_signal_policy,
     select_raw_rank_score,
     should_exit_non_selected_book_symbol,
@@ -888,6 +890,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.portfolio_book_hysteresis_rank_margin = float(
             phase_v2_portfolio_book.get("hysteresis_rank_margin", 0.0)
         )
+        # V5.4.4 - book SIZING method: "rank" (the default) reproduces
+        # today's exact per-symbol confidence formula byte-identically;
+        # "hrp" re-weights the SAME selected symbols with Hierarchical Risk
+        # Parity inverse-variance weights (portfolio/book_construction.py::
+        # apply_hrp_weights()) - selection is never touched, only sizing.
+        # An unrecognized value degrades to "rank" with a Debug line (same
+        # never-crash convention as per_asset_class_slots above), so a
+        # typo'd config can never take the book down.
+        allocation_method_raw = str(phase_v2_portfolio_book.get("allocation_method", "rank")).strip().lower()
+        if allocation_method_raw not in ("rank", "hrp"):
+            self.Debug(
+                f"phase_v2.portfolio_book.allocation_method {allocation_method_raw!r} unrecognized "
+                f"(expected 'rank' or 'hrp') - falling back to 'rank'"
+            )
+            allocation_method_raw = "rank"
+        self.portfolio_book_allocation_method = allocation_method_raw
         # V5.3.5 (development/Problems.md #102) - a rolling TRAILING
         # realized-IC book-engagement veto, independent of
         # min_rank_confidence_spread (see portfolio/rolling_ic_gate.py's
@@ -2311,6 +2329,39 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 )
                 self._last_book_allocations = book_allocations
 
+                # V5.4.4 - HRP book SIZING
+                # (phase_v2.portfolio_book.allocation_method == "hrp"):
+                # re-weights the ALREADY-SELECTED symbols with Hierarchical
+                # Risk Parity inverse-variance weights from their return
+                # correlation structure. Selection above is untouched -
+                # same symbols, same roles, different sizing only. Return
+                # history comes from each selected symbol's own rolling
+                # window (self.symbol_windows, the 25-bar deque, user-
+                # accepted for covariance estimation) via
+                # pct_returns_from_closes(); a symbol with < 2 usable
+                # closes is excluded from the estimation and the whole
+                # thing degrades to equal-weight per leg inside
+                # apply_hrp_weights()/build_hrp_allocation() when history
+                # is too thin - never raises, never changes selection.
+                # "rank" (the default) never enters this branch -
+                # byte-identical to before this existed. Lazy scipy import
+                # lives inside apply_hrp_weights() itself, so this import
+                # weight is only ever paid when HRP is actually engaged.
+                hrp_weights_by_symbol: dict = {}
+                if book_allocations and self.portfolio_book_allocation_method == "hrp":
+                    hrp_returns_by_symbol = {}
+                    for hrp_symbol_key in book_allocations:
+                        hrp_state = pass1_state.get(hrp_symbol_key)
+                        hrp_closes = (
+                            [bar_entry["close"] for bar_entry in self.symbol_windows.get(hrp_state["symbol"], [])]
+                            if hrp_state is not None
+                            else []
+                        )
+                        hrp_returns_by_symbol[hrp_symbol_key] = pct_returns_from_closes(hrp_closes)
+                    hrp_weights_by_symbol = apply_hrp_weights(
+                        book_allocations, hrp_returns_by_symbol, gross_exposure=1.0
+                    )
+
                 # V5.1 Phase 1 (development/Problems.md, item 6) - cross-
                 # symbol neutrality pass, now that the full book (every
                 # long/short role for this rebalance) is known. Computes
@@ -2322,14 +2373,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # entirely - self._book_target_weights stays {}, and Pass 2
                 # falls through to computing base_target_weight inline per-
                 # symbol exactly as before this existed.
+                # V5.4.4 - with allocation_method == "hrp", the HRP weights
+                # REPLACE the confidence formula as the raw input here
+                # (neutrality still re-applies its dollar/sector/gross
+                # caps on top), or - when neutrality is disabled - become
+                # self._book_target_weights directly, which Pass 2's
+                # .get(symbol_key, <inline formula>) then consumes.
                 if self.book_neutrality_enabled and book_allocations:
-                    raw_weights_by_symbol = {}
-                    for alloc_symbol_key, allocation in book_allocations.items():
-                        alloc_confidence = min(1.0, abs(allocation.predicted_rank_20d - 0.5) * 2.0)
-                        raw_weights_by_symbol[alloc_symbol_key] = (
-                            min(self.max_position_weight, 0.10 + 0.15 * alloc_confidence)
-                            * allocation.book_role_multiplier
-                        )
+                    if hrp_weights_by_symbol:
+                        raw_weights_by_symbol = dict(hrp_weights_by_symbol)
+                    else:
+                        raw_weights_by_symbol = {}
+                        for alloc_symbol_key, allocation in book_allocations.items():
+                            alloc_confidence = min(1.0, abs(allocation.predicted_rank_20d - 0.5) * 2.0)
+                            raw_weights_by_symbol[alloc_symbol_key] = (
+                                min(self.max_position_weight, 0.10 + 0.15 * alloc_confidence)
+                                * allocation.book_role_multiplier
+                            )
                     self._book_target_weights, self._last_book_neutrality_diagnostics = apply_book_neutrality(
                         raw_weights_by_symbol,
                         sector_by_symbol=self.sector_by_ticker,
@@ -2339,6 +2399,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         max_weight_per_name=self.book_max_weight_per_name,
                         sector_max_net_weight=self.book_sector_max_net_weight,
                     )
+                elif hrp_weights_by_symbol:
+                    self._book_target_weights = dict(hrp_weights_by_symbol)
+                    self._last_book_neutrality_diagnostics = {}
                 else:
                     self._book_target_weights = {}
                     self._last_book_neutrality_diagnostics = {}

@@ -88,6 +88,29 @@ without pulling in the training stack, the same torch-free-core convention
   Deterministic given seed; pure numpy core — the CLI
   (`aq evaluate --rank-book --monte-carlo`) owns inference + persistence +
   README chart/section refresh.
+- `benchmark_comparison.py` (V5.4.3) — naive strategy baselines
+  (momentum top-N / mean-reversion / random-entry) on the same dataset
+  and window as the rank book, so the model's edge is stated relative to
+  simple benchmarks rather than in isolation. V5.4.4 added
+  `close_pivot_from_frame()` (long-format dataset frame → the
+  (dates × tickers) close pivot every baseline consumes) and
+  `run_all_baselines()` (all five baselines into one report dict), plus a
+  real return accrual for the mean-reversion baseline (it previously
+  accrued a hardcoded placeholder, so its Sharpe was structurally 0.0).
+- `public_benchmarks.py` (V5.4.4) — well-known PUBLIC benchmark
+  baselines computed from the universe's own index/bond proxy columns:
+  `compute_sp500_baseline()` (buy-and-hold SPY) and
+  `compute_60_40_baseline()` (60% SPY / 40% TLT, daily rebalanced).
+  Same `close_pivot` input, same Sharpe formula, and same output shape
+  as the strategy baselines above (plus a `status` field — a universe
+  without SPY/TLT degrades to `SKIPPED`, never a crash). Zero new data
+  dependencies.
+
+Both modules are surfaced end-to-end by `aq evaluate --benchmarks`
+(included in `--all`): the CLI writes
+`ml/evaluation/benchmark_comparison.json`, the README's Benchmark
+Comparison section auto-refreshes from it, and the webui's Evaluation tab
+renders it via `/api/evaluation`'s `benchmarks` key (BenchmarkPanel).
 
 ## CLI
 
@@ -95,7 +118,9 @@ without pulling in the training stack, the same torch-free-core convention
 descriptions):
 
 - Simulation: `--rank-book`, `--capacity`, `--stress`, `--all` (bundles
-  the three plus `--calibrate-edge`)
+  the three plus `--calibrate-edge` and `--benchmarks`)
+- Benchmarks (V5.4.4): `--benchmarks` (strategy + public baselines,
+  README section + webui panel refresh)
 - Calibration: `--calibrate-edge`, `--calibrate-book-spread`,
   `--calibrate-confidence-threshold`
 - Reconciliation: `--reconcile-book-history`, `--replay-hysteresis`,

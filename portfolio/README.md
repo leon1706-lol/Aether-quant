@@ -139,6 +139,8 @@ validation caveat documented in `risk/README.md`.
 - `enabled` (default `false`)
 - `top_n` / `bottom_n` (default `3` / `3`)
 - `min_rank_confidence_spread` (default `0.2`)
+- `allocation_method` (default `"rank"`; `"hrp"` enables HRP sizing — see
+  the V5.4.4 section below)
 - `per_asset_class_slots` (default absent — pooled combined-universe
   ranking via `top_n`/`bottom_n` above; see "Multi-asset-class book
   selection" below for the per-class alternative)
@@ -411,3 +413,31 @@ that module decides **which** symbols and **which side**; this one decides
 **how much**, given selection is already final. Reused verbatim by
 `evaluation/rank_book_simulator.py`, so the offline simulator and the live
 decision path apply identical neutrality math. See `evaluation/README.md`.
+
+## HRP book sizing — `allocation_method: "hrp"` (V5.4.4)
+
+`phase_v2.portfolio_book.allocation_method` (default `"rank"`) selects how
+an already-selected book is SIZED:
+
+- `"rank"` (default) — today's exact per-symbol confidence formula
+  (`min(max_position_weight, 0.10 + 0.15 * confidence) *
+  book_role_multiplier`), byte-identical to before this key existed.
+- `"hrp"` — `book_construction.py::apply_hrp_weights()` re-weights the
+  SAME selected symbols with Hierarchical Risk Parity inverse-variance
+  weights (`hrp_allocation.py::build_hrp_allocation()`, López de Prado
+  2016: correlation-distance dendrogram → quasi-diagonal ordering →
+  recursive bisection). Selection (which symbols, which roles) is NEVER
+  touched — only sizing changes. Return history comes from each selected
+  symbol's own rolling 25-bar window (`main.py`'s `self.symbol_windows`)
+  via `pct_returns_from_closes()`; thin history degrades to equal-weight
+  per leg inside `build_hrp_allocation()`, never a crash.
+
+Wiring (`main.py::on_data()`, rebalance bars only): HRP weights replace
+the confidence formula as `apply_book_neutrality()`'s raw input when
+neutrality is enabled (its dollar/sector/gross caps still apply on top),
+or populate `self._book_target_weights` directly when it is disabled —
+Pass 2's `.get(symbol_key, <inline formula>)` consumes either way. With
+both legs populated each leg sums to ±gross/2 (dollar-neutral); a
+single-sided book (the default `long_flat` strategy_mode) gives the
+present leg the FULL gross. `apply_hrp_weights()` imports scipy lazily,
+so the default `"rank"` path never pays the import.
