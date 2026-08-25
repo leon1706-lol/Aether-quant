@@ -37,8 +37,23 @@ Ships config-gated OFF by default (phase_v2.portfolio_book.enabled: false)
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+
+
+def _is_finite_number(value) -> bool:
+    """V5.4.5 (development/Problems.md #117): a NaN rank score is not None -
+    it passed the old `is not None` eligibility check, poisoned the sort
+    order, made every hysteresis comparison False, and (worst of all) made
+    the spread veto's `spread < floor` comparison False, silently disabling
+    it. Non-finite = not a usable rank, same degrade path as missing."""
+    if value is None:
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
 
 
 @dataclass(frozen=True)
@@ -440,7 +455,7 @@ def build_rank_based_book(
     eligible = {
         symbol: candidate
         for symbol, candidate in book_candidates.items()
-        if candidate.get("trading_eligible") and candidate.get("predicted_rank_20d") is not None
+        if candidate.get("trading_eligible") and _is_finite_number(candidate.get("predicted_rank_20d"))
     }
 
     if per_asset_class_slots is None:
@@ -474,24 +489,27 @@ def pct_returns_from_closes(closes: list) -> list[float]:
     oldest first). The per-symbol return history `apply_hrp_weights()`
     consumes for its covariance estimation.
 
-    Pairs containing a missing/non-positive close are SKIPPED (not
-    emitted as NaN/inf/-1.0) - a split-adjusted 0 or a None from a
+    Pairs containing a missing/non-positive/non-finite close are SKIPPED
+    (not emitted as NaN/inf/-1.0) - a split-adjusted 0 or a None from a
     partially-populated window would otherwise poison the covariance
     matrix HRP estimates downstream (a 0 CURRENT close would emit a
     -100% return, a variance bomb, even though its previous close is
-    technically usable). Fewer than 2 usable closes returns [] (no
-    return can exist without at least one previous close to diff
-    against)."""
+    technically usable). V5.4.5 (#117): NaN closes pass the old `<= 0.0`
+    check (`nan <= 0` is False) and poisoned the covariance the same way.
+    Fewer than 2 usable closes returns [] (no return can exist without at
+    least one previous close to diff against)."""
     returns: list[float] = []
     for previous_close, current_close in zip(closes, closes[1:]):
         if (
             previous_close is None
             or current_close is None
+            or not math.isfinite(float(previous_close))
+            or not math.isfinite(float(current_close))
             or previous_close <= 0.0
             or current_close <= 0.0
         ):
             continue
-        returns.append(current_close / previous_close - 1.0)
+        returns.append(float(current_close) / float(previous_close) - 1.0)
     return returns
 
 

@@ -15,8 +15,8 @@ and wires these modules to it.
   risk_locks_healthy)` — the mode → real-vs-simulated order decision table.
   `observation` always returns `False` regardless of other flags (the one
   safety invariant this phase depends on); `backtest` always unrestricted;
-  `paper`/`live` need the matching flags (`live` also needs
-  `risk_locks_healthy`).
+  `paper`/`live` need the matching flags AND healthy risk locks
+  (V5.4.5, Problems.md #116 — paper previously ignored the kill switch).
 - `simulate_fill(close_price, target_weight, equity, slippage_bps=0.0)` —
   hypothetical fill-price/quantity/notional math used by
   `experience/simulated_portfolio.py`. `fill_price = close_price +
@@ -37,8 +37,11 @@ expected cost.
 - `estimate_round_trip_cost_bps(liquidity_payload, *, commission_bps_per_side,
   min_commission_usd, order_value, extra_slippage_bps)` — reads
   `liquidity_payload["estimated_round_trip_cost"]`, **never recomputes
-  slippage**; adds a commission leg (bps of order value, `min_commission_usd`
-  floor) plus an optional `extra_slippage_bps` buffer.
+  slippage**; adds a commission leg (bps of order value) covering BOTH
+  round-trip sides — per side = `max(rate leg, min_commission_usd floor)`
+  (V5.4.5, Problems.md #116 — one side was charged against a round-trip
+  contract) — plus an optional `extra_slippage_bps` buffer. Non-finite
+  estimates fail the gate closed with an explicit reason (#117).
 - `expected_edge_bps(predicted_rank, *, edge_bps_per_rank_unit, holding_bars,
   horizon_days, trade_direction=1)` — linear in rank deviation from the
   median (0.5), scaled down when `holding_bars` < the rank head's forward

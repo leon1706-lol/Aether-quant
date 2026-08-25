@@ -146,12 +146,18 @@ def apply_book_neutrality(
         else:
             steps_applied.append("dollar_neutral_skipped_one_sided_book")
 
-    # Step 4: gross exposure cap.
+    # Step 4: gross exposure cap. A non-positive cap is a misconfiguration -
+    # V5.4.5 (#117 family): the old `gross > cap` comparison happily scaled
+    # the whole book by 0/cap == 0 when cap <= 0, silently erasing it
+    # (the same #81-class failure the sector step already guarded against).
+    # Skip with a diagnostic instead.
     gross = sum(abs(weight) for weight in weights.values())
-    if gross > gross_exposure_cap and gross > 0.0:
+    if gross_exposure_cap > 0.0 and gross > gross_exposure_cap:
         factor = gross_exposure_cap / gross
         weights = {symbol: weight * factor for symbol, weight in weights.items()}
         steps_applied.append("gross_cap")
+    elif gross_exposure_cap <= 0.0:
+        steps_applied.append("gross_cap_skipped_nonpositive_cap")
 
     per_sector_net: dict[str, float] = {}
     for symbol, weight in weights.items():

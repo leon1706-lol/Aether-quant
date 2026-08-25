@@ -202,3 +202,14 @@ def test_diagnostics_report_pre_and_post_gross_and_net():
     assert diagnostics["post_gross"] > 0.0
     assert "net_before" in diagnostics
     assert "net_after" in diagnostics
+
+
+def test_non_positive_gross_cap_skips_scaling_instead_of_erasing_book():
+    # V5.4.5 (#117 family): a misconfigured cap of 0 previously scaled the
+    # whole book by 0/cap == 0, silently erasing it.
+    weights = {"A": 0.08, "B": 0.06, "S": -0.05}
+    result, diagnostics = _neutralize(
+        weights, dollar_neutral=False, sector_neutral=False, gross_exposure_cap=0.0
+    )
+    assert sum(abs(w) for w in result.values()) > 0.0
+    assert "gross_cap_skipped_nonpositive_cap" in diagnostics["steps_applied"]

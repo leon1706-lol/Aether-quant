@@ -72,9 +72,11 @@ def test_estimated_round_trip_cost_bps_reads_liquidity_payload_without_recomputi
         order_value=10_000.0,
         extra_slippage_bps=0.0,
     )
-    # 0.002 fraction -> 20 bps, plus commission (10000 * 1bps/1e4 = $1.00,
-    # already >= min_commission_usd) -> 1 bps effective commission.
-    assert cost == 21.0
+    # 0.002 fraction -> 20 bps, plus commission: 10000 * 1bps/1e4 = $1.00
+    # per side (already >= min_commission_usd), x2 sides for the round
+    # trip (V5.4.5, Problems.md #116 - the old single-side math
+    # understated cost by exactly half) -> 2 bps effective.
+    assert cost == 22.0
 
 
 def test_estimated_round_trip_cost_bps_commission_floor_dominates_small_orders():
@@ -85,9 +87,9 @@ def test_estimated_round_trip_cost_bps_commission_floor_dominates_small_orders()
         order_value=1_000.0,
         extra_slippage_bps=0.0,
     )
-    # 1000 * 1bps/1e4 = $0.10, below the $5 floor -> commission floor wins:
-    # $5 / $1000 * 1e4 = 50 bps effective commission.
-    assert cost == 10.0 + 50.0
+    # 1000 * 1bps/1e4 = $0.10 per side, below the $5 floor -> floor wins
+    # PER SIDE: 2 x $5 / $1000 * 1e4 = 100 bps effective round-trip.
+    assert cost == 10.0 + 100.0
 
 
 def test_estimated_round_trip_cost_bps_smaller_order_value_shows_higher_effective_bps():
@@ -199,3 +201,46 @@ def test_build_net_edge_decision_short_side_still_blocked_without_direction_fix(
         0.02, {"estimated_round_trip_cost": 0.0005}, 10_000, _cost_config(min_net_edge_bps=2.0)
     )
     assert decision.passes is False
+
+
+def test_commission_leg_covers_both_round_trip_sides():
+    # V5.4.5 (Problems.md #116): the old math charged exactly ONE side's
+    # commission (rate leg and dollar floor alike) inside a function whose
+    # contract is a ROUND-TRIP estimate. Rate-dominated case: 2 bps/side
+    # on 10k = $2/side, x2 sides = $4 = 4 bps effective (was 2).
+    cost = estimate_round_trip_cost_bps(
+        {"estimated_round_trip_cost": 0.0},
+        commission_bps_per_side=2.0,
+        min_commission_usd=0.0,
+        order_value=10_000.0,
+        extra_slippage_bps=0.0,
+    )
+    assert cost == 4.0
+
+
+def test_non_finite_liquidity_cost_fails_closed_with_explicit_reason():
+    # V5.4.5 (Problems.md #117): NaN cost previously produced
+    # passes=False with the generic below-threshold reason, hiding the
+    # real cause. It must fail closed AND say why.
+    decision = build_net_edge_decision(
+        0.9, {"estimated_round_trip_cost": float("nan")}, 10_000, _cost_config()
+    )
+    assert decision.passes is False
+    assert decision.reason == "non_finite_cost_estimate"
+    assert decision.expected_cost_bps == 1e12
+    assert decision.net_edge_bps == -1e12
+
+
+def test_nan_predicted_rank_degrades_to_zero_edge_not_nan():
+    # V5.4.5 (#117): a NaN rank passed `is not None` and poisoned the edge.
+    assert expected_edge_bps(
+        float("nan"), edge_bps_per_rank_unit=50.0, holding_bars=10, horizon_days=20
+    ) == 0.0
+
+
+def test_non_positive_horizon_days_yields_zero_edge():
+    # V5.4.5: horizon_days <= 0 previously returned the FULL edge fraction
+    # (1.0), maximizing exactly the trade the broken config should have
+    # neutralized. Zero edge is the conservative degrade.
+    assert expected_edge_bps(1.0, edge_bps_per_rank_unit=50.0,
+                             holding_bars=10, horizon_days=0) == 0.0

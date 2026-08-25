@@ -439,5 +439,9 @@ or populate `self._book_target_weights` directly when it is disabled —
 Pass 2's `.get(symbol_key, <inline formula>)` consumes either way. With
 both legs populated each leg sums to ±gross/2 (dollar-neutral); a
 single-sided book (the default `long_flat` strategy_mode) gives the
-present leg the FULL gross. `apply_hrp_weights()` imports scipy lazily,
+present leg the FULL gross. This holds on EVERY path — the equal-weight
+fallbacks (thin history, scipy failure) share the same per-leg totals as
+the HRP path itself (V5.4.5, Problems.md #118 — the fallbacks originally
+divided gross across both legs combined, breaking neutrality exactly when
+leg counts were unequal). `apply_hrp_weights()` imports scipy lazily,
 so the default `"rank"` path never pays the import.

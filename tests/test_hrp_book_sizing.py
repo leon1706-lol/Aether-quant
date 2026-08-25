@@ -198,3 +198,46 @@ class TestRankDefaultByteIdenticalGuard:
         second = build_rank_based_book(candidates, top_n=2, bottom_n=2, min_rank_confidence_spread=0.0)
         assert set(first) == set(second) == {"AAA", "BBB", "CCC", "DDD"}
         assert {s: a.role for s, a in first.items()} == {s: a.role for s, a in second.items()}
+
+
+class TestAsymmetricTwoSidedFallback:
+    """V5.4.5 (Problems.md #118): the equal-weight fallbacks divided gross
+    across BOTH legs combined, so an asymmetric two-sided book came out
+    with net exposure instead of dollar-neutral. Each leg must now sum to
+    exactly its own +/-gross/2 (or the full +/-gross when single-sided)."""
+
+    def test_thin_history_asymmetric_legs_are_dollar_neutral(self):
+        allocations = _allocations(
+            ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"], ["GGG", "HHH"]
+        )
+        # Only two names carry usable history -> fallback path.
+        returns_by_symbol = {"AAA": [0.01, 0.02, -0.01], "GGG": [0.005, -0.004, 0.002]}
+        weights = apply_hrp_weights(allocations, returns_by_symbol, gross_exposure=1.0)
+        long_sum = sum(w for w in weights.values() if w > 0)
+        short_sum = sum(-w for w in weights.values() if w < 0)
+        assert long_sum == pytest.approx(0.5)
+        assert short_sum == pytest.approx(0.5)
+        assert set(weights) == set(allocations)
+
+    def test_no_history_at_all_single_sided_keeps_full_gross(self):
+        allocations = _allocations(["AAA", "BBB", "CCC"], [])
+        weights = apply_hrp_weights(allocations, {}, gross_exposure=1.0)
+        assert sum(weights.values()) == pytest.approx(1.0)
+
+    def test_linkage_exception_fallback_also_normalizes_per_leg(self, monkeypatch):
+        import portfolio.hrp_allocation as hrp_module
+
+        def _boom(_returns):
+            raise RuntimeError("scipy exploded")
+
+        monkeypatch.setattr(hrp_module, "compute_hrp_weights", _boom)
+        weights = build_hrp_allocation(
+            {t: [0.01, 0.02, -0.005] for t in ["A", "B", "C", "D"]},
+            selected_tickers_long=["A", "B", "C"],
+            selected_tickers_short=["D"],
+            gross_exposure=1.0,
+        )
+        long_sum = sum(w for w in weights.values() if w > 0)
+        short_sum = sum(-w for w in weights.values() if w < 0)
+        assert long_sum == pytest.approx(0.5)
+        assert short_sum == pytest.approx(0.5)

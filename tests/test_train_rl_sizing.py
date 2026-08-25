@@ -167,3 +167,78 @@ def test_action_distribution_sums_to_row_count():
     distribution = action_distribution(states, weights, bias, n_actions=2)
 
     assert sum(distribution) == len(states)
+
+
+# ---------------------------------------------------------------------------
+# V5.4.5 (Problems.md #119): build_bandit_rows must actually THREAD
+# asymmetric_penalty_weight into compute_action_reward - V5.4.1 shipped the
+# parameter but nothing ever passed it, so real training silently used the
+# symmetric reward while the changelog claimed the fix.
+# ---------------------------------------------------------------------------
+
+
+def test_compute_action_reward_asymmetric_weight_changes_reward():
+    symmetric = compute_action_reward(0.6, 0.1, 1.0, 0.02, 0.0, turnover_cost_bps=0.0, commission_bps=0.0)
+    asymmetric = compute_action_reward(
+        0.6, 0.1, 1.0, 0.02, 0.0, turnover_cost_bps=0.0, commission_bps=0.0,
+        asymmetric_penalty_weight=2.0,
+    )
+    # Shrinking a would-be-profitable trade hurts more under the penalty.
+    assert asymmetric < symmetric
+
+
+def test_build_bandit_rows_threads_asymmetric_penalty_weight(monkeypatch):
+    import pandas as pd
+
+    import train_rl_sizing
+    from train_rl_sizing import build_bandit_rows
+
+    def _stub_predict(_export, inputs):
+        # Deterministic rank from the single feature: half the rows land
+        # long, half short - both directions must see the penalty.
+        rank = 0.9 if inputs[0] >= 0 else 0.1
+        return {"rank_20d": rank}
+
+    monkeypatch.setattr(train_rl_sizing, "run_exported_multitask_model", _stub_predict)
+
+    state_values = {
+        "rolling_volatility_20d": 0.02,
+        "regime_signal_risk_score": 0.3,
+        "topology_correlation_strength": 0.5,
+        "liquidity_spread_proxy": 0.001,
+        "bond_credit_spread_level": 0.9,
+        "alt_implied_volatility_level": 18.0,
+        "alt_implied_vol_term_structure": 1.05,
+        "alt_financial_conditions_change": -0.2,
+        "regime_trend_bullish": 0.0,
+        "regime_trend_bearish": 0.0,
+        "regime_trend_sideways": 1.0,
+    }
+
+    rows = []
+    for i in range(8):
+        row = {
+            "ticker": "AAA",
+            "date": f"2020-01-{i + 1:02d}",
+            "target_return_1d": 0.01 if i % 2 == 0 else -0.01,
+            "confidence": 0.5,
+            "f0": float(i) - 3.5,
+        }
+        row.update(state_values)
+        rows.append(row)
+    frame = pd.DataFrame(rows)
+
+    common = dict(
+        multitask_export={}, model_input_names=["f0"], action_set=[0.6, 1.0],
+        turnover_cost_bps_column="liquidity_spread_proxy",
+        commission_bps=0.0, nominal_base_weight=0.05,
+    )
+    states_sym, rewards_sym = build_bandit_rows(frame, **common)
+    states_asym, rewards_asym = build_bandit_rows(
+        frame, **{**common, "asymmetric_penalty_weight": 2.0}
+    )
+    assert states_sym.shape == states_asym.shape
+    assert not np.allclose(rewards_sym, rewards_asym), (
+        "threading the weight must change at least one reward (the "
+        "V5.4.1 dead-config bug)"
+    )

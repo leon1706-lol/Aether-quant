@@ -2277,6 +2277,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     symbol_key: state["raw_rank_score"]
                     for symbol_key, state in pass1_state.items()
                     if state["raw_rank_score"] is not None
+                    and math.isfinite(float(state["raw_rank_score"]))
                 }
                 # V5.3.5 (development/Problems.md #102) - computed BEFORE
                 # build_rank_based_book() so its result can be threaded

@@ -7,6 +7,8 @@ unit-testable without a Lean runtime on sys.path.
 
 from __future__ import annotations
 
+import math
+
 VALID_MODES = ("backtest", "observation", "paper", "live")
 DEFAULT_FALLBACK_MODE = "observation"
 
@@ -58,8 +60,15 @@ def resolve_order_permission(
         return False, "observation_mode_no_real_orders"
 
     if mode == "paper":
-        if allow_live_orders and broker_config_present:
+        if allow_live_orders and broker_config_present and risk_locks_healthy:
             return True, "paper_orders_enabled"
+        if allow_live_orders and broker_config_present:
+            # V5.4.5 (development/Problems.md #116): paper previously
+            # ignored risk_locks_healthy entirely - a tripped kill switch /
+            # drawdown lock / manual lock could not stop real broker orders
+            # in the one mode that actually reaches a brokerage besides
+            # live. Same enforcement point as live below.
+            return False, "paper_orders_blocked_risk_lock"
         return False, "paper_orders_blocked_missing_flag_or_broker_config"
 
     if mode == "live":
@@ -77,10 +86,18 @@ def slippage_amount(reference_price: float, slippage_bps: float) -> float:
     via security.SetSlippageModel()) and simulate_fill() below
     (observation-mode simulated fills), so both paths apply the exact same
     bps -> price-impact math instead of two independently-drifting
-    formulas. Returns 0.0 for a non-positive price or non-positive bps -
-    slippage is never negative (never improves the fill price).
+    formulas. Returns 0.0 for a non-positive or non-finite price/bps -
+    slippage is never negative (never improves the fill price), and a NaN
+    estimate must never reach a fill price (V5.4.5, Problems.md #117:
+    `nan <= 0` is False, so the old guard let NaN straight into
+    `price * nan`).
     """
-    if reference_price <= 0 or slippage_bps <= 0:
+    if (
+        not math.isfinite(reference_price)
+        or not math.isfinite(slippage_bps)
+        or reference_price <= 0
+        or slippage_bps <= 0
+    ):
         return 0.0
     return float(reference_price) * (float(slippage_bps) / 10_000.0)
 
@@ -122,9 +139,17 @@ def resolve_slippage_bps(
     order placed before Pass 2 has run for it once). Clamped to max_bps
     (phase_v2.liquidity.fill_slippage.max_bps, defaulting to
     MAX_LIQUIDITY_SLIPPAGE_BPS) as a guard against a degenerate estimate
-    corrupting a fill price.
+    corrupting a fill price. Non-finite estimates degrade to 0.0 (V5.4.5,
+    Problems.md #117) - max/min pass NaN through untouched, so the clamp
+    alone would not.
     """
-    bps = float(slippage_bps_by_symbol.get(symbol_key, 0.0) or 0.0)
+    raw = slippage_bps_by_symbol.get(symbol_key, 0.0) or 0.0
+    try:
+        bps = float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(bps):
+        return 0.0
     return min(max(bps, 0.0), float(max_bps))
 
 

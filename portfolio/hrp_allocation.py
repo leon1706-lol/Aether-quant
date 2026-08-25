@@ -105,37 +105,38 @@ def build_hrp_allocation(
     if not all_selected:
         return {}
 
+    # V5.4.4's single-sided/two-sided gross split, shared by the HRP path
+    # below and both fallbacks here so all three can never disagree.
+    long_weight_total = gross_exposure / 2.0 if selected_tickers_short else gross_exposure
+    short_weight_total = -(gross_exposure / 2.0 if selected_tickers_long else gross_exposure)
+
+    def _equal_weight_fallback() -> dict[str, float]:
+        # Equal weight WITHIN EACH LEG - each leg sums exactly to its own
+        # leg total above. V5.4.5 (development/Problems.md #118): the
+        # original fallback divided gross across BOTH legs combined
+        # (`gross / len(longs + shorts)`), so an asymmetric two-sided book
+        # (e.g. 6 longs / 2 shorts) came out with net exposure
+        # +/-0.5*gross instead of dollar-neutral.
+        result = {
+            ticker: long_weight_total / max(len(selected_tickers_long), 1)
+            for ticker in selected_tickers_long
+        }
+        for ticker in selected_tickers_short:
+            result[ticker] = short_weight_total / max(len(selected_tickers_short), 1)
+        return result
+
     returns_df = pd.DataFrame({
         ticker: pd.Series(returns_by_ticker[ticker])
         for ticker in all_selected
         if ticker in returns_by_ticker and len(returns_by_ticker[ticker]) >= 2
     })
     if returns_df.shape[1] < 2 or returns_df.empty:
-        equal_w = gross_exposure / max(len(all_selected), 1)
-        result = {}
-        for t in selected_tickers_long:
-            result[t] = equal_w
-        for t in selected_tickers_short:
-            result[t] = -equal_w
-        return result
+        return _equal_weight_fallback()
 
     try:
         hrp_all = compute_hrp_weights(returns_df)
     except Exception:
-        equal_w = gross_exposure / max(len(all_selected), 1)
-        result = {}
-        for t in selected_tickers_long:
-            result[t] = equal_w
-        for t in selected_tickers_short:
-            result[t] = -equal_w
-        return result
-
-    # V5.4.4 - two-sided books split gross evenly (dollar-neutral);
-    # single-sided books give the present leg the full gross (see
-    # docstring - the unconditional gross/2 split would have halved the
-    # default long_flat book's exposure).
-    long_weight_total = gross_exposure / 2.0 if selected_tickers_short else gross_exposure
-    short_weight_total = -(gross_exposure / 2.0 if selected_tickers_long else gross_exposure)
+        return _equal_weight_fallback()
 
     long_hrp_sum = sum(hrp_all.get(t, 0.0) for t in selected_tickers_long)
     short_hrp_sum = sum(hrp_all.get(t, 0.0) for t in selected_tickers_short)

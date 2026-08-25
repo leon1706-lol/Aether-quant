@@ -1859,3 +1859,14 @@ and instrumented (#104).
 **Environment note:** local venv had drifted from `requirements/requirements.txt` (+`requirements-dev.txt`) — `httpx` (declared since the FRED backfill work) and the whole dev extra set (ruff, pytest-cov, ...) were simply not installed, breaking test collection at import. Reinstalled both files; no repo change needed or made.
 
 **Verification:** 2834/2834 tests green (`aq test`, badge refreshed); `ruff check .` clean after dev-extras install; README local links + heading anchors all resolve (scripted check); no inbound references to any deleted section remained (grepped).
+
+**V5.4.5 round 2 - pre-backtest live-execution safety audit (structural review):** with the last verified Lean backtest predating V5.4.1-V5.4.4, the whole live decision/order path (main.py two-pass flow, portfolio/book_construction + hrp_allocation + book_neutrality, risk/position_sizing + rl_sizing + kill_switch, execution/order_gate + cost_model + reconciliation, data_pipeline/bar_synthesis parity) was reviewed end-to-end before the next real backtest. Findings and fixes (details in Problems.md #116-#119):
+
+- Net-edge cost gate charged only ONE side's commission against a round-trip contract - live was more permissive than the offline simulator here. Both sides now counted (config is enabled+calibrated, so this actively affects decisions).
+- Paper mode ignored `risk_locks_healthy` entirely - a tripped kill switch could not stop real broker orders in paper. Now enforced like live.
+- NaN-propagation family fixed at seven points (kill-switch triggers, fill-slippage clamp, reconciliation false-clean, net-edge gate reason, book rank eligibility/spread veto, HRP covariance inputs, gross-cap erasure) plus a position-sizing floor-above-cap misconfiguration guard.
+- HRP equal-weight fallback normalized across BOTH legs combined -> asymmetric two-sided books lost dollar-neutrality; now shares the main path's per-leg totals.
+- V5.4.1's RL asymmetric-penalty reward was dead code at its production call site (nothing loaded/forwarded the weight); wired through config (`asymmetric_penalty_weight`, default 1.0 byte-identical) with provenance recorded.
+- Verified-clean areas explicitly audited: bar_synthesis train/runtime parity (module-level import everywhere, third padding copy noted in off-default parallel path), RL state-vector order/count parity trainer-vs-runtime, RL multiplier clamps/direction preservation, kill-switch Sharpe window math and trip stickiness, override precedence layering, neutrality step ordering, sign conventions on every sizing path.
+
+**Verification (round 2):** 2858/2858 tests green (24 new tests pinning every fix), ruff clean; badge auto-refreshed.

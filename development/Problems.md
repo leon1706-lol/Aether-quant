@@ -1507,3 +1507,58 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Fix 2:** real next-day close-to-close accrual, mirroring `momentum_baseline()`'s convention (decide on today's close, earn today-close -> next-close), plus `pct_change(fill_method=None)` (kills a pandas FutureWarning and stops pad-fill fabricating flat 0% return days across NaN gaps). Real backtest-split numbers moved 0.0 -> -0.119 Sharpe / -20.96% total return. Two new tests pin it: a trending-universe test (must be nonzero and negative-leaning) and a deterministic known-value test (long the faller / short the riser earns exactly r_B - r_A per accrued day).
 
 **Verification:** full suite 2834 passed / 0 failed; vitest 103/103; ruff clean; real `aq evaluate --benchmarks` run verified end-to-end from the installed console script (README section populated, no import errors, no warnings).
+
+
+### 116. V5.4.5 - pre-backtest live-execution audit: round-trip commission undercounted 2x in the net-edge gate; paper mode ignored every risk lock
+
+**Severity:** 6/10 (the gate is enabled+calibrated in the shipped config.json, so every entry/resize decision in the upcoming backtest understated its cost leg; the paper-mode gap would have let a tripped kill switch keep submitting real broker orders) --- **Status:** `fixed and verified`
+
+**Problem 1:** `execution/cost_model.py::estimate_round_trip_cost_bps()` computed ONE side's commission (rate leg AND min_commission_usd floor alike) inside a function whose contract is a ROUND-TRIP estimate against a parameter literally named `commission_bps_per_side`. With the shipped config (1.5 bps/side, $1 floor), expected cost was understated by ~1.5-2x on the commission component, so trades whose true net edge sat between the real cost and the underestimated one passed the gate. The offline simulator (evaluation/rank_book_simulator.py) already charged per-side costs on both-side turnover, so live was more optimistic than offline here - backwards.
+
+**Fix 1:** each side's commission = max(rate leg, dollar floor); the round trip pays it twice. The two tests pinning the old single-side math were updated with comments naming this problem; two new tests pin both sides' coverage (rate-dominated and floor-dominated).
+
+**Problem 2:** `execution/order_gate.py::resolve_order_permission()` checked `risk_locks_healthy` only in the `live` branch - the `paper` branch returned True from flags+broker config alone. Since main.py:4761 feeds `risk_locks_healthy = not self.trade_lock_active`, a tripped kill switch / drawdown lock / manual trade lock could not stop real broker orders in the one mode besides live that actually reaches a brokerage.
+
+**Fix 2:** paper now requires all three; blocked-with-lock returns a distinct reason (`paper_orders_blocked_risk_lock`) so diagnostics distinguish it from missing-flag/config. Backtest mode unchanged (unrestricted by design). New test pins the lock-blocked combination.
+
+**Verification:** full suite 2858 passed / 0 failed; ruff clean.
+
+
+### 117. V5.4.5 - NaN propagation family: NaN silently skipped safety triggers, poisoned fill prices, reconciliation reported false-clean, and NaN ranks bypassed the book spread veto
+
+**Severity:** 7/10 latent (every guard in the family was a one-sided float comparison or an `is not None` check - all of them are False/pass-through for NaN) --- **Status:** `fixed and verified`
+
+Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan <= x` are ALL False; max/min pass NaN through). Found by structural review across the live path:
+
+- **risk/kill_switch.py:** metric guards only checked `is not None` before comparing, so a NaN drawdown-velocity/rank-IC/slippage-divergence silently skipped its own condition while the switch appeared armed; one NaN return in the rolling window made `_rolling_sharpe()` return NaN with the same effect. **Fix:** `_finite_or_none()` normalization at the five metric inputs (NaN degrades exactly like the documented None path); `_rolling_sharpe()` returns None for any window containing a non-finite value.
+- **execution/order_gate.py::slippage_amount()/resolve_slippage_bps():** the clamp whose documented purpose is guarding degenerate estimates was exactly what NaN defeated (`max(nan, 0)` = nan -> `price * nan` fill adjustment). **Fix:** non-finite price/bps degrade to 0.0 slippage at both chokepoints.
+- **execution/reconciliation.py:** symbols with NaN weights still classified drifted/orphan, but `max(0.0, abs(nan))` kept `max_abs_weight_drift` at 0.0 -> breach=False -> the kill switch's reconciliation trigger could never fire on a corrupted mark (a false-clean in a safety trigger). An explicit None weight crashed `float(None)`. **Fix:** non-finite weights force infinite drift (breach=True whenever a threshold is configured - fail-closed); None degrades through the same path without raising.
+- **execution/cost_model.py::build_net_edge_decision():** NaN edge/cost failed closed but with the generic below-threshold reason, indistinguishable from an ordinary signal veto. **Fix:** explicit `non_finite_cost_estimate` fail-closed reason; finite sentinels keep JSON state exports valid.
+- **portfolio/book_construction.py:** a NaN `predicted_rank_20d` passed eligibility (`is not None`), poisoned sort/hysteresis, and - worst - made the spread veto's `spread < floor` comparison False, silently disabling the dispersion veto; `pct_returns_from_closes()` let NaN closes through to HRP's covariance (`nan <= 0` is False). **Fix:** `_is_finite_number()` eligibility guard; main.py's spread-check ranks filtered the same way; NaN closes skipped like other unusable closes.
+- **portfolio/book_neutrality.py:** `gross_exposure_cap <= 0` scaled the whole book by cap/gross == 0 (silent erasure - the #81 class the sector step already guarded against). **Fix:** skip with a `gross_cap_skipped_nonpositive_cap` diagnostic step.
+- **risk/position_sizing.py:** a misconfigured `min_position_weight > max_position_weight` pushed sized weight ABOVE the leverage cap (floor applied after cap, no re-clamp). **Fix:** floor re-clamped by cap (cap wins, conservative).
+- **train_rl_sizing/risk/rl_sizing runtime note:** training skips NaN rows but runtime argmax has no NaN guard - bounded (clamped post-argmax, default-off overlay) and left as-is, documented here rather than churned.
+
+**Verification:** 24 new tests across the seven modules pin every behavior above; full suite 2858 green.
+
+
+### 118. V5.4.5 - HRP equal-weight fallback broke dollar-neutrality on asymmetric two-sided books
+
+**Severity:** 4/10 (dormant under the shipped `allocation_method: "rank"`, but live the moment the planned `"hrp"` flip happens early in a run when history is thin) --- **Status:** `fixed and verified`
+
+**Problem:** both fallback paths in `portfolio/hrp_allocation.py::build_hrp_allocation()` (<2 names with usable history; scipy exception) divided gross across BOTH legs combined (`gross / len(longs + shorts)`), so a two-sided book with unequal legs (e.g. 6 longs / 2 shorts) came out long +0.75*gross / short -0.25*gross - net exposure +/-0.5*gross instead of dollar-neutral, contradicting the function's own docstring ("equal weight within each leg") and the neutrality contract. The main HRP path normalized per leg correctly; only the fallbacks diverged. Existing tests pinned symmetric cases (2/2, 1/1) so the asymmetry was invisible.
+
+**Fix:** one shared `_equal_weight_fallback()` helper using the same leg-total convention as the HRP path itself (long_total/short_total computed once at the top of the function, shared by all three paths - they can never disagree again). New tests: asymmetric thin-history fallback sums to exactly +/-gross/2 per leg; linkage-exception fallback (monkeypatched) likewise; single-sided keeps full gross.
+
+**Verification:** new tests green; full suite 2858 green.
+
+
+### 119. V5.4.5 - V5.4.1's RL asymmetric-penalty reward fix was dead code at its only production call site
+
+**Severity:** 3/10 (RL sizing overlay is default-off and not part of the current backtest, but every future retrain would have validated a model trained under the OLD symmetric reward while the changelog claimed otherwise) --- **Status:** `fixed and verified`
+
+**Problem:** `compute_action_reward()`'s `asymmetric_penalty_weight` parameter (V5.4.1) gates the opportunity-cost term behind `> 1.0` and defaults to 1.0 - correct API design, except `build_bandit_rows()` never accepted or forwarded such a value and `main()` never loaded one from config. Only `tests/test_rl_sizing_v541.py` exercised the feature, via explicit kwargs. Real training runs used the exact symmetric reward whose documented failure mode motivated the fix.
+
+**Fix:** `phase_v2.rl_sizing.training.asymmetric_penalty_weight` (default 1.0 - byte-identical until set) loaded in `main()`, threaded through `build_bandit_rows()` into `compute_action_reward()`, and recorded in `training_metrics_payload` for provenance. New test proves threading changes rewards (the dead-config regression) plus a reward-level asymmetry test.
+
+**Verification:** new tests green; full suite 2858 green.

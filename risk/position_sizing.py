@@ -266,7 +266,10 @@ def build_dynamic_position_sizing(
     )
     sized_weight = min(sized_weight, max_position_weight)
     if sized_weight > 0.0 and min_position_weight > 0.0:
-        sized_weight = max(sized_weight, min_position_weight)
+        # V5.4.5: the floor is re-clamped by the cap - a misconfigured
+        # min > max previously pushed the sized weight ABOVE the leverage
+        # cap. Cap wins (conservative); direction preserved below either way.
+        sized_weight = min(max(sized_weight, min_position_weight), max_position_weight)
 
     direction = 1.0 if base_target_weight >= 0.0 else -1.0
     target_weight = direction * sized_weight

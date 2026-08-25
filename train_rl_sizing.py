@@ -277,6 +277,7 @@ def build_bandit_rows(
     turnover_cost_bps_column: str,
     commission_bps: float,
     nominal_base_weight: float,
+    asymmetric_penalty_weight: float = 1.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Builds (states, rewards_by_action) arrays from one dataset split.
     Skips rows with a missing target_return_1d, a missing state key, or a
@@ -320,6 +321,7 @@ def build_bandit_rows(
                 reward = compute_action_reward(
                     action, base_weight, direction, float(forward_return),
                     prior_action_weight[action], turnover_cost_bps, commission_bps,
+                    asymmetric_penalty_weight=asymmetric_penalty_weight,
                 )
                 row_rewards.append(reward)
                 prior_action_weight[action] = action * base_weight
@@ -346,6 +348,13 @@ def main() -> int:
         entropy_bonus = float(training_config.get("entropy_bonus", DEFAULT_ENTROPY_BONUS))
         commission_bps = float(training_config.get("commission_bps", DEFAULT_COMMISSION_BPS))
         nominal_base_weight = float(training_config.get("nominal_base_weight", DEFAULT_NOMINAL_BASE_WEIGHT))
+        # V5.4.5 (development/Problems.md #119): V5.4.1's asymmetric
+        # penalty existed only behind this parameter - which nothing ever
+        # loaded from config or passed through, so every real training run
+        # silently used the symmetric reward (opportunity_cost exactly 0.0)
+        # while the changelog claimed the fix. Wired now; default 1.0 keeps
+        # any existing behavior byte-identical until the key is set.
+        asymmetric_penalty_weight = float(training_config.get("asymmetric_penalty_weight", 1.0))
         turnover_cost_bps_column = "liquidity_spread_proxy"
 
         multitask_export = load_multitask_export()
@@ -369,6 +378,7 @@ def main() -> int:
         train_states, train_rewards = build_bandit_rows(
             validation_frame, multitask_export, model_input_names, action_set,
             turnover_cost_bps_column, commission_bps, nominal_base_weight,
+            asymmetric_penalty_weight=asymmetric_penalty_weight,
         )
         if len(train_states) < min_training_rows:
             LOGGER.info(
@@ -385,6 +395,7 @@ def main() -> int:
         backtest_states, backtest_rewards = build_bandit_rows(
             backtest_frame, multitask_export, model_input_names, action_set,
             turnover_cost_bps_column, commission_bps, nominal_base_weight,
+            asymmetric_penalty_weight=asymmetric_penalty_weight,
         )
         standardized_backtest = (backtest_states - mean) / scale if len(backtest_states) else backtest_states
 
@@ -410,6 +421,7 @@ def main() -> int:
             "training_rows": int(len(train_states)),
             "backtest_rows": int(len(backtest_states)),
             "action_set": action_set,
+            "asymmetric_penalty_weight": asymmetric_penalty_weight,
             "training_history_expected_reward": fit_result["history"],
             "training_action_distribution": (
                 action_distribution(standardized_train, weights, bias, len(action_set))

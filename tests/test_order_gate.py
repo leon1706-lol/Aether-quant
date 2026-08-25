@@ -522,3 +522,42 @@ def test_resolve_limit_order_timeout_action_unknown_status_also_cancels_and_fall
 def test_resolve_limit_order_timeout_action_already_resolved_is_noop(status):
     action = resolve_limit_order_timeout_action(status, quantity_remaining=99.0, fallback_enabled=True)
     assert action == {"should_cancel": False, "fallback_market_quantity": None}
+
+
+def test_paper_mode_blocked_by_unhealthy_risk_lock():
+    # V5.4.5 (Problems.md #116): paper previously ignored risk_locks_healthy
+    # entirely - a tripped kill switch could not stop real broker orders in
+    # the one mode besides live that reaches a brokerage.
+    allowed, reason = resolve_order_permission(
+        mode="paper",
+        allow_live_orders=True,
+        broker_config_present=True,
+        risk_locks_healthy=False,
+    )
+    assert allowed is False
+    assert reason == "paper_orders_blocked_risk_lock"
+
+    allowed, reason = resolve_order_permission(
+        mode="paper",
+        allow_live_orders=True,
+        broker_config_present=True,
+        risk_locks_healthy=True,
+    )
+    assert allowed is True
+    assert reason == "paper_orders_enabled"
+
+
+def test_resolve_slippage_bps_non_finite_degrades_to_zero():
+    # V5.4.5 (Problems.md #117): max/min pass NaN through untouched, so the
+    # old clamp let NaN straight into `price * nan` fill adjustments.
+    assert resolve_slippage_bps("X", {"X": float("nan")}) == 0.0
+    assert resolve_slippage_bps("X", {"X": float("inf")}) == 0.0
+
+
+def test_slippage_amount_non_finite_inputs_return_zero():
+    assert slippage_amount(100.0, float("nan")) == 0.0
+    assert slippage_amount(float("nan"), 10.0) == 0.0
+
+
+def test_resolve_fill_slippage_nan_estimate_never_reaches_price():
+    assert resolve_fill_slippage("X", 50.0, {"X": float("nan")}) == 0.0

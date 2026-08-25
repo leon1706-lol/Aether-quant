@@ -14,6 +14,7 @@ estimate_round_trip_cost_bps()'s docstring.
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 
 
@@ -50,15 +51,25 @@ def estimate_round_trip_cost_bps(
     order_value <= 0 (no order, or a zero-target-weight decision) returns
     just the liquidity round-trip cost plus extra_slippage_bps - the
     commission-floor conversion to bps is undefined at zero order value,
-    so it is skipped rather than divided-by-zero."""
+    so it is skipped rather than divided-by-zero.
+
+    V5.4.5 (development/Problems.md #116): the commission leg now covers
+    BOTH sides of the round trip. The original math charged exactly one
+    side's commission (rate leg and min_commission_usd floor alike) against
+    a function whose contract - and this parameter's own name - is per-SIDE
+    cost for a ROUND-TRIP estimate, understating expected cost by up to 2x
+    and letting trades through whose true net edge was below the gate."""
     round_trip_fraction = float(liquidity_payload.get("estimated_round_trip_cost", 0.0) or 0.0)
     round_trip_bps = round_trip_fraction * 10_000.0
 
     commission_bps_effective = 0.0
     if order_value > 0.0:
         commission_from_rate_usd = order_value * commission_bps_per_side / 10_000.0
-        commission_dollars = max(commission_from_rate_usd, min_commission_usd)
-        commission_bps_effective = commission_dollars / order_value * 10_000.0
+        # Each side's commission = max(rate leg, dollar floor); a round trip
+        # pays it twice (entry + exit), same notional both ways.
+        per_side_commission_usd = max(commission_from_rate_usd, min_commission_usd)
+        round_trip_commission_usd = 2.0 * per_side_commission_usd
+        commission_bps_effective = round_trip_commission_usd / order_value * 10_000.0
 
     return round_trip_bps + commission_bps_effective + extra_slippage_bps
 
@@ -106,9 +117,16 @@ def expected_edge_bps(
     if predicted_rank is None:
         return 0.0
     rank_deviation = (float(predicted_rank) - 0.5) * 2.0
-    horizon_fraction = min(1.0, float(holding_bars) / float(horizon_days)) if horizon_days > 0 else 1.0
+    # V5.4.5: horizon_days <= 0 is a misconfiguration - previously the
+    # else-branch handed back the FULL edge fraction (1.0), maximizing
+    # exactly the trade the broken config should have neutralized. A
+    # horizon that can't be interpreted conservatively yields NO edge.
+    if horizon_days <= 0:
+        return 0.0
+    horizon_fraction = min(1.0, float(holding_bars) / float(horizon_days))
     direction_sign = 1.0 if trade_direction >= 0 else -1.0
-    return edge_bps_per_rank_unit * rank_deviation * horizon_fraction * direction_sign
+    edge = edge_bps_per_rank_unit * rank_deviation * horizon_fraction * direction_sign
+    return edge if math.isfinite(edge) else 0.0
 
 
 def build_net_edge_decision(
@@ -163,14 +181,33 @@ def build_net_edge_decision(
         order_value=order_value,
         extra_slippage_bps=float(cost_config.get("extra_slippage_bps", 0.0)),
     )
+    # V5.4.5 (development/Problems.md #117): a NaN cost/edge previously
+    # flowed straight into the comparison - `nan >= threshold` is False, so
+    # the gate still failed closed but with the misleading generic
+    # "net_edge_below_min_threshold" reason (indistinguishable from an
+    # ordinary signal veto). NaN is now caught explicitly: fail CLOSED with
+    # a reason that names the real cause. Reported magnitudes stay finite
+    # (1e12 sentinel) so JSON state exports remain valid.
+    if not math.isfinite(expected_cost):
+        return NetEdgeDecision(
+            expected_edge_bps=expected_edge,
+            expected_cost_bps=1e12,
+            net_edge_bps=-1e12,
+            passes=False,
+            reason="non_finite_cost_estimate",
+        )
     net_edge = expected_edge - expected_cost
     min_net_edge_bps = float(cost_config.get("min_net_edge_bps", 0.0))
-    passes = net_edge >= min_net_edge_bps
+    passes = math.isfinite(net_edge) and net_edge >= min_net_edge_bps
 
     return NetEdgeDecision(
         expected_edge_bps=expected_edge,
         expected_cost_bps=expected_cost,
-        net_edge_bps=net_edge,
+        net_edge_bps=net_edge if math.isfinite(net_edge) else -1e12,
         passes=passes,
-        reason="net_edge_clears_cost" if passes else "net_edge_below_min_threshold",
+        reason=(
+            "net_edge_clears_cost" if passes
+            else "non_finite_expected_edge" if not math.isfinite(expected_edge)
+            else "net_edge_below_min_threshold"
+        ),
     )

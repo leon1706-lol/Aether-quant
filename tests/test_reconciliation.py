@@ -186,3 +186,38 @@ def test_matched_symbols_excluded_from_max_abs_weight_drift():
     assert report.matched == ["AAPL"]
     assert report.missing_broker[0]["symbol"] == "MSFT"
     assert report.max_abs_weight_drift == pytest.approx(0.05)
+
+
+# ---------------------------------------------------------------------------
+# V5.4.5 (Problems.md #117): non-finite weights are a safety-relevant
+# unreadable state, not a clean one.
+# ---------------------------------------------------------------------------
+
+
+def test_nan_actual_weight_is_a_breach_not_a_false_clean():
+    # The old max(0.0, abs(nan)) kept drift at 0.0 -> breach=False while
+    # the symbol still showed up drifted. A NaN weight must breach.
+    report = _reconcile(
+        {"AAPL": 0.10},
+        {"AAPL": float("nan")},
+        max_tolerated_drift=0.05,
+    )
+    assert report.breach is True
+    assert report.max_abs_weight_drift == float("inf")
+    assert len(report.drifted) == 1
+
+
+def test_explicit_none_weight_degrades_without_raising_and_breaches():
+    report = _reconcile(
+        {"AAPL": None},
+        {"AAPL": 0.10},
+        max_tolerated_drift=0.05,
+    )
+    assert report.breach is True
+    assert report.drifted[0]["expected_weight"] is None
+
+
+def test_non_finite_weight_with_no_max_tolerated_drift_stays_noop():
+    # max_tolerated_drift=None remains the documented strict no-op.
+    report = _reconcile({"AAPL": float("nan")}, {"AAPL": 0.1})
+    assert report.breach is False

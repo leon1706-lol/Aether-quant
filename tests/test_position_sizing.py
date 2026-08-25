@@ -309,3 +309,33 @@ def test_rl_multiplier_absent_state_is_no_op():
     )
     assert decision.rl_multiplier == 1.0
     assert decision.rl_sizing_reason == "rl_sizing_disabled_or_absent"
+
+
+def test_min_floor_never_pushes_weight_above_the_cap():
+    # V5.4.5: a misconfigured min > max previously pushed the sized weight
+    # above the leverage cap; the cap must win.
+    decision = build_dynamic_position_sizing(
+        base_target_weight=0.50,
+        confidence=1.0,
+        rolling_volatility=0.02,
+        max_position_weight=0.10,
+        min_position_weight=0.30,
+        target_daily_volatility=0.015,
+        min_volatility_multiplier=0.35,
+        max_volatility_multiplier=1.25,
+    )
+    assert abs(decision.target_weight) <= 0.10
+
+
+def test_normal_floor_still_applies_below_the_cap():
+    decision = build_dynamic_position_sizing(
+        base_target_weight=0.01,
+        confidence=1.0,
+        rolling_volatility=0.02,
+        max_position_weight=0.10,
+        min_position_weight=0.05,
+        target_daily_volatility=0.015,
+        min_volatility_multiplier=0.35,
+        max_volatility_multiplier=1.25,
+    )
+    assert 0.049 <= abs(decision.target_weight) <= 0.10

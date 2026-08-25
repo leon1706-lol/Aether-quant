@@ -12,6 +12,7 @@ reusable against a future IB portfolio snapshot with zero changes.
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 
 
@@ -80,8 +81,27 @@ def reconcile_positions(
     Pure dict-in/dict-out - result does not depend on either dict's
     insertion order (both are iterated via a sorted union of keys). Empty
     inputs (both dicts empty) return an all-empty, non-breaching report,
-    never raise."""
+    never raise.
+
+    V5.4.5 (development/Problems.md #117): a non-finite weight on either
+    side previously slipped through every comparison silently - `abs(nan)
+    <= tol` is False (so the symbol still classified drifted/orphan), but
+    `max(0.0, abs(nan))` kept 0.0, leaving max_abs_weight_drift at 0.0 and
+    breach False: a real blow-up reported as NaN was a false-clean. A
+    non-finite weight now forces max_abs_weight_drift to +inf, so any
+    configured max_tolerated_drift reports breach=True (fail-closed for a
+    safety trigger). An explicit None value no longer raises float(None)
+    either - it degrades through this same non-finite path."""
     all_symbols = sorted(set(expected_by_symbol) | set(actual_by_symbol))
+
+    def _finite_weight(value) -> float | None:
+        if value is None:
+            return None
+        try:
+            as_float = float(value)
+        except (TypeError, ValueError):
+            return None
+        return as_float if math.isfinite(as_float) else None
 
     matched: list[str] = []
     drifted: list[dict] = []
@@ -90,8 +110,18 @@ def reconcile_positions(
     max_abs_weight_drift = 0.0
 
     for symbol in all_symbols:
-        expected_weight = float(expected_by_symbol.get(symbol, 0.0))
-        actual_weight = float(actual_by_symbol.get(symbol, 0.0))
+        expected_weight = _finite_weight(expected_by_symbol.get(symbol, 0.0))
+        actual_weight = _finite_weight(actual_by_symbol.get(symbol, 0.0))
+        if expected_weight is None or actual_weight is None:
+            # Unreadable weight: count it as infinite drift (breach-worthy)
+            # rather than silently clean.
+            max_abs_weight_drift = math.inf
+            delta_usd: float | None = None
+            drifted.append(
+                {"symbol": symbol, "expected_weight": expected_weight, "actual_weight": actual_weight,
+                 "delta_weight": None, "delta_usd": None}
+            )
+            continue
         delta_weight = actual_weight - expected_weight
         delta_usd = delta_weight * portfolio_value
 

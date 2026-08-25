@@ -53,6 +53,22 @@ class KillSwitchDecision:
         return asdict(self)
 
 
+def _finite_or_none(value) -> float | None:
+    """V5.4.5 (development/Problems.md #117): normalizes a runtime metric to
+    a finite float or None. The individual trigger guards below only check
+    `is not None` before a one-sided comparison - and every one of those
+    comparisons is False for NaN (`nan < floor` / `nan > cap`), so a NaN
+    metric silently skipped its own condition while the switch appeared
+    armed. NaN now degrades exactly like the documented None path."""
+    if value is None:
+        return None
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        return None
+    return as_float if math.isfinite(as_float) else None
+
+
 def _rolling_sharpe(
     returns: list[float], trading_days_per_year: int = 252, min_return_std_floor: float = 0.0
 ) -> float | None:
@@ -77,12 +93,19 @@ def _rolling_sharpe(
     reproduces today's exact behavior for any caller that doesn't pass it."""
     if len(returns) < 2:
         return None
+    # V5.4.5 (Problems.md #117): one non-finite return poisons mean/std into
+    # NaN, which then silently skipped the Sharpe comparison downstream.
+    # A window containing any non-finite value is not a readable window -
+    # degrade to None (the documented "insufficient data" path).
+    if any(not math.isfinite(float(value)) for value in returns):
+        return None
     mean = sum(returns) / len(returns)
     variance = sum((value - mean) ** 2 for value in returns) / (len(returns) - 1)
     std = math.sqrt(variance)
     if std <= max(0.0, min_return_std_floor):
         return 0.0
-    return (mean / std) * math.sqrt(trading_days_per_year)
+    sharpe = (mean / std) * math.sqrt(trading_days_per_year)
+    return sharpe if math.isfinite(sharpe) else None
 
 
 def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecision:
@@ -174,29 +197,29 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
     if rolling_sharpe is not None and rolling_sharpe < min_rolling_sharpe:
         triggers.append("rolling_sharpe_below_floor")
 
-    drawdown_velocity = runtime_metrics.get("drawdown_velocity_pct_per_bar")
+    drawdown_velocity = _finite_or_none(runtime_metrics.get("drawdown_velocity_pct_per_bar"))
     observed["drawdown_velocity_pct_per_bar"] = drawdown_velocity
-    if drawdown_velocity is not None and float(drawdown_velocity) > max_drawdown_velocity_pct_per_bar:
+    if drawdown_velocity is not None and drawdown_velocity > max_drawdown_velocity_pct_per_bar:
         triggers.append("drawdown_velocity_above_cap")
 
-    live_rank_ic = runtime_metrics.get("live_rank_ic")
+    live_rank_ic = _finite_or_none(runtime_metrics.get("live_rank_ic"))
     observed["live_rank_ic"] = live_rank_ic
-    if live_rank_ic is not None and float(live_rank_ic) < min_live_rank_ic:
+    if live_rank_ic is not None and live_rank_ic < min_live_rank_ic:
         triggers.append("live_rank_ic_below_floor")
 
-    consecutive_losses = runtime_metrics.get("consecutive_losses")
+    consecutive_losses = _finite_or_none(runtime_metrics.get("consecutive_losses"))
     observed["consecutive_losses"] = consecutive_losses
-    if consecutive_losses is not None and float(consecutive_losses) > max_consecutive_losses:
+    if consecutive_losses is not None and consecutive_losses > max_consecutive_losses:
         triggers.append("consecutive_losses_above_cap")
 
-    slippage_divergence_bps = runtime_metrics.get("slippage_divergence_bps")
+    slippage_divergence_bps = _finite_or_none(runtime_metrics.get("slippage_divergence_bps"))
     observed["slippage_divergence_bps"] = slippage_divergence_bps
-    if slippage_divergence_bps is not None and float(slippage_divergence_bps) > max_slippage_divergence_bps:
+    if slippage_divergence_bps is not None and slippage_divergence_bps > max_slippage_divergence_bps:
         triggers.append("slippage_divergence_above_cap")
 
-    model_age_days = runtime_metrics.get("model_age_days")
+    model_age_days = _finite_or_none(runtime_metrics.get("model_age_days"))
     observed["model_age_days"] = model_age_days
-    if model_age_days is not None and float(model_age_days) > max_model_age_days:
+    if model_age_days is not None and model_age_days > max_model_age_days:
         triggers.append("model_age_above_cap")
 
     if bool(runtime_metrics.get("reconciliation_breach", False)):

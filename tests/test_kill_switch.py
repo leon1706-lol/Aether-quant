@@ -361,3 +361,46 @@ def test_function_is_pure_stateless_reevaluating_healthy_inputs_never_trips():
 
     assert tripped_decision.tripped is True
     assert healthy_decision.tripped is False
+
+
+# ---------------------------------------------------------------------------
+# V5.4.5 (Problems.md #117): NaN metrics must degrade like None, not
+# silently skip their own condition while the switch appears armed.
+# ---------------------------------------------------------------------------
+
+
+def test_nan_metrics_skip_their_triggers_without_crashing():
+    metrics = {
+        "recent_bar_returns": [0.001, -0.002, 0.003],
+        "drawdown_velocity_pct_per_bar": float("nan"),
+        "live_rank_ic": float("nan"),
+        "consecutive_losses": float("nan"),
+        "slippage_divergence_bps": float("nan"),
+        "model_age_days": float("nan"),
+    }
+    decision = evaluate_kill_switch(metrics, _config())
+    assert decision.tripped is False
+    assert decision.reason == "all_checks_within_thresholds"
+    for key in (
+        "drawdown_velocity_pct_per_bar", "live_rank_ic",
+        "consecutive_losses", "slippage_divergence_bps", "model_age_days",
+    ):
+        assert decision.observed[key] is None
+
+
+def test_non_finite_metric_that_would_trip_is_still_a_noop_but_visible_as_none():
+    # Same shape as the documented None degrade: the condition is skipped,
+    # never counted as a trip, and never raises.
+    metrics = {"drawdown_velocity_pct_per_bar": float("inf")}
+    decision = evaluate_kill_switch(metrics, _config())
+    assert decision.tripped is False
+    assert decision.observed["drawdown_velocity_pct_per_bar"] is None
+
+
+def test_rolling_sharpe_window_with_any_nan_returns_none_and_does_not_trip():
+    # One corrupted equity print poisons mean/std into NaN; the window is
+    # not readable and the Sharpe trigger degrades to its None path.
+    metrics = {"recent_bar_returns": [0.001, float("nan"), 0.002, -0.001] * 15}
+    decision = evaluate_kill_switch(metrics, _config(min_rolling_sharpe=100.0))
+    assert decision.observed["rolling_sharpe"] is None
+    assert decision.tripped is False

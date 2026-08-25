@@ -3,12 +3,15 @@ of the 5/10 -> 9/10 roadmap). Conventions match the rest of this repo:
 no test classes, module-level helpers, plain dicts.
 """
 
+import pytest
+
 from portfolio.book_construction import (
     BookAllocation,
     build_book_history_record,
     build_rank_based_book,
     compute_confidence_spread,
     normalize_per_asset_class_slots,
+    pct_returns_from_closes,
     should_exit_non_selected_book_symbol,
     should_rebalance_this_bar,
 )
@@ -1076,3 +1079,27 @@ def test_build_book_history_record_feature_snapshot_is_copied_not_aliased():
     )
     record["feature_snapshot"]["XOM"]["return_5d"] = 999.0
     assert caller_snapshot["XOM"]["return_5d"] == 0.012
+
+
+# ---------------------------------------------------------------------------
+# V5.4.5 (Problems.md #117): NaN rank scores must not enter the book.
+# ---------------------------------------------------------------------------
+
+
+def test_nan_rank_candidate_is_not_eligible():
+    candidates = {
+        "GOOD": {"trading_eligible": True, "predicted_rank_20d": 0.8},
+        "ALSO_GOOD": {"trading_eligible": True, "predicted_rank_20d": 0.6},
+        "NAN": {"trading_eligible": True, "predicted_rank_20d": float("nan")},
+        "NONE": {"trading_eligible": True, "predicted_rank_20d": None},
+    }
+    allocations = build_rank_based_book(candidates, top_n=2, bottom_n=0)
+    assert set(allocations) == {"GOOD", "ALSO_GOOD"}
+
+
+def test_pct_returns_from_closes_skips_non_finite_closes():
+    # Leading NaN pair skipped; (10, 11) is the one clean consecutive pair;
+    # the 0-close pairs are skipped by the pre-existing non-positive guard.
+    closes = [float("nan"), 10.0, 11.0, 0.0, 12.0]
+    returns = pct_returns_from_closes(closes)
+    assert returns == pytest.approx([0.1])
