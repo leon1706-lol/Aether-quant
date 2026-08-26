@@ -6,7 +6,27 @@ build-backend = "setuptools.build_meta"
 name = "aether-quant"
 dynamic = ["version"]
 description = "Aether Quant convenience CLI"
+readme = "README.md"
+license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
 requires-python = ">=3.10"
+authors = [
+    { name = "leon1706-lol" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+keywords = ["algorithmic-trading", "quantitative-finance", "pytorch", "quantconnect"]
+
+[project.urls]
+Homepage = "https://github.com/leon1706-lol/Aether-quant"
+Repository = "https://github.com/leon1706-lol/Aether-quant"
+Changelog = "https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md"
 
 # Version comes from the git tag that triggered the release (e.g. v2.2.0 ->
 # 2.2.0) - no manual version bump anywhere in this repo. Falls back to a
