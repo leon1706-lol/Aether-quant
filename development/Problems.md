@@ -1496,7 +1496,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 115. V5.4.4 - installed `aq` console script broken for `evaluate`/`audit` (packaging gap); mean-reversion baseline was a hardcoded placeholder
 
-**Severity:** 6/10 (the published CLI's flagship subcommand crashed on import for anyone who installed it; the placeholder silently contributed a meaningless 0.0 row to benchmark comparisons) · **Status:** `fixed and verified`
+**Severity:** 6/10 (the published CLI's flagship subcommand crashed on import for anyone who installed it; the placeholder silently contributed a meaningless 0.0 row to benchmark comparisons) · **Status:** 🟢 `fixed`
 
 **Problem 1:** running the installed `aq` console script (`pip install -e .` + `aq evaluate ...`) raised `ModuleNotFoundError: No module named 'evaluation'`. `[tool.setuptools] packages` listed only `risk`/`execution`/`data_pipeline`, but `aq_cli.py` has imported `evaluation`, `features`, and `audit` in-process (function-level) for many versions - and `evaluation` transitively imports `portfolio` (rank_book_simulator), `inference` (model_predictions), and `analyzer` (confidence_threshold_calibration). Exactly the `execution` failure class the packages list's own comment documents: pytest and the Lean container put the repo root on sys.path, masking the gap locally. The README-refresh call inside `aq evaluate` failed the same way (`No module named 'generate_evaluation_report'` - the module was missing from `py-modules`).
 
@@ -1511,7 +1511,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 116. V5.4.5 - pre-backtest live-execution audit: round-trip commission undercounted 2x in the net-edge gate; paper mode ignored every risk lock
 
-**Severity:** 6/10 (the gate is enabled+calibrated in the shipped config.json, so every entry/resize decision in the upcoming backtest understated its cost leg; the paper-mode gap would have let a tripped kill switch keep submitting real broker orders) --- **Status:** `fixed and verified`
+**Severity:** 6/10 (the gate is enabled+calibrated in the shipped config.json, so every entry/resize decision in the upcoming backtest understated its cost leg; the paper-mode gap would have let a tripped kill switch keep submitting real broker orders) --- **Status:** 🟢 `fixed`
 
 **Problem 1:** `execution/cost_model.py::estimate_round_trip_cost_bps()` computed ONE side's commission (rate leg AND min_commission_usd floor alike) inside a function whose contract is a ROUND-TRIP estimate against a parameter literally named `commission_bps_per_side`. With the shipped config (1.5 bps/side, $1 floor), expected cost was understated by ~1.5-2x on the commission component, so trades whose true net edge sat between the real cost and the underestimated one passed the gate. The offline simulator (evaluation/rank_book_simulator.py) already charged per-side costs on both-side turnover, so live was more optimistic than offline here - backwards.
 
@@ -1526,7 +1526,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 117. V5.4.5 - NaN propagation family: NaN silently skipped safety triggers, poisoned fill prices, reconciliation reported false-clean, and NaN ranks bypassed the book spread veto
 
-**Severity:** 7/10 latent (every guard in the family was a one-sided float comparison or an `is not None` check - all of them are False/pass-through for NaN) --- **Status:** `fixed and verified`
+**Severity:** 7/10 latent (every guard in the family was a one-sided float comparison or an `is not None` check - all of them are False/pass-through for NaN) --- **Status:** 🟢 `fixed`
 
 Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan <= x` are ALL False; max/min pass NaN through). Found by structural review across the live path:
 
@@ -1544,7 +1544,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 118. V5.4.5 - HRP equal-weight fallback broke dollar-neutrality on asymmetric two-sided books
 
-**Severity:** 4/10 (dormant under the shipped `allocation_method: "rank"`, but live the moment the planned `"hrp"` flip happens early in a run when history is thin) --- **Status:** `fixed and verified`
+**Severity:** 4/10 (dormant under the shipped `allocation_method: "rank"`, but live the moment the planned `"hrp"` flip happens early in a run when history is thin) --- **Status:** 🟢 `fixed`
 
 **Problem:** both fallback paths in `portfolio/hrp_allocation.py::build_hrp_allocation()` (<2 names with usable history; scipy exception) divided gross across BOTH legs combined (`gross / len(longs + shorts)`), so a two-sided book with unequal legs (e.g. 6 longs / 2 shorts) came out long +0.75*gross / short -0.25*gross - net exposure +/-0.5*gross instead of dollar-neutral, contradicting the function's own docstring ("equal weight within each leg") and the neutrality contract. The main HRP path normalized per leg correctly; only the fallbacks diverged. Existing tests pinned symmetric cases (2/2, 1/1) so the asymmetry was invisible.
 
@@ -1555,7 +1555,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 119. V5.4.5 - V5.4.1's RL asymmetric-penalty reward fix was dead code at its only production call site
 
-**Severity:** 3/10 (RL sizing overlay is default-off and not part of the current backtest, but every future retrain would have validated a model trained under the OLD symmetric reward while the changelog claimed otherwise) --- **Status:** `fixed and verified`
+**Severity:** 3/10 (RL sizing overlay is default-off and not part of the current backtest, but every future retrain would have validated a model trained under the OLD symmetric reward while the changelog claimed otherwise) --- **Status:** 🟢 `fixed`
 
 **Problem:** `compute_action_reward()`'s `asymmetric_penalty_weight` parameter (V5.4.1) gates the opportunity-cost term behind `> 1.0` and defaults to 1.0 - correct API design, except `build_bandit_rows()` never accepted or forwarded such a value and `main()` never loaded one from config. Only `tests/test_rl_sizing_v541.py` exercised the feature, via explicit kwargs. Real training runs used the exact symmetric reward whose documented failure mode motivated the fix.
 
@@ -1566,7 +1566,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 120. V5.4.7 - one NaN event could permanently wedge the Redis->Postgres pipeline; torn JSON writes 500'd the API
 
-**Severity:** 7/10 (silent permanent data loss of every batch containing one non-finite payload; dashboards intermittently broken under normal concurrent operation) --- **Status:** `fixed and verified`
+**Severity:** 7/10 (silent permanent data loss of every batch containing one non-finite payload; dashboards intermittently broken under normal concurrent operation) --- **Status:** 🟢 `fixed`
 
 **Problem 1 (pipeline wedge):** `json.dumps` happily serializes bare `NaN`/`Infinity`, so a poisoned event passed the producers' XADD and the consumers' per-message `json.loads` untouched - then failed at PostgreSQL's JSONB column ("Token 'NaN' is invalid"), failing the whole `executemany`, rolling back every good row in the batch AND leaving all of them pending forever: `xreadgroup(..., ">")` only delivers never-delivered messages, and nothing anywhere reclaimed the PEL. One bad float = silent permanent loss of that batch plus every later batch containing it. Compounding: numpy scalars (`np.float64`) raise `TypeError` under `json.dumps` at the PRODUCER and were silently dropped with only a warning.
 
@@ -1581,7 +1581,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 121. V5.4.7 - gating blend deflated magnitude/volatility by missing-head weight mass; NaN confidence scored as PERFECT
 
-**Severity:** 6/10 (positions oversized whenever any expert's optional multitask head was absent - an underestimated volatility feeds vol-targeting directly; NaN confidence sailed straight through Priority 7's trade gate) --- **Status:** `fixed and verified`
+**Severity:** 6/10 (positions oversized whenever any expert's optional multitask head was absent - an underestimated volatility feeds vol-targeting directly; NaN confidence sailed straight through Priority 7's trade gate) --- **Status:** 🟢 `fixed`
 
 **Problem 1:** `moe/gating.py::_weighted_blend()` summed `weight * value` over experts with a non-None value but never renormalized - and `weight.weight` sums to 1 across ALL experts. Any expert whose optional/best-effort multitask head was missing contributed implicit w*0, deflating blended magnitude/volatility toward zero by exactly the missing mass (one of four heads gone = ~25% downward bias). Downstream: underestimated volatility -> `risk/position_sizing.py` vol targeting -> OVERSIZED positions.
 
@@ -1596,7 +1596,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 122. V5.4.7 - retraining gates compared against FAKE zeros: missing files deadlocked promotion, NaN sailed through every gate
 
-**Severity:** 6/10 (a fresh deploy or deleted report file deadlocked ALL candidate promotion forever while looking like strict quality gates; a NaN metric failed NOTHING - `nan < x` and `nan > x` are both False) --- **Status:** `fixed and verified`
+**Severity:** 6/10 (a fresh deploy or deleted report file deadlocked ALL candidate promotion forever while looking like strict quality gates; a NaN metric failed NOTHING - `nan < x` and `nan > x` are both False) --- **Status:** 🟢 `fixed`
 
 **Problem 1:** `retraining/validation_gate.py` defaulted every extracted metric to `0.0` via `.get(key, 0.0) or 0.0`. With the ACTIVE side's file missing (fresh deploy/corrupt report), active drawdown became 0.0 - every real candidate (drawdown < 0) failed "worse than active" - and max_allowed_validation_loss became 0.0 - any positive loss failed stability: all candidates rejected forever. With the CANDIDATE side missing, fake-perfect zeros passed vacuously.
 
@@ -1609,7 +1609,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 123. V5.4.7 - data-pipeline corruption class: Yahoo NaN frames written as real bars; FRED cache destroyed by narrow refetch; config.json truncation window
 
-**Severity:** 5/10 (all require operator-triggered backfills/fetches to hit, but each silently poisons training data or the whole system config) --- **Status:** `fixed and verified`
+**Severity:** 5/10 (all require operator-triggered backfills/fetches to hit, but each silently poisons training data or the whole system config) --- **Status:** 🟢 `fixed`
 
 - **Yahoo NaN-frame rows:** rate-limit/delisting responses return a NON-empty frame of all-NaN rows; `float(record["Open"])` produced nan and `write_lean_zip` persisted them as genuine OHLCV. Non-finite rows are now dropped (all-dropped degrades to the honest no-data path).
 - **yfinance end-exclusivity off-by-one:** `backfill_to` is inclusive but `yf.download(end=...)` is exclusive - the configured final day could never be fetched, so `needs_backfill` stayed True forever and every run refetched. run_backfill passes fetch_end + 1 day.
@@ -1623,7 +1623,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 124. V5.4.7 - auto-rollback/promote artifact verification gaps; Telegram watermark freeze; worker startup crash-loop
 
-**Severity:** 4/10 (RL overlay default-off and IB unconnected keep most of these latent, but each breaks its subsystem permanently once triggered) --- **Status:** `fixed and verified`
+**Severity:** 4/10 (RL overlay default-off and IB unconnected keep most of these latent, but each breaks its subsystem permanently once triggered) --- **Status:** 🟢 `fixed`
 
 - **promote() never verified artifacts:** rollback verified sha256s, promote copied blindly - post-commit corruption/tampering promoted without complaint. Promote now runs `verify_version_artifacts()` (new shared helper) BEFORE any file move or status flip and fails closed with `candidate_artifact_verification_failed`.
 - **rollback to a hashless/missing version silently "succeeded":** `restore_active_from_version` skipped verification when `artifact_hashes` was empty AND returned ok=True after copying NOTHING (empty version dir) - registry said active while ml/ held the PREVIOUS model's weights. An empty-copy restore now fails with `no_artifacts_found`; `candidate_dir()` validates version-id charset (defense-in-depth traversal guard).
@@ -1636,7 +1636,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 125. V5.4.7 - `aq` help surfaces drifted: stale `--all` text since V5.4.4; README missing five flags; CI covered 2 of ~23 help screens
 
-**Severity:** 3/10 (docs/tooling trust, not capital) --- **Status:** `fixed and verified`
+**Severity:** 3/10 (docs/tooling trust, not capital) --- **Status:** 🟢 `fixed`
 
 - `aq evaluate --all`'s help said "rank-book/capacity/stress/calibrate-edge" - benchmarks joined the bundle in V5.4.4. Text + the code comment updated.
 - README's `aq train` synopsis lacked `--strategy-selector-only`/`--rl-sizing-only` (shipped V4.7/V4.12); the evaluate block lacked `--calibrate-rolling-ic-floor`, `--replay-rolling-ic-gate`, `--reconcile-run-index/--reconcile-all-runs` (V5.2-V5.3 era). All documented now, including per-flag bullets.
