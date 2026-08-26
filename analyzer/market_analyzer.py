@@ -4,6 +4,7 @@ action."""
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 
 
@@ -37,6 +38,12 @@ class MarketAnalysisDecision:
 
 
 def _clamp01(value: float) -> float:
+    # V5.4.7 (development/Problems.md #121): min(1.0, nan) evaluates False
+    # and returns 1.0, so a NaN confidence component became a PERFECT
+    # quality score and sailed through the trade gate. Non-finite now
+    # degrades to 0.0 (no confidence), matching moe/gating.py's clamp.
+    if not math.isfinite(value):
+        return 0.0
     return max(0.0, min(1.0, value))
 
 

@@ -6,7 +6,9 @@ and `retraining/`:
 - `telegram_alerts.py` (pure) — `should_alert_trigger()` (severity gate),
   `format_trigger_alert()`, `format_session_summary_alert()`. Renders fields
   `performance/triggers.py` and `experience/observation_metrics.py` already
-  computed; recomputes nothing.
+  computed; recomputes nothing. V5.4.7 (#124): numeric fields are null-safe -
+  an explicit JSONB null renders as the default instead of freezing the
+  worker's watermark forever.
 - `postgres_telegram.py` (IO) — embedded DDL for `telegram_alert_watermark`
   (one row per channel: `"triggers"`, `"session_summary"`), plus
   `fetch_session_summaries_since()`, a defensive read of `experience_events`

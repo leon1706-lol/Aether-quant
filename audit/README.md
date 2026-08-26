@@ -28,7 +28,10 @@ Members:
   hash-chain link **at durable-write order** (not push order), so out-of-order
   Redis delivery can never produce a chain that disagrees with on-disk row
   order. Idempotent embedded DDL (`ensure_schema()`), no Alembic — same design
-  as `experience/postgres_worker.py`.
+  as `experience/postgres_worker.py`. V5.4.7 (#120): a poison-row batch failure
+  persists the clean prefix and dead-letters the poison row PLUS every later
+  row (their hashes chain off a parent that never landed - inserting them
+  would fork the chain); a Postgres outage still re-raises with everything pending.
 - `postgres_audit.py` — read-only query helpers over `audit_log`, shared by the
   `aq audit-log` CLI and `monitoring/api_server.py`'s `GET /api/audit-log`
   route so the CLI and webui can never drift on row shape. Never inserts.

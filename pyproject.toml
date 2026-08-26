@@ -42,7 +42,7 @@ aq = "aq_cli:main"
 # `evaluation` -> `portfolio` (rank_book_simulator),
 # `inference` (model_predictions), `analyzer` (confidence_threshold_
 # calibration -> market_analyzer).
-py-modules = ["aq_cli", "generate_backtest_report", "generate_evaluation_report"]
+py-modules = ["aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety"]
 packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer"]
 
 [tool.pytest.ini_options]

@@ -163,8 +163,14 @@ class PostgresWorker:
             import redis as redis_lib
             url = os.environ.get("AETHER_REDIS_URL", redis_url)
             self._redis = redis_lib.from_url(url, socket_connect_timeout=5, socket_timeout=5)
-            self._redis.ping()
-            logger.info("PostgresWorker: Redis connected at %s", url)
+            # V5.4.7 (#120): a Redis outage at container start previously
+            # hard-crashed here and restart-looped. Warn and let run()'s
+            # own backoff loop handle reconnection instead.
+            try:
+                self._redis.ping()
+                logger.info("PostgresWorker: Redis connected at %s", url)
+            except Exception as exc:
+                logger.warning("PostgresWorker: Redis not reachable yet (%s) - will retry in run loop.", exc)
 
         if _pg_conn is not None:
             self._conn = _pg_conn
@@ -240,11 +246,61 @@ class PostgresWorker:
         if ids_deadletter:
             self._redis.xack(self.stream_name, self.group_name, *ids_deadletter)
 
-        # Persist good rows — only ack after successful commit
+        # Persist good rows — only ack after successful commit.
+        # V5.4.7 (Problems.md #120): a single poison row (e.g. a value
+        # PostgreSQL JSONB rejects) used to fail the whole executemany,
+        # roll back every good row in the batch AND leave all of them
+        # pending forever - xreadgroup(">") never re-delivers, so the
+        # pipeline wedged permanently on one bad payload. The batch now
+        # falls back to per-row inserts: good rows commit + ack, poison
+        # rows dead-letter + ack.
         if rows:
-            with self._conn.cursor() as cur:
-                cur.executemany(_INSERT_SQL, rows)
-            self._conn.commit()
+            try:
+                with self._conn.cursor() as cur:
+                    cur.executemany(_INSERT_SQL, rows)
+                self._conn.commit()
+            except Exception as batch_exc:
+                # V5.4.7 (#120) - distinguish POISON ROW from POSTGRES DOWN:
+                # if even the FIRST row cannot insert, the problem is almost
+                # certainly the connection/statement itself, not the data -
+                # re-raise so every message stays pending for redelivery
+                # exactly like the pre-fallback contract. Only a batch whose
+                # head inserts fine takes the per-row path.
+                try:
+                    with self._conn.cursor() as cur:
+                        cur.execute(_INSERT_SQL, rows[0])
+                    self._conn.commit()
+                except Exception:
+                    self._conn.rollback()
+                    raise
+                self._redis.xack(self.stream_name, self.group_name, ids_good[0])
+                persisted = 1
+                for msg_id, row in zip(ids_good[1:], rows[1:]):
+                    try:
+                        with self._conn.cursor() as cur:
+                            cur.execute(_INSERT_SQL, row)
+                        self._conn.commit()
+                        self._redis.xack(self.stream_name, self.group_name, msg_id)
+                        persisted += 1
+                    except Exception as row_exc:
+                        self._conn.rollback()
+                        logger.warning(
+                            "Poison row %s → dead-letter. Error: %s", msg_id, row_exc
+                        )
+                        self._redis.xadd(
+                            self.deadletter_stream,
+                            {
+                                "payload": json.dumps(row, default=str),
+                                "error": str(row_exc),
+                                "original_id": str(msg_id),
+                            },
+                        )
+                        self._redis.xack(self.stream_name, self.group_name, msg_id)
+                logger.info(
+                    "PostgresWorker: per-row fallback persisted %d/%d events (%s).",
+                    persisted, len(rows), batch_exc,
+                )
+                return persisted
             self._redis.xack(self.stream_name, self.group_name, *ids_good)
             logger.info("PostgresWorker: persisted %d events.", len(rows))
 

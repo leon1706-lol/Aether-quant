@@ -108,9 +108,18 @@ def _latest_walk_forward_summary(ml_dir: Path) -> dict | None:
     if not versions_dir.exists():
         return None
 
+    def _mtime(path):
+        # V5.4.7 (#120): a walk-forward dir deleted between glob() and
+        # stat() (cleanup during retraining) previously FileNotFoundError'd
+        # the whole /api/evaluation build.
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
     candidates = sorted(
         versions_dir.glob("walk-forward-*/walk_forward_summary.json"),
-        key=lambda path: path.stat().st_mtime,
+        key=_mtime,
         reverse=True,
     )
     if not candidates:

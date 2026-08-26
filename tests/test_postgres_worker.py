@@ -247,6 +247,12 @@ def test_postgres_failure_leaves_messages_pending():
         _redis_client=client,
         _pg_conn=conn_mock,
     )
+    # V5.4.7 (#120): a real outage fails EVERY statement - the batch insert
+    # AND the first-row probe must both raise for the worker to keep the
+    # messages pending (the poison-row fallback only engages when the head
+    # of the batch inserts fine). Set AFTER construction so ensure_schema's
+    # DDL isn't affected.
+    cur_mock.execute.side_effect = Exception("connection terminated")
     with pytest.raises(Exception, match="connection terminated"):
         worker.run_once()
     assert client.xpending(_STREAM, _GROUP)["pending"] == 1
@@ -257,3 +263,71 @@ def test_worker_returns_zero_when_stream_empty():
     count = worker.run_once()
     assert count == 0
     cur_mock.executemany.assert_not_called()
+
+
+def test_poison_row_deadletters_itself_but_batch_head_still_persists():
+    """V5.4.7 (Problems.md #120): one JSONB-rejected row used to fail the
+    whole executemany, roll back every good row, and leave the batch
+    pending FOREVER (xreadgroup('>') never re-delivers) - wedging the
+    pipeline on a single bad payload. The batch now falls back per row:
+    the head inserts fine (so it is data, not the connection), good rows
+    persist + ack, the poison row dead-letters + ack."""
+    good = _sample_event(event_id="00000000-0000-0000-0000-00000000abc1")
+    poison = _sample_event(event_id="00000000-0000-0000-0000-00000000abc2")
+    client = fakeredis.FakeRedis()
+    conn_mock, cur_mock = _make_conn_mock()
+    client.xgroup_create(_STREAM, _GROUP, id="0", mkstream=True)
+    for ev in (good, poison):
+        client.xadd(_STREAM, {"payload": json.dumps(ev)})
+    worker = PostgresWorker(
+        redis_url="redis://localhost:6379/0",
+        postgres_dsn="postgresql://aether:aether_dev_password@localhost:5432/aether_quant",
+        stream_name=_STREAM,
+        group_name=_GROUP,
+        consumer_name=_CONSUMER,
+        deadletter_stream=_DEADLETTER,
+        _redis_client=client,
+        _pg_conn=conn_mock,
+    )
+    # Batch insert fails; per-row probe of the FIRST row succeeds; second
+    # row is the poison one.
+    cur_mock.executemany.side_effect = Exception("invalid input syntax for type json")
+    cur_mock.execute.side_effect = [None, Exception("Token 'NaN' is invalid")]
+
+    persisted = worker.run_once()
+
+    assert persisted == 1
+    deadletter = client.xrange(_DEADLETTER)
+    assert len(deadletter) == 1
+    fields = {k if isinstance(k, str) else k.decode(): v for k, v in deadletter[0][1].items()}
+    # The dead-letter carries an error and the ORIGINAL stream id (a
+    # fakeredis timestamp, not the event uuid).
+    assert "NaN" in str(fields["error"])
+    assert "original_id" in fields
+    # Nothing left pending - the pipeline cannot wedge on this class again.
+    assert client.xpending(_STREAM, _GROUP)["pending"] == 0
+
+
+def test_first_row_failure_still_raises_leaving_everything_pending():
+    """V5.4.7 (#120): the fallback must distinguish POISON ROW from
+    POSTGRES DOWN - when even the head of the batch cannot insert, the
+    pre-existing raise-and-stay-pending contract holds."""
+    event = _sample_event()
+    client = fakeredis.FakeRedis()
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.executemany.side_effect = Exception("connection terminated")
+    client.xgroup_create(_STREAM, _GROUP, id="0", mkstream=True)
+    client.xadd(_STREAM, {"payload": json.dumps(event)})
+    worker = PostgresWorker(
+        redis_url="redis://localhost:6379/0",
+        postgres_dsn="postgresql://aether:aether_dev_password@localhost:5432/aether_quant",
+        stream_name=_STREAM,
+        group_name=_GROUP,
+        consumer_name=_CONSUMER,
+        deadletter_stream=_DEADLETTER,
+        _redis_client=client,
+        _pg_conn=conn_mock,
+    )
+    cur_mock.execute.side_effect = Exception("connection terminated")
+    with pytest.raises(Exception, match="connection terminated"):
+        worker.run_once()

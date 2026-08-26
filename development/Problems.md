@@ -1562,3 +1562,85 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 **Fix:** `phase_v2.rl_sizing.training.asymmetric_penalty_weight` (default 1.0 - byte-identical until set) loaded in `main()`, threaded through `build_bandit_rows()` into `compute_action_reward()`, and recorded in `training_metrics_payload` for provenance. New test proves threading changes rewards (the dead-config regression) plus a reward-level asymmetry test.
 
 **Verification:** new tests green; full suite 2858 green.
+
+
+### 120. V5.4.7 - one NaN event could permanently wedge the Redis->Postgres pipeline; torn JSON writes 500'd the API
+
+**Severity:** 7/10 (silent permanent data loss of every batch containing one non-finite payload; dashboards intermittently broken under normal concurrent operation) --- **Status:** `fixed and verified`
+
+**Problem 1 (pipeline wedge):** `json.dumps` happily serializes bare `NaN`/`Infinity`, so a poisoned event passed the producers' XADD and the consumers' per-message `json.loads` untouched - then failed at PostgreSQL's JSONB column ("Token 'NaN' is invalid"), failing the whole `executemany`, rolling back every good row in the batch AND leaving all of them pending forever: `xreadgroup(..., ">")` only delivers never-delivered messages, and nothing anywhere reclaimed the PEL. One bad float = silent permanent loss of that batch plus every later batch containing it. Compounding: numpy scalars (`np.float64`) raise `TypeError` under `json.dumps` at the PRODUCER and were silently dropped with only a warning.
+
+**Fix 1:** new top-level `json_safety.py` (`sanitize_json_finite()` / `dumps_json_safe()` / `atomic_write_json()` / `atomic_write_text()` / `load_json_lenient()`, registered in pyproject py-modules per the #115 rule): both producers (experience + audit `redis_queue.py`) serialize through `dumps_json_safe` (non-finite -> None, numpy -> python scalars). Both Postgres workers gained a poison-row fallback on batch failure - with a first-row probe distinguishing POISON ROW (head inserts fine -> persist the clean prefix per row, dead-letter + ack the rest) from POSTGRES DOWN (even the head fails -> re-raise, everything stays pending exactly like the pre-existing contract). The audit twin stops at its first poison row and dead-letters every LATER row too: their hashes chain off a parent that never landed, and inserting them would fork the tamper-evident chain.
+
+**Problem 2 (torn reads/writes):** every status-file writer (`main.py::_write_state`'s seven files, both workers' `status_export.py`, `paper_readiness_report.py`) truncated-then-wrote, and `monitoring/api_server.py` read without guarding `JSONDecodeError`/TOCTOU - a reader racing a writer got HTTP 500s; a writer dying mid-write left a corrupt file until the next successful write.
+
+**Fix 2:** all writers go through `atomic_write_json` (same-dir temp + `os.replace`, previous generation survives any crash); api_server's readers degrade to the documented 404 shape via `load_json_lenient`; `neural_network_state._load_json` matches its siblings; `/api/state`'s two inline reads hardened; evaluation_state's walk-forward mtime sort no longer raises when a dir vanishes mid-glob; assets_status tolerates a missing/mid-write config.json. State payloads are finite-sanitized, so the webui can never receive a bare `NaN` again (#121's M1).
+
+**Verification:** new `tests/test_json_safety.py` (10) + worker tests (poison-batch wedge, outage-stays-pending, chained-deadletter semantics) + producer sanitize tests; full suite 2929 green.
+
+
+### 121. V5.4.7 - gating blend deflated magnitude/volatility by missing-head weight mass; NaN confidence scored as PERFECT
+
+**Severity:** 6/10 (positions oversized whenever any expert's optional multitask head was absent - an underestimated volatility feeds vol-targeting directly; NaN confidence sailed straight through Priority 7's trade gate) --- **Status:** `fixed and verified`
+
+**Problem 1:** `moe/gating.py::_weighted_blend()` summed `weight * value` over experts with a non-None value but never renormalized - and `weight.weight` sums to 1 across ALL experts. Any expert whose optional/best-effort multitask head was missing contributed implicit w*0, deflating blended magnitude/volatility toward zero by exactly the missing mass (one of four heads gone = ~25% downward bias). Downstream: underestimated volatility -> `risk/position_sizing.py` vol targeting -> OVERSIZED positions.
+
+**Fix 1:** blend divides by the contributing weights' sum (None when no contributors or zero mass). Direction probability was already correct (missing-probability experts get weight 0).
+
+**Problem 2:** `analyzer/market_analyzer.py::_clamp01()` used `max(0.0, min(1.0, value))` - `min(1.0, nan)` returns 1.0, so a NaN confidence/regime component became a perfect quality score and cleared `min_confidence_to_trade`. (gating's own `_clamp` mapped NaN to 0.0 - the two clamps disagreed.)
+
+**Fix 2:** non-finite -> 0.0 (no confidence), matching gating's clamp. Also fixed `_performance_score()`'s `or default` coercing legitimate stored 0.0 metrics to neutral defaults, and gave the inference interpreter a layernorm eps floor (artifact-controlled eps <= 0 with flat inputs previously divided by zero); interpreter-level input sanitization stays deliberately out - downstream guards (this clamp, kill switch #117, cost gate #117) own that contract.
+
+**Verification:** blend renormalization + clamp + eps-floor tests in test_v547_bug_hunt.py / test_gating_network.py; suite green.
+
+
+### 122. V5.4.7 - retraining gates compared against FAKE zeros: missing files deadlocked promotion, NaN sailed through every gate
+
+**Severity:** 6/10 (a fresh deploy or deleted report file deadlocked ALL candidate promotion forever while looking like strict quality gates; a NaN metric failed NOTHING - `nan < x` and `nan > x` are both False) --- **Status:** `fixed and verified`
+
+**Problem 1:** `retraining/validation_gate.py` defaulted every extracted metric to `0.0` via `.get(key, 0.0) or 0.0`. With the ACTIVE side's file missing (fresh deploy/corrupt report), active drawdown became 0.0 - every real candidate (drawdown < 0) failed "worse than active" - and max_allowed_validation_loss became 0.0 - any positive loss failed stability: all candidates rejected forever. With the CANDIDATE side missing, fake-perfect zeros passed vacuously.
+
+**Problem 2:** train.py-written JSON can carry bare NaN (Python json default); every gate check is a one-sided comparison, so a NaN sharpe/drawdown/loss/gap failed NOTHING. Same pattern in `retraining/backtest_gate.py`'s excess-return comparison.
+
+**Fix:** required candidate metrics (drawdown/sharpe/validation-loss/gap) extract as finite-or-None; None fails closed with an explicit `*_missing_or_non_finite` reason. Missing ACTIVE baseline metrics fail with `active_baseline_metrics_missing` instead of comparing against fake zeros. Floor-style checks (trade count/exposure/skill) coerce non-finite to 0.0 (conservative direction). backtest_gate treats non-finite returns as the no-edge default. Byte-identical verdicts when everything is present and finite (existing tests unchanged).
+
+**Verification:** fail-closed tests for both directions in test_v547_bug_hunt.py; existing gate tests pass unmodified.
+
+
+### 123. V5.4.7 - data-pipeline corruption class: Yahoo NaN frames written as real bars; FRED cache destroyed by narrow refetch; config.json truncation window
+
+**Severity:** 5/10 (all require operator-triggered backfills/fetches to hit, but each silently poisons training data or the whole system config) --- **Status:** `fixed and verified`
+
+- **Yahoo NaN-frame rows:** rate-limit/delisting responses return a NON-empty frame of all-NaN rows; `float(record["Open"])` produced nan and `write_lean_zip` persisted them as genuine OHLCV. Non-finite rows are now dropped (all-dropped degrades to the honest no-data path).
+- **yfinance end-exclusivity off-by-one:** `backfill_to` is inclusive but `yf.download(end=...)` is exclusive - the configured final day could never be fetched, so `needs_backfill` stayed True forever and every run refetched. run_backfill passes fetch_end + 1 day.
+- **FRED cache truncation:** unlike the yfinance sibling's merge-by-date, cache writes were full-file replacement clipped to the CLI's --start/--end - `aq backfill fred --series DGS10 --start 2024-01-01 --apply` destroyed all pre-2024 history and silently drifted bond features. Cache writes now MERGE (new rows win their own dates; uncovered dates preserved; unreadable old cache replaced rather than blocking).
+- **config.json atomicity:** `aq fetch --apply` rewrote the entire system config truncate-then-write - a crash mid-write left a truncated config.json (breaking train.py, orchestrator, everything). Now atomic via json_safety; FRED cache writes likewise.
+- **liquidity guards:** a misconfigured non-positive `min_daily_dollar_volume` with close*volume == 0 previously divided by zero mid-bar; negative/non-finite dynamic spreads lowered round-trip cost below the ceiling. Both block conservatively now.
+- **bar_synthesis:** `pad_sequence_history([])` IndexError -> explicit ValueError naming the broken caller contract (unreachable from current call sites; latent-only).
+
+**Verification:** regression tests for each in test_v547_bug_hunt.py; existing data-pipeline suites updated only where they pinned the buggy behavior.
+
+
+### 124. V5.4.7 - auto-rollback/promote artifact verification gaps; Telegram watermark freeze; worker startup crash-loop
+
+**Severity:** 4/10 (RL overlay default-off and IB unconnected keep most of these latent, but each breaks its subsystem permanently once triggered) --- **Status:** `fixed and verified`
+
+- **promote() never verified artifacts:** rollback verified sha256s, promote copied blindly - post-commit corruption/tampering promoted without complaint. Promote now runs `verify_version_artifacts()` (new shared helper) BEFORE any file move or status flip and fails closed with `candidate_artifact_verification_failed`.
+- **rollback to a hashless/missing version silently "succeeded":** `restore_active_from_version` skipped verification when `artifact_hashes` was empty AND returned ok=True after copying NOTHING (empty version dir) - registry said active while ml/ held the PREVIOUS model's weights. An empty-copy restore now fails with `no_artifacts_found`; `candidate_dir()` validates version-id charset (defense-in-depth traversal guard).
+- **Telegram watermark freeze:** an explicit JSONB null crashed f-string formatting, aborted before `set_watermark`, and the same poison row refetched forever - ALL future alerts blocked. Numeric fields coerce null/junk to defaults; the worker loop skips unformattable rows while still advancing the watermark.
+- **Worker startup crash-loop:** a Redis-down constructor ping hard-crashed both Postgres workers into container restart loops; they now warn and let run()'s backoff loop reconnect.
+- **version-id events:** a garbage --version-id on `train` left the event running until the 3h startup reconcile (documented; reconcile covers it - no change).
+
+**Verification:** promote preflight/verification/no-artifacts/charset tests; telegram null-format test; startup-outage test.
+
+
+### 125. V5.4.7 - `aq` help surfaces drifted: stale `--all` text since V5.4.4; README missing five flags; CI covered 2 of ~23 help screens
+
+**Severity:** 3/10 (docs/tooling trust, not capital) --- **Status:** `fixed and verified`
+
+- `aq evaluate --all`'s help said "rank-book/capacity/stress/calibrate-edge" - benchmarks joined the bundle in V5.4.4. Text + the code comment updated.
+- README's `aq train` synopsis lacked `--strategy-selector-only`/`--rl-sizing-only` (shipped V4.7/V4.12); the evaluate block lacked `--calibrate-rolling-ic-floor`, `--replay-rolling-ic-gate`, `--reconcile-run-index/--reconcile-all-runs` (V5.2-V5.3 era). All documented now, including per-flag bullets.
+- CI's cli-smoke job exercised exactly TWO help screens. New `tests/test_cli_help_surface.py`: parametrized exit-0 `--help` across EVERY parser leaf (23 top-level + nested children), plus a two-directional README-CLI-reference <-> build_parser() flag-sync guard so neither surface can drift silently again.
+- ci.yml's ruff install pinned (`ruff==0.16.4`) - the unbounded range let new ruff releases change CI results independently of repo changes.
+
+**Verification:** 36 new meta-tests green; full suite 2929 green; ruff clean; installed `aq` re-installed (`pip install -e .`) to pick up json_safety per the #115 packaging rule.

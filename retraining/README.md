@@ -39,6 +39,10 @@ Files (pure/IO/worker split, matching `performance/`'s V2-16 convention):
 - `validation_gate.py` (pure) — candidate-vs-**active** comparison
   (drawdown, Sharpe, validation-loss stability, overfitting gap, trade
   count/exposure), mirroring `train.py`'s `assess_expert_quality()` shape.
+  V5.4.7 (#122): missing/non-finite metrics fail CLOSED with explicit
+  reasons (`active_baseline_metrics_missing`, `candidate_*_missing_or_non_finite`)
+  - the old fake-zero defaults either deadlocked all promotion or let NaN
+  pass every comparison.
 - `backtest_gate.py` (pure) + `lean_backtest.py` (best-effort IO) — 3-way
   active/candidate/buy-and-hold comparison, plus an optional real Lean
   backtest that only runs if `shutil.which("lean")` finds a binary.

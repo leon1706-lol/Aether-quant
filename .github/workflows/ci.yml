@@ -63,8 +63,10 @@ jobs:
       # requires importing aq_cli → pandas via the full package chain, but
       # this job intentionally has a minimal environment). Local devs use
       # `aq test --ruff`; CI uses bare ruff for speed.
+      # V5.4.7: ruff is PINNED - the previous unbounded range let new ruff
+      # releases add rules and break CI independently of any repo change.
       - name: Install ruff
-        run: pip install "ruff>=0.6.0"
+        run: pip install "ruff==0.16.4"
 
       - name: Ruff check (E/F ruleset calibrated in pyproject.toml)
         run: ruff check .

@@ -1870,3 +1870,19 @@ and instrumented (#104).
 - Verified-clean areas explicitly audited: bar_synthesis train/runtime parity (module-level import everywhere, third padding copy noted in off-default parallel path), RL state-vector order/count parity trainer-vs-runtime, RL multiplier clamps/direction preservation, kill-switch Sharpe window math and trip stickiness, override precedence layering, neutrality step ordering, sign conventions on every sizing path.
 
 **Verification (round 2):** 2858/2858 tests green (24 new tests pinning every fix), ruff clean; badge auto-refreshed.
+
+## V5.4.7 - `aq` help refresh + full-system bug hunt: pipeline-wedge fix, gating blend renormalization, gate fail-closed semantics, data-pipeline corruption class, CI help-surface guards
+
+**Summary:** the `aq --help`/README CLI surfaces were audited against `build_parser()` and de-staled (#125), then a structural bug hunt across every subsystem NOT covered by V5.4.6's live-execution audit (monitoring, experience/audit persistence, notifications, inference/gating/analyzer, retraining gates, data pipeline, liquidity) found and fixed 25+ defects grouped into Problems.md #120-#124.
+
+**Shipped:**
+- New top-level `json_safety.py` (`py-modules` registered): finite-sanitizing serialization, atomic JSON/text writes, lenient reads. All producers/writers/readers converted.
+- Pipeline wedge fix (#120): both Redis producers sanitize before XADD; both Postgres workers gain a poison-row fallback with a first-row probe separating poisoned data from Postgres outages; the audit twin dead-letters chained successors to protect the hash chain. Nothing can sit pending forever on one bad payload anymore.
+- API/dashboard hardening (#120): torn-file reads degrade to 404 instead of 500; all status writers atomic; state payloads never carry bare NaN.
+- Gating/analyzer (#121): `_weighted_blend()` renormalizes over contributors (missing multitask heads no longer deflate magnitude/volatility toward oversizing); `_clamp01(NaN)` -> 0.0 (was PERFECT confidence); performance-score falsy-zero fix; interpreter layernorm eps floor.
+- Retraining gates (#122): validation/backtest gates fail closed with explicit reasons on missing/non-finite candidate metrics and on missing active baselines (previously: fake-zero comparisons that either deadlocked all promotion or passed NaN vacuously). Byte-identical when metrics are present and finite.
+- Data pipeline (#123): Yahoo NaN-frame rows filtered; backfill end made genuinely inclusive (+1 day); FRED cache writes merge-by-date instead of truncating history; `aq fetch --apply` config rewrite atomic; liquidity div-zero/negative-spread guards; bar_synthesis empty-pad clear error.
+- Production tooling (#124): promote() verifies artifact hashes pre-flight; rollback fails on no-artifact restores; version-id charset guard; Telegram null-safe formatting + watermark always advances; workers survive Redis-down startup.
+- CLI/docs/CI (#125): `--all` help text fixed; README train/evaluate blocks completed; new `tests/test_cli_help_surface.py` (every subcommand `--help` exits 0 + two-directional README-parser flag sync); ci.yml ruff pinned to 0.16.4.
+
+**Verification:** 2929/2929 tests green (+71 new), ruff clean, badge refreshed; installed `aq` re-installed for the new py-module (#115 rule).

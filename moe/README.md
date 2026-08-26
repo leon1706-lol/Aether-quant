@@ -12,6 +12,7 @@ This package builds on the existing `train.py` feature pipeline and `main.py` Le
 Core behavior:
 
 - `moe/gating.py` scores expert models with quality status, regime alignment and validation/backtest performance
+- magnitude/volatility blends renormalize over the experts that actually have a head (V5.4.7 #121 - a missing optional head no longer deflates the blend toward oversizing)
 - `stable` and `watchlist` experts can contribute to the final signal
 - `disabled_for_gating` experts are ignored by the manager
 - `main.py` loads local expert JSON exports from `ml/expert_models/<expert>/model_weights.json`

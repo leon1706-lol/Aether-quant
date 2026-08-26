@@ -130,12 +130,25 @@ def build_liquidity_decision(
     annualized_volatility = max(float(annualized_volatility), 0.0)
     reasons: list[str] = []
 
-    daily_dollar_volume = close * volume
+    # V5.4.7 (development/Problems.md #123): a negative dynamic spread
+    # (miswired caller) would LOWER the round-trip cost below the pure
+    # impact estimate and could bypass the cost ceiling; a non-finite one
+    # poisons every comparison downstream (`nan < cap` is False). Both
+    # degrade to the per-type typical spread.
     spread_proxy = (
         float(dynamic_spread)
         if dynamic_spread is not None
         else TYPICAL_SPREAD_BY_TYPE.get(str(security_type), 0.001)
     )
+    if not math.isfinite(spread_proxy) or spread_proxy < 0.0:
+        spread_proxy = TYPICAL_SPREAD_BY_TYPE.get(str(security_type), 0.001)
+
+    daily_dollar_volume = close * volume
+    # A non-finite close/volume (corrupt bar) must not poison the gating
+    # math either - treat it like the documented zero-volume path so the
+    # block gate (not NaN comparisons) decides.
+    if not math.isfinite(daily_dollar_volume):
+        daily_dollar_volume = 0.0
 
     # No order to place — no liquidity concern.
     if target_weight == 0.0:
@@ -177,12 +190,45 @@ def build_liquidity_decision(
         reasons.append(f"zero_volume_treated_as_missing_data_fallback_ddv_{effective_daily_dollar_volume:.0f}")
 
     # Zero (and not covered by a fallback) or insufficient volume → blocked.
-    if (not zero_volume_treated_as_missing and volume == 0.0) or effective_daily_dollar_volume < min_daily_dollar_volume:
-        reason = (
-            "zero_volume" if volume == 0.0 and not zero_volume_treated_as_missing
-            else f"daily_dollar_volume_below_floor_{min_daily_dollar_volume:.0f}"
+    # V5.4.7 (#123): the effective-volume floor comparison also guards a
+    # misconfigured min_daily_dollar_volume <= 0 - with close*volume == 0
+    # AND a non-positive floor, both block conditions below previously
+    # evaluated False and the division at participation_rate divided by
+    # zero. A floor that can't bind is treated as "no floor", but zero
+    # effective volume still blocks.
+    if not zero_volume_treated_as_missing and volume == 0.0:
+        reasons.append("zero_volume")
+        return LiquidityDecision(
+            daily_dollar_volume=daily_dollar_volume,
+            order_value=portfolio_value * abs(target_weight),
+            participation_rate=1.0,
+            estimated_slippage=0.0,
+            spread_proxy=spread_proxy,
+            estimated_round_trip_cost=spread_proxy,
+            liquidity_risk="blocked",
+            recommended_action="block",
+            adjusted_target_weight=0.0,
+            reasons=reasons,
         )
-        reasons.append(reason)
+    if min_daily_dollar_volume > 0.0 and effective_daily_dollar_volume < min_daily_dollar_volume:
+        reasons.append(f"daily_dollar_volume_below_floor_{min_daily_dollar_volume:.0f}")
+        return LiquidityDecision(
+            daily_dollar_volume=daily_dollar_volume,
+            order_value=portfolio_value * abs(target_weight),
+            participation_rate=1.0,
+            estimated_slippage=0.0,
+            spread_proxy=spread_proxy,
+            estimated_round_trip_cost=spread_proxy,
+            liquidity_risk="blocked",
+            recommended_action="block",
+            adjusted_target_weight=0.0,
+            reasons=reasons,
+        )
+    if effective_daily_dollar_volume <= 0.0:
+        # Last-resort guard: nothing left to divide by (misconfig class
+        # above) - block conservatively instead of ZeroDivisionError-ing
+        # the whole bar.
+        reasons.append(f"degenerate_daily_dollar_volume_floor_{min_daily_dollar_volume:.0f}")
         return LiquidityDecision(
             daily_dollar_volume=daily_dollar_volume,
             order_value=portfolio_value * abs(target_weight),

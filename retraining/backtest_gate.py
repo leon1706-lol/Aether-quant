@@ -9,9 +9,23 @@ Lean-backtest IO wrapper this module's caller may also want to run first.
 
 from __future__ import annotations
 
+import math
+
 
 def _strategy_block(report: dict, key: str) -> dict:
     return report.get("backtest", {}).get(key, {})
+
+
+def _finite_or_default(value, default: float = 0.0) -> float:
+    # V5.4.7 (development/Problems.md #122): a NaN total_return previously
+    # produced a NaN excess return whose `nan < threshold` comparison is
+    # False - the gate passed vacuously. Non-finite degrades to the
+    # no-edge default (conservative direction here).
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        return default
+    return as_float if math.isfinite(as_float) else default
 
 
 def compare_backtests(active_report: dict, candidate_report: dict, config: dict) -> dict:
@@ -37,8 +51,8 @@ def compare_backtests(active_report: dict, candidate_report: dict, config: dict)
             benchmark = asset_report.get("strategy")
 
     min_excess_return_vs_active = float(config.get("min_excess_return_vs_active", -0.02))
-    candidate_return = float(candidate_strategy.get("total_return", 0.0) or 0.0)
-    active_return = float(active_strategy.get("total_return", 0.0) or 0.0)
+    candidate_return = _finite_or_default(candidate_strategy.get("total_return"))
+    active_return = _finite_or_default(active_strategy.get("total_return"))
     excess_return_vs_active = candidate_return - active_return
 
     reasons: list[str] = []

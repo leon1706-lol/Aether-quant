@@ -666,6 +666,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_lean_config_render.py", "test_dockerignore_secrets.py", "test_secret_scan.py",
         "test_profile_inference.py", "test_profile_subsystems.py", "test_lean_runtime_imports.py",
         "test_order_events_audit.py",
+        # V5.4.7 - json_safety.py + the CLI help-surface/README-sync guards.
+        "test_json_safety.py", "test_cli_help_surface.py",
     ],
     "audit": [
         "test_hash_chain.py", "test_audit_queue.py", "test_postgres_audit.py",
@@ -778,6 +780,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # baselines) and the HRP live-book-sizing integration tests.
         "test_public_benchmarks.py",
         "test_hrp_book_sizing.py",
+        # V5.4.7 - full-system bug-hunt round file (#120-#125).
+        "test_v547_bug_hunt.py",
     ],
 }
 
@@ -2370,9 +2374,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     run_capacity = bool(args.capacity or args.all)
     run_stress = bool(args.stress or args.all)
     run_calibrate = bool(args.calibrate_edge or args.all)
-    # V5.1 Phase 5 (item 9) - deliberately NOT bundled into --all (matching
-    # the plan's own scoping: --all is rank-book/capacity/stress/calibrate-
-    # edge only) - ablation is a heavier, opt-in-only report.
+    # V5.1 Phase 5 (item 9) - deliberately NOT bundled into --all (whose
+    # bundle is rank-book/capacity/stress/calibrate-edge + the V5.4.4
+    # benchmarks) - ablation is a heavier, opt-in-only report.
     run_ablation_flag = bool(getattr(args, "ablation", False))
     # V5.1 (Problems.md) - also deliberately NOT bundled into --all, same
     # reasoning as --ablation: a heavier, two-model, opt-in-only report.
@@ -3419,7 +3423,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--calibrate-edge", action="store_true",
         help="Print an edge_bps_per_rank_unit calibrated from this split's realized rank-vs-return relationship",
     )
-    evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress and --calibrate-edge together")
+    evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress, --calibrate-edge and --benchmarks together")
     evaluate_parser.add_argument(
         "--walk-forward-summary", action="store_true",
         help="Print an already-written ml/versions/walk-forward-*/walk_forward_summary.json (V5.1 Phase 4) - "

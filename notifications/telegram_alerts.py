@@ -39,6 +39,21 @@ def format_trigger_alert(trigger: dict) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def _num(value, default: float = 0.0) -> float:
+    """V5.4.7 (development/Problems.md #124): an explicit JSONB null (a
+    key PRESENT with value None) previously crashed every f-string format
+    below - `.get(key, default)` only covers a MISSING key - and the
+    worker's frozen watermark then refetched the poison row forever,
+    permanently blocking ALL alerts. Coerce anything non-numeric to the
+    default instead."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def format_session_summary_alert(session_summary_event: dict) -> str:
     """Render a session_summary experience event as a Telegram digest.
 
@@ -48,17 +63,20 @@ def format_session_summary_alert(session_summary_event: dict) -> str:
     """
     summary = session_summary_event.get("observation_summary") or {}
     win_loss = summary.get("simulated_win_loss") or {}
-    session_return = session_summary_event.get("session_return", 0.0)
+    session_return = _num(session_summary_event.get("session_return"))
+    win_rate = _num(win_loss.get("win_rate"))
+    simulated_sharpe = _num(summary.get("simulated_sharpe"))
+    simulated_max_drawdown = _num(summary.get("simulated_max_drawdown"))
 
     lines = [
         f"\U0001f4ca Session summary — {session_summary_event.get('session_date', 'unknown date')}",
         f"Mode: {session_summary_event.get('mode', 'unknown')}",
-        f"Equity: {session_summary_event.get('session_start_equity', 0.0):,.2f} -> "
-        f"{session_summary_event.get('session_end_equity', 0.0):,.2f} ({session_return:+.2%})",
-        f"Observations: {summary.get('count_observations', 0)}",
-        f"Simulated win/loss: {win_loss.get('wins', 0)}/{win_loss.get('losses', 0)} "
-        f"(win rate {win_loss.get('win_rate', 0.0):.1%})",
-        f"Simulated Sharpe: {summary.get('simulated_sharpe', 0.0):.2f}",
-        f"Simulated max drawdown: {summary.get('simulated_max_drawdown', 0.0):.2%}",
+        f"Equity: {_num(session_summary_event.get('session_start_equity')):,.2f} -> "
+        f"{_num(session_summary_event.get('session_end_equity')):,.2f} ({session_return:+.2%})",
+        f"Observations: {_num(summary.get('count_observations')):.0f}",
+        f"Simulated win/loss: {_num(win_loss.get('wins')):.0f}/{_num(win_loss.get('losses')):.0f} "
+        f"(win rate {win_rate:.1%})",
+        f"Simulated Sharpe: {simulated_sharpe:.2f}",
+        f"Simulated max drawdown: {simulated_max_drawdown:.2%}",
     ]
     return "\n".join(lines)

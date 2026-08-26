@@ -23,6 +23,12 @@ Runtime flow:
 4. The worker writes batched events into PostgreSQL.
 5. Controlled retraining reads from PostgreSQL as the single source of truth.
 
+V5.4.7 (Problems.md #120): producers serialize through `json_safety.dumps_json_safe`
+(non-finite floats -> null, numpy scalars -> python - a bare NaN previously wedged
+the whole pipeline at PostgreSQL's JSONB), and the worker's batch failure falls back
+per row with a first-row probe: poisoned rows dead-letter + ack, Postgres outages
+still re-raise and stay pending.
+
 V2-19 adds `build_session_summary_event()` to `redis_queue.py`: main.py pushes
 one of these per session rollover (see `main.py::_refresh_risk_state()`),
 reusing `observation_metrics.compute_observation_summary()` for every stat —

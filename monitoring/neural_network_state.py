@@ -39,10 +39,11 @@ explicitly via `excluded` rather than left silent.
 
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+from json_safety import load_json_lenient
 
 EXPERT_NAMES = ("bullish", "bearish", "sideways", "volatility")
 
@@ -234,10 +235,10 @@ def _parse_network_export(export: dict) -> tuple[list[NetworkLayer], list[int], 
 
 
 def _load_json(path: Path) -> dict | None:
-    if not path.exists():
-        return None
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    # V5.4.7 (Problems.md #120): a file being rewritten mid-request (train.py
+    # refreshing *_training_metrics.json) previously raised JSONDecodeError
+    # -> /api/neural-network 500. Degrade to None like every sibling reader.
+    return load_json_lenient(path)
 
 
 def _last_modified(path: Path) -> str | None:

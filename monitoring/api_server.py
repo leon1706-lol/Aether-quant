@@ -8,7 +8,6 @@ reshape/serve layer over the existing runtime exports.
 """
 
 import csv
-import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -18,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 # *subclass* - catching the fastapi one would miss it entirely.
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from json_safety import load_json_lenient
 from monitoring.assets_status import build_assets_status_from_disk
 from monitoring.evaluation_state import build_evaluation_state
 from monitoring.neural_network_state import build_neural_network_state
@@ -44,17 +44,21 @@ app.add_middleware(
 
 
 def _read_json(path: Path) -> dict:
-    if not path.exists():
+    # V5.4.7 (Problems.md #120): a torn/mid-write file (or a TOCTOU delete
+    # between exists() and open) previously raised JSONDecodeError /
+    # FileNotFoundError -> HTTP 500. Degrade to the documented 404 shape.
+    payload = load_json_lenient(path)
+    if payload is None:
         raise HTTPException(status_code=404, detail=f"{path.name} not found")
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    return payload
 
 
 def _read_csv_as_rows(path: Path) -> list[dict]:
-    if not path.exists():
+    try:
+        with path.open("r", encoding="utf-8", newline="") as f:
+            return list(csv.DictReader(f))
+    except OSError:
         raise HTTPException(status_code=404, detail=f"{path.name} not found")
-    with path.open("r", encoding="utf-8", newline="") as f:
-        return list(csv.DictReader(f))
 
 
 @app.get("/api/health")
@@ -66,13 +70,13 @@ def health() -> dict:
 def get_state() -> dict:
     state = _read_json(VISUALIZATION_DIR / "state.json")
     retraining_status_path = GRAFANA_DIR / "retraining_status.json"
-    if retraining_status_path.exists():
-        with retraining_status_path.open("r", encoding="utf-8") as f:
-            state["retraining_status"] = json.load(f)
+    payload = load_json_lenient(retraining_status_path)
+    if payload is not None:
+        state["retraining_status"] = payload
     paper_readiness_path = GRAFANA_DIR / "paper_readiness_report.json"
-    if paper_readiness_path.exists():
-        with paper_readiness_path.open("r", encoding="utf-8") as f:
-            state["paper_readiness"] = json.load(f)
+    payload = load_json_lenient(paper_readiness_path)
+    if payload is not None:
+        state["paper_readiness"] = payload
     return state
 
 

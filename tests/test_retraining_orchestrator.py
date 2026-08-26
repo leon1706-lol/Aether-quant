@@ -9,6 +9,12 @@ from unittest.mock import MagicMock, patch
 
 from retraining import orchestrator
 
+# V5.4.7 (#124): promote() now runs verify_version_artifacts() as a
+# pre-flight before any file move - every promote test patches it to a
+# clean report (the artifact-level behavior is covered by
+# tests/test_v547_bug_hunt.py and tests/test_rollback_hardening.py).
+_CLEAN_VERIFY = {"missing": [], "mismatched": [], "present": ["model_weights.json"]}
+
 
 def _make_conn_mock():
     conn_mock = MagicMock()
@@ -141,7 +147,7 @@ def test_promote_succeeds_when_candidate_has_vault_commit():
 
     with patch("retraining.orchestrator.fetch_model_version", return_value=candidate), patch(
         "retraining.orchestrator.fetch_active_model_version", return_value=None
-    ), patch("retraining.orchestrator.copy_candidate_to_active", return_value={"model_weights.json": "hash"}), patch(
+    ), patch("retraining.orchestrator.verify_version_artifacts", return_value=_CLEAN_VERIFY), patch("retraining.orchestrator.copy_candidate_to_active", return_value={"model_weights.json": "hash"}), patch(
         "retraining.orchestrator.copy_backtest_report_to_active"
     ), patch("retraining.orchestrator.promote_model_version") as promote_mock, patch(
         "retraining.orchestrator.update_model_version_status"
@@ -159,7 +165,7 @@ def test_promote_succeeds_when_candidate_has_vault_commit():
 def _patched_promote(conn_mock, candidate, config=None):
     with patch("retraining.orchestrator.fetch_model_version", return_value=candidate), patch(
         "retraining.orchestrator.fetch_active_model_version", return_value=None
-    ), patch("retraining.orchestrator.copy_candidate_to_active", return_value={"model_weights.json": "hash"}), patch(
+    ), patch("retraining.orchestrator.verify_version_artifacts", return_value=_CLEAN_VERIFY), patch("retraining.orchestrator.copy_candidate_to_active", return_value={"model_weights.json": "hash"}), patch(
         "retraining.orchestrator.copy_backtest_report_to_active"
     ), patch("retraining.orchestrator.promote_model_version"), patch(
         "retraining.orchestrator.update_model_version_status"

@@ -7,7 +7,6 @@ trading is never blocked.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import queue
@@ -15,6 +14,8 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+
+from json_safety import dumps_json_safe
 
 from .observation_metrics import compute_observation_summary
 
@@ -304,9 +305,13 @@ class ExperienceQueue:
         exact same XADD call and error handling, never two slightly-
         different implementations drifting apart."""
         try:
+            # V5.4.7 (Problems.md #120): sanitize before dumps - a NaN/inf
+            # float serialized fine here but was rejected by PostgreSQL's
+            # JSONB on the consumer side, wedging the pipeline; numpy
+            # scalars raised TypeError and silently dropped the event.
             self._client.xadd(
                 self.stream_name,
-                {"payload": json.dumps(event)},
+                {"payload": dumps_json_safe(event)},
                 maxlen=self.maxlen,
                 approximate=True,
             )

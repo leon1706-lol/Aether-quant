@@ -11,6 +11,7 @@ subprocess, not an import.
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 from pathlib import Path
 
@@ -112,8 +113,45 @@ ACTIVE_ARTIFACT_FILES = (
 ) + OPTIONAL_TOPOLOGY_FILES + OPTIONAL_GATING_FILES + OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES + OPTIONAL_STRATEGY_SELECTOR_FILES
 
 
+_VERSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
 def candidate_dir(version_id: str, ml_dir: Path = ML_DIR) -> Path:
+    """Resolves ml/versions/<version_id>. V5.4.7 (Problems.md #124):
+    validates the id's charset first - the value reaches here from CLI
+    flags, and an absolute path or traversal segment previously joined
+    straight into the base path. Defense-in-depth: normal callers pass
+    UUIDs that already passed the DB lookup."""
+    if not version_id or not _VERSION_ID_PATTERN.match(version_id) or ".." in version_id:
+        raise ValueError(f"invalid version_id: {version_id!r}")
     return ml_dir / "versions" / version_id
+
+
+def verify_version_artifacts(
+    version_dir: Path,
+    filenames: tuple[str, ...] = ACTIVE_ARTIFACT_FILES,
+    expected_hashes: dict[str, str] | None = None,
+) -> dict:
+    """V5.4.7 (Problems.md #124): shared pre-flight check used by BOTH
+    promote and rollback. Returns {"missing": [...], "mismatched": [...],
+    "present": [...]} - missing = required file absent from the version
+    dir; mismatched = file present but sha256 differs from the committed
+    hash. Only REQUIRED files are checked for presence; hash checks run
+    only against names actually present in expected_hashes."""
+    missing: list[str] = []
+    mismatched: list[str] = []
+    present: list[str] = []
+    expected_hashes = expected_hashes or {}
+    for name in filenames:
+        source = version_dir / name
+        if not source.exists():
+            missing.append(name)
+            continue
+        present.append(name)
+        expected = expected_hashes.get(name)
+        if expected is not None and _sha256_file(source) != expected:
+            mismatched.append(name)
+    return {"missing": missing, "mismatched": mismatched, "present": present}
 
 
 def check_required_artifacts(
@@ -224,6 +262,13 @@ def restore_active_from_version(
             return {"ok": False, "hashes": {}, "mismatched": mismatched}
 
     hashes = copy_candidate_to_active(version_dir, ml_dir=ml_dir, filenames=filenames)
+    # V5.4.7 (Problems.md #124): copy_candidate_to_active() silently skips
+    # absent files - an entirely-missing version dir previously produced an
+    # empty copy AND ok=True, so the registry flipped to "active" while ml/
+    # still held the PREVIOUS model's weights. A restore that would copy
+    # nothing now fails instead.
+    if not hashes:
+        return {"ok": False, "hashes": {}, "mismatched": [], "reason": "no_artifacts_found"}
     return {"ok": True, "hashes": hashes, "mismatched": []}
 
 

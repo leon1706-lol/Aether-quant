@@ -38,6 +38,8 @@ from datetime import date, timedelta
 import httpx
 from pathlib import Path
 
+from json_safety import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -339,10 +341,28 @@ def reference_series(config: dict, group: str = "all") -> dict[str, str]:
 def write_fred_series_cache(cache_dir: Path, series_key: str, rows: list[dict]) -> None:
     """Writes data/reference/fred_series/{series_key}.csv - a local,
     offline-readable cache (never committed as real market data the way
-    Lean zips are; refreshed by re-running this module with --apply)."""
+    Lean zips are; refreshed by re-running this module with --apply).
+
+    V5.4.7 (development/Problems.md #123): the write now MERGES with any
+    existing cache file instead of replacing it - the CLI's --start/--end
+    clip a narrow refetch (e.g. one series, one recent year), and a full
+    replacement silently destroyed every cached observation outside that
+    window, degrading bond/macro features via series_value_asof() ever
+    after. New rows win on date collisions (fresh fetch is authoritative
+    for its own window); dates only in the existing cache are preserved."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     output_path = cache_dir / f"{series_key}.csv"
-    output_path.write_text(rows_to_cache_csv(rows), encoding="utf-8")
+    merged: dict = {row["date"]: row["value"] for row in rows}
+    if output_path.exists():
+        try:
+            for existing_row in cache_csv_to_rows(output_path.read_text(encoding="utf-8")):
+                merged.setdefault(existing_row["date"], existing_row["value"])
+        except Exception as exc:
+            # An unreadable old cache must not block a fresh write - the
+            # new rows alone are still strictly better than no cache.
+            logger.warning("write_fred_series_cache(%s): unreadable old cache (%s) - replacing.", series_key, exc)
+    merged_rows = [{"date": day, "value": value} for day, value in sorted(merged.items())]
+    atomic_write_text(output_path, rows_to_cache_csv(merged_rows))
 
 
 def load_cached_fred_series(cache_dir: Path = FRED_SERIES_CACHE_DIR) -> dict[str, list[dict]]:

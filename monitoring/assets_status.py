@@ -77,9 +77,14 @@ def build_assets_status_from_disk() -> dict:
     """
     import json
 
-    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    try:
+        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        # V5.4.7 (#120): a missing/mid-write config.json previously 500'd
+        # the endpoint; degrade to an empty universe view instead.
+        config = {}
     try:
         lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    except (OSError, ValueError):
         lean_config = {}
     return build_assets_status(config, lean_config)

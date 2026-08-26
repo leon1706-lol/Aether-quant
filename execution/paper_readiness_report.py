@@ -12,6 +12,8 @@ phase_v2.runtime.mode to "paper".
 from __future__ import annotations
 
 import json
+
+from json_safety import atomic_write_json
 import logging
 import os
 import sys
@@ -59,8 +61,8 @@ def build_paper_readiness_view(conn, config: dict) -> dict:
 
 
 def write_paper_readiness_file(view: dict, path: Path = DEFAULT_REPORT_PATH) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(view, indent=2), encoding="utf-8")
+    # V5.4.7 (Problems.md #120): atomic + finite-safe.
+    atomic_write_json(path, view, indent=2)
 
 
 def _print_summary(view: dict) -> None:
@@ -97,3 +99,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

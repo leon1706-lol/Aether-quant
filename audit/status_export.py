@@ -9,11 +9,11 @@ since a stale audit trail defeats its own purpose).
 
 from __future__ import annotations
 
-import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from json_safety import atomic_write_json
 from .hash_chain import verify_chain
 from .postgres_audit import fetch_all_events_ordered, fetch_recent_events
 
@@ -55,5 +55,8 @@ def build_audit_status_view(conn) -> dict:
 
 
 def write_status_file(status: dict, path: Path = DEFAULT_STATUS_PATH) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(status, indent=2), encoding="utf-8")
+    # V5.4.7 (Problems.md #120): atomic + finite-safe - the API reader
+    # previously raced this write and 500'd on torn JSON.
+    atomic_write_json(path, status, indent=2)
+
+

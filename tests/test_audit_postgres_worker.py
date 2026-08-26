@@ -184,6 +184,12 @@ def test_postgres_failure_leaves_messages_pending():
         _redis_client=client,
         _pg_conn=conn_mock,
     )
+    # V5.4.7 (#120): a real outage fails EVERY statement - the batch insert
+    # AND the first-row probe must both raise for the worker to keep the
+    # messages pending (the poison-row fallback only engages when the head
+    # of the batch inserts fine). Set AFTER construction so ensure_schema's
+    # DDL isn't affected.
+    cur_mock.execute.side_effect = Exception("connection terminated")
     with pytest.raises(Exception, match="connection terminated"):
         worker.run_once()
     assert client.xpending(_STREAM, _GROUP)["pending"] == 1
@@ -194,3 +200,75 @@ def test_worker_returns_zero_when_stream_empty():
     count = worker.run_once()
     assert count == 0
     cur_mock.executemany.assert_not_called()
+
+
+def test_poison_row_deadletters_itself_and_later_chained_rows():
+    """V5.4.7 (Problems.md #120): the hash chain means a failed middle row
+    invalidates every LATER row in the batch (their hashes chain off a
+    parent that never landed). The per-row fallback therefore persists the
+    clean prefix, dead-letters the poison row AND everything after it, and
+    leaves nothing pending - the pipeline cannot wedge on one bad payload,
+    and the tamper-evident chain never forks."""
+    events = [
+        _sample_event(event_id=f"00000000-0000-0000-0000-{i:012x}") for i in range(1, 4)
+    ]
+    client = fakeredis.FakeRedis()
+    conn_mock, cur_mock = _make_conn_mock()
+    client.xgroup_create(_STREAM, _GROUP, id="0", mkstream=True)
+    for ev in events:
+        client.xadd(_STREAM, {"payload": json.dumps(ev)})
+    worker = PostgresWorker(
+        redis_url="redis://localhost:6379/0",
+        postgres_dsn="postgresql://aether:aether_dev_password@localhost:5432/aether_quant",
+        stream_name=_STREAM,
+        group_name=_GROUP,
+        consumer_name=_CONSUMER,
+        deadletter_stream=_DEADLETTER,
+        _redis_client=client,
+        _pg_conn=conn_mock,
+    )
+    # Batch insert fails; per-row probe of row[0] succeeds; row[1] is
+    # poison; row[2] must NOT be attempted (chained off the poison hash).
+    # NOTE: run_once's fetch_latest_hash() consumes the FIRST execute call.
+    cur_mock.executemany.side_effect = Exception("invalid input syntax for type json")
+    cur_mock.execute.side_effect = [
+        "hash-row",                              # fetch_latest_hash probe
+        None,                                    # first-row probe (poison vs down)
+        Exception("Token 'NaN' is invalid"),     # row[1] - the poison row
+        None,                                    # never reached (chained stop)
+    ]
+
+    persisted = worker.run_once()
+
+    assert persisted == 1
+    deadletter = client.xrange(_DEADLETTER)
+    assert len(deadletter) == 2  # poison + its chained successor
+    for _, fields in deadletter:
+        field_map = {k if isinstance(k, str) else k.decode(): v for k, v in fields.items()}
+        assert "chained after poison row" in str(field_map.get("error", "")) or "NaN" in str(field_map.get("error", ""))
+        assert "original_id" in field_map
+    assert client.xpending(_STREAM, _GROUP)["pending"] == 0
+
+
+def test_first_row_failure_still_raises_leaving_everything_pending():
+    """V5.4.7 (#120): first-row failure = postgres down, not poison data -
+    re-raise so all messages stay pending (pre-existing contract)."""
+    event = _sample_event()
+    client = fakeredis.FakeRedis()
+    conn_mock, cur_mock = _make_conn_mock()
+    cur_mock.executemany.side_effect = Exception("connection terminated")
+    client.xgroup_create(_STREAM, _GROUP, id="0", mkstream=True)
+    client.xadd(_STREAM, {"payload": json.dumps(event)})
+    worker = PostgresWorker(
+        redis_url="redis://localhost:6379/0",
+        postgres_dsn="postgresql://aether:aether_dev_password@localhost:5432/aether_quant",
+        stream_name=_STREAM,
+        group_name=_GROUP,
+        consumer_name=_CONSUMER,
+        deadletter_stream=_DEADLETTER,
+        _redis_client=client,
+        _pg_conn=conn_mock,
+    )
+    cur_mock.execute.side_effect = Exception("connection terminated")
+    with pytest.raises(Exception, match="connection terminated"):
+        worker.run_once()

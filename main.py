@@ -33,6 +33,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from AlgorithmImports import *
+
+from json_safety import atomic_write_json, atomic_write_text
 from risk_controls import (
     active_position_limit_reached,
     assess_drawdown_lock,
@@ -7316,16 +7318,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         try:
             self.state_path.parent.mkdir(parents=True, exist_ok=True)
             self.grafana_dir.mkdir(parents=True, exist_ok=True)
-            self.state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
-            self.scene_path.write_text(json.dumps(state["scene"], indent=2), encoding="utf-8")
-            self.topology_state_path.write_text(json.dumps(state["topology"], indent=2), encoding="utf-8")
-            self.runtime_metrics_path.write_text(json.dumps(state["monitoring"], indent=2), encoding="utf-8")
-            self.runtime_asset_metrics_path.write_text(self._build_runtime_asset_csv(state), encoding="utf-8")
-            self.observation_summary_path.write_text(json.dumps(state["observation"], indent=2), encoding="utf-8")
+            # V5.4.7 (Problems.md #120): atomic writes (temp + os.replace) +
+            # finite-sanitized payloads. A torn state.json previously 500'd
+            # the API server mid-read, and a bare NaN in any payload broke
+            # the webui's JSON.parse.
+            for path_key, payload in (
+                ("state_path", state),
+                ("scene_path", state["scene"]),
+                ("topology_state_path", state["topology"]),
+                ("runtime_metrics_path", state["monitoring"]),
+                ("observation_summary_path", state["observation"]),
+                ("performance_triggers_path", state["performance_triggers"]),
+            ):
+                atomic_write_json(getattr(self, path_key), payload, indent=2)
+            atomic_write_text(self.runtime_asset_metrics_path, self._build_runtime_asset_csv(state))
             self._flush_observation_equity_csv()
-            self.performance_triggers_path.write_text(
-                json.dumps(state["performance_triggers"], indent=2), encoding="utf-8"
-            )
             self.last_state_write = now
         except Exception as error:
             self.Debug(f"State write failed: {error}")

@@ -16,6 +16,8 @@ these dicts off disk and for "no missing scaler/schema/artifacts" checks.
 
 from __future__ import annotations
 
+import math
+
 
 def compute_overfitting_gap(metrics: dict) -> float:
     """train.balanced_accuracy - backtest.balanced_accuracy.
@@ -193,47 +195,84 @@ def evaluate_validation_gate(
     candidate_backtest_strategy = candidate_report.get("backtest", {}).get("strategy", {})
     active_backtest_strategy = active_report.get("backtest", {}).get("strategy", {})
 
-    candidate_drawdown = float(candidate_backtest_strategy.get("max_drawdown", 0.0) or 0.0)
-    active_drawdown = float(active_backtest_strategy.get("max_drawdown", 0.0) or 0.0)
-    candidate_sharpe = float(candidate_backtest_strategy.get("sharpe", 0.0) or 0.0)
+    def _finite_or_none(value):
+        # V5.4.7 (development/Problems.md #122): a bare NaN previously
+        # passed every gate here (`nan < x` and `nan > x` are both False)
+        # and a MISSING file degraded to 0.0 - which on the active side
+        # meant "perfect baseline" (deadlocking the pipeline: every real
+        # drawdown < 0.0 failed, any positive loss exceeded a zero cap)
+        # and on the candidate side meant a vacuous pass. Non-finite or
+        # missing required metrics now fail closed with an explicit name.
+        if value is None:
+            return None
+        try:
+            as_float = float(value)
+        except (TypeError, ValueError):
+            return None
+        return as_float if math.isfinite(as_float) else None
 
-    candidate_validation_loss = float(candidate_metrics.get("validation", {}).get("loss", 0.0) or 0.0)
-    active_validation_loss = float(active_metrics.get("validation", {}).get("loss", 0.0) or 0.0)
-    max_allowed_validation_loss = active_validation_loss * (1.0 + max_validation_loss_increase_ratio)
+    def _floor_metric(value, default=0.0):
+        as_float = _finite_or_none(value)
+        return default if as_float is None else as_float
 
-    candidate_gap = compute_overfitting_gap(candidate_metrics)
+    candidate_drawdown = _finite_or_none(candidate_backtest_strategy.get("max_drawdown"))
+    active_drawdown = _finite_or_none(active_backtest_strategy.get("max_drawdown"))
+    candidate_sharpe = _finite_or_none(candidate_backtest_strategy.get("sharpe"))
 
-    candidate_trade_count = int(candidate_report.get("backtest", {}).get("trade_count", 0) or 0)
-    candidate_exposure_rate = float(candidate_report.get("backtest", {}).get("exposure_rate", 0.0) or 0.0)
-    candidate_backtest_balanced_accuracy = float(
-        candidate_metrics.get("backtest", {}).get("balanced_accuracy", 0.0) or 0.0
+    candidate_validation_loss = _finite_or_none(candidate_metrics.get("validation", {}).get("loss"))
+    active_validation_loss = _finite_or_none(active_metrics.get("validation", {}).get("loss"))
+    max_allowed_validation_loss = (
+        None if active_validation_loss is None
+        else active_validation_loss * (1.0 + max_validation_loss_increase_ratio)
     )
-    candidate_backtest_mcc = float(candidate_metrics.get("backtest", {}).get("mcc", 0.0) or 0.0)
+
+    candidate_gap = _finite_or_none(compute_overfitting_gap(candidate_metrics))
+
+    candidate_trade_count = int(_floor_metric(candidate_report.get("backtest", {}).get("trade_count"), 0.0))
+    candidate_exposure_rate = _floor_metric(candidate_report.get("backtest", {}).get("exposure_rate"), 0.0)
+    candidate_backtest_balanced_accuracy = _floor_metric(
+        candidate_metrics.get("backtest", {}).get("balanced_accuracy"), 0.0
+    )
+    candidate_backtest_mcc = _floor_metric(candidate_metrics.get("backtest", {}).get("mcc"), 0.0)
 
     failures: list[str] = []
     near_misses: list[str] = []
 
+    # 0. Baseline presence (V5.4.7, Problems.md #122): without the ACTIVE
+    # side's own drawdown/validation loss there is nothing honest to
+    # compare against - fail closed naming the cause instead of silently
+    # comparing against fake-perfect zeros.
+    if active_drawdown is None or active_validation_loss is None:
+        failures.append("active_baseline_metrics_missing")
+
     # 1. Drawdown not worse than active (drawdowns are <= 0; "worse" = more negative).
-    drawdown_margin = abs(active_drawdown) * watchlist_margin
-    if candidate_drawdown < active_drawdown:
+    if candidate_drawdown is None:
+        failures.append("candidate_max_drawdown_missing_or_non_finite")
+    elif active_drawdown is not None and candidate_drawdown < active_drawdown:
         failures.append("candidate_drawdown_worse_than_active")
-    elif candidate_drawdown < active_drawdown + drawdown_margin:
+    elif active_drawdown is not None and candidate_drawdown < active_drawdown + abs(active_drawdown) * watchlist_margin:
         near_misses.append("candidate_drawdown_near_active")
 
     # 2. Sharpe above minimum.
-    if candidate_sharpe < min_sharpe:
+    if candidate_sharpe is None:
+        failures.append("candidate_sharpe_missing_or_non_finite")
+    elif candidate_sharpe < min_sharpe:
         failures.append("candidate_sharpe_below_minimum")
     elif candidate_sharpe < min_sharpe + watchlist_margin:
         near_misses.append("candidate_sharpe_near_minimum")
 
     # 3. Validation loss stable (not much worse than active).
-    if candidate_validation_loss > max_allowed_validation_loss:
+    if candidate_validation_loss is None:
+        failures.append("candidate_validation_loss_missing_or_non_finite")
+    elif max_allowed_validation_loss is not None and candidate_validation_loss > max_allowed_validation_loss:
         failures.append("candidate_validation_loss_unstable")
-    elif candidate_validation_loss > max_allowed_validation_loss * (1.0 - watchlist_margin):
+    elif max_allowed_validation_loss is not None and candidate_validation_loss > max_allowed_validation_loss * (1.0 - watchlist_margin):
         near_misses.append("candidate_validation_loss_near_limit")
 
     # 4. No obvious overfitting.
-    if candidate_gap > max_gap:
+    if candidate_gap is None:
+        failures.append("candidate_overfitting_gap_missing_or_non_finite")
+    elif candidate_gap > max_gap:
         failures.append("candidate_overfitting_gap_too_large")
     elif candidate_gap > max_gap - watchlist_margin:
         near_misses.append("candidate_overfitting_gap_near_limit")

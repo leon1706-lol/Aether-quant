@@ -1,47 +1,48 @@
-# CONTINUE HERE — V5.4.5 COMPLETE 2026-08-26 (docs + pre-backtest safety audit)
+# CONTINUE HERE — V5.4.7 COMPLETE 2026-08-26 (help refresh + full-system bug hunt)
 
-Nothing pending from this round. Two rounds shipped under V5.4.5:
+Nothing pending from this round. Two workstreams shipped:
 
-## Round 1 — documentation debt paydown
-1. Main README restructured: Quickstart / Current Status / Contributing /
-   Continuous Integration sections removed; Runbook moved into RUNBOOK.md;
-   Open Source Files at its TOC position (author footer ends the file);
-   TOC rebuilt; intro/CLI intros tightened; all six auto-generated result
-   sections verified marker-complete and CLI-refreshable.
-2. Sub-README coverage complete (.devcontainer/.githooks added);
-   development/README.md index completed; SECURITY.md + REPRODUCIBILITY.md
-   fixes; project_structure tree extended.
+## 1. `aq` help surfaces refreshed (#125)
+- `aq evaluate --all` help text fixed (was missing `--benchmarks` since V5.4.4).
+- README train/evaluate CLI blocks completed (5 missing flags documented).
+- NEW guard: `tests/test_cli_help_surface.py` - every subcommand `--help`
+  exits 0 (CI covered only 2 of ~23 before) + two-directional
+  README-CLI-reference <-> build_parser() flag sync.
+- ci.yml ruff pinned to 0.16.4 (unbounded range = silent CI drift risk).
 
-## Round 2 — live-execution structural review (pre-Lean-backtest audit)
-Findings + fixes, full detail in development/Problems.md #116-#119:
-1. **#116** cost gate charged ONE side's commission against a round-trip
-   contract (config is enabled+calibrated -> actively affected decisions);
-   paper mode ignored `risk_locks_healthy` (tripped kill switch couldn't
-   stop paper broker orders). Both fixed.
-2. **#117** NaN-propagation family: kill-switch triggers, fill-slippage
-   clamp, reconciliation false-clean, net-edge reason, book rank/spread-veto
-   eligibility, HRP covariance inputs, gross-cap erasure, position floor>
-   cap - all hardened (`isfinite` normalization, fail-closed where it's a
-   safety trigger).
-3. **#118** HRP equal-weight fallback broke dollar-neutrality on asymmetric
-   two-sided books; fallback now shares the main path's per-leg totals.
-4. **#119** V5.4.1 RL asymmetric-penalty reward was dead code at its call
-   site; wired through config (`asymmetric_penalty_weight`, default 1.0).
-5. Audited-clean: bar_synthesis parity, RL state-vector parity,
-   multiplier clamps/direction preservation, kill-switch window math +
-   trip stickiness, override precedence, neutrality step ordering.
+## 2. Full-system bug hunt (#120-#124) - areas NOT covered by V5.4.6's live-path audit
+- **New shared module** `json_safety.py`: finite-safe serialization, atomic
+  JSON/text writes, lenient reads. All producers/writers/readers converted.
+- **#120 pipeline wedge:** one NaN event permanently stuck Redis->Postgres
+  batches (JSONB rejects NaN; xreadgroup(">") never redelivers). Producers
+  sanitize; workers fall back per-row with a poison-vs-outage probe; audit
+  twin dead-letters chained successors to protect the hash chain. Torn-file
+  API 500s -> atomic writers + lenient readers.
+- **#121 gating/analyzer:** missing multitask head deflated magnitude/vol
+  blends toward OVERSIZING (weights not renormalized); `_clamp01(NaN)` was
+  PERFECT confidence passing the trade gate. Both fixed; layernorm eps floor.
+- **#122 retraining gates:** fake-zero defaults deadlocked promotion on a
+  fresh deploy and let NaN pass everything; now fail-closed with explicit
+  reasons, byte-identical when metrics are healthy.
+- **#123 data pipeline:** Yahoo NaN-frame rows written as real bars; backfill
+  end-day unreachable forever; FRED cache destroyed by narrow refetch;
+  config.json truncation window; liquidity div-zero/negative-spread guards.
+- **#124 tooling:** promote() verifies artifact hashes pre-flight; rollback
+  fails on no-artifact restores; Telegram watermark freeze; worker startup
+  crash-loop.
 
-Verified: python **2858/2858** (+24 new tests pinning every fix), ruff clean.
+Verified: python **2929/2929** (+71 tests), ruff clean, badge refreshed,
+`pip install -e .` re-run for the new py-module (#115 rule).
 
-## For the upcoming Lean backtest
-- Backtest-mode order gating is unchanged by design (unrestricted), so the
-  audit does not alter what runs - but the cost gate IS more conservative
-  now (~2x commission leg), so expect somewhat fewer marginal trades vs the
-  August 19 run.
-- Default `allocation_method` stays "rank"; when flipping to "hrp", the
-  fallback paths are now dollar-neutral-safe.
-- After a good backtest run: `aq backtest` refreshes the README sections
-  automatically; then rebuild the engine docker image before next compose
-  use (it predates V5.4.x code); commit before tagging.
-- Optional follow-up NOT scheduled: runtime NaN guard in rl_sizing argmax
-  (bounded, default-off overlay) - documented in #117, left as-is.
+## For the next session
+- Suggested commit: "V5.4.7 aq help refresh + full-system bug hunt (#120-#125):
+  pipeline wedge fix, gating blend renormalization, gate fail-closed semantics,
+  data-pipeline corruption fixes, CI help-surface guards; 2929 tests green"
+- Docker image rebuild still recommended before next compose use (predates
+  V5.4.x code); required before paper/live since workers changed materially.
+- No AQ backtest strictly needed for this round (nothing in the Lean decision
+  path changed except the already-noted V5.4.6 cost-gate conservatism), but if
+  one runs anyway it doubles as regression coverage for #121's blend fix.
+- Deliberately NOT done (documented in #121): interpreter-level input
+  sanitization (downstream guards own that contract); PEL XAUTOCLAIM reclaim
+  (poison path now acks everything; outage path intentionally keeps pending).

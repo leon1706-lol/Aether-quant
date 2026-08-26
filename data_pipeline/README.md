@@ -143,6 +143,11 @@ clone), in which case every bond feature neutral-defaults to `0.0` — the
 same "missing reference -> 0.0" convention `macro_features.py` already
 established, never a crash.
 
+V5.4.7 (#123): cache writes MERGE by date — a narrow `--start/--end`
+refetch no longer destroys observations outside its window (new rows win
+their own dates). Same round: Yahoo NaN-frame rows are filtered before any
+zip write, and `aq fetch --apply`'s config.json rewrite is atomic.
+
 Usage: `python -m data_pipeline.fred_backfill [--series treasury_10yr ...] [--apply]`.
 
 ### Alt-data extension (Phase 4.12, `development/Problems.md` #71)

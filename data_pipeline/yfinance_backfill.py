@@ -25,7 +25,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from datetime import date, datetime
+import math
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable
 from zipfile import ZipFile
@@ -337,18 +338,42 @@ def fetch_yahoo_ohlcv(symbol: str, start: str, end: str) -> list[dict]:
     if isinstance(frame.columns, pd.MultiIndex):
         frame.columns = frame.columns.get_level_values(0)
 
+    # V5.4.7 (development/Problems.md #123): rate-limiting / delisted
+    # responses often return a NON-empty frame whose rows are all NaN -
+    # `float(record["Open"])` happily produced nan and write_lean_zip
+    # persisted it as genuine OHLCV. Rows without a finite OHLC set are
+    # now dropped; a frame that is ALL such rows degrades to [] (the same
+    # honest "no data" path as the empty-frame case above).
     rows = []
+    skipped_non_finite = 0
     for index, record in frame.iterrows():
         row_date = index.date() if hasattr(index, "date") else index
+        try:
+            open_p = float(record["Open"])
+            high = float(record["High"])
+            low = float(record["Low"])
+            close_p = float(record["Close"])
+            volume = float(record["Volume"])
+        except (TypeError, ValueError, KeyError):
+            skipped_non_finite += 1
+            continue
+        if not all(math.isfinite(v) for v in (open_p, high, low, close_p)):
+            skipped_non_finite += 1
+            continue
         rows.append(
             {
                 "date": row_date,
-                "open": float(record["Open"]),
-                "high": float(record["High"]),
-                "low": float(record["Low"]),
-                "close": float(record["Close"]),
-                "volume": float(record["Volume"]),
+                "open": open_p,
+                "high": high,
+                "low": low,
+                "close": close_p,
+                "volume": volume,
             }
+        )
+    if skipped_non_finite:
+        logger.warning(
+            "fetch_yahoo_ohlcv(%s): skipped %d non-finite row(s) from %s..%s",
+            symbol, skipped_non_finite, start, end,
         )
     return rows
 
@@ -397,7 +422,16 @@ def run_backfill(config: dict, plan: list[dict], *, apply: bool, fetch_fn: Calla
             entries.append({**plan_entry, "action": "skipped_no_gap", "rows_fetched": 0})
             continue
 
-        rows = fetch_fn(plan_entry["yahoo_symbol"], gap["fetch_start"].isoformat(), gap["fetch_end"].isoformat())
+        # V5.4.7 (development/Problems.md #123): yf.download's `end` is
+        # EXCLUSIVE while backfill_to/fetch_end is inclusive - without the
+        # +1 day, the configured end date could never be fetched, so
+        # needs_backfill stayed True forever and every run refetched.
+        fetch_end_exclusive = gap["fetch_end"] + timedelta(days=1)
+        rows = fetch_fn(
+            plan_entry["yahoo_symbol"],
+            gap["fetch_start"].isoformat(),
+            fetch_end_exclusive.isoformat(),
+        )
         scaled_rows = scale_for_lean(rows, plan_entry["security_type"])
 
         if not scaled_rows:

@@ -135,7 +135,19 @@ class TelegramWorker:
 
         sent = 0
         for summary_event in summaries:
-            if self._client.send_message(format_session_summary_alert(summary_event)):
+            # V5.4.7 (#124): a poison row used to raise out of the loop,
+            # skip set_watermark, and get refetched forever - permanently
+            # blocking every future alert. One bad row now logs and is
+            # skipped past (watermark still advances).
+            try:
+                message = format_session_summary_alert(summary_event)
+            except Exception as exc:
+                logger.warning(
+                    "TelegramWorker: unformattable session summary for %s skipped - %s",
+                    summary_event.get("session_date"), exc,
+                )
+                continue
+            if self._client.send_message(message):
                 sent += 1
             else:
                 logger.warning(

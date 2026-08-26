@@ -86,9 +86,17 @@ def _quality_multiplier(metrics: dict) -> tuple[float, str, bool]:
 def _performance_score(metrics: dict) -> float:
     validation = metrics.get("validation", {})
     backtest = metrics.get("backtest", {})
-    validation_balanced_accuracy = float(validation.get("balanced_accuracy", 0.5) or 0.5)
-    backtest_balanced_accuracy = float(backtest.get("balanced_accuracy", 0.5) or 0.5)
-    backtest_mcc = float(backtest.get("mcc", 0.0) or 0.0)
+
+    def _metric(source: dict, key: str, default: float) -> float:
+        # V5.4.7 (#121): `or default` coerced a legitimate stored 0.0
+        # (a real measured value) into the neutral default; only a MISSING
+        # key should take the default.
+        value = source.get(key)
+        return float(default if value is None else value)
+
+    validation_balanced_accuracy = _metric(validation, "balanced_accuracy", 0.5)
+    backtest_balanced_accuracy = _metric(backtest, "balanced_accuracy", 0.5)
+    backtest_mcc = _metric(backtest, "mcc", 0.0)
 
     # Skill floor (development/Problems.md): the old unconditional 0.25
     # floor meant EVERY expert - even one with backtest balanced-accuracy at
@@ -188,7 +196,16 @@ def _weighted_blend(weights: list[ExpertGateWeight], attribute: str) -> float | 
     blend the same way per-expert direction probabilities already do.
     Returns None (not 0.0) when no expert has a value at all - a
     spurious 0.0 would misrepresent "no data" as "predicted zero
-    magnitude/volatility"."""
+    magnitude/volatility".
+
+    V5.4.7 (development/Problems.md #121): the sum was previously taken
+    over contributors only, while `weight.weight` values are normalized
+    across ALL experts (sum = 1). Any expert whose multitask head was
+    missing silently contributed w*0, deflating the blended
+    magnitude/volatility toward zero by exactly the missing weight mass -
+    and an underestimated volatility feeds risk/position_sizing.py's vol
+    targeting, OVERSIZING positions. The blend is now renormalized over
+    the contributing experts' weights."""
     contributions = [
         (weight.weight, getattr(weight, attribute))
         for weight in weights
@@ -196,7 +213,10 @@ def _weighted_blend(weights: list[ExpertGateWeight], attribute: str) -> float | 
     ]
     if not contributions:
         return None
-    return sum(w * v for w, v in contributions)
+    total_weight = sum(w for w, _ in contributions)
+    if total_weight <= 0.0:
+        return None
+    return sum(w * v for w, v in contributions) / total_weight
 
 
 def build_gating_decision(

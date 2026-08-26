@@ -28,7 +28,15 @@ def midpoint_bar_from_quote_bar(quote_bar):
 def pad_sequence_history(history: list[list[float]], window_size: int) -> list[list[float]]:
     """Left-pads a rolling per-symbol feature-history buffer with zero
     vectors up to window_size (main.py::_pad_sequence_history verbatim).
-    Pure, no side effects."""
+    Pure, no side effects. An empty history returns `window_size` all-zero
+    vectors of the model's width when inferable, else raises a clear
+    ValueError instead of IndexError (V5.4.7 #123)."""
+    if not history:
+        raise ValueError(
+            "pad_sequence_history: empty history - feature width cannot be "
+            "inferred; callers guard this before calling (main.py's own "
+            "truthy filters), so reaching here means a caller contract broke."
+        )
     input_width = len(history[0])
     padding_needed = window_size - len(history)
     return [[0.0] * input_width for _ in range(max(0, padding_needed))] + list(history)

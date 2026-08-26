@@ -35,7 +35,9 @@ from retraining.artifacts import (
     compute_artifact_hashes,
     copy_backtest_report_to_active,
     copy_candidate_to_active,
+    REQUIRED_CANDIDATE_FILES,
     restore_active_from_version,
+    verify_version_artifacts,
 )
 from retraining.backtest_gate import compare_backtests
 from retraining.lean_backtest import run_lean_backtest
@@ -624,6 +626,28 @@ def promote(conn, version_id: str, retraining_id: str | None = None, config: dic
     active_files = tuple(config.get("promotion", {}).get("active_artifact_files", ACTIVE_ARTIFACT_FILES))
     version_dir = candidate_dir(version_id)
     active = fetch_active_model_version(conn)
+
+    # V5.4.7 (Problems.md #124): promote previously copied files without
+    # ever checking them against the hashes recorded at commit time -
+    # post-commit corruption/tampering promoted blindly. Verify BEFORE any
+    # file moves or status flips.
+    stored_hashes = version.get("artifact_hashes") or {}
+    preflight = verify_version_artifacts(
+        version_dir, filenames=active_files, expected_hashes=stored_hashes
+    )
+    required_present = [name for name in REQUIRED_CANDIDATE_FILES if name in active_files]
+    missing_required = [name for name in required_present if name in preflight["missing"]]
+    if missing_required or preflight["mismatched"]:
+        logger.error(
+            "promote: artifact verification failed for %s - missing=%s mismatched=%s",
+            version_id, missing_required, preflight["mismatched"],
+        )
+        return {
+            "ok": False,
+            "error": "candidate_artifact_verification_failed",
+            "missing": missing_required,
+            "mismatched": preflight["mismatched"],
+        }
 
     hashes = copy_candidate_to_active(version_dir, ml_dir=ML_DIR, filenames=active_files)
     copy_backtest_report_to_active(version_dir, BACKTESTS_DIR)

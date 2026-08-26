@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+
+from json_safety import atomic_write_json
 import logging
 import os
 from datetime import date, datetime, timezone
@@ -148,8 +150,9 @@ def build_status_view(conn) -> dict:
 
 
 def write_status_file(status: dict, path: Path = DEFAULT_STATUS_PATH) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(status, indent=2), encoding="utf-8")
+    # V5.4.7 (Problems.md #120): atomic + finite-safe - the API reader
+    # previously raced this write and 500'd on torn JSON.
+    atomic_write_json(path, status, indent=2)
 
 
 def main() -> None:
@@ -172,3 +175,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+

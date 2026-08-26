@@ -10,12 +10,13 @@ this queue is ever blocking.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+
+from json_safety import dumps_json_safe
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class AuditQueue:
         try:
             self._client.xadd(
                 self.stream_name,
-                {"payload": json.dumps(event)},
+                {"payload": dumps_json_safe(event)},
                 maxlen=self.maxlen,
                 approximate=True,
             )

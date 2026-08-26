@@ -25,6 +25,8 @@ import json
 from pathlib import Path
 from typing import Callable
 
+from json_safety import atomic_write_json
+
 from data_pipeline.yfinance_backfill import (
     fetch_yahoo_ohlcv,
     scale_for_lean,
@@ -109,7 +111,10 @@ def add_asset_to_config(config_path: Path, asset_block: dict) -> str:
     """Appends asset_block to config.json's phase1.universe.assets[] unless
     a block with the same ticker already exists there. Returns "added" or
     "already_exists". Preserves the file's existing exact formatting
-    (4-space indent, trailing newline)."""
+    (4-space indent, trailing newline). V5.4.7 (Problems.md #123): the
+    rewrite is now atomic (temp file + os.replace) - a crash mid-write of
+    the whole system's config previously left a truncated config.json
+    behind."""
     config = json.loads(config_path.read_text(encoding="utf-8"))
     assets = config["phase1"]["universe"]["assets"]
 
@@ -117,7 +122,10 @@ def add_asset_to_config(config_path: Path, asset_block: dict) -> str:
         return "already_exists"
 
     assets.append(asset_block)
-    config_path.write_text(json.dumps(config, indent=4) + "\n", encoding="utf-8")
+    atomic_write_json(config_path, config, indent=4)
+    # Match the historical trailing-newline formatting exactly.
+    with config_path.open("a", encoding="utf-8") as handle:
+        handle.write("\n")
     return "added"
 
 

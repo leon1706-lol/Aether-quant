@@ -154,8 +154,13 @@ class PostgresWorker:
             import redis as redis_lib
             url = os.environ.get("AETHER_REDIS_URL", redis_url)
             self._redis = redis_lib.from_url(url, socket_connect_timeout=5, socket_timeout=5)
-            self._redis.ping()
-            logger.info("AuditPostgresWorker: Redis connected at %s", url)
+            # V5.4.7 (#120): warn instead of crash-looping when Redis is
+            # down at container start; run()'s backoff loop retries.
+            try:
+                self._redis.ping()
+                logger.info("AuditPostgresWorker: Redis connected at %s", url)
+            except Exception as exc:
+                logger.warning("AuditPostgresWorker: Redis not reachable yet (%s) - will retry in run loop.", exc)
 
         if _pg_conn is not None:
             self._conn = _pg_conn
@@ -211,10 +216,12 @@ class PostgresWorker:
         rows: list[dict] = []
         ids_good: list = []
         ids_deadletter: list = []
+        raw_by_id: dict = {}
         running_hash = fetch_latest_hash(self._conn)
 
         for msg_id, fields in messages:
             raw = fields.get(b"payload") or fields.get("payload", b"")
+            raw_by_id[msg_id] = raw if isinstance(raw, (bytes, bytearray)) else str(raw).encode("utf-8")
             try:
                 event = json.loads(raw)
                 row = event_to_row(event, running_hash)
@@ -232,12 +239,71 @@ class PostgresWorker:
         if ids_deadletter:
             self._redis.xack(self.stream_name, self.group_name, *ids_deadletter)
 
+        # V5.4.7 (Problems.md #120): a single poison row used to fail the
+        # whole executemany, roll back every good row, and leave the batch
+        # pending forever (xreadgroup(">") never re-delivers) - wedging
+        # the pipeline on one bad payload. Unlike the experience worker,
+        # this chain CANNOT skip a failed middle row: every row's hash
+        # chains to its predecessor's, so once one row cannot be inserted
+        # every LATER row in the batch would fork the tamper-evident chain.
+        # Fallback therefore inserts per-row IN ORDER and stops at the
+        # first failure - that row and everything after it dead-letters
+        # (payloads preserved verbatim), everything before it commits.
         if rows:
-            with self._conn.cursor() as cur:
-                cur.executemany(_INSERT_SQL, rows)
-            self._conn.commit()
-            self._redis.xack(self.stream_name, self.group_name, *ids_good)
-            logger.info("AuditPostgresWorker: persisted %d events.", len(rows))
+            try:
+                with self._conn.cursor() as cur:
+                    cur.executemany(_INSERT_SQL, rows)
+                self._conn.commit()
+                self._redis.xack(self.stream_name, self.group_name, *ids_good)
+                logger.info("AuditPostgresWorker: persisted %d events.", len(rows))
+            except Exception as batch_exc:
+                # V5.4.7 (#120) - poison row vs postgres down: first-row
+                # failure means the connection/statement, not the data -
+                # re-raise so everything stays pending (old contract). A
+                # batch whose head inserts fine takes the per-row path,
+                # which for this hash-chained stream STOPS at the first
+                # poison row and dead-letters it plus every LATER row
+                # (their hashes chain off a parent that never landed -
+                # inserting them would fork the tamper-evident chain).
+                try:
+                    with self._conn.cursor() as cur:
+                        cur.execute(_INSERT_SQL, rows[0])
+                    self._conn.commit()
+                except Exception:
+                    self._conn.rollback()
+                    raise
+                self._redis.xack(self.stream_name, self.group_name, ids_good[0])
+                persisted = 1
+                for msg_id, row in zip(ids_good[1:], rows[1:]):
+                    try:
+                        with self._conn.cursor() as cur:
+                            cur.execute(_INSERT_SQL, row)
+                        self._conn.commit()
+                        self._redis.xack(self.stream_name, self.group_name, msg_id)
+                        persisted += 1
+                    except Exception as row_exc:
+                        self._conn.rollback()
+                        logger.warning(
+                            "Poison row %s → dead-letter; stopping - later rows "
+                            "chain off this one's hash. Error: %s", msg_id, row_exc
+                        )
+                        break
+                for msg_id in ids_good[persisted:]:
+                    raw = raw_by_id.get(msg_id)
+                    self._redis.xadd(
+                        self.deadletter_stream,
+                        {
+                            "payload": raw if raw is not None else b"",
+                            "error": f"chained after poison row: {batch_exc}",
+                            "original_id": str(msg_id),
+                        },
+                    )
+                    self._redis.xack(self.stream_name, self.group_name, msg_id)
+                logger.info(
+                    "AuditPostgresWorker: per-row fallback persisted %d/%d events.",
+                    persisted, len(rows),
+                )
+                return persisted
             # Refresh the webui/API dashboard snapshot right after a real
             # persist (not on every idle poll) - a stale audit trail
             # defeats its own purpose, so this stays close to real-time
