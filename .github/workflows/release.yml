@@ -118,12 +118,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
-          BODY=$(cat <<EOF
-          See [development/Changelog.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/development/Changelog.md) for the full entry for \`V${VERSION}\` and every prior release. This repo keeps its changelog as an append-only historical record; each tagged version corresponds to a \`## V<version>\` section there.
-
-          ---
-          EOF
-          )
+          BODY="See [development/Changelog.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/development/Changelog.md) for the full entry for \`V${VERSION}\` and every prior release."
           gh release create "$TAG" \
             --title "Aether Quant ${TAG}" \
             --notes "$BODY" \
