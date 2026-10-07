@@ -17,7 +17,7 @@ jobs:
   tag-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -40,7 +40,7 @@ jobs:
       # the PyPI project page (repo + this workflow filename).
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # full history/tags - required for setuptools-scm
 
@@ -68,7 +68,7 @@ jobs:
       # would fail with "invalid reference format".
       IMAGE_NAME: ghcr.io/leon1706-lol/aether-quant
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 
@@ -110,7 +110,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Create GitHub Release with changelog link
         env:
