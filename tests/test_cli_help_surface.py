@@ -122,7 +122,7 @@ def test_readme_documents_no_phantom_flags():
 
     allowlist = {
         # Documented pass-through examples of the CHILD commands' own args.
-        "--apply", "--tickers", "--series",
+        "--apply", "--tickers", "--series", "--quotes",
         "--version-id", "--to-version-id",  # `aq retrain` args passed verbatim
         # Lean CLI's own flag, documented in render-lean-config's prose as
         # what the DEPLOY step passes to `lean`, not an aq flag.

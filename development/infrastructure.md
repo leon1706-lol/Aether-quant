@@ -773,3 +773,60 @@ webui-tests (tsc, oxlint, vitest --pool=threads, build), cli-smoke
 only, non-gating by design) -> publish-pypi (Trusted Publisher OIDC) ->
 publish-docker (ghcr.io, gha layer cache) -> github-release (auto notes +
 Changelog link).
+
+### V5.5.0 additions
+
+Guard jobs (all pinned in `tests/test_ci_workflows.py`): **fast-guards**
+(registration, help surface, workflow shape, packaging, docs links, parity
+round — minutes, before the coverage matrix finishes), **subsystem-matrix**
+(`aq test --<bucket>` once per `_SUBSYSTEM_TEST_FILES` bucket incl. the new
+`meta` bucket; the matrix list is asserted equal to the registry),
+**wheel-smoke** (`python -m build --wheel`, install into a clean venv, run
+`scripts/wheel_smoke.py` from outside the checkout — imports every shipped
+module and runs every `aq <sub> --help`), **python-compat** (Python 3.10
+byte-compile; `requires-python` is `>=3.10` but every other job runs 3.11),
+**docker-checks** (hadolint v2.12.0 errors-only on both Dockerfiles,
+`docker compose config -q` incl. `--profile lean`, the webui stage build —
+never `Dockerfile.lean`, its 40 GB base does not fit a hosted runner),
+**parity-smoke** (the audit / as-live / sleeve / calibration tests plus
+`scripts/feature_parity_audit.py --synthetic-only`, which fails when its check
+did not actually run), and two **advisory** jobs: **secret-scan** (gitleaks
+v8.18.4 on the working tree) and **test-count-drift**
+(`scripts/check_test_count_drift.py`, README badge vs `pytest --collect-only`).
+Linux jobs install CPU-only torch first; ruff is pinned identically in the
+lint job and `requirements-dev.txt`; `.github/dependabot.yml` covers pip, npm
+and github-actions weekly; `npm audit` runs advisory in `webui-tests`.
+`secret-scan` and the hadolint/compose steps could not be run locally (no
+binaries/Docker in the authoring session) — actionlint validates the YAML, but
+expect to allowlist a first-run finding.
+
+## Repairing double-adjusted equity factor files (V5.5.0)
+
+Zips written by `yfinance_backfill.py` (`auto_adjust=True`) are already split-
+and dividend-adjusted and need **no** Lean factor file - and the file must be
+*absent*: a sentinel-only stub makes Lean log `adjust to a later starting date:
+[EMB, 12/30/2050]` and serve no data; only the genuine
+QuantConnect zips (integer volume column) do. Audit and repair, offline:
+
+```powershell
+python -m data_pipeline.factor_file_backfill --audit                          # exit 1 if any file is double-adjusted
+python -m data_pipeline.factor_file_backfill --repair-adjusted-zips           # dry run
+python -m data_pipeline.factor_file_backfill --repair-adjusted-zips --apply   # REMOVES the files; originals -> data/equity/usa/factor_files_backup_pre_v550/
+```
+
+Do **not** follow a repair with a local `aq train --dataset-only`: it refits
+the scaler against the shipped model weights. Regenerate the dataset and
+retrain together on the Codespace (see "Cloud Training via GitHub Codespaces").
+`data/` is gitignored, so the repair is per machine and per Codespace sync.
+
+## Auditing a finished backtest (V5.5.0)
+
+```powershell
+aq evaluate --audit-backtest                              # newest backtests/<timestamp>
+aq evaluate --audit-backtest --backtest-dir backtests\2026-10-07_09-00-00
+aq evaluate --rank-book --as-live --factor-exposure       # the offline side, for comparison
+```
+
+Teardown must be judged from the **engine** `log.txt`
+(`PythonInitializer.Shutdown(): ended` vs `Operation timed out`), which the
+audit parses; the algorithm log never records it.

@@ -389,6 +389,31 @@ surfaced per-symbol as a "Book Role" column in
 `—` for non-book-controlled symbols / when the overlay is disabled) —
 typed as `Signal.portfolio_book_role` in `webui/src/types/state.ts`.
 
+## Legacy-signal sleeve (`legacy_sleeve.py`, V5.5.0 - `phase_v2.legacy_sleeve`)
+
+With the book enabled, symbols it does not select used to keep trading the old
+probability-up signal with no budget (135 of 171 equity entries in the 2026-08-27
+backtest). `apply_legacy_sleeve_policy()` puts that path in an explicit budget:
+`max_gross_exposure` (0.10) across all sleeve positions, `max_weight_per_name`
+(0.02, also capping the resize of a held sleeve position), no new entries while
+the book is vetoed (`trade_when_book_vetoed: false`); book members, positions the
+book opened (`is_book_owned`), exits and holds pass through. `enabled: false` (the
+in-code default) is the pre-V5.5.0 unbudgeted behavior. Pure and Lean-free;
+`compute_sleeve_gross_used()` supplies the already-held budget.
+
+`should_hold_owned_position_on_veto()` (`phase_v2.portfolio_book.hold_owned_positions_on_veto`)
+keeps a position the book opened through a gate veto instead of letting the legacy
+signal close it (as the offline as-live simulator already does; Problems #133).
+
+Ownership helpers in `book_construction.py`: `update_book_owned_symbols()` marks
+positions the book opened and `is_rotation_exit_candidate()` limits the rotation
+exit to them while the sleeve is on (otherwise a sleeve entry is liquidated and
+re-bought every other bar). Also new there: `remember_formed_book()` (a veto no
+longer erases the hysteresis anchor), `apply_book_weight_floor()` (bounds the
+sizing-multiplier shrink of a book member, symmetric, `sizing_floor_fraction`) and
+`build_book_raw_weights()` (the one raw-weight formula shared with the offline
+simulator).
+
 ## Hysteresis-aware sticky selection (V5.1 Phase 0/1)
 
 `build_rank_based_book()`/`_select_book_group()` gained `previous_allocations`/

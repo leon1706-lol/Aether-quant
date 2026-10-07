@@ -92,9 +92,17 @@ def check_synthetic_formula_parity() -> dict:
 
         reference = train_module.engineer_features(frame.copy(), [], windows)
         replica = compute_base_technicals_replica(frame, long_window_bars=getattr(train_module, "LONG_LOOKBACK_WINDOW_BARS", DEFAULT_LONG_LOOKBACK_WINDOW_BARS))
+        # V5.5.0: engineer_features() drops rows (the forward-return label guard),
+        # so `reference` is shorter than `frame` and the replica - computed over
+        # every input row - must be indexed by DATE before comparing. The
+        # positional comparison raised a broadcast ValueError that the blanket
+        # except below turned into "SKIPPED", i.e. this whole check had been
+        # silently dead while the audit still printed PASS.
+        row_by_date = {date: position for position, date in enumerate(frame["date"])}
+        reference_rows = [row_by_date[date] for date in reference["date"]]
         for name in BASE_TECHNICAL_FEATURES + INDICATOR_FEATURES:
             ref_col = reference[name].to_numpy(dtype=float)
-            rep_col = replica[name]
+            rep_col = np.asarray(replica[name], dtype=float)[reference_rows]
             valid = ~(np.isnan(ref_col) | np.isnan(rep_col))
             delta = float(np.max(np.abs(ref_col[valid] - rep_col[valid]))) if valid.any() else 0.0
             result[name] = {
@@ -118,30 +126,29 @@ def check_synthetic_formula_parity() -> dict:
             }
 
         macro_frames = {}
-        pivot_close = {}
         for ticker in ("TLT", "SHY", "HYG", "LQD", "BTCUSD"):
             ticker_frame = _synthetic_frame(rows=260, seed=abs(hash(ticker)) % 1000)
             engineered = train_module.engineer_features(ticker_frame.copy(), [], windows)
             macro_frames[ticker] = engineered[["date", "momentum_20d"]]
-            pivot_close[ticker] = pd.Series(ticker_frame["close"].to_numpy(), index=pd.Index(ticker_frame["date"], name="date"))
         macro_reference_by_ticker = train_module.build_macro_features_by_date(macro_frames, {})
-        close_pivot = pd.DataFrame(pivot_close).sort_index()
-        macro_replica = compute_macro_proxies_replica(close_pivot)
+        # V5.5.0: compute_macro_proxies_replica() now takes the as-of calendar and the
+        # long-format (ticker, date, momentum_20d) frame, not a close pivot - the old
+        # call raised TypeError, swallowed below as "SKIPPED" (a dead check).
+        momentum_long = pd.concat(
+            [frame_for_ticker.assign(ticker=ticker) for ticker, frame_for_ticker in macro_frames.items()],
+            ignore_index=True,
+        )
+        all_dates = sorted(set(momentum_long["date"]))
+        macro_replica = compute_macro_proxies_replica(all_dates, momentum_long).set_index("date")
 
-        reference_macro = None
-        for per_ticker in macro_reference_by_ticker.values():
-            candidate = per_ticker.set_index("date")[["macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"]].sort_index()
-            if reference_macro is None:
-                reference_macro = candidate
-            else:
-                reference_macro = reference_macro.join(candidate, rsuffix="_dup", how="outer")
-        dup_cols = [c for c in reference_macro.columns if c.endswith("_dup")]
-        reference_macro = reference_macro.drop(columns=dup_cols)
+        # train broadcasts one value per date to every asset, so any one ticker's frame is the reference
+        macro_columns = ["macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"]
+        reference_macro = next(iter(macro_reference_by_ticker.values())).set_index("date")[macro_columns].sort_index()
         joined = reference_macro.join(macro_replica, how="inner", lsuffix="_ref")
-        for base_name in ("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"):
+        for base_name in macro_columns:
             ref_col = joined[f"{base_name}_ref"].to_numpy(dtype=float)
             rep_col = joined[base_name].to_numpy(dtype=float)
-            delta = float(np.nanmax(np.abs(ref_col - rep_col)))
+            delta = float(np.nanmax(np.abs(ref_col - rep_col))) if len(joined) else float("nan")
             result[base_name] = {
                 "verdict": "PASS" if delta <= 1e-12 else "FAIL",
                 "max_abs_delta": delta,
@@ -322,9 +329,34 @@ def main() -> int:
     parser.add_argument("--schema", default=str(ROOT_DIR / "ml" / "feature_schema.json"))
     parser.add_argument("--output", default=str(ROOT_DIR / "ml" / "evaluation" / "feature_parity_report.json"))
     parser.add_argument("--skip-synthetic", action="store_true", help="Skip the torch-importing train-side formula check")
+    parser.add_argument(
+        "--synthetic-only", action="store_true",
+        help="V5.5.0 (CI parity-smoke): run ONLY check 1 (replica vs train.py formulas on synthetic data) - needs no "
+        "dataset/scaler/schema files, so it runs on a fresh checkout. Mutually exclusive with --skip-synthetic.",
+    )
     args = parser.parse_args()
 
     started = time.time()
+    if args.synthetic_only:
+        if args.skip_synthetic:
+            parser.error("--synthetic-only and --skip-synthetic are mutually exclusive")
+        print("[1/1] Synthetic formula parity (replicas vs train.py implementations)...")
+        synthetic = check_synthetic_formula_parity()
+        failures = [k for k, v in synthetic.items() if isinstance(v, dict) and v.get("verdict") == "FAIL"]
+        print(f"    status={synthetic.get('_status')} failures={failures or 'none'}")
+        if synthetic.get("_status") != "OK":
+            # A SKIPPED check proves nothing; the full audit tolerates it (no torch on some
+            # machines) but a dedicated synthetic-only run must not report PASS on a dead check.
+            failures.append(f"check_did_not_run ({synthetic.get('_status')})")
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps({"synthetic_formula_parity": synthetic, "runtime_seconds": round(time.time() - started, 1)}, indent=2, default=str),
+            encoding="utf-8",
+        )
+        print("OVERALL:", "FAIL (" + ", ".join(failures) + ")" if failures else "PASS")
+        return 1 if failures else 0
+
     print(f"Loading dataset: {args.dataset}")
     dataset = pd.read_csv(args.dataset)
     scaler_stats = json.loads(Path(args.scaler_stats).read_text(encoding="utf-8"))

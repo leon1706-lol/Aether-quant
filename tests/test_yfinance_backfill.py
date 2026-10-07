@@ -16,13 +16,16 @@ from datetime import date
 from zipfile import ZipFile
 
 from data_pipeline.yfinance_backfill import (
+    crypto_rows_to_lean_csv,
     detect_gap,
     forex_rows_to_lean_csv,
     plan_backfill,
     rows_to_lean_csv,
     run_backfill,
     scale_for_lean,
+    synthesize_crypto_bid_ask_row,
     synthesize_forex_bid_ask_row,
+    write_lean_crypto_quote_zip,
     write_lean_forex_zip,
     write_lean_zip,
     yahoo_symbol_for,
@@ -262,6 +265,100 @@ def test_write_lean_forex_zip_preserves_existing_real_spread_on_merge(tmp_path):
     )
     synthesized_row_line = next(line for line in lines if line.startswith("20200102"))
     assert synthesized_row_line == "20200102 00:00,2.0,2.1,1.9,2.05,0,2.0,2.1,1.9,2.05,0"
+
+
+# ---------------------------------------------------------------------------
+# V5.4.10 - synthesize_crypto_bid_ask_row / crypto_rows_to_lean_csv /
+# write_lean_crypto_quote_zip - the crypto sibling: derives the Lean crypto
+# *_quote.zip (11-column bid/ask daily CSV, see data/crypto/coinbase/daily/
+# btcusd_quote.zip) that a real Lean backtest requests but the pipeline
+# never produced. Unlike forex, trade volume is carried into both volume
+# columns (this algorithm never reads crypto quote bars - see module doc).
+# ---------------------------------------------------------------------------
+
+
+def test_synthesize_crypto_bid_ask_row_duplicates_ohlc_and_volume():
+    row = {"date": date(2020, 1, 2), "open": 3.5, "high": 3.6, "low": 3.4, "close": 3.55, "volume": 1234.0}
+
+    synthesized = synthesize_crypto_bid_ask_row(row)
+
+    assert synthesized["date"] == date(2020, 1, 2)
+    assert synthesized["bid_open"] == synthesized["ask_open"] == 3.5
+    assert synthesized["bid_high"] == synthesized["ask_high"] == 3.6
+    assert synthesized["bid_low"] == synthesized["ask_low"] == 3.4
+    assert synthesized["bid_close"] == synthesized["ask_close"] == 3.55
+    assert synthesized["bid_volume"] == synthesized["ask_volume"] == 1234.0
+
+
+def test_crypto_rows_to_lean_csv_produces_eleven_value_columns():
+    row = synthesize_crypto_bid_ask_row(
+        {"date": date(2020, 1, 2), "open": 3.5, "high": 3.6, "low": 3.4, "close": 3.55, "volume": 1234.0}
+    )
+
+    csv_text = crypto_rows_to_lean_csv([row])
+
+    assert csv_text == "20200102 00:00,3.5,3.6,3.4,3.55,1234.0,3.5,3.6,3.4,3.55,1234.0\n"
+
+
+def test_crypto_rows_to_lean_csv_sorts_by_date():
+    later = synthesize_crypto_bid_ask_row({"date": date(2020, 1, 3), "open": 2, "high": 2, "low": 2, "close": 2, "volume": 0})
+    earlier = synthesize_crypto_bid_ask_row({"date": date(2020, 1, 1), "open": 1, "high": 1, "low": 1, "close": 1, "volume": 0})
+
+    csv_text = crypto_rows_to_lean_csv([later, earlier])
+
+    lines = csv_text.splitlines()
+    assert lines[0].startswith("20200101")
+    assert lines[1].startswith("20200103")
+
+
+def test_write_lean_crypto_quote_zip_derives_quote_from_trade(tmp_path):
+    trade_zip = tmp_path / "ltcusd_trade.zip"
+    with ZipFile(trade_zip, "w") as archive:
+        archive.writestr("ltcusd.csv", "20200101 00:00,3.4,3.6,3.3,3.55,100.0\n")
+    quote_zip = tmp_path / "ltcusd_quote.zip"
+
+    written = write_lean_crypto_quote_zip(trade_zip, quote_zip, "LTCUSD", merge_with_existing=True)
+
+    assert written == 1
+    assert quote_zip.exists()
+    with ZipFile(quote_zip) as archive:
+        assert archive.namelist() == ["ltcusd.csv"]
+        content = archive.read("ltcusd.csv").decode("utf-8")
+    assert content == "20200101 00:00,3.4,3.6,3.3,3.55,100.0,3.4,3.6,3.3,3.55,100.0\n"
+
+
+def test_write_lean_crypto_quote_zip_preserves_existing_real_spread_on_merge(tmp_path):
+    trade_zip = tmp_path / "ltcusd_trade.zip"
+    with ZipFile(trade_zip, "w") as archive:
+        archive.writestr("ltcusd.csv", "20200102 00:00,3.4,3.6,3.3,3.55,100.0\n")
+    quote_zip = tmp_path / "ltcusd_quote.zip"
+    # Seed a "real" existing quote row with a genuine, non-equal bid/ask
+    # spread - the invariant a naive collapse-to-mid writer would destroy.
+    with ZipFile(quote_zip, "w") as archive:
+        archive.writestr("ltcusd.csv", "20200101 00:00,3.3,3.5,3.2,3.4,5.0,3.35,3.55,3.25,3.45,5.5\n")
+
+    write_lean_crypto_quote_zip(trade_zip, quote_zip, "LTCUSD", merge_with_existing=True)
+
+    with ZipFile(quote_zip) as archive:
+        content = archive.read("ltcusd.csv").decode("utf-8")
+    lines = content.splitlines()
+    real_row_line = next(line for line in lines if line.startswith("20200101"))
+    assert real_row_line == "20200101 00:00,3.3,3.5,3.2,3.4,5.0,3.35,3.55,3.25,3.45,5.5", (
+        "existing real bid != ask spread must survive the merge unchanged"
+    )
+    synthesized_row_line = next(line for line in lines if line.startswith("20200102"))
+    assert synthesized_row_line == "20200102 00:00,3.4,3.6,3.3,3.55,100.0,3.4,3.6,3.3,3.55,100.0"
+
+
+def test_write_lean_crypto_quote_zip_missing_trade_raises(tmp_path):
+    quote_zip = tmp_path / "ltcusd_quote.zip"
+    try:
+        write_lean_crypto_quote_zip(tmp_path / "nope_trade.zip", quote_zip, "LTCUSD")
+    except FileNotFoundError:
+        assert True
+    else:
+        raise AssertionError("expected FileNotFoundError for missing trade zip")
+    assert not quote_zip.exists()
 
 
 # ---------------------------------------------------------------------------

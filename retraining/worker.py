@@ -284,7 +284,11 @@ class RetrainingWorker:
         decision = result["decision"]
 
         if decision["should_rollback"]:
-            logger.warning("RetrainingWorker: auto-rollback triggered - %s", decision["reason"])
+            logger.warning(
+                "RetrainingWorker: auto-rollback triggered - %s (degradation_score=%s)",
+                decision["reason"],
+                result.get("degradation_score"),
+            )
             rollback_result = rollback(self._conn, decision["to_version_id"], self.config)
             self._notify_auto_rollback(decision, rollback_result)
             result = {**result, "rollback_result": rollback_result}

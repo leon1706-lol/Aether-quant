@@ -3,6 +3,9 @@ name: CI
 # V5.3.9 - deep CI suite: windows+ubuntu pytest matrix with a calibrated
 # coverage fail-under gate (82% measured - 2), ruff lint, the full webui
 # vitest suite, an offline CLI smoke battery, and workflow self-validation.
+# V5.5.0 - guard jobs for the offline/live-parity round: fast-guards,
+# subsystem-matrix, wheel-smoke, python-compat, docker-checks, parity-smoke,
+# secret-scan and test-count-drift. tests/test_ci_workflows.py pins them all.
 on:
   push:
     branches: [main]
@@ -32,6 +35,10 @@ jobs:
       - name: Syntax-check main.py (no Lean runtime available in CI - see development/Problems.md #69)
         run: python -m py_compile main.py
 
+      - name: Install CPU-only PyTorch (Linux runner)
+        if: runner.os == 'Linux'
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
       - name: Install dependencies
         run: |
           pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
@@ -58,6 +65,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements-dev.txt
 
       # V5.3.11 FIX: bare `ruff check .` — NOT `aq test --ruff` (which
       # requires importing aq_cli → pandas via the full package chain, but
@@ -83,6 +92,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements.txt
 
       - name: Install pip-audit
         run: pip install pip-audit
@@ -117,6 +128,11 @@ jobs:
       # V5.3.9 - the full frontend suite finally runs in CI too.
       - run: npx vitest run --pool=threads
       - run: npm run build
+      # V5.5.0 - advisory: a new upstream advisory must be visible without
+      # turning an unrelated PR red (the lockfile is the owner's to bump).
+      - name: npm audit (advisory, runtime deps, high+)
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
 
   cli-smoke:
     runs-on: ubuntu-latest
@@ -127,6 +143,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements.txt
+
+      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
+      # CPU-only runner never uses. Installing the CPU build FIRST lets the
+      # requirements install below see torch as already satisfied.
+      - name: Install CPU-only PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install package editable
         run: |
@@ -156,3 +180,231 @@ jobs:
             https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint -no-color -verbose
+
+  # V5.5.0 - the cheap, high-signal guards, in one place so a PR that breaks
+  # test registration, the README flag docs, a workflow, the packaging list,
+  # a docs link or a parity fix fails in minutes instead of after the whole
+  # coverage matrix. They also run inside python-tests; this is the fast copy.
+  fast-guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements-dev.txt
+
+      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
+      # CPU-only runner never uses. Installing the CPU build FIRST lets the
+      # requirements install below see torch as already satisfied.
+      - name: Install CPU-only PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+
+      - name: Guard tests (registration, help surface, workflows, packaging, docs links, parity round)
+        run: >
+          pytest -q -p no:cacheprovider
+          tests/test_cli_help_surface.py
+          tests/test_ci_workflows.py
+          tests/test_dockerignore_secrets.py
+          tests/test_lean_runtime_imports.py
+          tests/test_packaging_modules.py
+          tests/test_docs_links.py
+          tests/test_v550_parity_fixes.py
+          tests/test_aq_cli.py::test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket
+
+  # V5.5.0 - `aq test --<subsystem>` per bucket: proves every bucket is
+  # self-contained (no hidden cross-file ordering) and that the routing in
+  # aq_cli.py::_SUBSYSTEM_TEST_FILES works, which the single full-tree run
+  # never exercises. The full run above stays the coverage source of truth.
+  subsystem-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        subsystem: [cli, audit, risk, portfolio, features, data-pipeline, webui, ml, retraining, notifications, storage, live, evaluation, meta]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements-dev.txt
+
+      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
+      # CPU-only runner never uses. Installing the CPU build FIRST lets the
+      # requirements install below see torch as already satisfied.
+      - name: Install CPU-only PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies and the package
+        run: |
+          pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+          pip install -e .
+
+      - name: aq test --${{ matrix.subsystem }}
+        run: aq test --${{ matrix.subsystem }}
+
+  # V5.5.0 - builds the real wheel and exercises it OUTSIDE the checkout.
+  # `pip install -e .` (cli-smoke) puts the whole repo on sys.path and hides
+  # every pyproject.toml packaging gap; this job found four missing packages
+  # and a missing root module the first time it ran.
+  wheel-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # setuptools-scm needs tags to version the wheel
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements.txt
+
+      - name: Build the wheel
+        run: |
+          pip install build
+          python -m build --wheel
+
+      - name: Install the wheel into a clean venv (CPU torch first)
+        run: |
+          python -m venv "$RUNNER_TEMP/aq-wheel"
+          "$RUNNER_TEMP/aq-wheel/bin/pip" install --upgrade pip
+          "$RUNNER_TEMP/aq-wheel/bin/pip" install torch --index-url https://download.pytorch.org/whl/cpu
+          "$RUNNER_TEMP/aq-wheel/bin/pip" install -r requirements/requirements.txt dist/*.whl
+
+      - name: Smoke-test the installed wheel from outside the checkout
+        working-directory: ${{ runner.temp }}
+        run: '"$RUNNER_TEMP/aq-wheel/bin/python" "$GITHUB_WORKSPACE/scripts/wheel_smoke.py"'
+
+  # V5.5.0 - requires-python is >=3.10 but every other job runs 3.11, so a
+  # 3.11-only construct would ship unnoticed. Byte-compiling is syntax-only
+  # (cheap, no dependencies); it still catches except*, 3.12 f-strings, etc.
+  python-compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Byte-compile first-party sources on Python 3.10
+        run: >
+          python -m compileall -q
+          -x '(^|/)(\.git|\.venv|venv|node_modules|backtests|webui|Aether-quant-Obsidian-Vault|build|dist|\.matplotlib_cache)(/|$)'
+          .
+
+  # V5.5.0 - Docker is never built with Lean in CI (the 40 GB base image does
+  # not fit a hosted runner), but everything checkable without it is checked.
+  docker-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfiles (hadolint v2.12.0, errors only)
+        run: |
+          curl -sSL -o hadolint \
+            https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          chmod +x hadolint
+          ./hadolint --failure-threshold error Dockerfile Dockerfile.lean
+
+      - name: Validate docker-compose.yml (default and lean profile)
+        run: |
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.yml --profile lean config -q
+
+      - name: Build the webui stage of the engine image
+        run: docker build --target webui-builder -t aq-webui-check .
+
+  # V5.5.0 - the new parity tooling, run in isolation so a regression in
+  # the offline/live-parity measurements is named by the job that failed.
+  parity-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements-dev.txt
+
+      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
+      # CPU-only runner never uses. Installing the CPU build FIRST lets the
+      # requirements install below see torch as already satisfied.
+      - name: Install CPU-only PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+
+      - name: Backtest audit, as-live simulator, calibration and sleeve tests
+        run: >
+          pytest -q -p no:cacheprovider
+          tests/test_backtest_audit.py
+          tests/test_live_parity.py
+          tests/test_volatility_threshold_calibration.py
+          tests/test_legacy_sleeve.py
+          tests/test_performance_probe.py
+          tests/test_rank_book_simulator.py
+          tests/test_feature_parity.py
+
+      - name: Offline parity audit of feature replicas (synthetic, no data files needed)
+        run: python scripts/feature_parity_audit.py --synthetic-only
+
+  # V5.5.0 - ADVISORY until it has run once against the real history: a
+  # first scan may flag historic dev defaults that need an allowlist entry.
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan the working tree for secrets (gitleaks v8.18.4)
+        run: |
+          curl -sSL -o gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks detect --source . --no-git --no-banner --redact --exit-code 1
+
+  # V5.5.0 - WARN-ONLY: the README badge is rewritten by a local `aq test`,
+  # so it lags whenever a test is added in a commit that skipped it. This
+  # surfaces the drift without blocking anyone.
+  test-count-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/requirements-dev.txt
+
+      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
+      # CPU-only runner never uses. Installing the CPU build FIRST lets the
+      # requirements install below see torch as already satisfied.
+      - name: Install CPU-only PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+
+      - name: Compare the collected test count with the README badge
+        run: python scripts/check_test_count_drift.py

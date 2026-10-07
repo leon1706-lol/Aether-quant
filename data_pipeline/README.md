@@ -18,7 +18,16 @@ It does not replace `train.py`; it wraps and documents the existing dataset pipe
 - `factor_file_backfill.py` — Lean-format split/dividend **factor-file**
   backfill (the price-adjustment factors Lean reads alongside the price
   zips; the missing-factor-file class of data-quality issue behind
-  `development/Problems.md` #91/#97/#99).
+  `development/Problems.md` #91/#97/#99). **V5.5.0 (#130):** a zip written by
+  `yfinance_backfill.py` is already split- and dividend-adjusted, so it needs
+  **no** factor file (the contract described under *Two data-provenance
+  contracts* below) - the 63 files this module first generated double-adjusted
+  them. `--audit` (read-only, exit 1 on a finding) and
+  `--repair-adjusted-zips [--apply]` (REMOVES the files - a sentinel-only stub
+  makes Lean start the symbol's data in 2050 - originals backed up to
+  `data/equity/usa/factor_files_backup_pre_v550/`) fix and police that; generation now skips
+  backfill-written zips, which are fingerprinted by their float-formatted
+  volume column. Genuine QuantConnect zips (integer volume) keep their files.
 - `dividend_backfill.py` — real ex-dividend history via `yfinance`, with
   next-date projection from historical cadence; feeds
   `portfolio/options_assignment_risk.py`'s early-assignment scoring.
@@ -54,10 +63,24 @@ training or a backtest.
   configured windows, so a human must deliberately widen them for the extra
   history to actually affect training/backtesting.
 
-Usage: `python -m data_pipeline.yfinance_backfill [--tickers ETHUSD LTCUSD] [--apply]`.
+Usage: `python -m data_pipeline.yfinance_backfill [--tickers ETHUSD LTCUSD] [--apply] [--quotes]`.
 `yfinance` is a dev-only dependency (`requirements/requirements-dev.txt`),
 never in `requirements.txt` (the one requirements file the consolidated
 `aether-quant-engine` Docker image installs).
+
+- `--quotes` (V5.4.10, `development/Problems.md` #126): Lean's default crypto
+  subscription requests BOTH a trade and a quote feed, but this script (and
+  `train.py::ensure_derived_crypto_daily_series()`) only ever wrote
+  `*_trade.zip` — so a real Lean backtest's quote requests for every crypto
+  asset except BTC failed (34% of the 2026-08-27 run's data requests). The
+  2 actually-traded crypto (BTC/LTC) should carry a `_quote.zip`; the 10
+  `observation_only` watch-mode assets correctly stay quote-less.
+  `write_lean_crypto_quote_zip(trade_zip, quote_zip, ticker)` derives an
+  11-column bid/ask quote zip from an existing trade zip via the zero-spread
+  `synthesize_crypto_bid_ask_row()` (the crypto sibling of the forex
+  synthesis), preserving any pre-existing REAL bid/ask rows on merge. Run:
+  `python -m data_pipeline.yfinance_backfill --quotes --tickers LTCUSD --apply`
+  (or `aq backfill yfinance --quotes --tickers LTCUSD --apply`).
 
 ## Ad-hoc ticker fetch (`aq fetch`)
 

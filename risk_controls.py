@@ -167,6 +167,38 @@ def is_position_resize_permitted(
     return position_scaling_enabled and (not is_book_selected or is_rebalance_bar)
 
 
+def is_cooldown_exempt(signal_name: str, is_currently_invested: bool, is_forced_exit: bool = False) -> bool:
+    """V5.5.0 (Problems.md #128/#133) - a FORCED exit of an open position (the
+    book's rotation exit, or the max-holding / trailing-stop backstops) is
+    never blocked by trade_cooldown_bars: the cooldown exists to stop entry
+    whipsaw, and applied to those it held rotated-out book names ~14 days.
+
+    A plain legacy "sell" SIGNAL is NOT exempt. The first version exempted
+    every sell, and the legacy probability signal then flipped book and
+    sleeve positions out within a day: 230 of 355 trades in the 2026-10-07
+    backtest closed within 2 days (mean hold 5.8 days vs 39 before), 6-7 bps
+    of fees each way for nothing. The cooldown is what rate-limits that
+    noisy signal, so it keeps doing so."""
+    return signal_name == "sell" and bool(is_currently_invested) and bool(is_forced_exit)
+
+
+def projected_signed_quantity(held_quantity: float, open_order_quantity: float) -> float:
+    """V5.5.0 (Problems.md #128) - the position size AFTER every in-flight
+    order fills: held + open (signed, remaining) order quantity. Sizing off
+    held quantity alone re-submitted the same target on every tick until
+    the first order filled (forex is evaluated on both the equity-session
+    and the forex-session tick), stacking up to 60% short. Non-finite
+    inputs count as 0.0."""
+    def _finite(value: float) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return number if number == number and abs(number) != float("inf") else 0.0
+
+    return _finite(held_quantity) + _finite(open_order_quantity)
+
+
 def should_lock_in_duration_beta(
     window_length: int,
     treasury_window_length: int,
@@ -344,8 +376,33 @@ def compute_position_exit_tracking_update(
     peak_price_since_entry: float | None,
     direction: str | None,
     bar_index: int,
+    has_entry_state: bool = True,
+    held_quantity: float | None = None,
+    average_entry_price: float | None = None,
+    clear_stale_state: bool = False,
 ) -> dict:
     """V4.10 - pure extraction of main.py::_update_position_exit_tracking().
+
+    V5.5.0 (Problems.md #134): the closing fill also lands on the NEXT bar, so
+    the invested -> flat transition is likewise never observed here and the
+    entry state of a closed position stayed behind. The symbol's next entry
+    was then ADOPTED never (state "exists"), inherited the old entry bar and
+    peak, and was force-sold for `max_holding_age_exceeded` / the trailing stop
+    the day after it filled: 154 of the 196 re-entries in the 2026-10-07
+    backtest lasted under 2 days (all 44 first entries were fine). With
+    `clear_stale_state=True`, a flat symbol that is still carrying entry state
+    returns {"action": "clear"}. Default False keeps the pre-fix behavior.
+
+    V5.5.0 (Problems.md #128): a daily market/limit order fills on the NEXT
+    bar, so the was-flat -> is-invested transition this function keys on is
+    never observed inside a single Pass 2 iteration - the position just
+    appears already-held one bar later. Without adoption, no entry state was
+    ever recorded: max_holding_bars never fired, shorts defaulted to a
+    "long" trailing stop (inverted), and peaks never reset between holdings.
+    With `has_entry_state=False` and an invested+was_invested symbol, the
+    position is ADOPTED as a fresh entry here, direction taken from the real
+    held_quantity sign and entry price from average_entry_price when given.
+    Defaults (has_entry_state=True) reproduce the pre-V5.5.0 behavior.
     Observes the net invested/not-invested transition (was_invested vs.
     is_invested) rather than hooking into any asset-class-specific
     routing - robust to every routing path by construction, since it only
@@ -371,6 +428,26 @@ def compute_position_exit_tracking_update(
             "direction": "short" if signal_name == "short" else "long",
         }
 
+    if is_invested and was_invested and not has_entry_state:
+        if held_quantity is not None and held_quantity < 0:
+            adopted_direction = "short"
+        elif held_quantity is not None and held_quantity > 0:
+            adopted_direction = "long"
+        else:
+            adopted_direction = "short" if signal_name == "short" else "long"
+        adopted_price = (
+            float(average_entry_price)
+            if average_entry_price is not None and average_entry_price == average_entry_price and average_entry_price > 0
+            else close_price
+        )
+        return {
+            "action": "enter",
+            "entry_bar_index": bar_index,
+            "entry_price": adopted_price,
+            "peak_price_since_entry": adopted_price,
+            "direction": adopted_direction,
+        }
+
     if is_invested and was_invested:
         resolved_direction = direction or "long"
         peak_price = peak_price_since_entry if peak_price_since_entry is not None else close_price
@@ -380,7 +457,7 @@ def compute_position_exit_tracking_update(
             new_peak_price = min(peak_price, close_price)
         return {"action": "hold", "peak_price_since_entry": new_peak_price}
 
-    if not is_invested and was_invested:
+    if not is_invested and (was_invested or (clear_stale_state and has_entry_state)):
         return {"action": "clear"}
 
     return {"action": "noop"}

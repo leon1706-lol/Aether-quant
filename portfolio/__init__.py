@@ -2,13 +2,19 @@
 
 from .book_construction import (
     BookAllocation,
+    apply_book_weight_floor,
     apply_hrp_weights,
     build_book_history_record,
+    build_book_raw_weights,
     build_rank_based_book,
+    is_rotation_exit_candidate,
     normalize_per_asset_class_slots,
     pct_returns_from_closes,
+    remember_formed_book,
     should_exit_non_selected_book_symbol,
+    should_hold_owned_position_on_veto,
     should_rebalance_this_bar,
+    update_book_owned_symbols,
 )
 from .book_neutrality import apply_book_neutrality
 from .options_strategy import (
@@ -26,16 +32,22 @@ __all__ = [
     "BookAllocation",
     "OptionsPositionDecision",
     "apply_book_neutrality",
+    "apply_book_weight_floor",
     "apply_hrp_weights",
     "build_book_history_record",
+    "build_book_raw_weights",
     "build_options_position_sizing",
     "build_rank_based_book",
     "cross_sectional_rank_scores",
+    "is_rotation_exit_candidate",
     "normalize_per_asset_class_slots",
     "pct_returns_from_closes",
+    "remember_formed_book",
     "resolve_rank_signal_policy",
     "select_raw_rank_score",
     "select_single_leg_contract",
     "should_exit_non_selected_book_symbol",
+    "should_hold_owned_position_on_veto",
     "should_rebalance_this_bar",
+    "update_book_owned_symbols",
 ]

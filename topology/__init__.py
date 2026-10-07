@@ -8,6 +8,7 @@ from .market_topology import (
     TopologyLink,
     TopologyNode,
     build_market_topology,
+    resolve_elevated_volatility_thresholds,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "apply_learned_topology",
     "liquidity_score_from_decision",
     "ELEVATED_VOLATILITY_THRESHOLD",
+    "resolve_elevated_volatility_thresholds",
 ]

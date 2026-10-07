@@ -107,6 +107,23 @@ reads `self.latest_liquidity_slippage_bps` (refreshed every bar in
 call site passes `resolve_slippage_bps(...)` so real and simulated fills
 charge the identical estimate.
 
+### V5.5.0 additions to `order_gate.py`
+
+- `resolve_pending_order_action(existing, is_buy, bar_index, timeout_bars)` -
+  `submit` / `keep` / `cancel_replace`. One order per symbol: an in-flight order in the
+  same direction is kept (its original `submitted_bar` keeps the timeout clock), an
+  opposite or timed-out one is cancelled and replaced. Re-submitting every bar and
+  overwriting the record orphaned the old ticket (AMZN: 3 fills, 689 shares).
+- `should_skip_for_open_order(open_qty, has_tracked_pending_limit)` - an *untracked*
+  order is already working (the market fallback the timeout sweep just sent), so no
+  second entry is stacked on it (`order_already_open`); 26 market+limit pairs in the
+  2026-10-07 run, several of which both filled (Problems #133).
+- `liquidity_cost_fraction(payload, "per_side")` - half the round-trip estimate, the
+  one-fill cost; `phase_v2.liquidity.fill_slippage.source` is now `per_side`.
+- `compute_fill_slippage_divergence_bps(fill, reference, expected_cost_bps)` - realized
+  minus expected, None on unusable input; `main.py` passes the **fill bar's open** and
+  half the expected round trip (the prior close made it the overnight gap).
+
 ## Real limit orders
 
 Config-gated alternative to market orders (`phase_v2.limit_orders.enabled`):

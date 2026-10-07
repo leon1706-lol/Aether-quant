@@ -16,8 +16,14 @@ from dataclasses import asdict, dataclass, field, replace
 import numpy as np
 import pandas as pd
 
-from portfolio.book_construction import BookAllocation, build_rank_based_book
+from portfolio.book_construction import (
+    BookAllocation,
+    build_book_raw_weights,
+    build_rank_based_book,
+    remember_formed_book,
+)
 from portfolio.book_neutrality import apply_book_neutrality
+from portfolio.rank_signal import cross_sectional_rank_scores
 
 DEFAULT_SECTOR_MAX_NET_WEIGHT = 0.05
 
@@ -37,6 +43,9 @@ class RankBookSimulationResult:
     mean_names_short: float
     per_date_net_return: list = field(default_factory=list)
     per_date: list = field(default_factory=list)
+    # V5.5.0 (as-live mode) - 0 / {} in the idealized default run.
+    num_vetoed_rebalances: int = 0
+    veto_reasons: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -98,6 +107,15 @@ def _simulate_rank_book_core(
     min_commission_usd: float = 0.0,
     assumed_portfolio_value_usd: float = 0.0,
     impact_model_config: dict | None = None,
+    candidate_metadata_by_ticker: dict[str, dict] | None = None,
+    normalize_to_percentile: bool = False,
+    min_rank_confidence_spread: float = 0.0,
+    rolling_ic_gate_fn=None,
+    live_weighting: bool = False,
+    max_position_weight: float = 0.25,
+    hold_positions_on_veto: bool = False,
+    retry_rebalance_after_veto: bool = False,
+    max_holding_dates: int | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -150,8 +168,39 @@ def _simulate_rank_book_core(
     approximation (uniform order size, fixed NAV across the whole run),
     not a precision claim, same "honestly-approximate" convention
     capacity_curve()'s own docstring uses. Only applied on rebalance
-    dates, charged once per name whose weight actually changed."""
+    dates, charged once per name whose weight actually changed.
+
+    AS-LIVE MODE (V5.5.0, Problems.md #128) - the nine trailing keyword
+    arguments above all default to the idealized behavior this function
+    always had; `evaluation.live_parity.build_as_live_kwargs()` sets them to
+    mirror main.py's live path (parity rule, AGENTS.md):
+    - `normalize_to_percentile`: candidates are ranked by per-date
+      cross-sectional percentile (what live hands the book), so the
+      hysteresis margin means percentile points as live; the spread gate
+      keeps seeing RAW scores (portfolio/book_construction.py contract).
+    - `min_rank_confidence_spread` / `rolling_ic_gate_fn`: the two live
+      vetoes (the gate fn maps a date string to evaluate_rolling_ic_gate()'s
+      result dict, or None for "no opinion").
+    - `candidate_metadata_by_ticker`: real `trading_eligible`/`asset_class`
+      instead of forcing True/None.
+    - `live_weighting`: build_book_raw_weights() confidence weights instead
+      of equal weights (both feed apply_book_neutrality()).
+    - `hold_positions_on_veto`: a vetoed rebalance HOLDS the existing book
+      (live never liquidates on a veto - should_exit_non_selected_book_symbol)
+      instead of flattening it; `retry_rebalance_after_veto` re-attempts on
+      the next date as live does (its has_previous_allocation reads False).
+    - `max_holding_dates`: live's `exits.max_holding_bars` age exit.
+    - hysteresis anchors on the last NON-EMPTY book (remember_formed_book()),
+      which a veto never erases.
+    """
     sector_by_ticker = sector_by_ticker or {}
+    candidate_metadata_by_ticker = candidate_metadata_by_ticker or {}
+    as_live = bool(hold_positions_on_veto)
+    formed_book: dict[str, BookAllocation] = {}
+    last_rebalance_vetoed = False
+    num_vetoed_rebalances = 0
+    veto_reasons: dict[str, int] = {}
+    entry_date_index_by_ticker: dict[str, int] = {}
     working = frame.dropna(subset=[prediction_column]).copy()
     unique_dates = sorted(working[date_column].unique())
 
@@ -184,15 +233,50 @@ def _simulate_rank_book_core(
             continue
 
         is_rebalance = (rebalance_counter % max(1, rebalance_every_bars)) == 0
+        if retry_rebalance_after_veto and last_rebalance_vetoed:
+            is_rebalance = True
         rebalance_counter += 1
         cost_this_date = 0.0
 
+        # V5.5.0 - live's `exits.max_holding_bars` age exit (as-live only).
+        if max_holding_dates is not None and held_weights:
+            date_index = rebalance_counter - 1
+            expired = [
+                symbol
+                for symbol in held_weights
+                if date_index - entry_date_index_by_ticker.get(symbol, date_index) >= max_holding_dates
+            ]
+            if expired:
+                cost_this_date += (
+                    sum(abs(held_weights[symbol]) for symbol in expired) * (cost_bps_per_side + commission_bps) / 1e4
+                )
+                total_turnover += sum(abs(held_weights[symbol]) for symbol in expired)
+                held_weights = {symbol: weight for symbol, weight in held_weights.items() if symbol not in expired}
+                held_allocations = {
+                    symbol: allocation for symbol, allocation in held_allocations.items() if symbol not in expired
+                }
+                for symbol in expired:
+                    entry_date_index_by_ticker.pop(symbol, None)
+
         if is_rebalance:
-            book_candidates = {
-                str(ticker): {"predicted_rank_20d": float(rank), "trading_eligible": True, "asset_class": None}
-                for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
+            raw_scores_by_ticker = {
+                str(ticker): float(rank) for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
             }
-            # min_rank_confidence_spread=0.0 is DELIBERATE, not an
+            candidate_ranks = (
+                cross_sectional_rank_scores(raw_scores_by_ticker) if normalize_to_percentile else raw_scores_by_ticker
+            )
+            book_candidates = {
+                ticker: {
+                    "predicted_rank_20d": float(rank),
+                    "trading_eligible": bool(candidate_metadata_by_ticker.get(ticker, {}).get("trading_eligible", True)),
+                    "asset_class": candidate_metadata_by_ticker.get(ticker, {}).get("asset_class"),
+                }
+                for ticker, rank in candidate_ranks.items()
+            }
+            gate_result = rolling_ic_gate_fn(str(date)) if rolling_ic_gate_fn is not None else None
+            veto_reason_out: dict[str, str] = {}
+            # min_rank_confidence_spread defaults to 0.0 DELIBERATELY (as-live
+            # mode passes the live gate value instead), not an
             # oversight: this simulator measures book QUALITY (what would
             # this rank prediction have earned, net of costs) uncapped by
             # the live entry gate's conviction filter - those are two
@@ -209,21 +293,37 @@ def _simulate_rank_book_core(
                 book_candidates,
                 top_n=top_n,
                 bottom_n=bottom_n,
-                min_rank_confidence_spread=0.0,
-                previous_allocations=held_allocations or None,
+                min_rank_confidence_spread=min_rank_confidence_spread,
+                previous_allocations=(formed_book if as_live else held_allocations) or None,
                 hysteresis_rank_margin=hysteresis_rank_margin,
+                spread_check_ranks=raw_scores_by_ticker if normalize_to_percentile else None,
+                rolling_ic_gate_result=gate_result,
+                veto_reason_out=veto_reason_out,
             )
+            last_rebalance_vetoed = not allocations
+            if not allocations:
+                num_vetoed_rebalances += 1
+                veto_key = veto_reason_out.get("reason", "empty_book")
+                veto_reasons[veto_key] = veto_reasons.get(veto_key, 0) + 1
+            formed_book = remember_formed_book(formed_book, allocations)
 
-            if allocations:
+            if not allocations and hold_positions_on_veto:
+                # Live parity: a vetoed rebalance leaves the existing book
+                # untouched (no turnover, no cost, no new positions).
+                new_weights = dict(held_weights)
+            elif allocations:
                 long_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "long"]
                 short_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "short"]
                 raw_weights: dict[str, float] = {}
-                if long_symbols:
-                    per_name = (gross_exposure / 2.0) / len(long_symbols)
-                    raw_weights.update({symbol: per_name for symbol in long_symbols})
-                if short_symbols:
-                    per_name = (gross_exposure / 2.0) / len(short_symbols)
-                    raw_weights.update({symbol: -per_name for symbol in short_symbols})
+                if live_weighting:
+                    raw_weights = build_book_raw_weights(allocations, max_position_weight)
+                else:
+                    if long_symbols:
+                        per_name = (gross_exposure / 2.0) / len(long_symbols)
+                        raw_weights.update({symbol: per_name for symbol in long_symbols})
+                    if short_symbols:
+                        per_name = (gross_exposure / 2.0) / len(short_symbols)
+                        raw_weights.update({symbol: -per_name for symbol in short_symbols})
 
                 new_weights, _diagnostics = apply_book_neutrality(
                     raw_weights,
@@ -241,6 +341,13 @@ def _simulate_rank_book_core(
             else:
                 new_weights = {}
                 held_allocations = {}
+
+            for symbol in new_weights:
+                if symbol not in held_weights:
+                    entry_date_index_by_ticker[symbol] = rebalance_counter - 1
+            for symbol in list(entry_date_index_by_ticker):
+                if symbol not in new_weights:
+                    entry_date_index_by_ticker.pop(symbol, None)
 
             all_symbols = set(new_weights) | set(held_weights)
             deltas_by_symbol = {
@@ -331,6 +438,8 @@ def _simulate_rank_book_core(
         mean_names_short=float(np.mean(names_short_series)) if names_short_series else 0.0,
         per_date_net_return=[float(value) for value in net_returns],
         per_date=per_date_used,
+        num_vetoed_rebalances=num_vetoed_rebalances,
+        veto_reasons=dict(sorted(veto_reasons.items())),
     )
     return result, held_days_by_ticker
 

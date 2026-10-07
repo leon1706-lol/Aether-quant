@@ -202,7 +202,10 @@ def build_market_analysis_decision(
     liquidity_considered = bool(liquidity)
     liquidity_action = str(liquidity.get("recommended_action", "allow")) if liquidity_considered else "allow"
     if topology_considered:
-        reasons.append(f"topology_state={topology.get('state', 'unknown')}")
+        # V5.5.0 (Problems.md #128): the topology node payload carries
+        # "topology_risk", never "state" - every book decision logged
+        # topology_state=unknown. Fall back to it so the reason is real.
+        reasons.append(f"topology_state={topology.get('state') or topology_risk}")
     else:
         reasons.append("topology_absent_v2_11_pending")
 

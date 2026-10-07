@@ -299,6 +299,123 @@ def write_lean_forex_zip(output_zip: Path, ticker: str, new_ohlcv_rows: list[dic
 
 
 # ---------------------------------------------------------------------------
+# V5.4.10 — crypto sibling of the forex synthesis above. Lean's crypto daily
+# subscription adds BOTH a trade and a quote feed (the quote is used by
+# Lean's default fill-path bookkeeping), so a real LEAN backtest requests
+# `data/crypto/coinbase/daily/<ticker>_quote.zip` even though this
+# algorithm's own logic only ever consumes TRADE bars for crypto (main.py
+# only reads Slice.quote_bars for forex — see on_data()/V4.6). The pipeline
+# only ever generated *_trade.zip, so every non-BTC crypto asset's quote
+# request failed (BTC's quote zip had been produced by an external manual
+# step with real bid/ask). Functionally benign — Lean falls back to trade
+# data and fills are already governed by main.py's own slippage model — but
+# it left traded assets (LTCUSD) with a permanently failing quote
+# subscription in the data-monitor report. Like the forex synthesize path
+# (development/Problems.md #66), Yahoo gives no genuine bid/ask for
+# crypto, so this is an honest, documented ZERO-SPREAD APPROXIMATION -
+# bid and ask mirror the trade OHLC (never a live spread feed), trade
+# volume is carried into both volume columns to satisfy Lean's 11-field
+# crypto quote CSV shape (confirmed against btcusd_quote.zip).
+# ---------------------------------------------------------------------------
+
+
+def synthesize_crypto_bid_ask_row(row: dict) -> dict:
+    """Yahoo Finance crypto data is trade OHLCV only, no genuine bid/ask —
+    documented ZERO-SPREAD APPROXIMATION for backtest data-completeness only
+    (this algorithm never reads crypto quote bars; see the block comment
+    above). Duplicates trade OHLC into both bid and ask groups, carries the
+    trade volume into both volume columns — matches Lean's real crypto
+    quote CSV shape (data/crypto/coinbase/daily/btcusd_quote.zip), no fake
+    spread invented.""" 
+    return {
+        "date": row["date"],
+        "bid_open": row["open"], "bid_high": row["high"],
+        "bid_low": row["low"], "bid_close": row["close"],
+        "bid_volume": row["volume"],
+        "ask_open": row["open"], "ask_high": row["high"],
+        "ask_low": row["low"], "ask_close": row["close"],
+        "ask_volume": row["volume"],
+    }
+
+
+def crypto_rows_to_lean_csv(rows: list[dict]) -> str:
+    """11-column bid/ask Lean crypto daily CSV — the crypto sibling of
+    forex_rows_to_lean_csv(). Rows already carry all 10 value fields (see
+    synthesize_crypto_bid_ask_row()); this only formats and sorts, never
+    synthesizes."""
+    ordered = sorted(rows, key=lambda row: row["date"])
+    lines = [
+        f"{row['date'].strftime('%Y%m%d')} 00:00,"
+        f"{row['bid_open']},{row['bid_high']},{row['bid_low']},{row['bid_close']},{row['bid_volume']},"
+        f"{row['ask_open']},{row['ask_high']},{row['ask_low']},{row['ask_close']},{row['ask_volume']}"
+        for row in ordered
+    ]
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def _read_existing_lean_crypto_quote_rows(path: Path) -> list[dict]:
+    """Crypto sibling of _read_existing_lean_forex_rows() — 11-field split
+    (date + 10 bid/ask values), preserves whatever is already stored."""
+    rows: list[dict] = []
+    with ZipFile(path) as archive:
+        member = archive.namelist()[0]
+        with archive.open(member) as handle:
+            text = handle.read().decode("utf-8")
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        (
+            date_field, bid_open, bid_high, bid_low, bid_close, bid_volume,
+            ask_open, ask_high, ask_low, ask_close, ask_volume,
+        ) = line.split(",")
+        row_date = datetime.strptime(date_field.split()[0], "%Y%m%d").date()
+        rows.append(
+            {
+                "date": row_date,
+                "bid_open": _numeric(bid_open), "bid_high": _numeric(bid_high),
+                "bid_low": _numeric(bid_low), "bid_close": _numeric(bid_close),
+                "bid_volume": _numeric(bid_volume),
+                "ask_open": _numeric(ask_open), "ask_high": _numeric(ask_high),
+                "ask_low": _numeric(ask_low), "ask_close": _numeric(ask_close),
+                "ask_volume": _numeric(ask_volume),
+            }
+        )
+    return rows
+
+
+def write_lean_crypto_quote_zip(
+    trade_zip: Path, quote_zip: Path, ticker: str, *, merge_with_existing: bool = True
+) -> int:
+    """Derives a Lean crypto QUOTE zip from an existing TRADE zip — the
+    data-completeness fix for the missing *_quote.zip files (see block
+    comment above). Reads the trade zip's OHLCV rows via
+    _read_existing_lean_rows(), synthesizes each into a zero-spread bid/ask
+    row, merges by date against an existing quote zip if present (existing
+    REAL rows always win — same convention as write_lean_zip()), writes via
+    crypto_rows_to_lean_csv(). Returns the number of rows written. Raises
+    FileNotFoundError if the trade zip is absent."""
+    if not trade_zip.exists():
+        raise FileNotFoundError(f"trade zip not found: {trade_zip}")
+
+    trade_rows = _read_existing_lean_rows(trade_zip)
+
+    merged_by_date: dict[date, dict] = {}
+    if merge_with_existing and quote_zip.exists():
+        for row in _read_existing_lean_crypto_quote_rows(quote_zip):
+            merged_by_date[row["date"]] = row
+    for row in trade_rows:
+        merged_by_date.setdefault(row["date"], synthesize_crypto_bid_ask_row(row))
+
+    csv_text = crypto_rows_to_lean_csv(list(merged_by_date.values()))
+
+    quote_zip.parent.mkdir(parents=True, exist_ok=True)
+    member_name = f"{ticker.lower()}.csv"
+    with ZipFile(quote_zip, "w") as archive:
+        archive.writestr(member_name, csv_text)
+    return len(merged_by_date)
+
+
+# ---------------------------------------------------------------------------
 # The only function that imports yfinance — deferred, mirrors
 # experience/redis_queue.py's deferred `import redis`.
 # ---------------------------------------------------------------------------
@@ -469,10 +586,45 @@ def main() -> None:
     parser.add_argument("--tickers", nargs="*", default=None, help="Restrict to these tickers (default: all assets with a 'backfill' block)")
     parser.add_argument("--apply", action="store_true", help="Actually write zip files (default: dry run, report only)")
     parser.add_argument("--config-path", type=Path, default=CONFIG_PATH)
+    parser.add_argument(
+        "--quotes",
+        action="store_true",
+        help="Crypto only: derive missing *_quote.zip files from each crypto "
+        "asset's existing *_trade.zip (zero-spread synthesis — see "
+        "write_lean_crypto_quote_zip()). --apply writes the zips, "
+        "otherwise a dry run.",
+    )
     args = parser.parse_args()
 
     with args.config_path.open("r", encoding="utf-8") as f:
         config = json.load(f)
+
+    if args.quotes:
+        crypto_assets = [
+            asset
+            for asset in config["phase1"]["universe"]["assets"]
+            if asset.get("security_type") == "crypto"
+            and (not args.tickers or asset["ticker"] in args.tickers)
+        ]
+        if not crypto_assets:
+            print("No crypto assets found (nothing to do).")
+            return
+        print(f"{'APPLY' if args.apply else 'DRY RUN'} — crypto quote-zip synthesis:\n")
+        for asset in crypto_assets:
+            trade_path = ROOT / asset["data_path"]
+            quote_path = trade_path.with_name(trade_path.name.replace("_trade.zip", "_quote.zip"))
+            if not trade_path.exists():
+                print(f"- {asset['ticker']}: SKIPPED (trade zip missing: {trade_path})")
+                continue
+            if not args.apply:
+                exists = "exists (would merge)" if quote_path.exists() else "missing (would create)"
+                print(f"- {asset['ticker']}: dry_run, quote={exists}")
+                continue
+            rows = write_lean_crypto_quote_zip(trade_path, quote_path, asset["ticker"])
+            print(f"- {asset['ticker']}: written {rows} row(s) -> {quote_path.name}")
+        if not args.apply:
+            print("\nDry run only — no files were written. Re-run with --apply to write zip files.")
+        return
 
     plan = plan_backfill(config, tickers=args.tickers)
     if not plan:

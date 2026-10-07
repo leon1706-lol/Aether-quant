@@ -61,8 +61,19 @@ aq = "aq_cli:main"
 # `evaluation` -> `portfolio` (rank_book_simulator),
 # `inference` (model_predictions), `analyzer` (confidence_threshold_
 # calibration -> market_analyzer).
-py-modules = ["aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety"]
-packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer"]
+# V5.5.0: `monitoring` (aq assets), `topology` (aq evaluate
+# --calibrate-volatility-threshold), `liquidity`
+# (evaluation/feature_parity.py) and `experience`
+# (execution/paper_readiness_report.py) added - the same
+# ModuleNotFoundError-on-a-real-wheel class, found by
+# tests/test_packaging_modules.py, which now fails any shipped file that
+# imports a first-party module this list omits. `performance_probe`
+# ships because main.py and the wheel-smoke job both import it, and
+# `risk_controls` because evaluation/kill_switch_replay.py imports it (found
+# by scripts/wheel_smoke.py against a real built wheel - `aq evaluate
+# --replay-kill-switch` raised ModuleNotFoundError for wheel users).
+py-modules = ["aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls"]
+packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer", "monitoring", "topology", "liquidity", "experience"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

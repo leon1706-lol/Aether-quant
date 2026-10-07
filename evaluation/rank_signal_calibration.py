@@ -176,6 +176,13 @@ def _build_reconciliation_result(
     the full field-by-field contract this returns (unchanged by this
     refactor)."""
     logged_allocations = logged_record.get("allocations", {})
+    # V5.5.0 (Problems.md #128) - an EMPTY logged book means live VETOED the
+    # rebalance (spread/rolling-IC gate: `gate_veto_reason`), not "selected
+    # nothing". Offline selects a book regardless (no gates here), so the
+    # diff on such a date would read as 0% overlap and inflate every
+    # only-offline count - the "overlap erosion" #94 chased was partly this.
+    # Such dates are flagged and excluded from the match statistics.
+    live_vetoed = not logged_allocations
     logged_long = {symbol for symbol, entry in logged_allocations.items() if entry.get("role") == "long"}
     logged_short = {symbol for symbol, entry in logged_allocations.items() if entry.get("role") == "short"}
 
@@ -230,8 +237,10 @@ def _build_reconciliation_result(
         "symbols_only_logged": symbols_only_logged,
         "symbols_only_offline": symbols_only_offline,
         "role_mismatches": role_mismatches,
-        "overlap_fraction": overlap_fraction,
+        "overlap_fraction": None if live_vetoed else overlap_fraction,
         "per_symbol_deltas": per_symbol_deltas,
+        "live_vetoed": live_vetoed,
+        "gate_veto_reason": logged_record.get("gate_veto_reason") if live_vetoed else None,
     }
 
 
@@ -318,6 +327,7 @@ def replay_book_history_reconciliation(
     top_n: int,
     bottom_n: int,
     hysteresis_rank_margin: float = 0.0,
+    hysteresis_survives_veto: bool = False,
 ) -> list[dict]:
     """V5.2.3 (development/Problems.md #91) - the hysteresis-aware
     alternative to calling `reconcile_book_history_date()` independently
@@ -404,7 +414,17 @@ def replay_book_history_reconciliation(
             hysteresis_rank_margin=hysteresis_rank_margin,
         )
         results.append(_build_reconciliation_result(logged_record, offline_allocations, raw_scores_by_symbol))
-        held_allocations = offline_allocations
+
+        # V5.5.0 (Problems.md #128) - live's hysteresis memory across a veto. A date live
+        # VETOED formed no book there, so offline's own selection for that date must not
+        # become the next date's anchor (offline has no gates and selects regardless):
+        #   - before V5.5.0 a veto WIPED main.py's _last_book_allocations -> reset (default);
+        #   - from V5.5.0 the last formed book survives -> keep the previous anchor untouched
+        #     (hysteresis_survives_veto=True).
+        if logged_record.get("allocations"):
+            held_allocations = offline_allocations
+        elif not hysteresis_survives_veto:
+            held_allocations = {}
 
     return results
 
@@ -425,6 +445,9 @@ def summarize_book_history_reconciliation(per_date_results: list[dict]) -> dict:
     if num_dates == 0:
         return {
             "num_dates": 0,
+            "num_dates_live_vetoed": 0,
+            "num_dates_compared": 0,
+            "live_veto_reasons": {},
             "num_dates_exact_match": 0,
             "mean_overlap_fraction": None,
             "mean_raw_score_delta_abs": None,
@@ -433,6 +456,16 @@ def summarize_book_history_reconciliation(per_date_results: list[dict]) -> dict:
             "num_symbols_only_logged_total": 0,
             "num_symbols_only_offline_total": 0,
         }
+
+    # V5.5.0: a live-vetoed date has no live selection to compare against, so it
+    # is reported separately and kept out of every match statistic below.
+    vetoed_results = [result for result in per_date_results if result.get("live_vetoed")]
+    live_veto_reasons: dict[str, int] = {}
+    for result in vetoed_results:
+        reason = result.get("gate_veto_reason") or "unknown"
+        live_veto_reasons[reason] = live_veto_reasons.get(reason, 0) + 1
+    all_results = per_date_results
+    per_date_results = [result for result in per_date_results if not result.get("live_vetoed")]
 
     num_dates_exact_match = sum(
         1
@@ -459,7 +492,10 @@ def summarize_book_history_reconciliation(per_date_results: list[dict]) -> dict:
     )
 
     return {
-        "num_dates": num_dates,
+        "num_dates": len(all_results),
+        "num_dates_live_vetoed": len(vetoed_results),
+        "num_dates_compared": len(per_date_results),
+        "live_veto_reasons": dict(sorted(live_veto_reasons.items())),
         "num_dates_exact_match": num_dates_exact_match,
         "mean_overlap_fraction": float(np.mean(overlap_fractions)) if overlap_fractions else None,
         "mean_raw_score_delta_abs": float(np.mean(raw_score_deltas)) if raw_score_deltas else None,

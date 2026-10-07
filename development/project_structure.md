@@ -15,7 +15,7 @@ description and a link to each package's own README, is in the root README's
 aether-quant/
 ├── .devcontainer/                 # Codespaces / Dev Container definition (+ README)
 ├── .githooks/                     # Opt-in pre-commit secret-scan hook (+ README)
-├── .github/                       # CI workflows (tests, webui build, release)
+├── .github/                       # CI workflows (tests, guards, wheel smoke, webui build, release) + Dependabot
 ├── development/                   # Architecture docs, changelog, problems log, backtest chart
 ├── data/                        # Local Lean data folder (equities, crypto, bonds, Forex)
 ├── data_pipeline/                # Lean-data contract + Yahoo Finance / FRED (bond + alt-data) / IB historical backfill
@@ -23,8 +23,8 @@ aether-quant/
 ├── moe/                         # Mixture-of-Experts gating network
 ├── experts/                     # Bullish / bearish / sideways / volatility expert models
 ├── features/                    # Shared feature-computation functions (train.py + main.py parity)
-├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation)
-├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing
+├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation) + V5.5.0 as-live parity, backtest audit, volatility calibration
+├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing + V5.5.0 legacy-signal sleeve
 ├── regime/                      # Market regime detection
 ├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
 ├── liquidity/                   # Liquidity / market-impact engine
@@ -42,7 +42,7 @@ aether-quant/
 ├── webui/                       # React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing)
 ├── ml/                          # Model weights, datasets, versioned retraining candidates
 ├── storage/                     # Reserved for future persistent artifact storage
-├── scripts/                     # Standalone dev tooling (e.g. profile_inference.py)
+├── scripts/                     # Standalone dev tooling (profile_inference.py, wheel_smoke.py, check_test_count_drift.py, feature_parity_audit.py)
 ├── requirements/                # All requirements*.txt variants
 ├── tests/                       # Full pytest suite (one file per source module)
 ├── backtests/                   # Lean backtest run outputs (gitignored)
@@ -57,7 +57,9 @@ aether-quant/
 ├── train_strategy_selector.py   # Offline trainer for the options strategy-selector model (dormant until options trade)
 ├── generate_backtest_report.py  # Regenerates the README's Backtest Results section
 ├── generate_evaluation_report.py # Regenerates the README's evaluation sections (Monte Carlo chart, benchmarks, ...)
-├── risk_controls.py             # Pure position-scaling / exit-tracking / forex-units helpers
+├── risk_controls.py             # Pure position-scaling / exit-tracking / forex-units helpers (+ V5.5.0 cooldown exemption, pending-quantity projection, exit adoption)
+├── performance_probe.py         # V5.5.0 stdlib-only timing probe + Lean teardown diagnostics/cleanup experiment
+├── todo.md                      # Owner's live objectives canvas (read first; rewritten as objectives change)
 ├── aq_cli.py                    # `aq` convenience CLI
 ├── config.json                  # Runtime configuration (phase1 / phase_v2 blocks)
 ├── lean.json                    # Lean engine + brokerage configuration

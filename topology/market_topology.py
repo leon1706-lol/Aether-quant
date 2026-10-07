@@ -13,6 +13,44 @@ import numpy as np
 
 ANNUALIZATION_FACTOR = math.sqrt(252)
 ELEVATED_VOLATILITY_THRESHOLD = 0.45
+
+
+def resolve_elevated_volatility_thresholds(
+    raw_threshold: float | dict | None,
+    asset_class_by_symbol: dict[str, str | None],
+) -> tuple[float, dict[str, float]]:
+    """V5.5.0 (Problems.md #129) - normalize `phase_v2.topology.elevated_volatility_threshold`.
+
+    Accepts the legacy bare float (one cutoff for everyone - unchanged
+    behavior) or a dict like {"default": 0.45, "crypto": 1.2} keyed by
+    asset class. Returns (default_threshold, {symbol: threshold}) where the
+    per-symbol map only holds symbols whose class has its own entry.
+    Malformed/non-finite/non-positive entries are ignored, never raised on.
+    """
+    def _valid(value) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) and number > 0.0 else None
+
+    if not isinstance(raw_threshold, dict):
+        scalar = _valid(raw_threshold)
+        return (scalar if scalar is not None else ELEVATED_VOLATILITY_THRESHOLD), {}
+
+    default_value = _valid(raw_threshold.get("default"))
+    default_threshold = default_value if default_value is not None else ELEVATED_VOLATILITY_THRESHOLD
+    by_class = {
+        str(asset_class): threshold
+        for asset_class, value in raw_threshold.items()
+        if asset_class != "default" and (threshold := _valid(value)) is not None
+    }
+    by_symbol = {
+        symbol: by_class[asset_class]
+        for symbol, asset_class in asset_class_by_symbol.items()
+        if asset_class is not None and asset_class in by_class
+    }
+    return default_threshold, by_symbol
 NEUTRAL_DIMENSIONS = {"width": 100, "height": 100, "depth": 1}
 EMBEDDING_CENTER = 50.0
 EMBEDDING_MAX_RADIUS = 42.0
@@ -366,6 +404,7 @@ def build_market_topology(
     correlation_change_history: list[float] | None = None,
     correlation_change_history_max_len: int = 50,
     elevated_volatility_threshold: float = ELEVATED_VOLATILITY_THRESHOLD,
+    elevated_volatility_threshold_by_symbol: dict[str, float] | None = None,
 ) -> MarketTopology:
     """`embedding_dimensions` (V4-W3, `phase_v2.topology.embedding_dimensions`,
     default 2) selects how many axes SMACOF embeds. At 2 - the default -
@@ -402,7 +441,15 @@ def build_market_topology(
     Threaded through (not just a bare module constant) so main.py can
     raise it to a value derived from this backtest universe's own real
     historical volatility_pressure distribution, narrowing the override
-    to genuinely extreme readings instead of a fixed, ungrounded 0.45."""
+    to genuinely extreme readings instead of a fixed, ungrounded 0.45.
+
+    `elevated_volatility_threshold_by_symbol` (V5.5.0, Problems.md #129,
+    default None = every symbol uses the single threshold above) lets a
+    symbol carry its own cutoff - see resolve_elevated_volatility_thresholds().
+    Crypto's annualized volatility sits structurally above 0.45, so under
+    one global cutoff every crypto node was permanently "elevated" and the
+    analyzer's Priority 3 cancelled every BTC/LTC directional signal (13 of
+    its 26 book selections in the 2026-08-27 backtest)."""
     regime_labels_by_symbol = regime_labels_by_symbol or {}
     reasons: list[str] = []
     embed_3d = embedding_dimensions == 3
@@ -648,7 +695,11 @@ def build_market_topology(
 
         if member_count_by_symbol[symbol] == 1:
             topology_risk = "isolated"
-        elif volatility_pressure >= elevated_volatility_threshold:
+        elif volatility_pressure >= (
+            elevated_volatility_threshold_by_symbol.get(symbol, elevated_volatility_threshold)
+            if elevated_volatility_threshold_by_symbol
+            else elevated_volatility_threshold
+        ):
             topology_risk = "elevated"
         else:
             topology_risk = "normal"

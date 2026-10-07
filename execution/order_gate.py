@@ -31,7 +31,10 @@ MAX_LIQUIDITY_SLIPPAGE_BPS = 500.0
 # estimated_round_trip_cost (price impact + bid-ask spread combined).
 # "impact_only" = estimated_slippage alone, for isolating/excluding the
 # spread-crossing component.
-VALID_FILL_SLIPPAGE_SOURCES = ("round_trip", "impact_only")
+# "per_side" (V5.5.0) = HALF of estimated_round_trip_cost: a single fill only
+# crosses half the spread, but "round_trip" charged the full round trip on
+# every fill, double-counting the spread over a position's entry + exit.
+VALID_FILL_SLIPPAGE_SOURCES = ("round_trip", "impact_only", "per_side")
 DEFAULT_FILL_SLIPPAGE_SOURCE = "round_trip"
 
 
@@ -119,7 +122,13 @@ def liquidity_cost_fraction(liquidity_payload: dict, source: str) -> float:
     Missing/malformed field -> 0.0, never raises.
     """
     key = "estimated_slippage" if source == "impact_only" else "estimated_round_trip_cost"
-    return float(liquidity_payload.get(key, 0.0) or 0.0)
+    try:
+        fraction = float(liquidity_payload.get(key, 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(fraction):
+        return 0.0
+    return fraction * 0.5 if source == "per_side" else fraction
 
 
 def resolve_slippage_bps(
@@ -322,6 +331,84 @@ def resolve_limit_order_timeout_action(
     return {"should_cancel": True, "fallback_market_quantity": fallback_market_quantity}
 
 
+def resolve_pending_order_action(
+    existing_pending: dict | None,
+    is_buy: bool,
+    bar_index: int,
+    timeout_bars: int,
+) -> str:
+    """V5.5.0 (Problems.md #128) - what _try_submit_limit_order() should do
+    when asked to place a limit order for a symbol that may already have one
+    in flight. Before this, every bar a still-unfilled entry re-fired a NEW
+    order and overwrote the pending record, orphaning the earlier ticket
+    (never cancelled, never timed out - the record's submitted_bar kept
+    resetting) so several orders could all fill (AMZN: 3x its target).
+
+    - "submit": nothing in flight, place a fresh order.
+    - "keep": an order in the SAME direction is still within its timeout -
+      do nothing, let it work (and let the timeout sweep resolve it).
+    - "cancel_replace": the in-flight order points the other way, or has
+      outlived timeout_bars - cancel its tickets, then submit fresh.
+    """
+    if not existing_pending:
+        return "submit"
+    existing_direction = existing_pending.get("direction")
+    wanted_direction = "buy" if is_buy else "sell"
+    if existing_direction != wanted_direction:
+        return "cancel_replace"
+    try:
+        age = int(bar_index) - int(existing_pending.get("submitted_bar", bar_index))
+    except (TypeError, ValueError):
+        return "cancel_replace"
+    if age >= max(1, int(timeout_bars)):
+        return "cancel_replace"
+    return "keep"
+
+
+def should_skip_for_open_order(open_order_quantity: float, has_tracked_pending_limit: bool) -> bool:
+    """V5.5.0 (Problems.md #133) - an UNTRACKED order is already working for
+    this symbol (e.g. the market fallback _process_pending_limit_order_timeouts()
+    just sent after cancelling a limit order, which also pops the pending
+    record), so entering again would stack a second one. In the 2026-10-07
+    backtest the same bar then also submitted a fresh limit order: 26 times a
+    market-on-open and a limit order were created together, and in several
+    (TLT -26/-27, -44/-45 shares) BOTH filled, doubling the position.
+    A TRACKED pending limit order is left to resolve_pending_order_action()
+    (keep / cancel-replace). Non-finite quantities count as 'nothing open'."""
+    try:
+        quantity = float(open_order_quantity)
+    except (TypeError, ValueError):
+        return False
+    if not math.isfinite(quantity):
+        return False
+    return quantity != 0.0 and not has_tracked_pending_limit
+
+
+def compute_fill_slippage_divergence_bps(
+    fill_price: float,
+    reference_price: float,
+    expected_cost_bps: float,
+) -> float | None:
+    """V5.5.0 (Problems.md #88/#96) - realized-minus-expected slippage in bps
+    for evaluate_kill_switch(). `reference_price` must be the FILL BAR's
+    open (what a daily market order actually targets), NOT the prior bar's
+    close - against the prior close this measured the overnight gap, which
+    is why the trigger had to be disabled with a 1e12 sentinel. Returns None
+    on any non-finite/non-positive input so the caller records nothing
+    rather than a fabricated 0."""
+    try:
+        fill = float(fill_price)
+        reference = float(reference_price)
+        expected = float(expected_cost_bps)
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(fill) and math.isfinite(reference) and math.isfinite(expected)):
+        return None
+    if fill <= 0.0 or reference <= 0.0:
+        return None
+    return abs(fill - reference) / reference * 10_000.0 - expected
+
+
 # Pure classification of main.py::_apply_signal()/_apply_option_order()'s
 # execution_note return strings into "was a REAL order actually placed" -
 # used by the audit-log hook (development/Problems.md #42) at its single
@@ -351,6 +438,16 @@ _NO_OP_EXECUTION_NOTES = frozenset(
         "kept_long_futures",
         "kept_short_futures",
         "futures_zero_delta_kept",
+        # V5.5.0 (Problems.md #128) - forex siblings of the futures no-ops above (they were
+        # missing, so every held-forex tick was audited as a REAL order placement), plus the
+        # new deadband and the "an order for this symbol is already working" note.
+        "kept_long_forex",
+        "kept_short_forex",
+        "forex_zero_delta_kept",
+        "forex_zero_order_units",
+        "forex_resize_deadband_kept",
+        "limit_order_already_pending",
+        "order_already_open",
         "options_kept",
         "options_contract_drifted_kept",
         "options_multi_leg_kept",

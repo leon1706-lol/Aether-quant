@@ -60,4 +60,7 @@ pybind11>=2.10
 pytest-cov>=5.0.0
 
 # V5.3.9 - Python lint job in ci.yml + local parity (ruff check .)
-ruff>=0.6.0
+# V5.5.0 - pinned to the SAME version ci.yml's python-lint job installs
+# (tests/test_ci_workflows.py keeps the two equal): an unbounded range let
+# local ruff and CI ruff disagree about what is clean.
+ruff==0.16.4

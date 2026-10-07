@@ -136,3 +136,141 @@ def test_actionlint_is_pinned_to_a_fixed_version():
     joined = "\n".join(run_scripts)
     assert "actionlint_1.7.7" in joined, "actionlint must be version-pinned"
     assert "./actionlint" in joined, "must invoke the extracted binary explicitly"
+
+
+# ---------------------------------------------------------------------------
+# V5.5.0 - the guard jobs added for the offline/live-parity round. Each test
+# pins one property that a refactor of ci.yml could silently lose.
+# ---------------------------------------------------------------------------
+
+import re  # noqa: E402
+
+V550_JOBS = (
+    "fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks",
+    "parity-smoke", "secret-scan", "test-count-drift",
+)
+
+
+def _scripts(job: dict) -> str:
+    return "\n".join(step.get("run", "") for step in job["steps"])
+
+
+def test_ci_has_every_v550_guard_job_and_the_originals_survive():
+    jobs = set(_load(CI)["jobs"])
+    assert set(V550_JOBS) <= jobs
+    assert {"python-tests", "python-lint", "dependency-audit", "webui-tests", "cli-smoke", "workflows-lint"} <= jobs
+
+
+def test_every_new_job_has_a_timeout_so_a_hung_runner_cannot_burn_hours():
+    jobs = _load(CI)["jobs"]
+    missing = [name for name in V550_JOBS if "timeout-minutes" not in jobs[name]]
+    assert not missing, f"jobs without timeout-minutes: {missing}"
+
+
+def test_subsystem_matrix_covers_exactly_the_registered_test_buckets():
+    """A bucket added to aq_cli.py::_SUBSYSTEM_TEST_FILES must also join the
+    matrix (and vice versa), or its files only ever run in the full tree."""
+    import aq_cli
+
+    matrix = _load(CI)["jobs"]["subsystem-matrix"]["strategy"]["matrix"]["subsystem"]
+    assert sorted(matrix) == sorted(aq_cli._SUBSYSTEM_TEST_FILES)
+    assert _load(CI)["jobs"]["subsystem-matrix"]["strategy"]["fail-fast"] is False
+    assert "aq test --${{ matrix.subsystem }}" in _scripts(_load(CI)["jobs"]["subsystem-matrix"])
+
+
+def test_wheel_smoke_builds_a_real_wheel_and_runs_the_script_outside_the_checkout():
+    job = _load(CI)["jobs"]["wheel-smoke"]
+    checkout = job["steps"][0]
+    assert checkout["with"]["fetch-depth"] == 0, "setuptools-scm needs the tags to version the wheel"
+    script = _scripts(job)
+    assert "python -m build --wheel" in script
+    assert "dist/*.whl" in script
+    smoke = next(step for step in job["steps"] if "wheel_smoke.py" in step.get("run", ""))
+    assert smoke["working-directory"] == "${{ runner.temp }}", "must run OUTSIDE the checkout, or -e-style masking returns"
+    assert "pip install -e" not in script, "an editable install would hide every packaging gap"
+
+
+def test_python_compat_leg_compiles_on_the_oldest_supported_python():
+    job = _load(CI)["jobs"]["python-compat"]
+    versions = [step["with"]["python-version"] for step in job["steps"] if "with" in step and "python-version" in step["with"]]
+    assert versions == ["3.10"]
+    assert "compileall" in _scripts(job)
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'requires-python = ">=3.10"' in pyproject, "the compat leg exists because 3.10 is still supported"
+
+
+def test_docker_checks_lint_validate_and_never_build_the_lean_image():
+    job = _load(CI)["jobs"]["docker-checks"]
+    script = _scripts(job)
+    assert "hadolint/releases/download/v2.12.0/" in script, "hadolint must be version-pinned"
+    assert "--failure-threshold error" in script
+    assert "docker compose -f docker-compose.yml config -q" in script
+    assert "--profile lean config -q" in script
+    build_lines = [line for line in script.splitlines() if "docker build" in line or "buildx" in line]
+    assert build_lines and all("Dockerfile.lean" not in line for line in build_lines), (
+        "Dockerfile.lean's ~40 GB quantconnect/lean base cannot be built on a hosted runner"
+    )
+
+
+def test_advisory_jobs_are_advisory_and_blocking_jobs_are_not():
+    jobs = _load(CI)["jobs"]
+    for advisory in ("secret-scan", "test-count-drift"):
+        assert jobs[advisory].get("continue-on-error") is True, f"{advisory} is advisory until proven against real history"
+    for blocking in ("fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks", "parity-smoke"):
+        assert not jobs[blocking].get("continue-on-error"), f"{blocking} must be able to fail the build"
+    assert "gitleaks/releases/download/v8.18.4/" in _scripts(jobs["secret-scan"]), "gitleaks must be version-pinned"
+    assert "check_test_count_drift.py" in _scripts(jobs["test-count-drift"])
+    audit_step = next(s for s in jobs["webui-tests"]["steps"] if "npm audit" in s.get("run", ""))
+    assert audit_step.get("continue-on-error") is True
+
+
+def test_every_job_that_installs_the_requirements_on_linux_installs_cpu_torch_first():
+    jobs = _load(CI)["jobs"]
+    for name in ("python-tests", "fast-guards", "subsystem-matrix", "parity-smoke", "cli-smoke", "test-count-drift"):
+        runs = [step.get("run", "") for step in jobs[name]["steps"]]
+        cpu = next((i for i, run in enumerate(runs) if "download.pytorch.org/whl/cpu" in run), None)
+        install = next((i for i, run in enumerate(runs) if "-r requirements/requirements.txt" in run), None)
+        assert cpu is not None and install is not None and cpu < install, f"{name}: CPU torch must precede the requirements install"
+    windows_safe = next(s for s in jobs["python-tests"]["steps"] if "download.pytorch.org" in s.get("run", ""))
+    assert windows_safe["if"] == "runner.os == 'Linux'"
+
+
+def test_scripts_and_test_files_the_workflows_reference_exist():
+    text = CI.read_text(encoding="utf-8")
+    for path in set(re.findall(r"(?:scripts|tests)/[A-Za-z0-9_./]+\.py", text)):
+        assert (ROOT / path).exists(), f"ci.yml references missing file {path}"
+
+
+def test_fast_guards_and_parity_smoke_run_the_expected_test_files():
+    jobs = _load(CI)["jobs"]
+    fast = _scripts(jobs["fast-guards"])
+    for name in ("test_ci_workflows", "test_packaging_modules", "test_docs_links", "test_cli_help_surface", "test_v550_parity_fixes"):
+        assert name in fast
+    assert "test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket" in fast
+    parity = _scripts(jobs["parity-smoke"])
+    for name in ("test_backtest_audit", "test_live_parity", "test_legacy_sleeve", "test_volatility_threshold_calibration"):
+        assert name in parity
+    assert "feature_parity_audit.py --synthetic-only" in parity
+
+
+def test_dependabot_covers_pip_npm_and_github_actions():
+    config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
+    assert config["version"] == 2
+    ecosystems = {update["package-ecosystem"]: update["directory"] for update in config["updates"]}
+    assert ecosystems == {"pip": "/requirements", "npm": "/webui", "github-actions": "/"}
+    assert all(update["schedule"]["interval"] == "weekly" for update in config["updates"])
+
+
+def test_dev_requirements_pin_the_same_ruff_as_the_lint_job():
+    ci_pin = re.search(r'pip install "ruff==([0-9.]+)"', CI.read_text(encoding="utf-8"))
+    dev_pin = re.search(r"^ruff==([0-9.]+)$", (ROOT / "requirements" / "requirements-dev.txt").read_text(encoding="utf-8"), re.M)
+    assert ci_pin and dev_pin, "both places must pin ruff exactly"
+    assert ci_pin.group(1) == dev_pin.group(1)
+
+
+def test_agents_md_describes_the_real_ci_not_the_old_single_job_version():
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Python 3.10 → install" not in agents and "setup-python 3.10" not in agents
+    assert "Python 3.11" in agents
+    for job in ("fast-guards", "wheel-smoke", "subsystem-matrix"):
+        assert job in agents

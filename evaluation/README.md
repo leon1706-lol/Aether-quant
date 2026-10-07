@@ -34,6 +34,30 @@ without pulling in the training stack, the same torch-free-core convention
   evaluation and Phase 5's ablation harness). Duplicates the ~12-line
   bootstrap from `train.py::bootstrap_ic_confidence_interval()` rather than
   importing it, for the same torch-free reason above.
+- `live_parity.py` (V5.5.0, Problems.md #128) — turns config + dataset into the
+  keyword arguments that make `simulate_rank_book()` mirror `main.py`:
+  `build_as_live_kwargs()`, `lag_predictions_for_tickers()` (forex/crypto bars
+  land after the equity tick), `make_rolling_ic_gate_fn()` (lazy, cached,
+  no-lookahead gate per date), `build_candidate_metadata()`. The simulator's
+  matching switches (all default to the idealized behavior): `normalize_to_percentile`,
+  `min_rank_confidence_spread`, `rolling_ic_gate_fn`, `live_weighting`,
+  `hold_positions_on_veto`, `retry_rebalance_after_veto`, `max_holding_dates`,
+  `candidate_metadata_by_ticker`; the result gains `num_vetoed_rebalances`/`veto_reasons`.
+  Exposed as `aq evaluate --rank-book --as-live`.
+- `backtest_audit.py` (V5.5.0, #127) — order-level audit of one finished Lean
+  run (`aq evaluate --audit-backtest`): exposure per asset class, book-member vs
+  non-member entries (`classify_entries`, against the run's own
+  `book_history.jsonl` segment), overlapping/long-open limit orders, holding
+  histogram, P&L and fee bps per class, Sharpe with and without a risk-free
+  rate, gate vetoes, engine-log teardown. Pure functions over the run folder;
+  stdlib + `rank_signal_calibration.segment_logged_records_by_run`.
+- `volatility_threshold_calibration.py` (V5.5.0, #129) — per-asset-class
+  percentile of the topology's own 24-return annualized volatility, with a
+  suggested `phase_v2.topology.elevated_volatility_threshold`.
+- `factor_neutralization_check.py` — `compute_factor_exposure()` plus (V5.5.0)
+  `compute_book_factor_exposure()` (SPY + long-short momentum factors from the
+  dataset's own close pivot, forward-dated like the simulator); alpha now
+  includes the regression intercept (it was always 0.0 before).
 - `model_predictions.py` — runs every dataset row through
   `inference/exported_model.py` (the **same** torch-free interpreter
   `main.py`'s live decision path uses) to produce a predicted-`<head>`

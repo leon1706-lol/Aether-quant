@@ -42,6 +42,7 @@ from retraining.artifacts import (
 from retraining.backtest_gate import compare_backtests
 from retraining.lean_backtest import run_lean_backtest
 from retraining.auto_rollback import select_rollback_target
+from retraining.rollback_hardening import compute_degradation_score
 from retraining.postgres_registry import (
     count_experience_events,
     ensure_schema,
@@ -778,6 +779,10 @@ def auto_rollback_status(conn, config: dict, degradation_overrides: dict | None 
         "config": auto_rollback_config,
         "active_version_id": active_version["model_version_id"] if active_version else None,
         "degradation_signals": degradation_signals,
+        # V5.5.0 (V5.4.1 follow-up): the continuous 0-1 composite was shipped
+        # but never called; it is informational only - the binary
+        # `decision` above stays the sole rollback trigger.
+        "degradation_score": compute_degradation_score(degradation_signals),
         "decision": decision,
     }
 
@@ -887,7 +892,12 @@ def main() -> None:
         elif args.stage == "rollback":
             print(json.dumps(rollback(conn, args.to_version_id, config), indent=2, default=str))
         elif args.stage == "auto-rollback":
-            print(json.dumps(auto_rollback_status(conn, config), indent=2, default=str))
+            auto_rollback_result = auto_rollback_status(conn, config)
+            if args.dry_run:
+                # Same read-only result, explicitly labelled (V5.5.0): the
+                # shape select_rollback_target_dry_run() documents.
+                auto_rollback_result = {**auto_rollback_result, "dry_run": True}
+            print(json.dumps(auto_rollback_result, indent=2, default=str))
         elif args.stage == "status":
             print(json.dumps(status(conn), indent=2, default=str))
     finally:

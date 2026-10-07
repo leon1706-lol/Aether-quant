@@ -1476,6 +1476,101 @@ now spans six expanding windows from 2014 through 2021, giving the
 stability check real multi-regime coverage (including COVID) instead of
 one fixed split.
 
+## Offline/Live Parity Contract (V5.5.0)
+
+The offline rank book (`aq evaluate`) and the Lean run (`main.py`) must make
+the same decisions from the same inputs, or an offline Sharpe tells you
+nothing about a backtest. V5.5.0 (development/Problems.md #127–#131) found
+ten places where they did not, so the rule is now structural (AGENTS.md,
+non-negotiable 6): **anything `main.py` decides about signals, book,
+sizing, gates or orders is a pure function that the offline simulator also
+calls, or it carries a parity test and a one-line justification here.**
+
+### Shared decision functions
+
+| Decision | Function (module) | Live caller | Offline caller |
+|---|---|---|---|
+| Book raw weights (`min(max_position_weight, 0.10 + 0.15·conf)·role`) | `build_book_raw_weights` (`portfolio/book_construction.py`) | `main.py` rebalance block | `rank_book_simulator` (`live_weighting`) |
+| Hysteresis anchor surviving a veto | `remember_formed_book` (same) | `main.py` rebalance block | `rank_book_simulator` (`formed_book`) |
+| Gates: confidence spread, rolling IC | `build_rank_based_book(... spread_check_ranks, rolling_ic_gate_result)`, `evaluate_rolling_ic_gate` | `main.py` | `rank_book_simulator` + `live_parity.make_rolling_ic_gate_fn` |
+| Book-member weight floor | `apply_book_weight_floor` (same) | `main.py` Pass 2 | not modeled (bounded live; see below) |
+| Rotation exit scope | `update_book_owned_symbols`, `is_rotation_exit_candidate` (same) | `main.py` Pass 2 | n/a (the simulator has no sleeve) |
+| Legacy-signal budget | `apply_legacy_sleeve_policy`, `compute_sleeve_gross_used` (`portfolio/legacy_sleeve.py`) | `main.py` Pass 2 | modeled as zero-alpha, excluded |
+| Forex target vs book weight | `cap_forex_target_to_book_weight` (`risk/forex_risk.py`) | `main.py` Pass 2 | the book weight itself |
+| Pending quantity, forced-exit-only cooldown exemption, exit adoption | `projected_signed_quantity`, `is_cooldown_exempt(..., is_forced_exit)`, `compute_position_exit_tracking_update` (`risk_controls.py`) | `main.py` `_apply_signal` / exit tracking | `max_holding_dates` models the age exit |
+| Hold book-owned positions through a veto | `should_hold_owned_position_on_veto` (`portfolio/book_construction.py`) | `main.py` Pass 2 | `hold_positions_on_veto` |
+| Gate/cost spread cap per class | `cap_spread_proxy` (`liquidity/market_liquidity.py`) | `main.py` liquidity gate | n/a (offline has no spread gate; live-only, the high-low estimator misreads crypto/forex volatility) |
+| One order per symbol | `resolve_pending_order_action`, `should_skip_for_open_order` (`execution/order_gate.py`) | `main.py` `_try_submit_limit_order` | `simulate_limit_fills` (fill rate only) |
+| Fill slippage per side | `liquidity_cost_fraction(... "per_side")` | `main.py` slippage model | cost model bps per side |
+| Volatility cutoff per asset class | `resolve_elevated_volatility_thresholds` (`topology/market_topology.py`) | `main.py` topology build | `--calibrate-volatility-threshold` |
+
+`aq evaluate --rank-book --as-live` (`evaluation/live_parity.py`) assembles
+the live inputs for the simulator: the **blended** rank head
+(`phase_v2.rank_signal`), per-date **percentile** candidates for hysteresis
+(the spread gate keeps seeing raw scores), `phase_v2.portfolio_book` as the
+single config source (the idealized run reads `phase1…net_performance`, which
+had drifted: sector cap 0.05 vs 0.15), real `trading_eligible`/`asset_class`,
+**hold-on-veto with next-bar retry** (live never liquidates on a veto), the
+max-holding age exit, one-bar entry lag, and **one-day-stale forex/crypto
+features** (their bars land after the equity tick, so live decides them on the
+previous bar). It reports next to the idealized run, with and without the
+Almgren impact model.
+
+### Intentional remaining differences
+
+- **Legacy sleeve** is capped at `max_gross_exposure` (10%) and treated as zero-alpha offline: its signal comes from a probability head the offline book does not rank on.
+- **Sizing multipliers** (volatility 0.35–1.25, topology, cost, liquidity) are live-only; their shrink is bounded by `sizing_floor_fraction` (0.5) for book members, and under the shipped caps (`max_position_weight` 0.12 = per-name cap 0.12) confidence weighting is a no-op because every selected name saturates both caps.
+- **Forex/crypto previous-day bar:** unchanged live (a daily forex/crypto bar closes after the equity session); modeled offline with a one-day lag. Deciding them on their own tick is a possible follow-up if reconciliation still shows forex mismatches.
+- **Kill switch:** replayed offline (`--replay-kill-switch`) but not applied to the as-live returns.
+- **Sharpe convention:** Lean subtracts a risk-free rate; offline subtracts none. `--audit-backtest` reports both for the same curve (−2.92 at 2% vs −1.16 for the 08-27 run).
+
+### Legacy-signal sleeve contract (`phase_v2.legacy_sleeve`)
+
+With `portfolio_book.enabled`, a symbol the book did not select may still
+trade the original probability-up signal, but only inside a budget:
+`max_gross_exposure` across all sleeve positions, `max_weight_per_name`
+each (held positions cannot be sized past it), and **no new entries while the
+book is vetoed** (`trade_when_book_vetoed: false`). Positions are classified
+by ownership (`update_book_owned_symbols`): the rotation exit force-sells only
+positions the **book** opened, so a sleeve entry is left to the max-holding
+and trailing-stop exits instead of being liquidated and re-bought every other
+bar. `enabled: false` restores the pre-V5.5.0 unbudgeted behavior exactly
+(every key defaults to it). Exits of an open position are never blocked by
+`trade_cooldown_bars`; entries still are.
+
+### Forex sizing contract
+
+`build_forex_position_sizing` is margin-driven (lots at the target leverage
+utilization), so its `target_weight` is several × NAV. For a **book member**
+that value is now a ceiling: the target is capped at the book's own weight
+for the pair (`forex_cap_to_book_weight`). Sizing compares the target with
+**held + still-open order quantity** (a forex order submitted on the equity
+tick is unfilled on the forex tick), same-direction resizes happen only on
+rebalance bars and only when they exceed `forex_resize_min_fraction` of the
+target, and forex shorts draw on `max_forex_short_exposure` rather than the
+equity short budget.
+
+### Order lifecycle contract
+
+One pending limit order per symbol: an in-flight order in the same direction
+is **kept** (the original `submitted_bar` keeps the timeout clock), an
+opposite or timed-out one is **cancelled and replaced**
+(`resolve_pending_order_action`). Daily fills land on the next bar, so exit
+tracking (`max_holding_bars`, trailing stop, direction) **adopts** a held
+position it has no state for, taking direction and entry price from the real
+holding. The slippage-divergence kill-switch input compares one fill with the
+fill bar's open and half the expected round-trip cost; its trigger stays at the
+disabled sentinel until the distribution has been read from a backtest.
+
+### Diagnostics contract (all default off in code)
+
+`phase_v2.diagnostics.timing_probe` (one `timing-probe:` line at shutdown, no
+per-bar I/O), `teardown_cleanup` (clears the per-symbol containers, unfreezes
+the GC, collects — an experiment for the Lean teardown hang, Problems #104,
+whose verdict is read from the engine `log.txt`), `crypto_bar_probe`
+(first N bars per crypto symbol). `performance_probe.py` is stdlib-only so
+Lean's 90-second `Initialize()` budget never pays for it.
+
 ## Real Topology Overlay Training
 
 The Learned Topology Overlay section above documents the full training

@@ -73,6 +73,17 @@ assets separate on the z-axis.
 - Degrades to `state: "insufficient_data"` when fewer than two assets have
   enough return history — never raises.
 
+### Per-asset-class elevated-volatility cutoff (V5.5.0)
+
+A node is `elevated` when its annualized volatility reaches the cutoff, and the
+analyzer then cancels its directional signal. One global 0.45 sat below crypto's
+whole distribution (77% of backtest-window samples, 85% over all history, are above it), so BTC/LTC never traded.
+`phase_v2.topology.elevated_volatility_threshold` accepts a float (unchanged) or
+`{"default": 0.45, "crypto": 0.87}`; `resolve_elevated_volatility_thresholds()`
+returns `(default, {symbol: threshold})` and `build_market_topology(...,
+elevated_volatility_threshold_by_symbol=...)` applies it. Calibrate with
+`aq evaluate --calibrate-volatility-threshold`.
+
 ## Learned overlay — `learned_topology.py::apply_learned_topology(...)`
 
 A pure-Python (no numpy/sklearn at runtime — its own cost is negligible at

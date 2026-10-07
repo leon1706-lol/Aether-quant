@@ -693,6 +693,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_rank_signal.py",
         # V5.3.5 (development/Problems.md #102) - portfolio/rolling_ic_gate.py.
         "test_rolling_ic_gate.py",
+        # V5.5.0 (Problems.md #128) - portfolio/legacy_sleeve.py.
+        "test_legacy_sleeve.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -746,6 +748,9 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "live": [
         "test_live_credentials.py", "test_live_credentials_io.py", "test_paper_readiness.py",
         "test_paper_readiness_io.py", "test_paper_readiness_report.py", "test_paper_readiness_scheduler.py",
+        # V5.5.0 - main.py's order-path methods against a minimal Lean stub (the first unit coverage
+        # main.py has ever had - tests/test_main_wiring.py's own docstring says what it does NOT prove).
+        "test_main_wiring.py", "test_main_ensure_ready_smoke.py",
     ],
     "evaluation": [
         "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
@@ -768,8 +773,6 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_feature_reconciliation.py",
         "test_feature_parity.py",
         "test_promotion_gate_era_rule.py",
-        "test_aq_test_ruff_flag.py",
-        "test_ci_workflows.py",
         "test_impact_model.py",
         "test_v543_new_features.py",
         "test_bar_synthesis_parity.py",
@@ -782,6 +785,22 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_hrp_book_sizing.py",
         # V5.4.7 - full-system bug-hunt round file (#120-#125).
         "test_v547_bug_hunt.py",
+        # V5.5.0 - offline/live execution parity round (#127-#129): the
+        # round file plus one file per new module.
+        "test_v550_parity_fixes.py",
+        "test_v550_backtest_findings.py",
+        "test_backtest_audit.py",
+        "test_live_parity.py",
+        "test_volatility_threshold_calibration.py",
+        "test_performance_probe.py",
+    ],
+    # V5.5.0 - repo-level guards about the repo itself (CI workflow shape, the
+    # `aq test --ruff` flag, packaging lists, docs links, CI helper scripts),
+    # split out of the `evaluation` catch-all they used to be hidden in so a
+    # failure in one of them names its own bucket in CI's subsystem matrix.
+    "meta": [
+        "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py",
+        "test_ci_scripts.py",
     ],
 }
 
@@ -1645,6 +1664,69 @@ def _refresh_readme_evaluation_sections() -> None:
         print(f"warning: README evaluation-section refresh failed: {exc}", file=sys.stderr)
 
 
+def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default: int):
+    """The live path's rank score for every dataset row: the config-driven,
+    promotion-gate-aware head blend (portfolio/rank_signal.py), NOT the
+    single hard-coded head the idealized `--rank-book` run scores with.
+    Mirrors the block --calibrate-book-spread / --replay-rolling-ic-gate
+    each carry inline (this file's established duplication convention);
+    new callers use this one. Returns (raw_scores, policy)."""
+    from evaluation import compute_blended_raw_scores, predict_head
+    from portfolio.rank_signal import resolve_rank_signal_policy
+
+    training_metrics_by_model: dict[str, dict | None] = {}
+    for model_name, metrics_filename in (
+        ("sequence", "sequence_training_metrics.json"),
+        ("multitask", "multitask_training_metrics.json"),
+    ):
+        metrics_path = ML_DIR / metrics_filename
+        training_metrics_by_model[model_name] = (
+            json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
+        )
+    policy = resolve_rank_signal_policy(training_metrics_by_model, config)
+    active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
+
+    predictions_by_model_head: dict[str, dict[str, object]] = {}
+    for model_kind_for_head in policy["model_priority"]:
+        model_filename, schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
+        model_path = ML_DIR / model_filename
+        schema_path = ML_DIR / schema_filename
+        if not model_path.exists() or not schema_path.exists():
+            continue  # best-effort - a missing model falls through to the next model_priority entry
+        model_export = json.loads(model_path.read_text(encoding="utf-8"))
+        feature_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        predictions_by_model_head[model_kind_for_head] = {
+            head_name: predict_head(
+                dataset, model_export, feature_schema["model_input_names"], head_name,
+                model_kind=model_kind_for_head,
+                sequence_feature_schema=feature_schema if model_kind_for_head == "sequence" else None,
+                configured_window_size=int(sequence_window_default),
+            )
+            for head_name in active_heads
+        }
+    return compute_blended_raw_scores(dataset, predictions_by_model_head, policy), policy
+
+
+def _universe_asset_metadata(config: dict) -> tuple[dict[str, str], dict[str, bool]]:
+    """({ticker: asset_class}, {ticker: trading_eligible}) - the per-symbol
+    fields main.py hands the book. asset_class falls back to security_type
+    exactly as main.py does (bond ETFs are security_type equity,
+    asset_class bond); eligibility comes from the dataset manifest."""
+    asset_class_by_ticker = {
+        asset["ticker"]: str(asset.get("asset_class") or asset.get("security_type"))
+        for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+    }
+    manifest_path = ML_DIR / "dataset_manifest.json"
+    trading_eligible_by_ticker: dict[str, bool] = {}
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        trading_eligible_by_ticker = {
+            ticker: bool(quality.get("trading_eligible", False))
+            for ticker, quality in (manifest.get("asset_quality") or {}).items()
+        }
+    return asset_class_by_ticker, trading_eligible_by_ticker
+
+
 _EVALUATE_MODEL_ARTIFACTS = {
     "sequence": ("sequence_model.json", "sequence_feature_schema.json"),
     "multitask": ("multitask_model.json", "multitask_feature_schema.json"),
@@ -1687,6 +1769,63 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"error: unknown preset {args.preset!r} - available: {available or 'none configured yet'}", file=sys.stderr)
             return 1
         config = _apply_preset_in_memory(config, preset)
+
+    # V5.5.0 (Problems.md #127/#128) - `aq evaluate --audit-backtest` audits
+    # ONE finished Lean run folder at order level (exposure per asset class,
+    # book-member vs non-member entries, duplicate/overlapping limit orders,
+    # holding periods, fees, Sharpe with and without a risk-free rate, gate
+    # vetoes, engine teardown). Early-return like the other log-vs-artifact
+    # tools: no dataset, no model. Not included in --all.
+    if getattr(args, "audit_backtest", False):
+        from evaluation.backtest_audit import audit_backtest_run, load_backtest_run, load_book_history
+
+        backtests_dir = ROOT_DIR / "backtests"
+        run_dir_arg = getattr(args, "backtest_dir", None)
+        if run_dir_arg:
+            run_dir = Path(run_dir_arg)
+        else:
+            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir()) if backtests_dir.exists() else []
+            run_dir = run_dirs[-1] if run_dirs else None
+        if run_dir is None or not run_dir.exists():
+            print("error: no backtest folder found - pass --backtest-dir PATH or run `aq backtest` first.", file=sys.stderr)
+            return 1
+        try:
+            run = load_backtest_run(run_dir)
+        except FileNotFoundError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        book_history_path = Path(getattr(args, "book_history_path", None) or (ROOT_DIR / "visualization" / "book_history.jsonl"))
+        audit = audit_backtest_run(run, load_book_history(book_history_path))
+        audit["backtest_dir"] = str(run_dir)
+        _write_evaluation_json(ML_DIR / "evaluation" / "backtest_audit.json", audit)
+        if args.json:
+            print(json.dumps(audit, indent=2, default=str))
+        else:
+            print(f"Backtest audit: {run_dir.name} (run {audit['run_id']}, {audit['window']['num_days']} days)")
+            print(f"  Lean: {audit['lean_statistics']}")
+            sharpe = audit["sharpe"]
+            no_rf = sharpe["no_risk_free"]
+            with_rf = sharpe["with_risk_free"]
+            print(
+                "  Sharpe from equity curve: "
+                f"no risk-free={'n/a' if no_rf is None else f'{no_rf:.3f}'}, "
+                f"risk-free {sharpe['risk_free_annual_assumed']:.0%}={'n/a' if with_rf is None else f'{with_rf:.3f}'}"
+            )
+            for name, stats in sorted(audit["exposure"].items()):
+                print(f"  exposure {name}: mean={stats['mean']:.4f} peak={stats['peak']:.4f}")
+            print(f"  entries by asset class: {audit['entries_by_asset_class']}")
+            orders = audit["orders"]
+            print(
+                f"  overlapping same-symbol orders: {orders['num_overlapping_pairs']} "
+                f"(limit: {orders['num_overlapping_limit_pairs']}); limit orders open > "
+                f"{orders['max_open_days_threshold']}d: {orders['num_limit_orders_open_too_long']}"
+            )
+            print(f"  holding period histogram: {audit['holding_period_days']}")
+            print(f"  P&L / fees: {audit['pnl_and_fees']}")
+            print(f"  book: {audit['book']['num_engaged']}/{audit['book']['num_rebalance_records']} rebalances engaged; vetoes {audit['book']['veto_reasons']}")
+            print(f"  engine teardown: {audit['teardown']}")
+            print(f"  Wrote {ML_DIR / 'evaluation' / 'backtest_audit.json'}")
+        return 0
 
     # V5.1 Phase 4 (item 4) - `aq evaluate --walk-forward-summary` reads an
     # already-written ml/versions/walk-forward-*/walk_forward_summary.json
@@ -2147,6 +2286,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 per_date_results = replay_book_history_reconciliation(
                     ordered_logged_records, raw_scores_by_date,
                     top_n=book_top_n, bottom_n=book_bottom_n, hysteresis_rank_margin=hysteresis_rank_margin,
+                    hysteresis_survives_veto=bool(getattr(args, "hysteresis_survives_veto", False)),
                 )
             else:
                 per_date_results = [
@@ -2210,8 +2350,14 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 run_universe_presence_summary = run_payload["universe_presence_summary"]
                 run_meta = run_payload["run_metadata"]
                 print(f"{label}{run_meta['start_date']}..{run_meta['end_date']}, {run_summary['num_dates']} dates:")
+                if run_summary.get("num_dates_live_vetoed"):
+                    # V5.5.0: a vetoed live rebalance has no selection to compare - it is NOT 0% overlap.
+                    print(
+                        f"  live VETOED {run_summary['num_dates_live_vetoed']}/{run_summary['num_dates']} dates "
+                        f"({run_summary['live_veto_reasons']}) - excluded from the match statistics below"
+                    )
                 print(
-                    f"  exact_match={run_summary['num_dates_exact_match']}/{run_summary['num_dates']}  "
+                    f"  exact_match={run_summary['num_dates_exact_match']}/{run_summary.get('num_dates_compared', run_summary['num_dates'])}  "
                     f"mean_overlap_fraction={run_summary['mean_overlap_fraction']}"
                 )
                 print(
@@ -2414,6 +2560,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         or run_calibrate_book_spread or run_calibrate_confidence_threshold or run_calibrate_rolling_ic_floor
         or run_replay_kill_switch or run_replay_rolling_ic_gate or run_simulate_limit_fills
         or run_monte_carlo or run_benchmarks
+        or getattr(args, "as_live", False) or getattr(args, "factor_exposure", False)
+        or getattr(args, "calibrate_volatility_threshold", False)
     ):
         run_rank_book = True
 
@@ -2493,6 +2641,120 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print("Rank book (entry_lag_bars=1, the 'lag tax' - see development/Problems.md):")
             print(f"  gross_sharpe={lagged_result.gross_sharpe:.4f}  net_sharpe={lagged_result.net_sharpe:.4f}")
             print(f"  delta_net_sharpe vs entry_lag_bars=0: {lagged_result.net_sharpe - result.net_sharpe:+.4f}")
+
+    # V5.5.0 (Problems.md #128) - the as-live rank book: the SAME simulator
+    # fed everything main.py actually does (blended head, percentile
+    # hysteresis, spread + rolling-IC gates, hold-on-veto, confidence
+    # weights, late-bar lag for forex/crypto, one-bar entry lag, age exit),
+    # reported next to the idealized run so the gap is never invisible again.
+    if getattr(args, "as_live", False):
+        from evaluation.live_parity import (
+            LATE_BAR_ASSET_CLASSES,
+            build_as_live_kwargs,
+            build_candidate_metadata,
+            lag_predictions_for_tickers,
+            make_rolling_ic_gate_fn,
+        )
+
+        phase_v2_config = config.get("phase_v2", {})
+        asset_class_by_ticker, trading_eligible_by_ticker = _universe_asset_metadata(config)
+        raw_scores, live_policy = _blend_raw_scores_for_dataset(dataset, config, int(sequence_window_default))
+        live_frame = dataset.copy()
+        live_frame["live_rank_score"] = raw_scores
+        late_tickers = {
+            ticker for ticker, asset_class in asset_class_by_ticker.items() if asset_class in LATE_BAR_ASSET_CLASSES
+        }
+        live_frame = lag_predictions_for_tickers(live_frame, prediction_column="live_rank_score", tickers=late_tickers)
+        rolling_ic_gate_config = phase_v2_config.get("rolling_ic_gate", {})
+        gate_fn = (
+            make_rolling_ic_gate_fn(live_frame, raw_score_column="live_rank_score", gate_config=rolling_ic_gate_config)
+            if rolling_ic_gate_config.get("enabled", False)
+            else None
+        )
+        as_live_kwargs = build_as_live_kwargs(
+            dict(base_kwargs, prediction_column="live_rank_score"),
+            book_config=phase_v2_config.get("portfolio_book", {}),
+            exits_config=phase_v2_config.get("exits", {}),
+            max_position_weight=float(config.get("phase6", {}).get("risk", {}).get("max_position_weight", 0.25)),
+            candidate_metadata=build_candidate_metadata(asset_class_by_ticker, trading_eligible_by_ticker),
+            rolling_ic_gate_fn=gate_fn,
+        )
+        as_live_result = simulate_rank_book(live_frame, **as_live_kwargs)
+        idealized_result = result if run_rank_book else simulate_rank_book(dataset, **base_kwargs)
+        as_live_report = {
+            "as_live": as_live_result.to_dict(),
+            "idealized_net_sharpe": idealized_result.net_sharpe,
+            "idealized_net_total_return": idealized_result.net_total_return,
+            "rank_signal_policy": {key: live_policy.get(key) for key in ("heads", "model_priority", "demoted")},
+            "late_bar_asset_classes_lagged_one_day": sorted(LATE_BAR_ASSET_CLASSES),
+            "legacy_sleeve": "excluded_zero_alpha",
+            "notes": [
+                "Sharpe here subtracts no risk-free rate; Lean's own Sharpe does (~1.1 points at 1.3% annual vol).",
+                "The legacy probability-signal sleeve (phase_v2.legacy_sleeve) is not modeled: it is capped at "
+                "max_gross_exposure and treated as zero-alpha.",
+                "Sizing multipliers (volatility/topology/cost/liquidity) are not modeled; main.py bounds their "
+                "shrink with phase_v2.portfolio_book.sizing_floor_fraction.",
+            ],
+        }
+        impact_config = dict(phase_v2_config.get("costs", {}).get("impact_model", {}))
+        if impact_config:
+            impact_config["enabled"] = True
+            impact_result = simulate_rank_book(live_frame, **dict(as_live_kwargs, impact_model_config=impact_config))
+            as_live_report["as_live_with_impact_model"] = impact_result.to_dict()
+        report["rank_book_as_live"] = as_live_report
+        _write_evaluation_json(evaluation_dir / "rank_book_simulation_as_live.json", as_live_report)
+        if not args.json:
+            print("Rank book AS-LIVE (blended head, live gates, hold-on-veto, confidence weights, 1-bar lag):")
+            print(f"  idealized net_sharpe={idealized_result.net_sharpe:.4f}  ->  as-live net_sharpe={as_live_result.net_sharpe:.4f}")
+            print(f"  as-live net_total_return={as_live_result.net_total_return:.4%}  net_max_drawdown={as_live_result.net_max_drawdown:.4%}")
+            print(f"  as-live rebalances={as_live_result.num_rebalances} vetoed={as_live_result.num_vetoed_rebalances} {as_live_result.veto_reasons}")
+            print(f"  mean_names_long={as_live_result.mean_names_long:.2f}  mean_names_short={as_live_result.mean_names_short:.2f}")
+            if impact_config:
+                print(f"  with Almgren impact model: net_sharpe={impact_result.net_sharpe:.4f}")
+
+    # V5.5.0 (V5.4.3 follow-up) - how much of the book's return is market or
+    # momentum exposure rather than ranking skill. Uses the base rank-book
+    # run's per-date net returns.
+    if getattr(args, "factor_exposure", False):
+        from evaluation.benchmark_comparison import close_pivot_from_frame
+        from evaluation.factor_neutralization_check import compute_book_factor_exposure
+
+        factor_base_result = result if run_rank_book else simulate_rank_book(dataset, **base_kwargs)
+        factor_report = compute_book_factor_exposure(
+            factor_base_result.per_date, factor_base_result.per_date_net_return, close_pivot_from_frame(dataset)
+        )
+        report["factor_exposure"] = factor_report
+        _write_evaluation_json(evaluation_dir / "factor_exposure.json", factor_report)
+        if not args.json:
+            if factor_report.get("status") == "OK":
+                print(f"Factor exposure ({factor_report['n_obs']} dates, market={factor_report['market_ticker']}):")
+                print(f"  total_sharpe={factor_report['total_sharpe']}  alpha_sharpe={factor_report['alpha_sharpe']}  R2={factor_report['r_squared']}")
+                print(f"  loadings={factor_report['loadings']}  variance explained %={factor_report['factor_contribution_pct']}")
+            else:
+                print(f"Factor exposure SKIPPED: {factor_report.get('reason')}")
+
+    # V5.5.0 (Problems.md #129) - per-asset-class elevated-volatility cutoff.
+    if getattr(args, "calibrate_volatility_threshold", False):
+        from evaluation.volatility_threshold_calibration import calibrate_elevated_volatility_thresholds
+        from topology import ELEVATED_VOLATILITY_THRESHOLD
+
+        asset_class_by_ticker_for_vol, _ = _universe_asset_metadata(config)
+        volatility_report = calibrate_elevated_volatility_thresholds(
+            dataset,
+            asset_class_by_ticker_for_vol,
+            percentile=float(getattr(args, "volatility_threshold_percentile", 0.80)),
+            current_default=ELEVATED_VOLATILITY_THRESHOLD,
+        )
+        report["volatility_threshold_calibration"] = volatility_report
+        _write_evaluation_json(evaluation_dir / "volatility_threshold_calibration.json", volatility_report)
+        if not args.json:
+            if volatility_report.get("status") == "OK":
+                print("Elevated-volatility threshold calibration (annualized, topology's own 24-return statistic):")
+                for asset_class, stats in sorted(volatility_report["by_asset_class"].items()):
+                    print(f"  {asset_class}: {stats}")
+                print(f"  Suggested phase_v2.topology.elevated_volatility_threshold = {json.dumps(volatility_report['suggested_config'])}")
+            else:
+                print(f"Volatility threshold calibration SKIPPED: {volatility_report.get('reason')}")
 
     # V5.4.4 - benchmark comparison over the SAME dataset window/split the
     # rank book just ran on (the `dataset` frame is already split-filtered
@@ -3577,6 +3839,46 @@ def build_parser() -> argparse.ArgumentParser:
         "baselines AND the SP500 buy-and-hold + daily-rebalanced 60/40 SPY-TLT public baselines over "
         "the SAME dataset window/split as the rank book, writing ml/evaluation/benchmark_comparison.json "
         "and refreshing the README's Benchmark Comparison section. Included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--hysteresis-survives-veto", action="store_true",
+        help="V5.5.0: with --reconcile-book-history --replay-hysteresis, keep offline's hysteresis anchor across a "
+        "date live VETOED. Default resets it, which replays logs recorded BEFORE V5.5.0 (a veto wiped live's "
+        "memory); pass this flag for a run recorded under V5.5.0+ (the last formed book survives a veto).",
+    )
+    evaluate_parser.add_argument(
+        "--as-live", action="store_true",
+        help="V5.5.0: also run the rank book AS-LIVE (evaluation/live_parity.py) - the blended rank head, "
+        "percentile hysteresis, the live confidence-spread and rolling-IC gates, hold-on-veto, confidence-weighted "
+        "sizing, one-day-stale forex/crypto features, a one-bar entry lag and the max-holding age exit - and report "
+        "it next to the idealized run (ml/evaluation/rank_book_simulation_as_live.json), with and without the "
+        "Almgren impact model. Opt-in, not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--audit-backtest", action="store_true",
+        help="V5.5.0: order-level audit of one finished Lean backtest folder (exposure per asset class, book-member "
+        "vs non-member entries, overlapping limit orders, holding periods, fees, Sharpe with and without a "
+        "risk-free rate, gate vetoes, engine-log teardown) -> ml/evaluation/backtest_audit.json. Needs no dataset "
+        "or model. Not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--backtest-dir", default=None,
+        help="V5.5.0: with --audit-backtest, the backtests/<timestamp> folder to audit (default: the newest).",
+    )
+    evaluate_parser.add_argument(
+        "--factor-exposure", action="store_true",
+        help="V5.5.0: regress the rank book's daily net returns on SPY and a momentum factor (R2, loadings, "
+        "alpha Sharpe) -> ml/evaluation/factor_exposure.json. Opt-in, not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--calibrate-volatility-threshold", action="store_true",
+        help="V5.5.0: per-asset-class percentile of realized annualized volatility, with a suggested "
+        "phase_v2.topology.elevated_volatility_threshold (crypto sits structurally above the global 0.45 cutoff). "
+        "Opt-in, not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--volatility-threshold-percentile", type=float, default=0.80,
+        help="V5.5.0: with --calibrate-volatility-threshold, the percentile used as the cutoff (default: 0.80).",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

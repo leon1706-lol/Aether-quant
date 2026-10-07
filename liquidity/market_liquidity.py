@@ -89,6 +89,31 @@ def estimate_high_low_spread(highs: list[float], lows: list[float]) -> float | N
     return sum(window_spreads) / len(window_spreads)
 
 
+def cap_spread_proxy(spread_proxy: float | None, security_type: str, caps_by_type: dict | None) -> float | None:
+    """V5.5.0 (Problems.md #133) - clamp the spread used by the liquidity GATE
+    and cost estimate for one asset class. The Corwin-Schultz estimator reads
+    a daily high-low range as a bid-ask spread; for crypto and forex mid bars
+    that range is volatility, not spread (the 2026-10-07 run's last bar:
+    BTCUSD 1.31%, LTCUSD 1.25%, AUDUSD 0.35% against real spreads of a few
+    bps), so `max_round_trip_cost_fraction` (0.25%) blocked 126 of 179 forex
+    and all 24 crypto book selections. ONLY the gate/cost input is capped:
+    `liquidity_spread_proxy` as a MODEL FEATURE stays untouched (train/live
+    parity). No cap configured for the class (or a malformed one) -> the
+    value passes through unchanged; None passes through (callers then use
+    their static fallback)."""
+    if spread_proxy is None:
+        return None
+    cap = (caps_by_type or {}).get(security_type)
+    try:
+        cap_value = float(cap) if cap is not None else None
+        value = float(spread_proxy)
+    except (TypeError, ValueError):
+        return spread_proxy
+    if cap_value is None or not math.isfinite(cap_value) or cap_value < 0.0 or not math.isfinite(value):
+        return spread_proxy
+    return min(value, cap_value)
+
+
 @dataclass(frozen=True)
 class LiquidityDecision:
     daily_dollar_volume: float

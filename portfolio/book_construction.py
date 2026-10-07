@@ -635,6 +635,135 @@ def should_exit_non_selected_book_symbol(
     return portfolio_book_enabled and book_is_active and is_currently_invested
 
 
+def build_book_raw_weights(
+    book_allocations: Mapping[str, BookAllocation],
+    max_position_weight: float,
+) -> dict[str, float]:
+    """V5.5.0 (Problems.md #128) - the live book's pre-neutrality weight per
+    symbol: min(max_position_weight, 0.10 + 0.15 * confidence) * role
+    multiplier, confidence = min(1, |rank - 0.5| * 2). Extracted from
+    main.py's inline loop so the offline simulator's as-live mode feeds
+    apply_book_neutrality() the IDENTICAL raw weights instead of equal
+    weights (parity rule, AGENTS.md). Non-finite rank -> skipped."""
+    raw_weights: dict[str, float] = {}
+    for symbol, allocation in book_allocations.items():
+        if not _is_finite_number(allocation.predicted_rank_20d):
+            continue
+        confidence = min(1.0, abs(float(allocation.predicted_rank_20d) - 0.5) * 2.0)
+        raw_weights[symbol] = min(float(max_position_weight), 0.10 + 0.15 * confidence) * allocation.book_role_multiplier
+    return raw_weights
+
+
+def remember_formed_book(previous_formed: dict | None, new_allocations: dict | None) -> dict:
+    """V5.5.0 (Problems.md #128) - the hysteresis memory a veto must NOT wipe.
+
+    main.py stored every rebalance result into the one dict it also uses as
+    "the book to trade", so a gate veto (empty allocations) erased the
+    previous book. The next rebalance then selected with no hysteresis
+    anchor, and `has_previous_allocation` read False so the book re-formed
+    on every following bar until a gate opened. The positions the book had
+    opened were still held the whole time. This keeps the last NON-EMPTY
+    book as the anchor: a veto leaves it untouched, a real book replaces it.
+    """
+    if new_allocations:
+        return dict(new_allocations)
+    return dict(previous_formed) if previous_formed else {}
+
+
+def apply_book_weight_floor(
+    target_weight: float,
+    base_target_weight: float,
+    floor_fraction: float,
+    skip_floor: bool = False,
+) -> float:
+    """V5.5.0 (Problems.md #128) - bound how far the multiplier chain can
+    shrink a book member below the weight the book chose for it.
+
+    The offline simulation trades the book's own weight (~8% a name); live
+    stacks volatility (0.35-1.25), confidence (0.5-1.0), topology
+    (0.5-1.0), cost (>=0.25) and liquidity (0.35) multipliers on top, which
+    left equity at ~3% of NAV. The floor is symmetric (|weight| only, sign
+    kept) so it cannot tilt the long/short balance, and is a no-op at
+    `floor_fraction <= 0` (the pre-V5.5.0 behavior). `skip_floor` is for the
+    liquidity "reduce_size" haircut, which is a safety cut that must never be
+    undone. Never raises the weight above |base_target_weight|.
+    """
+    try:
+        weight = float(target_weight)
+        base = abs(float(base_target_weight))
+        floor_fraction = float(floor_fraction)
+    except (TypeError, ValueError):
+        return 0.0
+    if not (math.isfinite(weight) and math.isfinite(base) and math.isfinite(floor_fraction)):
+        return 0.0
+    if skip_floor or floor_fraction <= 0.0 or weight == 0.0 or base <= 0.0:
+        return weight
+    floor = min(1.0, floor_fraction) * base
+    if abs(weight) >= floor:
+        return weight
+    return floor if weight > 0.0 else -floor
+
+
+def update_book_owned_symbols(
+    owned: set[str],
+    symbol_key: str,
+    is_book_member: bool,
+    is_currently_invested: bool,
+) -> bool:
+    """V5.5.0 (Problems.md #128) - which held positions the BOOK opened, as
+    opposed to the legacy-signal sleeve. Mutates `owned` in place and returns
+    whether `symbol_key` is book-owned after the update: invested AND a member
+    this bar adds it; a flat symbol is dropped; an invested non-member keeps
+    whatever status it already had (that is exactly the rotated-out case)."""
+    if not is_currently_invested:
+        owned.discard(symbol_key)
+        return False
+    if is_book_member:
+        owned.add(symbol_key)
+    return symbol_key in owned
+
+
+def is_rotation_exit_candidate(
+    is_currently_invested: bool,
+    sleeve_enabled: bool,
+    is_book_owned: bool,
+) -> bool:
+    """V5.5.0 (Problems.md #128) - may the rotation exit force-sell this
+    position when the book is active and did not select it?
+
+    should_exit_non_selected_book_symbol() was documented as applying to a
+    symbol "previously book-selected" but applied to EVERY invested non-member.
+    With the legacy sleeve on, that would liquidate a sleeve entry the very
+    next bar (and, with exits no longer blocked by the trade cooldown,
+    re-enter and re-exit it - pure churn), so the sleeve's positions must be
+    left to the non-model exits (max holding age, trailing stop) and their
+    own sell signal. With the sleeve OFF this is the pre-V5.5.0 rule
+    unchanged: every invested non-member is a candidate."""
+    if not is_currently_invested:
+        return False
+    return is_book_owned if sleeve_enabled else True
+
+
+def should_hold_owned_position_on_veto(
+    enabled: bool,
+    is_book_member: bool,
+    is_book_owned: bool,
+    is_currently_invested: bool,
+    book_is_active: bool,
+) -> bool:
+    """V5.5.0 (Problems.md #133) - while the book is VETOED (empty allocations:
+    spread / rolling-IC gate), a position the book opened must be HELD, not
+    handed to the legacy probability signal. Live never liquidates on a veto
+    (should_exit_non_selected_book_symbol needs an active book) and the
+    offline as-live simulator holds through one (`hold_positions_on_veto`),
+    but main.py let the legacy signal manage those positions: its next
+    "sell" closed them, so book positions lasted ~6 days instead of the
+    designed ~20+ (and shorts were re-sized to legacy weights). Only the
+    max-holding / trailing-stop backstops and the next ACTIVE book's rotation
+    exit may close an owned position. Off (False) reproduces pre-V5.5.0."""
+    return bool(enabled and is_book_owned and is_currently_invested and not is_book_member and not book_is_active)
+
+
 def build_book_history_record(
     date_str: str,
     book_allocations: dict[str, BookAllocation],

@@ -34,6 +34,7 @@ risk/position_sizing.py's rl_multiplier param and main.py's wiring."""
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 # Fixed, order-significant state key list - the trained artifact carries
@@ -165,6 +166,13 @@ def rl_sizing_multiplier(
                 return 1.0, "rl_sizing_malformed_model"
             score = float(action_bias) + sum(w * x for w, x in zip(action_weights, standardized))
             scores.append(score)
+
+        # V5.5.0 (Problems.md #117): a NaN/inf score used to fall through to
+        # the argmax below. NaN compares False with everything, so a NaN at
+        # scores[0] pinned best_index to 0 - the MOST aggressive shrink
+        # (0.6x) - instead of the strict no-op every other failure returns.
+        if not all(math.isfinite(score) for score in scores):
+            return 1.0, "rl_sizing_non_finite_score"
 
         best_index = _softmax_argmax_index(scores)
         raw_multiplier = float(actions[best_index])

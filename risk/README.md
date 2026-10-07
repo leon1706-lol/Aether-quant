@@ -186,6 +186,18 @@ Individual-bond trading is infeasible under this Lean version (no
 `SecurityType.Bond`) — reframed as bond-ETF duration/convexity in
 `features/bond_features.py` (`portfolio/README.md`).
 
+### Forex vs the book (V5.5.0)
+
+`build_forex_position_sizing` is margin-driven, so its `target_weight` is several
+x NAV; only direction came from the book. `cap_forex_target_to_book_weight()` makes
+it a ceiling for a book member (`phase_v2.portfolio_book.forex_cap_to_book_weight`).
+`main.py` also sizes against held + still-open order quantity
+(`risk_controls.projected_signed_quantity`), resizes only on rebalance bars with a
+`forex_resize_min_fraction` deadband, and gives forex shorts their own
+`max_forex_short_exposure` budget. `rl_sizing_multiplier` returns a strict no-op
+(`rl_sizing_non_finite_score`) when any action score is NaN/inf - NaN at index 0
+used to select the most aggressive shrink (0.6x).
+
 ## Adding to / rotating an existing position
 
 `risk_controls.py` (repo root) governs whether an already-open position may

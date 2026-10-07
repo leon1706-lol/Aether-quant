@@ -64,3 +64,19 @@ codebase.
 - `render_lean_credentials.py` — renders Lean's credential
   configuration from local env/secret state (used by the `aq backtest`
   flow on hosts where Lean needs explicit credentials).
+
+- `wheel_smoke.py` (V5.5.0) — smoke test of an **installed wheel**, run from
+  outside the checkout (CI `wheel-smoke`): imports every module of every shipped
+  package (a missing first-party module is a packaging bug; a missing
+  third-party extra is only noted) and runs every `aq <subcommand> --help` in a
+  fresh interpreter. `pip install -e .` hides this class entirely; the first run
+  found `risk_controls` missing from `py-modules`.
+
+- `check_test_count_drift.py` (V5.5.0) — compares the README test-count badge
+  with `pytest --collect-only`; warn-only by default (`::warning::`), `--strict`
+  exits 1. The badge is only refreshed by an unfiltered local `aq test`.
+
+- `feature_parity_audit.py --synthetic-only` (V5.5.0) — runs just check 1
+  (replicas vs `train.py` on synthetic data), needs no dataset files and exits
+  non-zero when the check did not actually run. It had been silently dead (a
+  swallowed `ValueError`/`TypeError` reported as `SKIPPED`) until this round.

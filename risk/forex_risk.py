@@ -156,3 +156,27 @@ def build_forex_position_sizing(
         max_leverage_utilization=max_leverage_utilization,
         sizing_reason=sizing_reason,
     )
+
+
+def cap_forex_target_to_book_weight(target_weight: float, book_weight: float) -> float:
+    """V5.5.0 (Problems.md #128) - forex sizing above is margin-driven: a
+    pair's target_weight is lots * lot_size * price / NAV, i.e. several
+    TIMES NAV at 20% margin utilization and 1:50 leverage, and the book's
+    own weight only chose the direction. Only the exposure caps limited it
+    (shorts shared one 30% budget with equities), so the 2026-08-27 run held
+    up to 60% of NAV short in forex while the book wanted ~8% a name.
+
+    Caps |target_weight| at |book_weight| (the weight the book assigned this
+    pair), keeping the sign. Margin sizing stays as an upper bound, never a
+    target. Non-finite input -> 0.0 (no trade).
+    """
+    try:
+        target = float(target_weight)
+        cap = abs(float(book_weight))
+    except (TypeError, ValueError):
+        return 0.0
+    if target != target or cap != cap or abs(target) == float("inf") or cap == float("inf"):
+        return 0.0
+    if abs(target) <= cap:
+        return target
+    return cap if target > 0.0 else -cap

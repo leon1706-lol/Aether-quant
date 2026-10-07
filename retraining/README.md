@@ -115,8 +115,10 @@ active* in production degrading, not whether a new candidate is ready. It
 feeds `auto_rollback.select_rollback_target()` live signals
 (`_live_degradation_signals()`: `main.py`'s kill-switch state read from
 `visualization/state.json`, plus recent `sharpe_degradation_trigger`/
-`rank_ic_decay_trigger` rows from `performance_triggers`), scores the
-situation with `rollback_hardening.compute_degradation_score()`, and, only
+`rank_ic_decay_trigger` rows from `performance_triggers`), reports a continuous
+`rollback_hardening.compute_degradation_score()` alongside the binary
+decision (`aq retrain auto-rollback --status` / `--dry-run` show it; it is
+informational, never the trigger), and, only
 when
 the selector agrees, calls the existing `orchestrator.rollback()` and
 pushes a notification through the same trigger-table → Telegram pathway

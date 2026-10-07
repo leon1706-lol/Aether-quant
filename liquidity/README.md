@@ -28,6 +28,11 @@ It computes, per asset per bar:
   `phase_v2.liquidity.zero_volume_fallback_ddv_by_type`) so the decision
   degrades to a conservative estimate instead of classifying every such
   bar as `blocked`.
+- `cap_spread_proxy(spread, security_type, caps)` clamps the spread the *gate/cost* sees
+  per asset class (`phase_v2.liquidity.max_spread_proxy_by_type`: crypto 0.001, forex
+  0.0003). Corwin-Schultz reads crypto/forex daily high-low volatility as a ~1% spread,
+  which blocked every crypto book selection against the 0.25% round-trip ceiling; the
+  `liquidity_spread_proxy` *model feature* is deliberately left uncapped (Problems #133).
 
 and classifies `liquidity_risk`/`recommended_action`:
 

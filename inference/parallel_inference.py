@@ -32,6 +32,8 @@ dependency, by design.
 
 from __future__ import annotations
 
+from data_pipeline.bar_synthesis import pad_sequence_history
+
 # Populated once per worker process by init_worker() below - never sent
 # across the process boundary again after that, and never touched by the
 # main process itself.
@@ -71,16 +73,14 @@ def init_worker(model_exports: dict) -> None:
 
 
 def _padded_sequence(history: list[list[float]], window_size: int) -> list[list[float]]:
-    """Same left-zero-padding logic main.py::_run_sequence_model() already
-    applies - duplicated here (a handful of lines) rather than shared,
-    since this module must have zero main.py/Lean dependency and the
-    logic is small enough that a shared-helper extraction isn't worth the
-    added indirection."""
+    """V5.5.0 (V5.4.5 audit note): delegates to the one shared implementation,
+    data_pipeline/bar_synthesis.py::pad_sequence_history(), instead of keeping
+    a third copy that could drift. That helper raises on an empty history
+    (#123); this off-by-default pool path has always returned [] for it (the
+    caller then runs no sequence model), so that case stays guarded here."""
     if not history:
         return []
-    input_width = len(history[0])
-    padding_needed = window_size - len(history)
-    return [[0.0] * input_width for _ in range(max(0, padding_needed))] + list(history)
+    return pad_sequence_history(history, window_size)
 
 
 def run_symbol_inference(

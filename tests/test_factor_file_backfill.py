@@ -222,3 +222,176 @@ def test_fetch_corporate_actions_never_raises_when_yfinance_unavailable(monkeypa
     monkeypatch.setattr(builtins, "__import__", _blocked_import)
 
     assert fetch_corporate_actions("AAPL") is None
+
+
+# ---------------------------------------------------------------------------
+# V5.5.0 (Problems.md #130) - double-adjustment detection and repair
+# ---------------------------------------------------------------------------
+
+import json  # noqa: E402
+from zipfile import ZipFile  # noqa: E402
+
+from data_pipeline import factor_file_backfill as ffb  # noqa: E402
+
+
+def _write_zip(path, rows, *, float_volume):
+    """Lean daily CSV rows: (YYYYMMDD, close). Volume is float-formatted the way
+    yfinance_backfill writes it, or integer-formatted the way QuantConnect does."""
+    lines = []
+    for date, close in rows:
+        volume = "98898000.0" if float_volume else "98898000"
+        deci = int(round(close * 10000))
+        lines.append(f"{date} 00:00,{deci},{deci},{deci},{deci},{volume}")
+    with ZipFile(path, "w") as archive:
+        archive.writestr("x.csv", "\n".join(lines))
+
+
+def _rows(factor_rows):
+    return [dict(zip(("factor_date", "price_factor", "split_factor", "reference_price"), r)) for r in factor_rows]
+
+
+def test_a_float_formatted_volume_fingerprints_the_yfinance_backfill_writer(tmp_path):
+    adjusted, raw = tmp_path / "a.zip", tmp_path / "r.zip"
+    _write_zip(adjusted, [("20190603", 84.63), ("20190604", 85.0)], float_volume=True)
+    _write_zip(raw, [("20190603", 84.63), ("20190604", 85.0)], float_volume=False)
+    assert ffb.zip_written_by_yfinance_backfill(ffb.read_zip_daily_rows(adjusted)) is True
+    assert ffb.zip_written_by_yfinance_backfill(ffb.read_zip_daily_rows(raw)) is False
+    assert ffb.zip_written_by_yfinance_backfill([]) is False
+    assert ffb.read_zip_daily_rows(tmp_path / "missing.zip") == []
+
+
+def test_a_merged_zip_keeping_real_integer_rows_is_not_treated_as_backfill_written(tmp_path):
+    path = tmp_path / "m.zip"
+    with ZipFile(path, "w") as archive:
+        archive.writestr("x.csv", "20190603 00:00,1,1,1,1,1000.0\n20190604 00:00,1,1,1,1,5000")
+    assert ffb.zip_written_by_yfinance_backfill(ffb.read_zip_daily_rows(path)) is False
+
+
+def test_reference_ratio_is_one_on_a_raw_zip_and_below_one_on_a_dividend_adjusted_one():
+    factor_rows = _rows([("20200102", 0.98, 1.0, 100.0), ("20200402", 0.99, 1.0, 100.0)])
+    raw_zip = [["20200102 00:00", "0", "0", "0", "1000000", "1"], ["20200402 00:00", "0", "0", "0", "1000000", "1"]]
+    adjusted_zip = [["20200102 00:00", "0", "0", "0", "970000", "1"], ["20200402 00:00", "0", "0", "0", "980000", "1"]]
+    assert ffb.reference_ratio_median(raw_zip, factor_rows) == pytest.approx(1.0)
+    assert ffb.reference_ratio_median(adjusted_zip, factor_rows) == pytest.approx(0.975)
+    assert ffb.reference_ratio_median([], factor_rows) is None
+    assert ffb.reference_ratio_median(raw_zip, _rows([("20991231", 1.0, 1.0, 100.0)])) is None
+
+
+def test_audit_flags_only_the_proven_double_adjustment():
+    adjusted_zip = [["20200102 00:00", "0", "0", "0", "970000", "98898000.0"]]
+    raw_zip = [["20200102 00:00", "0", "0", "0", "1000000", "98898000"]]
+    real_file = _rows([("20200102", 0.98, 0.05, 100.0), ("20501231", 1.0, 1.0, 0.0)])
+    identity = _rows([("20501231", 1.0, 1.0, 0.0)])
+
+    double = ffb.audit_factor_file(adjusted_zip, real_file)
+    assert double["needs_repair"] is True
+    assert double["zip_written_by_yfinance_backfill"] is True
+
+    legitimate = ffb.audit_factor_file(raw_zip, real_file)  # a genuine QuantConnect raw zip + its factor file
+    assert legitimate["needs_repair"] is False
+
+    # A sentinel-only "identity" file is NOT a fix: Lean reads its zero reference price as a numerical-precision
+    # problem and moves the symbol's data start to 12/30/2050 (V5.5.0's first backtest attempt logged exactly that).
+    sentinel_only = ffb.audit_factor_file(adjusted_zip, identity)
+    assert sentinel_only["needs_repair"] is True
+    assert "2050" in sentinel_only["reason"]
+
+
+def test_a_split_only_file_with_no_dividend_evidence_is_still_flagged_for_a_backfill_zip():
+    """AMZN/CRM/ADBE pay no dividends, so the reference ratio is uninformative (None) - the
+    writer fingerprint alone must carry the verdict."""
+    zip_rows = [["20190603 00:00", "0", "0", "0", "846345", "98898000.0"]]
+    split_file = _rows([("20220606", 1.0, 0.05, 124.79), ("20501231", 1.0, 1.0, 0.0)])
+    verdict = ffb.audit_factor_file(zip_rows, split_file)
+    assert verdict["needs_repair"] is True and verdict["zip_to_reference_ratio_median"] is None
+
+
+def test_repair_backs_up_the_original_once_then_removes_the_file(tmp_path):
+    factor_dir = tmp_path / "factor_files"
+    original = _rows([("20200102", 0.98, 0.05, 100.0), ("20501231", 1.0, 1.0, 0.0)])
+    ffb.write_factor_file(factor_dir, "AMZN", original)
+    original_text = (factor_dir / "amzn.csv").read_text(encoding="utf-8")
+
+    assert ffb.repair_factor_file(factor_dir, "AMZN", apply=False) is None  # dry run touches nothing
+    assert (factor_dir / "amzn.csv").read_text(encoding="utf-8") == original_text
+
+    backup = ffb.repair_factor_file(factor_dir, "AMZN", apply=True)
+    assert backup == tmp_path / ffb.BACKUP_DIR_NAME / "amzn.csv"  # OUTSIDE factor_files/: Lean reads that directory
+    assert backup.read_text(encoding="utf-8") == original_text
+    assert not (factor_dir / "amzn.csv").exists()  # removed, NOT replaced by a sentinel-only stub (see #130)
+    assert [path.name for path in factor_dir.iterdir()] == []  # no stray subfolder next to the files Lean reads
+
+    ffb.write_factor_file(factor_dir, "AMZN", _rows([("20501231", 1.0, 1.0, 0.0)]))  # a later stub must not clobber the TRUE backup
+    ffb.repair_factor_file(factor_dir, "AMZN", apply=True)
+    assert backup.read_text(encoding="utf-8") == original_text
+
+
+def test_a_removed_factor_file_is_an_identity_through_the_training_pipeline_reader(tmp_path, monkeypatch):
+    factor_dir = tmp_path / "factor_files"
+    ffb.write_factor_file(factor_dir, "AMZN", _rows([("20220606", 1.0, 0.05, 124.79), ("20501231", 1.0, 1.0, 0.0)]))
+    ffb.repair_factor_file(factor_dir, "AMZN", apply=True)
+    monkeypatch.setattr(train, "FACTOR_FILES_DIR", factor_dir)
+    assert train.load_factor_file("AMZN") is None
+    frame = pd.DataFrame(
+        {"date": pd.to_datetime(["2019-06-03", "2019-06-04"]), "open": [84.0, 85.0], "high": [86.0, 86.0],
+         "low": [83.0, 84.0], "close": [84.63, 85.5], "volume": [1000.0, 2000.0]}
+    )
+    adjusted = train.apply_split_adjustments(frame, "AMZN")
+    assert adjusted["close"].tolist() == pytest.approx([84.63, 85.5])  # NOT x0.05
+    assert adjusted["volume"].tolist() == pytest.approx([1000.0, 2000.0])
+
+
+def test_cli_audit_and_repair_report_and_apply(tmp_path, monkeypatch, capsys):
+    factor_dir = tmp_path / "factor_files"
+    daily_dir = tmp_path / "daily"
+    daily_dir.mkdir()
+    _write_zip(daily_dir / "amzn.zip", [("20190603", 84.63)], float_volume=True)
+    _write_zip(daily_dir / "aapl.zip", [("20190603", 200.0)], float_volume=False)
+    ffb.write_factor_file(factor_dir, "AMZN", _rows([("20220606", 1.0, 0.05, 124.79), ("20501231", 1.0, 1.0, 0.0)]))
+    ffb.write_factor_file(factor_dir, "AAPL", _rows([("20200828", 0.99, 0.25, 499.23), ("20501231", 1.0, 1.0, 0.0)]))
+    config = {
+        "phase1": {"universe": {"assets": [
+            {"ticker": "AMZN", "security_type": "equity", "data_path": str(daily_dir / "amzn.zip")},
+            {"ticker": "AAPL", "security_type": "equity", "data_path": str(daily_dir / "aapl.zip")},
+        ]}}
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(ffb, "ROOT", tmp_path)  # data_path is joined onto ROOT; absolute paths stay absolute
+
+    base = ["factor_file_backfill", "--config-path", str(config_path), "--output-dir", str(factor_dir)]
+    monkeypatch.setattr("sys.argv", base + ["--audit"])
+    assert ffb.main() == 1  # a double-adjusted file exists -> non-zero, so a CI step can gate on it
+    out = capsys.readouterr().out
+    assert "AMZN: DOUBLE-ADJUSTED" in out and "AAPL: ok" in out
+
+    monkeypatch.setattr("sys.argv", base + ["--repair-adjusted-zips"])
+    assert ffb.main() == 0
+    assert "would_repair" in capsys.readouterr().out
+    assert "0.05" in (factor_dir / "amzn.csv").read_text(encoding="utf-8")  # dry run changed nothing
+
+    monkeypatch.setattr("sys.argv", base + ["--repair-adjusted-zips", "--apply"])
+    assert ffb.main() == 0
+    assert not (factor_dir / "amzn.csv").exists()
+    assert (tmp_path / ffb.BACKUP_DIR_NAME / "amzn.csv").exists()
+    assert "0.25" in (factor_dir / "aapl.csv").read_text(encoding="utf-8")  # the genuine QC file is untouched
+
+    monkeypatch.setattr("sys.argv", base + ["--audit"])
+    assert ffb.main() == 0
+
+
+def test_generation_skips_tickers_whose_zip_is_already_adjusted(tmp_path, monkeypatch, capsys):
+    factor_dir = tmp_path / "factor_files"
+    zip_path = tmp_path / "amzn.zip"
+    _write_zip(zip_path, [("20190603", 84.63)], float_volume=True)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"phase1": {"universe": {"assets": [{"ticker": "AMZN", "security_type": "equity", "data_path": str(zip_path)}]}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ffb, "ROOT", tmp_path)
+    monkeypatch.setattr(ffb, "fetch_corporate_actions", lambda _t: pytest.fail("must not fetch for an already-adjusted zip"))
+    monkeypatch.setattr("sys.argv", ["factor_file_backfill", "--config-path", str(config_path), "--output-dir", str(factor_dir), "--apply"])
+    assert ffb.main() == 0
+    assert "skipped_zip_already_adjusted" in capsys.readouterr().out
+    assert not (factor_dir / "amzn.csv").exists()

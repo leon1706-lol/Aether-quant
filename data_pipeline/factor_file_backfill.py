@@ -36,8 +36,39 @@ yfinance_backfill.py:
    dataset-build pipeline (`aq train --dataset-only`), not at Lean
    runtime (main.py never reads these).
 
+V5.5.0 (development/Problems.md #130) - DOUBLE-ADJUSTMENT FIX. The 63 files
+this module generated in V5.3.3 were applied on top of zips that
+yfinance_backfill.py had ALREADY written with `auto_adjust=True`, i.e. prices
+that are split- AND dividend-adjusted as of fetch time. Both train.py and
+Lean then multiplied them by the factor file again:
+  - prices carried the cumulative split factor a second time (AMZN $84.63 in
+    2019 became $4.23, NVDA ~$0.02-0.3), so per-share IB commissions on a
+    share count 20-480x too large cost 16-49 bps a side instead of ~1;
+  - every ex-dividend date gained an extra +dividend-yield return (the series
+    already contained it), flattering dividend payers' longs and penalizing
+    their shorts.
+Evidence, reproducible with `--audit`: for each generated file the zip's close
+on an event date equals reference_price x (the cumulative factor of the events
+AFTER that date) - the signature of an already-adjusted series - while the 22
+genuine QuantConnect files have zip == reference_price (raw). A second,
+independent fingerprint of the writer: yfinance_backfill writes volume as a
+float ("98898000.0"), QuantConnect's own zips as an integer.
+
+A zip written by yfinance_backfill needs NO factor adjustment, so
+`--repair-adjusted-zips` REMOVES such tickers' files (backing the originals up
+first) and generation now skips them. Remove, do not "neutralize": a
+sentinel-only identity file (`20501231,1,1,0`) is NOT equivalent to a missing
+file for Lean - its zero reference price trips Lean's numerical-precision check
+and it logs "data for the following symbols was adjust to a later starting
+date: [EMB, 12/30/2050] ...", i.e. the symbol has no data until 2050. That
+exact trap sank V5.5.0's first backtest attempt (it was caught in the engine
+log of a run that had already crashed for another reason). A missing file is
+what every run before #100 used, and works in both Lean and train.py.
+
 Usage:
     python -m data_pipeline.factor_file_backfill [--tickers NVDA GE] [--apply]
+    python -m data_pipeline.factor_file_backfill --audit
+    python -m data_pipeline.factor_file_backfill --repair-adjusted-zips [--tickers T ...] [--apply]
 """
 
 from __future__ import annotations
@@ -45,7 +76,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shutil
+import statistics
 from pathlib import Path
+from zipfile import ZipFile
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +211,124 @@ def compute_lean_factor_rows(history) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# V5.5.0 - already-adjusted zip detection and repair (see module docstring)
+# ---------------------------------------------------------------------------
+
+# Outside factor_files/ on purpose: nothing in the directory Lean reads should be a stray subfolder.
+BACKUP_DIR_NAME = "factor_files_backup_pre_v550"
+
+
+def read_zip_daily_rows(zip_path: Path) -> list[list[str]]:
+    """Raw Lean daily CSV rows (`YYYYMMDD 00:00,open,high,low,close,volume`)
+    as split string fields. [] for a missing/unreadable zip - never raises."""
+    try:
+        with ZipFile(zip_path) as archive:
+            member = archive.namelist()[0]
+            text = archive.read(member).decode("utf-8", errors="replace")
+    except (OSError, IndexError, ValueError, KeyError):
+        return []
+    return [line.split(",") for line in text.splitlines() if line.strip()]
+
+
+def zip_written_by_yfinance_backfill(rows: list[list[str]], sample_size: int = 50) -> bool:
+    """True when the zip's volume column is float-formatted ("98898000.0").
+    yfinance_backfill.rows_to_lean_csv() writes a float; QuantConnect's own
+    daily zips write an integer ("44109029"). yfinance_backfill fetches with
+    auto_adjust=True, so such a zip is split- AND dividend-adjusted already.
+    Looks at the first/last `sample_size` rows; any integer-formatted volume
+    in the sample means NOT written by the backfill (a merged zip keeps real
+    QC rows verbatim - "existing rows always win")."""
+    if not rows:
+        return False
+    sample = rows[:sample_size] + rows[-sample_size:]
+    volumes = [row[5] for row in sample if len(row) >= 6]
+    return bool(volumes) and all("." in volume for volume in volumes)
+
+
+def reference_ratio_median(zip_rows: list[list[str]], factor_rows: list[dict], max_events: int = 40) -> float | None:
+    """Median of zip_close / reference_price over factor-file event dates that
+    exist in the zip. ~1.0 -> the zip is on the factor file's own (raw) scale;
+    clearly below 1.0 -> the zip already includes later dividend adjustments.
+    None when no event date can be matched."""
+    close_by_date = {}
+    for row in zip_rows:
+        try:
+            close_by_date[row[0][:8]] = float(row[4]) / 10000.0
+        except (IndexError, ValueError):
+            continue
+    ratios = []
+    for factor_row in factor_rows:
+        reference = float(factor_row.get("reference_price") or 0.0)
+        close = close_by_date.get(str(factor_row.get("factor_date")))
+        if reference > 0.0 and close is not None:
+            ratios.append(close / reference)
+    return statistics.median(ratios[-max_events:]) if ratios else None
+
+
+def read_factor_file_rows(path: Path) -> list[dict]:
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        parts = line.strip().split(",")
+        if len(parts) < 4:
+            continue
+        rows.append(
+            {
+                "factor_date": parts[0],
+                "price_factor": float(parts[1]),
+                "split_factor": float(parts[2]),
+                "reference_price": float(parts[3]),
+            }
+        )
+    return rows
+
+
+def factor_file_is_identity(factor_rows: list[dict]) -> bool:
+    return all(row["price_factor"] == 1.0 and row["split_factor"] == 1.0 for row in factor_rows)
+
+
+def audit_factor_file(zip_rows: list[list[str]], factor_rows: list[dict]) -> dict:
+    """Does a factor file exist for a ticker whose zip is already adjusted?
+    ANY such file is wrong: a real one double-adjusts (train.py and Lean both
+    re-apply it), and a sentinel-only "identity" one makes Lean start the
+    symbol's data in 2050. So `needs_repair` is simply "backfill-written zip
+    AND a factor file is present" - the only correct state is no file."""
+    from_backfill = zip_written_by_yfinance_backfill(zip_rows)
+    event_rows = [row for row in factor_rows if row["factor_date"] != "20501231"]
+    identity = factor_file_is_identity(event_rows)
+    ratio = reference_ratio_median(zip_rows, event_rows)
+    if not from_backfill:
+        reason = "zip is not backfill-written (raw QuantConnect data): its factor file is legitimate"
+    elif identity and not event_rows:
+        reason = "sentinel-only factor file on an adjusted zip: Lean pushes the symbol's data start to 12/30/2050"
+    else:
+        reason = "yfinance auto_adjust=True zip (already split+dividend adjusted) + a factor file = double adjustment"
+    return {
+        "zip_written_by_yfinance_backfill": from_backfill,
+        "factor_file_is_identity": identity,
+        "zip_to_reference_ratio_median": None if ratio is None else round(ratio, 4),
+        "needs_repair": bool(from_backfill),
+        "reason": reason,
+    }
+
+
+def repair_factor_file(factor_dir: Path, ticker: str, *, apply: bool) -> Path | None:
+    """Removes <ticker>.csv after copying it to <factor_dir>/../factor_files_backup_pre_v550/
+    (never overwriting an existing backup - the first backup is the true
+    original, so repairing an already-neutralized file cannot lose it).
+    Returns the backup path when applied, else None."""
+    path = factor_dir / f"{ticker.lower()}.csv"
+    if not apply:
+        return None
+    backup_dir = factor_dir.parent / BACKUP_DIR_NAME
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / path.name
+    if not backup_path.exists():
+        shutil.copy2(path, backup_path)
+    path.unlink()
+    return backup_path
+
+
+# ---------------------------------------------------------------------------
 # The only function that imports yfinance - deferred, mirrors
 # dividend_backfill.py's/yfinance_backfill.py's own convention.
 # ---------------------------------------------------------------------------
@@ -231,7 +383,36 @@ def write_factor_file(output_dir: Path, ticker: str, rows: list[dict]) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def _audit_or_repair(config: dict, args: argparse.Namespace) -> int:
+    """--audit / --repair-adjusted-zips, both local-only (no network)."""
+    zip_paths = {
+        asset["ticker"]: ROOT / asset["data_path"]
+        for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+        if asset.get("security_type") == "equity" and asset.get("data_path")
+    }
+    tickers = args.tickers if args.tickers else sorted(zip_paths)
+    repaired = flagged = 0
+    for ticker in tickers:
+        factor_path = args.output_dir / f"{ticker.lower()}.csv"
+        if not factor_path.exists() or ticker not in zip_paths:
+            continue
+        verdict = audit_factor_file(read_zip_daily_rows(zip_paths[ticker]), read_factor_file_rows(factor_path))
+        if verdict["needs_repair"]:
+            flagged += 1
+        if args.repair_adjusted_zips and verdict["needs_repair"]:
+            backup = repair_factor_file(args.output_dir, ticker, apply=args.apply)
+            repaired += 1 if args.apply else 0
+            status = f"repaired (backup: {backup})" if args.apply else "would_repair"
+        else:
+            status = "DOUBLE-ADJUSTED" if verdict["needs_repair"] else "ok"
+        print(f"- {ticker}: {status} ratio={verdict['zip_to_reference_ratio_median']} {verdict['reason']}")
+    print(f"\n{flagged} double-adjusted factor file(s) found; {repaired} repaired.")
+    if args.repair_adjusted_zips and not args.apply and flagged:
+        print("Dry run only - re-run with --apply to rewrite them (originals are backed up first).")
+    return 0 if (args.repair_adjusted_zips or not flagged) else 1
+
+
+def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s")
     parser = argparse.ArgumentParser(
         description="Aether Quant Lean factor-file backfill - offline/manual only, "
@@ -244,15 +425,39 @@ def main() -> None:
     parser.add_argument("--apply", action="store_true", help="Actually write factor files (default: dry run, report only)")
     parser.add_argument("--config-path", type=Path, default=CONFIG_PATH)
     parser.add_argument("--output-dir", type=Path, default=FACTOR_FILES_DIR)
+    parser.add_argument(
+        "--audit", action="store_true",
+        help="V5.5.0: report, per configured equity with a factor file, whether it sits on top of an "
+        "already-adjusted (yfinance auto_adjust=True) zip - the double-adjustment / 2050-start trap of Problems.md #130. Read-only; exit 1 on a finding.",
+    )
+    parser.add_argument(
+        "--repair-adjusted-zips", action="store_true",
+        help="V5.5.0: remove the factor file of every ticker whose zip is already split+dividend adjusted "
+        "(originals backed up to <output-dir>/../factor_files_backup_pre_v550/). Dry run unless --apply.",
+    )
     args = parser.parse_args()
 
     with args.config_path.open("r", encoding="utf-8") as f:
         config = json.load(f)
 
+    if args.audit or args.repair_adjusted_zips:
+        return _audit_or_repair(config, args)
+
     tickers = args.tickers if args.tickers else tickers_missing_factor_file(configured_equity_tickers(config), args.output_dir)
 
+    zip_paths = {
+        asset["ticker"]: ROOT / asset["data_path"]
+        for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+        if asset.get("data_path")
+    }
     print(f"{'APPLY' if args.apply else 'DRY RUN'} — checking corporate-action history for {len(tickers)} ticker(s):\n")
     for ticker in tickers:
+        # V5.5.0: a yfinance_backfill-written zip is already split+dividend adjusted; generating a
+        # factor file for it re-applies every correction (Problems.md #130).
+        zip_rows = read_zip_daily_rows(zip_paths[ticker]) if ticker in zip_paths else []
+        if zip_written_by_yfinance_backfill(zip_rows):
+            print(f"- {ticker}: skipped_zip_already_adjusted (yfinance auto_adjust=True zip needs no factor file)")
+            continue
         history = fetch_corporate_actions(ticker)
         if history is None:
             print(f"- {ticker}: no_data_returned")
@@ -270,7 +475,8 @@ def main() -> None:
 
     if not args.apply:
         print("\nDry run only — no factor files were written. Re-run with --apply to write them.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

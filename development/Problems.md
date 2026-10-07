@@ -269,6 +269,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (2026-10-06, V5.5.0):** superseded by #30 - the consolidated engine image removed the per-worker `COPY` lists this entry concerned.
+
 ### 21. Per-bar model forward-pass count doubled (5 → 11) — measured, not currently a problem
 
 **Severity:** 2/10 · **Status:** 🟢 `measured, not currently a problem`
@@ -465,6 +467,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (2026-10-06, V5.5.0):** the topology cache is now enabled in `config.json` (`cache_enabled: true`, percentile tolerance 75); reuse hit counts are reported by the opt-in V5.5.0 timing probe (#129).
+
 ### 37. Inference tail latency (p99 3-5x p50) — investigated and fixed
 
 **Severity:** 4/10 · **Status:** 🟢 `fixed and verified`
@@ -476,6 +480,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Verification:** Paired GC-on/off runs: max latency -66-95% with GC disabled, p50 unaffected (tail-only effect); `gc.freeze()` clean across full real backtest (2026-07-20, #54).
 
 ---
+
+**Update (2026-10-06, V5.5.0):** `phase_v2.gc_tuning.freeze_after_load_enabled` is now `true`; `gc.freeze()` is one suspect for the teardown hang (#104) and the V5.5.0 teardown-cleanup experiment unfreezes before shutdown.
 
 ### 38. 2-leg vertical spread selection for options — explicit scope-in of a previously-non-goal feature
 
@@ -561,6 +567,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (2026-10-06, V5.5.0):** superseded by #88a - the Lean CLI Windows dependency-mount workaround replaced this approach.
+
 ### 45. `av` (Aether-Vault CLI) was broken on this machine — never actually run once in this repo
 
 **Severity:** 4/10 · **Status:** 🟢 `fixed`
@@ -620,6 +628,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Verification:** Three real cycles via worker poll loop (`plan→train→train_topology→train_gating→train_multitask→train_sequence→validate`); `train_sequence` timed out once at its 1800s cap (real resource-constrained-host finding, not crash), pipeline continued to `validate`; all three candidates rejected on legitimate quality grounds (consistent with #43 weak-edge finding); rollback tested vs real Postgres/files — happy path flips status `active`, tamper path (corrupted hash) refused with no files copied/no row touched; `backtest_gate` never organically exercised (nothing cleared `validate`), confirmed structurally unable to run as configured.
 
 ---
+
+**Update (2026-10-06, V5.5.0):** `lean` CLI availability was settled by #62; kept for history.
 
 ### 50. This dev machine's 4GB RAM couldn't reliably run a real `lean backtest .` — blocked verifying #34/#36/#37/#38
 
@@ -933,6 +943,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (2026-10-06, V5.5.0):** "not yet re-verified with a Lean backtest" is superseded by the real runs recorded from #89 onward (#127 for the latest).
+
 ### 78. `tests/test_retraining_worker.py` — 7 of 11 tests spawned a real, unmocked subprocess, adding ~17 minutes to every full suite run
 
 **Severity:** 3/10 (dev-velocity/CI-cost only, no correctness impact) · **Status:** 🟢 `fixed`
@@ -980,6 +992,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Verification:** `tests/test_book_neutrality.py` rewritten, 12 tests incl. monolithic-role regression guard; end-to-end on Codespace real model/data: `net_sharpe` 0.4856→0.9694, `mean_names_short` 0.00→6.00; not yet re-verified with a Lean backtest — `sector_neutral: true` config default since Phase 1, affecting live decision path too.
 
 ---
+
+**Update (2026-10-06, V5.5.0):** "not yet re-verified with a Lean backtest" is superseded by the real runs recorded from #89 onward (#127 for the latest).
 
 ### 82. V5.1 Phase 4's walk-forward net-performance step crashed on window 1 — fed the exported model the wrong feature list (49 raw names instead of the 66 it was actually trained on)
 
@@ -1139,6 +1153,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (2026-10-06, V5.5.0):** (V5.5.0) part of the "overlap erosion" was a measurement artifact: `--reconcile-book-history` read a rebalance live had **vetoed** as 0% overlap. Vetoed dates are now reported separately and excluded from the match statistics (#131); the remaining root causes are #128.
+
 ### 95. Full-scale production retrain with gate-aware ranking weights promoted to active `ml/`; RL sizing re-confirmed negative a third time; full-epoch walk-forward validation (V5.2.9)
 
 **Severity:** n/a (production training round, no defect) · **Status:** 🟢 `fixed and verified`
@@ -1236,6 +1252,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (2026-10-06, V5.5.0):** "full retrain on the corrected dataset out of scope" was done by #106/#107 - **but** the factor files this entry generated were themselves double-adjusting already-adjusted zips (#130, repaired in V5.5.0); a dataset regeneration + Codespace retrain is the follow-up.
+
 ### 101. `aq evaluate --all`'s non-JSON reporting crashed on Windows — a Greek Δ character isn't in the cp1252 console codec
 
 **Severity:** 3/10 · **Status:** 🟢 `fixed`
@@ -1292,7 +1310,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 104. Chronic Lean embedded-Python teardown hang ("endless loop") — fires only after normal completion, never affects results; probe shipped, culprit unnamed
 
-**Severity:** 3/10 (exit-log noise only — results are always fully written first) · **Status:** 🟡 open (differential analysis done, diagnostic probe shipped, awaiting one more real run to name the resource)
+**Severity:** 3/10 (exit-log noise only — results are always fully written first) · **Status:** 🟡 open (differential analysis done, diagnostic probe shipped; the 2026-08-27 run did NOT exit clean — corrected in the Update below; culprit is native-side, still unnamed)
 
 **Problem:** commit c2ed98c's "endless loop found in backtest log" is Lean embedded-interpreter teardown timing out: after `PythonInitializer.Shutdown(): start/calling engine shutdown...`, ~10s elapse, then `Isolator.ExecuteWithTimeLimit(): Execution Security Error: Operation timed out - 0.1666... minutes max. Check for recursive loops. (Isolator.cs:179)` and `Program.Exit(): Failed to shutdown python System.TimeoutException (Launcher/Program.cs:145)`. Classic CPython finalization blocking on still-alive non-daemon thread or native handle while isolator kills interpreter at its 10s limit.
 
@@ -1307,6 +1325,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 **Verification:** py_compile only so far (no unit test can exercise embedded-interpreter teardown). Decisive evidence is next real backtest: log should carry `shutdown-probe:` line immediately before timeout (or clean exit with probe present narrows trigger).
 
 **Follow-ups:** read `shutdown-probe: alive_threads=[...]` from next run's log; once surviving resource named, add targeted cleanup (explicit close/shutdown of owning library object), re-verify with subsequent run's clean `PythonInitializer.Shutdown(): ended`.
+
+**Update (2026-08-27 real backtest — `backtests/2026-08-27_12-01-48`) — CORRECTED 2026-10-06:** this entry originally recorded the run as "exited cleanly", read from the *algorithm* log (`1773747993-log.txt`: `shutdown-probe: alive_threads=[]` + `completed in 2816.67 seconds`). The *engine* log `log.txt` shows the hang **did** happen: `10:51:23 PythonInitializer.Shutdown(): calling engine shutdown...` → `10:51:34 Operation timed out` → `Program.Exit(): Failed to shutdown python`. All 9 runs since 2026-08-10 carry it. The empty `alive_threads` list is still real evidence: the blocker is **not a Python thread** — it is native/.NET-side (a pythonnet-held reference, e.g. Lean `Symbol`/`Slice` objects held by long-lived dicts, or the frozen GC generation since `gc.freeze()`). V5.5.0 (Problems #129) adds a richer opt-in probe + opt-in pre-shutdown cleanup. Status stays 🟡 until a run's **engine** `log.txt` shows `PythonInitializer.Shutdown(): ended`.
 
 
 ### 105. Train-vs-live feature-parity audit (V5.3.6 WS-A) - scaler artifact verified exact; NO live-path formula drift found in all OHLCV-recomputable families; residual deltas fully attributed to replica boundary artifacts
@@ -1644,3 +1664,91 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 - ci.yml's ruff install pinned (`ruff==0.16.4`) - the unbounded range let new ruff releases change CI results independently of repo changes.
 
 **Verification:** 36 new meta-tests green; full suite 2929 green; ruff clean; installed `aq` re-installed (`pip install -e .`) to pick up json_safety per the #115 packaging rule.
+
+
+### 126. V5.4.10 \- 34% of backtest data requests failed on missing crypto QUOTE zips; only the traded LTCUSD needed a fix (observation-only assets are quote-less by design)
+
+**Severity:** 2/10 (cosmetic — no results affected; Lean fell back to trade data and this algorithm never reads crypto quote bars) · **Status:** 🟢 `fixed` (data + tooling; see #104-style caveat below — no code in the Lean hot path changed)
+
+**Problem:** the V5.4.8+ backtest (`backtests/2026-08-27_12-01-48`) reported `data-monitor-report`: **107 succeeded / 55 failed / 34%** of 162 data requests. Every one of the 55 failures was a missing `/crypto/coinbase/daily/<ticker>_quote.zip`. Lean's default `AddCrypto` subscription requests BOTH a trade and a quote feed, but this project's pipeline (`data_pipeline/yfinance_backfill.py`, `train.py::ensure_derived_crypto_daily_series()`) only ever generates `*_trade.zip` — so quote requests failed for every crypto asset except BTC (whose `btcusd_quote.zip` was produced by an earlier external/manual step with genuine bid/ask).
+
+**Diagnosis (why this is almost entirely non-issue):** only **2** of the 12 crypto assets are actually traded (`ml/dataset_manifest.json`: `BTCUSD`, `LTCUSD` = `model_training_and_trading`). The other **10** (ETH/XRP/ADA/BCH/LINK/DOGE/XLM/EOS/ETC/ZEC) are `observation_only` watch-mode assets (`observation_only_assets_can_trade: false`) that are never traded — quote data for them is correctly absent by design. `main.py` only ever reads `Slice.quote_bars` for **forex** (V4.6 `_midpoint_bar_from_quote_bar`), never for crypto — crypto signals and fills run entirely on **trade** bars, and fills are governed by `main.py`'s own `_LiquidityAwareSlippageModel`, not Lean's default quote-based fill model. So the 44 requests for observation-only quotes and the LTCUSD quote request were all functionally benign; Lean gracefully fell back to trade data and the backtest completed and filled correctly. The sole genuine gap was **LTCUSD** — a real traded asset whose quote subscription never found data.
+
+**Fix:** new crypto sibling of the existing forex synthesis path (V4.10, #66's `synthesize_forex_bid_ask_row`/`write_lean_forex_zip` convention) in `data_pipeline/yfinance_backfill.py`:
+- `synthesize_crypto_bid_ask_row()` — documented **zero-spread** approximation (bid = ask = trade OHLC; trade volume carried into both volume columns), matching Lean's real 11-column crypto quote CSV shape (`btcusd_quote.zip`), no fake spread invented. This algorithm never reads crypto quote bars, so this is data-completeness for the subscription, not a live spread feed.
+- `crypto_rows_to_lean_csv()` / `_read_existing_lean_crypto_quote_rows()` — format/read helpers mirroring the forex siblings.
+- `write_lean_crypto_quote_zip(trade_zip, quote_zip, ticker)` — derives a quote zip from an existing trade zip, preserving any existing REAL bid/ask rows on merge (existing rows always win, same convention as `write_lean_zip()`); raises `FileNotFoundError` on a missing trade zip.
+- CLI: `aq backfill yfinance --quotes [--tickers ...] [--apply]` — dry-runs or writes a `_quote.zip` per crypto asset from its existing `_trade.zip`. **Only the traded LTCUSD was generated** (`aq backfill yfinance --quotes --tickers LTCUSD --apply` → 1917 rows, matching the trade zip); the 10 observation-only assets were intentionally left quote-less.
+
+**Verification:** 6 new tests in `tests/test_yfinance_backfill.py` (row synthesis, 11-column CSV, zip derivation, real-spread-preserving merge, missing-trade-raise); full suite **2935 green**; ruff clean. `data/crypto/coinbase/daily/ltcusd_quote.zip` now exists (1917 rows, validated round-trip); BTC + LTCUSD both have quote zips; 10 observation-only assets unchanged. File only — the Lean image need not be rebuilt; a future backtest should show the quote failures drop from 55 to ~44 (observation-only remain by design) and the **traded** universe fully subscribed.
+
+**Follow-ups:** if the data-monitor 34% ever needs to be literally 0% (e.g. dashboards alarm on any failure), either generate the observation-only quote zips too, or switch `AddCrypto` to a trade-only subscription — neither is needed today because those assets never trade and crypto ignores quote bars.
+
+
+---
+
+### 127. 2026-08-27 backtest written up: Sharpe −2.51 against an offline +1 — what the run actually traded (V5.5.0)
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed` — decomposed and fixed (#128–#134); verified by the 2026-10-07 19:28 backtest (Lean Sharpe −1.05, +0.17 without a risk-free rate, +0.68% net, vs −2.51 / −1.16 / −4.25% on 08-27). 
+
+**Problem:** `backtests/2026-08-27_12-01-48` (the first live run of the V5.3.7 models + V5.4.x fixes) was never recorded: Sharpe −2.514, −4.25% net, DD 5.3%, 571 orders, $769.88 fees; its prediction-provenance counter (`sequence_served=78833 multitask_fallback=0`) closes V5.4.1's "pending Lean runtime". New `aq evaluate --audit-backtest` shows it was **not trading the offline book**: equity long averaged 2.45% of NAV (max 10.4%), equity short 0.70%, forex short 13.4% (forex long up to 45.7%), crypto 0%; equity entries were 36 book vs 135 non-book; forex lost −$3,031 of −$3,422 realized (equity −$391); equity fees averaged 16 bps/fill; 115 same-symbol order pairs overlapped (34 limit), 21 limit orders stayed open >5 days; 159 of 367 trades closed after 11–15 days; the book engaged on 47/172 rebalances (21 spread vetoes, 104 rolling-IC vetoes).
+**Fix:** none in this entry — the audit tool (`evaluation/backtest_audit.py`) plus #128/#129/#130/#131. Lean's −2.514 subtracts a risk-free rate; the same equity curve scores −1.16 without one, which is the convention every offline number uses.
+**Verification:** `aq evaluate --audit-backtest` reproduces the figures above from the run folder alone; 21 unit tests on synthetic Lean runs.
+
+### 128. Offline/live execution parity: ten divergences between `aq evaluate` and `main.py`, fixed (V5.5.0)
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed` — all fixes unit-tested and verified by the 2026-10-07 19:28 backtest: 0 overlapping orders, forex short peak 13.95% (cap 15%), equity fees 5.7 bps/fill (was 16), exit tracking firing (mean hold 24 days, 0 trades under 2 days), book members 49 of 104 equity entries
+**Problem:** the live run traded (1) the **old probability signal outside the book** with no budget (135 of 171 equity entries) and a rotation exit that liquidated it after the 10-bar cooldown; (2) book weights shrunk ~8× by the multiplier chain, `rank_sizing_multiplier` tilting shorts to 0.78×; (3) **forex sized by margin (several × NAV), not the book weight**, re-sized on both the equity and forex tick, shorts sharing one 30% budget with equities; (4) **duplicate limit orders** — every bar re-submitted and overwrote the pending record, so the old ticket never timed out (AMZN: three fills, 689 shares); (5) a gate veto **wiping hysteresis memory**; (6) **exit tracking never seeing fills** (fills land a bar late), so `max_holding_bars` never fired and short trailing stops were inverted; (7) a fill-slippage estimate that charged the whole spread per fill; (8) forex/crypto decided on the previous day's bar; (9) an offline simulator that used another rank head, a 0.05 sector cap, raw-unit hysteresis, no gates, flattened on a veto and used equal weights; (10) a rolling-IC floor of 0.02.
+**Fix:** `portfolio/legacy_sleeve.py` (10% gross / 2% per name budget, no entries while vetoed; held sleeve positions capped; rotation exit limited to book-owned positions via `update_book_owned_symbols`/`is_rotation_exit_candidate`; exits exempt from the cooldown via `is_cooldown_exempt`); `rank_sizing_applies_to_members: false` + `sizing_floor_fraction: 0.5` (`apply_book_weight_floor`, never undoing a liquidity cut); `cap_forex_target_to_book_weight`, `projected_signed_quantity` (held + open orders), rebalance-gated forex resizes with a 10% deadband and a dedicated `max_forex_short_exposure` 0.15; `resolve_pending_order_action` (keep/cancel-replace, one order per symbol); `remember_formed_book`; exit tracking **adopts** a held, untracked position (direction/price from the real holding); `fill_slippage.source: per_side`; offline `--as-live` (`evaluation/live_parity.py`); IC floor 0.05 (owner decision). Also fixed on the way: every book decision logged `topology_state=unknown` (the payload key is `topology_risk`); the slippage-divergence reference is now the fill bar's open (`compute_fill_slippage_divergence_bps`), still disabled until calibrated; #117's RL argmax guard (`rl_sizing_non_finite_score`).
+**Verification:** 25 `main.py` wiring tests against a minimal `AlgorithmImports` stub (`tests/test_main_wiring.py`), 54 round-file tests, 18 simulator/parity tests, 21 audit tests; the real 2019–21 backtest split re-scored **as-live** under the final config (IC floor 0.05): net Sharpe 1.68 (+34.6%, DD 5.5%, 132/178 rebalance attempts vetoed; 1.39 with the Almgren impact model) against the idealized 1.00 — the offline book was never the problem, the execution was. `--factor-exposure` adds a caution: of the idealized book's 0.94 Sharpe only 0.16 is alpha after SPY/momentum (R² 0.54, 57% of variance is SPY). **Still open:** the previous-day forex/crypto bar (modelled offline with a one-day lag, unchanged live) and the sizing-multiplier chain beyond the 0.5 floor.
+
+### 129. Crypto never traded: one global 0.45 volatility cutoff made BTC/LTC permanently "elevated"; teardown and timing probes added (V5.5.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` — crypto trades (16 trades) and the probes were read once (cleanup changed nothing for the teardown hang, which stays open as #104)
+**Problem:** `ELEVATED_VOLATILITY_THRESHOLD = 0.45` (annualized) sits below crypto's own distribution — **77% of crypto samples in the backtest window exceed it** (85% over all history; p80 0.87 / 1.11) — so the analyzer's Priority 3 cancelled 13 of the 26 BTC/LTC book selections (the 08-27 run); zero-volume blocked only one. Separately #104 (teardown hang) and #63 (no real per-call timing) were still unresolved, and the hang happens with `alive_threads=[]`, i.e. outside Python.
+**Fix:** `phase_v2.topology.elevated_volatility_threshold` accepts `{"default": 0.45, "crypto": 0.87}` (`resolve_elevated_volatility_thresholds`; `aq evaluate --calibrate-volatility-threshold` derives the per-class percentile). New `performance_probe.py` (stdlib-only): opt-in `TimingProbe` (one `timing-probe:` line at shutdown), `collect_teardown_diagnostics` (OS thread names, GC counts), `release_symbol_containers` (opt-in pre-shutdown cleanup experiment: clear per-symbol containers, `gc.unfreeze()`, collect), and a `crypto-bar-probe` for the first bars per crypto symbol. All default off in code, switched on in `config.json` for the final run only.
+**Verification:** 6 calibration + 6 probe + resolver/topology tests. #104's verdict must come from the **engine** `log.txt` (`PythonInitializer.Shutdown(): ended`), never the algorithm log.
+
+### 130. 62 equity factor files were applied on top of already-adjusted data: prices ×0.05 (AMZN), dividends counted twice (V5.5.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed` — files removed locally (originals in `data/equity/usa/factor_files_backup_pre_v550/`); verified by the 2026-10-07 engine log (`numerical precision` lists only `AAA`, no 2050 start); dataset regeneration + retrain on the Codespace still pending
+**Problem:** #100 generated 63 Lean factor files from yfinance splits/dividends, but those tickers' zips had been written by `yfinance_backfill.py` with `auto_adjust=True`, i.e. split- **and** dividend-adjusted. `train.py` and Lean then applied the factors again: AMZN $84.63 (2019) became $4.23, NVDA ≈ $0.02–0.3, so per-share commissions on 20–480× the shares cost 16–49 bps/side; every ex-dividend date gained an extra +yield return (flattering dividend-payers' longs, penalizing their shorts). Evidence: for the generated files `zip close ≈ reference_price × cumulative factor of later events` (XOM 0.64, MSFT 0.88, T 0.55) while the 22 genuine QuantConnect files have `zip == reference_price`; the backfill writer's float-formatted volume (`98898000.0`) fingerprints its zips.
+**Fix:** `data_pipeline/factor_file_backfill.py --audit` / `--repair-adjusted-zips [--apply]` (read-only audit; repair **removes** the file after a one-time backup outside `factor_files/`) and generation now skips backfill-written zips. Applied: 62 files removed, 0 remaining, the 23 genuine files untouched. **Do not neutralize with a sentinel-only file:** the first repair did exactly that (`20501231,1,1,0`) and V5.5.0's first backtest attempt logged `data for the following symbols was adjust to a later starting date: [EMB, 12/30/2050], [AGG, 12/30/2050] ...` - Lean read the zero reference price as a numerical-precision problem and gave ~62 tickers no data until 2050. A missing file is what every run before #100 used.
+**Verification:** 11 new tests (fingerprint, audit verdicts incl. the 2050 trap, backup-once-then-remove, a removed file is an identity through `train.apply_split_adjustments`, CLI dry-run/apply). Verified in the engine log of the next run: the `numerical precision` line must list at most `AAA` (a genuine file, listed in 08-19 and 08-27 too). **Follow-up:** `full_dataset.csv`, scaler stats and the models were built from the double-adjusted series (returns differ by the ex-date bumps only); regenerate and retrain on the Codespace — do **not** run `aq train --dataset-only` locally, it would refit the scaler against the shipped model weights.
+
+### 131. Four latent defects found by the new guards (V5.5.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+**Problem:** (1) the wheel omitted `monitoring`, `topology`, `liquidity`, `experience` and `risk_controls`, so `aq assets`, `aq evaluate --replay-kill-switch`, feature-parity and paper-readiness-report raised `ModuleNotFoundError` for any non-editable install (an editable install masks it); (2) `scripts/feature_parity_audit.py`'s synthetic check had been **silently dead** — a length mismatch, then a changed replica signature, swallowed as `SKIPPED` while the audit printed PASS; (3) `compute_factor_exposure()` averaged residuals only, which is ~0 by construction with an intercept, so `alpha_sharpe`/`alpha_annualized_return_pct` were always 0.0 (no caller existed until now); (4) `--reconcile-book-history` read a **vetoed** live rebalance (empty book) as 0% overlap, and its hysteresis replay ignored the veto.
+**Fix:** `tests/test_packaging_modules.py` (static) + `scripts/wheel_smoke.py` (a real built wheel) + the five entries in `pyproject.toml`; the audit's date alignment, replica call and a `--synthetic-only` mode that fails when the check did not run; alpha = intercept + residuals; vetoed dates flagged and excluded from every match statistic, `--hysteresis-survives-veto` for V5.5.0+ logs.
+**Verification:** the smoke script passes on a real wheel (0 import / 0 help failures across 23 subcommands); 22/22 synthetic feature families match `train.py` to 3e-18; regression tests for each.
+
+### 132. V5.5.0's first backtest attempt crashed on bar 1: Lean's star import shadows `time` (and a second trap hid behind it)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed` (verified: the re-run, `backtests/2026-10-07_15-39-04`, completed in 2840 s)
+**Problem:** `backtests/2026-10-07_15-19-36` stopped after 11 seconds with `Runtime Error: type object 'datetime.time' has no attribute 'perf_counter'` at `_ensure_ready`: `from AlgorithmImports import *` exports Lean's `time` (`datetime.time`), silently replacing the stdlib `time` module `main.py` had imported for the V5.5.0 timing probe. The unit/wiring tests never ran `_ensure_ready()` and their Lean stub did not export `time`, so 3132 green tests could not see it. The same run's engine log carried the second, worse problem (#130): the sentinel-only factor files the first repair wrote made Lean move ~62 tickers' data start to 12/30/2050.
+**Fix:** `main.py` uses `from time import perf_counter as _perf_counter` after the star import (and never `import time`); the wiring stub now exports `time = datetime.time` like Lean; `tests/test_main_ensure_ready_smoke.py` runs the real `initialize()` + `_ensure_ready()` against the real config/model files (skipped on a fresh checkout), a structural test forbids `time.<attr>` in `main.py`, and #130's repair now removes the files.
+**Verification:** mutation-checked - reintroducing `import time` + `time.perf_counter()` fails the smoke test with the identical `datetime.time` message. A static check also confirmed every `self.<attr>` read in V5.5.0's `main.py` diff is assigned somewhere. **Lesson recorded in AGENTS.md:** read the engine log of ANY run, even a crashed one, before declaring the failure understood.
+
+### 133. 2026-10-07 backtest (V5.5.0 first full run): Sharpe −4.55, 230 of 355 trades closed within 2 days, crypto and most forex still blocked
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed` — verified by the 2026-10-07 17:50 re-run (#134): 0 market+limit overlaps (was 26) and crypto trades (17 entries, 0 before) with the spread cap; the cooldown/veto-hold fixes were masked by #134 and are re-checked there
+
+**Problem:** `backtests/2026-10-07_15-39-04` (run 1553664308, 2840 s, 809 orders, −2.09% net, DD 2.1%, $860.75 fees) scored Lean Sharpe −4.551; the no-risk-free equity-curve Sharpe is −1.346 against −1.16 on 08-27, so the V5.5.0 fixes did not move the result. Verified good: no 2050 data starts (only `AAA` in `numerical precision`), 0 limit-vs-limit overlaps, forex short peak 10.5% (cap 15%), equity gross peaks 13%/17% long/short, equity fees 6.2 bps/fill (was 16), 98 of 267 equity entries from the book (37%, was 36 of 171; the sleeve still opens 169, so the 'book is the majority' target is not met), 355 closed trades never cluster on one day (max 7). Four defects: **(1) cooldown exemption too wide** — #128 exempted every `sell`, so the noisy legacy probability signal flipped positions out within a day: 230 of 355 trades closed in ≤2 days (mean hold 5.8 days vs 39 on 08-27), $570 of fees for −$786 P&L; **(2) book positions handed to the legacy signal during a veto** — the book was vetoed on 173 of 218 rebalances (133 rolling-IC at the new 0.05 floor, 40 spread), and the owned positions then fell to legacy sells instead of being held as offline does; **(3) stacked orders** — 26 times a market order and a limit order were created in the same bar (the timeout sweep's market fallback, then a fresh entry), in several both filled (TLT −26/−27, −44/−45 shares); **(4) liquidity gate read volatility as spread** — Corwin-Schultz high-low "spreads" of 1.3% (BTC, LTC) and 0.35% (AUD) tripped `max_round_trip_cost_fraction` 0.25%, so all 24 crypto and 126 of 179 forex book selections were simulated, not traded (crypto: 0 trades, #129 still open). Also: 92 equity decisions were `reduce_risk` from `topology_elevated_volatility_pressure` (default 0.45 threshold in the 2020 sell-off) and 207 `simulate` from the volume floor — leads, not changed.
+**Fix:** `is_cooldown_exempt(..., is_forced_exit)` exempts only the rotation exit and the max-holding/trailing-stop backstops; `should_hold_owned_position_on_veto` (config `portfolio_book.hold_owned_positions_on_veto`, now true) holds book-owned positions through a veto; `should_skip_for_open_order` blocks a second entry on an untracked in-flight order (`order_already_open`, not audited as a placement); `cap_spread_proxy` clamps the gate/cost spread per class (`liquidity.max_spread_proxy_by_type` crypto 0.001, forex 0.0003; the model feature is untouched). The audit's exposure `max` was 0.0 for negative short series — it now reports `peak`.
+**Verification:** 14 new tests (`test_v550_backtest_findings.py`) plus two re-pinned wiring tests (a plain sell is rate-limited, a forced exit is not); full suite green. The next backtest must show: ≤2-day trades well below 230, book positions lasting ≥10 days, no market+limit pairs, crypto trading at least once, forex book selections traded. **Teardown (#104) is unchanged:** engine log still `Operation timed out` / `Failed to shutdown python` even with the cleanup probe (10 containers cleared, 132 objects collected, 1.5 s) — the native thread list shows only .NET/jemalloc threads, so the next lead is outside Python. **Timing probe (#63):** of 2840 s, `topology_payload` 673 s (332 ms x 2027 calls), `inference_cluster` 337 s (166 ms), `build_model_input` 220 s (1.9 ms x 114975), `ensure_ready` 5.0 s; the probes are switched off again.
+
+### 134. Re-entries were force-sold the next day: the closing fill never cleared the exit-tracking state (V5.5.0 regression)
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed` — verified by the 19:28 re-run: Lean Sharpe −1.05 (−1.46 before), +0.17 without a risk-free rate, +0.68% net, 403 orders, $475 fees, 195 closed trades with none under 2 days (mean hold 24 days)
+**Problem:** the re-run (`backtests/2026-10-07_17-50-11`, Lean Sharpe −1.46, no-risk-free −0.135, −0.53% net, 589 orders, $611 fees, DD 3.3%; was −4.55 / −1.35 / −2.09% / 809 / $861) still closed 154 of 355 trades within 2 days (−$847 P&L, $402 fees). All 44 first trades per symbol lasted ≥2 days; 154 of 196 re-entries did not. Cause: V5.5.0's exit tracking adopts a position on the bar after it fills, but a close also fills a bar late, so the invested→flat transition was never seen and the old entry bar/peak stayed; the next holding inherited them and `max_holding_age_exceeded` / the trailing stop force-sold it (forced exits bypass the cooldown) the day after it filled.
+**Fix:** `compute_position_exit_tracking_update(..., clear_stale_state=True)` clears the state of a flat symbol that still carries it; `main.py` passes it. Verified in the run: crypto traded for the first time (17 entries, +$385), forex short peak 13.8% (cap 15%), 0 overlapping orders, equity fees 5.7 bps/fill; book vetoed on 170 of 216 rebalances (133 rolling-IC, 37 spread).
+**Verification:** pure + lifecycle tests (`test_v550_backtest_findings.py`), two stub tests driving `_update_position_exit_tracking` through close → re-entry (`test_main_wiring.py`). **Round 3 (`backtests/2026-10-07_19-28-54`) confirmed it**: equity +$1,603 realized, forex −$171, crypto −$403 (4 LTCUSD longs lost $421–$991, fees $0). **Open leads, not changed:** crypto fills carry `$0` fees (Lean's default Coinbase fee model returns 0 here, so the +$385 is flattered; an explicit percentage fee model needs verifying against Lean first); the book is vetoed ~79% of rebalances (IC floor 0.05 is the owner's call); 92 equity selections were `reduce_risk` from `topology_elevated_volatility_pressure`; the teardown hang (#104) persists (engine log: `Operation timed out`, `Failed to shutdown python`).
+
+### 135. Feature reconciliation of the 2026-10-07 run: live features diverge from `full_dataset.csv` everywhere the dataset was built on the double-adjusted data (V5.5.0 research)
+
+**Severity:** 7/10 · **Status:** 🟡 `partial` — cause identified; closes with the Codespace dataset regeneration + retrain (#130), not a `main.py` defect
+**Problem:** `aq evaluate --reconcile-features --symbol XOM|NVDA` (216 snapshots each) diverges on 16-20 of ~52 features on nearly every date. The price/volume-level ones track #130: XOM `liquidity_log_dollar_volume` is off by a constant 0.28 on all 216 dates (dividend-adjusted XOM prices in the stale dataset), NVDA by only 0.006 (no split/dividend effect in the window); `close_to_close_return_20d`/`momentum_20d` differ on 31% of XOM dates. Cross-asset features (`macro_*`, `peer_*_return_1d`, `topology_correlation_strength`, `cs_momentum_rank_20`) diverge on ~100% of dates with identical deltas across both symbols, i.e. a timing/alignment difference between the daily dataset and live's per-asset-class slices, not a per-symbol bug.
+**Fix:** none yet — the models were trained on a dataset built with the 62 double-adjusted factor files (now removed), so the next step is dataset regeneration + retrain on the Codespace (never locally), then re-run this reconciliation: price-level divergences should vanish, and what remains is the cross-asset alignment to investigate.
+**Verification:** reports in `ml/evaluation/feature_reconciliation.json`; the book-history reconciliation (`--reconcile-book-history ... --reconcile-all-runs`) was not completed — it needs ~1.3 GB RAM and was stopped twice by the low-memory guard on this PC.
+

@@ -45,9 +45,11 @@ from risk_controls import (
     compute_incremental_order_quantity,
     compute_position_exit_tracking_update,
     evaluate_non_model_exit,
+    is_cooldown_exempt,
     is_position_resize_permitted,
     is_regime_drawdown_bypass_active,
     is_sticky_trade_lock_bypass_active,
+    projected_signed_quantity,
     should_lock_in_duration_beta,
     should_scale_position,
 )
@@ -60,25 +62,40 @@ from risk.asset_class_router import (
     route_position_sizing,
     should_liquidate_disabled_asset_class_position,
 )
-from risk.forex_risk import load_forex_pair_specs
+from risk.forex_risk import cap_forex_target_to_book_weight, load_forex_pair_specs
 from risk.futures_risk import build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source
 from risk.kill_switch import evaluate_kill_switch
 from risk.manual_override import read_kill_switch_manual_override, read_manual_trade_lock_override
 from risk.position_sizing import cost_sizing_multiplier
 from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
 from portfolio import (
+    apply_book_weight_floor,
     build_book_history_record,
+    build_book_raw_weights,
     build_rank_based_book,
     apply_hrp_weights,
     cross_sectional_rank_scores,
+    is_rotation_exit_candidate,
     normalize_per_asset_class_slots,
     pct_returns_from_closes,
+    remember_formed_book,
     resolve_rank_signal_policy,
     select_raw_rank_score,
     should_exit_non_selected_book_symbol,
+    should_hold_owned_position_on_veto,
     should_rebalance_this_bar,
+    update_book_owned_symbols,
 )
 from portfolio.book_neutrality import apply_book_neutrality
+# V5.5.0 (Problems.md #128) - light direct submodule import, same rule as
+# rolling_ic_gate below (never route main.py's startup through a heavier
+# package __init__).
+from portfolio.legacy_sleeve import apply_legacy_sleeve_policy, compute_sleeve_gross_used, resolve_legacy_sleeve_config
+from performance_probe import TimingProbe, collect_teardown_diagnostics, release_symbol_containers
+# `from AlgorithmImports import *` above exports Lean's `time` (datetime.time), which silently replaces the
+# stdlib module of that name in this namespace; `time.perf_counter()` crashed V5.5.0's first backtest on
+# bar 1. Import the function under a private alias AFTER the star import - never `import time` here.
+from time import perf_counter as _perf_counter
 # V5.3.5 (development/Problems.md #102) - a genuinely light, direct
 # submodule import (not routed through portfolio/__init__.py, though that
 # package is itself safe today) so a future addition there can never
@@ -120,6 +137,7 @@ from liquidity import (
     TYPICAL_DAILY_DOLLAR_VOLUME_BY_TYPE,
     TYPICAL_SPREAD_BY_TYPE,
     build_liquidity_decision,
+    cap_spread_proxy,
     estimate_high_low_spread,
 )
 from topology import (
@@ -127,6 +145,7 @@ from topology import (
     apply_learned_topology,
     build_market_topology,
     liquidity_score_from_decision,
+    resolve_elevated_volatility_thresholds,
 )
 # Imports directly from audit.redis_queue (not the audit package's own
 # __init__.py) so main.py's isolator-timed startup (Problems.md #16) never
@@ -146,6 +165,7 @@ from execution import (
     MAX_LIQUIDITY_SLIPPAGE_BPS,
     build_net_edge_decision,
     classify_order_status,
+    compute_fill_slippage_divergence_bps,
     credentials_present,
     evaluate_broker_config,
     is_real_order_placement,
@@ -156,9 +176,11 @@ from execution import (
     resolve_limit_order_timeout_action,
     resolve_limit_price,
     resolve_order_permission,
+    resolve_pending_order_action,
     resolve_runtime_mode,
     resolve_slippage_bps,
     should_clear_pending_limit_order,
+    should_skip_for_open_order,
 )
 from execution.live_credentials_io import load_live_credentials, load_postgres_dsn
 from execution.paper_readiness_io import read_paper_trading_config
@@ -641,6 +663,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if self._ready:
             return
 
+        _ensure_ready_started = _perf_counter()
         self.phase3 = self.config["phase3"]
         self.phase5 = self.config.get("phase5", {})
         self.phase6 = self.config.get("phase6", {})
@@ -787,6 +810,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
             1, int(phase_v2_portfolio_book.get("rebalance_every_bars", 1))
         )
         self._last_book_allocations: dict = {}
+        # V5.5.0 (Problems.md #128) - the last NON-EMPTY book: hysteresis
+        # anchor + sleeve classification that a gate veto must not erase.
+        self._last_formed_book_allocations: dict = {}
+        self._limit_order_kept_flag = False  # set by _try_submit_limit_order() when it declines a duplicate
+        # Symbols whose OPEN position the book itself opened (not the legacy sleeve) - the only ones
+        # the rotation exit may force-sell while the sleeve is on. In-memory; see update_book_owned_symbols().
+        self._book_owned_symbols: set[str] = set()
+        # V5.5.0 (Problems.md #128) - every key defaults to the pre-V5.5.0
+        # behavior when absent; config.json opts in (see Changelog V5.5.0).
+        self.legacy_sleeve_config = resolve_legacy_sleeve_config(self.phase_v2.get("legacy_sleeve"))
+        self.book_member_rank_sizing_enabled = bool(phase_v2_portfolio_book.get("rank_sizing_applies_to_members", True))
+        self.book_weight_floor_fraction = float(phase_v2_portfolio_book.get("sizing_floor_fraction", 0.0))
+        self.forex_cap_to_book_weight = bool(phase_v2_portfolio_book.get("forex_cap_to_book_weight", False))
+        self.forex_resize_min_fraction = float(phase_v2_portfolio_book.get("forex_resize_min_fraction", 0.0))
+        # V5.5.0 (Problems.md #133) - hold a book-opened position through a gate veto instead of letting the
+        # legacy signal close it; off (False) is the pre-V5.5.0 behavior.
+        self.hold_owned_positions_on_veto = bool(phase_v2_portfolio_book.get("hold_owned_positions_on_veto", False))
+        self.max_forex_short_exposure = float(phase9_portfolio.get("max_forex_short_exposure", self.max_short_exposure))
+        _v550_diagnostics = self.phase_v2.get("diagnostics", {})
+        self._timing_probe = TimingProbe(bool(_v550_diagnostics.get("timing_probe", {}).get("enabled", False)))
+        self.teardown_cleanup_enabled = bool(_v550_diagnostics.get("teardown_cleanup", {}).get("enabled", False))
+        _crypto_bar_probe = _v550_diagnostics.get("crypto_bar_probe", {})
+        self.crypto_bar_probe_max_bars = int(_crypto_bar_probe.get("max_bars_per_symbol", 5)) if _crypto_bar_probe.get("enabled", False) else 0
+        self._crypto_bar_probe_counts: dict[str, int] = {}
         # V5.1 Phase 1 (development/Problems.md, item 6) - apply_book_neutrality()'s
         # diagnostics from the last rebalance bar (empty {} pre-first-
         # rebalance or whenever the book/neutrality overlay is disabled) -
@@ -1044,8 +1091,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # build_market_topology()'s own docstring for why this is worth
         # narrowing (Priority 3's override duplicates signal the model
         # already sees as an active input feature).
-        self.topology_elevated_volatility_threshold = float(
-            phase_v2_topology.get("elevated_volatility_threshold", ELEVATED_VOLATILITY_THRESHOLD)
+        # V5.5.0 (Problems.md #129) - a bare float (unchanged) or a dict
+        # {"default": x, "crypto": y} keyed by asset class; see
+        # topology/market_topology.py::resolve_elevated_volatility_thresholds().
+        (
+            self.topology_elevated_volatility_threshold,
+            self.topology_elevated_volatility_threshold_by_symbol,
+        ) = resolve_elevated_volatility_thresholds(
+            phase_v2_topology.get("elevated_volatility_threshold", ELEVATED_VOLATILITY_THRESHOLD),
+            {
+                symbol_key: asset.get("asset_class") or asset.get("security_type")
+                for symbol_key, asset in self.asset_lookup.items()
+            },
         )
         self.topology_link_threshold = float(phase_v2_topology.get("link_threshold", 0.5))
         self.topology_min_observations = int(phase_v2_topology.get("min_observations", 5))
@@ -1442,6 +1499,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Debug(windows_warning)
 
         phase_v2_liquidity = self.phase_v2.get("liquidity", {})
+        # V5.5.0 (Problems.md #133) - per-asset-class ceiling on the spread the liquidity GATE/cost sees (not the
+        # model feature); {} = no cap = the pre-V5.5.0 behavior.
+        self._spread_proxy_caps_by_type = dict(phase_v2_liquidity.get("max_spread_proxy_by_type", {}))
         # V5.1 Phase 1 (development/Problems.md, item 3) - None (absent from
         # config, the default) reproduces build_liquidity_decision()'s own
         # pre-V5.1 signature exactly; a configured value must stay a real
@@ -1725,6 +1785,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._previous_topology_positions: dict[str, tuple[float, ...]] = {}
         self._previous_topology_correlations: dict[tuple[str, str], float] = {}
 
+        self._timing_probe.stop("ensure_ready", _ensure_ready_started)
         self._ready = True
         self._write_state(mode="initialize", insight="Phase 4 inference engine initialized")
 
@@ -1762,7 +1823,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._apply_option_expiry_auto_close_sweep()
         self._apply_option_assignment_risk_sweep()
         self._process_pending_limit_order_timeouts()
+        _probe_started = self._timing_probe.start()
         self.latest_topology_payload = self._build_topology_payload()
+        self._timing_probe.stop("topology_payload", _probe_started)
         self.latest_macro_payload = self._build_macro_payload()
         self.latest_bond_payload = self._build_bond_payload()
         self.latest_alt_data_payload = self._build_alt_data_payload()
@@ -1900,9 +1963,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 volume_counts["total"] += 1
                 if float(bar.volume) == 0.0:
                     volume_counts["zero_volume"] += 1
+                # V5.5.0 (Problems.md #105/#126) - opt-in: the first N fresh
+                # crypto bars per symbol, with bar type and volume, to settle
+                # whether Lean delivers real volume on the trade bar once a
+                # synthesized quote zip exists (LTCUSD now has one).
+                if self.crypto_bar_probe_max_bars > 0 and (
+                    self.asset_lookup.get(symbol_key, {}).get("asset_class")
+                    or self.asset_lookup.get(symbol_key, {}).get("security_type")
+                ) == "crypto":
+                    probe_count = self._crypto_bar_probe_counts.get(symbol_key, 0)
+                    if probe_count < self.crypto_bar_probe_max_bars:
+                        self._crypto_bar_probe_counts[symbol_key] = probe_count + 1
+                        self.Debug(
+                            f"crypto-bar-probe: {symbol_key} {self.Time} type={type(bar).__name__} "
+                            f"close={float(bar.close)} volume={float(bar.volume)}"
+                        )
 
             topology_payload = topology_by_symbol.get(str(symbol))
+            _probe_started = self._timing_probe.start()
             feature_payload = self._build_model_input(symbol, topology_payload)
+            self._timing_probe.stop("build_model_input", _probe_started)
             signal_payload = {
                 "ticker": self.asset_lookup[str(symbol)]["ticker"],
                 "security_type": self.asset_lookup[str(symbol)]["security_type"],
@@ -1999,6 +2079,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # disables the pool for the rest of THIS bar's remaining symbols
         # and falls back to the sequential path, never a crash.
         inference_results: dict[str, dict] = {}
+        _probe_started = self._timing_probe.start()
         if self._inference_pool is not None:
             futures = {
                 str(item["symbol"]): self._inference_pool.submit(
@@ -2065,6 +2146,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         symbol_key, _SEQUENCE_RESULT_NOT_PRECOMPUTED
                     ),
                 )
+
+        self._timing_probe.stop("inference_cluster", _probe_started)
 
         # Phase 1c: gating + signal derivation - cheap, stays sequential.
         for item in pending:
@@ -2324,13 +2407,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     # this whole branch, so self._last_book_allocations here
                     # is still last rebalance's result). Defaults (empty
                     # dict / 0.0) reproduce pre-hysteresis behavior exactly.
-                    previous_allocations=self._last_book_allocations or None,
+                    previous_allocations=self._last_formed_book_allocations or None,
                     hysteresis_rank_margin=self.portfolio_book_hysteresis_rank_margin,
                     spread_check_ranks=spread_check_ranks,
                     rolling_ic_gate_result=rolling_ic_gate_result,
                     veto_reason_out=book_gate_veto_reason,
                 )
                 self._last_book_allocations = book_allocations
+                # V5.5.0 (Problems.md #128) - a veto (empty book) keeps the
+                # previous formed book as the hysteresis anchor.
+                self._last_formed_book_allocations = remember_formed_book(
+                    self._last_formed_book_allocations, book_allocations
+                )
 
                 # V5.4.4 - HRP book SIZING
                 # (phase_v2.portfolio_book.allocation_method == "hrp"):
@@ -2386,13 +2474,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     if hrp_weights_by_symbol:
                         raw_weights_by_symbol = dict(hrp_weights_by_symbol)
                     else:
-                        raw_weights_by_symbol = {}
-                        for alloc_symbol_key, allocation in book_allocations.items():
-                            alloc_confidence = min(1.0, abs(allocation.predicted_rank_20d - 0.5) * 2.0)
-                            raw_weights_by_symbol[alloc_symbol_key] = (
-                                min(self.max_position_weight, 0.10 + 0.15 * alloc_confidence)
-                                * allocation.book_role_multiplier
-                            )
+                        # V5.5.0 - shared with the offline as-live simulator
+                        # (portfolio/book_construction.py::build_book_raw_weights).
+                        raw_weights_by_symbol = build_book_raw_weights(book_allocations, self.max_position_weight)
                     self._book_target_weights, self._last_book_neutrality_diagnostics = apply_book_neutrality(
                         raw_weights_by_symbol,
                         sector_by_symbol=self.sector_by_ticker,
@@ -2456,6 +2540,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # exists (reconciliation's "expected" input).
         self._realized_target_weights_by_symbol = {}
 
+        # V5.5.0 (Problems.md #128) - gross already held OUTSIDE the book
+        # (the legacy-signal sleeve's used budget), threaded through Pass 2
+        # so the budget is atomic across symbols within one bar. Skipped
+        # entirely (zero cost) unless the book AND the sleeve are enabled
+        # and real orders are allowed.
+        legacy_sleeve_gross_used = 0.0
+        if self.portfolio_book_enabled and self.legacy_sleeve_config["enabled"]:
+            sleeve_orders_allowed, _ = self._order_permission()
+            if sleeve_orders_allowed:
+                sleeve_total_value = max(float(self.Portfolio.TotalPortfolioValue), 1.0)
+                legacy_sleeve_gross_used = compute_sleeve_gross_used(
+                    {
+                        str(holding.Symbol): float(holding.HoldingsValue) / sleeve_total_value
+                        for holding in self.Portfolio.Values
+                        if holding.Invested
+                    },
+                    set(book_allocations) | set(self._last_formed_book_allocations),
+                )
+
         # ---- Pass 2: sizing/liquidity/analyzer/order-application, now
         # that every symbol's book role (if any) is known. Iterates
         # pass1_state (populated in self.symbols order during Pass 1,
@@ -2498,7 +2601,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # call and its target-weight sign, but still flows through the
             # exact same sizing/liquidity/analyzer pipeline below as any
             # other signal - never bypasses it.
+            is_forced_exit = False
             book_allocation = book_allocations.get(symbol_key)
+            is_book_owned = update_book_owned_symbols(
+                self._book_owned_symbols, symbol_key, book_allocation is not None, is_currently_invested
+            )
             if book_allocation is not None:
                 signal_name = "buy" if book_allocation.role == "long" else "short"
                 confidence = min(1.0, abs(book_allocation.predicted_rank_20d - 0.5) * 2.0)
@@ -2518,7 +2625,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier,
                 )
             elif should_exit_non_selected_book_symbol(
-                bool(book_allocations), self.portfolio_book_enabled, is_currently_invested
+                bool(book_allocations),
+                self.portfolio_book_enabled,
+                # V5.5.0 (Problems.md #128): with the legacy sleeve on, only positions the BOOK opened
+                # are rotation-exit candidates - a sleeve entry is left to the max-holding/trailing exits.
+                is_rotation_exit_candidate(is_currently_invested, self.legacy_sleeve_config["enabled"], is_book_owned),
             ):
                 # Rotation exit (development/Problems.md): the book is
                 # active and picked a fresh top/bottom-N this bar, but this
@@ -2545,6 +2656,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 signal_name = "sell"
                 confidence = 1.0
                 base_target_weight = 0.0
+                is_forced_exit = True
+            elif should_hold_owned_position_on_veto(
+                self.hold_owned_positions_on_veto,
+                book_allocation is not None,
+                is_book_owned,
+                is_currently_invested,
+                bool(book_allocations),
+            ):
+                # V5.5.0 (Problems.md #133): the book is vetoed - hold what it opened; only the backstop exits
+                # just below (max holding age / trailing stop) or the next active book may close it.
+                signal_name = "hold"
+                confidence = 0.0
+                base_target_weight = 0.0
 
             if is_currently_invested and signal_name != "sell":
                 non_model_exit_reason = self._check_non_model_exit(symbol_key, float(bar.close))
@@ -2552,6 +2676,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     signal_name = "sell"
                     confidence = 1.0
                     base_target_weight = 0.0
+                    is_forced_exit = True
                     self.latest_non_model_exit_reason_by_symbol[symbol_key] = non_model_exit_reason
                 else:
                     self.latest_non_model_exit_reason_by_symbol.pop(symbol_key, None)
@@ -2570,8 +2695,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 predicted_volatility=predicted_volatility,
                 predicted_rank_20d=predicted_rank_20d,
                 symbol_key=symbol_key,
+                is_book_member=(book_allocation is not None),
             )
             target_weight = float(sizing_payload["target_weight"])
+            asset_class_for_book = asset.get("asset_class") or asset.get("security_type")
+            if book_allocation is not None and self.forex_cap_to_book_weight and asset_class_for_book == "forex":
+                # V5.5.0 (Problems.md #128) - margin sizing is an upper bound
+                # for a book member, never the target.
+                target_weight = cap_forex_target_to_book_weight(target_weight, base_target_weight)
             # Reuses the exact same spread estimate _build_model_input()
             # already computed and fed to the model as
             # liquidity_spread_proxy, rather than recomputing it here -
@@ -2595,7 +2726,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 portfolio_value=float(self.Portfolio.TotalPortfolioValue),
                 annualized_volatility=float(sizing_payload.get("annualized_volatility", 0.0)),
                 security_type=liquidity_security_type,
-                dynamic_spread=feature_payload.get("liquidity_spread_proxy"),
+                dynamic_spread=cap_spread_proxy(
+                    feature_payload.get("liquidity_spread_proxy"), liquidity_security_type, self._spread_proxy_caps_by_type
+                ),
                 zero_volume_fallback_ddv=zero_volume_fallback_ddv,
                 **self._liquidity_thresholds,
             ).to_dict()
@@ -2690,6 +2823,37 @@ class AetherQuantAlgorithm(QCAlgorithm):
             sizing_payload["cost_multiplier"] = cost_multiplier
             sizing_payload["cost_sizing_reason"] = cost_sizing_reason
 
+            if (
+                book_allocation is not None
+                and self.book_weight_floor_fraction > 0.0
+                and asset_class_for_book not in ("future", "option", "forex")
+            ):
+                # V5.5.0 (Problems.md #128) - the multiplier chain above
+                # shrank book weights ~8x (equity ~3% of NAV vs ~100% gross
+                # offline); bound the shrink, symmetric for long and short,
+                # never undoing the liquidity reduce_size safety cut.
+                target_weight = apply_book_weight_floor(
+                    target_weight,
+                    base_target_weight,
+                    self.book_weight_floor_fraction,
+                    skip_floor=(liquidity_payload["recommended_action"] == "reduce_size"),
+                )
+            if self.portfolio_book_enabled and book_allocation is None:
+                sleeve_decision = apply_legacy_sleeve_policy(
+                    signal_name,
+                    target_weight,
+                    False,
+                    is_currently_invested,
+                    bool(book_allocations),
+                    legacy_sleeve_gross_used,
+                    self.legacy_sleeve_config,
+                    is_book_owned=is_book_owned,
+                )
+                signal_name = sleeve_decision["signal"]
+                target_weight = sleeve_decision["target_weight"]
+                legacy_sleeve_gross_used = sleeve_decision["sleeve_gross_used"]
+                sizing_payload["legacy_sleeve_reason"] = sleeve_decision["reason"]
+
             decision = build_market_analysis_decision(
                 signal_name=signal_name,
                 confidence=confidence,
@@ -2744,6 +2908,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._realized_target_weights_by_symbol[symbol_key] = target_weight
 
             if decision["action"] == "trade":
+                self._limit_order_kept_flag = False
                 execution_note = self._apply_signal(
                     symbol,
                     signal_name,
@@ -2752,7 +2917,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     sizing_payload,
                     is_book_selected=(book_allocation is not None),
                     is_rebalance_bar=is_rebalance_bar,
+                    is_forced_exit=is_forced_exit,
                 )
+                if self._limit_order_kept_flag and execution_note.startswith("submitted_limit"):
+                    # V5.5.0: no new order was sent - an earlier one is still working - so the audit log
+                    # (is_real_order_placement) must not record a placement.
+                    execution_note = "limit_order_already_pending"
             else:
                 execution_note = decision["action"]
 
@@ -2783,6 +2953,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self._is_invested(symbol, orders_allowed_for_exit_check),
                 close_price,
                 signal_name,
+                symbol=symbol,
             )
 
             close_prices_by_symbol[symbol_key] = close_price
@@ -3075,8 +3246,40 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 f"prediction-provenance: sequence_served={self._sequence_predictions_served} "
                 f"multitask_fallback={self._multitask_fallback_count}"
             )
+            # V5.5.0 (Problems.md #129) - alive_threads has been [] on every
+            # run that still hung (#104), so the blocker is native-side:
+            # report what a Python thread listing cannot (OS thread names,
+            # GC counts), plus the opt-in timing summary (#63).
+            self.Debug(f"teardown-probe: {collect_teardown_diagnostics()}")
+            if self._timing_probe.enabled:
+                self.Debug(self._timing_probe.format_line())
         except Exception as error:
             self.Debug(f"shutdown-probe failed (non-fatal): {error}")
+
+        # V5.5.0 (Problems.md #129) - opt-in cleanup EXPERIMENT for #104:
+        # drop the big per-symbol containers (their keys hold Lean Symbol
+        # objects) and unfreeze the GC before Lean finalizes the embedded
+        # interpreter. The algorithm has finished and state is written, so
+        # nothing reads these again. Verify in the ENGINE log.txt.
+        if self.teardown_cleanup_enabled:
+            try:
+                cleanup_result = release_symbol_containers(
+                    [
+                        self.symbol_windows,
+                        self.symbol_long_windows,
+                        self.symbol_treasury_10yr_history,
+                        self.symbol_sensitivity_driver_history,
+                        self.symbol_feature_history,
+                        self.last_trade_bar_by_symbol,
+                        self.pending_limit_orders,
+                        self.latest_signal_state,
+                        self.option_positions_by_symbol,
+                        self.symbol_key_by_option_contract_symbol,
+                    ]
+                )
+                self.Debug(f"teardown-cleanup: {cleanup_result}")
+            except Exception as error:
+                self.Debug(f"teardown-cleanup failed (non-fatal): {error}")
 
     def _load_json(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -3849,7 +4052,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         predicted_volatility: float | None = None,
         predicted_rank_20d: float | None = None,
         symbol_key: str | None = None,
+        is_book_member: bool = False,
     ) -> dict:
+        # is_book_member (V5.5.0, Problems.md #128) - when the book picked
+        # this symbol, rank_sizing_multiplier() is skipped (unless
+        # phase_v2.portfolio_book.rank_sizing_applies_to_members is true,
+        # the pre-V5.5.0 default): it tilts a bottom-ranked SHORT to
+        # 0.78x and a top-ranked long to 1.22x, a long-only design that
+        # skews the book's own long/short balance.
         # symbol_key (Phase 4.8) - optional, additive: only used to stash
         # this bar's strategy-selector scores for state.json visibility
         # (self.latest_strategy_selector_scores_by_symbol). None is a safe
@@ -3894,7 +4104,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             predicted_volatility=predicted_volatility,
             use_predicted_volatility=self.use_predicted_volatility,
             predicted_rank_20d=predicted_rank_20d,
-            rank_sizing_enabled=self.rank_sizing_enabled,
+            rank_sizing_enabled=self.rank_sizing_enabled and (self.book_member_rank_sizing_enabled or not is_book_member),
             min_rank_multiplier=self.min_rank_multiplier,
             max_rank_multiplier=self.max_rank_multiplier,
             rl_model=self.rl_sizing_model,
@@ -4116,6 +4326,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             ),
             correlation_change_history=self._topology_correlation_change_history if self.topology_cache_enabled else None,
             elevated_volatility_threshold=self.topology_elevated_volatility_threshold,
+            elevated_volatility_threshold_by_symbol=self.topology_elevated_volatility_threshold_by_symbol,
         )
         deterministic_topology = deterministic_topology_result.to_dict()
         # Tuple width must match the active embedding dimensionality - a
@@ -4865,6 +5076,28 @@ class AetherQuantAlgorithm(QCAlgorithm):
         quantity = self.CalculateOrderQuantity(symbol, target_weight) if contract_quantity is None else contract_quantity
         if quantity == 0:
             return False
+
+        # V5.5.0 (Problems.md #128) - never stack a second order on a symbol
+        # that already has one in flight. Before this, every bar a still-
+        # unfilled entry re-fired a NEW limit order and overwrote the pending
+        # record below, orphaning the earlier ticket: it was never cancelled,
+        # never timed out (submitted_bar kept resetting) and could fill too
+        # (AMZN filled three orders = 689 shares, ~3x its target).
+        existing_pending = self.pending_limit_orders.get(str(symbol))
+        pending_action = resolve_pending_order_action(
+            existing_pending, is_buy, self.bar_index, self.limit_order_unfilled_timeout_bars
+        )
+        if pending_action == "keep":
+            self._limit_order_kept_flag = True
+            return True
+        if pending_action == "cancel_replace" and existing_pending is not None:
+            for stale_ticket in existing_pending["tickets"]:
+                try:
+                    stale_ticket.Cancel()
+                except Exception as error:
+                    self.Debug(f"limit order cancel-replace: cancel failed for {symbol_key}: {error}")
+            for stale_target in existing_pending["target_symbols"]:
+                self.pending_limit_orders.pop(str(stale_target), None)
 
         liquidity_payload = self.latest_liquidity_by_symbol.get(symbol_key, {})
         spread_fraction = float(liquidity_payload.get("spread_proxy", 0.0) or 0.0)
@@ -5624,6 +5857,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         sizing_payload: dict | None = None,
         is_book_selected: bool = False,
         is_rebalance_bar: bool = True,
+        is_forced_exit: bool = False,
     ) -> str:
         # V5.2.1 (development/Problems.md) - is_book_selected/is_rebalance_bar
         # both default to values that reproduce today's exact behavior for
@@ -5643,8 +5877,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         asset = self.asset_lookup.get(symbol_key, {})
         orders_allowed, permission_reason = self._order_permission()
 
-        if self.bar_index - last_trade_bar < self.trade_cooldown_bars and signal_name != previous_signal:
+        if (
+            self.bar_index - last_trade_bar < self.trade_cooldown_bars
+            and signal_name != previous_signal
+            and not is_cooldown_exempt(signal_name, self._is_invested(symbol, orders_allowed), is_forced_exit)
+        ):
             return "cooldown_active"
+
+        # V5.5.0 (Problems.md #133): an order is already working for this symbol that this method does not
+        # track (typically the market fallback the timeout sweep just sent) - do not stack another entry on it.
+        if (
+            signal_name in ("buy", "short")
+            and orders_allowed
+            and should_skip_for_open_order(self._open_order_quantity(symbol), str(symbol) in self.pending_limit_orders)
+        ):
+            return "order_already_open"
 
         self.latest_signal_state[symbol_key] = signal_name
 
@@ -5738,16 +5985,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     symbol_key, "buy", target_weight, close_price, order_units_for_weight, orders_allowed
                 )
                 if orders_allowed:
-                    current_quantity = float(self.Portfolio[symbol].Quantity)
+                    # V5.5.0 (Problems.md #128) - size against held + still-
+                    # open order quantity, not held alone: forex is
+                    # evaluated on both the equity and the forex tick, and
+                    # an order submitted on the first is not filled yet on
+                    # the second, so held-only sizing stacked duplicates.
+                    current_quantity = projected_signed_quantity(
+                        float(self.Portfolio[symbol].Quantity), self._open_order_quantity(symbol)
+                    )
                     already_same_direction = (
                         current_quantity != 0 and (current_quantity > 0) == (order_units_for_weight > 0)
                     )
                     if already_same_direction:
-                        if not self.position_scaling_enabled:
+                        if not is_position_resize_permitted(
+                            self.position_scaling_enabled, is_book_selected, is_rebalance_bar
+                        ):
                             return "kept_long_forex"
                         delta = int(round(compute_incremental_order_quantity(order_units_for_weight, current_quantity)))
                         if delta == 0:
                             return "forex_zero_delta_kept"
+                        if abs(delta) < self.forex_resize_min_fraction * abs(order_units_for_weight):
+                            return "forex_resize_deadband_kept"
                         order_quantity = delta
                         entered_note, limit_note = "scaled_long_forex", "submitted_limit_scaled_long_forex"
                     else:
@@ -5860,6 +6118,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 return "short_exposure_cap_reached"
 
             asset_class = asset.get("asset_class") or asset.get("security_type")
+            if asset_class == "forex":
+                # V5.5.0 (Problems.md #128) - forex shorts get their own
+                # budget; they previously shared max_short_exposure with
+                # every equity short and (sized by margin, not the book)
+                # consumed up to 60% of NAV.
+                forex_short_exposure = self._short_exposure(orders_allowed, exclude_symbol=symbol, asset_class="forex")
+                target_weight, forex_cap_reached = cap_target_weight(
+                    target_weight, forex_short_exposure, self.max_forex_short_exposure
+                )
+                if forex_cap_reached:
+                    return "forex_short_exposure_cap_reached"
             if asset_class == "option":
                 return self._apply_option_order(symbol, symbol_key, sizing_payload, target_weight, close_price, orders_allowed, permission_reason)
             if asset_class == "future":
@@ -5913,16 +6182,22 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     symbol_key, "short", target_weight, close_price, order_units_for_weight, orders_allowed
                 )
                 if orders_allowed:
-                    current_quantity = float(self.Portfolio[symbol].Quantity)
+                    current_quantity = projected_signed_quantity(
+                        float(self.Portfolio[symbol].Quantity), self._open_order_quantity(symbol)
+                    )
                     already_same_direction = (
                         current_quantity != 0 and (current_quantity > 0) == (order_units_for_weight > 0)
                     )
                     if already_same_direction:
-                        if not self.position_scaling_enabled:
+                        if not is_position_resize_permitted(
+                            self.position_scaling_enabled, is_book_selected, is_rebalance_bar
+                        ):
                             return "kept_short_forex"
                         delta = int(round(compute_incremental_order_quantity(order_units_for_weight, current_quantity)))
                         if delta == 0:
                             return "forex_zero_delta_kept"
+                        if abs(delta) < self.forex_resize_min_fraction * abs(order_units_for_weight):
+                            return "forex_resize_deadband_kept"
                         order_quantity = delta
                         entered_note, limit_note = "scaled_short_forex", "submitted_limit_scaled_short_forex"
                     else:
@@ -6055,7 +6330,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
 
     def _update_position_exit_tracking(
-        self, symbol_key: str, was_invested: bool, is_invested: bool, close_price: float, signal_name: str
+        self,
+        symbol_key: str,
+        was_invested: bool,
+        is_invested: bool,
+        close_price: float,
+        signal_name: str,
+        symbol=None,
     ) -> None:
         """Maintains the per-symbol entry-bar/entry-price/peak-price state
         _check_non_model_exit() reads. Observes the net invested/not-invested
@@ -6066,7 +6347,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         V4.10 - thin call site over risk_controls.py::compute_position_exit_tracking_update(),
         the pure extraction of this method's own state-transition logic -
-        applies the returned action to the 4 tracking dicts."""
+        applies the returned action to the 4 tracking dicts.
+
+        V5.5.0 (Problems.md #128) - a real fill lands on the NEXT bar, so
+        the flat -> invested transition is never seen here; a held symbol
+        with no tracking state is ADOPTED as an entry (direction and entry
+        price from the real holding), which revives max_holding_bars and
+        fixes the inverted short trailing stop."""
+        has_entry_state = symbol_key in self._position_entry_bar_index
+        held_quantity = None
+        average_entry_price = None
+        if is_invested and not has_entry_state and symbol is not None:
+            try:
+                holding = self.Portfolio[symbol]
+                held_quantity = float(holding.Quantity)
+                average_entry_price = float(holding.AveragePrice)
+            except Exception:
+                pass
         update = compute_position_exit_tracking_update(
             was_invested,
             is_invested,
@@ -6075,6 +6372,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._position_peak_price_since_entry.get(symbol_key),
             self._position_direction_by_symbol.get(symbol_key),
             self.bar_index,
+            has_entry_state=has_entry_state,
+            held_quantity=held_quantity,
+            average_entry_price=average_entry_price,
+            clear_stale_state=True,
         )
         action = update["action"]
         if action == "enter":
@@ -6327,7 +6628,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         except Exception as error:
             self.Debug(f"forex_order_sizing diagnostic write failed: {error}")
 
-    def _short_exposure(self, orders_allowed: bool = True, exclude_symbol=None) -> float:
+    def _open_order_quantity(self, symbol) -> float:
+        """V5.5.0 (Problems.md #128) - signed quantity still OPEN (submitted,
+        not yet filled) for `symbol`. 0.0 on any Lean API surprise, which
+        degrades to the pre-V5.5.0 held-only sizing - never raises."""
+        try:
+            return float(
+                sum(float(ticket.QuantityRemaining) for ticket in self.Transactions.GetOpenOrderTickets(symbol))
+            )
+        except Exception:
+            return 0.0
+
+    def _short_exposure(self, orders_allowed: bool = True, exclude_symbol=None, asset_class: str | None = None) -> float:
         """Phase 3 of the 5/10 -> 9/10 roadmap: total exposure currently
         held SHORT (negative quantity), across every asset class - a new
         concept, since nothing in this codebase could open a short position
@@ -6343,6 +6655,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     continue
                 if float(holding.Quantity) >= 0:
                     continue
+                if asset_class is not None:
+                    holding_asset = self.asset_lookup.get(str(holding.Symbol), {})
+                    if (holding_asset.get("asset_class") or holding_asset.get("security_type")) != asset_class:
+                        continue
                 exposure += abs(float(holding.HoldingsValue)) / total_value
             return exposure
 
@@ -6354,6 +6670,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 continue
             if holding["quantity"] >= 0:
                 continue
+            if asset_class is not None:
+                holding_asset = self.asset_lookup.get(symbol_key, {})
+                if (holding_asset.get("asset_class") or holding_asset.get("security_type")) != asset_class:
+                    continue
             exposure += abs(self._simulated_portfolio.position_value(symbol_key)) / total_value
         return exposure
 
@@ -7168,11 +7488,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if expected is None:
             return
         fill_price = float(getattr(order_event, "FillPrice", 0.0) or 0.0)
-        reference_price = float(expected["reference_price"])
-        if fill_price <= 0.0 or reference_price <= 0.0:
+        # V5.5.0 (Problems.md #88/#96) - reference is the FILL bar's open (what
+        # a daily market order targets), not the prior close, which made this
+        # the overnight gap. One fill pays one side of the spread, so it is
+        # compared with half of the expected ROUND-TRIP cost. Pure math lives
+        # in execution.order_gate.compute_fill_slippage_divergence_bps().
+        try:
+            fill_bar_open = float(self.Securities[order_event.Symbol].Open)
+        except Exception:
+            fill_bar_open = 0.0
+        divergence_bps = compute_fill_slippage_divergence_bps(
+            fill_price, fill_bar_open, float(expected["expected_cost_bps"]) * 0.5
+        )
+        if divergence_bps is None:
             return
-        realized_slippage_bps = abs(fill_price - reference_price) / reference_price * 10_000.0
-        self._slippage_divergence_history.append(realized_slippage_bps - float(expected["expected_cost_bps"]))
+        self._slippage_divergence_history.append(divergence_bps)
 
     def _write_state(self, mode: str, insight: str, signals: dict | None = None) -> None:
         now = self.Time if hasattr(self, "Time") else datetime.utcnow()

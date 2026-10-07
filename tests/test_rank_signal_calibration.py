@@ -287,6 +287,9 @@ def test_summarize_book_history_reconciliation_empty_list_never_raises():
     summary = summarize_book_history_reconciliation([])
     assert summary == {
         "num_dates": 0,
+        "num_dates_live_vetoed": 0,
+        "num_dates_compared": 0,
+        "live_veto_reasons": {},
         "num_dates_exact_match": 0,
         "mean_overlap_fraction": None,
         "mean_raw_score_delta_abs": None,
@@ -662,3 +665,90 @@ def test_summarize_book_member_diversion_missing_action_degrades_to_unknown():
     logged_records = [_decisions_record("2020-01-01", {"A": {"reasons": []}})]
     summary = summarize_book_member_diversion(logged_records)
     assert summary["action_counts"] == {"unknown": 1}
+
+
+# ---------------------------------------------------------------------------
+# V5.5.0 (Problems.md #128) - a date live VETOED is not a 0% overlap
+# ---------------------------------------------------------------------------
+
+
+def _vetoed_record(date, reason="rolling_ic_below_floor"):
+    return {"date": date, "allocations": {}, "gate_veto_reason": reason}
+
+
+def test_a_live_vetoed_date_is_flagged_and_has_no_overlap_fraction():
+    result = reconcile_book_history_date(_vetoed_record("2020-01-01"), _RAW_SCORES, top_n=1, bottom_n=1)
+    assert result["live_vetoed"] is True
+    assert result["gate_veto_reason"] == "rolling_ic_below_floor"
+    assert result["overlap_fraction"] is None  # NOT 0.0: live made no selection to compare
+    assert result["offline_symbols"]["long"] == ["A"]  # offline still selected, for the record
+
+
+def test_an_engaged_date_is_not_flagged_as_vetoed():
+    logged = _logged_record("2020-01-01", {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)})
+    result = reconcile_book_history_date(logged, _RAW_SCORES, top_n=1, bottom_n=1)
+    assert result["live_vetoed"] is False and result["gate_veto_reason"] is None
+    assert result["overlap_fraction"] == 1.0
+
+
+def test_the_summary_excludes_vetoed_dates_from_every_match_statistic():
+    engaged = _logged_record("2020-01-01", {"A": _allocation_entry("long", 0.9), "D": _allocation_entry("short", 0.1)})
+    results = [
+        reconcile_book_history_date(engaged, _RAW_SCORES, top_n=1, bottom_n=1),
+        reconcile_book_history_date(_vetoed_record("2020-01-02"), _RAW_SCORES, top_n=1, bottom_n=1),
+        reconcile_book_history_date(_vetoed_record("2020-01-03", "min_rank_confidence_spread_below_floor"), _RAW_SCORES, top_n=1, bottom_n=1),
+    ]
+    summary = summarize_book_history_reconciliation(results)
+    assert summary["num_dates"] == 3
+    assert summary["num_dates_live_vetoed"] == 2
+    assert summary["num_dates_compared"] == 1
+    assert summary["live_veto_reasons"] == {"min_rank_confidence_spread_below_floor": 1, "rolling_ic_below_floor": 1}
+    assert summary["num_dates_exact_match"] == 1
+    assert summary["mean_overlap_fraction"] == 1.0  # the two vetoed dates did NOT drag this to 0.33
+    assert summary["num_symbols_only_offline_total"] == 0  # nor inflate the only-offline counts
+
+
+def test_a_run_that_was_vetoed_throughout_degrades_to_none_not_a_crash():
+    results = [
+        reconcile_book_history_date(_vetoed_record(f"2020-01-0{day}"), _RAW_SCORES, top_n=1, bottom_n=1) for day in (1, 2)
+    ]
+    summary = summarize_book_history_reconciliation(results)
+    assert summary["num_dates_compared"] == 0
+    assert summary["mean_overlap_fraction"] is None
+    assert summary["num_dates_exact_match"] == 0
+
+
+def test_replay_resets_the_hysteresis_anchor_after_a_veto_by_default():
+    """Pre-V5.5.0 live wiped its book memory on a veto, so an incumbent sitting just inside the
+    margin was NOT retained at the next real rebalance; offline must replay that faithfully.
+    From V5.5.0 the last formed book survives a veto - hysteresis_survives_veto=True."""
+    day1 = {"A": 0.9, "B": 0.8, "C": 0.5, "D": 0.2, "E": 0.1}
+    day3 = {"A": 0.7, "B": 0.8, "C": 0.5, "D": 0.2, "E": 0.1}  # A slips just below B, inside a 0.3 margin
+    records = [
+        _logged_record("2020-01-01", {"A": _allocation_entry("long", 0.9), "E": _allocation_entry("short", 0.1)}),
+        _vetoed_record("2020-01-02"),
+        _logged_record("2020-01-03", {"B": _allocation_entry("long", 0.8), "E": _allocation_entry("short", 0.1)}),
+    ]
+    scores = {"2020-01-01": day1, "2020-01-02": day1, "2020-01-03": day3}
+
+    reset = replay_book_history_reconciliation(records, scores, top_n=1, bottom_n=1, hysteresis_rank_margin=0.3)
+    survives = replay_book_history_reconciliation(
+        records, scores, top_n=1, bottom_n=1, hysteresis_rank_margin=0.3, hysteresis_survives_veto=True
+    )
+    assert reset[1]["live_vetoed"] and survives[1]["live_vetoed"]
+    assert reset[2]["offline_symbols"]["long"] == ["B"]  # anchor wiped: the natural pick, matching the logged live book
+    assert survives[2]["offline_symbols"]["long"] == ["A"]  # anchor kept: the incumbent holds its slot
+
+
+def test_replay_without_any_veto_is_unchanged_by_the_new_flag():
+    day = {"A": 0.9, "B": 0.8, "C": 0.5, "D": 0.2, "E": 0.1}
+    records = [
+        _logged_record("2020-01-01", {"A": _allocation_entry("long", 0.9), "E": _allocation_entry("short", 0.1)}),
+        _logged_record("2020-01-02", {"A": _allocation_entry("long", 0.9), "E": _allocation_entry("short", 0.1)}),
+    ]
+    scores = {"2020-01-01": day, "2020-01-02": day}
+    default = replay_book_history_reconciliation(records, scores, top_n=1, bottom_n=1, hysteresis_rank_margin=0.3)
+    survives = replay_book_history_reconciliation(
+        records, scores, top_n=1, bottom_n=1, hysteresis_rank_margin=0.3, hysteresis_survives_veto=True
+    )
+    assert [r["offline_symbols"] for r in default] == [r["offline_symbols"] for r in survives]

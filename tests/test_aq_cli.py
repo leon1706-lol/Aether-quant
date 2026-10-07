@@ -3664,3 +3664,267 @@ def test_apply_preset_in_memory_leaves_the_original_config_dict_untouched():
 
     assert original["phase1"]["target"]["ranking"]["net_performance"]["top_n"] == 1
     assert overlaid["phase1"]["target"]["ranking"]["net_performance"]["top_n"] == 99
+
+
+# --- V5.5.0 `aq evaluate` flags: --audit-backtest / --as-live / --factor-exposure / --calibrate-volatility-threshold ---
+
+
+def _write_synthetic_lean_run(run_dir):
+    """Smallest Lean run folder `aq evaluate --audit-backtest` can read."""
+    run_dir.mkdir(parents=True)
+    points = [[1546300800 + 86400 * i, 100000.0 + 40 * i, 0, 0, 100000.0 + 40 * i + (7 if i % 2 else -5)] for i in range(40)]
+    result = {
+        "charts": {
+            "Strategy Equity": {"series": {"Equity": {"values": points}}},
+            "Exposure": {"series": {"Forex - Short Ratio": {"values": [[1, -0.4], [2, -0.2]]}}},
+        },
+        "statistics": {"Sharpe Ratio": "-1.0", "Net Profit": "-1.0%", "Total Orders": "2"},
+        "orders": {
+            "1": {
+                "symbol": {"value": "AMZN"}, "createdTime": "2019-01-02T20:00:00Z", "lastFillTime": "2019-01-08T20:00:00Z",
+                "type": 1, "direction": 0, "status": 3, "securityType": 1,
+            },
+            "2": {
+                "symbol": {"value": "AMZN"}, "createdTime": "2019-01-03T20:00:00Z", "lastFillTime": "2019-01-09T20:00:00Z",
+                "type": 1, "direction": 0, "status": 3, "securityType": 1,
+            },
+        },
+        "totalPerformance": {"closedTrades": []},
+    }
+    (run_dir / "424242.json").write_text(json.dumps(result), encoding="utf-8")
+    (run_dir / "log.txt").write_text("PythonInitializer.Shutdown(): ended", encoding="utf-8")
+
+
+def test_evaluate_audit_backtest_end_to_end_needs_no_dataset_or_model(tmp_path, capsys, monkeypatch):
+    run_dir = tmp_path / "backtests" / "2026-01-01_00-00-00"
+    _write_synthetic_lean_run(run_dir)
+    ml_dir = tmp_path / "ml"
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--audit-backtest", "--backtest-dir", str(run_dir),
+         "--book-history-path", str(tmp_path / "missing_book_history.jsonl"), "--json"]
+    )
+    exit_code = args.func(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["run_id"] == "424242"
+    assert payload["orders"]["num_overlapping_limit_pairs"] == 1
+    assert payload["teardown"]["shutdown_ended"] is True
+    written = json.loads((ml_dir / "evaluation" / "backtest_audit.json").read_text(encoding="utf-8"))
+    assert written["run_id"] == "424242"
+
+
+def test_evaluate_audit_backtest_prints_a_readable_summary(tmp_path, capsys, monkeypatch):
+    run_dir = tmp_path / "backtests" / "2026-01-01_00-00-00"
+    _write_synthetic_lean_run(run_dir)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", tmp_path / "ml")
+    monkeypatch.setattr(aq_cli, "ROOT_DIR", tmp_path)  # newest-folder default resolves under backtests/
+
+    args = aq_cli.build_parser().parse_args(["evaluate", "--audit-backtest"])
+    assert args.func(args) == 0
+    out = capsys.readouterr().out
+    assert "Backtest audit: 2026-01-01_00-00-00" in out
+    assert "overlapping same-symbol orders: 1" in out
+    assert "engine teardown" in out
+
+
+def test_evaluate_audit_backtest_errors_cleanly_without_a_run(tmp_path, capsys, monkeypatch):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", tmp_path / "ml")
+    monkeypatch.setattr(aq_cli, "ROOT_DIR", tmp_path)
+
+    args = aq_cli.build_parser().parse_args(["evaluate", "--audit-backtest"])
+    assert args.func(args) == 1
+    assert "no backtest folder found" in capsys.readouterr().err
+
+    empty = tmp_path / "backtests" / "2026-01-01_00-00-00"
+    empty.mkdir(parents=True)
+    args = aq_cli.build_parser().parse_args(["evaluate", "--audit-backtest", "--backtest-dir", str(empty)])
+    assert args.func(args) == 1
+    assert "no Lean result JSON" in capsys.readouterr().err
+
+
+def _write_dataset_with_close(ml_dir, num_tickers=24, num_days=60):
+    import numpy as np
+    import pandas as pd
+
+    (ml_dir / "datasets").mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(1)
+    dates = [d.strftime("%Y-%m-%d") for d in pd.bdate_range("2020-01-01", periods=num_days)]
+    tickers = ["SPY"] + [f"T{i}" for i in range(num_tickers - 1)]
+    closes = 100.0 * np.cumprod(1.0 + rng.normal(0, 0.012, (num_days, num_tickers)), axis=0)
+    rows = []
+    for t_index, ticker in enumerate(tickers):
+        for d_index, row_date in enumerate(dates):
+            close = closes[d_index, t_index]
+            nxt = closes[d_index + 1, t_index] if d_index + 1 < num_days else close
+            rows.append(
+                {
+                    "date": row_date, "ticker": ticker, "split": "backtest", "close": float(close),
+                    "target_return_1d": float(nxt / close - 1.0), "target_return_20d": float(rng.normal(0, 0.03)),
+                    "liquidity_log_dollar_volume": 15.0, "f1": float(rng.normal()), "f2": float(rng.normal()),
+                }
+            )
+    pd.DataFrame(rows).to_csv(ml_dir / "datasets" / "full_dataset.csv", index=False)
+
+
+def _as_live_config():
+    config = _evaluate_config()
+    config["phase1"]["target"]["ranking"]["min_universe_size"] = 10
+    config["phase1"]["universe"] = {
+        "assets": [{"ticker": "SPY", "security_type": "equity"}]
+        + [{"ticker": f"T{i}", "security_type": "crypto" if i % 5 == 0 else "equity"} for i in range(23)]
+    }
+    config["phase_v2"]["rank_signal"] = {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"]}
+    config["phase_v2"]["portfolio_book"] = {
+        "top_n": 3, "bottom_n": 3, "rebalance_every_bars": 5, "hysteresis_rank_margin": 0.05,
+        "min_rank_confidence_spread": 0.0,
+        "neutrality": {"dollar_neutral": True, "sector_neutral": False, "gross_exposure_cap": 1.0,
+                       "max_weight_per_name": 0.2, "sector_max_net_weight": 0.15},
+    }
+    config["phase_v2"]["exits"] = {"enabled": True, "max_holding_bars": 20}
+    config["phase_v2"]["costs"] = {"enabled": False, "impact_model": {"enabled": False, "eta": 0.5}}
+    config["phase6"] = {"risk": {"max_position_weight": 0.12}}
+    return config
+
+
+def test_evaluate_as_live_reports_next_to_the_idealized_run(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_dataset_with_close(ml_dir)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_as_live_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    args = aq_cli.build_parser().parse_args(["evaluate", "--rank-book", "--as-live", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert {"rank_book", "rank_book_entry_lag_1", "rank_book_as_live"} <= set(payload)
+    as_live = payload["rank_book_as_live"]
+    assert as_live["idealized_net_sharpe"] == payload["rank_book"]["net_sharpe"]
+    assert as_live["legacy_sleeve"] == "excluded_zero_alpha"
+    assert as_live["late_bar_asset_classes_lagged_one_day"] == ["crypto", "forex"]
+    assert "num_vetoed_rebalances" in as_live["as_live"]
+    assert "as_live_with_impact_model" in as_live  # the impact variant always rides along when configured
+    assert (ml_dir / "evaluation" / "rank_book_simulation_as_live.json").exists()
+
+
+def test_evaluate_as_live_alone_does_not_also_default_to_the_idealized_report(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_dataset_with_close(ml_dir)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_as_live_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    args = aq_cli.build_parser().parse_args(["evaluate", "--as-live", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "rank_book_as_live" in payload
+    assert "rank_book" not in payload  # a given flag means a bare run must not ALSO default to --rank-book
+    assert not (ml_dir / "evaluation" / "rank_book_simulation.json").exists()
+
+
+def test_evaluate_factor_exposure_end_to_end(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_dataset_with_close(ml_dir)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_as_live_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    args = aq_cli.build_parser().parse_args(["evaluate", "--factor-exposure", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    factor = payload["factor_exposure"]
+    assert factor["status"] == "OK"
+    assert set(factor["loadings"]) == {"market", "momentum"}
+    assert (ml_dir / "evaluation" / "factor_exposure.json").exists()
+
+
+def test_evaluate_factor_exposure_skips_cleanly_without_a_close_column(tmp_path, capsys, monkeypatch):
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    _write_tiny_dataset(ml_dir)  # no close column
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_evaluate_config()), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    args = aq_cli.build_parser().parse_args(["evaluate", "--factor-exposure", "--calibrate-volatility-threshold", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["factor_exposure"]["status"] == "SKIPPED"
+    assert payload["volatility_threshold_calibration"]["status"] == "SKIPPED"
+
+
+def test_evaluate_calibrate_volatility_threshold_suggests_a_crypto_override(tmp_path, capsys, monkeypatch):
+    import numpy as np
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_multitask_artifacts(ml_dir)
+    (ml_dir / "datasets").mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(2)
+    dates = [d.strftime("%Y-%m-%d") for d in pd.bdate_range("2020-01-01", periods=140)]
+    rows = []
+    for ticker, daily_vol in (("BTC", 0.07), ("AAA", 0.01), ("BBB", 0.011)):
+        closes = 100.0 * np.cumprod(1.0 + rng.normal(0, daily_vol, len(dates)))
+        rows += [
+            {"date": d, "ticker": ticker, "split": "backtest", "close": float(c), "target_return_1d": 0.0,
+             "f1": 0.0, "f2": 0.0, "liquidity_log_dollar_volume": 15.0}
+            for d, c in zip(dates, closes)
+        ]
+    pd.DataFrame(rows).to_csv(ml_dir / "datasets" / "full_dataset.csv", index=False)
+    config = _evaluate_config()
+    config["phase1"]["universe"] = {
+        "assets": [
+            {"ticker": "BTC", "security_type": "crypto"},
+            {"ticker": "AAA", "security_type": "equity"},
+            {"ticker": "BBB", "security_type": "equity"},
+        ]
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+    monkeypatch.setattr("generate_evaluation_report.update_readme_evaluation_sections", lambda *a, **kw: False)
+
+    args = aq_cli.build_parser().parse_args(["evaluate", "--calibrate-volatility-threshold", "--json"])
+    assert args.func(args) == 0
+    report = json.loads(capsys.readouterr().out)["volatility_threshold_calibration"]
+    assert report["suggested_config"]["crypto"] > 0.45
+    assert "equity" not in report["suggested_config"]
+    assert (ml_dir / "evaluation" / "volatility_threshold_calibration.json").exists()
+
+
+def test_new_v550_evaluate_flags_are_parsed_and_not_part_of_all():
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(
+        ["evaluate", "--as-live", "--audit-backtest", "--backtest-dir", "x", "--factor-exposure",
+         "--calibrate-volatility-threshold", "--volatility-threshold-percentile", "0.9"]
+    )
+    assert args.as_live and args.audit_backtest and args.factor_exposure and args.calibrate_volatility_threshold
+    assert args.backtest_dir == "x" and args.volatility_threshold_percentile == 0.9
+    defaults = parser.parse_args(["evaluate", "--all"])
+    assert not (defaults.as_live or defaults.audit_backtest or defaults.factor_exposure or defaults.calibrate_volatility_threshold)

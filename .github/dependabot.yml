@@ -1,0 +1,21 @@
+# V5.5.0 - weekly dependency PRs, one ecosystem each. The CI jobs
+# (dependency-audit, webui npm audit) report advisories; this is what turns
+# an advisory into a reviewable bump. tests/test_ci_workflows.py pins the
+# three ecosystems so none can be dropped silently.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/requirements"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+  - package-ecosystem: "npm"
+    directory: "/webui"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
