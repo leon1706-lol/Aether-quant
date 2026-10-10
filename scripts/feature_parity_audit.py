@@ -37,6 +37,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 
 from evaluation.feature_parity import (  # noqa: E402
+    build_momentum_pool,
     BASE_TECHNICAL_FEATURES,
     DEFAULT_LONG_LOOKBACK_WINDOW_BARS,
     INDICATOR_FEATURES,
@@ -45,7 +46,6 @@ from evaluation.feature_parity import (  # noqa: E402
     compute_cs_momentum_rank_replica,
     compute_liquidity_replica,
     compute_macro_proxies_replica,
-    compute_momentum_long,
     forward_scale,
     load_scaler_mapping,
     summarize_comparison,
@@ -129,22 +129,21 @@ def check_synthetic_formula_parity() -> dict:
         for ticker in ("TLT", "SHY", "HYG", "LQD", "BTCUSD"):
             ticker_frame = _synthetic_frame(rows=260, seed=abs(hash(ticker)) % 1000)
             engineered = train_module.engineer_features(ticker_frame.copy(), [], windows)
-            macro_frames[ticker] = engineered[["date", "momentum_20d"]]
+            macro_frames[ticker] = engineered[["date", "close", "momentum_20d"]].reset_index(drop=True)
         macro_reference_by_ticker = train_module.build_macro_features_by_date(macro_frames, {})
-        # V5.5.0: compute_macro_proxies_replica() now takes the as-of calendar and the
-        # long-format (ticker, date, momentum_20d) frame, not a close pivot - the old
-        # call raised TypeError, swallowed below as "SKIPPED" (a dead check).
         momentum_long = pd.concat(
             [frame_for_ticker.assign(ticker=ticker) for ticker, frame_for_ticker in macro_frames.items()],
             ignore_index=True,
         )
-        all_dates = sorted(set(momentum_long["date"]))
-        macro_replica = compute_macro_proxies_replica(all_dates, momentum_long).set_index("date")
+        macro_replica = compute_macro_proxies_replica(momentum_long)
 
-        # train broadcasts one value per date to every asset, so any one ticker's frame is the reference
         macro_columns = ["macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"]
-        reference_macro = next(iter(macro_reference_by_ticker.values())).set_index("date")[macro_columns].sort_index()
-        joined = reference_macro.join(macro_replica, how="inner", lsuffix="_ref")
+        reference_long = pd.concat(
+            [frame_for_ticker.assign(ticker=ticker) for ticker, frame_for_ticker in macro_reference_by_ticker.items()],
+            ignore_index=True,
+        ).set_index(["ticker", "date"])[macro_columns].sort_index()
+        replica_long = macro_replica.set_index(["ticker", "date"])[macro_columns].sort_index()
+        joined = reference_long.join(replica_long, how="inner", lsuffix="_ref")
         for base_name in macro_columns:
             ref_col = joined[f"{base_name}_ref"].to_numpy(dtype=float)
             rep_col = joined[base_name].to_numpy(dtype=float)
@@ -205,8 +204,21 @@ def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, 
         dates = pd.to_datetime(group["date"])
         holes = set(np.where(dates.diff().dt.days > 3)[0])
 
-        base = compute_base_technicals_replica(group[["open", "high", "low", "close", "volume"]], long_window_bars=long_window_bars)
-        liquidity = compute_liquidity_replica(group[["open", "high", "low", "close", "volume"]], security_type=security_type)
+        ohlcv = group[["open", "high", "low", "close", "volume"]]
+        row_positions = None
+        if security_type == "forex":
+            # Forex rows are engineered on Lean's fill-forward calendar (train.engineer_forex_features_on_lean_calendar):
+            # replicate on the filled frame, then read the replica at the dataset's own dates.
+            import train as train_module  # noqa: PLC0415 - heavy import, forex only
+
+            filled = train_module.fill_forward_forex_frame(group[["date", "open", "high", "low", "close", "volume"]].assign(date=dates.to_numpy()))
+            row_positions = np.flatnonzero(filled["date"].isin(set(dates)).to_numpy())
+            ohlcv = filled[["open", "high", "low", "close", "volume"]]
+        base = compute_base_technicals_replica(ohlcv, long_window_bars=long_window_bars)
+        liquidity = compute_liquidity_replica(ohlcv, security_type=security_type)
+        if row_positions is not None:
+            base = {name: np.asarray(values)[row_positions] for name, values in base.items()}
+            liquidity = {name: np.asarray(values)[row_positions] for name, values in liquidity.items()}
 
         families = [
             (name, base[name], long_window_bars + 1 if name in ("macd_histogram_norm", "dist_52w_high") else WARMUP_ROWS_SHORT_WINDOW)
@@ -251,9 +263,15 @@ def check_cross_sectional_and_macro(dataset: pd.DataFrame, scaler_mapping: dict[
     using per-ticker OWN-calendar momentum (never a union pivot)."""
 
     results: dict[str, dict] = {}
-    momentum_long = compute_momentum_long(dataset)
+    security_types = (
+        dataset.drop_duplicates("ticker").set_index("ticker")["security_type"].astype(str).to_dict()
+        if "security_type" in dataset.columns
+        else {}
+    )
+    momentum_long = build_momentum_pool(dataset, security_types)
+    dataset = dataset.assign(date=pd.to_datetime(dataset["date"]))
 
-    ranks = compute_cs_momentum_rank_replica(momentum_long)
+    ranks = compute_cs_momentum_rank_replica(momentum_long, security_types)
     merged = dataset.merge(ranks, on=["date", "ticker"], how="left")
 
     name = "cs_momentum_rank_20"
@@ -262,12 +280,9 @@ def check_cross_sectional_and_macro(dataset: pd.DataFrame, scaler_mapping: dict[
     recomputed = merged["cs_momentum_rank_recomputed"].to_numpy(dtype=float)[45:]
     results[name] = summarize_comparison(stored, recomputed, mean, scale, clip, warmup_excluded=45)
 
-    all_dates = sorted(dataset["date"].unique())
-    macro = compute_macro_proxies_replica(all_dates, momentum_long)
-    macro_long = macro.melt(id_vars="date", var_name="feature", value_name="recomputed")
+    macro = compute_macro_proxies_replica(momentum_long, security_types)
     for feature in ("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"):
-        subset = macro_long[macro_long["feature"] == feature].drop(columns=["feature"])
-        merged_f = dataset.merge(subset, on="date", how="left")
+        merged_f = dataset.merge(macro[["date", "ticker", feature]].rename(columns={feature: "recomputed"}), on=["date", "ticker"], how="left")
         mean, scale, clip = scaler_mapping[feature]
         stored = merged_f[f"{feature}_scaled"].to_numpy(dtype=float)[45:]
         recomputed = merged_f["recomputed"].to_numpy(dtype=float)[45:]
@@ -308,10 +323,10 @@ STRUCTURED_VERDICTS = {
         "verdict": "SHARED_OK - drift root-caused and fixed in V5.2.5 (Problems.md lineage)",
     },
     "topology_correlation_strength + topology_risk one-hots + peer_rank*/mean": {
-        "offline": "train.build_topology_features_by_date() -> market_topology.build_market_topology()",
-        "live": "main._build_topology_payload() -> the SAME market_topology module",
+        "offline": "train.build_topology_features_by_date() -> market_topology.build_market_topology() over features.cross_asset_timing.CrossAssetTimeline",
+        "live": "main._build_topology_payload() -> features.cross_asset_timing.cross_asset_inputs() -> the SAME market_topology module",
         "shared_function": True,
-        "verdict": "SAME_MODULE_BOTH_SIDES - residual risk is per-date batching parameters only",
+        "verdict": "SHARED_OK - window/return/momentum construction is one function and tests/test_cross_asset_timing.py replays main.py's tick order (Problems.md #135)",
     },
     "asset_class one-hots": {
         "offline": "train.add_asset_class_context_features() from phase1.universe config",

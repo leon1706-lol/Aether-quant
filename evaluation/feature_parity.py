@@ -218,78 +218,114 @@ def compute_liquidity_replica(
     }
 
 
-def compute_momentum_long(dataset: pd.DataFrame) -> pd.DataFrame:
-    """Per-ticker momentum_20d computed on EACH TICKER'S OWN trading rows -
-    position-shift(20) within that ticker's sorted history, exactly how
-    engineer_features() consumed each asset's raw frame. Deliberately NOT a
-    union-calendar pivot shift: cross-asset calendars differ (crypto trades
-    weekends, bonds don't), so a pivot-row shift spans different numbers of
-    each ticker's REAL bars - measured drift up to 0.16 absolute on TLT."""
-    def _momentum(closes: pd.Series) -> pd.Series:
-        return closes / closes.shift(20) - 1.0
-
-    out = dataset[["date", "ticker"]].copy()
-    out["momentum_20d"] = dataset.groupby("ticker", sort=False)["close"].transform(_momentum)
-    return out
+_MIDNIGHT_SECURITY_TYPES = ("crypto", "forex")
 
 
-def compute_macro_proxies_replica(
-    all_dates: list[str],
-    momentum_long: pd.DataFrame,
-    *,
-    reference_tickers: dict[str, str] | None = None,
-) -> pd.DataFrame:
-    """Replica of train.py::build_macro_features_by_date()
-    (train.py:1126-1189): per-date AS-OF (last value at-or-before the date)
-    momentum_20d of five fixed reference tickers fed through the three
-    shared macro proxy functions; missing references degrade to each
-    function's neutral default. As-of uses each reference ticker's OWN date
-    series - never a union calendar."""
-    references = {**DEFAULT_MACRO_REFERENCE_TICKERS, **(reference_tickers or {})}
+def forex_calendar_momentum_rows(frame: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """(date, ticker, momentum_20d) for one forex pair on Lean's fill-forward calendar (flat bars on open days without
+    a row, features/cross_asset_timing.py), INCLUDING the filler rows: live's forex pool holds Sunday's flat-bar
+    momentum at Monday's equity tick, which no dataset row carries. `frame` needs `date` and `close`."""
+    from features.cross_asset_timing import day_ordinal, fill_forward_open_forex_days
 
-    def _asof_values(ticker: str) -> list[float | None]:
-        rows = momentum_long[momentum_long["ticker"] == ticker]
-        if rows.empty:
-            return [None] * len(all_dates)
-        series = pd.Series(
-            rows["momentum_20d"].to_numpy(dtype=float),
-            index=pd.Index(rows["date"], name="date"),
-        ).sort_index()
-        filled = series.reindex(all_dates).ffill()
-        return [None if pd.isna(value) else float(value) for value in filled]
-
-    long_value = _asof_values(references["long_duration"])
-    short_value = _asof_values(references["short_duration"])
-    high_yield_value = _asof_values(references["high_yield"])
-    investment_grade_value = _asof_values(references["investment_grade"])
-    crypto_value = _asof_values(references["crypto"])
-
-    result = pd.DataFrame({"date": all_dates})
-    result["macro_yield_curve_slope_proxy"] = [
-        yield_curve_slope_proxy(long_v, short_v) for long_v, short_v in zip(long_value, short_value)
+    ordered = frame.sort_values("date")
+    ordinals, closes = fill_forward_open_forex_days([day_ordinal(stamp) for stamp in ordered["date"]], ordered["close"].tolist())
+    momentum = [float("nan")] + [
+        closes[i] / closes[max(0, i - 20)] - 1.0 if closes[max(0, i - 20)] else float("nan") for i in range(1, len(closes))
     ]
-    result["macro_credit_spread_proxy"] = [
-        credit_spread_proxy(hy, ig) for hy, ig in zip(high_yield_value, investment_grade_value)
-    ]
-    result["macro_crypto_risk_appetite_proxy"] = [
-        crypto_risk_appetite_proxy(c) for c in crypto_value
-    ]
+    return pd.DataFrame({"date": [pd.Timestamp.fromordinal(o) for o in ordinals], "ticker": ticker, "momentum_20d": momentum})
+
+
+def build_momentum_pool(dataset: pd.DataFrame, security_types: dict[str, str] | None) -> pd.DataFrame:
+    """(date, ticker, momentum_20d) for the cross-asset replicas: each ticker's stored momentum_20d, except forex pairs,
+    whose momentum is re-derived on Lean's fill-forward calendar WITH the filler rows (forex_calendar_momentum_rows)."""
+    security_types = security_types or {}
+    stored = dataset[["date", "ticker", "momentum_20d"]]
+    forex_tickers = {ticker for ticker, kind in security_types.items() if kind == "forex"}
+    parts = [stored[~stored["ticker"].isin(forex_tickers)]]
+    for ticker in forex_tickers:
+        rows = dataset[dataset["ticker"] == ticker]
+        if not rows.empty:
+            parts.append(forex_calendar_momentum_rows(rows.assign(date=pd.to_datetime(rows["date"])), ticker))
+    result = pd.concat(parts, ignore_index=True)
+    result["date"] = pd.to_datetime(result["date"])
     return result
 
 
-def compute_cs_momentum_rank_replica(momentum_long: pd.DataFrame) -> pd.DataFrame:
-    """EXACT replica of build_cross_sectional_momentum_rank_features()
-    (train.py:2118-2153): per-date dict over every ticker WITH A ROW that
-    date - values may be NaN for young series; a NaN counts in the shared
-    function's len() DENOMINATOR while never satisfying its </== comparisons
-    - and thin dates (<2 entries) return the 0.5 neutral."""
-    records: list[tuple[str, str, float]] = []
-    for date, group in momentum_long.groupby("date", sort=True):
-        momentum_by_symbol = dict(zip(group["ticker"], group["momentum_20d"]))
-        for ticker in momentum_by_symbol:
-            rank = cross_sectional_momentum_rank(momentum_by_symbol, ticker)
-            records.append((date, ticker, rank))
-    return pd.DataFrame(records, columns=["date", "ticker", "cs_momentum_rank_recomputed"])
+def _momentum_arrays(momentum_long: pd.DataFrame, security_types: dict[str, str] | None) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """ticker -> (availability keys, stored momentum_20d) on each ticker's OWN rows. A daily bar is visible once its
+    period closed: equity at that day's close (ordinal + 0.5), crypto/forex at the next midnight (ordinal + 1.0).
+    The stored column (computed on the raw, pre-dropna history) is used rather than re-deriving momentum from the
+    dataset's closes, which have holes where the label guard dropped rows."""
+    security_types = security_types or {}
+    arrays: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for ticker, group in momentum_long.groupby("ticker", sort=False):
+        group = group.sort_values("date")
+        ordinals = np.array([pd.Timestamp(stamp).toordinal() for stamp in group["date"]], dtype=float)
+        offset = 1.0 if security_types.get(ticker, "equity") in _MIDNIGHT_SECURITY_TYPES else 0.5
+        arrays[ticker] = (ordinals + offset, group["momentum_20d"].to_numpy(dtype=float))
+    return arrays
+
+
+def _momentum_before(arrays: dict[str, tuple[np.ndarray, np.ndarray]], key: float) -> dict[str, float]:
+    """Each ticker's latest stored momentum among the bars visible STRICTLY before `key` - what main.py's
+    latest_momentum_by_symbol holds when it builds the payload at the start of a tick (pool includes stale tickers)."""
+    momentum: dict[str, float] = {}
+    for ticker, (keys, values) in arrays.items():
+        end = int(np.searchsorted(keys, key, side="left"))
+        if end == 0:
+            continue
+        value = float(values[end - 1])
+        if np.isfinite(value):
+            momentum[ticker] = value
+    return momentum
+
+
+def _row_keys(momentum_long: pd.DataFrame, security_types: dict[str, str] | None) -> pd.Series:
+    security_types = security_types or {}
+    ordinals = np.array([pd.Timestamp(stamp).toordinal() for stamp in momentum_long["date"]], dtype=float)
+    offsets = np.array([1.0 if security_types.get(ticker, "equity") in _MIDNIGHT_SECURITY_TYPES else 0.5 for ticker in momentum_long["ticker"]])
+    return pd.Series(ordinals + offsets, index=momentum_long.index)
+
+
+def compute_macro_proxies_replica(
+    momentum_long: pd.DataFrame,
+    security_types: dict[str, str] | None = None,
+    *,
+    reference_tickers: dict[str, str] | None = None,
+) -> pd.DataFrame:
+    """Replica of train.py::build_macro_features_by_date() (Problems.md #135): the three macro proxies a row
+    sees are those of the reference tickers' momentum over the bars visible STRICTLY before the row's own tick,
+    fed through the shared proxy functions. `momentum_long`: (ticker, date, momentum_20d); one output row per input row."""
+    references = {**DEFAULT_MACRO_REFERENCE_TICKERS, **(reference_tickers or {})}
+    arrays = _momentum_arrays(momentum_long, security_types)
+    keys = _row_keys(momentum_long, security_types)
+    by_key: dict[float, tuple[float, float, float]] = {}
+    for key in sorted(set(keys)):
+        momentum = _momentum_before(arrays, key)
+        by_key[key] = (
+            yield_curve_slope_proxy(momentum.get(references["long_duration"]), momentum.get(references["short_duration"])),
+            credit_spread_proxy(momentum.get(references["high_yield"]), momentum.get(references["investment_grade"])),
+            crypto_risk_appetite_proxy(momentum.get(references["crypto"])),
+        )
+    result = momentum_long[["date", "ticker"]].copy()
+    rows = [by_key[key] for key in keys]
+    result["macro_yield_curve_slope_proxy"] = [row[0] for row in rows]
+    result["macro_credit_spread_proxy"] = [row[1] for row in rows]
+    result["macro_crypto_risk_appetite_proxy"] = [row[2] for row in rows]
+    return result
+
+
+def compute_cs_momentum_rank_replica(momentum_long: pd.DataFrame, security_types: dict[str, str] | None = None) -> pd.DataFrame:
+    """Replica of train.py::build_cross_sectional_momentum_rank_features() (Problems.md #135): the shared
+    cross_sectional_momentum_rank() over every ticker's momentum from the bars visible strictly before the
+    row's own tick - the pool includes tickers whose latest bar is old, as main.py's windows do."""
+    arrays = _momentum_arrays(momentum_long, security_types)
+    keys = _row_keys(momentum_long, security_types)
+    pools = {key: _momentum_before(arrays, key) for key in sorted(set(keys))}
+    ranks = [cross_sectional_momentum_rank(pools[key], ticker) for key, ticker in zip(keys, momentum_long["ticker"])]
+    result = momentum_long[["date", "ticker"]].copy()
+    result["cs_momentum_rank_recomputed"] = ranks
+    return result
 
 
 def summarize_comparison(

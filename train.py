@@ -34,13 +34,9 @@ import torch
 from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
 from features import (
     CREDIT_SPREAD_LEVEL_NEUTRAL,
-    CREDIT_SPREAD_NEUTRAL,
     CROSS_ASSET_SENSITIVITY_FEATURE_NAMES,
-    CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL,
-    CRYPTO_RISK_APPETITE_NEUTRAL,
     YIELD_CURVE_CURVATURE_NEUTRAL,
     YIELD_CURVE_LEVEL_NEUTRAL,
-    YIELD_CURVE_SLOPE_NEUTRAL,
     FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
     IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL,
     IMPLIED_VOLATILITY_LEVEL_NEUTRAL,
@@ -74,6 +70,9 @@ from features import (
     yield_curve_level,
     yield_curve_slope_proxy,
 )
+from execution.cost_model import commission_bps_by_ticker
+from json_safety import atomic_write_json, load_json_lenient
+from features.cross_asset_timing import CrossAssetTimeline, day_ordinal, fill_forward_open_forex_days
 from data_pipeline.fred_backfill import load_cached_fred_series, series_change_asof, series_value_asof
 from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
 from evaluation.model_predictions import predict_head
@@ -84,6 +83,7 @@ from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
 from regime import build_market_regime_vector
 from sklearn.preprocessing import StandardScaler
 from topology import build_market_topology
+from topology.market_topology import ELEVATED_VOLATILITY_THRESHOLD, resolve_elevated_volatility_thresholds
 from torch import nn
 from torch.utils.data import DataLoader, Sampler, TensorDataset
 
@@ -187,6 +187,13 @@ def parse_args() -> argparse.Namespace:
         choices=("rolling", "expanding"),
         default=None,
         help="Walk-forward mode. Defaults to phase_v2.retraining.walk_forward.mode.",
+    )
+    parser.add_argument(
+        "--resume-run-id",
+        type=str,
+        default=None,
+        help="Continue an interrupted --walk-forward run: windows with a window_result.json under "
+        "ml/versions/<run-id>/ are loaded instead of retrained (a VM reboot then only costs the window in flight).",
     )
     # V5.1 Phase 4 (item 4) - one-run overrides of walk_forward.train_multitask/
     # train_sequence/tracked_metrics, same --seed/--ranking-objective
@@ -839,6 +846,63 @@ def engineer_features(
     return result
 
 
+FOREX_CALENDAR_FEATURE_COLUMNS = [
+    "close_to_close_return_1d", "close_to_close_return_5d", "close_to_close_return_20d",
+    "rolling_volatility_5d", "rolling_volatility_20d", "momentum_5d", "momentum_20d",
+    "high_low_range_pct", "open_close_range_pct", "volume_change_1d",
+    "rsi_14", "atr_pct_14", "bollinger_pctb_20", "volume_zscore_20", "macd_histogram_norm", "dist_52w_high",
+    "liquidity_log_dollar_volume", "liquidity_spread_proxy",
+]
+
+
+def fill_forward_forex_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """The forex bars Lean delivers: every Sunday-Friday day without a row becomes a flat bar (open=high=low=close =
+    the previous close, volume 0) - features/cross_asset_timing.py::fill_forward_open_forex_days(), Problems.md #135.
+    `frame` needs `date` plus the OHLCV columns; extra columns are carried over from the previous bar."""
+    ordered = frame.sort_values("date").reset_index(drop=True)
+    ordinals = [day_ordinal(stamp) for stamp in ordered["date"]]
+    filled_ordinals, _ = fill_forward_open_forex_days(ordinals, ordered["close"].tolist())
+    missing = sorted(set(filled_ordinals) - set(ordinals))
+    if not missing:
+        return ordered
+    fill_dates = pd.to_datetime([pd.Timestamp.fromordinal(ordinal) for ordinal in missing])
+    previous = ordered.set_index("date").reindex(ordered["date"].tolist() + list(fill_dates)).sort_index().ffill()
+    fills = previous.loc[fill_dates].reset_index().rename(columns={"index": "date"})
+    for column in ("open", "high", "low", "close"):
+        fills[column] = fills["close"]
+    fills["volume"] = 0.0
+    if "timestamp" in fills.columns:
+        fills["timestamp"] = fills["date"]
+    combined = pd.concat([ordered, fills[ordered.columns]], ignore_index=True)
+    return combined.sort_values("date").reset_index(drop=True)
+
+
+def engineer_forex_features_on_lean_calendar(
+    asset_frame: pd.DataFrame, feature_names: list[str], windows: dict, **engineer_kwargs
+) -> pd.DataFrame:
+    """Forex rows engineered the way live sees them. Live's forex windows contain Lean's fill-forward bars (flat
+    Sunday bars, filled gap days), so trailing features (volatility, momentum, RSI, MACD, spread...) are computed on
+    the filled calendar; the LABELS (forward returns, direction, next-day range) and the row set stay those of the real
+    bars, so no fake zero-return day enters a target. Returns the same rows as engineer_features() on the raw frame."""
+    plain = engineer_features(
+        add_liquidity_features(asset_frame, "forex"), feature_names, windows, security_type="forex", **engineer_kwargs
+    )
+    filled = engineer_features(
+        add_liquidity_features(fill_forward_forex_frame(asset_frame), "forex"),
+        feature_names, windows, security_type="forex", **engineer_kwargs,
+    )
+    if plain.empty or filled.empty:
+        return plain
+    calendar_values = filled.set_index("date")[FOREX_CALENDAR_FEATURE_COLUMNS]
+    result = plain.copy()
+    aligned = calendar_values.reindex(result["date"])
+    for column in FOREX_CALENDAR_FEATURE_COLUMNS:
+        values = aligned[column].to_numpy()
+        keep_plain = np.isnan(values)  # a row the filled run dropped keeps its plain value
+        result[column] = np.where(keep_plain, result[column].to_numpy(), values)
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Cross-subsystem input features (Phase 1 remainder): regime/liquidity/
 # topology become genuine model *inputs*, not just downstream consumers of
@@ -998,42 +1062,29 @@ def peer_return_feature_names(top_peers_n: int) -> list[str]:
     return [f"peer_rank{rank}_return_1d" for rank in range(1, top_peers_n + 1)] + ["peer_mean_return_1d"]
 
 
-def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
-    """Cross-sectional per-date topology + peer-return reconstruction -
-    genuinely new code, no existing pattern in train.py computed a
-    cross-asset relationship at dataset-build time before this (only
-    main.py's runtime _build_topology_payload() did, once per bar before
-    the symbol loop).
+def build_topology_features_by_date(
+    asset_frames: dict[str, pd.DataFrame], config: dict, timeline: CrossAssetTimeline | None = None
+) -> dict[str, pd.DataFrame]:
+    """Cross-sectional topology + peer-return reconstruction, aligned to what
+    main.py's `_build_topology_payload()` sees live: the payload is built at the
+    start of a tick, before that tick's own bars join `symbol_windows`, so a row
+    sees only the bars that became available strictly before its own
+    (features/cross_asset_timing.py - Problems.md #135: the earlier same-day
+    version made live(D) equal the dataset's D-1 on every cross-asset column).
 
-    For each unique historical date across the whole universe, gathers each
-    asset's trailing CROSS_SECTIONAL_RETURNS_WINDOW-return window ending at
-    that date and calls the exact same build_market_topology() the runtime
-    path uses. `embedding_iterations=1` is deliberate: correlation_strength/
-    topology_risk/top_peers/top_peer_returns (the only fields consumed
-    here) are computed in build_market_topology()'s Pass 1/Pass 3 and do
-    not depend on the SMACOF x/y embedding at all, so the expensive
-    iterative embedding step is skipped for speed without changing any of
-    those output values. Peer-return features are folded into this SAME
-    per-date loop (not a separate function re-running build_market_topology()
-    a second time) since they come from the exact same per-date topology
-    call - a real, already-documented cost (see development/Changelog.md's
-    "topology per-date cross-sectional loop" dataset-rebuild timing note),
-    not worth doubling.
+    `timeline` carries the RAW (pre-dropna) closes per ticker and their security
+    types; without it one is derived from the frames' own `date`/`close`
+    (equity timing). `embedding_iterations=1` is deliberate:
+    correlation_strength/topology_risk/top_peers/top_peer_returns do not depend
+    on the SMACOF embedding, so the expensive step is skipped without changing
+    those values. regime_labels_by_symbol is intentionally omitted: it only
+    affects cluster/node regime labels this function never reads.
 
-    `asset_frames` values must each have 'date' (pandas Timestamp, not yet
-    stringified) and 'close_to_close_return_1d' columns - i.e. called after
-    engineer_features() but before build_feature_dataset()'s final
-    concat/strftime. regime_labels_by_symbol is intentionally omitted
-    (passed as {}): it only affects TopologyCluster.dominant_regime_label
-    and TopologyNode.regime_label, neither of which this function reads.
-
-    Peer-return features (peer_rank1_return_1d, ..., peer_mean_return_1d -
-    see peer_return_feature_names()) are schema-stable, never ticker-named
-    (a peer's identity changes bar to bar and asset to asset). A missing
-    peer (universe smaller than top_peers_n) gets 0.0, identically on both
-    the offline (here) and runtime (main.py::_build_model_input()) sides -
-    no lookahead, since each peer's latest 1d return is already known as
-    of the current row's own date.
+    Peer features (peer_rank1_return_1d, ..., peer_mean_return_1d - see
+    peer_return_feature_names()) are schema-stable, never ticker-named; a missing
+    peer gets 0.0, identically to main.py::_build_model_input(). Rows without a
+    computable topology default to build_market_topology()'s own isolated,
+    zero-correlation fallback - never NaN.
     """
     topology_config = config.get("phase_v2", {}).get("topology", {})
     correlation_threshold = float(topology_config.get("correlation_threshold", 0.6))
@@ -1041,29 +1092,30 @@ def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], confi
     min_observations = int(topology_config.get("min_observations", 5))
     top_peers_n = int(topology_config.get("top_peers_n", 3))
     peer_feature_names = peer_return_feature_names(top_peers_n)
+    timeline = timeline or CrossAssetTimeline.from_frames(asset_frames)
+    # Same per-asset-class "elevated" volatility cutoffs main.py resolves (Problems.md #129): without them crypto
+    # rows were labelled elevated at the global 0.45 here while live called the same node normal below 0.87.
+    elevated_threshold, elevated_threshold_by_symbol = resolve_elevated_volatility_thresholds(
+        topology_config.get("elevated_volatility_threshold", ELEVATED_VOLATILITY_THRESHOLD),
+        {
+            str(asset.get("ticker")): asset.get("asset_class") or asset.get("security_type")
+            for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+        },
+    )
 
-    dates_by_ticker = {ticker: frame["date"].tolist() for ticker, frame in asset_frames.items()}
-    returns_by_ticker = {ticker: frame["close_to_close_return_1d"].tolist() for ticker, frame in asset_frames.items()}
-    all_dates = sorted({date for dates in dates_by_ticker.values() for date in dates})
+    row_keys = {
+        ticker: [timeline.row_availability(ticker, date) for date in frame["date"]] for ticker, frame in asset_frames.items()
+    }
+    tickers_by_key: dict[float, set[str]] = {}
+    for ticker, keys in row_keys.items():
+        for key in keys:
+            tickers_by_key.setdefault(key, set()).add(ticker)
 
-    correlation_strength_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
-    topology_risk_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
-    peer_features_by_ticker_date: dict[str, dict] = {ticker: {} for ticker in asset_frames}
-
-    for current_date in all_dates:
-        returns_by_symbol: dict[str, list[float]] = {}
-        for ticker in asset_frames:
-            dates = dates_by_ticker[ticker]
-            position = bisect.bisect_right(dates, current_date)
-            if position == 0:
-                continue
-            window = returns_by_ticker[ticker][max(0, position - CROSS_SECTIONAL_RETURNS_WINDOW) : position]
-            if len(window) >= 2:
-                returns_by_symbol[ticker] = window
-
+    topology_by_key: dict[float, dict[str, tuple[float, str, list[float]]]] = {}
+    for key in sorted(tickers_by_key):
+        returns_by_symbol, _ = timeline.inputs_before(key)
         if len(returns_by_symbol) < 2:
             continue
-
         topology = build_market_topology(
             returns_by_symbol=returns_by_symbol,
             correlation_threshold=correlation_threshold,
@@ -1071,38 +1123,30 @@ def build_topology_features_by_date(asset_frames: dict[str, pd.DataFrame], confi
             min_observations=min_observations,
             embedding_iterations=1,
             top_peers_n=top_peers_n,
+            elevated_volatility_threshold=elevated_threshold,
+            elevated_volatility_threshold_by_symbol=elevated_threshold_by_symbol,
         )
+        wanted = tickers_by_key[key]
+        nodes: dict[str, tuple[float, str, list[float]]] = {}
         for node in topology.nodes:
-            correlation_strength_by_ticker_date[node.symbol][current_date] = node.correlation_strength
-            topology_risk_by_ticker_date[node.symbol][current_date] = node.topology_risk
+            if node.symbol not in wanted:
+                continue
             padded_returns = list(node.top_peer_returns) + [0.0] * (top_peers_n - len(node.top_peer_returns))
             mean_peer_return = float(np.mean(node.top_peer_returns)) if node.top_peer_returns else 0.0
-            peer_features_by_ticker_date[node.symbol][current_date] = padded_returns + [mean_peer_return]
+            nodes[node.symbol] = (node.correlation_strength, node.topology_risk, padded_returns + [mean_peer_return])
+        topology_by_key[key] = nodes
 
+    isolated = (0.0, "isolated", [0.0] * (top_peers_n + 1))
     updated_frames: dict[str, pd.DataFrame] = {}
     for ticker, frame in asset_frames.items():
         result = frame.copy()
-        correlation_lookup = correlation_strength_by_ticker_date[ticker]
-        risk_lookup = topology_risk_by_ticker_date[ticker]
-        peer_lookup = peer_features_by_ticker_date[ticker]
-        # Rows where topology couldn't be computed (fewer than min_observations
-        # trailing returns exist yet, or no other asset qualified that date)
-        # default to the same "isolated, zero correlation" signal
-        # build_market_topology()'s own _isolated_node() fallback produces -
-        # a real, meaningful value, never a NaN needing an extra dropna pass.
-        # Peer features default to all-zero for the same rows, matching the
-        # missing-peer convention above.
-        result["topology_correlation_strength"] = [correlation_lookup.get(date, 0.0) for date in result["date"]]
-        risk_values = [risk_lookup.get(date, "isolated") for date in result["date"]]
-        result["topology_risk_normal"] = [1.0 if value == "normal" else 0.0 for value in risk_values]
-        result["topology_risk_elevated"] = [1.0 if value == "elevated" else 0.0 for value in risk_values]
-        result["topology_risk_isolated"] = [1.0 if value == "isolated" else 0.0 for value in risk_values]
-
-        zero_peer_features = [0.0] * (top_peers_n + 1)
-        peer_values = [peer_lookup.get(date, zero_peer_features) for date in result["date"]]
+        rows = [topology_by_key.get(key, {}).get(ticker, isolated) for key in row_keys[ticker]]
+        result["topology_correlation_strength"] = [row[0] for row in rows]
+        result["topology_risk_normal"] = [1.0 if row[1] == "normal" else 0.0 for row in rows]
+        result["topology_risk_elevated"] = [1.0 if row[1] == "elevated" else 0.0 for row in rows]
+        result["topology_risk_isolated"] = [1.0 if row[1] == "isolated" else 0.0 for row in rows]
         for index, feature_name in enumerate(peer_feature_names):
-            result[feature_name] = [row[index] for row in peer_values]
-
+            result[feature_name] = [row[2][index] for row in rows]
         updated_frames[ticker] = result
     return updated_frames
 
@@ -1121,83 +1165,49 @@ MACRO_FEATURE_NAMES = [
 ]
 
 
-def build_macro_features_by_date(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
-    """Phase 1b of the 5/10 -> 9/10 roadmap: deliberate, explicit
-    cross-asset-class "macro" features (features/macro_features.py),
-    computed once per date from a small fixed set of reference tickers
-    (the Phase 1a bond ETF sleeve + the existing crypto sleeve) and
-    broadcast identically to every asset's row for that date - additive to,
-    not a replacement for, the existing generic correlation-based peer
-    mechanism (build_topology_features_by_date() above).
+def build_macro_features_by_date(
+    asset_frames: dict[str, pd.DataFrame], config: dict, timeline: CrossAssetTimeline | None = None
+) -> dict[str, pd.DataFrame]:
+    """Phase 1b cross-asset "macro" features (features/macro_features.py):
+    TLT-SHY, HYG-LQD and BTCUSD momentum proxies, broadcast to every asset's row.
+    Each reference ticker contributes its momentum as main.py's
+    `_build_macro_payload()` reads it live - from the windows BEFORE the row's own
+    tick (features/cross_asset_timing.py, Problems.md #135) - so a row sees the
+    latest reference bar that became available strictly before its own.
 
-    Reuses each reference ticker's own already-computed momentum_20d
-    column (engineer_features()) rather than re-deriving returns from
-    scratch - no new buffer/window logic needed, unlike
-    features/technical_indicators.py's long-lookback indicators.
-    `asset_frames` values must each have 'date' and 'momentum_20d' columns,
-    i.e. called after engineer_features() but before build_feature_dataset()'s
-    final concat/strftime - same calling convention as
-    build_topology_features_by_date().
-
-    A reference ticker absent from this particular `asset_frames` (e.g. a
-    universe subset without the bond sleeve, or a reference ticker not yet
-    trading as of a given date) neutral-defaults its proxy to 0.0 for every
-    date - never raises, matching features/macro_features.py's own
-    "missing reference -> 0.0" convention.
+    A reference ticker absent from the universe (or without two bars yet)
+    neutral-defaults its proxy to 0.0 - never raises, matching
+    features/macro_features.py. `timeline` as in build_topology_features_by_date().
     """
     reference_tickers = {
         **DEFAULT_MACRO_REFERENCE_TICKERS,
         **config.get("phase1", {}).get("features", {}).get("macro_reference_tickers", {}),
     }
+    timeline = timeline or CrossAssetTimeline.from_frames(asset_frames)
 
-    def _dates_and_momentum(ticker: str) -> tuple[list, list]:
-        frame = asset_frames.get(ticker)
-        if frame is None:
-            return [], []
-        return frame["date"].tolist(), frame["momentum_20d"].tolist()
-
-    long_dates, long_momentum = _dates_and_momentum(reference_tickers["long_duration"])
-    short_dates, short_momentum = _dates_and_momentum(reference_tickers["short_duration"])
-    high_yield_dates, high_yield_momentum = _dates_and_momentum(reference_tickers["high_yield"])
-    investment_grade_dates, investment_grade_momentum = _dates_and_momentum(reference_tickers["investment_grade"])
-    crypto_dates, crypto_momentum = _dates_and_momentum(reference_tickers["crypto"])
-
-    def _momentum_asof(dates: list, values: list, current_date) -> float | None:
-        if not dates:
-            return None
-        position = bisect.bisect_right(dates, current_date)
-        if position == 0:
-            return None
-        value = values[position - 1]
-        return None if pd.isna(value) else float(value)
-
-    all_dates = sorted({date for frame in asset_frames.values() for date in frame["date"]})
-
-    slope_by_date: dict = {}
-    spread_by_date: dict = {}
-    crypto_appetite_by_date: dict = {}
-    for current_date in all_dates:
-        long_value = _momentum_asof(long_dates, long_momentum, current_date)
-        short_value = _momentum_asof(short_dates, short_momentum, current_date)
-        high_yield_value = _momentum_asof(high_yield_dates, high_yield_momentum, current_date)
-        investment_grade_value = _momentum_asof(investment_grade_dates, investment_grade_momentum, current_date)
-        crypto_value = _momentum_asof(crypto_dates, crypto_momentum, current_date)
-        slope_by_date[current_date] = yield_curve_slope_proxy(long_value, short_value)
-        spread_by_date[current_date] = credit_spread_proxy(high_yield_value, investment_grade_value)
-        crypto_appetite_by_date[current_date] = crypto_risk_appetite_proxy(crypto_value)
+    row_keys = {
+        ticker: [timeline.row_availability(ticker, date) for date in frame["date"]] for ticker, frame in asset_frames.items()
+    }
+    macro_by_key: dict[float, tuple[float, float, float]] = {}
+    for key in sorted({key for keys in row_keys.values() for key in keys}):
+        momentum = timeline.momentum_before(key)
+        macro_by_key[key] = (
+            yield_curve_slope_proxy(
+                momentum.get(reference_tickers["long_duration"]), momentum.get(reference_tickers["short_duration"])
+            ),
+            credit_spread_proxy(
+                momentum.get(reference_tickers["high_yield"]), momentum.get(reference_tickers["investment_grade"])
+            ),
+            crypto_risk_appetite_proxy(momentum.get(reference_tickers["crypto"])),
+        )
 
     updated_frames: dict[str, pd.DataFrame] = {}
     for ticker, frame in asset_frames.items():
         result = frame.copy()
-        result["macro_yield_curve_slope_proxy"] = [
-            slope_by_date.get(date, YIELD_CURVE_SLOPE_NEUTRAL) for date in result["date"]
-        ]
-        result["macro_credit_spread_proxy"] = [
-            spread_by_date.get(date, CREDIT_SPREAD_NEUTRAL) for date in result["date"]
-        ]
-        result["macro_crypto_risk_appetite_proxy"] = [
-            crypto_appetite_by_date.get(date, CRYPTO_RISK_APPETITE_NEUTRAL) for date in result["date"]
-        ]
+        rows = [macro_by_key[key] for key in row_keys[ticker]]
+        result["macro_yield_curve_slope_proxy"] = [row[0] for row in rows]
+        result["macro_credit_spread_proxy"] = [row[1] for row in rows]
+        result["macro_crypto_risk_appetite_proxy"] = [row[2] for row in rows]
         updated_frames[ticker] = result
     return updated_frames
 
@@ -2113,51 +2123,38 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     return updated_frames
 
 
-def build_cross_sectional_momentum_rank_features(asset_frames: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """Cross-sectional per-date percentile rank of each asset's own
-    momentum_20d (Phase 6) - the best-documented daily cross-sectional
-    anomaly (12-1 month momentum). Unlike build_cross_sectional_rank_targets()'s
-    forward-looking targets, today's momentum_20d is already fully known as
-    of today - no lookahead concern, no min_universe_size guard needed
-    beyond the plain "need >= 2 assets to rank" rule
-    features.cross_sectional_momentum_rank() already encodes (thin dates
-    default to 0.5, the exact middle, via that same neutral-default
-    convention).
+def build_cross_sectional_momentum_rank_features(
+    asset_frames: dict[str, pd.DataFrame], timeline: CrossAssetTimeline | None = None
+) -> dict[str, pd.DataFrame]:
+    """Cross-sectional percentile rank of each asset's momentum_20d (Phase 6),
+    as main.py computes it live: every symbol's momentum comes from the windows
+    BEFORE the row's own tick (`_build_topology_payload()` runs ahead of the
+    per-symbol loop), the pool is every symbol with two bars - including ones
+    whose latest bar is old - and the rank is the shared
+    features.cross_sectional_momentum_rank() (Problems.md #135: the earlier
+    exact-date pool of same-day momentum differed on 85% of rows).
 
-    V5.2.5 (development/Problems.md #91-continuation): calls the same
-    features.cross_sectional_momentum_rank() main.py uses live, once per
-    (date, ticker) pair, instead of an independently-written pandas
-    .rank(pct=True) reimplementation - the two were verified numerically
-    identical given the same input pool, but keeping two hand-maintained
-    "should be identical" implementations around is a standing risk (a
-    future edit to one without the other silently reintroduces a live/
-    offline divergence of exactly this kind). Now provably identical by
-    construction, not just by argument.
-
-    Must be called after the per-asset engineer_features() loop (needs
-    momentum_20d already computed) but before build_feature_dataset()'s
-    final concat/strftime - same ordering constraint as
-    build_topology_features_by_date()/build_cross_sectional_rank_targets().
+    Thin pools default to CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL (0.5) through
+    that same function. `timeline` as in build_topology_features_by_date().
     """
-    long_frame = pd.concat(
-        [
-            pd.DataFrame({"ticker": ticker, "date": frame["date"], "momentum_20d": frame["momentum_20d"]})
-            for ticker, frame in asset_frames.items()
-        ],
-        ignore_index=True,
-    )
-    rank_lookup: dict[tuple[str, object], float] = {}
-    for date, group in long_frame.groupby("date"):
-        momentum_by_symbol = dict(zip(group["ticker"], group["momentum_20d"]))
-        for ticker in momentum_by_symbol:
-            rank_lookup[(ticker, date)] = cross_sectional_momentum_rank(momentum_by_symbol, ticker)
+    timeline = timeline or CrossAssetTimeline.from_frames(asset_frames)
+    row_keys = {
+        ticker: [timeline.row_availability(ticker, date) for date in frame["date"]] for ticker, frame in asset_frames.items()
+    }
+    tickers_by_key: dict[float, set[str]] = {}
+    for ticker, keys in row_keys.items():
+        for key in keys:
+            tickers_by_key.setdefault(key, set()).add(ticker)
+
+    rank_by_key: dict[float, dict[str, float]] = {}
+    for key in sorted(tickers_by_key):
+        momentum = timeline.momentum_before(key)
+        rank_by_key[key] = {ticker: cross_sectional_momentum_rank(momentum, ticker) for ticker in tickers_by_key[key]}
 
     updated_frames: dict[str, pd.DataFrame] = {}
     for ticker, frame in asset_frames.items():
         result = frame.copy()
-        result["cs_momentum_rank_20"] = [
-            rank_lookup.get((ticker, date), CROSS_SECTIONAL_MOMENTUM_RANK_NEUTRAL) for date in result["date"]
-        ]
+        result["cs_momentum_rank_20"] = [rank_by_key[key][ticker] for key in row_keys[ticker]]
         updated_frames[ticker] = result
     return updated_frames
 
@@ -2226,24 +2223,36 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
 
     engineered_frames: dict[str, pd.DataFrame] = {}
     asset_summaries = []
+    raw_frames = {
+        asset["ticker"]: asset_frames[asset["ticker"]].sort_values("date").reset_index(drop=True) for asset in assets
+    }
+    timeline = CrossAssetTimeline.from_frames(raw_frames, {asset["ticker"]: asset["security_type"] for asset in assets})
     for asset in assets:
         ticker = asset["ticker"]
-        asset_frame = asset_frames[ticker].sort_values("date").reset_index(drop=True)
-        # add_liquidity_features() runs on the RAW frame (before
-        # engineer_features() drops the first row) so its trailing spread
-        # window sees the true, undropped bar sequence - see that
-        # function's docstring for why this ordering is load-bearing, not
-        # cosmetic.
-        asset_frame = add_liquidity_features(asset_frame, asset["security_type"])
-        engineered = engineer_features(
-            asset_frame,
-            BASE_FEATURE_NAMES,
-            windows,
-            security_type=asset["security_type"],
-            max_abs_daily_return=max_abs_daily_return,
-            max_abs_return_5d=max_abs_return_5d,
-            max_abs_return_20d=max_abs_return_20d,
-        )
+        asset_frame = raw_frames[ticker]
+        if asset["security_type"] == "forex":
+            engineered = engineer_forex_features_on_lean_calendar(
+                asset_frame, BASE_FEATURE_NAMES, windows,
+                max_abs_daily_return=max_abs_daily_return,
+                max_abs_return_5d=max_abs_return_5d,
+                max_abs_return_20d=max_abs_return_20d,
+            )
+        else:
+            # add_liquidity_features() runs on the RAW frame (before
+            # engineer_features() drops the first row) so its trailing spread
+            # window sees the true, undropped bar sequence - see that
+            # function's docstring for why this ordering is load-bearing, not
+            # cosmetic.
+            asset_frame = add_liquidity_features(asset_frame, asset["security_type"])
+            engineered = engineer_features(
+                asset_frame,
+                BASE_FEATURE_NAMES,
+                windows,
+                security_type=asset["security_type"],
+                max_abs_daily_return=max_abs_daily_return,
+                max_abs_return_5d=max_abs_return_5d,
+                max_abs_return_20d=max_abs_return_20d,
+            )
         engineered_frames[ticker] = engineered
         asset_summaries.append(
             {
@@ -2259,7 +2268,7 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
 
     # Cross-sectional (needs every asset's engineered frame simultaneously) -
     # must run after the per-asset loop above, before the final concat.
-    engineered_frames = build_topology_features_by_date(engineered_frames, config)
+    engineered_frames = build_topology_features_by_date(engineered_frames, config, timeline)
     # development/Problems.md #71 (Phase 4.12, A4): add_regime_features()
     # moved here, AFTER topology, specifically so _encode_regime_row() can
     # read each row's own just-computed topology_correlation_strength as a
@@ -2275,7 +2284,7 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     # (it depends on this run's own live account state, not recoverable
     # from historical bars).
     engineered_frames = {ticker: add_regime_features(frame) for ticker, frame in engineered_frames.items()}
-    engineered_frames = build_macro_features_by_date(engineered_frames, config)
+    engineered_frames = build_macro_features_by_date(engineered_frames, config, timeline)
     # Hoisted (was inline in the bond call below): both FRED-backed
     # builders (bond, alt-data) need the same cache load, and
     # load_cached_fred_series() just globs a directory once, so there is
@@ -2294,7 +2303,7 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     # target_return_Nd already computed, must run before the final
     # concat/strftime below).
     engineered_frames = build_residual_rank_targets(engineered_frames, config)
-    engineered_frames = build_cross_sectional_momentum_rank_features(engineered_frames)
+    engineered_frames = build_cross_sectional_momentum_rank_features(engineered_frames, timeline)
 
     dataset = pd.concat(list(engineered_frames.values()), ignore_index=True)
     dataset = dataset.sort_values(["date", "ticker"]).reset_index(drop=True)
@@ -6762,6 +6771,7 @@ def write_visualization_state(
 
 def run_net_performance_simulation(
     frame: pd.DataFrame, prediction_column: str, net_performance_config: dict, sector_by_ticker: dict[str, str],
+    full_config: dict | None = None,
 ) -> dict | None:
     """V5.1 Phase 4 (items 7, 12) - shared by _run_walk_forward_net_performance()
     (one call per walk-forward window) and train_multitask.py/
@@ -6799,6 +6809,15 @@ def run_net_performance_simulation(
         "entry_lag_bars": int(net_performance_config.get("entry_lag_bars", 0)),
         "min_commission_usd": float(net_performance_config.get("min_commission_usd", 0.0)),
         "assumed_portfolio_value_usd": float(net_performance_config.get("assumed_portfolio_value_usd", 0.0)),
+        # Per-class exchange fees (phase_v2.costs.fee_by_type), so the offline book pays what the live gate assumes.
+        "commission_bps_by_ticker": commission_bps_by_ticker(
+            (full_config or {}).get("phase_v2", {}).get("costs", {}),
+            {
+                str(asset.get("ticker")): str(asset.get("security_type"))
+                for asset in (full_config or {}).get("phase1", {}).get("universe", {}).get("assets", [])
+            },
+        )
+        or None,
     }
     simulation_result = simulate_rank_book(frame, **base_kwargs)
     capacity_result = capacity_curve(
@@ -6878,6 +6897,7 @@ def _run_walk_forward_net_performance(
     head: str,
     net_performance_config: dict,
     sector_by_ticker: dict[str, str],
+    full_config: dict | None = None,
 ) -> dict | None:
     """V5.1 Phase 4 (Step 4.2) - runs simulate_rank_book()/capacity_curve()/
     stress_test_costs() against ONE window's own backtest-split
@@ -6902,14 +6922,29 @@ def _run_walk_forward_net_performance(
     backtest_frame["_walk_forward_predicted_head"] = predictions
 
     result = run_net_performance_simulation(
-        backtest_frame, "_walk_forward_predicted_head", net_performance_config, sector_by_ticker
+        backtest_frame, "_walk_forward_predicted_head", net_performance_config, sector_by_ticker, full_config
     )
     if result is None:
         return None
     return {"head": head, "model_kind": model_kind, **result}
 
 
-def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: str) -> dict:
+WALK_FORWARD_WINDOW_RESULT_FILENAME = "window_result.json"
+
+
+def _load_walk_forward_window_result(run_id: str, window_index: int) -> dict | None:
+    """The saved outcome of a COMPLETED walk-forward window (written as that window's last step), else None -
+    a missing or torn file means the window reruns, never that it is trusted."""
+    path = ML_DIR / "versions" / run_id / f"window_{window_index}" / WALK_FORWARD_WINDOW_RESULT_FILENAME
+    payload = load_json_lenient(path)
+    if not isinstance(payload, dict) or not isinstance(payload.get("window_result"), dict) or "backtest_mcc" not in payload:
+        return None
+    return payload
+
+
+def _run_walk_forward(
+    config: dict, data_summary: dict, step_days: int, mode: str, resume_run_id: str | None = None
+) -> dict:
     """Phase 4 of the 5/10 -> 9/10 roadmap: `python train.py --walk-forward`'s
     implementation - runs the baseline model's existing dataset-build +
     training pipeline once per generate_walk_forward_windows() window,
@@ -6971,7 +7006,8 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
             "summary_by_metric": {}, "stability_by_metric": {}, "net_performance_by_window": [],
         }
 
-    run_id = f"walk-forward-{uuid.uuid4()}"
+    run_id = resume_run_id or f"walk-forward-{uuid.uuid4()}"
+    LOGGER.info("walk-forward run id: %s", run_id)
     feature_names = config["phase1"]["features"]["input_set"]
     window_results: list[dict] = []
     backtest_mcc_by_window: list[float] = []
@@ -6980,6 +7016,17 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
     sector_by_ticker = load_sector_mapping(config) if net_performance_enabled else {}
 
     for window_index, window in enumerate(windows):
+        saved_result = _load_walk_forward_window_result(run_id, window_index) if resume_run_id else None
+        if saved_result is not None:
+            LOGGER.info("walk-forward window %s/%s already complete - resuming past it.", window_index + 1, len(windows))
+            window_results.append(saved_result["window_result"])
+            backtest_mcc_by_window.append(float(saved_result["backtest_mcc"]))
+            for name, value in saved_result.get("tracked_values", {}).items():
+                tracked_values_by_metric.setdefault(name, []).append(float(value))
+            if saved_result.get("net_performance") is not None:
+                net_performance_by_window.append(saved_result["net_performance"])
+            continue
+
         window_config = copy.deepcopy(config)
         window_config["phase1"]["windows"] = window
         LOGGER.info(
@@ -7083,10 +7130,13 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
         if sequence_metrics is not None:
             window_metrics_artifacts["sequence_training_metrics.json"] = sequence_metrics
 
+        window_tracked_values: dict[str, float] = {}
         for entry in tracked_metrics_config:
             value = extract_metric_by_path(window_metrics_artifacts.get(entry["artifact"]), entry["path"])
             if value is not None:
                 tracked_values_by_metric.setdefault(entry["name"], []).append(value)
+                window_tracked_values[entry["name"]] = value
+        window_net_performance = None
 
         if net_performance_enabled:
             # Re-read from the CSV written earlier this iteration - see the
@@ -7116,6 +7166,7 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
                         net_performance_head,
                         window_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("net_performance", {}),
                         sector_by_ticker,
+                        full_config=window_config,
                     )
             if net_result is None and multitask_metrics is not None:
                 multitask_model_path = paths["version_dir"] / "multitask_model.json"
@@ -7126,11 +7177,23 @@ def _run_walk_forward(config: dict, data_summary: dict, step_days: int, mode: st
                         None, 30, net_performance_head,
                         window_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("net_performance", {}),
                         sector_by_ticker,
+                        full_config=window_config,
                     )
             if net_result is not None:
-                net_performance_by_window.append({"window_index": window_index, **net_result})
+                window_net_performance = {"window_index": window_index, **net_result}
+                net_performance_by_window.append(window_net_performance)
 
-        window_results.append({"window": window, "version_id": version_id, "backtest_mcc": backtest_mcc})
+        window_result = {"window": window, "version_id": version_id, "backtest_mcc": backtest_mcc}
+        window_results.append(window_result)
+        atomic_write_json(
+            ML_DIR / "versions" / run_id / f"window_{window_index}" / WALK_FORWARD_WINDOW_RESULT_FILENAME,
+            {
+                "window_result": window_result,
+                "backtest_mcc": backtest_mcc,
+                "tracked_values": window_tracked_values,
+                "net_performance": window_net_performance,
+            },
+        )
         LOGGER.info("walk-forward window %s/%s backtest MCC: %.4f", window_index + 1, len(windows), backtest_mcc)
 
     summary = summarize_walk_forward_run(backtest_mcc_by_window)
@@ -7206,7 +7269,9 @@ def main() -> int:
                 walk_forward_config["tracked_metrics"] = [
                     entry for entry in existing_tracked if entry.get("name") in requested_names
                 ]
-        run_summary = _run_walk_forward(config, data_summary, step_days=step_days, mode=mode)
+        run_summary = _run_walk_forward(
+            config, data_summary, step_days=step_days, mode=mode, resume_run_id=args.resume_run_id
+        )
         if run_summary["num_windows"] == 0:
             print("Walk-forward run produced no windows - common_window too short for the configured spans.")
             return 0

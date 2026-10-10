@@ -215,7 +215,9 @@ def test_add_liquidity_features_falls_back_to_typical_spread_for_single_bar():
 
 
 def _returns_frame(dates: list[str], returns: list[float]) -> pd.DataFrame:
-    return pd.DataFrame({"date": pd.to_datetime(dates), "close_to_close_return_1d": returns})
+    """Closes built so bar i's close-to-close return is returns[i] (bar 0 is the base close)."""
+    closes = (100.0 * (1.0 + pd.Series(returns)).cumprod() / (1.0 + returns[0])).tolist()
+    return pd.DataFrame({"date": pd.to_datetime(dates), "close_to_close_return_1d": returns, "close": closes})
 
 
 def test_build_topology_features_by_date_adds_columns_to_every_asset_frame():
@@ -316,11 +318,11 @@ def test_build_topology_features_by_date_peer_return_matches_peers_own_latest_re
 
     result = build_topology_features_by_date(asset_frames, config)
 
-    # A's only possible peer is B - peer_rank1_return_1d on the last row
-    # must equal B's own latest (last-row) return, no lookahead.
+    # A's only possible peer is B - peer_rank1_return_1d on the last row must equal B's latest return
+    # BEFORE that row (live builds the payload ahead of the tick's own bars, Problems.md #135).
     last_row = result["A"].iloc[-1]
-    assert last_row["peer_rank1_return_1d"] == pytest.approx(b_returns[-1])
-    assert last_row["peer_mean_return_1d"] == pytest.approx(b_returns[-1])
+    assert last_row["peer_rank1_return_1d"] == pytest.approx(b_returns[-2])
+    assert last_row["peer_mean_return_1d"] == pytest.approx(b_returns[-2])
 
 
 def test_build_topology_features_by_date_single_asset_peer_features_are_zero():

@@ -1577,7 +1577,13 @@
                 "l2": 0.001,
                 "entropy_bonus": 0.01,
                 "commission_bps": 1.0,
-                "nominal_base_weight": 0.05
+                "nominal_base_weight": 0.05,
+                "penalty_sweep": [
+                    1.0,
+                    1.5,
+                    2.0,
+                    3.0
+                ]
             }
         },
         "risk": {
@@ -1588,7 +1594,7 @@
                 "max_drawdown_velocity_pct_per_bar": 0.01,
                 "min_live_rank_ic": -0.02,
                 "max_consecutive_losses": 12,
-                "max_slippage_divergence_bps": 1000000000000.0,
+                "max_slippage_divergence_bps": 80,
                 "max_model_age_days": 180,
                 "min_return_std_for_sharpe": 0.0005,
                 "action": "trade_lock"
@@ -1610,7 +1616,7 @@
             "margin_source": "static"
         },
         "forex_risk": {
-            "enabled": true,
+            "enabled": false,
             "target_leverage_utilization": 0.2,
             "max_leverage_utilization": 0.4,
             "pair_specs_path": "data/reference/forex_pair_specs.json"
@@ -1702,6 +1708,7 @@
             "cache_enabled": true,
             "correlation_stability_tolerance": 0.02,
             "correlation_stability_tolerance_percentile": 75,
+            "elevated_veto_applies_to_book_members": false,
             "elevated_volatility_threshold": {
                 "default": 0.45,
                 "crypto": 0.87
@@ -1733,7 +1740,7 @@
             "enabled": true,
             "top_n": 6,
             "bottom_n": 6,
-            "min_rank_confidence_spread": 0.2831,
+            "min_rank_confidence_spread": 0.1985,
             "rebalance_every_bars": 10,
             "allocation_method": "rank",
             "neutrality": {
@@ -1792,7 +1799,8 @@
             },
             "max_spread_proxy_by_type": {
                 "crypto": 0.001,
-                "forex": 0.0003
+                "forex": 0.0003,
+                "equity": 0.001
             }
         },
         "limit_orders": {
@@ -1984,7 +1992,11 @@
                 "ranking": {
                     "enabled": true,
                     "model": "sequence",
-                    "head": "residual_rank_20d",
+                    "head": "rank_5d",
+                    "heads": [
+                        "rank_5d",
+                        "rank_20d"
+                    ],
                     "require_quality_status": [
                         "promotable",
                         "watchlist"
@@ -2275,12 +2287,25 @@
             "commission_bps_per_side": 1.5,
             "min_commission_usd": 1.0,
             "extra_slippage_bps": 0.0,
-            "edge_bps_per_rank_unit": 396.2743,
+            "edge_bps_per_rank_unit": 574.0568,
             "min_net_edge_bps": 2.0,
             "holding_bars": 10,
             "horizon_days": 20,
             "cost_sizing_enabled": true,
             "min_cost_multiplier": 0.25,
+            "fee_by_type": {
+                "crypto": {
+                    "model": "coinbase",
+                    "fee_bps": 80.0,
+                    "min_usd": 0.0
+                },
+                "forex": {
+                    "model": "interactive_brokers",
+                    "fee_bps": 0.2,
+                    "min_usd": 2.0,
+                    "sim_fee_bps": 7.6
+                }
+            },
             "impact_model": {
                 "enabled": false,
                 "eta": 0.5,
@@ -2313,7 +2338,7 @@
                 "phase_v2.portfolio_book.top_n": 8,
                 "phase_v2.portfolio_book.bottom_n": 8,
                 "phase_v2.portfolio_book.rebalance_every_bars": 10,
-                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.2831,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.1985,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.04,
                 "phase9.portfolio.max_active_positions": 16,
                 "phase6.risk.max_position_weight": 0.15,
@@ -2328,7 +2353,7 @@
                 "phase_v2.portfolio_book.top_n": 6,
                 "phase_v2.portfolio_book.bottom_n": 6,
                 "phase_v2.portfolio_book.rebalance_every_bars": 10,
-                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.2831,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.1985,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.05,
                 "phase9.portfolio.max_active_positions": 12,
                 "phase6.risk.max_position_weight": 0.12,

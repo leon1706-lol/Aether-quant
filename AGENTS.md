@@ -64,6 +64,12 @@ ruff check .              # must be clean before commit
 11. **Latency-aware.** Hot-path code (`main.py` per-bar, `inference/`) allocates nothing
     new per bar without need, does no per-bar disk I/O, and keeps optional diagnostics
     behind default-off flags. Heavy imports (torch) stay out of Lean startup (#16).
+12. **Data parity is checked against live, not against code.** A dataset row sees the bars live would have at that tick
+    (`features/cross_asset_timing.py` is the one definition; forex carries Lean's fill-forward calendar), and local `data/` and
+    the Codespace's must be file-for-file identical (a push overlays, never deletes — three FRED files once existed only on the
+    Codespace). After any feature/dataset change, compare a backtest's `feature_snapshot` with `aq evaluate --reconcile-features`.
+    Never run a heavy process (evaluation, tests) during `aq backtest`: `Initialize()` has a hard 90-second limit (#16) and CPU
+    contention trips it. CI runs Python 3.11, the dev PC 3.14 (lazy annotations): test with the stub guards, not by intuition.
 
 ## Where things live
 

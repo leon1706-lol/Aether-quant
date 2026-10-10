@@ -900,3 +900,53 @@ def test_node_z_over_declared_depth_is_a_zero_to_one_fraction(embedding_dimensio
     depth = topology.dimensions["depth"]
     assert depth >= 1
     assert all(0.0 <= node.z / depth <= 1.0 for node in topology.nodes)
+
+
+# ---------------------------------------------------------------------------
+# V5.6.0: vectorised pairwise correlations must reproduce the scalar path
+# ---------------------------------------------------------------------------
+
+
+def _random_returns(num_symbols=30, length=24, seed=3):
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    shared = rng.normal(0, 0.01, length)
+    series = {f"S{i}": list(0.5 * shared + rng.normal(0, 0.01, length)) for i in range(num_symbols)}
+    series["FLAT"] = [0.001] * length  # zero variance -> correlation 0.0 with everything
+    series["YOUNG"] = list(rng.normal(0, 0.01, 9))  # shorter window: tail-aligned scalar path
+    return series
+
+
+def test_vectorised_correlations_match_the_scalar_pearson_for_every_pair(monkeypatch):
+    import math
+
+    from topology import market_topology as module
+
+    returns = _random_returns()
+    result = module.build_market_topology(returns_by_symbol=returns, embedding_iterations=1)
+
+    monkeypatch.setattr(module, "_full_window_correlation_matrix", lambda *_a, **_k: None)
+    reference = module.build_market_topology(returns_by_symbol=returns, embedding_iterations=1)
+
+    assert result.correlations.keys() == reference.correlations.keys()
+    for pair, value in reference.correlations.items():
+        assert math.isclose(result.correlations[pair], value, abs_tol=1e-12), pair
+    assert [(c.members, round(c.average_correlation, 12)) for c in result.clusters] == [
+        (c.members, round(c.average_correlation, 12)) for c in reference.clusters
+    ]
+    assert [(n.symbol, n.top_peer_symbols if hasattr(n, "top_peer_symbols") else None) for n in result.nodes] == [
+        (n.symbol, n.top_peer_symbols if hasattr(n, "top_peer_symbols") else None) for n in reference.nodes
+    ]
+    for fast, slow in zip(result.nodes, reference.nodes):
+        assert math.isclose(fast.correlation_strength, slow.correlation_strength, abs_tol=1e-12)
+        assert fast.topology_risk == slow.topology_risk
+        assert [round(v, 12) for v in fast.top_peer_returns] == [round(v, 12) for v in slow.top_peer_returns]
+
+
+def test_vectorised_correlations_fall_back_cleanly_without_enough_full_windows():
+    from topology.market_topology import _full_window_correlation_matrix
+
+    assert _full_window_correlation_matrix({"A": [0.1, 0.2, 0.3]}, ["A"]) is None
+    assert _full_window_correlation_matrix({"A": [0.1], "B": [0.2]}, ["A", "B"]) is None
+    assert _full_window_correlation_matrix({}, []) is None

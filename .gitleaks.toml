@@ -1,0 +1,9 @@
+title = "Aether Quant gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Exported-model JSON names its tensors in `weight_key` / `bias_key` fields (e.g. \"head_rank_5d.weight\"); the generic-api-key rule reads them as credentials."
+regexTarget = "line"
+regexes = ['''"(weight|bias)_key"\s*:\s*"[A-Za-z0-9_.]+"''']

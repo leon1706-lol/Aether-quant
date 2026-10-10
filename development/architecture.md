@@ -1503,6 +1503,10 @@ calls, or it carries a parity test and a one-line justification here.**
 | One order per symbol | `resolve_pending_order_action`, `should_skip_for_open_order` (`execution/order_gate.py`) | `main.py` `_try_submit_limit_order` | `simulate_limit_fills` (fill rate only) |
 | Fill slippage per side | `liquidity_cost_fraction(... "per_side")` | `main.py` slippage model | cost model bps per side |
 | Volatility cutoff per asset class | `resolve_elevated_volatility_thresholds` (`topology/market_topology.py`) | `main.py` topology build | `--calibrate-volatility-threshold` |
+| Cross-asset payload inputs (topology, peers, macro proxies, cs momentum rank) | `cross_asset_inputs`, `CrossAssetTimeline` (`features/cross_asset_timing.py`) | `main.py` `_build_topology_payload` (windows BEFORE the tick's bars) | `train.py` topology / macro / rank builders (bars available strictly before the row's tick); replay test pins them to 1e-12 |
+| Elevated-topology veto on new book entries | analyzer Priority 3 (`topology_veto_applies_to_book_members`) | `main.py` analyzer call | `entry_veto_column` (as-live, from the dataset's `topology_risk_elevated`, built with the same per-class cutoffs) |
+| Disabled asset classes take no book slots | `book_candidate_trading_eligible` (`risk/asset_class_router.py`) | `main.py` book candidates | `_universe_asset_metadata` -> `build_candidate_metadata` (as-live) |
+| Per-class exchange fee (crypto) | `commission_terms_for_security_type`, `commission_bps_by_ticker` (`execution/cost_model.py`) | net-edge gate + Lean `CoinbaseFeeModel` | `simulate_rank_book(commission_bps_by_ticker=...)` |
 
 `aq evaluate --rank-book --as-live` (`evaluation/live_parity.py`) assembles
 the live inputs for the simulator: the **blended** rank head
@@ -1520,7 +1524,7 @@ Almgren impact model.
 
 - **Legacy sleeve** is capped at `max_gross_exposure` (10%) and treated as zero-alpha offline: its signal comes from a probability head the offline book does not rank on.
 - **Sizing multipliers** (volatility 0.35–1.25, topology, cost, liquidity) are live-only; their shrink is bounded by `sizing_floor_fraction` (0.5) for book members, and under the shipped caps (`max_position_weight` 0.12 = per-name cap 0.12) confidence weighting is a no-op because every selected name saturates both caps.
-- **Forex/crypto previous-day bar:** unchanged live (a daily forex/crypto bar closes after the equity session); modeled offline with a one-day lag. Deciding them on their own tick is a possible follow-up if reconciliation still shows forex mismatches.
+- **Forex/crypto previous-day bar:** unchanged live (a daily forex/crypto bar closes after the equity session); modeled offline with a one-day lag. Cross-asset FEATURES are now aligned the same way on both sides (V5.6.0, #135): a row sees the bars that closed strictly before its own tick, so the dataset no longer carries the same-day values live never had. Deciding forex/crypto on their own tick is a possible follow-up.
 - **Kill switch:** replayed offline (`--replay-kill-switch`) but not applied to the as-live returns.
 - **Sharpe convention:** Lean subtracts a risk-free rate; offline subtracts none. `--audit-backtest` reports both for the same curve (−2.92 at 2% vs −1.16 for the 08-27 run).
 

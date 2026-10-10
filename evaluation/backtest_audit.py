@@ -183,8 +183,15 @@ def classify_entries(closed_trades: list[dict], orders: dict[str, dict], book_hi
     book record to compare against. `closed_trades` is Lean's
     totalPerformance.closedTrades; the entry's decision date is the
     createdTime of the trade's first order."""
-    history = sorted(book_history, key=lambda record: record.get("date", ""))
     counts: dict[str, Counter] = defaultdict(Counter)
+    for asset_class, bucket, _trade in _bucketed_trades(closed_trades, orders, book_history):
+        counts[asset_class][bucket] += 1
+    return {asset_class: dict(counter) for asset_class, counter in sorted(counts.items())}
+
+
+def _bucketed_trades(closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict]):
+    """(asset_class, bucket, trade) per closed trade; bucket is book_member, non_member or no_book_record."""
+    history = sorted(book_history, key=lambda record: record.get("date", ""))
     for trade in closed_trades:
         symbols = trade.get("symbols") or []
         symbol = str(symbols[0].get("value", "")) if symbols else ""
@@ -199,8 +206,30 @@ def classify_entries(closed_trades: list[dict], orders: dict[str, dict], book_hi
             bucket = "book_member"
         else:
             bucket = "non_member"
-        counts[asset_class][bucket] += 1
-    return {asset_class: dict(counter) for asset_class, counter in sorted(counts.items())}
+        yield asset_class, bucket, trade
+
+
+def pnl_by_entry_bucket(closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict]) -> dict:
+    """Realized P&L and fees per asset class and entry bucket - the evidence for keeping or disabling the legacy
+    (non-book) sleeve. `net_pnl` = Lean's profitLoss minus the trade's totalFees."""
+    totals: dict[str, dict[str, dict[str, float]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+    for asset_class, bucket, trade in _bucketed_trades(closed_trades, orders, book_history):
+        cell = totals[asset_class][bucket]
+        cell["trades"] += 1
+        cell["realized_pnl"] += float(trade.get("profitLoss", 0.0) or 0.0)
+        cell["fees"] += float(trade.get("totalFees", 0.0) or 0.0)
+    return {
+        asset_class: {
+            bucket: {
+                "trades": int(cell["trades"]),
+                "realized_pnl": round(cell["realized_pnl"], 2),
+                "fees": round(cell["fees"], 2),
+                "net_pnl": round(cell["realized_pnl"] - cell["fees"], 2),
+            }
+            for bucket, cell in sorted(buckets.items())
+        }
+        for asset_class, buckets in sorted(totals.items())
+    }
 
 
 def holding_period_histogram(closed_trades: list[dict]) -> dict[str, int]:
@@ -380,6 +409,7 @@ def audit_backtest_run(
         },
         "exposure": exposure_summary(result),
         "entries_by_asset_class": classify_entries(closed_trades, orders, book_history),
+        "pnl_by_entry_bucket": pnl_by_entry_bucket(closed_trades, orders, book_history),
         "orders": find_overlapping_orders(orders, max_open_days=max_open_days),
         "holding_period_days": holding_period_histogram(closed_trades),
         "pnl_and_fees": pnl_and_fees_by_asset_class(closed_trades, orders, run.get("order_events", [])),

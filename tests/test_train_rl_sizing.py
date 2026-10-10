@@ -242,3 +242,98 @@ def test_build_bandit_rows_threads_asymmetric_penalty_weight(monkeypatch):
         "threading the weight must change at least one reward (the "
         "V5.4.1 dead-config bug)"
     )
+
+
+# ---------------------------------------------------------------------------
+# V5.6.0: judge on unpenalised P&L, pick the penalty on a chronological holdout
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_frame(n_dates: int, signal_strength: float, seed: int = 3):
+    import pandas as pd
+
+    rng = np.random.default_rng(seed)
+    state_values = {
+        "rolling_volatility_20d": 0.02, "regime_signal_risk_score": 0.3, "topology_correlation_strength": 0.5,
+        "liquidity_spread_proxy": 0.0005, "bond_credit_spread_level": 0.9, "alt_implied_volatility_level": 18.0,
+        "alt_implied_vol_term_structure": 1.05, "alt_financial_conditions_change": -0.2,
+        "regime_trend_bullish": 0.0, "regime_trend_bearish": 0.0, "regime_trend_sideways": 1.0,
+    }
+    rows = []
+    for ticker in ("AAA", "BBB", "CCC", "DDD"):
+        for i in range(n_dates):
+            risk = float(rng.normal(0.3, 0.2))  # the one state feature that predicts the forward return
+            row = {
+                "ticker": ticker, "date": f"2020-{1 + i // 28:02d}-{1 + i % 28:02d}",
+                "target_return_1d": float(rng.normal(0.0, 0.01) - signal_strength * (risk - 0.3)),
+                "confidence": 0.5, "f0": 1.0,
+            }
+            row.update(state_values)
+            row["regime_signal_risk_score"] = risk
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _stub_long_model(monkeypatch):
+    import train_rl_sizing
+
+    monkeypatch.setattr(train_rl_sizing, "run_exported_multitask_model", lambda _export, inputs: {"rank_20d": 0.9})
+
+
+_SWEEP_COMMON = dict(
+    multitask_export={}, model_input_names=["f0"], action_set=[0.6, 0.8, 1.0],
+    turnover_cost_bps_column="liquidity_spread_proxy", commission_bps=0.0, nominal_base_weight=0.05,
+)
+
+
+def test_build_bandit_rows_with_unpenalized_returns_plain_rewards_that_ignore_the_penalty(monkeypatch):
+    from train_rl_sizing import build_bandit_rows
+
+    _stub_long_model(monkeypatch)
+    frame = _synthetic_frame(30, signal_strength=0.0)
+
+    states, penalised, plain = build_bandit_rows(frame, **_SWEEP_COMMON, asymmetric_penalty_weight=3.0, with_unpenalized=True)
+    _, symmetric = build_bandit_rows(frame, **_SWEEP_COMMON)
+
+    assert states.shape[0] == plain.shape[0] == penalised.shape[0]
+    assert np.allclose(plain, symmetric)
+    assert not np.allclose(plain, penalised)
+    assert np.allclose(plain[:, -1], penalised[:, -1])  # the full-size action is never penalised
+
+
+def test_select_penalty_weight_reports_when_nothing_beats_constant_one(monkeypatch):
+    from train_rl_sizing import select_penalty_weight
+
+    _stub_long_model(monkeypatch)
+    frame = _synthetic_frame(120, signal_strength=0.0)  # pure noise: shrinking can only cost
+
+    result = select_penalty_weight(frame, **{k: v for k, v in _SWEEP_COMMON.items()}, candidate_weights=[1.0, 2.0, 3.0], min_fit_rows=50)
+
+    assert result["reason"] == "selected_by_holdout_margin"
+    assert result["selected"] in (1.0, 2.0, 3.0)
+    assert result["selected_beats_constant"] is False
+    assert len(result["table"]) == 3 and all("margin" in row for row in result["table"])
+
+
+def test_select_penalty_weight_finds_a_real_signal(monkeypatch):
+    from train_rl_sizing import select_penalty_weight
+
+    _stub_long_model(monkeypatch)
+    # risk score drives the forward return strongly: shrinking when risk is high really pays
+    frame = _synthetic_frame(240, signal_strength=0.5)
+
+    result = select_penalty_weight(frame, **_SWEEP_COMMON, candidate_weights=[1.0], min_fit_rows=50)
+
+    assert result["selected"] == 1.0
+    assert result["table"][0]["margin"] > 0.0
+    assert result["selected_beats_constant"] is True
+
+
+def test_select_penalty_weight_degrades_without_a_baseline_action_or_enough_dates(monkeypatch):
+    from train_rl_sizing import select_penalty_weight
+
+    _stub_long_model(monkeypatch)
+    frame = _synthetic_frame(120, signal_strength=0.0)
+    no_baseline = {**_SWEEP_COMMON, "action_set": [0.6, 0.8]}
+    assert select_penalty_weight(frame, **no_baseline, candidate_weights=[2.0])["reason"] == "no_baseline_action_or_no_candidates"
+    assert select_penalty_weight(frame.head(10), **_SWEEP_COMMON, candidate_weights=[2.0])["reason"] == "too_few_validation_dates"

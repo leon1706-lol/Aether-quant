@@ -30,6 +30,43 @@ class NetEdgeDecision:
         return asdict(self)
 
 
+def fee_override_for_security_type(cost_config: dict, security_type: str | None) -> dict | None:
+    """`phase_v2.costs.fee_by_type[<security_type>]` when it carries a finite, non-negative `fee_bps`, else None
+    (the global commission terms apply, exactly as before the key existed)."""
+    if not security_type:
+        return None
+    override = (cost_config.get("fee_by_type") or {}).get(str(security_type))
+    if not isinstance(override, dict):
+        return None
+    try:
+        fee_bps = float(override.get("fee_bps"))
+    except (TypeError, ValueError):
+        return None
+    return override if math.isfinite(fee_bps) and fee_bps >= 0.0 else None
+
+
+def commission_terms_for_security_type(cost_config: dict, security_type: str | None) -> tuple[float, float]:
+    """(commission_bps_per_side, min_commission_usd) for one security type: the per-class override when
+    configured (crypto pays a percentage exchange fee with no dollar floor, unlike IB's per-share
+    equity commission), else the global terms."""
+    override = fee_override_for_security_type(cost_config, security_type)
+    if override is None:
+        return float(cost_config.get("commission_bps_per_side", 0.0)), float(cost_config.get("min_commission_usd", 0.0))
+    return float(override["fee_bps"]), float(override.get("min_usd", 0.0) or 0.0)
+
+
+def commission_bps_by_ticker(cost_config: dict, security_type_by_ticker: dict[str, str]) -> dict[str, float]:
+    """Per-ticker per-side commission bps for every ticker whose security type has a fee override - the
+    offline simulator's `commission_bps_by_ticker`, so it charges the same fee the live gate assumes. An override
+    may carry `sim_fee_bps` when a dollar floor (`min_usd`) makes its true cost per fill larger than `fee_bps` at
+    realistic order sizes (forex: IB's $2 minimum on ~$2.6k fills is ~7.6 bps) - the simulator has no per-order floor."""
+    return {
+        ticker: float(override.get("sim_fee_bps", override["fee_bps"]))
+        for ticker, security_type in security_type_by_ticker.items()
+        if (override := fee_override_for_security_type(cost_config, security_type)) is not None
+    }
+
+
 def estimate_round_trip_cost_bps(
     liquidity_payload: dict,
     *,
@@ -136,6 +173,7 @@ def build_net_edge_decision(
     cost_config: dict,
     *,
     trade_direction: int = 1,
+    security_type: str | None = None,
 ) -> NetEdgeDecision:
     """The one call site analyzer/market_analyzer.py's Priority 6.5 tier
     and risk/position_sizing.py::cost_sizing_multiplier() both consume.
@@ -174,10 +212,11 @@ def build_net_edge_decision(
         horizon_days=int(cost_config.get("horizon_days", 20)),
         trade_direction=trade_direction,
     )
+    commission_bps_per_side, min_commission_usd = commission_terms_for_security_type(cost_config, security_type)
     expected_cost = estimate_round_trip_cost_bps(
         liquidity_payload,
-        commission_bps_per_side=float(cost_config.get("commission_bps_per_side", 0.0)),
-        min_commission_usd=float(cost_config.get("min_commission_usd", 0.0)),
+        commission_bps_per_side=commission_bps_per_side,
+        min_commission_usd=min_commission_usd,
         order_value=order_value,
         extra_slippage_bps=float(cost_config.get("extra_slippage_bps", 0.0)),
     )

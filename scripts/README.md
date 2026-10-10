@@ -80,3 +80,17 @@ codebase.
   (replicas vs `train.py` on synthetic data), needs no dataset files and exits
   non-zero when the check did not actually run. It had been silently dead (a
   swallowed `ValueError`/`TypeError` reported as `SKIPPED`) until this round.
+
+- `codespace_sync.ps1` (V5.6.0) — push/pull/status/stop for the training Codespace over `ssh`/`scp`
+  with the `gh codespace ssh --config` route (`gh codespace cp` upload is broken). One tarball each
+  way, remote commands single-quoted, sha256 of key artifacts verified on both ends.
+- `codespace_retrain_a.sh` / `codespace_retrain_b.sh` — the V5.6.0 retrain on the Codespace: stage A
+  regenerates the dataset and trains the multitask control (2 seeds) plus four single-change variants;
+  stage B installs the winner and trains sequence, gating, RL sizing (penalty sweep) and the resumable
+  walk-forward.
+- `as_live_levers.py` - one-lever-at-a-time attribution of the as-live book (`--split`, `--only`); writes
+  `ml/evaluation/as_live_levers[_split].json`. Needs an idle machine: each new rolling-IC gate takes ~12 min.
+- `make_variant_configs.py` / `compare_training_variants.py` — write the per-variant configs and pick
+  the winner on VALIDATION IC against the control's seed spread (never the backtest split).
+- `overlap_vs_sharpe_analysis.py` — pairs each reconciled book-history run with the Lean Sharpe of the
+  matching backtest (ordinal; runs sharing a window stay separate points since V5.6.0).

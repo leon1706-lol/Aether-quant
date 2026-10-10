@@ -321,3 +321,49 @@ def test_evaluate_validation_gate_ranking_enabled_but_metrics_absent_does_not_re
 
     assert result["passed"] is True
     assert "ranking_gate_metrics_absent" in result["near_misses"]
+
+
+def _two_head_metrics(rank_5d_status, rank_20d_status, net_sharpe=0.6):
+    def block(head, status):
+        return {
+            f"{head}_ranking_quality": {"quality_status": status},
+            f"{head}_net_performance": {"observed": {"net_sharpe": net_sharpe, "annualized_turnover": 5.0, "capacity_usd": 300000}},
+        }
+
+    return {"sequence": {"backtest": {**block("rank_5d", rank_5d_status), **block("rank_20d", rank_20d_status)}}}
+
+
+_HEADS_CONFIG = {**_RANKING_CONFIG, "head": "rank_5d", "heads": ["rank_5d", "rank_20d"]}
+
+
+def test_ranking_gate_with_heads_passes_when_any_traded_head_clears_it():
+    result = evaluate_ranking_promotion_gate(_two_head_metrics("promotable", "not_promotable"), _HEADS_CONFIG)
+
+    assert result["passed"] is True
+    assert result["observed"]["gated_head"] == "rank_5d"
+
+
+def test_ranking_gate_with_heads_falls_through_to_the_second_head():
+    result = evaluate_ranking_promotion_gate(_two_head_metrics("not_promotable", "watchlist"), _HEADS_CONFIG)
+
+    assert result["passed"] is True
+    assert result["observed"]["gated_head"] == "rank_20d"
+
+
+def test_ranking_gate_with_heads_fails_when_every_head_fails_and_reports_the_first():
+    result = evaluate_ranking_promotion_gate(_two_head_metrics("not_promotable", "not_promotable"), _HEADS_CONFIG)
+
+    assert result["passed"] is False
+    assert result["observed"]["gated_head"] == "rank_5d"
+    assert "ranking_quality_status_not_accepted" in result["failures"]
+
+
+def test_shipped_config_gates_on_the_heads_the_live_book_trades_not_the_demoted_residual_head():
+    import json
+    from pathlib import Path
+
+    config = json.loads((Path(__file__).resolve().parents[1] / "config.json").read_text(encoding="utf-8"))
+    ranking = config["phase_v2"]["retraining"]["validation_gate"]["ranking"]
+    book_heads = set(config["phase_v2"]["rank_signal"]["heads"])
+    assert set(ranking["heads"]) == book_heads
+    assert not set(ranking["heads"]) & set(config["phase_v2"]["rank_signal"]["demoted"])

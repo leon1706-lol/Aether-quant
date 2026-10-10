@@ -24,6 +24,7 @@ risk engine, and before order placement.
    `reduce_risk`, an `"isolated"` node (no meaningfully correlated peers)
    cannot reach `trade` and is downgraded to `simulate`. Absent/empty
    topology (warmup) fires neither rule (`topology_considered=False`).
+   **V5.6.0:** `topology_veto_applies_to_book_members` (config `phase_v2.topology.elevated_veto_applies_to_book_members`, default `true` = unchanged) lets a book-selected symbol skip the elevated-volatility override — the model already ranked it with that volatility as an input. The offline as-live simulator models the default as an entry veto (`entry_veto_column`).
    Every directional signal — `buy`, `sell` and the book's `short` —
    passes through the identical tiers, so a book-selected short never
    bypasses a safety check (see `portfolio/README.md` for why book

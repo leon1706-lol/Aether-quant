@@ -50,6 +50,17 @@ SSH copy keeps them out of the public repo. Lean/Docker backtests can't run in
 a Codespace (see `development/infrastructure.md`'s "Cloud Training via GitHub
 Codespaces" section for why); those stay local.
 
+Since V5.6.0 the sync is scripted (`gh codespace cp` upload is broken and `-r` drops files):
+
+```powershell
+.\scripts\codespace_sync.ps1 -Mode push       # full tree incl. gitignored data/ and ml/ (no datasets), hash-verified
+# on the Codespace: nohup bash scripts/codespace_retrain_a.sh <tag> ; then ..._b.sh <tag> <winner>
+.\scripts\codespace_sync.ps1 -Mode pull -Candidate <version ids>
+.\scripts\codespace_sync.ps1 -Mode stop
+```
+
+The VM reboots about hourly: walk-forward resumes with `--resume-run-id`. See `development/infrastructure.md`.
+
 ---
 
 ## Incident procedures

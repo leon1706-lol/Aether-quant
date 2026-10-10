@@ -32,6 +32,7 @@ import pytest
 def main_module():
     stub = types.ModuleType("AlgorithmImports")
     stub.QCAlgorithm = type("QCAlgorithm", (), {})
+    stub.Slice = object  # evaluated at def time by main.py's annotations on Python < 3.14 (CI runs 3.11)
     stub.time = datetime.time  # Lean's star import exports this and SHADOWS the stdlib `time` module (V5.5.0 bar-1 crash)
     patcher = pytest.MonkeyPatch()
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
@@ -435,6 +436,7 @@ def _teardown_algorithm(main_module, *, cleanup, timing):
         _multitask_fallback_count=0,
         _timing_probe=probe,
         teardown_cleanup_enabled=cleanup,
+        teardown_release_models_enabled=False,
         symbol_windows={"AMZN": [1, 2]}, symbol_long_windows={"AMZN": [1]}, symbol_treasury_10yr_history={"AMZN": [1]},
         symbol_sensitivity_driver_history={"AMZN": {}}, symbol_feature_history={"AMZN": [1]},
         option_positions_by_symbol={"X": []}, symbol_key_by_option_contract_symbol={"X": "Y"},
@@ -473,3 +475,36 @@ def test_a_failing_probe_never_breaks_the_shutdown(main_module):
     algorithm._timing_probe = None  # format_line() on None raises inside the guarded block
     algorithm.on_end_of_algorithm()  # must not raise
     assert any("failed (non-fatal)" in line for line in algorithm.debug_lines)
+
+
+# ---------------------------------------------------------------- teardown experiment (Problems.md #104, V5.6.0)
+
+
+def test_release_python_models_swaps_the_slippage_model_and_closes_redis(main_module, monkeypatch):
+    class _Security:
+        def __init__(self, fail=False):
+            self.fail, self.model = fail, "python-model"
+
+        def set_slippage_model(self, model):
+            if self.fail:
+                raise RuntimeError("boom")
+            self.model = model
+
+    class _Client:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(main_module, "NullSlippageModel", lambda: "null", raising=False)
+    securities = {"A": _Security(), "B": _Security(fail=True), "C": _Security()}
+    experience, audit = SimpleNamespace(_client=_Client()), SimpleNamespace(_client=None)
+    algorithm = _algorithm(
+        main_module, securities=securities, _liquidity_slippage_model=object(), _experience_queue=experience, _audit_queue=audit
+    )
+
+    result = algorithm._release_python_models()
+
+    assert result == {"slippage_models_detached": 2, "redis_clients_closed": 1}
+    assert securities["A"].model == "null" and securities["C"].model == "null" and securities["B"].model == "python-model"
+    assert algorithm._liquidity_slippage_model is None and experience._client is None

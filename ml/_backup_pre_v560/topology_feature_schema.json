@@ -1,0 +1,31 @@
+{
+  "feature_keys": [
+    "volatility",
+    "momentum",
+    "correlation_strength",
+    "liquidity_score",
+    "regime_risk_score"
+  ],
+  "feature_stats": {
+    "volatility": {
+      "mean": 0.2147457769218736,
+      "std": 0.21648119380054645
+    },
+    "momentum": {
+      "mean": 0.035528852275360505,
+      "std": 0.01890656459489099
+    },
+    "correlation_strength": {
+      "mean": 0.40790002710585227,
+      "std": 0.2828623690004529
+    },
+    "liquidity_score": {
+      "mean": 0.8765594031766132,
+      "std": 0.32765519150519296
+    },
+    "regime_risk_score": {
+      "mean": 0.40594490581325604,
+      "std": 0.3078600391896744
+    }
+  }
+}

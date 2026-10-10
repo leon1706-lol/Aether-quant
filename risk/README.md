@@ -113,6 +113,8 @@ dedicated modules below, adapted onto the same `PositionSizingDecision` shape
 so `portfolio/book_construction.py`, liquidity, analyzer, and
 `main.py::_apply_signal()` stay asset-class-agnostic.
 
+`book_candidate_trading_eligible()` (V5.6.0) is the book-side twin of `resolve_asset_class_enabled()`: a symbol of a disabled class (e.g. forex with `forex_risk.enabled=false`) is not a book candidate, live (`main.py`) or in the as-live simulation (`aq_cli._universe_asset_metadata`), so it cannot hold a slot or neutrality weight it will never trade.
+
 ### Futures — `futures_risk.py`
 
 `build_futures_position_sizing()` — margin-utilization-targeted, not

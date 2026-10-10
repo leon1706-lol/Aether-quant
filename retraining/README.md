@@ -145,3 +145,10 @@ predictable schedule) would conflate two different concepts. Config lives
 at `phase_v2.retraining.walk_forward` (`enabled: false` by default) —
 intentionally namespaced under `retraining` since it's still a form of
 retraining, just not one this package's worker orchestrates.
+
+**V5.6.0:** each finished window writes `window_result.json` and `--resume-run-id <run-id>` reloads
+finished windows instead of retraining them (the training Codespace's VM reboots about hourly; a
+torn or incomplete file means the window reruns). The ranking promotion gate
+(`phase_v2.retraining.validation_gate.ranking`) takes `heads: [...]` and passes when any listed head
+clears it — the shipped list is the book's own heads (`rank_5d`, `rank_20d`), not the demoted
+`residual_rank_20d` that rejected every candidate.

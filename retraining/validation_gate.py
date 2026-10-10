@@ -34,6 +34,30 @@ def compute_overfitting_gap(metrics: dict) -> float:
 def evaluate_ranking_promotion_gate(
     ranking_metrics_by_model: dict, config: dict, walk_forward_summary: dict | None = None
 ) -> dict:
+    """Ranking promotion gate on one head, or on whichever of `heads` clears it.
+
+    `heads` (optional list, V5.6.0): the candidate passes when ANY listed head clears the gate, and the
+    verdict reports which one (`observed.gated_head`). Without it, the single `head` is gated exactly as
+    before. The default config lists the heads that drive the live book (`phase_v2.rank_signal.heads`);
+    gating on `residual_rank_20d`, which is demoted from the book and has never been promotable, rejected
+    every candidate regardless of the heads actually traded.
+    """
+    heads = config.get("heads")
+    if not heads:
+        return _evaluate_single_head_ranking_gate(ranking_metrics_by_model, config, walk_forward_summary)
+
+    results = [
+        _evaluate_single_head_ranking_gate(ranking_metrics_by_model, {**config, "head": str(head)}, walk_forward_summary)
+        for head in heads
+    ]
+    chosen = next((result for result in results if result["passed"]), results[0])
+    chosen = {**chosen, "observed": {**chosen["observed"], "gated_head": chosen["observed"]["head"], "candidate_heads": [str(h) for h in heads]}}
+    return chosen
+
+
+def _evaluate_single_head_ranking_gate(
+    ranking_metrics_by_model: dict, config: dict, walk_forward_summary: dict | None = None
+) -> dict:
     """V5.1 Phase 4 (item 7 - "the dead end"): assess_ranking_quality()'s
     verdict has always been written to a candidate's own
     {sequence,multitask}_training_metrics.json, but nothing in retraining/

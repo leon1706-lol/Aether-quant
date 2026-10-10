@@ -709,6 +709,33 @@ produces a multi-gigabyte artifact tree; pull only `walk_forward_summary.json`
 day-to-day and fetch the full per-window tree via the tarball approach only
 when the individual models are actually needed locally.
 
+### Repeatable sync and retrain (V5.6.0)
+
+```powershell
+.\scripts\codespace_sync.ps1 -Mode push                       # one tarball, scp over `gh codespace ssh --config`, sha256-verified
+.\scripts\codespace_sync.ps1 -Mode status                     # key-file hashes, local vs Codespace
+.\scripts\codespace_sync.ps1 -Mode pull -Candidate <ids...>   # ml/ (minus versions) + the named ml/versions/<id> dirs
+.\scripts\codespace_sync.ps1 -Mode stop
+```
+
+On the Codespace (`nohup`, log in `ml/retrain_<tag>_{a,b}.log`): `bash scripts/codespace_retrain_a.sh <tag>` (factor-file audit,
+dataset + baseline + experts, parity audit, multitask control x2 seeds + four single-change variants, comparison on
+VALIDATION IC) then `bash scripts/codespace_retrain_b.sh <tag> <winner>` (sequence, gating, RL sizing with penalty sweep,
+resumable walk-forward). Things the first full run taught:
+
+- **The VM reboots roughly hourly** (uptime resets, `/tmp` and background jobs are lost). Everything long must be resumable:
+  `python train.py --walk-forward ... --resume-run-id <id>` skips windows with a `window_result.json` (the run id is logged as
+  `walk-forward run id: ...`); a killed stage A is finished by running the missing variant and the comparison by hand.
+- **Disk is tight (32 GB):** old walk-forward trees hold ~2.2 GB of regenerable `window_*/full_dataset.csv` each; delete those
+  (keep models/metrics/summary) before a retrain.
+- **`data/` must be identical on both sides** — a push overlays but never deletes. Three FRED CSVs that existed only on the
+  Codespace made four model features real in training and 0.0 in every Lean run (Problems #141); `status` plus a file-list diff
+  catches that class.
+- Windows OpenSSH only for the scripts' `ssh` calls (the Git-Bash `ssh` cannot parse the `gh` ProxyCommand); pipe remote scripts
+  through `sed 's/\r$//' | bash -s` (PowerShell adds CRs and a BOM).
+- The temporary backtest diagnostics profile must never be pushed: a stale `phase1.windows.backtest` silently changes the dataset
+  split. Restore `config.json` byte-for-byte before any push.
+
 ## Config Presets
 
 `phase_v2.presets` holds named bundles of dotted config keys (`moderate`,

@@ -116,6 +116,7 @@ def build_as_live_kwargs(
     max_position_weight: float,
     candidate_metadata: dict[str, dict],
     rolling_ic_gate_fn=None,
+    topology_config: dict | None = None,
 ) -> dict:
     """base_kwargs (idealized, from `phase1...net_performance`) + the live
     overrides, read from `phase_v2.portfolio_book` / `phase_v2.exits` - the
@@ -146,6 +147,10 @@ def build_as_live_kwargs(
             int(exits_config["max_holding_bars"])
             if exits_config.get("enabled", False) and exits_config.get("max_holding_bars") is not None
             else None
+        ),
+        # analyzer Priority 3 (elevated topology volatility) cancels new book entries unless the config exempts members.
+        entry_veto_column=(
+            "topology_risk_elevated" if (topology_config or {}).get("elevated_veto_applies_to_book_members", True) else None
         ),
     )
     return kwargs

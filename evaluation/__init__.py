@@ -20,6 +20,7 @@ from .ablation import (
 from .model_predictions import (
     build_sequence_windows,
     predict_head,
+    predict_heads,
     predict_multitask_head,
     predict_sequence_head,
     select_context_date_range,
@@ -55,6 +56,7 @@ __all__ = [
     "compare_static_vs_retrained",
     "compute_blended_raw_scores",
     "predict_head",
+    "predict_heads",
     "predict_multitask_head",
     "predict_sequence_head",
     "reconcile_book_history_date",

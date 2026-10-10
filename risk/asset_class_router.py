@@ -460,6 +460,21 @@ def resolve_asset_class_enabled(
     return True
 
 
+def book_candidate_trading_eligible(
+    trading_eligible: bool,
+    asset_class: str | None,
+    futures_risk_enabled: bool,
+    options_risk_enabled: bool,
+    forex_risk_enabled: bool,
+) -> bool:
+    """Book-selection eligibility: a symbol of a disabled asset class (sizing zeroed, positions liquidated) must not
+    take a slot or neutrality weight in the long/short book it can never trade. One definition for main.py's live
+    candidates and the offline simulator's candidate metadata."""
+    return bool(trading_eligible) and resolve_asset_class_enabled(
+        asset_class, futures_risk_enabled, options_risk_enabled, forex_risk_enabled
+    )
+
+
 def should_liquidate_disabled_asset_class_position(asset_class_enabled: bool, is_invested: bool) -> bool:
     """Pure predicate: True iff a currently-open position must be
     liquidated purely because its asset class is disabled this bar -

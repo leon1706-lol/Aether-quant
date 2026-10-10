@@ -13,6 +13,7 @@ from evaluation.backtest_audit import (
     audit_backtest_run,
     carried_book_members,
     classify_entries,
+    pnl_by_entry_bucket,
     daily_equity_from_chart,
     exposure_summary,
     find_overlapping_orders,
@@ -209,6 +210,14 @@ def test_entries_split_into_book_member_non_member_and_no_record_by_asset_class(
     result = classify_entries(trades, orders, HISTORY)
     assert result["equity"] == {"book_member": 1, "non_member": 2, "no_book_record": 1}
     assert result["forex"] == {"book_member": 1}
+
+
+def test_pnl_by_entry_bucket_splits_book_and_legacy_sleeve_net_of_fees():
+    orders = {"1": _order(1, "NKE", 8, 9), "2": _order(2, "AAPL", 9, 10), "3": _order(3, "MSFT", 9, 10)}
+    trades = [_trade("NKE", [1], 9, 20, pnl=100.0, fees=4.0), _trade("AAPL", [2], 10, 20, pnl=-30.0, fees=5.0), _trade("MSFT", [3], 10, 20, pnl=-10.0, fees=1.0)]
+    result = pnl_by_entry_bucket(trades, orders, HISTORY)
+    assert result["equity"]["book_member"] == {"trades": 1, "realized_pnl": 100.0, "fees": 4.0, "net_pnl": 96.0}
+    assert result["equity"]["non_member"] == {"trades": 2, "realized_pnl": -40.0, "fees": 6.0, "net_pnl": -46.0}
 
 
 def test_select_run_book_history_picks_one_run_out_of_the_cumulative_log():

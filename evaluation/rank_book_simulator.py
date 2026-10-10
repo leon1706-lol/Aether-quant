@@ -116,6 +116,8 @@ def _simulate_rank_book_core(
     hold_positions_on_veto: bool = False,
     retry_rebalance_after_veto: bool = False,
     max_holding_dates: int | None = None,
+    commission_bps_by_ticker: dict[str, float] | None = None,
+    entry_veto_column: str | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -226,6 +228,13 @@ def _simulate_rank_book_core(
     net_running_peak = 1.0
     net_max_drawdown = 0.0
 
+    def _commission_override_delta(symbol: str) -> float:
+        # Per-ticker fee (e.g. a crypto exchange percentage) replaces the generic commission for that
+        # ticker; 0.0 for everything else, so books without overrides cost exactly what they always did.
+        if not commission_bps_by_ticker or symbol not in commission_bps_by_ticker:
+            return 0.0
+        return float(commission_bps_by_ticker[symbol]) - commission_bps
+
     for date in unique_dates:
         date_frame = working[working[date_column] == date]
         eligible = date_frame.dropna(subset=[forward_return_column])
@@ -249,6 +258,7 @@ def _simulate_rank_book_core(
             if expired:
                 cost_this_date += (
                     sum(abs(held_weights[symbol]) for symbol in expired) * (cost_bps_per_side + commission_bps) / 1e4
+                    + sum(abs(held_weights[symbol]) * _commission_override_delta(symbol) for symbol in expired) / 1e4
                 )
                 total_turnover += sum(abs(held_weights[symbol]) for symbol in expired)
                 held_weights = {symbol: weight for symbol, weight in held_weights.items() if symbol not in expired}
@@ -342,6 +352,21 @@ def _simulate_rank_book_core(
                 new_weights = {}
                 held_allocations = {}
 
+            if entry_veto_column and entry_veto_column in eligible.columns and new_weights:
+                # Live's analyzer Priority 3 (elevated topology volatility) turns a NEW book entry into
+                # reduce_risk; positions already held are not force-closed by it.
+                vetoed_entries = {
+                    str(ticker)
+                    for ticker, flag in zip(eligible[ticker_column], eligible[entry_veto_column])
+                    if flag == flag and float(flag) > 0.5
+                }
+                new_weights = {
+                    symbol: weight
+                    for symbol, weight in new_weights.items()
+                    if symbol in held_weights or symbol not in vetoed_entries
+                }
+                held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
+
             for symbol in new_weights:
                 if symbol not in held_weights:
                     entry_date_index_by_ticker[symbol] = rebalance_counter - 1
@@ -356,6 +381,7 @@ def _simulate_rank_book_core(
             turnover_this_rebalance = sum(abs(delta) for delta in deltas_by_symbol.values())
             total_turnover += turnover_this_rebalance
             cost_this_date = turnover_this_rebalance * (cost_bps_per_side + commission_bps) / 1e4
+            cost_this_date += sum(abs(delta) * _commission_override_delta(symbol) for symbol, delta in deltas_by_symbol.items()) / 1e4
             # V5.2.1 (development/Problems.md) - honestly-approximate
             # per-order minimum-commission floor, see this function's own
             # docstring. No-op (0.0) unless both inputs are configured.
@@ -538,6 +564,10 @@ def stress_test_costs(frame: pd.DataFrame, *, base_kwargs: dict, cost_multiplier
         stressed_kwargs = dict(base_kwargs)
         stressed_kwargs["cost_bps_per_side"] = float(base_kwargs.get("cost_bps_per_side", 0.0)) * multiplier
         stressed_kwargs["commission_bps"] = float(base_kwargs.get("commission_bps", 0.0)) * multiplier
+        if base_kwargs.get("commission_bps_by_ticker"):
+            stressed_kwargs["commission_bps_by_ticker"] = {
+                ticker: float(value) * multiplier for ticker, value in base_kwargs["commission_bps_by_ticker"].items()
+            }
         result = simulate_rank_book(frame, **stressed_kwargs)
         results.append({"cost_multiplier": multiplier, **result.to_dict()})
     return results

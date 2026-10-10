@@ -156,4 +156,4 @@ def test_main_wires_the_findings_fixes_and_the_config_ships_them():
     assert "is_forced_exit" in (ROOT / "main.py").read_text(encoding="utf-8")
     config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))["phase_v2"]
     assert config["portfolio_book"]["hold_owned_positions_on_veto"] is True
-    assert set(config["liquidity"]["max_spread_proxy_by_type"]) == {"crypto", "forex"}
+    assert set(config["liquidity"]["max_spread_proxy_by_type"]) == {"crypto", "forex", "equity"}  # equity: V5.6.0, Problems #143

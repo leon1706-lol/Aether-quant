@@ -219,6 +219,8 @@ def test_advisory_jobs_are_advisory_and_blocking_jobs_are_not():
     for blocking in ("fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks", "parity-smoke"):
         assert not jobs[blocking].get("continue-on-error"), f"{blocking} must be able to fail the build"
     assert "gitleaks/releases/download/v8.18.4/" in _scripts(jobs["secret-scan"]), "gitleaks must be version-pinned"
+    assert "--config .gitleaks.toml" in _scripts(jobs["secret-scan"]), "the scan must use the repo allowlist"
+    assert (ROOT / ".gitleaks.toml").is_file()
     assert "check_test_count_drift.py" in _scripts(jobs["test-count-drift"])
     audit_step = next(s for s in jobs["webui-tests"]["steps"] if "npm audit" in s.get("run", ""))
     assert audit_step.get("continue-on-error") is True

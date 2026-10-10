@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from train import (
     _run_walk_forward_net_performance,
@@ -223,3 +224,63 @@ def test_run_walk_forward_net_performance_returns_head_and_model_kind_on_success
     assert result["head"] == "rank_20d"
     assert result["model_kind"] == "sequence"
     assert "simulation" in result and "capacity" in result and "stress" in result
+
+
+# ---------------------------------------------------------------------------
+# V5.6.0: --resume-run-id (a Codespace reboot at window 5 must cost only window 5)
+# ---------------------------------------------------------------------------
+
+
+def _resume_config():
+    return {
+        "phase1": {"universe": {"common_window": {"start": "2015-01-01", "end": "2018-01-01"}}, "features": {"input_set": []}},
+        "phase_v2": {"retraining": {"walk_forward": {
+            "train_span_days": 365, "validation_span_days": 90, "backtest_span_days": 90, "step_days": 90, "mode": "expanding",
+        }}},
+    }
+
+
+def test_resume_loads_completed_windows_without_rebuilding_anything(tmp_path, monkeypatch):
+    import train
+
+    monkeypatch.setattr(train, "ML_DIR", tmp_path)
+    monkeypatch.setattr(train, "build_feature_dataset", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not rebuild")))
+    config = _resume_config()
+    walk_forward = config["phase_v2"]["retraining"]["walk_forward"]
+    windows = train.generate_walk_forward_windows(
+        config["phase1"]["universe"]["common_window"], train_span_days=365, validation_span_days=90,
+        backtest_span_days=90, step_days=90, mode="expanding",
+    )
+    assert len(windows) >= 3
+    run_id = "walk-forward-resume-test"
+    for index, window in enumerate(windows):
+        directory = tmp_path / "versions" / run_id / f"window_{index}"
+        directory.mkdir(parents=True)
+        (directory / train.WALK_FORWARD_WINDOW_RESULT_FILENAME).write_text(json.dumps({
+            "window_result": {"window": window, "version_id": f"{run_id}/window_{index}", "backtest_mcc": 0.1 * (index + 1)},
+            "backtest_mcc": 0.1 * (index + 1),
+            "tracked_values": {"backtest_mcc": 0.1 * (index + 1)},
+            "net_performance": {"window_index": index, "net_sharpe": 1.0},
+        }), encoding="utf-8")
+    assert walk_forward["step_days"] == 90
+
+    summary = train._run_walk_forward(config, {}, step_days=90, mode="expanding", resume_run_id=run_id)
+
+    assert summary["run_id"] == run_id
+    assert summary["num_windows"] == len(windows)
+    assert [r["backtest_mcc"] for r in summary["window_results"]] == pytest.approx([0.1 * (i + 1) for i in range(len(windows))])
+    assert len(summary["net_performance_by_window"]) == len(windows)
+    assert (tmp_path / "versions" / run_id / "walk_forward_summary.json").exists()
+
+
+def test_a_torn_or_missing_window_result_is_not_trusted(tmp_path, monkeypatch):
+    import train
+
+    monkeypatch.setattr(train, "ML_DIR", tmp_path)
+    directory = tmp_path / "versions" / "walk-forward-x" / "window_0"
+    directory.mkdir(parents=True)
+    assert train._load_walk_forward_window_result("walk-forward-x", 0) is None
+    (directory / train.WALK_FORWARD_WINDOW_RESULT_FILENAME).write_text('{"window_result": {"a": 1}, "backtest_', encoding="utf-8")
+    assert train._load_walk_forward_window_result("walk-forward-x", 0) is None
+    (directory / train.WALK_FORWARD_WINDOW_RESULT_FILENAME).write_text('{"window_result": {"a": 1}}', encoding="utf-8")
+    assert train._load_walk_forward_window_result("walk-forward-x", 0) is None  # no backtest_mcc: incomplete

@@ -1,0 +1,2742 @@
+{
+  "project": "Aether Quant",
+  "phase": 3,
+  "created_at": "2026-08-16T12:00:20.650788+00:00",
+  "objective": "Define a compact V1 universe with shared Lean data coverage for training and backtesting.",
+  "high_level_data_summary": {
+    "available": true,
+    "asset_groups": [
+      {
+        "name": "README.md",
+        "files": 1
+      },
+      {
+        "name": "alternative",
+        "files": 15
+      },
+      {
+        "name": "cfd",
+        "files": 45
+      },
+      {
+        "name": "crypto",
+        "files": 58
+      },
+      {
+        "name": "cryptofuture",
+        "files": 18
+      },
+      {
+        "name": "equity",
+        "files": 416
+      },
+      {
+        "name": "forex",
+        "files": 186
+      },
+      {
+        "name": "future",
+        "files": 360
+      },
+      {
+        "name": "futureoption",
+        "files": 25
+      },
+      {
+        "name": "index",
+        "files": 17
+      },
+      {
+        "name": "indexoption",
+        "files": 39
+      },
+      {
+        "name": "market-hours",
+        "files": 1
+      },
+      {
+        "name": "option",
+        "files": 92
+      },
+      {
+        "name": "reference",
+        "files": 12
+      },
+      {
+        "name": "symbol-properties",
+        "files": 2
+      }
+    ],
+    "sample_files": [
+      "data\\README.md",
+      "data\\cfd\\readme.md",
+      "data\\crypto\\readme.md",
+      "data\\equity\\readme.md",
+      "data\\forex\\readme.md",
+      "data\\future\\readme.md",
+      "data\\market-hours\\market-hours-database.json",
+      "data\\option\\readme.md",
+      "data\\reference\\forex_pair_specs.json",
+      "data\\reference\\futures_contract_specs.json",
+      "data\\reference\\sector_mapping.json",
+      "data\\symbol-properties\\security-database.csv"
+    ]
+  },
+  "candidate_sets": {
+    "equity_daily": [
+      "aaa.zip",
+      "aapl.zip",
+      "abbv.zip",
+      "abt.zip",
+      "adbe.zip",
+      "agg.zip",
+      "aig.zip",
+      "amzn.zip",
+      "ba.zip",
+      "bac.zip",
+      "biv.zip",
+      "bnd.zip",
+      "bno.zip",
+      "bsv.zip",
+      "bwx.zip",
+      "cat.zip",
+      "cost.zip",
+      "crm.zip",
+      "csco.zip",
+      "cvx.zip",
+      "dis.zip",
+      "eem.zip",
+      "emb.zip",
+      "fb.zip",
+      "foxa.zip",
+      "ge.zip",
+      "gooav.zip",
+      "goocv.zip",
+      "goog.zip",
+      "googl.zip",
+      "govt.zip",
+      "gs.zip",
+      "hd.zip",
+      "hon.zip",
+      "hyg.zip",
+      "ibm.zip",
+      "ief.zip",
+      "igib.zip",
+      "igsb.zip",
+      "intc.zip",
+      "iwm.zip",
+      "jnj.zip",
+      "jnk.zip",
+      "jpm.zip",
+      "ko.zip",
+      "lqd.zip",
+      "ma.zip",
+      "mbb.zip",
+      "mcd.zip",
+      "mrk.zip",
+      "msft.zip",
+      "mub.zip",
+      "nke.zip",
+      "nvda.zip",
+      "nwsa.zip",
+      "orcl.zip",
+      "pep.zip",
+      "pfe.zip",
+      "pg.zip",
+      "qqq.zip",
+      "sbux.zip",
+      "shv.zip",
+      "shy.zip",
+      "spy.zip",
+      "t.zip",
+      "tip.zip",
+      "tlh.zip",
+      "tlt.zip",
+      "tmo.zip",
+      "txn.zip",
+      "unh.zip",
+      "unp.zip",
+      "uso.zip",
+      "uw.zip",
+      "v.zip",
+      "vcit.zip",
+      "vcsh.zip",
+      "vz.zip",
+      "wfc.zip",
+      "wm.zip",
+      "wmi.zip",
+      "wmt.zip",
+      "xom.zip"
+    ],
+    "equity_hour": [
+      "aapl.zip",
+      "aig.zip",
+      "bac.zip",
+      "gdvd.zip",
+      "ibm.zip",
+      "spwr.zip",
+      "spwra.zip",
+      "spy.zip",
+      "tapa.zip",
+      "vxx.zip"
+    ],
+    "equity_minute": [
+      "aapl",
+      "aig",
+      "bac",
+      "foxa",
+      "goog",
+      "ibm",
+      "nwsa",
+      "shy",
+      "spy",
+      "twx"
+    ],
+    "crypto_coinbase_daily": [
+      "adausd_trade.zip",
+      "bchusd_trade.zip",
+      "bnbusd_trade.zip",
+      "btcusd_quote.zip",
+      "btcusd_trade.zip",
+      "dogeusd_trade.zip",
+      "eosusd_trade.zip",
+      "etcusd_trade.zip",
+      "ethusd_trade.zip",
+      "linkusd_trade.zip",
+      "ltcusd_trade.zip",
+      "trxusd_trade.zip",
+      "xlmusd_trade.zip",
+      "xrpusd_trade.zip",
+      "zecusd_trade.zip"
+    ],
+    "crypto_coinbase_minute": [
+      "btceur",
+      "btcusd",
+      "ethusd",
+      "ltcusd"
+    ],
+    "cryptofuture_binance_daily": [
+      "adausdt_quote.zip",
+      "adausdt_trade.zip"
+    ],
+    "cryptofuture_binance_minute": [
+      "adausdt",
+      "btcusd"
+    ]
+  },
+  "configured_universe": {
+    "name": "v2_daily_multi_asset",
+    "resolution": "Daily",
+    "assets": [
+      {
+        "ticker": "AAPL",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/aapl.zip",
+        "available_from": "1998-01-02",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "SPY",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/spy.zip",
+        "available_from": "1998-01-02",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "QQQ",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/qqq.zip",
+        "available_from": "1999-03-10",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "IWM",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/iwm.zip",
+        "available_from": "2000-05-26",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "EEM",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/eem.zip",
+        "available_from": "2003-04-14",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "BAC",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/bac.zip",
+        "available_from": "1998-01-02",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "IBM",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/ibm.zip",
+        "available_from": "1998-01-02",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "AIG",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/aig.zip",
+        "available_from": "1998-01-02",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "BNO",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/bno.zip",
+        "available_from": "1998-01-02",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "FB",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/fb.zip",
+        "available_from": "1999-09-29",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "GOOG",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/goog.zip",
+        "available_from": "2004-08-19",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "GOOGL",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/googl.zip",
+        "available_from": "2014-04-03",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "USO",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/uso.zip",
+        "available_from": "1998-01-02",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "WM",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/wm.zip",
+        "available_from": "1998-12-09",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "AAA",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/aaa.zip",
+        "available_from": "2002-05-22",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "BTCUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/btcusd_trade.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "BTC-USD",
+          "backfill_from": "2018-08-14",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "ETHUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/ethusd_trade.zip",
+        "derived_from": "data/crypto/coinbase/minute/ethusd",
+        "aggregation": "daily_from_minute_trade",
+        "available_from": "2017-09-03",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "ETH-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "LTCUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/ltcusd_trade.zip",
+        "derived_from": "data/crypto/coinbase/minute/ltcusd",
+        "aggregation": "daily_from_minute_trade",
+        "available_from": "2016-01-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "LTC-USD",
+          "backfill_from": "2016-01-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "XRPUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/xrpusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "XRP-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "ADAUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/adausd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "ADA-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "SHY",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/shy.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 1.9,
+          "yield_curve_bucket": "short_duration",
+          "credit_quality": "treasury"
+        }
+      },
+      {
+        "ticker": "IEF",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/ief.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 7.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "treasury"
+        }
+      },
+      {
+        "ticker": "TLT",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/tlt.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 17.5,
+          "yield_curve_bucket": "long_duration",
+          "credit_quality": "treasury"
+        }
+      },
+      {
+        "ticker": "AGG",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/agg.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 6.0,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "mixed_investment_grade"
+        }
+      },
+      {
+        "ticker": "LQD",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/lqd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 8.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "investment_grade_corporate"
+        }
+      },
+      {
+        "ticker": "HYG",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/hyg.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 3.5,
+          "yield_curve_bucket": "short_duration",
+          "credit_quality": "high_yield_corporate"
+        }
+      },
+      {
+        "ticker": "TIP",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/tip.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 7.0,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "treasury_inflation_protected"
+        }
+      },
+      {
+        "ticker": "MBB",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/mbb.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 5.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "agency_mbs"
+        }
+      },
+      {
+        "ticker": "EMB",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/emb.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 7.0,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "emerging_market_sovereign"
+        }
+      },
+      {
+        "ticker": "MUB",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/mub.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 6.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "municipal"
+        }
+      },
+      {
+        "ticker": "MSFT",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/msft.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "MSFT",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "NVDA",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/nvda.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "NVDA",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "AMZN",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/amzn.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "AMZN",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "JPM",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/jpm.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "JPM",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "XOM",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/xom.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "XOM",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "JNJ",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/jnj.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "JNJ",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "PG",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/pg.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "PG",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "KO",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/ko.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "KO",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "DIS",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/dis.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "DIS",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "HD",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/hd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "HD",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "WMT",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/wmt.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "WMT",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "V",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/v.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "V",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "MA",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/ma.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "MA",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "UNH",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/unh.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "UNH",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "CVX",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/cvx.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "CVX",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "PFE",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/pfe.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "PFE",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "VZ",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/vz.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "VZ",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "CSCO",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/csco.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "CSCO",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "INTC",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/intc.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "INTC",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "MCD",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/mcd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "MCD",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "ABBV",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/abbv.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "ABBV",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "CRM",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/crm.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "CRM",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "COST",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/cost.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "COST",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "PEP",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/pep.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "PEP",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "TMO",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/tmo.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "TMO",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "BND",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/bnd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 6.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "mixed_investment_grade"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "BND",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "GOVT",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/govt.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 6.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "treasury"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "GOVT",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "SHV",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/shv.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 0.4,
+          "yield_curve_bucket": "short_duration",
+          "credit_quality": "treasury"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "SHV",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "IGIB",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/igib.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 6.3,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "investment_grade_corporate"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "IGIB",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "VCIT",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/vcit.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 6.4,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "investment_grade_corporate"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "VCIT",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "VCSH",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/vcsh.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 2.7,
+          "yield_curve_bucket": "short_duration",
+          "credit_quality": "investment_grade_corporate"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "VCSH",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "BIV",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/biv.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 6.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "mixed_investment_grade"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "BIV",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "BSV",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/bsv.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 2.7,
+          "yield_curve_bucket": "short_duration",
+          "credit_quality": "mixed_investment_grade"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "BSV",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "TLH",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/tlh.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 17.0,
+          "yield_curve_bucket": "long_duration",
+          "credit_quality": "treasury"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "TLH",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "IGSB",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/igsb.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 2.7,
+          "yield_curve_bucket": "short_duration",
+          "credit_quality": "investment_grade_corporate"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "IGSB",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "JNK",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/jnk.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 4.0,
+          "yield_curve_bucket": "short_duration",
+          "credit_quality": "high_yield_corporate"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "JNK",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "BWX",
+        "security_type": "equity",
+        "asset_class": "bond",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/bwx.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30",
+        "bond_metadata": {
+          "duration_proxy_years": 7.5,
+          "yield_curve_bucket": "medium_duration",
+          "credit_quality": "international_treasury"
+        },
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "BWX",
+          "backfill_from": "2014-12-01",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "BCHUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/bchusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "BCH-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "LINKUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/linkusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "LINK-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "DOGEUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/dogeusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "DOGE-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "XLMUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/xlmusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "XLM-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "EOSUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/eosusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31",
+        "backfill": {
+          "source": "yfinance",
+          "symbol": "EOS-USD",
+          "backfill_from": "2017-11-09",
+          "backfill_to": "2021-04-01"
+        }
+      },
+      {
+        "ticker": "ETCUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/etcusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "ZECUSD",
+        "security_type": "crypto",
+        "market": "coinbase",
+        "data_path": "data/crypto/coinbase/daily/zecusd_trade.zip",
+        "available_from": "2017-11-09",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "EURUSD",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/eurusd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "GBPUSD",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/gbpusd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "USDJPY",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/usdjpy.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "AUDUSD",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/audusd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "USDCAD",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/usdcad.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "USDCHF",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/usdchf.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "NZDUSD",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/nzdusd.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "EURGBP",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/eurgbp.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "EURJPY",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/eurjpy.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "GBPJPY",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/gbpjpy.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "EURCHF",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/eurchf.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "EURAUD",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/euraud.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "AUDJPY",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/audjpy.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "CADJPY",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/cadjpy.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "GBPCAD",
+        "security_type": "forex",
+        "market": "oanda",
+        "data_path": "data/forex/oanda/daily/gbpcad.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-31"
+      },
+      {
+        "ticker": "WFC",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/wfc.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "GS",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/gs.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "HON",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/hon.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "CAT",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/cat.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "BA",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/ba.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "UNP",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/unp.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "GE",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/ge.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "ABT",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/abt.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "MRK",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/mrk.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "NKE",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/nke.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "SBUX",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/sbux.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "ORCL",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/orcl.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "ADBE",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/adbe.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "TXN",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/txn.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      },
+      {
+        "ticker": "T",
+        "security_type": "equity",
+        "market": "usa",
+        "data_path": "data/equity/usa/daily/t.zip",
+        "available_from": "2014-12-01",
+        "available_to": "2021-03-30"
+      }
+    ],
+    "common_window": {
+      "start": "2014-12-01",
+      "end": "2021-03-31"
+    }
+  },
+  "configured_windows": {
+    "training": {
+      "start": "2014-12-01",
+      "end": "2017-12-31"
+    },
+    "validation": {
+      "start": "2018-01-01",
+      "end": "2018-12-31"
+    },
+    "backtest": {
+      "start": "2019-01-01",
+      "end": "2021-03-31"
+    }
+  },
+  "configured_features": {
+    "input_set": [
+      "close_to_close_return_1d",
+      "close_to_close_return_5d",
+      "close_to_close_return_20d",
+      "rolling_volatility_5d",
+      "rolling_volatility_20d",
+      "momentum_5d",
+      "momentum_20d",
+      "high_low_range_pct",
+      "open_close_range_pct",
+      "volume_change_1d",
+      "rsi_14",
+      "atr_pct_14",
+      "bollinger_pctb_20",
+      "volume_zscore_20",
+      "macd_histogram_norm",
+      "dist_52w_high",
+      "regime_signal_confidence",
+      "regime_signal_trend_score",
+      "regime_signal_risk_score",
+      "liquidity_log_dollar_volume",
+      "liquidity_spread_proxy",
+      "topology_correlation_strength",
+      "peer_rank1_return_1d",
+      "peer_rank2_return_1d",
+      "peer_rank3_return_1d",
+      "peer_mean_return_1d",
+      "cs_momentum_rank_20",
+      "macro_yield_curve_slope_proxy",
+      "macro_credit_spread_proxy",
+      "macro_crypto_risk_appetite_proxy",
+      "bond_yield_curve_level",
+      "bond_yield_curve_slope",
+      "bond_yield_curve_curvature",
+      "bond_credit_spread_level",
+      "bond_empirical_duration_beta",
+      "bond_analytic_modified_duration",
+      "bond_analytic_convexity",
+      "bond_dv01",
+      "alt_implied_volatility_level",
+      "alt_implied_vol_term_structure",
+      "alt_financial_conditions_change",
+      "sens_vix_beta",
+      "sens_vix_interaction",
+      "sens_real_rate_beta",
+      "sens_real_rate_interaction",
+      "sens_credit_beta",
+      "sens_credit_interaction",
+      "sens_dollar_beta",
+      "sens_dollar_interaction"
+    ],
+    "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
+    "winsorize_quantiles": [
+      0.001,
+      0.999
+    ],
+    "scaled_feature_clip_sigma": 10.0,
+    "bond_reference_series": {
+      "treasury_3mo": "DGS3MO",
+      "treasury_2yr": "DGS2",
+      "treasury_5yr": "DGS5",
+      "treasury_10yr": "DGS10",
+      "treasury_30yr": "DGS30",
+      "credit_spread_baa10y": "BAA10Y"
+    },
+    "alt_data_reference_series": {
+      "implied_volatility_vix": "VIXCLS",
+      "implied_volatility_3m": "VXVCLS",
+      "financial_conditions_nfci": "NFCI",
+      "treasury_10yr_real": "DFII10",
+      "breakeven_inflation_10y": "T10YIE",
+      "dollar_index": "DTWEXBGS"
+    },
+    "alt_data_publication_lag_days": {
+      "implied_volatility_vix": 0,
+      "implied_volatility_3m": 0,
+      "financial_conditions_nfci": 7,
+      "treasury_10yr_real": 0,
+      "breakeven_inflation_10y": 0,
+      "dollar_index": 1
+    },
+    "alt_data_financial_conditions_change_periods": 4,
+    "derivatives_reference_tickers": {
+      "futures_term_structure": "ES",
+      "options_sentiment": "SPY"
+    },
+    "cross_asset_sensitivity": {
+      "enabled": true,
+      "lookback_days": 252,
+      "min_observations": 120,
+      "drivers": {
+        "vix": "implied_volatility_vix",
+        "real_rate": "treasury_10yr_real",
+        "credit": "credit_spread_baa10y",
+        "dollar": "dollar_index"
+      }
+    },
+    "derivatives_in_input_set": false
+  },
+  "configured_target": {
+    "type": "directional_return",
+    "horizon": "1 trading day ahead",
+    "label_rule": "1 if next close return is positive, otherwise 0",
+    "max_abs_daily_return": {
+      "equity": 0.5,
+      "crypto": 1.5
+    },
+    "max_abs_return_5d": {
+      "equity": 0.9,
+      "crypto": 2.5
+    },
+    "max_abs_return_20d": {
+      "equity": 1.5,
+      "crypto": 4.0
+    },
+    "ranking": {
+      "horizon_days": [
+        5,
+        20
+      ],
+      "min_universe_size": 20,
+      "purged_cv": {
+        "enabled": true,
+        "n_folds": 5,
+        "embargo_days": 5
+      },
+      "promotion_gate": {
+        "min_non_overlapping_t_stat": 2.0,
+        "min_bootstrap_ci_lower": 0.0,
+        "ranking_watchlist_margin": 0.3,
+        "era_length_days": 90,
+        "era_sign_min_abs_ic": 0.05,
+        "era_min_observations": 3,
+        "min_stable_eras": 3,
+        "max_era_sign_flip_fraction": 0.34,
+        "min_net_sharpe": 0.4,
+        "max_annualized_turnover": 12.0,
+        "min_capacity_usd": 250000
+      },
+      "sector_neutral": {
+        "min_sector_size": 3
+      },
+      "beta_neutral": {
+        "market_ticker": "SPY",
+        "min_observations": 60
+      },
+      "net_performance": {
+        "enabled": true,
+        "top_n": 6,
+        "bottom_n": 6,
+        "rebalance_every_bars": 10,
+        "cost_bps_per_side": 5.0,
+        "commission_bps": 1.0,
+        "gross_exposure": 1.0,
+        "dollar_neutral": true,
+        "sector_neutral": true,
+        "hysteresis_rank_margin": 0.05,
+        "max_weight_per_name": 0.12,
+        "capacity_participation_cap": 0.01,
+        "stress_cost_multipliers": [
+          1.0,
+          2.0,
+          3.0
+        ],
+        "capacity_top_n_sweep": [
+          3,
+          6,
+          10,
+          15
+        ],
+        "entry_lag_bars": 0,
+        "min_commission_usd": 0.0,
+        "assumed_portfolio_value_usd": 0.0
+      },
+      "residual_neutral": {
+        "enabled": true,
+        "market": true,
+        "sector": true,
+        "size": true,
+        "size_proxy_column": "liquidity_log_dollar_volume",
+        "market_ticker": "SPY",
+        "min_universe_size": 20,
+        "min_beta_observations": 60
+      }
+    }
+  },
+  "configured_model": {
+    "type": "robust_mlp_classifier",
+    "hidden_layers": [
+      64,
+      32
+    ],
+    "dropout": 0.15,
+    "activation": "relu",
+    "normalization": "layernorm",
+    "output_activation": "sigmoid",
+    "use_asset_context": true
+  },
+  "coverage_checks": [
+    {
+      "ticker": "AAPL",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/aapl.zip",
+      "available": true,
+      "rows": 5849,
+      "start": "19980102",
+      "end": "20210331"
+    },
+    {
+      "ticker": "SPY",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/spy.zip",
+      "available": true,
+      "rows": 5849,
+      "start": "19980102",
+      "end": "20210331"
+    },
+    {
+      "ticker": "QQQ",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/qqq.zip",
+      "available": true,
+      "rows": 3964,
+      "start": "19990310",
+      "end": "20210331"
+    },
+    {
+      "ticker": "IWM",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/iwm.zip",
+      "available": true,
+      "rows": 5244,
+      "start": "20000526",
+      "end": "20210331"
+    },
+    {
+      "ticker": "EEM",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/eem.zip",
+      "available": true,
+      "rows": 5245,
+      "start": "19980106",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BAC",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/bac.zip",
+      "available": true,
+      "rows": 5849,
+      "start": "19980102",
+      "end": "20210331"
+    },
+    {
+      "ticker": "IBM",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/ibm.zip",
+      "available": true,
+      "rows": 5849,
+      "start": "19980102",
+      "end": "20210331"
+    },
+    {
+      "ticker": "AIG",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/aig.zip",
+      "available": true,
+      "rows": 5849,
+      "start": "19980102",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BNO",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/bno.zip",
+      "available": true,
+      "rows": 3827,
+      "start": "19980102",
+      "end": "20210331"
+    },
+    {
+      "ticker": "FB",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/fb.zip",
+      "available": true,
+      "rows": 2947,
+      "start": "19990929",
+      "end": "20210331"
+    },
+    {
+      "ticker": "GOOG",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/goog.zip",
+      "available": true,
+      "rows": 4183,
+      "start": "20040819",
+      "end": "20210331"
+    },
+    {
+      "ticker": "GOOGL",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/googl.zip",
+      "available": true,
+      "rows": 1761,
+      "start": "20140403",
+      "end": "20210331"
+    },
+    {
+      "ticker": "USO",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/uso.zip",
+      "available": true,
+      "rows": 3910,
+      "start": "19980102",
+      "end": "20210331"
+    },
+    {
+      "ticker": "WM",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/wm.zip",
+      "available": true,
+      "rows": 5399,
+      "start": "19981209",
+      "end": "20210331"
+    },
+    {
+      "ticker": "AAA",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/aaa.zip",
+      "available": true,
+      "rows": 1371,
+      "start": "20020522",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BTCUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/btcusd_trade.zip",
+      "available": true,
+      "rows": 2279,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "ETHUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/ethusd_trade.zip",
+      "available": true,
+      "rows": 1241,
+      "start": "20170903",
+      "end": "20210331"
+    },
+    {
+      "ticker": "LTCUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/ltcusd_trade.zip",
+      "available": true,
+      "rows": 1917,
+      "start": "20160101",
+      "end": "20210331"
+    },
+    {
+      "ticker": "XRPUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/xrpusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "ADAUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/adausd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "SHY",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/shy.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "IEF",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/ief.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "TLT",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/tlt.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "AGG",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/agg.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "LQD",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/lqd.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "HYG",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/hyg.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "TIP",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/tip.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "MBB",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/mbb.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "EMB",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/emb.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "MUB",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/mub.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "MSFT",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/msft.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "NVDA",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/nvda.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "AMZN",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/amzn.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "JPM",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/jpm.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "XOM",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/xom.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "JNJ",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/jnj.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "PG",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/pg.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "KO",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/ko.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "DIS",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/dis.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "HD",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/hd.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "WMT",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/wmt.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "V",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/v.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "MA",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/ma.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "UNH",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/unh.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "CVX",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/cvx.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "PFE",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/pfe.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "VZ",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/vz.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "CSCO",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/csco.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "INTC",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/intc.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "MCD",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/mcd.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "ABBV",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/abbv.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "CRM",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/crm.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "COST",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/cost.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "PEP",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/pep.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "TMO",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/tmo.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BND",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/bnd.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "GOVT",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/govt.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "SHV",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/shv.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "IGIB",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/igib.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "VCIT",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/vcit.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "VCSH",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/vcsh.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BIV",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/biv.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BSV",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/bsv.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "TLH",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/tlh.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "IGSB",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/igsb.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "JNK",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/jnk.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BWX",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/bwx.zip",
+      "available": true,
+      "rows": 1594,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "BCHUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/bchusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "LINKUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/linkusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "DOGEUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/dogeusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "XLMUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/xlmusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "EOSUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/eosusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "ETCUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/etcusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "ZECUSD",
+      "security_type": "crypto",
+      "market": "coinbase",
+      "path": "data/crypto/coinbase/daily/zecusd_trade.zip",
+      "available": true,
+      "rows": 1239,
+      "start": "20171109",
+      "end": "20210331"
+    },
+    {
+      "ticker": "EURUSD",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/eurusd.zip",
+      "available": true,
+      "rows": 4334,
+      "start": "20070101",
+      "end": "20210331"
+    },
+    {
+      "ticker": "GBPUSD",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/gbpusd.zip",
+      "available": true,
+      "rows": 4334,
+      "start": "20070101",
+      "end": "20210331"
+    },
+    {
+      "ticker": "USDJPY",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/usdjpy.zip",
+      "available": true,
+      "rows": 1650,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "AUDUSD",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/audusd.zip",
+      "available": true,
+      "rows": 1650,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "USDCAD",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/usdcad.zip",
+      "available": true,
+      "rows": 1650,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "USDCHF",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/usdchf.zip",
+      "available": true,
+      "rows": 1650,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "NZDUSD",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/nzdusd.zip",
+      "available": true,
+      "rows": 4334,
+      "start": "20070101",
+      "end": "20210331"
+    },
+    {
+      "ticker": "EURGBP",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/eurgbp.zip",
+      "available": true,
+      "rows": 4335,
+      "start": "20070101",
+      "end": "20210331"
+    },
+    {
+      "ticker": "EURJPY",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/eurjpy.zip",
+      "available": true,
+      "rows": 1651,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "GBPJPY",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/gbpjpy.zip",
+      "available": true,
+      "rows": 1651,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "EURCHF",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/eurchf.zip",
+      "available": true,
+      "rows": 1651,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "EURAUD",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/euraud.zip",
+      "available": true,
+      "rows": 1651,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "AUDJPY",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/audjpy.zip",
+      "available": true,
+      "rows": 1652,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "CADJPY",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/cadjpy.zip",
+      "available": true,
+      "rows": 1651,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "GBPCAD",
+      "security_type": "forex",
+      "market": "oanda",
+      "path": "data/forex/oanda/daily/gbpcad.zip",
+      "available": true,
+      "rows": 1651,
+      "start": "20141201",
+      "end": "20210331"
+    },
+    {
+      "ticker": "WFC",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/wfc.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "GS",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/gs.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "HON",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/hon.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "CAT",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/cat.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "BA",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/ba.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "UNP",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/unp.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "GE",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/ge.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "ABT",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/abt.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "MRK",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/mrk.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "NKE",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/nke.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "SBUX",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/sbux.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "ORCL",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/orcl.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "ADBE",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/adbe.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "TXN",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/txn.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    },
+    {
+      "ticker": "T",
+      "security_type": "equity",
+      "market": "usa",
+      "path": "data/equity/usa/daily/t.zip",
+      "available": true,
+      "rows": 1593,
+      "start": "20141201",
+      "end": "20210330"
+    }
+  ]
+}

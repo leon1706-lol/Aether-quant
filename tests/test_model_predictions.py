@@ -250,3 +250,65 @@ def test_naive_date_filtering_corrupts_sequence_windows_but_the_trimmed_range_do
 
     assert not np.allclose(naive_windows, ground_truth_recorded)
     assert np.allclose(trimmed_recorded, ground_truth_recorded)
+
+
+# ---------------------------------------------------------------------------
+# V5.6.0: row_mask / row_positions - predict only the rows a reconciliation reads (low RAM)
+# ---------------------------------------------------------------------------
+
+
+def test_build_sequence_windows_row_positions_equal_the_full_build_for_those_rows():
+    rng = np.random.default_rng(4)
+    frame = pd.DataFrame({"ticker": ["A"] * 9 + ["B"] * 7, "f1": rng.normal(size=16), "f2": rng.normal(size=16)})
+    full = build_sequence_windows(frame, ["f1", "f2"], window_size=4)
+    positions = np.array([2, 8, 9, 15])
+
+    partial = build_sequence_windows(frame, ["f1", "f2"], window_size=4, row_positions=positions)
+
+    assert partial.shape == (4, 4, 2)
+    assert np.array_equal(partial, full[positions])
+
+
+def test_predict_head_row_mask_matches_unmasked_predictions_and_leaves_the_rest_nan():
+    rng = np.random.default_rng(5)
+    frame = pd.DataFrame({"ticker": ["A"] * 6 + ["B"] * 6, "f1": rng.normal(size=12), "f2": rng.normal(size=12)})
+    mask = np.zeros(12, dtype=bool)
+    mask[[3, 5, 9, 11]] = True
+    for kind, export, schema, head in (
+        ("sequence", _synthetic_sequence_model_export(), {"window_size": 3}, "rank_5d"),
+        ("multitask", _synthetic_multitask_model_export(), None, "rank_20d"),
+    ):
+        common = dict(model_kind=kind, sequence_feature_schema=schema, configured_window_size=3)
+        full = predict_head(frame, export, ["f1", "f2"], head, **common)
+        masked = predict_head(frame, export, ["f1", "f2"], head, **common, row_mask=mask)
+        assert np.isfinite(full[mask]).all()
+        assert np.array_equal(masked[mask], full[mask])
+        assert np.isnan(masked[~mask]).all()
+
+
+def test_predict_heads_equals_predict_head_per_head_in_one_pass():
+    from evaluation.model_predictions import predict_heads
+
+    rng = np.random.default_rng(6)
+    frame = pd.DataFrame({"ticker": ["A"] * 6 + ["B"] * 6, "f1": rng.normal(size=12), "f2": rng.normal(size=12)})
+    mask = np.zeros(12, dtype=bool)
+    mask[[2, 5, 8, 11]] = True
+    for kind, export, schema, heads in (
+        ("sequence", _synthetic_sequence_model_export(), {"window_size": 3}, ["rank_5d", "missing_head"]),
+        ("multitask", _synthetic_multitask_model_export(), None, ["rank_20d", "magnitude", "missing_head"]),
+    ):
+        common = dict(model_kind=kind, sequence_feature_schema=schema, configured_window_size=3)
+        for row_mask in (None, mask):
+            together = predict_heads(frame, export, ["f1", "f2"], heads, **common, row_mask=row_mask)
+            for head in heads:
+                alone = predict_head(frame, export, ["f1", "f2"], head, **common, row_mask=row_mask)
+                assert np.array_equal(together[head], alone, equal_nan=True), (kind, head)
+
+
+def test_predict_heads_rejects_an_unknown_model_kind():
+    import pytest
+
+    from evaluation.model_predictions import predict_heads
+
+    with pytest.raises(ValueError):
+        predict_heads(pd.DataFrame({"ticker": ["A"], "f1": [1.0]}), {}, ["f1"], ["rank_5d"], model_kind="nope")

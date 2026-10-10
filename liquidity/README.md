@@ -33,6 +33,8 @@ It computes, per asset per bar:
   0.0003). Corwin-Schultz reads crypto/forex daily high-low volatility as a ~1% spread,
   which blocked every crypto book selection against the 0.25% round-trip ceiling; the
   `liquidity_spread_proxy` *model feature* is deliberately left uncapped (Problems #133).
+  V5.6.0 (#143): equity is capped at 0.001 too - the estimator exceeded the 0.25% ceiling on 62% of
+  equity-days (AAPL median 40 bps against a real spread near 1 bp) and blocked ~24% of book-member decisions.
 
 and classifies `liquidity_risk`/`recommended_action`:
 

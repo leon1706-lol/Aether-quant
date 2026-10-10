@@ -57,6 +57,13 @@ expected cost.
   is uncalibrated (`0.0`), or the rank prediction is missing. Config:
   `phase_v2.costs` (`enabled: false` until calibrated via
   `aq evaluate --calibrate-edge`).
+- **Per-class exchange fees (V5.6.0):** `phase_v2.costs.fee_by_type.<security_type>` =
+  `{"model": "coinbase", "fee_bps": 80.0, "min_usd": 0.0}` replaces the global
+  commission terms for that class (`commission_terms_for_security_type()`, passed to the gate as
+  `security_type=`). Lean's default crypto fee model charges **$0** (every 2026-10-07 crypto fill),
+  so `model: "coinbase"` also assigns Lean's own `CoinbaseFeeModel()` to crypto securities in
+  `main.py`, and `commission_bps_by_ticker()` hands the same rate to the offline simulator
+  (`simulate_rank_book(commission_bps_by_ticker=...)`). Absent key = pre-V5.6.0 behaviour.
 
 ## Position reconciliation (`reconciliation.py`)
 

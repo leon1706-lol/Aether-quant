@@ -57,6 +57,7 @@ from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
 from regime import build_market_regime_vector
 from risk.asset_class_router import (
+    book_candidate_trading_eligible,
     resolve_asset_class_enabled,
     route_multi_leg_option_sizing,
     route_position_sizing,
@@ -234,6 +235,7 @@ from features import (
     yield_curve_level,
     yield_curve_slope_proxy,
 )
+from features.cross_asset_timing import cross_asset_inputs
 from data_pipeline.fred_backfill import (
     ALT_DATA_PUBLICATION_LAG_DAYS,
     load_cached_fred_series,
@@ -619,6 +621,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # one. IB's fee model is fine for the other 4 asset classes.
             if asset["security_type"] != "crypto":
                 self.securities[symbol].fee_model = InteractiveBrokersFeeModel()
+            elif str(
+                ((self.config.get("phase_v2", {}).get("costs", {}).get("fee_by_type") or {}).get("crypto") or {}).get("model", "")
+            ).lower() == "coinbase":
+                # Lean's default crypto fee model charges 0 (every 2026-10-07 crypto fill carried $0 in fees);
+                # its built-in CoinbaseFeeModel charges the date-effective maker/taker percentage.
+                self.securities[symbol].fee_model = CoinbaseFeeModel()
 
         # V5.2.4 (development/Problems.md #91) - the subset of self.symbols
         # this algorithm treats as "the equity session" for on_data()'s own
@@ -831,9 +839,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
         _v550_diagnostics = self.phase_v2.get("diagnostics", {})
         self._timing_probe = TimingProbe(bool(_v550_diagnostics.get("timing_probe", {}).get("enabled", False)))
         self.teardown_cleanup_enabled = bool(_v550_diagnostics.get("teardown_cleanup", {}).get("enabled", False))
+        # V5.6.0 (#104) - also detach the Python-implemented slippage model from every security and close the Redis
+        # clients before the interpreter is finalized; off keeps the V5.5.0 cleanup exactly.
+        self.teardown_release_models_enabled = bool(_v550_diagnostics.get("teardown_cleanup", {}).get("release_models", False))
         _crypto_bar_probe = _v550_diagnostics.get("crypto_bar_probe", {})
         self.crypto_bar_probe_max_bars = int(_crypto_bar_probe.get("max_bars_per_symbol", 5)) if _crypto_bar_probe.get("enabled", False) else 0
         self._crypto_bar_probe_counts: dict[str, int] = {}
+        # V5.6.0 - the same probe can also watch forex (Problems.md #135: which forex bars live actually receives).
+        self.crypto_bar_probe_classes = set(_crypto_bar_probe.get("asset_classes", ["crypto"]))
         # V5.1 Phase 1 (development/Problems.md, item 6) - apply_book_neutrality()'s
         # diagnostics from the last rebalance bar (empty {} pre-first-
         # rebalance or whenever the book/neutrality overlay is disabled) -
@@ -1086,6 +1099,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.analyzer_low_regime_confidence_threshold = float(phase_v2_analyzer.get("low_regime_confidence_threshold", 0.35))
         self.analyzer_use_composite_signal_score = bool(phase_v2_analyzer.get("use_composite_signal_score", False))
         self.topology_correlation_threshold = float(phase_v2_topology.get("correlation_threshold", 0.6))
+        self.topology_veto_applies_to_book_members = bool(phase_v2_topology.get("elevated_veto_applies_to_book_members", True))
         # V5.2.6 (development/Problems.md) - absent config reproduces
         # ELEVATED_VOLATILITY_THRESHOLD's own module default exactly - see
         # build_market_topology()'s own docstring for why this is worth
@@ -1970,7 +1984,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if self.crypto_bar_probe_max_bars > 0 and (
                     self.asset_lookup.get(symbol_key, {}).get("asset_class")
                     or self.asset_lookup.get(symbol_key, {}).get("security_type")
-                ) == "crypto":
+                ) in self.crypto_bar_probe_classes:
                     probe_count = self._crypto_bar_probe_counts.get(symbol_key, 0)
                     if probe_count < self.crypto_bar_probe_max_bars:
                         self._crypto_bar_probe_counts[symbol_key] = probe_count + 1
@@ -2267,7 +2281,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             asset = self.asset_lookup[str(symbol)]
             book_candidates[symbol_key] = {
                 "predicted_rank_20d": predicted_rank_20d,
-                "trading_eligible": self._is_trading_eligible(symbol),
+                "trading_eligible": book_candidate_trading_eligible(
+                    self._is_trading_eligible(symbol),
+                    asset.get("asset_class") or asset.get("security_type"),
+                    self.futures_risk_enabled, self.options_risk_enabled, self.forex_risk_enabled,
+                ),
                 # Only consumed when portfolio_book_per_asset_class_slots is
                 # configured (development/Problems.md#29) - same
                 # asset.get("asset_class") or asset.get("security_type")
@@ -2788,6 +2806,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 order_value,
                 self._costs_config,
                 trade_direction=trade_direction,
+                security_type=self.asset_lookup.get(symbol_key, {}).get("security_type"),
             ).to_dict()
             # V5.1 Phase 6 (production safety) - this bar's expected round-
             # trip cost + reference price, read back by on_order_event()
@@ -2887,6 +2906,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 is_book_selected=(book_allocation is not None),
                 min_confidence_to_trade_book_selected=self.min_confidence_to_trade_book_selected,
                 risk_off_override_min_severity=self.risk_off_override_min_severity,
+                topology_veto_applies_to_book_members=self.topology_veto_applies_to_book_members,
             ).to_dict()
             if self.book_history_include_decisions and book_allocation is not None:
                 book_member_decisions[symbol_key] = decision
@@ -3262,6 +3282,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # interpreter. The algorithm has finished and state is written, so
         # nothing reads these again. Verify in the ENGINE log.txt.
         if self.teardown_cleanup_enabled:
+            if self.teardown_release_models_enabled:
+                try:
+                    self.Debug(f"teardown-release-models: {self._release_python_models()}")
+                except Exception as error:
+                    self.Debug(f"teardown-release-models failed (non-fatal): {error}")
             try:
                 cleanup_result = release_symbol_containers(
                     [
@@ -3280,6 +3305,32 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.Debug(f"teardown-cleanup: {cleanup_result}")
             except Exception as error:
                 self.Debug(f"teardown-cleanup failed (non-fatal): {error}")
+
+    def _release_python_models(self) -> dict:
+        """Teardown experiment for Problems.md #104: the engine log shows Lean's embedded-interpreter shutdown timing
+        out with no live Python thread, so something native still points into Python. The one Python object Lean
+        itself holds is the duck-typed slippage model on every security (it references this algorithm); swap it for
+        Lean's own NullSlippageModel and drop the Redis clients. The algorithm has finished; nothing reads these again."""
+        detached = 0
+        for security in self.securities.values():
+            try:
+                security.set_slippage_model(NullSlippageModel())
+                detached += 1
+            except Exception:
+                continue
+        self._liquidity_slippage_model = None
+        closed = 0
+        for queue in (getattr(self, "_experience_queue", None), getattr(self, "_audit_queue", None)):
+            client = getattr(queue, "_client", None)
+            if client is None:
+                continue
+            try:
+                client.close()
+                queue._client = None
+                closed += 1
+            except Exception:
+                continue
+        return {"slippage_models_detached": detached, "redis_clients_closed": closed}
 
     def _load_json(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -4277,29 +4328,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         return classify_volatility_view(annualized, atm_iv, self.options_volatility_view_margin)
 
     def _build_topology_payload(self) -> dict:
-        returns_by_symbol = {}
-        # cs_momentum_rank_20 (Phase 6) needs every symbol's own momentum_20d
-        # for the SAME bar before any of them can rank against the others -
-        # computed here (this function already runs once per bar before the
-        # per-symbol loop, exactly like returns_by_symbol above) using the
-        # identical formula _build_model_input() itself uses for its own
-        # momentum_20d base feature, so a symbol's rank always reflects its
-        # own current-bar momentum, not a stale one-bar-lagged value.
-        momentum_by_symbol: dict[str, float] = {}
-        for symbol in self.symbols:
-            closes = [bar["close"] for bar in self.symbol_windows.get(symbol, [])]
-            returns = []
-            for index in range(1, len(closes)):
-                previous = closes[index - 1]
-                if previous == 0:
-                    continue
-                returns.append(closes[index] / previous - 1.0)
-            if returns:
-                returns_by_symbol[str(symbol)] = returns
-            if len(closes) >= 2:
-                close_20 = closes[max(0, len(closes) - 21)]
-                if close_20:
-                    momentum_by_symbol[str(symbol)] = closes[-1] / close_20 - 1.0
+        # Runs at the START of a tick, before this tick's bars join symbol_windows, so
+        # every payload built from it (topology, peers, macro proxies, cs_momentum_rank_20)
+        # sees bars up to the previous tick. train.py reproduces exactly this via
+        # features.cross_asset_timing.CrossAssetTimeline (Problems.md #135).
+        returns_by_symbol, momentum_by_symbol = cross_asset_inputs(
+            {str(symbol): [bar["close"] for bar in self.symbol_windows.get(symbol, ())] for symbol in self.symbols}
+        )
         self.latest_momentum_by_symbol = momentum_by_symbol
 
         deterministic_topology_result = build_market_topology(
@@ -4409,11 +4444,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         model input this bar via _build_model_input().
 
         Reads self.latest_momentum_by_symbol, already populated by
-        _build_topology_payload() earlier this same bar - same one-bar-lag
-        characteristic that dict already has (see that method's
-        docstring), not a new inconsistency this introduces. No separate
-        computation needed here, unlike features/technical_indicators.py's
-        long-lookback indicators.
+        _build_topology_payload() earlier this same tick, from the windows
+        BEFORE this tick's bars (offline: CrossAssetTimeline, #135).
 
         A reference ticker not configured in this universe (e.g. testing a
         subset without the bond sleeve) has no self.ticker_to_symbol entry

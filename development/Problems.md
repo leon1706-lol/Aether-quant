@@ -715,6 +715,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (V5.6.0):** a schema-2 `ml/topology_model.json` (6 prototypes, trained 2026-07-29 from live experience events) exists and loads in the first-bar smoke test, so the fix was exercised after all. Retraining the overlay was declined: it is fit on logged live events (win/loss outcomes per node) and a proxy built from the dataset would be a different distribution.
+
 ### 57. Futures/options had a live incremental-vs-absolute order-sizing bug — fixed, plus position scale-up for all 5 asset classes
 
 **Severity:** 5/10 (dormant, reachable only via `futures_risk.enabled`/`options_risk.enabled`, both default off) · **Status:** 🟢 `fixed`
@@ -1169,6 +1171,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (V5.6.0) - the flag-off control exists now:** on the regenerated dataset, `gate_aware_ranking_weights.enabled=false` scored validation IC 0.036 (round 2) / 0.061 (round 1) against the control's 0.048-0.077 across two seeds (seed spread 0.028): no measurable effect either way, so the 0.152 → 0.173 IC jump of that round was not due to the gate-aware weights.
+
 ### 96. Real limit-order support: stale docs corrected, `PartiallyFilled` made testable, two new offline diagnostic tools (V5.3.1, closes #34)
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed and verified`
@@ -1288,6 +1292,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ---
 
+**Update (V5.6.0):** after the retrain the same calibration question was answered by the rule 'spread = the new models' p10': `min_rank_confidence_spread` 0.2831 → 0.1985 (p10 of 586 dates; median 0.26). Same-day dispersion floors still cannot separate skill (gate sweep), which is the rolling-IC gate's job.
+
 ### 103. A rolling trailing-IC gate, addressing #102's recommendation directly — built, offline-verified against real data, wired into `main.py` behind `enabled: false`; live effect not yet tested
 
 **Severity:** 6/10 (same issue as #102) · **Status:** 🟡 `built and offline-verified, not yet live-tested` — real `aq backtest` still needed before this can close #102
@@ -1310,7 +1316,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 104. Chronic Lean embedded-Python teardown hang ("endless loop") — fires only after normal completion, never affects results; probe shipped, culprit unnamed
 
-**Severity:** 3/10 (exit-log noise only — results are always fully written first) · **Status:** 🟡 open (differential analysis done, diagnostic probe shipped; the 2026-08-27 run did NOT exit clean — corrected in the Update below; culprit is native-side, still unnamed)
+**Severity:** 3/10 (exit-log noise only — results are always fully written first) · **Status:** 🔴 `closed` — environmental (reproduced with a trivial algorithm; no code fix possible here)
 
 **Problem:** commit c2ed98c's "endless loop found in backtest log" is Lean embedded-interpreter teardown timing out: after `PythonInitializer.Shutdown(): start/calling engine shutdown...`, ~10s elapse, then `Isolator.ExecuteWithTimeLimit(): Execution Security Error: Operation timed out - 0.1666... minutes max. Check for recursive loops. (Isolator.cs:179)` and `Program.Exit(): Failed to shutdown python System.TimeoutException (Launcher/Program.cs:145)`. Classic CPython finalization blocking on still-alive non-daemon thread or native handle while isolator kills interpreter at its 10s limit.
 
@@ -1328,6 +1334,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Update (2026-08-27 real backtest — `backtests/2026-08-27_12-01-48`) — CORRECTED 2026-10-06:** this entry originally recorded the run as "exited cleanly", read from the *algorithm* log (`1773747993-log.txt`: `shutdown-probe: alive_threads=[]` + `completed in 2816.67 seconds`). The *engine* log `log.txt` shows the hang **did** happen: `10:51:23 PythonInitializer.Shutdown(): calling engine shutdown...` → `10:51:34 Operation timed out` → `Program.Exit(): Failed to shutdown python`. All 9 runs since 2026-08-10 carry it. The empty `alive_threads` list is still real evidence: the blocker is **not a Python thread** — it is native/.NET-side (a pythonnet-held reference, e.g. Lean `Symbol`/`Slice` objects held by long-lived dicts, or the frozen GC generation since `gc.freeze()`). V5.5.0 (Problems #129) adds a richer opt-in probe + opt-in pre-shutdown cleanup. Status stays 🟡 until a run's **engine** `log.txt` shows `PythonInitializer.Shutdown(): ended`.
 
+**Update (V5.6.0) - closed as environmental:** BT1 ran the strongest cleanup yet (Python slippage model detached from all 104 securities, GC unfrozen, containers cleared, no `gc.freeze()`): still `Operation timed out` at `PythonInitializer.Shutdown()`. A 15-line algorithm (SPY daily, no custom objects, `mini_teardown/`) hangs identically in the pinned `lean:17900` image (`Failed to shutdown python`), so the cause is the engine image, not this code; results are always written first. The experiment code stays behind `phase_v2.diagnostics.teardown_cleanup.release_models` (default off). The `latest` image probe was cut short by the memory reaper.
 
 ### 105. Train-vs-live feature-parity audit (V5.3.6 WS-A) - scaler artifact verified exact; NO live-path formula drift found in all OHLCV-recomputable families; residual deltas fully attributed to replica boundary artifacts
 
@@ -1355,6 +1362,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Verification:** 15 new tests green; driver runs end-to-end on real data; report committed under ml/evaluation/.
 
+**Update (V5.6.0):** the crypto zero-volume lead is settled - BT1's bar probe shows BTCUSD/LTCUSD arrive as `TradeBar`s with real volume on 90 of 90 bars (once the quote zips exist). Feature parity itself was re-opened and closed by #137/#140/#141 (the audit's replicas now follow the live tick order and forex's fill-forward calendar).
 
 ### 106. Gate sweep, kill-switch offline finding, promotion-gate null calibration, overlap-vs-Sharpe pairs, first Codespace retrain on synced tree (V5.3.6 WS-B/C/D/E + training)
 
@@ -1374,6 +1382,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Follow-ups:** decide rolling-IC floor (0.02 shipped vs 0.05 aggressive) and confidence-spread fate before next A/B backtest; adopt null-calibrated era rule behind a flag if agreed; accumulate WS-C pairs from future runs.
 
+**Update (V5.6.0):** the sweep re-run on the retrained models (multitask scoring): rolling-IC floors 0.00/0.02/0.05 all leave the good era 0% disengaged; bad-era coverage rises with the floor (0.05: 56/44/22%). The pre-registered rule - highest floor with zero good-era cost - keeps `min_rolling_mean_ic` at 0.05; kill-switch grid unchanged (zero trips offline).
 
 ### 107. Null-calibrated era promotion rule (V5.3.7): era_rule selector shipped; 90-day-era null shows ZERO noise flips - existing strict criterion validated, calibrated flip_fraction knob adopted as the enabling mechanism for the V5.3.7 candidate
 
@@ -1391,6 +1400,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **V5.3.7 completion addendum:** full 8-family Codespace retrain executed on the synced tree WITH `era_rule: "flip_fraction"` active; gating/multitask/sequence candidates built via `--version-id v537cs20260823` (bare invocations exit-2 on required --version-id - fixed en route). **Walk-forward is infrastructure-blocked**: three consecutive VM reboots killed the job at window 5 across baseline-only / multitask / multitask+sequence configs (uptime evidence; 7.8GB CS RAM; swapon prohibited in container) - partial windows 0..3 preserved under `ml/versions/v537cs20260823/ml/versions/walk-forward-*`; relaunch command ready. Candidate promoted unconditionally per user decision: 15 prior artifacts backed up to `ml/_backup_pre_v537/`, 12 top-level artifact files + expert_models/ promoted (per-family metrics JSONs for gating/multitask/sequence remained pre-V5.3.7 - display-only staleness, recoverable by rerunning the three trainers). Offline evaluation of the PROMOTED multitask rank book: **net Sharpe 1.6805 (lag0) / 1.6933 (lag1)**, net return +10.61%, maxDD -2.63%, turnover 1.32x - above the pre-V5.3.6 mirror (+1.497). Sequence: net Sharpe 0.997/0.955.
 
+**Update (V5.6.0):** the walk-forward relaunch completed on the regenerated dataset (6 expanding windows, `walk-forward-f56af970-...`; the Codespace VM rebooted twice and `--resume-run-id` finished it): `rank_20d` IC mean 0.101 (95% CI 0.066-0.138, 0 sign flips), `rank_5d` 0.059 (0.042-0.081, 0 flips), `backtest_mcc` 0.016 (stable), `residual_rank_20d` -0.002 (unstable, 3 of 6 flips). Infrastructure blocker (#83/#107) closed.
 
 ### 108. Monte Carlo simulation testing layer — `aq evaluate --rank-book --monte-carlo` with auto-refreshing README section (all-run curves chart + red average line + foldable deep stats)
 
@@ -1457,7 +1467,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 112. V5.4.1 - RL sizing reward asymmetry fix (root-cause of 3× honest negative), regime conditioning in state vector, auto-rollback hardening (dry-run + degradation score), prediction provenance counters, topology EWM option deferred
 
-**Severity:** n/a (model-improvement round) · **Status:** 🟡 `code shipped; RL retrain pending user codespace run`
+**Severity:** n/a (model-improvement round) · **Status:** 🔴 `closed` — RL sizing retrained with the fixes, still no edge over constant 1.0
 
 **RL sizing root cause identified and fixed:** the reward function was SYMMETRIC - undersizing a winner and oversizing a loser cost identically, so "do nothing" (constant 1.0 baseline) was always optimal, which the policy correctly learned every time (3× honest negative). Fixed with an `asymmetric_penalty_weight` parameter (>1.0 penalizes foregone profit on winning trades). Also added regime trend one-hots (`regime_trend_bullish/bearish/sideways`) to `RL_SIZING_STATE_KEYS` so the linear policy can learn regime-conditional sizing.
 
@@ -1467,6 +1477,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Codespace retrain NOT yet executed** - user must start codespace and trigger; all code changes are in place.
 
+**Update (V5.6.0) - closed:** the RL retrain ran twice on the regenerated data with the penalty sweep (1.0/1.5/2.0/3.0, chosen on a chronological holdout of validation) and judged on unpenalised backtest P&L: policy -8.98e-5 vs constant 1.0 at -8.43e-5 (and -8.75e-5 vs -8.29e-5 on the first dataset). A fourth honest negative; the action set is shrink-only, so the policy can only lose to the baseline unless the state predicts losers. Not installed; `rl_sizing_enabled` stays false.
 
 ### 113. V5.4.2 pre-backtest audit — critical missing-import bug found and fixed; parity tests added; config validated
 
@@ -1485,11 +1496,12 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 112. V5.4.2 - residual_rank_20d head documented as non-promotable; factor-neutralization check scoped for V5.4.3; Almgren impact model shipped; residual head excluded from decision process via config
 
-**Severity:** n/a (signal-quality documentation) · **Status:** 🟡 `documented; improvement attempt deferred to V5.4.3`
+**Severity:** n/a (signal-quality documentation) · **Status:** 🔴 `closed` — head confirmed noise; kept demoted
 
 **Finding:** `residual_rank_20d` (the market/sector/size-neutral rank target) has never cleared its promotion gate across any retrain round. Its IC is consistently ~0.01 with t-stat < 1.0 — statistically indistinguishable from noise after neutralization overhead. The active heads list (`rank_20d` 0.5, `rank_5d` 0.5) never included it, so no live behavior change from this entry.
 **Action taken:** added `residual_rank_20d` to the documented demoted list in config.json. Factor-neutralization check (decomposing book Sharpe into alpha vs factor components) scoped for V5.4.3 — requires one full offline eval run to produce the decomposition data.
 
+**Update (V5.6.0) - closed:** the walk-forward on the regenerated dataset gives `residual_rank_20d` IC -0.002 (95% CI -0.029..0.025, unstable), and zeroing the residual/sector-neutral head loss weights (variant `v2_book_heads`) did not clear the 0.028 seed spread in either retrain round. The head stays demoted from the book; the retrain validation gate no longer judges it (#139).
 
 ### 114. V5.4.4 - CI python-lint red since V5.4.3 (2 ruff findings); Monte Carlo README PNG showed only the average; HRP single-sided books silently halved
 
@@ -1687,6 +1699,8 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ---
 
+**Update (V5.6.0):** quote zips for the 10 observation-only crypto assets were generated too (`aq backfill yfinance --quotes ...`), so the data monitor no longer reports their missing `*_quote.zip` requests.
+
 ### 127. 2026-08-27 backtest written up: Sharpe −2.51 against an offline +1 — what the run actually traded (V5.5.0)
 
 **Severity:** 9/10 · **Status:** 🟢 `fixed` — decomposed and fixed (#128–#134); verified by the 2026-10-07 19:28 backtest (Lean Sharpe −1.05, +0.17 without a risk-free rate, +0.68% net, vs −2.51 / −1.16 / −4.25% on 08-27). 
@@ -1747,8 +1761,77 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 135. Feature reconciliation of the 2026-10-07 run: live features diverge from `full_dataset.csv` everywhere the dataset was built on the double-adjusted data (V5.5.0 research)
 
-**Severity:** 7/10 · **Status:** 🟡 `partial` — cause identified; closes with the Codespace dataset regeneration + retrain (#130), not a `main.py` defect
+**Severity:** 7/10 · **Status:** 🟢 `fixed` — see #137, #140, #141
 **Problem:** `aq evaluate --reconcile-features --symbol XOM|NVDA` (216 snapshots each) diverges on 16-20 of ~52 features on nearly every date. The price/volume-level ones track #130: XOM `liquidity_log_dollar_volume` is off by a constant 0.28 on all 216 dates (dividend-adjusted XOM prices in the stale dataset), NVDA by only 0.006 (no split/dividend effect in the window); `close_to_close_return_20d`/`momentum_20d` differ on 31% of XOM dates. Cross-asset features (`macro_*`, `peer_*_return_1d`, `topology_correlation_strength`, `cs_momentum_rank_20`) diverge on ~100% of dates with identical deltas across both symbols, i.e. a timing/alignment difference between the daily dataset and live's per-asset-class slices, not a per-symbol bug.
 **Fix:** none yet — the models were trained on a dataset built with the 62 double-adjusted factor files (now removed), so the next step is dataset regeneration + retrain on the Codespace (never locally), then re-run this reconciliation: price-level divergences should vanish, and what remains is the cross-asset alignment to investigate.
 **Verification:** reports in `ml/evaluation/feature_reconciliation.json`; the book-history reconciliation (`--reconcile-book-history ... --reconcile-all-runs`) was not completed — it needs ~1.3 GB RAM and was stopped twice by the low-memory guard on this PC.
 
+**Update (V5.6.0) - closed:** root causes were the tick order (#137), Lean's forex fill-forward calendar (#140) and two FRED drivers missing locally (#141); the dataset was regenerated and the models retrained. The reconciliation of BT1's snapshots against it leaves only the four `sens_*` features (BT1 predates the FRED fix); the next backtest must show none.
+
+### 136. CI on `main` red since the V5.5.0 push: 29 `NameError: Slice` errors, README links into gitignored READMEs, 43 gitleaks findings (V5.6.0)
+
+**Severity:** 5/10 · **Status:** 🟡 `partial` — fixed and verified locally; real CI confirms on the owner's next push
+**Problem:** run 37667920328 failed `python-tests` (both OSes), `subsystem-matrix (live)`, `fast-guards` and `secret-scan`, and every Dependabot PR inherited it. (1) `main.py` annotates `on_data(self, slice: Slice)`; Python < 3.14 evaluates annotations at import, so the wiring/smoke stubs (no `Slice`) raised `NameError` on CI's 3.11 — the dev PC runs 3.14, which evaluates them lazily, hence green locally. (2) `README.md` linked `backtests/`, `data/`, `storage/` and the vault README, all gitignored. (3) gitleaks' `generic-api-key` rule read the exported-model JSON fields `"weight_key": "head_rank_5d.weight"` / `"bias_key"` (and the tests mocking them) as credentials.
+**Fix:** both stubs export `Slice`; `test_lean_runtime_imports.py` gains an AST guard that fails on any interpreter if `main.py` evaluates a new Lean name at import. `.gitignore` un-ignores the three folder READMEs, the vault link became plain text, and `test_docs_links.py` now also fails when a link target is gitignored. `.gitleaks.toml` allowlists exactly the `*_key` tensor-name lines (a planted key still fails) and CI passes `--config .gitleaks.toml`.
+**Verification:** guard tests mutation-checked (removing the stub export / restoring the old `.gitignore` fails them); gitleaks 8.18.4 on a `git archive HEAD` export: 43 findings before, 0 after, 2 on a planted secret; suite green.
+
+### 137. Feature divergence #135 solved: live built cross-asset features one tick behind the dataset (V5.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed and verified` against the live snapshots of the 2026-10-07 run and of BT1; the dataset and models were regenerated on the Codespace (#140, #141 are its two data-side companions)
+**Problem:** `main.py` builds the topology, peer-return, macro-proxy and `cs_momentum_rank_20` payloads at the START of a tick (`:1827-1829`), before the tick's bars join `symbol_windows` (`:1943`), so live(D) equalled the dataset's D-1 on every cross-asset column (NVDA: `peer_rank1_return_1d` equal to the previous row on 203 of 216 dates, to the same row on 0). `train.py` used same-day values — plus a lookahead for crypto, whose day bar closes at midnight UTC, after the US equity close — on dropna'd return frames with holes live never has, and ignored the per-class elevated-volatility cutoffs live applies (#129).
+**Fix:** `features/cross_asset_timing.py`: `cross_asset_inputs()` is the one window→(returns, momentum) construction `main.py` calls, and `CrossAssetTimeline` replays the live rule offline from RAW per-ticker history (a bar is visible once its period closed: equity at that day's close, crypto/forex at the next midnight; a row sees bars strictly before its own tick, so Sunday's crypto bar is visible on Monday). The three `train.py` builders use it; `evaluation/feature_parity.py` replicas follow the same tick order.
+**Verification:** `tests/test_cross_asset_timing.py` replays `main.py`'s tick order over equity + 7-day crypto + forex calendars and matches the builders to 1e-12 (and fails for the old rule). Against the 216 live NVDA snapshots of the 10-07 run (before #140): `macro_*` 100% exact, `peer_rank*` 100%, `cs_momentum_rank_20` 94.4%, `topology_correlation_strength` 96.3%; the rest are AAA's late start in Lean (`numerical precision … [AAA, 9/30/2020]`) and two short windows left unexplained. Against BT1 (final dataset): topology strength, peers, macro, rank and every price-level feature are exact for NVDA and XOM; only the four `sens_*` features differ (#141, BT1 ran before the fix).
+
+### 138. Crypto fills paid $0 fees: Lean's default crypto fee model charges nothing (V5.6.0)
+
+**Severity:** 6/10 · **Status:** 🟡 `partial` — fee model wired and unit-tested; the realised rate is read from the next backtest's order events
+**Problem:** `main.py` skips `InteractiveBrokersFeeModel` for crypto (it throws) and the comment claimed `add_crypto(..., Market.COINBASE)` brings a Coinbase fee model; it does not — all 30 crypto fills of `backtests/2026-10-07_19-28-54` carry `orderFeeAmount 0.0`, so the +$385 / −$403 crypto P&L never paid an exchange fee, the net-edge gate assumed IB's 1.5 bps, and the offline book charged 6 bps.
+**Fix:** `phase_v2.costs.fee_by_type.crypto = {"model": "coinbase", "fee_bps": 80.0, "min_usd": 0.0}`: `main.py` assigns Lean's own `CoinbaseFeeModel()` (present in the pinned `lean:17900` image) to crypto securities, `build_net_edge_decision(..., security_type=)` charges the class its fee instead of the equity commission, and `commission_bps_by_ticker()` gives the offline simulator the same rate (`simulate_rank_book(commission_bps_by_ticker=)`, scaled by the stress multipliers). Absent key = old behaviour. At 80 bps a side only rank-extreme crypto selections clear the gate (0.90 rank: 158 bps edge vs 170 bps cost).
+**Verification:** cost-model, simulator, stress-scaling and wiring tests; the 80 bps is Lean's post-2019-10 taker rate from its source (earlier dates charge 25 bps) — confirm in BT1/BT2 order events. **Audit of the 16 crypto trades:** all LTCUSD longs sized at the 0.5 book-weight floor (4–5% NAV on a ~5% daily-vol asset); the four big losses (−$421…−$991) were 22–24% gap-downs within 2–9 days that no stop prevents. Sizing left unchanged: the offline simulator models no sizing multipliers, so a floor change cannot be validated, and the exchange fee is now the effective control.
+
+### 139. Training-pipeline and tooling defects fixed before the V5.6.0 retrain
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` — unit-tested; the retrain itself is recorded in the entries that follow
+**Problem:** (1) `retraining/validation_gate.py`'s ranking gate judged `residual_rank_20d`, a head demoted from the book that has never been promotable, so `aq retrain validate` rejected every candidate. (2) `train_rl_sizing.py` compared its penalty-trained policy with constant 1.0 on the PENALISED reward (the baseline pays no penalty by construction) and had no way to choose the penalty. (3) A VM reboot at walk-forward window 5 lost the whole run three times (#107). (4) `--reconcile-book-history` loaded all 251 dataset columns and re-ran the whole model once per head (~1.3 GB, killed on this PC). (5) `scripts/overlap_vs_sharpe_analysis.py` collapsed runs sharing a sim window into one point. (6) Topology cost 332 ms/call, 87% of it ~5k pure-Python Pearson loops.
+**Fix:** (1) `ranking.heads` (`rank_5d`, `rank_20d` = the book heads); the candidate passes when any clears the gate. (2) `policy_beats_constant_unpenalized` + `--penalty-sweep`/`penalty_sweep` chosen on a chronological holdout of the validation split. (3) `window_result.json` per finished window and `train.py --walk-forward --resume-run-id`. (4) `predict_heads()` (one pass per row) + `row_mask` + chunked column-pruned reads: ~0.5 GB peak. (5) per-run points. (6) numpy correlation matrix with a scalar fallback: 1.16 s → 0.16 s for 104 symbols, equal to 1e-12.
+**Verification:** tests per item (`test_validation_gate`, `test_train_rl_sizing`, `test_walk_forward_multimodel`, `test_model_predictions`, `test_overlap_vs_sharpe_analysis`, `test_market_topology`).
+
+### 140. Lean fills forward forex bars: live windows hold flat Sunday bars (and filled gap days) the dataset never had (V5.6.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed and verified` (cross-asset side against the 10-07 live values, own-feature side by unit test; a BT2 forex snapshot is not available at a forex tick)
+**Problem:** with #137 fixed, `topology_correlation_strength` still matched live on only 32% of NVDA dates — exactly the dates whose cluster contained forex pairs (119 of 119; crypto-only clusters matched). The BT1 bar probe (`crypto_bar_probe.asset_classes: [crypto, forex]`) compared each live bar with the local zip: crypto 45/45 identical, forex bars arrive at 19:00 NY like crypto, but 5–7 of 45 are a SUNDAY bar equal to the preceding Friday close where the zip has no Sunday row — Lean's FillForward emits a flat bar for every open day without data (forex trades Sunday–Friday). The 2019-05-22 weekday missing from the zips for 7 pairs is filled the same way. Live forex windows therefore carry zero-return days, lowering forex volatility and correlation with equities.
+**Fix:** `fill_forward_open_forex_days()` (shared) puts those flat bars into the forex history of `CrossAssetTimeline`; `train.engineer_forex_features_on_lean_calendar()` engineers forex rows' trailing features on the filled calendar while labels and the row set stay those of the real bars, so no fake zero-return day enters a target (test: Friday's `target_return_1d` is still the Friday→Monday move). The parity audit replicates forex on the same calendar.
+**Verification:** replay test with an independent Lean-style fill; NVDA topology strength 32% → 96.3% exact, `cs_momentum_rank_20` 87.5% → 94.4%, peers 100%. **Open:** AAA is invisible to Lean before 2020-09-30 (factor-file precision) but trained on locally — one observation-only asset, left as is.
+
+### 141. Two FRED sensitivity drivers existed only on the Codespace: 4 model features were 0 live and real in training (V5.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed` — files pulled local; the next backtest must show the four features non-zero
+**Problem:** `sens_real_rate_beta/interaction` and `sens_dollar_beta/interaction` are regressions on the FRED series `treasury_10yr_real` and `dollar_index`, which `data/reference/fred_series/` on this PC never had (nor `breakeven_inflation_10y`); only the Codespace copy did. Every dataset built there trained on real values; every Lean run (and `aq evaluate`) read empty series and fed 0.0. BT1's snapshots showed it directly (live 0.0 vs offline 0.1456 on all 45 dates for both symbols) once everything else matched.
+**Fix:** the three CSVs copied to the local `data/` (now identical to the Codespace's file list: 1302 files each way). A silent per-driver zero is a skew by construction, so the drift check is the reconcile tool: after the next backtest `aq evaluate --reconcile-features` must list no `sens_*` feature.
+**Verification:** file lists diffed both ways; the `sens_*` rows of BT1's reconciliation are the before-picture.
+
+### 142. Backtests of the V5.6.0 models: BT1 (diagnostic, 2020-H1) and BT2 (full 2019-21) - what they showed (V5.6.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` — the final run (BT3, forex trading off) confirms the improvement; the offline-vs-Lean gap and the teardown timeout stay open as documented
+**Problem/Result:** BT2 (`backtests/2026-10-08_15-01-33`, run 1936881313, new multitask/sequence/gating, spread 0.1985, IC floor 0.05, real crypto fees, forex gate with IB's $2 minimum): Lean Sharpe **−0.949** (−1.046 on 10-07 round 3), **+0.543** without a risk-free rate (was +0.171), net **+1.829%** (was +0.682%), drawdown 1.4%, 503 orders, fees $918.79. The book engaged on 41 of 229 rebalances (10 of 297 before); vetoes were 163 rolling-IC and 25 spread. By class (realized P&L / fees): crypto **+$1,195 / $206** (46.7 bps per fill = Coinbase's maker 60 / taker 80, so #138 is verified), equity **+$1,440 / $203** (7.1 bps), forex **+$3 / $510**. Engine log: `numerical precision` lists only `AAA`, no 2050 starts, the chronic teardown timeout (#104). The offline as-live book on the same models is −0.38 (idealized 0.76): the old +1.68 was inflated by the tick-misaligned features, so the Lean run is the better-calibrated number now.
+**Verification of the data fixes (BT2 snapshots vs the final dataset, 229 dates, XOM and NVDA):** 90% of dates agree on all 52 features, no `sens_*` and no price-level divergence is left (#141, #130), `cs_momentum_rank_20` differs on 5–6% of dates and `topology_correlation_strength` on 4–5% (AAA's Lean start of 2020-09-30 and a few short windows).
+**Decision from the two V5.5.0+ runs:** forex lost money after fees in both (−$425 net on 10-07, −$507 now) with ~$0 gross across 75–173 entries: positions are ~2.6% of NAV, so IB's $2 minimum is ~8 bps per fill whatever the signal. `phase_v2.forex_risk.enabled` → `false` (zeroes forex sizing and liquidates forex positions; forex bars still feed the topology/peer/macro features, so no model input changes).
+**Latency note:** this machine ran BT2 in 8,981 s against 2,840 s for the 10-07 runs and every probed stage was uniformly slower (`ensure_ready` 20 s vs 5 s, inference 494 vs 166 ms/call, topology 542 vs 332 ms/call), so the in-container topology number cannot show the 7× local speed-up (1.16 s → 0.16 s for 104 symbols); judge latency from `scripts/profile_subsystems.py` on an idle machine. The first BT2 attempt crashed in `Initialize()` on Lean's 90-second limit because an evaluation script was running beside it (AGENTS #12).
+**BT3 (final configuration, `backtests/2026-10-08_17-48-37`, run 1957851286, 7,846 s):** forex trading off, probes off. Lean Sharpe **−0.763**, **+0.813** without a risk-free rate, net **+2.608%**, drawdown 1.4%, 276 orders, fees $428.37, win rate 52%, no trade open under two days beyond 2. By class (realized / fees): crypto **+$1,396 / $193**, equity **+$1,559 / $235**, forex none. Engine log: `numerical precision` only `AAA`, no 2050 starts, `prediction-provenance sequence_served=78833`; teardown timeout unchanged (#104). Feature snapshots again agree with the dataset (XOM/NVDA: 23 and 30 divergences over 229 dates x 52 features). Progression of the same window and engine: −2.51 (08-27) → −1.05 (10-07 round 3) → −0.95 (BT2) → **−0.76** (BT3); no-risk-free Sharpe 0.17 → 0.54 → **0.81**. The Sharpe is still below zero only because Lean subtracts a risk-free rate at ~1.3% annual volatility (2% → about −1.2); the book earns +2.6% over 2.25 years at 1.4% drawdown.
+
+### 143. What costs the as-live book its Sharpe: lever attribution, a forex-slot defect and four rule-driven changes (V5.6.0 round 3)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed and verified` — offline as-live −0.38 → **+0.78**, confirmed in Lean by BT4 (#144: Sharpe −0.76 → −0.04, net +2.6% → +4.7%)
+**Problem:** `scripts/as_live_levers.py` re-runs the simulator with one live mechanism changed at a time (backtest split, net Sharpe; as-live −0.407, idealized 0.654): the **elevated-topology entry veto** costs 0.70 (without it +0.295), holding positions through a veto 0.44 (+0.036), the 1-bar entry lag 0.23, the two gates together 0.22 (but they protect the validation split: with no gates −0.486 vs as-live 0.105); hysteresis, confidence weighting, the max-holding exit, own-tick forex/crypto (+0.06) and the IC floor (0.02 → −0.277, 0.10 → −0.009 with −11% drawdown) move it by less than 0.2 each. Two defects surfaced beside it: (1) with `forex_risk.enabled=false` the forex pairs still won book slots in the single 6+6 pool and shared the neutrality weights without ever being traded, while the simulator still traded them; (2) the liquidity gate's high-low spread proxy exceeds its own 25 bps round-trip cap on 62% of equity-days (median 33 bps, AAPL 40 bps against a real spread near 1 bp), the #133 defect for equities, so 118 of 492 book-member decisions in BT3 were liquidity-blocked on names like GE, FB, BA and WFC; the simulator has no such gate.
+**Fix (rule-driven, config unless noted):** `phase_v2.topology.elevated_veto_applies_to_book_members=false` (rule: ≥ +0.1 Sharpe and drawdown ≤ 1 pp worse: backtest +0.70 and drawdown 15.1% → 14.5%, validation +0.40 with drawdown 2.26% → 3.28%, i.e. 1.02 pp at its edge); `book_candidate_trading_eligible()` (`risk/asset_class_router.py`) keeps disabled asset classes out of the book live and in the as-live metadata (code, parity-tested); `edge_bps_per_rank_unit` 396 → 574 (`--calibrate-edge` on the new models); `kill_switch.max_slippage_divergence_bps` 1e12 → 80 (rule: max(p99 × 1.5, 25 bps); p99 of |fill − bar open| over BT2+BT3 equity and crypto fills is 53 bps, median 5 bps, an upper bound because the dataset's opens differ slightly from Lean's); `max_spread_proxy_by_type.equity=0.001` (the existing per-class cap, gate and cost input only, never the model feature). `aq evaluate --audit-backtest` gained `pnl_by_entry_bucket` and `--book-run-index` (older runs were audited against the latest run's book).
+**Rules applied without a change:** legacy sleeve kept (non-book P&L net of fees: equity +$574/+$186/+$374, crypto −$467/+$195/+$162 over the 10-07, BT2 and BT3 runs); beta-neutral test not triggered (alpha Sharpe 0.78 of 1.23 total, market loading 0.09); own-tick forex/crypto declined (+0.06 < 0.1); HRP not evaluable offline (the simulator has no HRP model) and so not flipped; Almgren impact left off (the as-live Sharpe falls 0.78 → 0.53 with the model on, but realized per-fill cost cannot be separated from dataset-vs-Lean price differences without IB or paper fills); hold-on-veto not flipped (backtest +0.44 but validation 0.105 → 0.091, so it does not generalize).
+**Verification:** `aq evaluate --rank-book --as-live` (backtest split) after each step: −0.38 → **+0.295** (veto exemption; it equals the lever table's +0.295) → **+0.781** with forex out of the book (net return +11.9%, drawdown −8.4%, 226 rebalances, 181 vetoed; idealized 0.757). Offline only and selected on the window Lean also tests, so treat it as an upper estimate; the liquidity-gate change is not in the simulator at all.
+**Book parity measured on BT3** (`--reconcile-book-history --replay-hysteresis --hysteresis-survives-veto`, ~57 min, peak working set ~0.6 GB): on the 41 engaged dates the live book and the offline replay share **77%** of names (0.31 in every earlier run), raw scores differ by 0.0044, 7 of 41 dates match exactly; across 17 runs the overlap correlates with the Lean Sharpe (Spearman 0.62, p=0.007). This is the direct confirmation of the #135 alignment fix. Of 492 book-member decisions, 71 reached `trade`; the rest were net-edge 171 (recalibrated above), liquidity 118 (equity cap above), topology override 80 (exempted above), kill switch 36, isolated 11, risk-off 5.
+
+### 144. BT4: the round-3 changes in Lean (V5.6.0 final run, `backtests/2026-10-09_22-13-03`)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed and verified` for #143 (the gains are real in Lean); the kill-switch throttle and the spread-floor recalibration below stay open
+**Result (run 1634094171, 6,925 s, shipped config, probes off, Docker image rebuilt first):** Lean Sharpe **-0.042** (BT3 -0.763; 10-07 -1.05), without a risk-free rate +0.663 (BT3 +0.813), net profit **+4.73%** (BT3 +2.61%), drawdown 2.8% (1.4%), 534 orders (276), fees $897 (428), win rate 48%. Realized P&L net of fees: crypto book +$1,904 / non-book +$130, equity book +$1,788 / non-book +$731; the legacy sleeve stays net positive. Engine log: `numerical precision` lists only `AAA`, no 2050 starts, `sequence_served=78833`, teardown timeout unchanged (#104). Feature snapshots agree with the dataset (XOM/NVDA: 24 and 31 divergences over 281 dates).
+**What each round-3 change did (BT3 -> BT4, book-member decisions):** reaching `trade` 71 -> **321**; `liquidity_blocked` 118 -> **0** (equity spread cap); topology elevated override 80 -> **0** (veto exemption); net-edge blocks 171 -> **1** (edge 574); forex exposure 0 and no forex slots; the slippage trigger never fired. Equity exposure rose from a 2.6% to a 6.7% mean long ratio, which is where the extra return and the extra drawdown come from.
+**Offline vs Lean:** the as-live simulation said +0.78 net Sharpe (+11.9%) and Lean delivered +0.66 without a risk-free rate (+4.7% over 2.25 years), so the simulator is optimistic by roughly 2x on return but now ranks changes correctly; it was pessimistic by more than 1 Sharpe at the start of the phase.
+**Still open:** (1) the kill switch (`min_rolling_sharpe` -1.0 over 60 bars) is now the main throttle: 96 member decisions were `reduce_risk` on it (36 in BT3); (2) spread-gate vetoes rose from 25 to 85 of 281 rebalances because the spread floor 0.1985 was calibrated on a pool that included forex - recalibrate it on the forex-free pool (`--calibrate-book-spread`) and check against the validation split before changing it; (3) 11 limit orders stayed open longer than 5 days (BT3: 6).

@@ -1,0 +1,13 @@
+{
+  "state_keys": [
+    "confidence",
+    "rolling_volatility_20d",
+    "regime_signal_risk_score",
+    "topology_correlation_strength",
+    "liquidity_spread_proxy",
+    "bond_credit_spread_level",
+    "alt_implied_volatility_level",
+    "alt_implied_vol_term_structure",
+    "alt_financial_conditions_change"
+  ]
+}

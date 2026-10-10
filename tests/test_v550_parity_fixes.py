@@ -605,7 +605,7 @@ def test_config_ships_the_v550_keys_with_the_owner_decisions():
     assert phase_v2["rolling_ic_gate"]["min_rolling_mean_ic"] == 0.05
     assert phase_v2["legacy_sleeve"]["enabled"] is True
     assert phase_v2["legacy_sleeve"]["max_gross_exposure"] == 0.1
-    assert phase_v2["portfolio_book"]["min_rank_confidence_spread"] == 0.2831  # owner kept the spread gate
+    assert phase_v2["portfolio_book"]["min_rank_confidence_spread"] == 0.1985  # V5.6.0: recalibrated to the retrained models' p10 spread (was 0.2831 for the 08-12 models)
     assert phase_v2["liquidity"]["fill_slippage"]["source"] == "per_side"
     assert phase_v2["topology"]["elevated_volatility_threshold"]["crypto"] > 0.45
     assert phase_v2["costs"]["impact_model"]["enabled"] is False  # live impact is an owner decision

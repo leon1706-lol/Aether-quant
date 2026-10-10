@@ -142,6 +142,11 @@ def build_market_analysis_decision(
     is_book_selected: bool = False,
     min_confidence_to_trade_book_selected: float | None = None,
     risk_off_override_min_severity: float | None = None,
+    # V5.6.0 - phase_v2.topology.elevated_veto_applies_to_book_members. True (default) is the long-standing
+    # behaviour: Priority 3 overrides every directional signal. False exempts a book-selected symbol, which the
+    # model already ranked with this volatility as an input feature (92 equity selections were cancelled this
+    # way in the 2020 sell-off run).
+    topology_veto_applies_to_book_members: bool = True,
 ) -> MarketAnalysisDecision:
     # signal_name == "short" (Phase 3 of the 5/10 -> 9/10 roadmap,
     # portfolio/book_construction.py) is treated identically to "buy"/"sell"
@@ -296,7 +301,11 @@ def build_market_analysis_decision(
     # feeding the retrain-trigger/retraining pipeline, but deliberately left
     # this rule reading only the deterministic topology_risk - see
     # analyzer/README.md and development/architecture.md's V2-17.5 section.
-    if topology_risk == "elevated" and signal_name in {"buy", "sell", "short"}:
+    if (
+        topology_risk == "elevated"
+        and signal_name in {"buy", "sell", "short"}
+        and (topology_veto_applies_to_book_members or not is_book_selected)
+    ):
         reasons.append("topology_elevated_volatility_pressure_overrides_directional_signal")
         return MarketAnalysisDecision(
             action="reduce_risk",

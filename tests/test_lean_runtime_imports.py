@@ -87,3 +87,59 @@ def test_tracked_lean_config_uses_local_backtest_handlers_without_credentials():
         "transaction-handler": "QuantConnect.Lean.Engine.TransactionHandlers.BacktestingTransactionHandler",
     }
     assert all(config[key] == "" for key in ("ib-account", "ib-user-name", "ib-password"))
+
+
+LEAN_DEFINITION_TIME_NAMES = {"QCAlgorithm", "Slice"}
+
+
+def _definition_time_free_names(tree: ast.Module) -> set[str]:
+    """Names main.py evaluates while IMPORTING (bases, decorators, annotations, defaults) that it does not define itself."""
+    import builtins
+
+    defined = set(dir(builtins))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            defined.update((a.asname or a.name).split(".")[0] for a in node.names if a.name != "*")
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            defined.add(node.name)
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            defined.update(n.id for t in node.targets for n in ast.walk(t) if isinstance(n, ast.Name))
+
+    free: set[str] = set()
+
+    def collect(expr) -> None:
+        if expr is None:
+            return
+        free.update(n.id for n in ast.walk(expr) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id not in defined)
+
+    def scan(body) -> None:
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                args = node.args
+                for arg in args.posonlyargs + args.args + args.kwonlyargs + [args.vararg, args.kwarg]:
+                    collect(arg.annotation if arg is not None else None)
+                for expr in [*node.decorator_list, node.returns, *args.defaults, *args.kw_defaults]:
+                    collect(expr)
+            elif isinstance(node, ast.ClassDef):
+                for expr in [*node.bases, *node.decorator_list, *(k.value for k in node.keywords)]:
+                    collect(expr)
+                scan(node.body)
+            elif isinstance(node, ast.AnnAssign):
+                collect(node.annotation)
+
+    scan(tree.body)
+    return free
+
+
+def test_main_definition_time_lean_names_are_exported_by_the_test_stubs():
+    """Python < 3.14 evaluates annotations at import, so an unstubbed Lean name (`Slice`) is a NameError on CI's 3.11.
+
+    Local 3.14 evaluates annotations lazily and hides it; this AST check fails on any interpreter.
+    """
+    free = _definition_time_free_names(_main_module_ast())
+    assert free <= LEAN_DEFINITION_TIME_NAMES, f"new Lean name evaluated at import time: {sorted(free - LEAN_DEFINITION_TIME_NAMES)}"
+    for stub_file in ("test_main_wiring.py", "test_main_ensure_ready_smoke.py"):
+        text = (ROOT / "tests" / stub_file).read_text(encoding="utf-8")
+        for name in sorted(LEAN_DEFINITION_TIME_NAMES):
+            assert f"stub.{name} =" in text, f"{stub_file} stub must export {name}"

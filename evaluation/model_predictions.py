@@ -31,6 +31,7 @@ def build_sequence_windows(
     model_input_names: list[str],
     window_size: int,
     ticker_column: str = "ticker",
+    row_positions: np.ndarray | None = None,
 ) -> np.ndarray:
     """Torch-free port of train.py::build_sequence_tensor_dataset() - same
     algorithm (each ticker's own trailing window, left-padded with zeros
@@ -46,21 +47,34 @@ def build_sequence_windows(
     multitask_model()) takes `sequence: list[list[float]]` and converts via
     .tolist() before use, so the underlying numpy dtype is invisible to it
     either way. Matches train.py::build_sequence_tensor_dataset()'s own
-    dtype, which was already float32."""
+    dtype, which was already float32.
+
+    `row_positions` (V5.6.0): build windows ONLY for these row positions (output row i is the window of
+    `dataset` row `row_positions[i]`, still drawn from every preceding row of that ticker) - a
+    reconciliation that needs ~8k of 100k+ context rows allocates 8k windows, not 100k (~0.8 GB)."""
     feature_matrix = dataset[model_input_names].to_numpy(dtype=np.float32)
     tickers = dataset[ticker_column].to_numpy()
 
-    windows = np.zeros((len(dataset), window_size, len(model_input_names)), dtype=np.float32)
+    wanted = None if row_positions is None else {int(position): slot for slot, position in enumerate(row_positions)}
+    windows = np.zeros(
+        (len(dataset) if wanted is None else len(wanted), window_size, len(model_input_names)), dtype=np.float32
+    )
     positions_by_ticker: dict[object, list[int]] = {}
     for position, ticker in enumerate(tickers):
         positions_by_ticker.setdefault(ticker, []).append(position)
 
     for positions in positions_by_ticker.values():
         for index_within_ticker, position in enumerate(positions):
+            if wanted is None:
+                slot = position
+            elif position in wanted:
+                slot = wanted[position]
+            else:
+                continue
             window_start = max(0, index_within_ticker + 1 - window_size)
             window_positions = positions[window_start : index_within_ticker + 1]
             window_values = feature_matrix[window_positions]
-            windows[position, -len(window_values) :, :] = window_values
+            windows[slot, -len(window_values) :, :] = window_values
 
     return windows
 
@@ -128,13 +142,14 @@ def select_context_date_range(
 
 
 def predict_multitask_head(
-    dataset: pd.DataFrame, model_export: dict, feature_names: list[str], head: str
+    dataset: pd.DataFrame, model_export: dict, feature_names: list[str], head: str, row_mask: np.ndarray | None = None
 ) -> np.ndarray:
     """One run_exported_multitask_model() call per row - the flat-MLP
-    trunk needs no windowing, unlike the sequence model below."""
+    trunk needs no windowing, unlike the sequence model below. `row_mask`
+    (bool, optional): predict only these rows; the rest stay NaN."""
     predictions = np.full(len(dataset), np.nan, dtype=np.float64)
     feature_matrix = dataset[feature_names].to_numpy(dtype=np.float64)
-    for row_index in range(len(dataset)):
+    for row_index in range(len(dataset)) if row_mask is None else np.flatnonzero(row_mask):
         outputs = run_exported_multitask_model(model_export, feature_matrix[row_index].tolist())
         predictions[row_index] = outputs.get(head, np.nan)
     return predictions
@@ -149,6 +164,7 @@ def predict_sequence_head(
     sequence_feature_schema: dict | None = None,
     configured_window_size: int = 30,
     ticker_column: str = "ticker",
+    row_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """Builds each row's trailing window via build_sequence_windows() then
     runs run_exported_sequence_multitask_model() per row. window_size comes
@@ -156,11 +172,56 @@ def predict_sequence_head(
     wins over any configured default, the same shape-mismatch-avoidance
     contract main.py's live sequence-model path already follows."""
     window_size = resolve_sequence_window_size(sequence_feature_schema, configured_window_size)
-    windows = build_sequence_windows(dataset, feature_names, window_size, ticker_column)
     predictions = np.full(len(dataset), np.nan, dtype=np.float64)
-    for row_index in range(len(dataset)):
-        outputs = run_exported_sequence_multitask_model(model_export, windows[row_index].tolist())
+    if row_mask is None:
+        windows = build_sequence_windows(dataset, feature_names, window_size, ticker_column)
+        for row_index in range(len(dataset)):
+            outputs = run_exported_sequence_multitask_model(model_export, windows[row_index].tolist())
+            predictions[row_index] = outputs.get(head, np.nan)
+        return predictions
+    row_positions = np.flatnonzero(row_mask)
+    windows = build_sequence_windows(dataset, feature_names, window_size, ticker_column, row_positions=row_positions)
+    for slot, row_index in enumerate(row_positions):
+        outputs = run_exported_sequence_multitask_model(model_export, windows[slot].tolist())
         predictions[row_index] = outputs.get(head, np.nan)
+    return predictions
+
+
+def predict_heads(
+    dataset: pd.DataFrame,
+    model_export: dict,
+    feature_names: list[str],
+    heads: list[str],
+    *,
+    model_kind: str,
+    sequence_feature_schema: dict | None = None,
+    configured_window_size: int = 30,
+    ticker_column: str = "ticker",
+    row_mask: np.ndarray | None = None,
+) -> dict[str, np.ndarray]:
+    """Every requested head from ONE interpreter pass per row. predict_head() re-runs the whole model for each head
+    (the interpreter returns all heads per call and one is kept), so N heads cost N passes; this costs one, with
+    bit-identical values. Same conventions: unknown head -> NaN, `row_mask` rows only (rest NaN)."""
+    if model_kind not in {"multitask", "sequence"}:
+        raise ValueError(f"unknown model_kind {model_kind!r} - expected 'multitask' or 'sequence'")
+    predictions = {head: np.full(len(dataset), np.nan, dtype=np.float64) for head in heads}
+    if model_kind == "multitask":
+        feature_matrix = dataset[feature_names].to_numpy(dtype=np.float64)
+        row_indices = np.arange(len(dataset)) if row_mask is None else np.flatnonzero(row_mask)
+        for row_index in row_indices:
+            outputs = run_exported_multitask_model(model_export, feature_matrix[row_index].tolist())
+            for head in heads:
+                predictions[head][row_index] = outputs.get(head, np.nan)
+        return predictions
+    window_size = resolve_sequence_window_size(sequence_feature_schema, configured_window_size)
+    row_indices = np.arange(len(dataset)) if row_mask is None else np.flatnonzero(row_mask)
+    windows = build_sequence_windows(
+        dataset, feature_names, window_size, ticker_column, row_positions=None if row_mask is None else row_indices
+    )
+    for slot, row_index in enumerate(row_indices):
+        outputs = run_exported_sequence_multitask_model(model_export, windows[slot].tolist())
+        for head in heads:
+            predictions[head][row_index] = outputs.get(head, np.nan)
     return predictions
 
 
@@ -174,6 +235,7 @@ def predict_head(
     sequence_feature_schema: dict | None = None,
     configured_window_size: int = 30,
     ticker_column: str = "ticker",
+    row_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """Single dispatch point for `aq evaluate` - model_kind in
     {"multitask", "sequence"} picks the right predictor above. Any other
@@ -181,12 +243,13 @@ def predict_head(
     runtime degradation case - unlike every other function in this
     package, this one is not on main.py's live path)."""
     if model_kind == "multitask":
-        return predict_multitask_head(dataset, model_export, feature_names, head)
+        return predict_multitask_head(dataset, model_export, feature_names, head, row_mask=row_mask)
     if model_kind == "sequence":
         return predict_sequence_head(
             dataset, model_export, feature_names, head,
             sequence_feature_schema=sequence_feature_schema,
             configured_window_size=configured_window_size,
             ticker_column=ticker_column,
+            row_mask=row_mask,
         )
     raise ValueError(f"unknown model_kind {model_kind!r} - expected 'multitask' or 'sequence'")

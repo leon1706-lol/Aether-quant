@@ -1,6 +1,7 @@
 from datetime import date
 
 from risk.asset_class_router import (
+    book_candidate_trading_eligible,
     resolve_asset_class_enabled,
     route_multi_leg_option_sizing,
     route_position_sizing,
@@ -510,3 +511,12 @@ def test_route_multi_leg_option_sizing_scores_rerank_the_winner():
     assert scored is not None
     _, extra = scored
     assert extra["options_decision"].strategy_name == "bull_call_spread"
+
+
+def test_book_candidate_eligibility_drops_disabled_asset_classes_only():
+    assert book_candidate_trading_eligible(True, "forex", False, False, False) is False
+    assert book_candidate_trading_eligible(True, "forex", False, False, True) is True
+    assert book_candidate_trading_eligible(False, "forex", False, False, True) is False
+    assert book_candidate_trading_eligible(True, "equity", False, False, False) is True
+    assert book_candidate_trading_eligible(True, "crypto", False, False, False) is True
+    assert book_candidate_trading_eligible(True, "future", False, False, True) is False

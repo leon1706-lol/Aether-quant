@@ -16,6 +16,13 @@ clusters assets via union-find on a correlation threshold, and assigns 3D
 coordinates so correlated assets sit near each other and high-volatility
 assets separate on the z-axis.
 
+**V5.6.0:** the pairwise Pearson step is one numpy matrix product over the symbols whose return window
+has the maximum length (`_full_window_correlation_matrix()`); younger, shorter windows keep the
+tail-aligned scalar `_pearson_correlation()`, and without numpy everything does. Agreement is 1e-12
+(`tests/test_market_topology.py`), cost for 104 symbols 1.16 s → 0.16 s on the dev PC. The inputs
+(returns per symbol, which bars are visible at a tick) are built by `features/cross_asset_timing.py`,
+shared with `train.py`.
+
 - **x/y placement is a real distance-preserving embedding**:
   `_stress_majorize(...)` runs SMACOF (stress majorization), seeded from a
   deterministic circular layout (never randomness) over the full pairwise

@@ -49,7 +49,8 @@ without pulling in the training stack, the same torch-free-core convention
   non-member entries (`classify_entries`, against the run's own
   `book_history.jsonl` segment), overlapping/long-open limit orders, holding
   histogram, P&L and fee bps per class, Sharpe with and without a risk-free
-  rate, gate vetoes, engine-log teardown. Pure functions over the run folder;
+  rate, gate vetoes, engine-log teardown, and (V5.6.0) `pnl_by_entry_bucket` (book vs
+  legacy-sleeve P&L net of fees; `--book-run-index` pairs an older run with its own book segment). Pure functions over the run folder;
   stdlib + `rank_signal_calibration.segment_logged_records_by_run`.
 - `volatility_threshold_calibration.py` (V5.5.0, #129) — per-asset-class
   percentile of the topology's own 24-return annualized volatility, with a
@@ -135,6 +136,18 @@ Both modules are surfaced end-to-end by `aq evaluate --benchmarks`
 `ml/evaluation/benchmark_comparison.json`, the README's Benchmark
 Comparison section auto-refreshes from it, and the webui's Evaluation tab
 renders it via `/api/evaluation`'s `benchmarks` key (BenchmarkPanel).
+
+## V5.6.0 additions
+
+- `model_predictions.predict_heads()` — every requested head from ONE interpreter pass per row
+  (`predict_head()` re-ran the whole model per head); both accept `row_mask` (predict only those
+  rows, windows built only for them) — the reconciliation tools run in ~150 MB instead of ~1.3 GB.
+- `simulate_rank_book(commission_bps_by_ticker=..., entry_veto_column=...)` — a per-ticker exchange fee
+  that replaces the generic commission (crypto), and the analyzer's Priority-3 elevated-topology veto
+  as an entry filter (`build_as_live_kwargs(topology_config=...)` turns it on unless
+  `phase_v2.topology.elevated_veto_applies_to_book_members` is `false`).
+- `feature_parity.py` macro / cs-rank replicas follow the live tick order (bars visible strictly
+  before the row's own tick); see `features/README.md`.
 
 ## CLI
 

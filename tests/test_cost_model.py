@@ -1,3 +1,5 @@
+import pytest
+
 from execution.cost_model import (
     build_net_edge_decision,
     estimate_round_trip_cost_bps,
@@ -244,3 +246,68 @@ def test_non_positive_horizon_days_yields_zero_edge():
     # neutralized. Zero edge is the conservative degrade.
     assert expected_edge_bps(1.0, edge_bps_per_rank_unit=50.0,
                              holding_bars=10, horizon_days=0) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# V5.6.0: per-security-type exchange fees (phase_v2.costs.fee_by_type)
+# ---------------------------------------------------------------------------
+
+from execution.cost_model import (  # noqa: E402
+    commission_bps_by_ticker,
+    commission_terms_for_security_type,
+    fee_override_for_security_type,
+)
+
+_CRYPTO_FEE = {"fee_by_type": {"crypto": {"model": "coinbase", "fee_bps": 80.0, "min_usd": 0.0}}}
+
+
+def test_fee_override_applies_only_to_its_security_type_and_only_when_valid():
+    config = _cost_config(**_CRYPTO_FEE)
+    assert commission_terms_for_security_type(config, "crypto") == (80.0, 0.0)
+    assert commission_terms_for_security_type(config, "equity") == (1.0, 1.0)
+    assert commission_terms_for_security_type(config, None) == (1.0, 1.0)
+    for bad in ({"fee_bps": "x"}, {"fee_bps": float("nan")}, {"fee_bps": -1.0}, {}, "oops"):
+        assert fee_override_for_security_type(_cost_config(fee_by_type={"crypto": bad}), "crypto") is None
+
+
+def test_commission_bps_by_ticker_maps_only_overridden_types():
+    mapping = commission_bps_by_ticker(_cost_config(**_CRYPTO_FEE), {"LTCUSD": "crypto", "AAPL": "equity", "EURUSD": "forex"})
+    assert mapping == {"LTCUSD": 80.0}
+    assert commission_bps_by_ticker(_cost_config(), {"LTCUSD": "crypto"}) == {}
+
+
+def test_net_edge_gate_charges_crypto_its_exchange_fee_not_the_equity_commission():
+    liquidity = {"estimated_round_trip_cost": 0.001}
+    config = _cost_config(edge_bps_per_rank_unit=396.0, min_net_edge_bps=2.0, **_CRYPTO_FEE)
+
+    equity = build_net_edge_decision(0.90, liquidity, 10_000.0, config, security_type="equity")
+    crypto = build_net_edge_decision(0.90, liquidity, 10_000.0, config, security_type="crypto")
+    unspecified = build_net_edge_decision(0.90, liquidity, 10_000.0, config)
+
+    assert crypto.expected_cost_bps == pytest.approx(10.0 + 2 * 80.0)  # liquidity + both sides at 80 bps, no dollar floor
+    assert equity.expected_cost_bps == pytest.approx(unspecified.expected_cost_bps)
+    assert crypto.expected_cost_bps > equity.expected_cost_bps
+    assert crypto.passes is False and equity.passes is True  # 0.90 rank: 158 bps edge vs 170 bps crypto cost
+
+
+def test_without_a_fee_override_the_gate_is_byte_identical_to_the_pre_v560_behaviour():
+    liquidity = {"estimated_round_trip_cost": 0.002}
+    config = _cost_config()
+    assert build_net_edge_decision(0.9, liquidity, 5000.0, config, security_type="crypto") == build_net_edge_decision(0.9, liquidity, 5000.0, config)
+
+
+def test_a_sim_fee_override_lets_a_dollar_floor_show_up_in_the_offline_rate():
+    config = _cost_config(fee_by_type={"forex": {"fee_bps": 0.2, "min_usd": 2.0, "sim_fee_bps": 7.6}, "crypto": {"fee_bps": 80.0}})
+    mapping = commission_bps_by_ticker(config, {"EURUSD": "forex", "BTCUSD": "crypto", "AAPL": "equity"})
+    assert mapping == {"EURUSD": 7.6, "BTCUSD": 80.0}  # crypto has no sim_fee_bps -> its fee_bps
+
+
+def test_forex_round_trip_cost_in_the_gate_is_dominated_by_the_two_dollar_floor_on_small_orders():
+    liquidity = {"estimated_round_trip_cost": 0.0}
+    config = _cost_config(edge_bps_per_rank_unit=400.0, fee_by_type={"forex": {"fee_bps": 0.2, "min_usd": 2.0}})
+
+    small = build_net_edge_decision(0.95, liquidity, 2_600.0, config, security_type="forex")
+    large = build_net_edge_decision(0.95, liquidity, 200_000.0, config, security_type="forex")
+
+    assert small.expected_cost_bps == pytest.approx(2 * 2.0 / 2_600.0 * 1e4)  # both sides pay the $2 minimum
+    assert large.expected_cost_bps == pytest.approx(2 * 0.2)  # rate-dominated once the notional clears the floor

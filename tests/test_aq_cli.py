@@ -3928,3 +3928,31 @@ def test_new_v550_evaluate_flags_are_parsed_and_not_part_of_all():
     assert args.backtest_dir == "x" and args.volatility_threshold_percentile == 0.9
     defaults = parser.parse_args(["evaluate", "--all"])
     assert not (defaults.as_live or defaults.audit_backtest or defaults.factor_exposure or defaults.calibrate_volatility_threshold)
+
+
+def test_read_dataset_rows_keeps_only_requested_columns_ticker_and_eligible_rows(tmp_path):
+    csv = tmp_path / "full_dataset.csv"
+    csv.write_text(
+        "date,ticker,training_eligible,f1,f2,unused\n"
+        "2020-01-01,A,True,1,2,x\n2020-01-01,B,True,3,4,y\n2020-01-02,A,False,5,6,z\n2020-01-02,B,True,7,8,w\n",
+        encoding="utf-8",
+    )
+
+    narrow = aq_cli._read_dataset_rows(csv, columns=["date", "ticker", "training_eligible", "f1"], only_training_eligible=True, chunksize=2)
+    assert list(narrow.columns) == ["date", "ticker", "training_eligible", "f1"]
+    assert narrow["f1"].tolist() == [1, 3, 7]
+    only_a = aq_cli._read_dataset_rows(csv, ticker="A", chunksize=1)
+    assert only_a["ticker"].unique().tolist() == ["A"] and len(only_a) == 2 and "unused" in only_a.columns
+
+
+def test_reconciliation_dataset_columns_cover_every_model_input_of_the_shipped_schemas(tmp_path, monkeypatch):
+    for filename, names in (("sequence_feature_schema.json", ["a", "b"]), ("multitask_feature_schema.json", ["b", "c"])):
+        (tmp_path / filename).write_text(json.dumps({"model_input_names": names}), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "ML_DIR", tmp_path)
+    monkeypatch.setattr(aq_cli, "_EVALUATE_MODEL_ARTIFACTS", {
+        "sequence": ("sequence_model.json", "sequence_feature_schema.json"),
+        "multitask": ("multitask_model.json", "multitask_feature_schema.json"),
+        "absent": ("x.json", "missing_schema.json"),
+    })
+
+    assert aq_cli._reconciliation_dataset_columns() == ["a", "b", "c", "date", "ticker", "training_eligible"]

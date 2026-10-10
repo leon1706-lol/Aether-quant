@@ -59,6 +59,18 @@ def _is_external(target: str) -> bool:
     return target.startswith(("http://", "https://", "mailto:", "#", "tel:", "data:")) or "://" in target
 
 
+def _is_gitignored(path: Path) -> bool:
+    """A link into a gitignored path resolves locally but 404s on a fresh clone / CI checkout."""
+    try:
+        relative = path.relative_to(ROOT)
+    except ValueError:
+        return False
+    try:
+        return subprocess.run(["git", "check-ignore", "-q", str(relative)], cwd=ROOT, timeout=30).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def _broken_links(path: Path) -> list[str]:
     text = _strip_fenced_code(path.read_text(encoding="utf-8", errors="replace"))
     broken = []
@@ -69,7 +81,7 @@ def _broken_links(path: Path) -> list[str]:
         if not relative:
             continue
         resolved = (path.parent / relative).resolve() if not relative.startswith("/") else (ROOT / relative.lstrip("/"))
-        if not resolved.exists():
+        if not resolved.exists() or _is_gitignored(resolved):
             broken.append(f"{path.relative_to(ROOT)} -> {target}")
     return broken
 

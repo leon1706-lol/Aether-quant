@@ -312,3 +312,28 @@ def test_build_as_live_kwargs_reads_the_live_config_not_the_idealized_one():
     assert off["max_holding_dates"] is None
     assert off["min_rank_confidence_spread"] == 0.0
     simulate_rank_book(_frame(), **{**kwargs, "prediction_column": "pred", "sector_by_ticker": {}, "min_universe_size": 20})
+
+
+# ---------------------------------------------------------------- elevated-topology entry veto (V5.6.0)
+
+
+def test_as_live_kwargs_model_the_analyzers_elevated_veto_unless_members_are_exempt():
+    common = dict(book_config={}, exits_config={}, max_position_weight=0.12, candidate_metadata={})
+    assert build_as_live_kwargs(_kwargs(), **common)["entry_veto_column"] == "topology_risk_elevated"
+    assert build_as_live_kwargs(_kwargs(), **common, topology_config={})["entry_veto_column"] == "topology_risk_elevated"
+    exempt = build_as_live_kwargs(_kwargs(), **common, topology_config={"elevated_veto_applies_to_book_members": False})
+    assert exempt["entry_veto_column"] is None
+
+
+def test_entry_veto_blocks_new_entries_only_and_is_a_no_op_without_the_column():
+    frame = _frame()
+    kwargs = _kwargs(rebalance_every_bars=1000)
+    base = simulate_rank_book(frame, **kwargs)
+    assert simulate_rank_book(frame, **kwargs, entry_veto_column="topology_risk_elevated").per_date_net_return == base.per_date_net_return
+
+    flagged = frame.assign(topology_risk_elevated=0.0)
+    first_date = flagged["date"].min()
+    # Flag every name on the first rebalance date: no entry can form, so the first-date book is empty.
+    flagged.loc[flagged["date"] == first_date, "topology_risk_elevated"] = 1.0
+    vetoed = simulate_rank_book(flagged, **kwargs, entry_veto_column="topology_risk_elevated")
+    assert vetoed.per_date_net_return[0] == 0.0

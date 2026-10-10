@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from features.cross_asset_timing import CrossAssetTimeline
+
 from evaluation.feature_parity import (
     BASE_TECHNICAL_FEATURES,
     DEFAULT_LONG_LOOKBACK_WINDOW_BARS,
@@ -123,3 +125,47 @@ def test_long_window_constant_is_the_shared_default():
     import train as train_module
 
     assert getattr(train_module, "LONG_LOOKBACK_WINDOW_BARS", DEFAULT_LONG_LOOKBACK_WINDOW_BARS) == 260
+
+
+def test_macro_and_rank_replicas_match_train_builders_on_mixed_calendars():
+    """The audit replicas are independent of CrossAssetTimeline (Problems.md #135): they must still agree with
+    train.py row for row, including a 7-day crypto calendar and forex's next-midnight availability."""
+    import train as train_module
+    from evaluation.feature_parity import compute_cs_momentum_rank_replica, compute_macro_proxies_replica
+
+    rng = np.random.default_rng(5)
+    calendar = pd.date_range("2020-01-01", periods=60, freq="D")
+    weekdays = calendar[calendar.dayofweek < 5]
+    specs = {
+        "TLT": ("equity", weekdays), "SHY": ("equity", weekdays), "HYG": ("equity", weekdays), "LQD": ("equity", weekdays),
+        "AAPL": ("equity", weekdays[2:]), "BTCUSD": ("crypto", calendar), "EURUSD": ("forex", weekdays),
+    }
+    frames, types = {}, {}
+    for ticker, (security_type, dates) in specs.items():
+        frames[ticker] = pd.DataFrame({"date": dates, "close": 100.0 * np.cumprod(1.0 + rng.normal(0, 0.01, len(dates)))})
+        types[ticker] = security_type
+    timeline = CrossAssetTimeline.from_frames(frames, types)
+    macro = train_module.build_macro_features_by_date(frames, {}, timeline)
+    rank = train_module.build_cross_sectional_momentum_rank_features(frames, timeline)
+
+    # stored momentum_20d = close / close 20 bars back (short history: vs the first bar), as engineer_features() writes it;
+    # forex pairs carry it on Lean's fill-forward calendar, which build_momentum_pool() re-derives with the filler rows
+    from evaluation.feature_parity import build_momentum_pool
+
+    momentum_frames = {
+        ticker: frame.assign(momentum_20d=[
+            frame["close"].iloc[i] / frame["close"].iloc[max(0, i - 20)] - 1.0 if i else float("nan") for i in range(len(frame))
+        ])
+        for ticker, frame in frames.items()
+    }
+    dataset_like = pd.concat([frame.assign(ticker=ticker) for ticker, frame in momentum_frames.items()], ignore_index=True)
+    momentum_long = build_momentum_pool(dataset_like, types)
+    macro_replica = compute_macro_proxies_replica(momentum_long, types).set_index(["ticker", "date"])
+    rank_replica = compute_cs_momentum_rank_replica(momentum_long, types).set_index(["ticker", "date"])
+    for ticker, frame in frames.items():
+        for index, stamp in enumerate(frame["date"]):
+            for column in ("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"):
+                assert macro[ticker].iloc[index][column] == pytest.approx(macro_replica.loc[(ticker, stamp), column], abs=1e-12)
+            assert rank[ticker].iloc[index]["cs_momentum_rank_20"] == pytest.approx(
+                rank_replica.loc[(ticker, stamp), "cs_momentum_rank_recomputed"], abs=1e-12
+            )

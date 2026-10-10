@@ -1,0 +1,49 @@
+{
+  "project": "aether_quant",
+  "phase": "V2-17.5",
+  "version_id": "topology-only-ba2e6ecf-eb2f-4c3a-9f73-aeb4f0c01965",
+  "trained_at": "2026-07-29T13:41:40.084226+00:00",
+  "training_window_days": 90,
+  "sample_count": 4937,
+  "labeled_sample_count": 133,
+  "n_clusters": 6,
+  "distance_scale": 1.9190684281858585,
+  "per_cluster": [
+    {
+      "label": "proto_0",
+      "sample_count": 334,
+      "win_rate": 1.0,
+      "dominant_regime_label": "bullish_high_volatility"
+    },
+    {
+      "label": "proto_1",
+      "sample_count": 517,
+      "win_rate": 0.6666666666666666,
+      "dominant_regime_label": "bullish_normal_volatility"
+    },
+    {
+      "label": "proto_2",
+      "sample_count": 600,
+      "win_rate": null,
+      "dominant_regime_label": "sideways_low_volatility"
+    },
+    {
+      "label": "proto_3",
+      "sample_count": 365,
+      "win_rate": 0.2,
+      "dominant_regime_label": "bearish_risk_off"
+    },
+    {
+      "label": "proto_4",
+      "sample_count": 1186,
+      "win_rate": 0.673469387755102,
+      "dominant_regime_label": "sideways_low_volatility"
+    },
+    {
+      "label": "proto_5",
+      "sample_count": 1935,
+      "win_rate": 0.5666666666666667,
+      "dominant_regime_label": "sideways_low_volatility"
+    }
+  ]
+}

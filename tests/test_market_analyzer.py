@@ -693,3 +693,18 @@ def test_compute_trade_metric_matches_inline_formula_composite_on():
         use_composite_signal_score=True,
     )
     assert metric == expected_score
+
+
+def test_topology_veto_can_exempt_book_selected_symbols_but_never_others():
+    common = dict(
+        signal_name="buy", confidence=0.8, probability_up=0.7, target_weight=0.15,
+        regime=_regime(), gating=_gating(), trading_eligible=True, trade_lock_active=False,
+        topology={"state": "ready", "topology_risk": "elevated"},
+    )
+    member = build_market_analysis_decision(**common, is_book_selected=True, topology_veto_applies_to_book_members=False)
+    non_member = build_market_analysis_decision(**common, is_book_selected=False, topology_veto_applies_to_book_members=False)
+    default_member = build_market_analysis_decision(**common, is_book_selected=True)
+
+    assert "topology_elevated_volatility_pressure_overrides_directional_signal" not in member.reasons
+    assert non_member.action == "reduce_risk"
+    assert default_member.action == "reduce_risk"  # default behaviour is unchanged

@@ -87,6 +87,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version-id", type=str, required=True, help="Candidate model_version_id (UUID)")
     parser.add_argument("--config-path", type=str, default=str(CONFIG_PATH))
     parser.add_argument("--dataset-dir", type=str, default=str(DATASET_DIR))
+    parser.add_argument(
+        "--penalty-sweep",
+        type=str,
+        default=None,
+        help="Comma-separated asymmetric_penalty_weight candidates (e.g. 1.0,1.5,2.0,3.0): picked on a chronological "
+        "holdout of the validation split by UNPENALISED reward vs constant 1.0. Overrides phase_v2.rl_sizing.training.penalty_sweep.",
+    )
     return parser.parse_args()
 
 
@@ -278,8 +285,12 @@ def build_bandit_rows(
     commission_bps: float,
     nominal_base_weight: float,
     asymmetric_penalty_weight: float = 1.0,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Builds (states, rewards_by_action) arrays from one dataset split.
+    with_unpenalized: bool = False,
+) -> tuple[np.ndarray, ...]:
+    """Builds (states, rewards_by_action) arrays from one dataset split; with
+    `with_unpenalized` also the same rewards WITHOUT the asymmetric penalty as a third array - the
+    penalty shapes the policy being fit, but only real (unpenalised) P&L may judge it against the
+    constant-1.0 baseline, which pays no penalty by construction.
     Skips rows with a missing target_return_1d, a missing state key, or a
     failed model replay - never raises, matching every other trainer's
     "skip the bad row, don't abort the run" convention.
@@ -289,6 +300,7 @@ def build_bandit_rows(
     fresh position, not a carried-over one from a different asset."""
     states: list[list[float]] = []
     rewards: list[list[float]] = []
+    plain_rewards: list[list[float]] = []
 
     for _, ticker_frame in frame.groupby("ticker", sort=False):
         ticker_frame = ticker_frame.sort_values("date")
@@ -317,6 +329,7 @@ def build_bandit_rows(
 
             state_vector = [confidence if key == "confidence" else float(row[key]) for key in RL_SIZING_STATE_KEYS]
             row_rewards = []
+            row_plain_rewards = []
             for action in action_set:
                 reward = compute_action_reward(
                     action, base_weight, direction, float(forward_return),
@@ -324,14 +337,88 @@ def build_bandit_rows(
                     asymmetric_penalty_weight=asymmetric_penalty_weight,
                 )
                 row_rewards.append(reward)
+                if with_unpenalized:
+                    row_plain_rewards.append(
+                        reward
+                        if asymmetric_penalty_weight <= 1.0
+                        else compute_action_reward(
+                            action, base_weight, direction, float(forward_return),
+                            prior_action_weight[action], turnover_cost_bps, commission_bps,
+                        )
+                    )
                 prior_action_weight[action] = action * base_weight
 
             states.append(state_vector)
             rewards.append(row_rewards)
+            plain_rewards.append(row_plain_rewards)
 
     if not states:
-        return np.empty((0, len(RL_SIZING_STATE_KEYS))), np.empty((0, len(action_set)))
-    return np.asarray(states, dtype=np.float64), np.asarray(rewards, dtype=np.float64)
+        empty = (np.empty((0, len(RL_SIZING_STATE_KEYS))), np.empty((0, len(action_set))))
+        return (*empty, np.empty((0, len(action_set)))) if with_unpenalized else empty
+    result = (np.asarray(states, dtype=np.float64), np.asarray(rewards, dtype=np.float64))
+    return (*result, np.asarray(plain_rewards, dtype=np.float64)) if with_unpenalized else result
+
+
+def select_penalty_weight(
+    validation_frame: pd.DataFrame,
+    multitask_export: dict,
+    model_input_names: list[str],
+    action_set: list[float],
+    turnover_cost_bps_column: str,
+    commission_bps: float,
+    nominal_base_weight: float,
+    candidate_weights: list[float],
+    *,
+    holdout_fraction: float = 0.33,
+    min_fit_rows: int = 1000,
+    fit_kwargs: dict | None = None,
+) -> dict:
+    """Pick `asymmetric_penalty_weight` without touching the backtest split: fit each candidate on the
+    EARLY part of the validation split (penalised reward), score it on the LATE part by unpenalised
+    reward against constant 1.0, and take the best margin. `selected_beats_constant` says whether even
+    the best candidate cleared the constant baseline - false is the honest fourth negative, not an error.
+    Returns {"selected": weight, "selected_beats_constant": bool, "table": [...], "reason": str}."""
+    fit_kwargs = fit_kwargs or {}
+    if 1.0 not in action_set or not candidate_weights:
+        return {"selected": 1.0, "selected_beats_constant": False, "table": [], "reason": "no_baseline_action_or_no_candidates"}
+    dates = sorted(validation_frame["date"].astype(str).unique())
+    if len(dates) < 20:
+        return {"selected": 1.0, "selected_beats_constant": False, "table": [], "reason": "too_few_validation_dates"}
+    cut = dates[int(len(dates) * (1.0 - holdout_fraction))]
+    fit_frame = validation_frame[validation_frame["date"].astype(str) < cut]
+    hold_frame = validation_frame[validation_frame["date"].astype(str) >= cut]
+    hold_states, _, hold_plain = build_bandit_rows(
+        hold_frame, multitask_export, model_input_names, action_set,
+        turnover_cost_bps_column, commission_bps, nominal_base_weight, with_unpenalized=True,
+    )
+    if len(hold_states) == 0:
+        return {"selected": 1.0, "selected_beats_constant": False, "table": [], "reason": "empty_holdout"}
+    baseline = float(hold_plain[:, action_set.index(1.0)].mean())
+    table = []
+    for weight in candidate_weights:
+        fit_states, fit_rewards = build_bandit_rows(
+            fit_frame, multitask_export, model_input_names, action_set,
+            turnover_cost_bps_column, commission_bps, nominal_base_weight, asymmetric_penalty_weight=float(weight),
+        )
+        if len(fit_states) < min_fit_rows:
+            table.append({"weight": float(weight), "skipped": "too_few_fit_rows", "fit_rows": int(len(fit_states))})
+            continue
+        standardized_fit, mean, scale = standardize_states(fit_states)
+        fitted = fit_policy(standardized_fit, fit_rewards, **fit_kwargs)
+        policy_reward = evaluate_policy_expected_reward(
+            (hold_states - mean) / scale, hold_plain, np.asarray(fitted["weights"]), np.asarray(fitted["bias"])
+        )
+        table.append({
+            "weight": float(weight), "holdout_policy_reward": policy_reward,
+            "holdout_constant_reward": baseline, "margin": policy_reward - baseline, "fit_rows": int(len(fit_states)),
+        })
+    scored = [row for row in table if "margin" in row]
+    if not scored:
+        return {"selected": 1.0, "selected_beats_constant": False, "table": table, "reason": "no_candidate_had_enough_rows"}
+    best = max(scored, key=lambda row: row["margin"])
+    return {
+        "selected": best["weight"], "selected_beats_constant": best["margin"] > 0.0, "table": table, "reason": "selected_by_holdout_margin",
+    }
 
 
 def main() -> int:
@@ -375,6 +462,24 @@ def main() -> int:
         validation_frame = pd.read_csv(validation_path)
         backtest_frame = pd.read_csv(backtest_path)
 
+        sweep_candidates = (
+            [float(item) for item in args.penalty_sweep.split(",") if item.strip()]
+            if args.penalty_sweep
+            else [float(item) for item in training_config.get("penalty_sweep", [])]
+        )
+        penalty_sweep_result = None
+        if sweep_candidates:
+            penalty_sweep_result = select_penalty_weight(
+                validation_frame, multitask_export, model_input_names, action_set,
+                turnover_cost_bps_column, commission_bps, nominal_base_weight, sweep_candidates,
+                fit_kwargs={"learning_rate": learning_rate, "epochs": epochs, "l2": l2, "entropy_bonus": entropy_bonus},
+            )
+            asymmetric_penalty_weight = float(penalty_sweep_result["selected"])
+            LOGGER.info(
+                "train_rl_sizing: penalty sweep selected %.2f (%s, beats constant: %s)",
+                asymmetric_penalty_weight, penalty_sweep_result["reason"], penalty_sweep_result["selected_beats_constant"],
+            )
+
         train_states, train_rewards = build_bandit_rows(
             validation_frame, multitask_export, model_input_names, action_set,
             turnover_cost_bps_column, commission_bps, nominal_base_weight,
@@ -392,10 +497,10 @@ def main() -> int:
         weights = np.asarray(fit_result["weights"])
         bias = np.asarray(fit_result["bias"])
 
-        backtest_states, backtest_rewards = build_bandit_rows(
+        backtest_states, backtest_rewards, backtest_plain_rewards = build_bandit_rows(
             backtest_frame, multitask_export, model_input_names, action_set,
             turnover_cost_bps_column, commission_bps, nominal_base_weight,
-            asymmetric_penalty_weight=asymmetric_penalty_weight,
+            asymmetric_penalty_weight=asymmetric_penalty_weight, with_unpenalized=True,
         )
         standardized_backtest = (backtest_states - mean) / scale if len(backtest_states) else backtest_states
 
@@ -439,7 +544,23 @@ def main() -> int:
                 if len(backtest_states) and 1.0 in action_set else None
             ),
             "training_constant_action_1_0_expected_reward": constant_policy_expected_reward,
+            "penalty_sweep": penalty_sweep_result,
+            # Judged on REAL P&L: the penalised numbers above compare a penalty-trained policy to a
+            # baseline that pays no penalty, so they can only ever favour the baseline.
+            "backtest_policy_expected_reward_unpenalized": (
+                evaluate_policy_expected_reward(standardized_backtest, backtest_plain_rewards, weights, bias)
+                if len(backtest_states) else None
+            ),
+            "backtest_constant_action_1_0_expected_reward_unpenalized": (
+                float(backtest_plain_rewards[:, action_set.index(1.0)].mean())
+                if len(backtest_states) and 1.0 in action_set else None
+            ),
         }
+        policy_unpenalized = training_metrics_payload["backtest_policy_expected_reward_unpenalized"]
+        constant_unpenalized = training_metrics_payload["backtest_constant_action_1_0_expected_reward_unpenalized"]
+        training_metrics_payload["policy_beats_constant_unpenalized"] = (
+            bool(policy_unpenalized > constant_unpenalized) if policy_unpenalized is not None and constant_unpenalized is not None else None
+        )
 
         paths = rl_sizing_candidate_output_paths(args.version_id)
         paths["version_dir"].mkdir(parents=True, exist_ok=True)

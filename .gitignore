@@ -46,6 +46,7 @@ data/**
 !data/**/
 !data/**/.keep
 !data/**/.gitkeep
+!data/README.md
 
 # Exception: small, hand-authored reference/config JSON files that this
 # codebase documents as "checked in" and reads at runtime/test time (not
@@ -56,13 +57,15 @@ data/**
 !data/reference/*.json
 
 # Lean object store / local runtime output
-storage/
+storage/*
+!storage/README.md
 objectstore/
 
 # Backtest results and generated reports
 backtests/**
 !backtests/
 !backtests/.gitkeep
+!backtests/README.md
 
 # Generated ML datasets and binary artifacts
 ml/datasets/

@@ -7,6 +7,14 @@ by construction, never re-derived independently in either one.
 
 - `technical_indicators.py` — RSI, ATR%, Bollinger %B, volume z-score,
   MACD histogram, distance-from-52w-high, cross-sectional momentum rank.
+- `cross_asset_timing.py` (V5.6.0, Problems.md #135) — what a cross-asset payload (topology,
+  peer returns, macro proxies, `cs_momentum_rank_20`) may see. Live builds those at the START of a
+  tick, before the tick's own bars join `symbol_windows`, and a daily bar exists once its period closed
+  (US equity: that day's close; crypto/forex: the next midnight). `cross_asset_inputs()` is the one
+  window → (returns, momentum) construction `main.py` calls; `CrossAssetTimeline` replays the same
+  rule over raw per-ticker history for `train.py`, so a dataset row sees exactly the bars live would
+  have. `tests/test_cross_asset_timing.py` replays `main.py`'s tick order and compares to the offline
+  builders to 1e-12.
 - `macro_features.py` — cross-asset "macro" signals derived from bond-ETF/
   crypto price momentum (yield-curve slope proxy, credit spread proxy,
   crypto risk appetite proxy), computed once per date/bar and broadcast

@@ -373,3 +373,36 @@ def test_summarize_metric_stability_empty_series_never_raises():
     assert summary["num_windows"] == 0
     assert summary["stable"] is False
     assert summary["failures"] == ["no_windows"]
+
+
+# ---------------------------------------------------------------------------
+# commission_bps_by_ticker (V5.6.0): a per-class exchange fee replaces the generic commission per ticker
+# ---------------------------------------------------------------------------
+
+
+def test_commission_override_charges_the_replacement_fee_on_that_tickers_turnover_only():
+    frame = _two_ticker_frame()
+    base = simulate_rank_book(frame, **_lag_test_kwargs(commission_bps=10.0))
+    overridden = simulate_rank_book(frame, **_lag_test_kwargs(commission_bps=10.0, commission_bps_by_ticker={"A": 50.0}))
+
+    # Entry day: A's 0.5 of turnover pays 50 instead of 10 bps -> 0.5 * 40 / 1e4 more; B unchanged.
+    assert base.per_date_net_return[0] - overridden.per_date_net_return[0] == pytest.approx(0.5 * 40.0 / 1e4)
+    assert base.per_date_net_return[1] == pytest.approx(overridden.per_date_net_return[1])  # no turnover later
+
+
+def test_commission_override_empty_or_none_is_byte_identical_to_before():
+    frame = _two_ticker_frame()
+    base = simulate_rank_book(frame, **_lag_test_kwargs(commission_bps=7.0))
+    for override in (None, {}, {"ZZZ": 99.0}):
+        again = simulate_rank_book(frame, **_lag_test_kwargs(commission_bps=7.0, commission_bps_by_ticker=override))
+        assert again.per_date_net_return == base.per_date_net_return
+
+
+def test_stress_test_scales_the_per_ticker_override_with_the_multiplier():
+    from evaluation.rank_book_simulator import stress_test_costs
+
+    frame = _two_ticker_frame()
+    results = stress_test_costs(frame, base_kwargs=_lag_test_kwargs(commission_bps=10.0, commission_bps_by_ticker={"A": 50.0}), cost_multipliers=(1.0, 2.0))
+
+    one, two = results
+    assert one["per_date_net_return"][0] - two["per_date_net_return"][0] == pytest.approx(0.5 * 50.0 / 1e4 + 0.5 * 10.0 / 1e4)

@@ -1,0 +1,117 @@
+{
+  "version_id": "topology-only-ba2e6ecf-eb2f-4c3a-9f73-aeb4f0c01965",
+  "offset_schema": 2,
+  "trained_at": "2026-07-29T13:41:40.084226+00:00",
+  "prototypes": [
+    {
+      "label": "proto_0",
+      "centroid": {
+        "volatility": 2.2663094806248303,
+        "momentum": -1.6834315426929258,
+        "correlation_strength": 0.36936250773627083,
+        "liquidity_score": 0.36173465389084625,
+        "regime_risk_score": -0.5824016644003698
+      },
+      "dominant_regime_label": "bullish_high_volatility",
+      "offset": {
+        "x": 2.0,
+        "y": 1.0,
+        "z": 1.0
+      },
+      "sample_count": 334,
+      "win_rate": 1.0
+    },
+    {
+      "label": "proto_1",
+      "centroid": {
+        "volatility": 0.8476712723953751,
+        "momentum": 1.5651868059335827,
+        "correlation_strength": 0.5217881450632236,
+        "liquidity_score": 0.37567716541951734,
+        "regime_risk_score": 0.2951658365294667
+      },
+      "dominant_regime_label": "bullish_normal_volatility",
+      "offset": {
+        "x": 2.0,
+        "y": 1.0,
+        "z": 0.33333333333333326
+      },
+      "sample_count": 517,
+      "win_rate": 0.6666666666666666
+    },
+    {
+      "label": "proto_2",
+      "centroid": {
+        "volatility": -0.572472299366708,
+        "momentum": -0.39211984117661397,
+        "correlation_strength": -0.16368488700630593,
+        "liquidity_score": -2.6752495486180146,
+        "regime_risk_score": -0.02255864655749334
+      },
+      "dominant_regime_label": "sideways_low_volatility",
+      "offset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "sample_count": 600,
+      "win_rate": null
+    },
+    {
+      "label": "proto_3",
+      "centroid": {
+        "volatility": 1.0277740936738193,
+        "momentum": 0.6101319330796952,
+        "correlation_strength": 0.008681908046081703,
+        "liquidity_score": 0.3239033493709678,
+        "regime_risk_score": -2.4225551373115737
+      },
+      "dominant_regime_label": "bearish_risk_off",
+      "offset": {
+        "x": -2.0,
+        "y": -1.0,
+        "z": -0.6
+      },
+      "sample_count": 365,
+      "win_rate": 0.2
+    },
+    {
+      "label": "proto_4",
+      "centroid": {
+        "volatility": -0.4862894831085123,
+        "momentum": -0.016764428400465922,
+        "correlation_strength": 0.9155935404384394,
+        "liquidity_score": 0.3754230633234958,
+        "regime_risk_score": 0.26093166308957044
+      },
+      "dominant_regime_label": "sideways_low_volatility",
+      "offset": {
+        "x": 2.0,
+        "y": 1.0,
+        "z": 0.346938775510204
+      },
+      "sample_count": 1186,
+      "win_rate": 0.673469387755102
+    },
+    {
+      "label": "proto_5",
+      "centroid": {
+        "volatility": -0.33673992882229004,
+        "momentum": -0.11161043277691068,
+        "correlation_strength": -0.7141911429952467,
+        "liquidity_score": 0.37551857106844705,
+        "regime_risk_score": 0.32564616556946624
+      },
+      "dominant_regime_label": "sideways_low_volatility",
+      "offset": {
+        "x": 2.0,
+        "y": 1.0,
+        "z": 0.1333333333333333
+      },
+      "sample_count": 1935,
+      "win_rate": 0.5666666666666667
+    }
+  ],
+  "distance_scale": 1.9190684281858585,
+  "n_clusters": 6
+}

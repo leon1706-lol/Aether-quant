@@ -315,6 +315,8 @@ def cmd_train(args: argparse.Namespace) -> int:
             cmd.append("--include-sequence")
         if getattr(args, "metrics", None) is not None:
             cmd += ["--metrics", args.metrics]
+        if getattr(args, "resume_run_id", None) is not None:
+            cmd += ["--resume-run-id", args.resume_run_id]
 
     returncode = _run(cmd)
     if returncode != 0 or not bare_run:
@@ -702,6 +704,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_derivatives_macro_features.py", "test_train_macro_features.py",
         "test_train_asset_class_context_features.py", "test_train_cross_sectional_features.py",
         "test_train_indicators.py", "test_alt_data_features.py", "test_train_alt_data_features.py",
+        # V5.6.0 (Problems.md #135) - features/cross_asset_timing.py.
+        "test_cross_asset_timing.py", "test_overlap_vs_sharpe_analysis.py", "test_v560_fixes.py", "test_compare_training_variants.py", "test_make_variant_configs.py", "test_train_forex_fill_forward.py",
         # V5.1 Phase 2 (item 8 / F2) - features/cross_asset_sensitivity.py.
         "test_cross_asset_sensitivity.py", "test_train_cross_asset_sensitivity.py",
     ],
@@ -1671,7 +1675,7 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
     Mirrors the block --calibrate-book-spread / --replay-rolling-ic-gate
     each carry inline (this file's established duplication convention);
     new callers use this one. Returns (raw_scores, policy)."""
-    from evaluation import compute_blended_raw_scores, predict_head
+    from evaluation import compute_blended_raw_scores, predict_heads
     from portfolio.rank_signal import resolve_rank_signal_policy
 
     training_metrics_by_model: dict[str, dict | None] = {}
@@ -1695,15 +1699,12 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
             continue  # best-effort - a missing model falls through to the next model_priority entry
         model_export = json.loads(model_path.read_text(encoding="utf-8"))
         feature_schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        predictions_by_model_head[model_kind_for_head] = {
-            head_name: predict_head(
-                dataset, model_export, feature_schema["model_input_names"], head_name,
-                model_kind=model_kind_for_head,
-                sequence_feature_schema=feature_schema if model_kind_for_head == "sequence" else None,
-                configured_window_size=int(sequence_window_default),
-            )
-            for head_name in active_heads
-        }
+        predictions_by_model_head[model_kind_for_head] = predict_heads(
+            dataset, model_export, feature_schema["model_input_names"], list(active_heads),
+            model_kind=model_kind_for_head,
+            sequence_feature_schema=feature_schema if model_kind_for_head == "sequence" else None,
+            configured_window_size=int(sequence_window_default),
+        )
     return compute_blended_raw_scores(dataset, predictions_by_model_head, policy), policy
 
 
@@ -1711,7 +1712,10 @@ def _universe_asset_metadata(config: dict) -> tuple[dict[str, str], dict[str, bo
     """({ticker: asset_class}, {ticker: trading_eligible}) - the per-symbol
     fields main.py hands the book. asset_class falls back to security_type
     exactly as main.py does (bond ETFs are security_type equity,
-    asset_class bond); eligibility comes from the dataset manifest."""
+    asset_class bond); eligibility comes from the dataset manifest and is
+    False for every asset class whose trading is disabled in the config."""
+    from risk.asset_class_router import book_candidate_trading_eligible
+
     asset_class_by_ticker = {
         asset["ticker"]: str(asset.get("asset_class") or asset.get("security_type"))
         for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
@@ -1724,7 +1728,49 @@ def _universe_asset_metadata(config: dict) -> tuple[dict[str, str], dict[str, bo
             ticker: bool(quality.get("trading_eligible", False))
             for ticker, quality in (manifest.get("asset_quality") or {}).items()
         }
+    phase_v2 = config.get("phase_v2", {})
+    class_flags = [bool(phase_v2.get(key, {}).get("enabled", False)) for key in ("futures_risk", "options_risk", "forex_risk")]
+    for asset in config.get("phase1", {}).get("universe", {}).get("assets", []):
+        ticker = asset["ticker"]
+        trading_eligible_by_ticker[ticker] = book_candidate_trading_eligible(
+            trading_eligible_by_ticker.get(ticker, True), asset_class_by_ticker[ticker], *class_flags
+        )
     return asset_class_by_ticker, trading_eligible_by_ticker
+
+
+def _read_dataset_rows(
+    path: Path,
+    *,
+    columns: list[str] | None = None,
+    ticker: str | None = None,
+    only_training_eligible: bool = False,
+    chunksize: int = 50_000,
+):
+    """Returns a pandas DataFrame. Chunked read of a dataset CSV that keeps only the requested columns / one ticker's rows /
+    training-eligible rows - the full 250-column frame is ~330 MB resident and the reconciliation
+    tools only ever need a sliver of it (the 4 GB dev PC kills them otherwise)."""
+    import pandas as pd  # noqa: PLC0415 - aq starts fast for commands that never touch a dataset
+
+    wanted = None if columns is None else set(columns)
+    usecols = None if wanted is None else (lambda name: name in wanted)
+    parts = []
+    for chunk in pd.read_csv(path, usecols=usecols, chunksize=chunksize):
+        if ticker is not None and "ticker" in chunk.columns:
+            chunk = chunk[chunk["ticker"] == ticker]
+        if only_training_eligible and "training_eligible" in chunk.columns:
+            chunk = chunk[chunk["training_eligible"]]
+        parts.append(chunk)
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
+def _reconciliation_dataset_columns() -> list[str]:
+    """date/ticker/eligibility plus every model input of the sequence and multitask schemas."""
+    columns = {"date", "ticker", "training_eligible"}
+    for _model_filename, schema_filename in _EVALUATE_MODEL_ARTIFACTS.values():
+        schema_path = ML_DIR / schema_filename
+        if schema_path.exists():
+            columns.update(json.loads(schema_path.read_text(encoding="utf-8")).get("model_input_names", []))
+    return sorted(columns)
 
 
 _EVALUATE_MODEL_ARTIFACTS = {
@@ -1756,7 +1802,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     """
     import pandas as pd
 
-    from evaluation import capacity_curve, predict_head, simulate_rank_book, stress_test_costs
+    from evaluation import capacity_curve, predict_head, predict_heads, simulate_rank_book, stress_test_costs
+    from execution.cost_model import commission_bps_by_ticker
     from features import load_sector_mapping
 
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -1795,7 +1842,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"error: {error}", file=sys.stderr)
             return 1
         book_history_path = Path(getattr(args, "book_history_path", None) or (ROOT_DIR / "visualization" / "book_history.jsonl"))
-        audit = audit_backtest_run(run, load_book_history(book_history_path))
+        audit = audit_backtest_run(
+            run, load_book_history(book_history_path), book_run_index=getattr(args, "book_run_index", -1)
+        )
         audit["backtest_dir"] = str(run_dir)
         _write_evaluation_json(ML_DIR / "evaluation" / "backtest_audit.json", audit)
         if args.json:
@@ -1814,6 +1863,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             for name, stats in sorted(audit["exposure"].items()):
                 print(f"  exposure {name}: mean={stats['mean']:.4f} peak={stats['peak']:.4f}")
             print(f"  entries by asset class: {audit['entries_by_asset_class']}")
+            print(f"  P&L by entry bucket (gross, fees, net): {audit['pnl_by_entry_bucket']}")
             orders = audit["orders"]
             print(
                 f"  overlapping same-symbol orders: {orders['num_overlapping_pairs']} "
@@ -1959,7 +2009,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         if not recon_dataset_path.exists():
             print(f"error: {recon_dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
             return 1
-        full_dataset = pd.read_csv(recon_dataset_path)
+        full_dataset = _read_dataset_rows(recon_dataset_path, ticker=target_symbol)
         dataset_has_ticker_column = "ticker" in full_dataset.columns
         rows_by_date_ticker: dict[tuple[str, str], dict] = {}
         if dataset_has_ticker_column:
@@ -2178,9 +2228,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         if not recon_dataset_path.exists():
             print(f"error: {recon_dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
             return 1
-        full_dataset = pd.read_csv(recon_dataset_path)
-        if "training_eligible" in full_dataset.columns:
-            full_dataset = full_dataset[full_dataset["training_eligible"]].reset_index(drop=True)
+        full_dataset = _read_dataset_rows(
+            recon_dataset_path, columns=_reconciliation_dataset_columns(), only_training_eligible=True
+        )
 
         sequence_window_default = config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30)
         training_metrics_by_model: dict[str, dict | None] = {}
@@ -2240,6 +2290,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             ].reset_index(drop=True)
 
             predictions_by_model_head: dict[str, dict[str, object]] = {}
+            # Only the recorded dates are ever read below; the surrounding context rows exist solely to
+            # fill sequence windows, so they are not predicted (peak memory ~ rows on recorded dates).
+            recorded_row_mask = context_dataset["date"].isin(recorded_dates).to_numpy()
             for model_kind_for_head in policy["model_priority"]:
                 recon_model_filename, recon_schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
                 recon_model_path = ML_DIR / recon_model_filename
@@ -2249,14 +2302,13 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 recon_model_export = json.loads(recon_model_path.read_text(encoding="utf-8"))
                 recon_feature_schema = json.loads(recon_schema_path.read_text(encoding="utf-8"))
                 recon_feature_names = recon_feature_schema["model_input_names"]
-                head_predictions: dict[str, object] = {}
-                for head_name in active_heads:
-                    head_predictions[head_name] = predict_head(
-                        context_dataset, recon_model_export, recon_feature_names, head_name,
-                        model_kind=model_kind_for_head,
-                        sequence_feature_schema=recon_feature_schema if model_kind_for_head == "sequence" else None,
-                        configured_window_size=int(sequence_window_default),
-                    )
+                head_predictions = predict_heads(
+                    context_dataset, recon_model_export, recon_feature_names, list(active_heads),
+                    model_kind=model_kind_for_head,
+                    sequence_feature_schema=recon_feature_schema if model_kind_for_head == "sequence" else None,
+                    configured_window_size=int(sequence_window_default),
+                    row_mask=recorded_row_mask,
+                )
                 predictions_by_model_head[model_kind_for_head] = head_predictions
 
             context_dataset["raw_blended_score"] = compute_blended_raw_scores(
@@ -2505,6 +2557,14 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         entry_lag_bars=int(net_perf_config.get("entry_lag_bars", 0)),
         min_commission_usd=float(net_perf_config.get("min_commission_usd", 0.0)),
         assumed_portfolio_value_usd=float(net_perf_config.get("assumed_portfolio_value_usd", 0.0)),
+        commission_bps_by_ticker=commission_bps_by_ticker(
+            config.get("phase_v2", {}).get("costs", {}),
+            {
+                str(asset.get("ticker")): str(asset.get("security_type"))
+                for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+            },
+        )
+        or None,
     )
 
     run_rank_book = bool(args.rank_book or args.all)
@@ -2678,6 +2738,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             max_position_weight=float(config.get("phase6", {}).get("risk", {}).get("max_position_weight", 0.25)),
             candidate_metadata=build_candidate_metadata(asset_class_by_ticker, trading_eligible_by_ticker),
             rolling_ic_gate_fn=gate_fn,
+            topology_config=phase_v2_config.get("topology", {}),
         )
         as_live_result = simulate_rank_book(live_frame, **as_live_kwargs)
         idealized_result = result if run_rank_book else simulate_rank_book(dataset, **base_kwargs)
@@ -2952,14 +3013,12 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             calib_model_export = json.loads(calib_model_path.read_text(encoding="utf-8"))
             calib_feature_schema = json.loads(calib_schema_path.read_text(encoding="utf-8"))
             calib_feature_names = calib_feature_schema["model_input_names"]
-            head_predictions: dict[str, object] = {}
-            for head_name in active_heads:
-                head_predictions[head_name] = predict_head(
-                    dataset, calib_model_export, calib_feature_names, head_name,
-                    model_kind=model_kind_for_head,
-                    sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
-                    configured_window_size=int(sequence_window_default),
-                )
+            head_predictions = predict_heads(
+                dataset, calib_model_export, calib_feature_names, list(active_heads),
+                model_kind=model_kind_for_head,
+                sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
+                configured_window_size=int(sequence_window_default),
+            )
             predictions_by_model_head[model_kind_for_head] = head_predictions
 
         dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
@@ -3033,14 +3092,12 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             calib_model_export = json.loads(calib_model_path.read_text(encoding="utf-8"))
             calib_feature_schema = json.loads(calib_schema_path.read_text(encoding="utf-8"))
             calib_feature_names = calib_feature_schema["model_input_names"]
-            head_predictions: dict[str, object] = {}
-            for head_name in active_heads:
-                head_predictions[head_name] = predict_head(
-                    dataset, calib_model_export, calib_feature_names, head_name,
-                    model_kind=model_kind_for_head,
-                    sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
-                    configured_window_size=int(sequence_window_default),
-                )
+            head_predictions = predict_heads(
+                dataset, calib_model_export, calib_feature_names, list(active_heads),
+                model_kind=model_kind_for_head,
+                sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
+                configured_window_size=int(sequence_window_default),
+            )
             predictions_by_model_head[model_kind_for_head] = head_predictions
 
         dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
@@ -3123,14 +3180,12 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             replay_model_export = json.loads(replay_model_path.read_text(encoding="utf-8"))
             replay_feature_schema = json.loads(replay_schema_path.read_text(encoding="utf-8"))
             replay_feature_names = replay_feature_schema["model_input_names"]
-            head_predictions: dict[str, object] = {}
-            for head_name in active_heads:
-                head_predictions[head_name] = predict_head(
-                    dataset, replay_model_export, replay_feature_names, head_name,
-                    model_kind=model_kind_for_head,
-                    sequence_feature_schema=replay_feature_schema if model_kind_for_head == "sequence" else None,
-                    configured_window_size=int(sequence_window_default),
-                )
+            head_predictions = predict_heads(
+                dataset, replay_model_export, replay_feature_names, list(active_heads),
+                model_kind=model_kind_for_head,
+                sequence_feature_schema=replay_feature_schema if model_kind_for_head == "sequence" else None,
+                configured_window_size=int(sequence_window_default),
+            )
             predictions_by_model_head[model_kind_for_head] = head_predictions
 
         dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
@@ -3197,14 +3252,12 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             calib_model_export = json.loads(calib_model_path.read_text(encoding="utf-8"))
             calib_feature_schema = json.loads(calib_schema_path.read_text(encoding="utf-8"))
             calib_feature_names = calib_feature_schema["model_input_names"]
-            head_predictions: dict[str, object] = {}
-            for head_name in active_heads:
-                head_predictions[head_name] = predict_head(
-                    dataset, calib_model_export, calib_feature_names, head_name,
-                    model_kind=model_kind_for_head,
-                    sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
-                    configured_window_size=int(sequence_window_default),
-                )
+            head_predictions = predict_heads(
+                dataset, calib_model_export, calib_feature_names, list(active_heads),
+                model_kind=model_kind_for_head,
+                sequence_feature_schema=calib_feature_schema if model_kind_for_head == "sequence" else None,
+                configured_window_size=int(sequence_window_default),
+            )
             predictions_by_model_head[model_kind_for_head] = head_predictions
 
         dataset["raw_blended_score"] = compute_blended_raw_scores(dataset, predictions_by_model_head, policy)
@@ -3375,6 +3428,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-sequence",
         action="store_true",
         help="Force sequence training per walk-forward window on for this run (only with --walk-forward).",
+    )
+    train_parser.add_argument(
+        "--resume-run-id",
+        type=str,
+        default=None,
+        help=(
+            "Continue an interrupted walk-forward run (only with --walk-forward): windows already finished "
+            "under ml/versions/<run-id>/window_<i>/window_result.json are loaded, not retrained."
+        ),
     )
     train_parser.add_argument(
         "--metrics",
@@ -3864,6 +3926,11 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_parser.add_argument(
         "--backtest-dir", default=None,
         help="V5.5.0: with --audit-backtest, the backtests/<timestamp> folder to audit (default: the newest).",
+    )
+    evaluate_parser.add_argument(
+        "--book-run-index", type=int, default=-1,
+        help="With --audit-backtest: which run of the cumulative book_history.jsonl belongs to --backtest-dir "
+        "(-1 = the latest run, -2 = the one before it, ...). Older runs audited at the default pair the wrong book.",
     )
     evaluate_parser.add_argument(
         "--factor-exposure", action="store_true",

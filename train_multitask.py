@@ -237,6 +237,7 @@ def compute_multitask_metrics(
                     raw_frame, "_predicted_head",
                     net_performance_context["net_performance_config"],
                     net_performance_context["sector_by_ticker"],
+                    net_performance_context.get("full_config"),
                 )
                 if net_performance_result is not None:
                     metrics[f"{head_name}_net_performance"] = assess_net_performance_quality(

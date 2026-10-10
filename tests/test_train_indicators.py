@@ -142,27 +142,32 @@ def test_engineer_features_does_not_drop_extra_rows_for_new_indicators():
 
 
 def _momentum_frame(dates: list[str], momentum_values: list[float]) -> pd.DataFrame:
-    return pd.DataFrame({"date": pd.to_datetime(dates), "momentum_20d": momentum_values})
+    """Closes whose window momentum at bar i (history < 21 bars: vs bar 0) equals momentum_values[i]; bar 0 is the base."""
+    closes = [100.0] + [100.0 * (1.0 + value) for value in momentum_values[1:]]
+    return pd.DataFrame({"date": pd.to_datetime(dates), "close": closes})
 
 
 def test_build_cross_sectional_momentum_rank_features_best_performer_gets_top_rank():
-    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    dates = [f"2020-01-{day:02d}" for day in range(1, 5)]
     asset_frames = {
-        "BEST": _momentum_frame(dates, [0.1, 0.1, 0.1]),
-        "MID": _momentum_frame(dates, [0.0, 0.0, 0.0]),
-        "WORST": _momentum_frame(dates, [-0.1, -0.1, -0.1]),
+        "BEST": _momentum_frame(dates, [0.0, 0.1, 0.1, 0.1]),
+        "MID": _momentum_frame(dates, [0.0, 0.0, 0.0, 0.0]),
+        "WORST": _momentum_frame(dates, [0.0, -0.1, -0.1, -0.1]),
     }
 
     result = build_cross_sectional_momentum_rank_features(asset_frames)
 
-    assert (result["BEST"]["cs_momentum_rank_20"] == 1.0).all()
-    assert np.allclose(result["WORST"]["cs_momentum_rank_20"].to_numpy(), 1 / 3)
-    assert np.allclose(result["MID"]["cs_momentum_rank_20"].to_numpy(), 2 / 3)
+    # A row ranks the momentum of the bars BEFORE its own (Problems.md #135): the first two rows
+    # have no (or one-bar) history, so only rows 2+ rank.
+    assert (result["BEST"]["cs_momentum_rank_20"].iloc[2:] == 1.0).all()
+    assert np.allclose(result["WORST"]["cs_momentum_rank_20"].iloc[2:].to_numpy(), 1 / 3)
+    assert np.allclose(result["MID"]["cs_momentum_rank_20"].iloc[2:].to_numpy(), 2 / 3)
+    assert (result["BEST"]["cs_momentum_rank_20"].iloc[:2] == 0.5).all()
 
 
 def test_build_cross_sectional_momentum_rank_features_neutral_for_single_asset():
     dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
-    asset_frames = {"A": _momentum_frame(dates, [0.1, 0.05, -0.05])}
+    asset_frames = {"A": _momentum_frame(dates, [0.0, 0.05, -0.05])}
 
     result = build_cross_sectional_momentum_rank_features(asset_frames)
 
@@ -170,15 +175,11 @@ def test_build_cross_sectional_momentum_rank_features_neutral_for_single_asset()
 
 
 def test_build_cross_sectional_momentum_rank_features_no_nan_output_under_normal_usage():
-    # momentum_20d itself is never NaN in the real pipeline
-    # (engineer_features()'s adaptive lookback guarantees a value for
-    # every row) - this checks the realistic multi-asset case never
-    # produces NaN ranks either.
-    dates = [f"2020-01-{day:02d}" for day in range(1, 4)]
+    dates = [f"2020-01-{day:02d}" for day in range(1, 5)]
     asset_frames = {
-        "A": _momentum_frame(dates, [0.1, 0.08, 0.05]),
-        "B": _momentum_frame(dates, [0.0, 0.0, 0.0]),
-        "C": _momentum_frame(dates, [-0.1, -0.05, -0.02]),
+        "A": _momentum_frame(dates, [0.0, 0.1, 0.08, 0.05]),
+        "B": _momentum_frame(dates, [0.0, 0.0, 0.0, 0.0]),
+        "C": _momentum_frame(dates, [0.0, -0.1, -0.05, -0.02]),
     }
 
     result = build_cross_sectional_momentum_rank_features(asset_frames)
@@ -187,43 +188,29 @@ def test_build_cross_sectional_momentum_rank_features_no_nan_output_under_normal
         assert frame["cs_momentum_rank_20"].isna().sum() == 0
 
 
-def test_build_cross_sectional_momentum_rank_features_matches_pandas_rank_pct_reference():
-    # V5.2.5 regression lock: the rewritten implementation calls
-    # features.cross_sectional_momentum_rank() per (date, ticker) instead
-    # of the old pandas .rank(pct=True) groupby - this asserts the two are
-    # still byte-identical (to floating-point tolerance) on a realistic
-    # multi-ticker/multi-date/ragged-universe-size frame, so the rewrite
-    # is provably a pure internal refactor, not a behavior change.
+def test_build_cross_sectional_momentum_rank_features_matches_shared_rank_over_as_of_pool():
+    # Reference: for each (ticker, row), rank the momentum of every ticker's latest bar BEFORE that row
+    # with the shared features.cross_sectional_momentum_rank(), including tickers whose latest bar is
+    # older (ragged universe) - what main.py's latest_momentum_by_symbol holds at that tick.
+    from features.technical_indicators import cross_sectional_momentum_rank
+
     rng = np.random.default_rng(7)
     dates = pd.to_datetime([f"2020-01-{day:02d}" for day in range(1, 11)])
     tickers = [f"T{i}" for i in range(6)]
     asset_frames = {
-        ticker: pd.DataFrame({"date": dates, "momentum_20d": rng.normal(0, 0.1, len(dates))})
+        ticker: pd.DataFrame({"date": dates, "close": 100.0 * np.cumprod(1.0 + rng.normal(0, 0.02, len(dates)))})
         for ticker in tickers
     }
-    # Drop one ticker's row on one date to exercise a ragged universe size
-    # (a date where not every ticker has a value) the same way the real
-    # pipeline's asset_frames can be misaligned across assets.
     asset_frames["T5"] = asset_frames["T5"].iloc[1:].reset_index(drop=True)
+    asset_frames["T4"] = asset_frames["T4"].iloc[:6].reset_index(drop=True)  # stops early: stays in the pool, stale
 
     result = build_cross_sectional_momentum_rank_features(asset_frames)
 
-    long_frame = pd.concat(
-        [
-            pd.DataFrame({"ticker": ticker, "date": frame["date"], "momentum_20d": frame["momentum_20d"]})
-            for ticker, frame in asset_frames.items()
-        ],
-        ignore_index=True,
-    )
-    universe_size_by_date = long_frame.groupby("date")["momentum_20d"].transform("size")
-    long_frame["expected_rank"] = np.where(
-        universe_size_by_date >= 2,
-        long_frame.groupby("date")["momentum_20d"].rank(pct=True),
-        0.5,
-    )
-    expected_lookup = long_frame.set_index(["ticker", "date"])["expected_rank"].to_dict()
-
     for ticker, frame in result.items():
         for _, row in frame.iterrows():
-            expected = expected_lookup[(ticker, row["date"])]
-            assert row["cs_momentum_rank_20"] == pytest.approx(expected)
+            pool = {}
+            for other, other_frame in asset_frames.items():
+                closes = other_frame.loc[other_frame["date"] < row["date"], "close"].tolist()[-25:]
+                if len(closes) >= 2:
+                    pool[other] = closes[-1] / closes[max(0, len(closes) - 21)] - 1.0
+            assert row["cs_momentum_rank_20"] == pytest.approx(cross_sectional_momentum_rank(pool, ticker))

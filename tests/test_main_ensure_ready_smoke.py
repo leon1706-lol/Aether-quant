@@ -49,6 +49,7 @@ class _PermissiveQCAlgorithm:
 def algorithm():
     stub = types.ModuleType("AlgorithmImports")
     stub.QCAlgorithm = _PermissiveQCAlgorithm
+    stub.Slice = object  # evaluated at def time by main.py's annotations on Python < 3.14 (CI runs 3.11)
     stub.time = datetime.time  # Lean's star import exports this and shadows the stdlib `time` module
     patcher = pytest.MonkeyPatch()
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
