@@ -169,6 +169,11 @@ def _pearson_correlation(series_a: list[float], series_b: list[float]) -> float:
         return 0.0
     series_a = series_a[-length:]
     series_b = series_b[-length:]
+    # a constant window has zero variance by definition; testing the VALUES keeps it independent of how sum() rounds
+    # (Python <= 3.11 sums naively, so mean([0.001] * 24) != 0.001 and the "zero" variance came out ~1e-35, which
+    # divided into noise)
+    if max(series_a) == min(series_a) or max(series_b) == min(series_b):
+        return 0.0
     mean_a = _mean(series_a)
     mean_b = _mean(series_b)
     covariance = sum((a - mean_a) * (b - mean_b) for a, b in zip(series_a, series_b))
@@ -201,6 +206,7 @@ def _full_window_correlation_matrix(
     if longest < 2 or len(full) < 2:
         return None
     matrix = np.asarray([returns_by_symbol[symbol] for symbol in full], dtype=float)
+    constant = matrix.max(axis=1) == matrix.min(axis=1)
     centered = matrix - matrix.mean(axis=1, keepdims=True)
     covariance = centered @ centered.T
     variance = np.diag(covariance)
@@ -208,6 +214,9 @@ def _full_window_correlation_matrix(
     with np.errstate(divide="ignore", invalid="ignore"):
         correlation = np.where(denominator == 0.0, 0.0, covariance / denominator)
     correlation = np.clip(correlation, -1.0, 1.0)
+    if constant.any():
+        correlation[constant, :] = 0.0
+        correlation[:, constant] = 0.0
     return {symbol: row for row, symbol in enumerate(full)}, correlation
 
 

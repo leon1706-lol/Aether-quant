@@ -944,6 +944,21 @@ def test_vectorised_correlations_match_the_scalar_pearson_for_every_pair(monkeyp
         assert [round(v, 12) for v in fast.top_peer_returns] == [round(v, 12) for v in slow.top_peer_returns]
 
 
+@pytest.mark.parametrize("level", [0.001, 0.1, 1.0 / 3.0, -0.0007])
+def test_a_constant_window_correlates_at_exactly_zero_whatever_sum_rounds_to(level):
+    # V5.7.1: Python <= 3.11 sums naively, so mean([0.001] * 24) != 0.001 and the "zero" variance came out ~1e-35, which
+    # the scalar path divided into noise while the vectorised path (numpy's pairwise mean) saw an exact zero (CI-only failure)
+    from topology.market_topology import _full_window_correlation_matrix, _pearson_correlation
+
+    varying = [0.01 * ((i * 7) % 5 - 2) for i in range(24)]
+    constant = [level] * 24
+    assert _pearson_correlation(constant, varying) == 0.0
+    assert _pearson_correlation(varying, constant) == 0.0
+    rows, matrix = _full_window_correlation_matrix({"A": varying, "B": constant, "C": list(reversed(varying))}, ["A", "B", "C"])
+    assert matrix[rows["A"], rows["B"]] == 0.0 and matrix[rows["B"], rows["C"]] == 0.0 and matrix[rows["B"], rows["B"]] == 0.0
+    assert matrix[rows["A"], rows["C"]] == pytest.approx(_pearson_correlation(varying, list(reversed(varying))), abs=1e-12)
+
+
 def test_vectorised_correlations_fall_back_cleanly_without_enough_full_windows():
     from topology.market_topology import _full_window_correlation_matrix
 
