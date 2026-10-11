@@ -470,3 +470,10 @@ the HRP path itself (V5.4.5, Problems.md #118 — the fallbacks originally
 divided gross across both legs combined, breaking neutrality exactly when
 leg counts were unequal). `apply_hrp_weights()` imports scipy lazily,
 so the default `"rank"` path never pays the import.
+
+## Forex sleeve — `forex_sleeve.py` (V5.7.0)
+
+`build_forex_sleeve_weights(allocations, gross_budget, max_weight_per_pair)`: each leg gets half the sleeve's gross budget split evenly
+over its names (one-sided or unfunded -> `{}`); `forex_resize_below_minimum(delta_units, price, min_trade_usd)`: the dollar deadband that
+keeps a resize worth less than IB's minimum commission from trading. Shared by `main.py::_update_forex_sleeve` and
+`scripts/forex_sleeve_research.py`; the contract is in `development/architecture.md` ("Forex sleeve contract").

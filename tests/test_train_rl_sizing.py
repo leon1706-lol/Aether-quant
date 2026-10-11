@@ -1,4 +1,4 @@
-"""Tests for train_rl_sizing.py's pure functions (development/Problems.md
+﻿"""Tests for train_rl_sizing.py's pure functions (development/Problems.md
 #71, Phase 4.12, Component E). Mirrors tests/test_train_topology.py's own
 documented convention: only the pure functions are exercised here -
 main()'s multitask-model replay and file I/O are left untested at the unit
@@ -6,14 +6,71 @@ level (same reasoning: they need a real exported model + real datasets, not
 just synthetic fixtures)."""
 
 import numpy as np
+import pandas as pd
+import pytest
 
 from train_rl_sizing import (
     action_distribution,
+    build_book_member_rows,
     compute_action_reward,
+    compute_book_action_reward,
     evaluate_policy_expected_reward,
+    fee_fraction_of_nav,
     fit_policy,
     standardize_states,
 )
+
+# ---------------------------------------------------------------------------
+# V5.7.0 book-level reward
+# ---------------------------------------------------------------------------
+
+FOREX_COSTS = {"commission_bps_per_side": 0.2, "min_commission_usd": 2.0, "fee_by_type": {"forex": {"fee_bps": 0.2, "min_usd": 2.0}}}
+
+
+def test_fee_fraction_charges_the_dollar_minimum_on_small_orders_and_the_rate_on_large_ones():
+    # $2,000 notional: 0.2 bps = $0.04 -> the $2 minimum applies on each side
+    assert fee_fraction_of_nav("forex", 2_000.0, 100_000.0, FOREX_COSTS) == pytest.approx(4.0 / 100_000.0)
+    # $50M notional would be rate-driven: 0.2 bps = $1,000 a side
+    assert fee_fraction_of_nav("forex", 50_000_000.0, 1e9, FOREX_COSTS) == pytest.approx(2_000.0 / 1e9)
+    assert fee_fraction_of_nav("forex", 0.0, 100_000.0, FOREX_COSTS) == 0.0
+
+
+def test_book_reward_skip_is_exactly_zero_and_small_forex_orders_lose_to_the_minimum_fee():
+    kwargs = dict(nav=100_000.0, security_type="forex", spread_fraction=0.0001, costs_config=FOREX_COSTS)
+    assert compute_book_action_reward(0.0, 0.02, 1.0, 0.05, **kwargs) == 0.0
+    small_edge = compute_book_action_reward(1.0, 0.02, 1.0, 0.0005, **kwargs)  # gross $1 on a $2,000 position, fee $4
+    assert small_edge < 0.0
+    big_edge = compute_book_action_reward(1.0, 0.02, 1.0, 0.02, **kwargs)
+    assert big_edge == pytest.approx(0.02 * 0.02 - 4.0 / 100_000.0 - 0.0001 * 0.02)
+    # a larger size amortises the minimum: more gross per fee dollar
+    assert compute_book_action_reward(1.5, 0.02, 1.0, 0.02, **kwargs) > 1.5 * 0.0 + big_edge
+
+
+def test_build_book_member_rows_picks_top_and_bottom_of_the_pool_and_signs_the_direction():
+    class_by_ticker = {f"F{i}": "forex" for i in range(8)} | {"AAPL": "equity"}
+    rows = []
+    for date in ("2020-01-01", "2020-01-02"):
+        for i in range(8):
+            rows.append(
+                {"date": date, "ticker": f"F{i}", "x": float(i), "target_return_20d": 0.01 * (i - 3.5),
+                 "liquidity_spread_proxy": 0.0001, "rolling_volatility_20d": 0.005, "fx_carry_3m": 0.1}
+            )
+        rows.append({"date": date, "ticker": "AAPL", "x": 99.0, "target_return_20d": 0.5, "liquidity_spread_proxy": 0.0001,
+                     "rolling_volatility_20d": 0.01, "fx_carry_3m": 0.0})
+    frame = pd.DataFrame(rows)
+
+    from unittest.mock import patch
+
+    with patch("train_rl_sizing.run_exported_multitask_model", side_effect=lambda export, inputs: {"rank_20d": inputs[0]}):
+        states, rewards = build_book_member_rows(
+            frame, {}, ["x"], [0.0, 1.0], ["confidence", "rolling_volatility_20d", "fx_carry_3m", "log_order_notional"],
+            asset_class_by_ticker=class_by_ticker, pool_classes=["forex"], per_side=2, rebalance_every=1,
+            nominal_base_weight=0.02, nav=100_000.0, costs_config=FOREX_COSTS,
+        )
+    assert states.shape == (8, 4) and rewards.shape == (8, 2)  # 4 members x 2 dates; the equity row is outside the pool
+    assert (rewards[:, 0] == 0.0).all()  # the skip action
+    # members are the extremes of the pool (the model score is the ticker index): high-confidence picks only
+    assert (states[:, 0] >= 0.5).all()
 
 
 # ---------------------------------------------------------------------------
@@ -337,3 +394,4 @@ def test_select_penalty_weight_degrades_without_a_baseline_action_or_enough_date
     no_baseline = {**_SWEEP_COMMON, "action_set": [0.6, 0.8]}
     assert select_penalty_weight(frame, **no_baseline, candidate_weights=[2.0])["reason"] == "no_baseline_action_or_no_candidates"
     assert select_penalty_weight(frame.head(10), **_SWEEP_COMMON, candidate_weights=[2.0])["reason"] == "too_few_validation_dates"
+

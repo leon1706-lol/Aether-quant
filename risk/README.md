@@ -287,3 +287,12 @@ two split flags both OR the legacy flag in for backward compatibility:
   never the sticky trade-lock clear. The two flags are deliberately
   independent: unsticking a stuck kill-switch lock shouldn't force
   disabling the unrelated regime-drawdown protection too.
+
+## RL sizing with its own state-key list (V5.7.0)
+
+`rl_sizing_multiplier(..., expected_state_keys=)` and `build_rl_sizing_state(base_features, confidence, state_keys, extra_state)` let a
+second policy carry its own inputs: `FOREX_RL_SIZING_STATE_KEYS` adds `fx_carry_3m` and `log_order_notional` (log of base book weight x NAV,
+supplied by the caller). A model whose `state_keys` differ from what the caller built is refused (`rl_sizing_state_key_mismatch`, a strict
+1.0 no-op), never silently misaligned. The forex policy (`ml/rl_sizing_forex_model.json`, trained by `train_rl_sizing.py` with
+`reward_mode: "book_member_20d"`) may choose 0 (skip) and sizes above 1 within `forex_sleeve.rl_min/max_multiplier`; `main.py` applies it
+to ENTRIES only.

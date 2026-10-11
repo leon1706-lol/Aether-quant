@@ -26,10 +26,9 @@ live in-memory buffer could possibly contain by that point in a real run.
 
 from __future__ import annotations
 
-import bisect
-
 from evaluation.rolling_ic_gate_calibration import build_event_buffer
-from portfolio.rolling_ic_gate import compute_rolling_ic_state, evaluate_rolling_ic_gate
+from evaluation.rolling_ic_series import make_rolling_ic_state_fn
+from portfolio.rolling_ic_gate import evaluate_rolling_ic_gate
 
 # development/Problems.md #102's own three named bad eras, found from this
 # round's research into rolling IC vs. the model's per-era IC diagnostic
@@ -82,17 +81,13 @@ def replay_rolling_ic_gate_over_dataset(
         dataset, raw_score_column=raw_score_column, ticker_column=ticker_column,
         date_column=date_column, close_column=close_column,
     )
-    event_dates = [str(event["created_at"])[:10] for event in events]
+    state_fn = make_rolling_ic_state_fn(
+        events, horizon_days=horizon_days, rolling_window_days=rolling_window_days, min_names_per_date=min_names_per_date
+    )
 
     records = []
     for date in rebalance_dates:
-        cutoff_index = bisect.bisect_right(event_dates, str(date))
-        buffer_up_to_date = events[:cutoff_index]
-        state = compute_rolling_ic_state(
-            buffer_up_to_date, horizon_days=horizon_days, rolling_window_days=rolling_window_days,
-            min_names_per_date=min_names_per_date,
-        )
-        result = evaluate_rolling_ic_gate(state, gate_config)
+        result = evaluate_rolling_ic_gate(state_fn(str(date)), gate_config)
         records.append({"date": str(date), **result})
 
     return records

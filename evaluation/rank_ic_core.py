@@ -115,6 +115,27 @@ def rank_ic_from_arrays(
     }
 
 
+def newey_west_t_stat(values, lags: int) -> float:
+    """HAC (Newey-West, Bartlett weights) t-statistic of the mean of a daily IC series. Consecutive daily ICs of an
+    h-day-horizon signal share most of their forward window, so the plain t-stat overstates significance; the
+    non-overlapping subsample is honest but throws away (h-1)/h of the dates (14 of 261 on the validation split).
+    `lags` ~ horizon - 1. Returns 0.0 when fewer than 2 finite values or no variance."""
+    series = np.asarray([float(value) for value in values if value is not None and np.isfinite(value)], dtype=float)
+    n = len(series)
+    if n < 2:
+        return 0.0
+    mean = float(series.mean())
+    centered = series - mean
+    long_run_variance = float(centered @ centered) / n
+    for lag in range(1, min(int(lags), n - 1) + 1):
+        weight = 1.0 - lag / (int(lags) + 1.0)
+        long_run_variance += 2.0 * weight * float(centered[lag:] @ centered[:-lag]) / n
+    # a constant series has float-noise variance (~1e-33), which would read as an enormous t
+    if long_run_variance <= 1e-18:
+        return 0.0
+    return mean / float(np.sqrt(long_run_variance / n))
+
+
 def resolve_realized_rank_ic_observations(events: list[dict], horizon_days: int = 20) -> list[dict]:
     """Resolves each event's `resolved_predicted_rank_20d` against its own
     ticker's close price `horizon_days` TRADING days later (i.e.

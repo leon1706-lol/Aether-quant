@@ -89,7 +89,14 @@ codebase.
   stage B installs the winner and trains sequence, gating, RL sizing (penalty sweep) and the resumable
   walk-forward.
 - `as_live_levers.py` - one-lever-at-a-time attribution of the as-live book (`--split`, `--only`); writes
-  `ml/evaluation/as_live_levers[_split].json`. Needs an idle machine: each new rolling-IC gate takes ~12 min.
+  `ml/evaluation/as_live_levers[_split].json`. V5.7.0: scoring is cached per split and model fingerprint
+  (`ml/evaluation/cache/`), the rolling-IC state is computed once per score set (seconds per variant), and the
+  `AsLiveHarness` class is reusable.
+- `gate_research.py` (V5.7.0) — every gate / lever decision of todo.md findings 1-6 on BOTH splits with the full
+  as-live simulator, plus the R-GATE verdict per experiment -> `ml/evaluation/v570_gate_research.json`.
+- `build_holdout_data.py` / `build_holdout_dataset.py` (V5.7.0) — the out-of-window holdout: Yahoo bars for
+  every universe asset 2014-06..2025-06 into `data_holdout/` (never `data/`), then a dataset scaled with the
+  ACTIVE scaler -> `ml/datasets/holdout_dataset.csv`. Evaluation-only; the dataset build runs on the Codespace.
 - `make_variant_configs.py` / `compare_training_variants.py` — write the per-variant configs and pick
   the winner on VALIDATION IC against the control's seed spread (never the backtest split).
 - `overlap_vs_sharpe_analysis.py` — pairs each reconciled book-history run with the Lean Sharpe of the

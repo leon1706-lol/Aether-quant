@@ -19,7 +19,7 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from evaluation.rank_signal_calibration import segment_logged_records_by_run
@@ -114,9 +114,23 @@ def exposure_summary(result: dict) -> dict[str, dict[str, float]]:
 # ---------------------------------------------------------------- orders
 
 
-def find_overlapping_orders(orders: dict[str, dict], max_open_days: float = 5.0) -> dict:
+def weekday_sessions_between(created: datetime, closed: datetime) -> int:
+    """Weekday sessions elapsed after `created` up to and including `closed`'s date. main.py counts a limit order's age
+    in equity-session bars (`bar_index` only advances on those), so a Friday order cancelled on Wednesday is 3 sessions
+    old although it was open 5 calendar days. Holidays are not known here (the audit allows slack for them)."""
+    day, last, sessions = created.date() + timedelta(days=1), closed.date(), 0
+    while day <= last:
+        sessions += day.weekday() < 5
+        day += timedelta(days=1)
+    return sessions
+
+
+def find_overlapping_orders(
+    orders: dict[str, dict], max_open_days: float = 5.0, max_open_sessions: int | None = None
+) -> dict:
     """Same-symbol, same-direction orders whose open windows overlap, and
-    orders that stayed open longer than `max_open_days`.
+    orders that stayed open too long: longer than `max_open_sessions` weekday sessions when given (the unit
+    `phase_v2.limit_orders.unfilled_timeout_bars` is counted in), else longer than `max_open_days` calendar days.
 
     A window runs from createdTime to the fill (lastFillTime) or the cancel.
     Overlap on a LIMIT order is the V5.5.0 bug: a still-unfilled entry was
@@ -134,8 +148,12 @@ def find_overlapping_orders(orders: dict[str, dict], max_open_days: float = 5.0)
         order_type = int(order.get("type", 0) or 0)
         windows[(symbol, direction)].append((created, closed, str(order_id), order_type))
         open_days = (closed - created).total_seconds() / 86400.0
-        if order_type == ORDER_TYPE_LIMIT and open_days > max_open_days:
-            open_too_long.append({"symbol": symbol, "order_id": str(order_id), "open_days": round(open_days, 2)})
+        open_sessions = weekday_sessions_between(created, closed)
+        too_long = open_sessions > max_open_sessions if max_open_sessions is not None else open_days > max_open_days
+        if order_type == ORDER_TYPE_LIMIT and too_long:
+            open_too_long.append(
+                {"symbol": symbol, "order_id": str(order_id), "open_days": round(open_days, 2), "open_sessions": open_sessions}
+            )
 
     overlapping_pairs: list[dict] = []
     for (symbol, _direction), entries in windows.items():
@@ -159,6 +177,7 @@ def find_overlapping_orders(orders: dict[str, dict], max_open_days: float = 5.0)
         "num_limit_orders_open_too_long": len(open_too_long),
         "limit_orders_open_too_long": open_too_long[:50],
         "max_open_days_threshold": max_open_days,
+        "max_open_sessions_threshold": max_open_sessions,
     }
 
 
@@ -347,19 +366,26 @@ def load_backtest_run(run_dir: Path) -> dict:
 
 
 def load_book_history(path: Path) -> list[dict]:
+    """The cumulative `book_history.jsonl` plus, when `phase_v2.diagnostics.book_history.per_run_files` is on, the
+    per-run files next to it (`book_history/<run_id>.jsonl`, oldest first). `path` may also be that directory."""
     path = Path(path)
-    if not path.exists():
-        return []
+    files: list[Path] = []
+    if path.is_file():
+        files.append(path)
+    per_run_dir = path if path.is_dir() else path.with_suffix("")
+    if per_run_dir.is_dir():
+        files.extend(sorted(per_run_dir.glob("*.jsonl")))
     records = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            records.append(json.loads(line))
-        except ValueError:
-            continue
-    # File order is run order (the log is append-only and never rotated);
+    for file in files:
+        for line in file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except ValueError:
+                continue
+    # File order is run order (appended per run, per-run files sorted by their start stamp);
     # callers segment it with segment_logged_records_by_run().
     return records
 
@@ -385,6 +411,7 @@ def audit_backtest_run(
     risk_free_annual: float = 0.02,
     max_open_days: float = 5.0,
     book_run_index: int = -1,
+    max_open_sessions: int | None = None,
 ) -> dict:
     """The full audit. `run` is load_backtest_run()'s dict; `book_history`
     is the raw (multi-run) log, of which `book_run_index` selects one run."""
@@ -410,7 +437,7 @@ def audit_backtest_run(
         "exposure": exposure_summary(result),
         "entries_by_asset_class": classify_entries(closed_trades, orders, book_history),
         "pnl_by_entry_bucket": pnl_by_entry_bucket(closed_trades, orders, book_history),
-        "orders": find_overlapping_orders(orders, max_open_days=max_open_days),
+        "orders": find_overlapping_orders(orders, max_open_days=max_open_days, max_open_sessions=max_open_sessions),
         "holding_period_days": holding_period_histogram(closed_trades),
         "pnl_and_fees": pnl_and_fees_by_asset_class(closed_trades, orders, run.get("order_events", [])),
         "book": summarize_book_history(book_history, start_date, end_date),

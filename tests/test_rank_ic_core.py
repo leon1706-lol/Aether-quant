@@ -16,9 +16,36 @@ import pytest
 
 from evaluation.rank_ic_core import (
     aggregate_rank_ic_observations,
+    newey_west_t_stat,
     rank_ic_from_arrays,
     resolve_realized_rank_ic_observations,
 )
+
+
+# ---------------------------------------------------------------------------
+# newey_west_t_stat (V5.7.0)
+# ---------------------------------------------------------------------------
+
+
+def test_newey_west_t_stat_equals_the_plain_t_stat_for_uncorrelated_values_at_zero_lags():
+    rng = np.random.default_rng(1)
+    values = rng.normal(0.05, 0.2, 400)
+    plain = values.mean() / (values.std(ddof=0) / np.sqrt(len(values)))
+    assert newey_west_t_stat(values, 0) == pytest.approx(plain)
+
+
+def test_newey_west_t_stat_shrinks_the_t_of_a_positively_autocorrelated_series():
+    rng = np.random.default_rng(2)
+    noise = rng.normal(0, 1, 600)
+    smooth = np.convolve(noise, np.ones(20) / 20, mode="valid") + 0.3  # a 20-day overlapping-window style series
+    assert newey_west_t_stat(smooth, 19) < 0.6 * newey_west_t_stat(smooth, 0)
+
+
+def test_newey_west_t_stat_degenerate_inputs_are_zero_not_errors():
+    assert newey_west_t_stat([], 5) == 0.0
+    assert newey_west_t_stat([0.3], 5) == 0.0
+    assert newey_west_t_stat([0.2, 0.2, 0.2], 5) == 0.0
+    assert newey_west_t_stat([0.1, float("nan"), None, 0.2, 0.3], 1) > 0.0  # non-finite values are dropped
 
 
 # ---------------------------------------------------------------------------

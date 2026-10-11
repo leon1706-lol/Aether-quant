@@ -25,6 +25,7 @@ from evaluation.backtest_audit import (
     sharpe_from_equity,
     summarize_book_history,
     teardown_status,
+    weekday_sessions_between,
 )
 
 DAY0 = datetime(2019, 1, 1, tzinfo=timezone.utc)
@@ -151,6 +152,25 @@ def test_limit_orders_open_longer_than_the_threshold_are_flagged():
     assert report["limit_orders_open_too_long"][0]["symbol"] == "HYG"
 
 
+def test_open_age_is_counted_in_weekday_sessions_when_a_session_threshold_is_given():
+    # DAY0 is a Tuesday. Friday (day 3) -> Wednesday (day 8): 5 calendar days over a weekend = 3 sessions.
+    friday_to_wednesday = {"1": _order(1, "BTCUSD", 3, 8, status=5, filled=False)}
+    assert find_overlapping_orders(friday_to_wednesday, max_open_days=4.0)["num_limit_orders_open_too_long"] == 1
+    by_sessions = find_overlapping_orders(friday_to_wednesday, max_open_sessions=3)
+    assert by_sessions["num_limit_orders_open_too_long"] == 0
+    assert by_sessions["max_open_sessions_threshold"] == 3
+    # Thursday (day 2) -> Wednesday (day 8): Fri, Mon, Tue, Wed = 4 sessions, a genuine overrun of a 3-bar timeout
+    overrun = find_overlapping_orders({"1": _order(1, "AAPL", 2, 8, status=5, filled=False)}, max_open_sessions=3)
+    assert overrun["limit_orders_open_too_long"][0]["open_sessions"] == 4
+
+
+def test_weekday_sessions_between_skips_weekends_and_the_creation_day():
+    assert weekday_sessions_between(DAY0, DAY0) == 0
+    assert weekday_sessions_between(DAY0, DAY0 + timedelta(days=1)) == 1
+    assert weekday_sessions_between(DAY0 + timedelta(days=3), DAY0 + timedelta(days=5)) == 0  # Fri -> Sun
+    assert weekday_sessions_between(DAY0 + timedelta(days=3), DAY0 + timedelta(days=6)) == 1  # Fri -> Mon
+
+
 def test_canceled_orders_are_windowed_by_their_cancel_time():
     orders = {
         "1": _order(1, "BA", 0, 3, status=5, filled=False),
@@ -233,6 +253,22 @@ def test_load_book_history_keeps_file_order_and_skips_corrupt_lines(tmp_path):
     path.write_text('{"date": "2019-02-01"}\nnot json\n\n{"date": "2019-01-01"}\n', encoding="utf-8")
     assert [r["date"] for r in load_book_history(path)] == ["2019-02-01", "2019-01-01"]  # NOT date-sorted
     assert load_book_history(tmp_path / "missing.jsonl") == []
+
+
+def test_load_book_history_reads_per_run_files_after_the_cumulative_log_and_selects_by_run_id(tmp_path):
+    cumulative = tmp_path / "book_history.jsonl"
+    cumulative.write_text('{"date": "2019-01-02"}\n{"date": "2019-01-03"}\n', encoding="utf-8")
+    per_run = tmp_path / "book_history"
+    per_run.mkdir()
+    (per_run / "20261010T100000Z.jsonl").write_text('{"date": "2019-01-02", "run_id": "20261010T100000Z"}\n', encoding="utf-8")
+    (per_run / "20261010T120000Z.jsonl").write_text(
+        '{"date": "2019-01-02", "run_id": "20261010T120000Z"}\n{"date": "2019-01-03", "run_id": "20261010T120000Z"}\n',
+        encoding="utf-8",
+    )
+    records = load_book_history(cumulative)
+    assert [r.get("run_id") for r in records] == [None, None, "20261010T100000Z", "20261010T120000Z", "20261010T120000Z"]
+    assert [len(select_run_book_history(records, index)) for index in (-1, -2, -3)] == [2, 1, 2]
+    assert len(load_book_history(per_run)) == 3  # the directory itself, without the cumulative file
 
 
 # ---------------------------------------------------------------- holding / pnl / book summary / teardown

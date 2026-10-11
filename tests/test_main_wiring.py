@@ -78,6 +78,8 @@ def _algorithm(main_module, **overrides):
         position_scaling_enabled=True,
         position_scaling_rebalance_threshold_weight=0.01,
         forex_resize_min_fraction=0.0,
+        forex_sleeve_enabled=False,
+        forex_sleeve_min_trade_usd=0.0,
         limit_orders_enabled=True,
         limit_orders_asset_classes={"equity"},
         limit_order_offset_multiplier=1.0,
@@ -404,6 +406,42 @@ def test_divergence_is_measured_against_the_fill_bar_open_not_the_prior_close(ma
     assert algorithm._slippage_divergence_history == [pytest.approx(5.0, abs=1e-6)]
 
 
+def test_a_limit_fill_better_than_the_open_is_price_improvement_not_slippage(main_module):
+    # V5.7.0 (Problems.md #148): BT5's crypto limit buys filled 1-4% under the open and tripped the kill switch
+    improved_buy = _divergence_algorithm(main_module, open_price=100.0)
+    event = _fill_event(98.0)
+    event.FillQuantity = 5.0
+    improved_buy._track_slippage_divergence(event)
+    assert improved_buy._slippage_divergence_history == [pytest.approx(-205.0, abs=1e-6)]  # -200 bps gap - 5 expected
+    adverse_buy = _divergence_algorithm(main_module, open_price=100.0)
+    adverse = _fill_event(102.0)
+    adverse.FillQuantity = 5.0
+    adverse_buy._track_slippage_divergence(adverse)
+    assert adverse_buy._slippage_divergence_history == [pytest.approx(195.0, abs=1e-6)]
+    sell_above = _divergence_algorithm(main_module, open_price=100.0)
+    sold = _fill_event(102.0)
+    sold.FillQuantity = -5.0
+    sell_above._track_slippage_divergence(sold)
+    assert sell_above._slippage_divergence_history == [pytest.approx(-205.0, abs=1e-6)]
+
+
+def test_a_tracked_limit_fill_is_never_counted_as_slippage(main_module):
+    # V5.7.0 (Problems.md #153): its gap to the bar open is intraday drift, bounded by the limit price
+    algorithm = _divergence_algorithm(main_module, open_price=100.0)
+    algorithm.pending_limit_orders = {"AMZN": {"order": "tracked"}}
+    event = _fill_event(104.0)
+    event.FillQuantity = 5.0
+    algorithm._track_slippage_divergence(event)
+    assert algorithm._slippage_divergence_history == []
+    assert "AMZN" not in algorithm._expected_cost_by_symbol  # the stash is still consumed, not leaked
+    market = _divergence_algorithm(main_module, open_price=100.0)
+    market.pending_limit_orders = {}
+    market_event = _fill_event(100.10)
+    market_event.FillQuantity = 5.0
+    market._track_slippage_divergence(market_event)
+    assert market._slippage_divergence_history == [pytest.approx(5.0, abs=1e-6)]
+
+
 def test_divergence_records_nothing_when_the_open_is_unavailable(main_module):
     algorithm = _divergence_algorithm(main_module, open_price=0.0)
     algorithm._track_slippage_divergence(_fill_event(100.10))
@@ -508,3 +546,62 @@ def test_release_python_models_swaps_the_slippage_model_and_closes_redis(main_mo
     assert result == {"slippage_models_detached": 2, "redis_clients_closed": 1}
     assert securities["A"].model == "null" and securities["C"].model == "null" and securities["B"].model == "python-model"
     assert algorithm._liquidity_slippage_model is None and experience._client is None
+
+# ---------------------------------------------------------------- V5.7.0 forex sleeve
+
+
+def test_sleeve_dollar_deadband_keeps_a_resize_worth_less_than_the_minimum_trade(main_module):
+    held = _Portfolio({"EURUSD": _holding("EURUSD", 950.0, value=1045.0)})
+    algorithm = _algorithm(main_module, Portfolio=held, forex_sleeve_enabled=True, forex_sleeve_min_trade_usd=5000.0)
+    assert _forex(algorithm) == "forex_min_notional_kept"  # 50 units x 1.1 = $55 < $5,000
+    assert algorithm.market_orders == []
+    off = _algorithm(main_module, Portfolio=held, forex_sleeve_enabled=False, forex_sleeve_min_trade_usd=5000.0)
+    _forex(off)
+    assert off.market_orders == [("EURUSD", 50)]  # the dollar floor only exists under the sleeve
+
+
+def _sleeve_algorithm(main_module, **overrides):
+    pairs = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "NZDUSD", "USDCAD"]
+    defaults = dict(
+        forex_sleeve_enabled=True, forex_risk_enabled=True, forex_sleeve_per_side=2, forex_sleeve_gross_budget=0.4,
+        forex_sleeve_max_weight=None, forex_sleeve_rebalance_every_bars=20, forex_sleeve_min_rank_confidence_spread=0.0,
+        forex_sleeve_hysteresis_rank_margin=0.0, _forex_sleeve_allocations={}, _forex_sleeve_formed={}, _forex_sleeve_weights={},
+        asset_lookup={pair: {"asset_class": "forex", "security_type": "forex"} for pair in pairs} | {"AMZN": {"asset_class": "equity"}},
+        bar_index=1, is_equity_session_bar=True, _is_trading_eligible=lambda symbol: True,
+    )
+    defaults.update(overrides)
+    return _algorithm(main_module, **defaults), pairs
+
+
+def _pass1(pairs):
+    scores = dict(zip(pairs, [0.9, 0.8, 0.5, 0.45, 0.2, 0.1]))
+    state = {pair: {"raw_rank_score": score, "symbol": pair} for pair, score in scores.items()}
+    state["AMZN"] = {"raw_rank_score": 0.99, "symbol": "AMZN"}  # an equity never joins the forex pool
+    return state
+
+
+def test_forex_sleeve_ranks_the_pairs_among_themselves_and_funds_each_leg_half_the_budget(main_module):
+    algorithm, pairs = _sleeve_algorithm(main_module)
+    algorithm._update_forex_sleeve(_pass1(pairs))
+    roles = {symbol: allocation.role for symbol, allocation in algorithm._forex_sleeve_allocations.items()}
+    assert roles == {"EURUSD": "long", "GBPUSD": "long", "NZDUSD": "short", "USDCAD": "short"}
+    assert "AMZN" not in roles
+    assert sum(algorithm._forex_sleeve_weights.values()) == pytest.approx(0.0)
+    assert sum(abs(w) for w in algorithm._forex_sleeve_weights.values()) == pytest.approx(0.4)
+    assert algorithm._forex_sleeve_weights["EURUSD"] > 0 > algorithm._forex_sleeve_weights["NZDUSD"]
+
+
+def test_forex_sleeve_holds_its_book_between_rebalances_and_is_inert_when_disabled(main_module):
+    algorithm, pairs = _sleeve_algorithm(main_module)
+    algorithm._update_forex_sleeve(_pass1(pairs))
+    formed = dict(algorithm._forex_sleeve_allocations)
+    algorithm.bar_index = 5
+    reversed_scores = {pair: {"raw_rank_score": 1.0 - state["raw_rank_score"], "symbol": pair} for pair, state in _pass1(pairs).items() if pair != "AMZN"}
+    algorithm._update_forex_sleeve(reversed_scores)
+    assert algorithm._forex_sleeve_allocations == formed  # not a rebalance bar (every 20)
+    algorithm.bar_index = 21
+    algorithm._update_forex_sleeve(reversed_scores)
+    assert algorithm._forex_sleeve_allocations != formed  # the next cadence re-ranks
+    off, off_pairs = _sleeve_algorithm(main_module, forex_sleeve_enabled=False)
+    off._update_forex_sleeve(_pass1(off_pairs))
+    assert off._forex_sleeve_allocations == {} and off._forex_sleeve_weights == {}

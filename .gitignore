@@ -193,3 +193,16 @@ cpp_inference_ext/install_log*.txt
 # side-channel log (development/Problems.md #36) - regenerable diagnostic
 # output, not source.
 model_input_timing.log
+
+# V5.7.0: out-of-window holdout data (scripts/build_holdout_data.py) and the runtime forex sizing log
+data_holdout/
+visualization/book_history/
+visualization/forex_order_sizing.jsonl
+backtests_invalid/
+
+# V5.7.0 retrain scratch (Codespace logs, variant configs, pre-retrain and rejected-candidate model/dataset backups): large, regenerable
+ml/_backup_*/
+ml/_candidate_*/
+ml/nohup_*.out
+ml/variant_configs_*/
+ml/rl_forex_config.json

@@ -73,6 +73,7 @@ from features import (
 from execution.cost_model import commission_bps_by_ticker
 from json_safety import atomic_write_json, load_json_lenient
 from features.cross_asset_timing import CrossAssetTimeline, day_ordinal, fill_forward_open_forex_days
+from features.fx_carry import FX_CARRY_FEATURE_NAME, FX_RATE_PUBLICATION_LAG_DAYS, fx_carry_3m
 from data_pipeline.fred_backfill import load_cached_fred_series, series_change_asof, series_value_asof
 from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
 from evaluation.model_predictions import predict_head
@@ -554,7 +555,9 @@ def apply_split_adjustments(frame: pd.DataFrame, ticker: str) -> pd.DataFrame:
     return result
 
 
-def load_lean_bars(asset: dict, common_window: dict) -> pd.DataFrame:
+def load_lean_bars(asset: dict, common_window: dict, apply_factor_files: bool = True) -> pd.DataFrame:
+    """`apply_factor_files=False` is for the out-of-window holdout root (V5.7.0), whose zips are written from Yahoo's
+    already split/dividend-adjusted prices: Lean's factor files would adjust them a second time (Problems.md #130)."""
     path = ROOT / asset["data_path"]
     is_forex = asset["security_type"] == "forex"
     with ZipFile(path) as archive:
@@ -586,7 +589,7 @@ def load_lean_bars(asset: dict, common_window: dict) -> pd.DataFrame:
     frame["date"] = frame["timestamp"].dt.normalize()
     frame = frame.sort_values("date").drop_duplicates(subset="date", keep="last")
 
-    if asset["security_type"] == "equity":
+    if asset["security_type"] == "equity" and apply_factor_files:
         frame = apply_split_adjustments(frame, asset["ticker"])
 
     start = pd.Timestamp(common_window["start"])
@@ -615,6 +618,32 @@ def synchronize_assets(asset_frames: dict[str, pd.DataFrame]) -> tuple[dict[str,
             .reset_index(drop=True)
         )
     return synchronized, ordered_dates
+
+
+_SPLIT_ORDER = {"train": 0, "validation": 1, "backtest": 2}
+
+
+def purge_label_overlap(splits: list, horizon_rows: int) -> list:
+    """V5.7.0: relabel "purged" every row whose forward label window reaches into a LATER split. A row labelled
+    `horizon_rows` bars ahead (the 20-day return / rank targets) carries information from the next split's prices, so the
+    last `horizon_rows` rows of train (and of validation) leak the validation (and backtest) period into the data the model
+    is fitted, early-stopped and selected on. `splits` is one asset's per-row split labels in date order (None / NaN rows
+    are outside every window and stay as they are); purged rows are kept in the frame as feature context but match no
+    split filter. `horizon_rows <= 0` returns the labels unchanged."""
+    result = list(splits)
+    if horizon_rows <= 0:
+        return result
+    first_index: dict[str, int] = {}
+    for index in range(len(splits) - 1, -1, -1):
+        label = splits[index]
+        if not isinstance(label, str) or label not in _SPLIT_ORDER:
+            continue
+        rank = _SPLIT_ORDER[label]
+        later_starts = [start for name, start in first_index.items() if _SPLIT_ORDER[name] > rank]
+        if later_starts and min(later_starts) - index <= horizon_rows:
+            result[index] = "purged"
+        first_index[label] = index
+    return result
 
 
 def assign_split(date_value: pd.Timestamp, windows: dict) -> str | None:
@@ -834,6 +863,9 @@ def engineer_features(
     # target_return_1d already drops.
     result["target_volatility_next_day"] = result["high_low_range_pct"].shift(-1)
     result["split"] = result["date"].apply(lambda value: assign_split(value, windows))
+    purge_horizon_rows = int(windows.get("purge_label_horizon_days", 0) or 0)
+    if purge_horizon_rows > 0:
+        result["split"] = purge_label_overlap(result["split"].tolist(), purge_horizon_rows)
 
     required_columns = feature_names + [
         "target_return_1d",
@@ -1462,6 +1494,30 @@ def build_alt_data_features_by_date(
     return updated_frames
 
 
+def build_fx_carry_features(
+    asset_frames: dict[str, pd.DataFrame], config: dict, fred_series: dict[str, list[dict]]
+) -> dict[str, pd.DataFrame]:
+    """V5.7.0 - adds `fx_carry_3m` (features/fx_carry.py): the 3-month rate differential of each forex pair, looked up
+    as of the row's own date through the publication-lag-aware FRED helper `main.py` also calls; 0.0 for every other
+    asset class. Always writes the column so the dataset schema does not depend on whether the feature is in
+    `phase1.features.input_set` yet (it reaches the model only once a retrain lists it)."""
+    asset_class_by_ticker = asset_class_by_ticker_from_config(config)
+    lags = {
+        **FX_RATE_PUBLICATION_LAG_DAYS,
+        **config.get("phase1", {}).get("features", {}).get("fx_rate_publication_lag_days", {}),
+    }
+    updated: dict[str, pd.DataFrame] = {}
+    for ticker, frame in asset_frames.items():
+        result = frame.copy()
+        asset_class = asset_class_by_ticker.get(ticker)
+        if asset_class == "forex":
+            result[FX_CARRY_FEATURE_NAME] = [fx_carry_3m(ticker, asset_class, day, fred_series, lags) for day in result["date"]]
+        else:
+            result[FX_CARRY_FEATURE_NAME] = 0.0
+        updated[ticker] = result
+    return updated
+
+
 DEFAULT_CROSS_ASSET_SENSITIVITY_LOOKBACK_DAYS = 252
 DEFAULT_CROSS_ASSET_SENSITIVITY_MIN_OBSERVATIONS = 120
 DEFAULT_CROSS_ASSET_SENSITIVITY_DRIVERS = {
@@ -2041,6 +2097,13 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     sector_neutral_config = ranking_config.get("sector_neutral", {})
     min_sector_size = int(sector_neutral_config.get("min_sector_size", DEFAULT_SECTOR_NEUTRAL_MIN_SECTOR_SIZE))
     sector_by_ticker = load_sector_mapping(config)
+    separate_groups = {str(group): list(classes) for group, classes in ranking_config.get("separate_rank_groups", {}).items()}
+    separate_group_min_size = int(ranking_config.get("separate_rank_group_min_size", 8))
+    rank_group_by_ticker: dict[str, str] = {}
+    if separate_groups:
+        class_by_ticker = asset_class_by_ticker_from_config(config)
+        for group, classes in separate_groups.items():
+            rank_group_by_ticker.update({ticker: group for ticker, kind in class_by_ticker.items() if kind in classes})
     beta_neutral_config = ranking_config.get("beta_neutral", {})
     market_ticker = beta_neutral_config.get("market_ticker", DEFAULT_BETA_NEUTRAL_MARKET_TICKER)
     beta_min_observations = int(beta_neutral_config.get("min_observations", DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS))
@@ -2060,9 +2123,13 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
             ignore_index=True,
         )
         eligible = long_frame.dropna(subset=[return_column]).copy()
-        universe_size_by_date = eligible.groupby("date")[return_column].transform("size")
-        eligible = eligible[universe_size_by_date >= min_universe_size].copy()
-        eligible["rank_value"] = eligible.groupby("date")[return_column].rank(pct=True)
+        # V5.7.0: asset classes listed under ranking.separate_rank_groups are ranked AMONG THEMSELVES (forex pairs against
+        # equities is no cross-section); every other row stays in the "main" pool. Unset = one pool = the old behaviour.
+        eligible["rank_group"] = eligible["ticker"].map(rank_group_by_ticker).fillna("main")
+        group_size = eligible.groupby(["date", "rank_group"])[return_column].transform("size")
+        group_minimum = eligible["rank_group"].map(lambda group: min_universe_size if group == "main" else separate_group_min_size)
+        eligible = eligible[group_size >= group_minimum].copy()
+        eligible["rank_value"] = eligible.groupby(["date", "rank_group"])[return_column].rank(pct=True)
         rank_lookup = eligible.set_index(["ticker", "date"])["rank_value"].to_dict()
 
         sector_eligible = long_frame.dropna(subset=[return_column]).copy()
@@ -2211,8 +2278,9 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     max_abs_return_5d = target_config.get("max_abs_return_5d", DEFAULT_MAX_ABS_RETURN_5D)
     max_abs_return_20d = target_config.get("max_abs_return_20d", DEFAULT_MAX_ABS_RETURN_20D)
 
+    apply_factor_files = bool(phase1["universe"].get("apply_factor_files", True))
     asset_frames = {
-        asset["ticker"]: load_lean_bars(asset, phase1["universe"]["common_window"])
+        asset["ticker"]: load_lean_bars(asset, phase1["universe"]["common_window"], apply_factor_files=apply_factor_files)
         for asset in assets
     }
     union_dates = sorted({date_value for frame in asset_frames.values() for date_value in frame["date"].tolist()})
@@ -2289,13 +2357,15 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     # builders (bond, alt-data) need the same cache load, and
     # load_cached_fred_series() just globs a directory once, so there is
     # no reason to pay that I/O twice per build_feature_dataset() call.
-    fred_series = load_cached_fred_series()
+    fred_cache_dir = phase1["universe"].get("fred_cache_dir")
+    fred_series = load_cached_fred_series(ROOT / fred_cache_dir) if fred_cache_dir else load_cached_fred_series()
     engineered_frames = build_bond_features_by_date(engineered_frames, config, fred_series)
     engineered_frames = build_alt_data_features_by_date(engineered_frames, config, fred_series)
     # V5.1 Phase 2 (item 8 / F2) - same fred_series input as the alt-data
     # call directly above, called right after it per that function's own
     # docstring.
     engineered_frames = build_cross_asset_sensitivity_features(engineered_frames, config, fred_series)
+    engineered_frames = build_fx_carry_features(engineered_frames, config, fred_series)
     engineered_frames = build_derivatives_macro_features_by_date(engineered_frames, config)
     engineered_frames = build_cross_sectional_rank_targets(engineered_frames, config)
     # V5.1 Phase 2 (item 5) - same cross-sectional ordering constraint as
@@ -2347,12 +2417,25 @@ def build_asset_quality(config: dict, dataset: pd.DataFrame, metadata: dict) -> 
             and training_rows >= min_training_rows
             and backtest_rows >= min_backtest_rows
         )
-        trading_eligible = training_eligible
+        # V5.7.0: `trading_eligibility_basis: "history"` lets a name with too few TRAIN rows (ETH starts in 2017-09: 54 train
+        # rows) trade on its validation + backtest history; the pooled model still scores it (its features exist) but its
+        # rows are never fitted on. Default "train_rows" = the old rule (trading eligible == training eligible).
+        history_eligible = (
+            str(quality_config.get("trading_eligibility_basis", "train_rows")) == "history"
+            and total_rows >= min_total_rows
+            and validation_rows + backtest_rows >= int(quality_config.get("min_trading_history_rows", 365))
+            and backtest_rows >= min_backtest_rows
+        )
+        trading_eligible = training_eligible or history_eligible
 
         if training_eligible:
             quality_tier = "core"
             reason = "sufficient_training_and_backtest_history"
             role = "model_training_and_trading"
+        elif history_eligible:
+            quality_tier = "core"
+            reason = "scored_by_the_pooled_model_and_tradable_on_validation_and_backtest_history"
+            role = "trading_without_training_rows"
         elif total_rows >= 2:
             quality_tier = "thin"
             reason = "kept_visible_but_history_is_too_short_for_model_training_or_trading"
@@ -2439,6 +2522,49 @@ def fit_and_apply_scaler(
     return dataset, scaler, float(clip_sigma)
 
 
+def apply_scaler_stats(dataset: pd.DataFrame, scaler_stats: dict) -> pd.DataFrame:
+    """Scales `dataset` with an ALREADY FITTED scaler (the active `ml/scaler_stats.json`) instead of fitting a new one:
+    `(x - mean) / scale` clipped to +-clip_sigma, the identical transform `main.py` applies at runtime. The out-of-window
+    holdout (V5.7.0) must be scored with the training-window statistics, never with its own."""
+    names = list(scaler_stats["feature_names"])
+    mean = np.asarray(scaler_stats["mean"], dtype=float)
+    scale = np.asarray(scaler_stats["scale"], dtype=float)
+    scale = np.where(scale == 0.0, 1.0, scale)
+    clip_sigma = float(scaler_stats.get("clip_sigma", 10.0))
+    scaled = np.clip((dataset[names].to_numpy(dtype=float) - mean) / scale, -clip_sigma, clip_sigma)
+    result = dataset.copy()
+    for index, name in enumerate(names):
+        result[f"{name}_scaled"] = scaled[:, index]
+    return result
+
+
+def build_holdout_config(config: dict, holdout_root: str, holdout_start: str, holdout_end: str) -> tuple[dict, list[str]]:
+    """The config that builds the out-of-window holdout dataset (V5.7.0, todo.md finding 10): every asset reads its zip
+    from `holdout_root` (same relative path as `data_path`; assets without a zip there are dropped and returned), the
+    `backtest` window becomes the holdout window, Lean's factor files are not applied (the holdout zips are Yahoo-adjusted)
+    and the FRED cache comes from the holdout root. Train / validation windows stay the model's own so the features of
+    those rows (and the scaler statistics) are the ones the model was trained with."""
+    holdout_config = copy.deepcopy(config)
+    universe = holdout_config["phase1"]["universe"]
+    kept, dropped = [], []
+    for asset in universe["assets"]:
+        relative = Path(asset["data_path"])
+        rewritten = Path(holdout_root) / Path(*relative.parts[1:]) if relative.parts and relative.parts[0] == "data" else None
+        if rewritten is not None and (ROOT / rewritten).exists():
+            kept.append({**asset, "data_path": rewritten.as_posix()})
+        else:
+            dropped.append(asset["ticker"])
+    universe["assets"] = kept
+    universe["common_window"] = {**universe["common_window"], "end": holdout_end}
+    universe["apply_factor_files"] = False
+    universe["fred_cache_dir"] = (Path(holdout_root) / "reference" / "fred_series").as_posix()
+    holdout_config["phase1"]["windows"] = {
+        **holdout_config["phase1"]["windows"],
+        "backtest": {"start": holdout_start, "end": holdout_end},
+    }
+    return holdout_config, dropped
+
+
 def add_asset_context_features(dataset: pd.DataFrame, tickers: list[str]) -> tuple[pd.DataFrame, list[str]]:
     context_columns: list[str] = []
     for ticker in tickers:
@@ -2448,7 +2574,9 @@ def add_asset_context_features(dataset: pd.DataFrame, tickers: list[str]) -> tup
     return dataset, context_columns
 
 
-ASSET_CLASS_VALUES = ("equity", "crypto", "bond", "future", "option")
+# V5.7.0: "forex" added - the 15 FX pairs had an all-zero class context, indistinguishable from nothing. main.py fills
+# `asset_class_<class>` generically from the exported schema, so live needs no change (a retrain lists the new input).
+ASSET_CLASS_VALUES = ("equity", "crypto", "bond", "future", "option", "forex")
 
 
 def add_asset_class_context_features(dataset: pd.DataFrame, asset_class_by_ticker: dict[str, str]) -> tuple[pd.DataFrame, list[str]]:
@@ -4204,6 +4332,10 @@ def compute_purged_cv_rank_ic_diagnostic(
         "per_fold": per_fold,
         "mean_ic_across_folds": float(np.mean(mean_ics)) if mean_ics else 0.0,
         "any_fold_opposite_sign": bool(mean_ics and min(mean_ics) < 0 < max(mean_ics)),
+        # V5.7.0: the model scored here was TRAINED on these rows, so the fold ICs (0.40-0.49 on the V5.6.0 models)
+        # measure how evenly the fit spreads over the train window, never generalization. Out-of-sample evidence is
+        # the validation split (HAC t) and the walk-forward windows.
+        "scope": "in_sample_fold_stability_not_out_of_sample",
     }
 
 
@@ -7028,7 +7160,14 @@ def _run_walk_forward(
             continue
 
         window_config = copy.deepcopy(config)
-        window_config["phase1"]["windows"] = window
+        window_config["phase1"]["windows"] = {
+            **window,
+            **{
+                key: config["phase1"]["windows"][key]
+                for key in ("purge_label_horizon_days",)
+                if key in config["phase1"].get("windows", {})
+            },
+        }
         LOGGER.info(
             "walk-forward window %s/%s: train=%s..%s validation=%s..%s backtest=%s..%s",
             window_index + 1, len(windows),

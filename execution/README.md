@@ -127,9 +127,12 @@ charge the identical estimate.
   2026-10-07 run, several of which both filled (Problems #133).
 - `liquidity_cost_fraction(payload, "per_side")` - half the round-trip estimate, the
   one-fill cost; `phase_v2.liquidity.fill_slippage.source` is now `per_side`.
-- `compute_fill_slippage_divergence_bps(fill, reference, expected_cost_bps)` - realized
-  minus expected, None on unusable input; `main.py` passes the **fill bar's open** and
-  half the expected round trip (the prior close made it the overnight gap).
+- `compute_fill_slippage_divergence_bps(fill, reference, expected_cost_bps, direction=None)` -
+  realized minus expected, None on unusable input; `main.py` passes the **fill bar's open** and
+  half the expected round trip (the prior close made it the overnight gap). With `direction`
+  (the fill quantity's sign) only **adverse** slippage counts - price improvement is not a cost
+  (V5.7.0, Problems #148) - and `main.py` skips tracked **limit** fills altogether: their gap to
+  the bar open is intraday drift bounded by the limit price (#153).
 
 ## Real limit orders
 

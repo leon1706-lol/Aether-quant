@@ -1621,6 +1621,19 @@
             "max_leverage_utilization": 0.4,
             "pair_specs_path": "data/reference/forex_pair_specs.json"
         },
+        "forex_sleeve": {
+            "enabled": false,
+            "per_side": 2,
+            "gross_budget": 0.3,
+            "max_weight_per_pair": 0.0,
+            "rebalance_every_bars": 20,
+            "min_trade_usd": 2500.0,
+            "min_rank_confidence_spread": 0.0,
+            "hysteresis_rank_margin": 0.0,
+            "rl_sizing_enabled": false,
+            "rl_min_multiplier": 0.0,
+            "rl_max_multiplier": 1.5
+        },
         "options_risk": {
             "enabled": false,
             "target_delta_at_full_confidence": 0.6,
@@ -1740,7 +1753,7 @@
             "enabled": true,
             "top_n": 6,
             "bottom_n": 6,
-            "min_rank_confidence_spread": 0.1985,
+            "min_rank_confidence_spread": 0.184,
             "rebalance_every_bars": 10,
             "allocation_method": "rank",
             "neutrality": {
@@ -1760,16 +1773,16 @@
         },
         "legacy_sleeve": {
             "enabled": true,
-            "max_gross_exposure": 0.1,
+            "max_gross_exposure": 0.05,
             "max_weight_per_name": 0.02,
             "trade_when_book_vetoed": false
         },
         "rolling_ic_gate": {
             "enabled": true,
             "horizon_days": 20,
-            "rolling_window_days": 40,
+            "rolling_window_days": 80,
             "min_resolved_dates_required": 20,
-            "min_rolling_mean_ic": 0.05,
+            "min_rolling_mean_ic": 0.0,
             "min_names_per_date": 10
         },
         "exits": {
@@ -1853,6 +1866,7 @@
             "book_history": {
                 "enabled": true,
                 "output_path": "visualization/book_history.jsonl",
+                "per_run_files": true,
                 "include_full_universe": true,
                 "include_decisions": true,
                 "include_feature_snapshot": true,
@@ -2338,7 +2352,7 @@
                 "phase_v2.portfolio_book.top_n": 8,
                 "phase_v2.portfolio_book.bottom_n": 8,
                 "phase_v2.portfolio_book.rebalance_every_bars": 10,
-                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.1985,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.184,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.04,
                 "phase9.portfolio.max_active_positions": 16,
                 "phase6.risk.max_position_weight": 0.15,
@@ -2353,7 +2367,7 @@
                 "phase_v2.portfolio_book.top_n": 6,
                 "phase_v2.portfolio_book.bottom_n": 6,
                 "phase_v2.portfolio_book.rebalance_every_bars": 10,
-                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.1985,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.184,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.05,
                 "phase9.portfolio.max_active_positions": 12,
                 "phase6.risk.max_position_weight": 0.12,

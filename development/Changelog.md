@@ -1970,3 +1970,41 @@ and instrumented (#104).
 - **Book parity confirmed:** live-vs-offline book overlap rose from ~0.31 to 0.77 on BT2/BT3 (Spearman with Lean Sharpe 0.62 over 17 runs), the measurable result of the cross-asset alignment fix.
 
 - **BT4 (final Lean run, Problems.md #144):** Sharpe -0.763 -> **-0.042** (without a risk-free rate +0.66), net profit +2.61% -> **+4.73%**, drawdown 2.8%, 534 orders, fees $897; member decisions reaching `trade` 71 -> 321 with liquidity blocks 118 -> 0, topology overrides 80 -> 0 and net-edge blocks 171 -> 1. Offline as-live predicted +0.78, so the simulator is optimistic about magnitude but ranks the changes correctly. The Docker image `aether-quant-engine` was rebuilt on the final tree before the run.
+
+
+## V5.7.0 - a simulator that reproduces Lean, gates decided by rule on two splits, the ML pipeline hardened and honestly re-measured, a forex sleeve behind a switch, three Lean confirmations (Problems.md #145-#154)
+
+**Summary:** the V5.6.0 attribution still ran on a simulator that skipped most of Pass 2 and took ~15 minutes per gate. V5.7.0 rebuilds it from `main.py`'s own pure functions, validates it against the BT4 Lean run, and uses it (both splits, pre-registered rules) to decide the open gate findings; the training pipeline, a forex sleeve and an out-of-window holdout are prepared behind default-off switches for the retrain.
+
+**Evaluator (Problems.md #145):**
+- **Rolling-IC state computed once** (`evaluation/rolling_ic_series.py`), equal to `compute_rolling_ic_state` on every date; a lever variant takes ~20 s instead of ~12 min.
+- **Simulator models Pass 2:** kill switch, per-member sizing chain, liquidity and net-edge gates, HRP weights, per-name Almgren impact, per-order dollar minimum; hold-on-veto read from config and separated from the hysteresis anchor; the as-live frame keeps observation-only rows because live's percentile normalisation spans every symbol. With that detail the simulator gives backtest net Sharpe **+0.661 / +4.16%** against Lean BT4's +0.663 (no risk-free rate) / +4.73%, and it locks the same kill-switch rebalances as Lean.
+- **Audits:** `--audit-fills` (fills vs dataset open vs factor-adjusted Lean zip open), limit-order age in weekday sessions, `run_id` on every book-history record with optional per-run files, HAC t-stat.
+
+**Decisions (Problems.md #146, #147; rules R-GATE on backtest + validation):**
+- **Shipped:** rolling-IC gate window 40 -> 80 and floor 0.05 -> 0.0 (backtest +0.136, validation +0.042 Sharpe); `min_rank_confidence_spread` 0.1985 -> **0.184**, the p10 of the live pool (+0.156 / +0.457 on top); legacy sleeve gross cap 0.10 -> 0.05 (alpha -0.14% per trade, t -0.23, beta 0.93). Combined simulated result: backtest **+0.954 / +6.48%**, validation **+1.244 / +3.79%**.
+- **Not changed, with numbers:** kill switch kept (best variant +0.095 against the +0.10 bar), hold-on-veto kept (off loses on both splits), HRP rejected (validation -0.33), own-tick closed, Almgren impact immaterial at $100k NAV (0.002 Sharpe).
+- **Execution cost measured:** no dataset-vs-Lean price gap (0.0 bps on 495 traded dates); equity market fills pay the modelled ~5 bps; BT4 had 0 stale limit orders once age is counted in sessions.
+
+**Prepared for the retrain, all default-off:** split-boundary label purge, `asset_class_forex` one-hot, `fx_carry_3m` (7 FRED series cached), separate rank group for forex, `trading_eligibility_basis: "history"`, multi-seed variant selection on the full daily validation IC, the book-level RL reward with a forex policy, `portfolio/forex_sleeve.py` + its `main.py` wiring (`phase_v2.forex_sleeve`, dollar deadband, entry-only RL), holdout data/dataset builders, `scripts/codespace_retrain_v570.sh`.
+
+**Lean confirmations (Problems.md #148, #153; rule R-LEAN = no-risk-free Sharpe >= previous - 0.05 and drawdown <= 4%):**
+
+| run | Lean Sharpe | no risk-free | net profit | drawdown | orders | kill-switch dates / `reduce_risk` |
+|---|---|---|---|---|---|---|
+| BT4 (V5.6.0) | -0.042 | +0.663 | +4.73% | 2.8% | 534 | 8 locked / 96 |
+| BT5 (gate bundle) | +0.068 | +0.711 | +5.57% | 3.6% | 583 | 12 / 147 |
+| BT6 (+ adverse-only slippage) | +0.128 | +0.768 | +6.05% | 3.6% | 575 | 12 / 147 |
+| **BT7 (+ limit fills excluded, shipped)** | **+0.474** | **+1.151** | **+8.64%** | **2.8%** | 641 | **6 / 72** |
+
+- **Slippage kill-switch trigger fixed in two steps:** the divergence average counted price improvement as cost (BT5) and, once direction-aware, still counted tracked limit fills whose gap to the bar open is intraday drift, not execution cost (BT6: identical 24 locked decisions). Limit fills no longer feed it; BT7 halves the locked dates and lifts the no-risk-free Sharpe by 0.38. A smaller residual (35 labelled decisions) remains and is documented.
+- **Process:** a Codespace pull had overwritten `ml/expert_models/` (a first BT6 ran on mismatched experts and was discarded); `ml/` was verified file-for-file against the pre-retrain snapshot before BT6/BT7, and the lesson is in the todo (diff all of `ml/` after a pull, grep the engine log for `inference failed`).
+
+**Retrain, forex and RL (Problems.md #149-#152) - decided by the pre-registered rules, all negative, nothing promoted:**
+- **Retrain:** label purge (20 d), `asset_class_forex`, `fx_carry_3m`, a separate forex rank group and seven overfitting variants (3-seed control, 2-seed variants). Control wins the validation-IC step; R-MODEL then fails (walk-forward `rank_20d` IC 0.049 with a sign flip vs >= 0.085; as-live backtest +0.287 vs +0.954). The V5.6.0 models stay, restored byte-for-byte; the retrain-time flips are reverted in `config.json` and recorded as the recipe for the next retrain. The 2021-04..2025-06 holdout shows real out-of-window rank IC (+0.055 / +0.069) but a losing book (the rolling-IC gate vetoes 81% of rebalances there) - the lead for the next round.
+- **Forex:** within-pool rank IC is negative on both splits with and without the carry feature (-0.07), every sleeve configuration loses; forex stays off. **RL:** main and forex policies fail R-RL (fifth negative); `rl_sizing_enabled` stays false.
+- **Crypto:** no observation-only name passes R-GATE and removing BTC/LTC loses on both splits; crypto stays as is. **Other:** open-to-open vs close-to-close IC differs by <= 6% (no label change); gating only feeds the capped legacy sleeve; seed-ensembling not built (the IC itself failed).
+
+**Open-lead verdicts (todo findings 1-11):** 1 kill switch kept and its slippage trigger fixed (#146/#153); 2 spread floor 0.184 (#146); 3 incremental rolling-IC (#145); 4 simulator reproduces Lean (#145; BT7 Lean now exceeds it); 5 hold-on-veto kept, HRP rejected, own-tick closed (#146); 6 fills audit + Almgren immaterial (#147); 7 crypto stays (#149); 8 forex stays off (#151); 9 per-run book history (#145); 10 holdout measured (#150); 11 environmental (#104). Minor leads closed in #154.
+
+**Shipped config deltas vs V5.6.0:** `rolling_ic_gate` window 80 / floor 0.0, `min_rank_confidence_spread` 0.184, legacy sleeve cap 0.05, `diagnostics.book_history.per_run_files` true, `phase_v2.forex_sleeve` block (disabled); code: simulator mechanisms, direction-aware limit-excluding slippage tracker, label purge / forex features / book-level RL / forex sleeve behind default-off switches. **Docker image rebuild required before paper/live.**

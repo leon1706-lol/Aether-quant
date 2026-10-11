@@ -35,12 +35,10 @@ acceptable for a tool run once, by hand, never on any per-bar live path.
 
 from __future__ import annotations
 
-import bisect
-
 import numpy as np
 import pandas as pd
 
-from portfolio.rolling_ic_gate import compute_rolling_ic_state
+from evaluation.rolling_ic_series import make_rolling_ic_state_fn
 
 _ROLLING_IC_DISTRIBUTION_PERCENTILES = {"p10": 0.10, "p25": 0.25, "median": 0.50, "p75": 0.75}
 
@@ -153,15 +151,13 @@ def calibrate_rolling_ic_floor(
     unique_dates = sorted(set(event_dates))
     sample_dates = unique_dates[::sample_stride_days] if sample_stride_days > 0 else unique_dates
 
+    state_fn = make_rolling_ic_state_fn(
+        events, horizon_days=horizon_days, rolling_window_days=rolling_window_days, min_names_per_date=min_names_per_date
+    )
     readings: list[float] = []
     num_samples_skipped_insufficient_history = 0
     for sample_date in sample_dates:
-        cutoff_index = bisect.bisect_right(event_dates, sample_date)
-        buffer_up_to_date = events[:cutoff_index]
-        state = compute_rolling_ic_state(
-            buffer_up_to_date, horizon_days=horizon_days, rolling_window_days=rolling_window_days,
-            min_names_per_date=min_names_per_date,
-        )
+        state = state_fn(sample_date)
         if state["rolling_mean_ic"] is None:
             num_samples_skipped_insufficient_history += 1
             continue

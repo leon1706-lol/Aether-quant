@@ -359,6 +359,125 @@ def build_bandit_rows(
     return (*result, np.asarray(plain_rewards, dtype=np.float64)) if with_unpenalized else result
 
 
+# ---------------------------------------------------------------------------
+# V5.7.0 - book-level reward. The daily/all-rows bandit above rewards a 1-day return on every row with a flat 1 bp
+# commission; the book trades a handful of names every 10 bars and holds ~20 days, and a forex order pays IB's dollar
+# minimum. This variant scores only would-be book members at the rebalance cadence on their 20-day return, net of the
+# per-class fee (minimum included) and the round-trip spread, and lets the action set include 0 (skip) and sizes above 1.
+# ---------------------------------------------------------------------------
+
+
+def fee_fraction_of_nav(security_type: str, notional_usd: float, nav: float, costs_config: dict) -> float:
+    """Round-trip commission of one position of `notional_usd` as a fraction of NAV: each side pays
+    max(rate x notional, dollar minimum) (execution.cost_model's terms, the net-edge gate's definition)."""
+    from execution.cost_model import commission_terms_for_security_type
+
+    if notional_usd <= 0.0 or nav <= 0.0:
+        return 0.0
+    rate_bps, min_usd = commission_terms_for_security_type(costs_config, security_type)
+    per_side = max(notional_usd * rate_bps / 1e4, min_usd)
+    return 2.0 * per_side / nav
+
+
+def compute_book_action_reward(
+    action: float,
+    base_weight: float,
+    direction: float,
+    forward_return: float,
+    *,
+    nav: float,
+    security_type: str,
+    spread_fraction: float,
+    costs_config: dict,
+) -> float:
+    """r(s, a) = a*w*dir*ret_20d - round-trip fee (dollar minimum included) - round-trip spread. Action 0 skips the
+    trade: reward exactly 0 (no fee). Never raises."""
+    sized_weight = action * base_weight
+    if sized_weight <= 0.0:
+        return 0.0
+    gross = sized_weight * direction * forward_return
+    fee = fee_fraction_of_nav(security_type, sized_weight * nav, nav, costs_config)
+    return gross - fee - spread_fraction * sized_weight
+
+
+def build_book_member_rows(
+    frame: pd.DataFrame,
+    multitask_export: dict,
+    model_input_names: list[str],
+    action_set: list[float],
+    state_keys: list[str],
+    *,
+    asset_class_by_ticker: dict[str, str],
+    pool_classes: list[str],
+    per_side: int,
+    rebalance_every: int,
+    nominal_base_weight: float,
+    nav: float,
+    costs_config: dict,
+    spread_caps: dict | None = None,
+    target_column: str = "target_return_20d",
+) -> tuple[np.ndarray, np.ndarray]:
+    """(states, rewards_by_action) for the would-be book members of `pool_classes` on every `rebalance_every`-th date:
+    the top/bottom `per_side` of the pool by the model's rank_20d, confidence from the pool's own percentile (the live
+    formula), base weight `nominal_base_weight`. Rows with a missing target / state value or a failed replay are skipped."""
+    from liquidity.market_liquidity import cap_spread_proxy
+    from portfolio.rank_signal import cross_sectional_rank_scores
+
+    states: list[list[float]] = []
+    rewards: list[list[float]] = []
+    pool = set(pool_classes)
+    dates = sorted(frame["date"].astype(str).unique())[:: max(1, rebalance_every)]
+    for date in dates:
+        day = frame[(frame["date"].astype(str) == date) & frame["ticker"].map(lambda t: asset_class_by_ticker.get(t) in pool)]
+        predictions: dict[str, tuple[float, pd.Series]] = {}
+        for _, row in day.iterrows():
+            inputs = [float(row[name]) for name in model_input_names if name in row and not pd.isna(row[name])]
+            if len(inputs) != len(model_input_names):
+                continue
+            try:
+                prediction = run_exported_multitask_model(multitask_export, inputs).get("rank_20d")
+            except Exception:
+                continue
+            if prediction is not None:
+                predictions[str(row["ticker"])] = (float(prediction), row)
+        if len(predictions) < 2 * per_side + 2:
+            continue
+        percentiles = cross_sectional_rank_scores({ticker: score for ticker, (score, _row) in predictions.items()})
+        ordered = sorted(percentiles, key=percentiles.get)
+        members = [(ticker, -1.0) for ticker in ordered[:per_side]] + [(ticker, 1.0) for ticker in ordered[-per_side:]]
+        for ticker, direction in members:
+            row = predictions[ticker][1]
+            forward_return = row.get(target_column)
+            if pd.isna(forward_return):
+                continue
+            confidence = min(1.0, abs(percentiles[ticker] - 0.5) * 2.0)
+            extra = {"confidence": confidence, "log_order_notional": float(np.log(max(nominal_base_weight * nav, 1.0)))}
+            values = []
+            for key in state_keys:
+                value = extra[key] if key in extra else row.get(key)
+                if value is None or pd.isna(value):
+                    values = None
+                    break
+                values.append(float(value))
+            if values is None:
+                continue
+            security_type = asset_class_by_ticker.get(ticker, "equity")
+            spread = cap_spread_proxy(float(row.get("liquidity_spread_proxy", 0.0) or 0.0), security_type, spread_caps) or 0.0
+            states.append(values)
+            rewards.append(
+                [
+                    compute_book_action_reward(
+                        action, nominal_base_weight, direction, float(forward_return), nav=nav, security_type=security_type,
+                        spread_fraction=float(spread), costs_config=costs_config,
+                    )
+                    for action in action_set
+                ]
+            )
+    if not states:
+        return np.empty((0, len(state_keys))), np.empty((0, len(action_set)))
+    return np.asarray(states, dtype=np.float64), np.asarray(rewards, dtype=np.float64)
+
+
 def select_penalty_weight(
     validation_frame: pd.DataFrame,
     multitask_export: dict,
@@ -421,12 +540,113 @@ def select_penalty_weight(
     }
 
 
+def train_book_level_policy(args: argparse.Namespace, config: dict, training_config: dict) -> int:
+    """`reward_mode: "book_member_20d"` (V5.7.0): fit on the validation split's would-be book members, judge on the
+    backtest split (and the holdout when `--holdout-dataset` exists), against constant 1.0 and skip-everything. Writes
+    `rl_sizing_forex_*` artifacts when the pool is forex. The verdict is `policy_beats_constant_unpenalized` on BOTH."""
+    from risk.rl_sizing import FOREX_RL_SIZING_STATE_KEYS
+
+    action_set = [float(a) for a in training_config.get("action_set", [0.0, 0.6, 1.0, 1.25, 1.5])]
+    pool_classes = [str(c) for c in training_config.get("book_pool_classes", ["forex"])]
+    state_keys = list(FOREX_RL_SIZING_STATE_KEYS) if pool_classes == ["forex"] else list(RL_SIZING_STATE_KEYS)
+    prefix = "rl_sizing_forex" if pool_classes == ["forex"] else "rl_sizing"
+    nav = float(config.get("runtime", {}).get("initial_cash", 100_000) or 100_000)
+    nominal = float(training_config.get("book_nominal_weight", 0.08))
+    per_side = int(training_config.get("book_per_side", 2 if pool_classes == ["forex"] else 6))
+    cadence = int(training_config.get("book_rebalance_every", 10))
+    asset_class_by_ticker = {
+        a["ticker"]: str(a.get("asset_class") or a.get("security_type")) for a in config["phase1"]["universe"]["assets"]
+    }
+    costs_config = config.get("phase_v2", {}).get("costs", {})
+    spread_caps = config.get("phase_v2", {}).get("liquidity", {}).get("max_spread_proxy_by_type", {})
+    multitask_export = load_multitask_export()
+    dataset_dir = Path(args.dataset_dir)
+    schema_path = FEATURE_SCHEMA_PATH
+    if multitask_export is None or not (dataset_dir / "validation_dataset.csv").exists() or not schema_path.exists():
+        LOGGER.info("train_rl_sizing(book): multitask model or datasets not found - skipping.")
+        return 0
+    model_input_names = json.loads(schema_path.read_text(encoding="utf-8"))["model_input_names"]
+    common = dict(
+        asset_class_by_ticker=asset_class_by_ticker, pool_classes=pool_classes, per_side=per_side, rebalance_every=cadence,
+        nominal_base_weight=nominal, nav=nav, costs_config=costs_config, spread_caps=spread_caps,
+    )
+    splits: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for name, filename in (("validation", "validation_dataset.csv"), ("backtest", "backtest_dataset.csv"), ("holdout", "holdout_dataset.csv")):
+        path = dataset_dir / filename
+        if not path.exists():
+            continue
+        frame = pd.read_csv(path)
+        if name == "holdout" and "split" in frame.columns:
+            frame = frame[frame["split"] == "backtest"]
+        splits[name] = build_book_member_rows(frame, multitask_export, model_input_names, action_set, state_keys, **common)
+    train_states, train_rewards = splits.get("validation", (np.empty((0, len(state_keys))), np.empty((0, len(action_set)))))
+    minimum = int(training_config.get("book_min_training_rows", 200))
+    if len(train_states) < minimum:
+        LOGGER.info("train_rl_sizing(book): only %d usable rows (need %d) - skipping.", len(train_states), minimum)
+        return 0
+    standardized, mean, scale = standardize_states(train_states)
+    fit = fit_policy(
+        standardized, train_rewards, float(training_config.get("learning_rate", DEFAULT_LEARNING_RATE)),
+        int(training_config.get("epochs", DEFAULT_EPOCHS)), float(training_config.get("l2", DEFAULT_L2)),
+        float(training_config.get("entropy_bonus", DEFAULT_ENTROPY_BONUS)),
+    )
+    weights, bias = np.asarray(fit["weights"]), np.asarray(fit["bias"])
+    one, zero = action_set.index(1.0) if 1.0 in action_set else None, action_set.index(0.0) if 0.0 in action_set else None
+    judged = {}
+    for name, (states, rewards) in splits.items():
+        if name == "validation" or len(states) == 0:
+            continue
+        standardized_eval = (states - mean) / scale
+        judged[name] = {
+            "rows": int(len(states)),
+            "policy_reward": evaluate_policy_expected_reward(standardized_eval, rewards, weights, bias),
+            "constant_1_0_reward": float(rewards[:, one].mean()) if one is not None else None,
+            "skip_all_reward": float(rewards[:, zero].mean()) if zero is not None else None,
+            "action_distribution": action_distribution(standardized_eval, weights, bias, len(action_set)),
+        }
+        judged[name]["beats_constant"] = bool(
+            judged[name]["constant_1_0_reward"] is not None and judged[name]["policy_reward"] > judged[name]["constant_1_0_reward"]
+        )
+    verdict = bool(judged) and all(entry["beats_constant"] for name, entry in judged.items() if name in ("backtest", "holdout"))
+    trained_at = datetime.now(timezone.utc).isoformat()
+    paths = rl_sizing_candidate_output_paths(args.version_id)
+    paths["version_dir"].mkdir(parents=True, exist_ok=True)
+    (paths["version_dir"] / f"{prefix}_model.json").write_text(
+        json.dumps(
+            {
+                "version_id": args.version_id, "trained_at": trained_at, "state_keys": state_keys, "actions": action_set,
+                "weights": fit["weights"], "bias": fit["bias"], "mean": mean.tolist(), "scale": scale.tolist(),
+                "pool_classes": pool_classes, "reward_mode": "book_member_20d",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (paths["version_dir"] / f"{prefix}_training_metrics.json").write_text(
+        json.dumps(
+            {
+                "version_id": args.version_id, "trained_at": trained_at, "reward_mode": "book_member_20d",
+                "pool_classes": pool_classes, "training_rows": int(len(train_states)), "action_set": action_set,
+                "training_action_distribution": action_distribution(standardized, weights, bias, len(action_set)),
+                "judged": judged, "policy_beats_constant_unpenalized": verdict,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    LOGGER.info("train_rl_sizing(book): %s -> beats constant 1.0 on every judged split: %s", judged, verdict)
+    return 0
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = parse_args()
 
     try:
         training_config = load_rl_sizing_training_config(Path(args.config_path))
+        if str(training_config.get("reward_mode", "daily_all_rows")) == "book_member_20d":
+            with Path(args.config_path).open("r", encoding="utf-8") as f:
+                return train_book_level_policy(args, json.load(f), training_config)
         action_set = [float(a) for a in training_config.get("action_set", DEFAULT_ACTION_SET)]
         min_training_rows = int(training_config.get("min_training_rows", DEFAULT_MIN_TRAINING_ROWS))
         learning_rate = float(training_config.get("learning_rate", DEFAULT_LEARNING_RATE))

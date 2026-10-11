@@ -1493,13 +1493,16 @@ calls, or it carries a parity test and a one-line justification here.**
 | Book raw weights (`min(max_position_weight, 0.10 + 0.15·conf)·role`) | `build_book_raw_weights` (`portfolio/book_construction.py`) | `main.py` rebalance block | `rank_book_simulator` (`live_weighting`) |
 | Hysteresis anchor surviving a veto | `remember_formed_book` (same) | `main.py` rebalance block | `rank_book_simulator` (`formed_book`) |
 | Gates: confidence spread, rolling IC | `build_rank_based_book(... spread_check_ranks, rolling_ic_gate_result)`, `evaluate_rolling_ic_gate` | `main.py` | `rank_book_simulator` + `live_parity.make_rolling_ic_gate_fn` |
-| Book-member weight floor | `apply_book_weight_floor` (same) | `main.py` Pass 2 | not modeled (bounded live; see below) |
+| Book-member weight floor, dynamic sizing, liquidity gate + `reduce_size`, net-edge gate + cost multiplier, analyzer verdicts for a member | `apply_book_weight_floor`, `build_dynamic_position_sizing`, `build_liquidity_decision`, `build_net_edge_decision`, `cost_sizing_multiplier` | `main.py` Pass 2 | `live_parity.build_live_member_weight_fn` -> `simulate_rank_book(member_weight_fn=)` (V5.7.0; same functions, so the chain cannot drift) |
+| Kill switch | `evaluate_kill_switch` (`risk/kill_switch.py`) | `main.py::_refresh_risk_state` | `simulate_rank_book(kill_switch_config=)`: per date on the simulated returns; a locked rebalance freezes members, exits pass (V5.7.0; on BT4 it locked 6 of Lean's 8 locked rebalances) |
+| HRP book weights | `apply_hrp_weights`, `pct_returns_from_closes` | `main.py` rebalance block | `live_parity.build_hrp_raw_weights_fn` -> `raw_weights_fn` (25-bar close windows from the dataset) |
+| Almgren impact | `compute_sqrt_impact_bps` | not applied live (config-off) | per name on its own traded notional (`impact_inputs_fn`), real NAV (V5.7.0: the old estimate charged the rate as a fraction of NAV on a $1M book) |
 | Rotation exit scope | `update_book_owned_symbols`, `is_rotation_exit_candidate` (same) | `main.py` Pass 2 | n/a (the simulator has no sleeve) |
 | Legacy-signal budget | `apply_legacy_sleeve_policy`, `compute_sleeve_gross_used` (`portfolio/legacy_sleeve.py`) | `main.py` Pass 2 | modeled as zero-alpha, excluded |
 | Forex target vs book weight | `cap_forex_target_to_book_weight` (`risk/forex_risk.py`) | `main.py` Pass 2 | the book weight itself |
 | Pending quantity, forced-exit-only cooldown exemption, exit adoption | `projected_signed_quantity`, `is_cooldown_exempt(..., is_forced_exit)`, `compute_position_exit_tracking_update` (`risk_controls.py`) | `main.py` `_apply_signal` / exit tracking | `max_holding_dates` models the age exit |
 | Hold book-owned positions through a veto | `should_hold_owned_position_on_veto` (`portfolio/book_construction.py`) | `main.py` Pass 2 | `hold_positions_on_veto` |
-| Gate/cost spread cap per class | `cap_spread_proxy` (`liquidity/market_liquidity.py`) | `main.py` liquidity gate | n/a (offline has no spread gate; live-only, the high-low estimator misreads crypto/forex volatility) |
+| Gate/cost spread cap per class | `cap_spread_proxy` (`liquidity/market_liquidity.py`) | `main.py` liquidity gate | `build_live_member_weight_fn` (V5.7.0: the same capped proxy feeds the same gate offline) |
 | One order per symbol | `resolve_pending_order_action`, `should_skip_for_open_order` (`execution/order_gate.py`) | `main.py` `_try_submit_limit_order` | `simulate_limit_fills` (fill rate only) |
 | Fill slippage per side | `liquidity_cost_fraction(... "per_side")` | `main.py` slippage model | cost model bps per side |
 | Volatility cutoff per asset class | `resolve_elevated_volatility_thresholds` (`topology/market_topology.py`) | `main.py` topology build | `--calibrate-volatility-threshold` |
@@ -1522,11 +1525,30 @@ Almgren impact model.
 
 ### Intentional remaining differences
 
-- **Legacy sleeve** is capped at `max_gross_exposure` (10%) and treated as zero-alpha offline: its signal comes from a probability head the offline book does not rank on.
-- **Sizing multipliers** (volatility 0.35–1.25, topology, cost, liquidity) are live-only; their shrink is bounded by `sizing_floor_fraction` (0.5) for book members, and under the shipped caps (`max_position_weight` 0.12 = per-name cap 0.12) confidence weighting is a no-op because every selected name saturates both caps.
+- **Slippage kill-switch input is live-only:** the simulator does not model fills, so the 20-fill slippage average (market fills only, adverse side only, Problems #153) cannot lock rebalances offline; the offline kill switch uses the rolling-Sharpe trigger alone.
+- **Legacy sleeve** is capped at `max_gross_exposure` (5% since V5.7.0, was 10%) and treated as zero-alpha offline: its signal comes from a probability head the offline book does not rank on.
+- **Sizing multipliers** (volatility 0.35–1.25, cost, liquidity) are modeled since V5.7.0 (`build_live_member_weight_fn`); the learned-topology multiplier is not (live falls back to 1.0 without a trained topology model) and the multitask volatility head is replaced by `rolling_volatility_20d`. Their shrink is bounded by `sizing_floor_fraction` (0.5) for book members.
+- **Offline = book only:** the legacy sleeve (long-biased, +$731 equity P&L in BT4) and the whole-portfolio return series the kill switch reads are not simulated, so the offline kill switch sees the book's own (more volatile) returns; on BT4 it still locked the same rebalances as Lean (18% vs 21% of engaged dates).
+- **Rank pool:** the as-live frame keeps every row with features, observation-only names included, because live's percentile normalisation runs over all of them.
 - **Forex/crypto previous-day bar:** unchanged live (a daily forex/crypto bar closes after the equity session); modeled offline with a one-day lag. Cross-asset FEATURES are now aligned the same way on both sides (V5.6.0, #135): a row sees the bars that closed strictly before its own tick, so the dataset no longer carries the same-day values live never had. Deciding forex/crypto on their own tick is a possible follow-up.
-- **Kill switch:** replayed offline (`--replay-kill-switch`) but not applied to the as-live returns.
+- **Kill switch:** applied to the as-live returns since V5.7.0 (see the table); `--replay-kill-switch` replays it on the idealized series for the sticky (non-bypassed) behaviour.
 - **Sharpe convention:** Lean subtracts a risk-free rate; offline subtracts none. `--audit-backtest` reports both for the same curve (−2.92 at 2% vs −1.16 for the 08-27 run).
+
+### Forex sleeve contract (`phase_v2.forex_sleeve`, V5.7.0, default off)
+
+Forex was switched off because, as members of the pooled equity book, the pairs sat at ~2% of NAV and IB's $2 minimum cost
+~8-10 bps per fill (Problems #142). The sleeve is a separate, small book: with `forex_sleeve.enabled` AND
+`forex_risk.enabled`, the pairs leave the main book's pool (`trading_eligible` False there) and `main.py::_update_forex_sleeve`
+ranks them AMONG THEMSELVES (`cross_sectional_rank_scores` over forex raw scores), takes `per_side` longs and shorts
+(`build_rank_based_book`, own spread floor / hysteresis, cadence `rebalance_every_bars`, default 20) and sizes each leg
+`gross_budget / 2` via `portfolio/forex_sleeve.py::build_forex_sleeve_weights` — the same function `scripts/forex_sleeve_research.py`
+passes to the simulator as `raw_weights_fn`, so the weights cannot differ. Sleeve allocations live in
+`_forex_sleeve_allocations`, never in `book_allocations`: a vetoed main book cannot rotation-exit a forex position and vice versa
+(Pass 2 reads the sleeve's own activity for forex symbols). A pair the sleeve did not select is held, never traded by the legacy
+probability signal. Order path: the margin cap `cap_forex_target_to_book_weight`, an entry-only RL multiplier
+(`rl_sizing_forex_model.json`, its own state-key list, 0 = skip; a held pair is never closed by it) and a **dollar** deadband
+`forex_resize_below_minimum` (`min_trade_usd`) on resizes. Offline evidence and the enable decision: `scripts/forex_sleeve_research.py`
+(R-FX), then a Lean backtest; `enabled` ships `false` until both pass.
 
 ### Legacy-signal sleeve contract (`phase_v2.legacy_sleeve`)
 
@@ -1562,9 +1584,13 @@ opposite or timed-out one is **cancelled and replaced**
 (`resolve_pending_order_action`). Daily fills land on the next bar, so exit
 tracking (`max_holding_bars`, trailing stop, direction) **adopts** a held
 position it has no state for, taking direction and entry price from the real
-holding. The slippage-divergence kill-switch input compares one fill with the
-fill bar's open and half the expected round-trip cost; its trigger stays at the
-disabled sentinel until the distribution has been read from a backtest.
+holding. The slippage-divergence kill-switch input (mean of the last 20
+fills, trigger `max_slippage_divergence_bps` 80) compares a MARKET fill with
+the fill bar's open and half the expected round-trip cost, counting only
+adverse slippage (`compute_fill_slippage_divergence_bps(direction=)`); a tracked
+limit fill is skipped, because its gap to the bar open is intraday drift bounded
+by the limit price, not a cost (Problems #148/#153; BT7 halved the locked
+dates). A residual non-limit contributor is documented in #153.
 
 ### Diagnostics contract (all default off in code)
 

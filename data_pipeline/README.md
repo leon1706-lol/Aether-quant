@@ -278,3 +278,10 @@ repeating `aq fetch futures`/`aq fetch options` once per contract:
   train.py` when ready) to actually train on the new data — `aq fetch`
   never trains anything itself.
 
+
+## FX rate series and the holdout root (V5.7.0)
+
+`fred_backfill.py --group fx` fetches the seven foreign 3-month interbank rates (`DEFAULT_FX_RATE_REFERENCE_SERIES`) behind
+`features/fx_carry.py`; `--group all` now includes them. `scripts/build_holdout_data.py` writes a SEPARATE `data_holdout/` root
+(Yahoo-adjusted bars 2014-06..2025-06 for every universe asset, FRED through 2025) for the out-of-window evaluation; `data/` is never
+touched, so the trained models, the dataset and Lean backtests are unaffected.

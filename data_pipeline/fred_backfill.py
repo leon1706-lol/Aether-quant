@@ -92,6 +92,19 @@ DEFAULT_ALT_DATA_REFERENCE_SERIES = {
     "dollar_index": "DTWEXBGS",
 }
 
+# V5.7.0: the foreign 3-month rates behind features/fx_carry.py (OECD 3-month interbank, monthly, dated the 1st);
+# the US leg is the daily `treasury_3mo` bill already in the bond group. Publication lags live in
+# features/fx_carry.py (FX_RATE_PUBLICATION_LAG_DAYS) because that module is the only consumer.
+DEFAULT_FX_RATE_REFERENCE_SERIES = {
+    "interbank_3m_eur": "IR3TIB01EZM156N",
+    "interbank_3m_gbp": "IR3TIB01GBM156N",
+    "interbank_3m_jpy": "IR3TIB01JPM156N",
+    "interbank_3m_aud": "IR3TIB01AUM156N",
+    "interbank_3m_cad": "IR3TIB01CAM156N",
+    "interbank_3m_chf": "IR3TIB01CHM156N",
+    "interbank_3m_nzd": "IR3TIB01NZM156N",
+}
+
 # Days to subtract from the decision date before doing the as-of lookup
 # (see series_value_asof()) - i.e. how many days after a series' own date
 # column the observation is actually PUBLISHED. VIX/VXV are same-day CBOE
@@ -323,19 +336,30 @@ def alt_data_reference_series(config: dict) -> dict[str, str]:
     }
 
 
+def fx_rate_reference_series(config: dict) -> dict[str, str]:
+    """V5.7.0 sibling of bond_reference_series(): the foreign 3-month rates for the FX carry feature,
+    config["phase1"]["features"]["fx_rate_reference_series"] over DEFAULT_FX_RATE_REFERENCE_SERIES."""
+    return {
+        **DEFAULT_FX_RATE_REFERENCE_SERIES,
+        **config.get("phase1", {}).get("features", {}).get("fx_rate_reference_series", {}),
+    }
+
+
 def reference_series(config: dict, group: str = "all") -> dict[str, str]:
-    """Merged view over bond_reference_series()/alt_data_reference_series()
-    for the CLI's --group flag. group="bond" or "alt" returns just that
+    """Merged view over bond_reference_series()/alt_data_reference_series()/fx_rate_reference_series()
+    for the CLI's --group flag. group="bond", "alt" or "fx" returns just that
     one map unchanged (bond_reference_series() itself is deliberately left
     untouched by this addition - see test_bond_reference_series_unchanged_by_alt_addition);
-    "all" (default) merges both, alt_data keys taking precedence only in
+    "all" (default) merges all three, later groups taking precedence only in
     the pathological case of an actual name collision (none exist today -
-    the two dicts' keys are disjoint by construction)."""
+    the dicts' keys are disjoint by construction)."""
     if group == "bond":
         return bond_reference_series(config)
     if group == "alt":
         return alt_data_reference_series(config)
-    return {**bond_reference_series(config), **alt_data_reference_series(config)}
+    if group == "fx":
+        return fx_rate_reference_series(config)
+    return {**bond_reference_series(config), **alt_data_reference_series(config), **fx_rate_reference_series(config)}
 
 
 def write_fred_series_cache(cache_dir: Path, series_key: str, rows: list[dict]) -> None:
@@ -396,10 +420,11 @@ def main() -> None:
     parser.add_argument("--series", nargs="*", default=None, help="Restrict to these series keys (default: all of --group's reference series)")
     parser.add_argument(
         "--group",
-        choices=["bond", "alt", "all"],
+        choices=["bond", "alt", "fx", "all"],
         default="all",
         help="Which reference-series map to fetch: bond (phase1.features.bond_reference_series), "
-        "alt (phase1.features.alt_data_reference_series, Problems.md #71), or all (default, both merged)",
+        "alt (phase1.features.alt_data_reference_series, Problems.md #71), fx (the foreign 3-month rates of the "
+        "FX carry feature, V5.7.0), or all (default, all three merged)",
     )
     parser.add_argument("--start", default="1990-01-01")
     parser.add_argument("--end", default=date.today().isoformat())

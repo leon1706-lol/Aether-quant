@@ -33,6 +33,15 @@ VARIANTS: dict[str, list[tuple[tuple[str, ...], object]]] = {
     ],
     "v3_listnet": [(("ranking_loss", "objective"), "listnet")],
     "v4_stop_rank5d": [(("early_stop_head",), "rank_5d")],
+    # V5.7.0 overfitting controls (train rank_20d IC 0.44-0.52 against 0.03-0.04 on validation).
+    "v5_wd_x4": [(("weight_decay",), 0.04)],
+    "v6_dropout_35": [(("dropout",), 0.35)],
+    "v7_small_net": [(("hidden_layers",), [32, 16])],
+}
+
+# The sequence model has no `hidden_layers`; its capacity knob is the TCN channel list.
+SEQUENCE_OVERRIDES: dict[str, list[tuple[tuple[str, ...], object]]] = {
+    "v7_small_net": [(("channels",), [16, 16])],
 }
 
 
@@ -56,7 +65,10 @@ def apply_changes(
 
 
 def build_variant_configs(base_config: dict, model: str = "multitask") -> dict[str, dict]:
-    return {name: apply_changes(base_config, changes, model) for name, changes in VARIANTS.items()}
+    return {
+        name: apply_changes(base_config, SEQUENCE_OVERRIDES.get(name, changes) if model == "sequence" else changes, model)
+        for name, changes in VARIANTS.items()
+    }
 
 
 def main() -> int:

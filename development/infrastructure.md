@@ -736,6 +736,29 @@ resumable walk-forward). Things the first full run taught:
 - The temporary backtest diagnostics profile must never be pushed: a stale `phase1.windows.backtest` silently changes the dataset
   split. Restore `config.json` byte-for-byte before any push.
 
+### V5.7.0 retrain and the out-of-window holdout
+
+`scripts/codespace_retrain_v570.sh a <tag>` / `b <tag> <winner_group>` replace the V5.6.0 pair: stage A builds the dataset (label
+purge, `asset_class_forex`, `fx_carry_3m`, separate forex rank group — all from `config.json`), then trains the multitask control
+with **3 seeds** and every variant (single changes incl. weight-decay x4, dropout 0.35, a smaller net) with **2 seeds**;
+`compare_training_variants.py --groups` picks on the MEAN full-daily validation IC (HAC t reported) against the control's single-seed
+spread, never on the backtest split. Stage B installs the winner, trains sequence / gating / RL, builds the holdout dataset with the
+active scaler and runs the resumable walk-forward. The holdout REPORT (`scripts/holdout_report.py`) is run locally, once, after the
+choice.
+
+The holdout lives in its own root, `data_holdout/` (never `data/`): `scripts/build_holdout_data.py --apply` fetches Yahoo-adjusted bars
+for every universe asset 2014-06..2025-06 (renames mapped, e.g. FB -> META) and every FRED series through 2025 into
+`data_holdout/reference/fred_series/`. Push it with the tree (it is gitignored like `data/`); `build_holdout_dataset.py` writes
+`ml/datasets/holdout_dataset.csv` (the zips are already adjusted, so Lean's factor files are not applied to them).
+
+**Operational lessons from the V5.7.0 run (Problems #150, #153):** a Codespace VM can restart mid-run and kills nohup jobs (stage A is
+resumable with `RESUME=1`, the walk-forward with `--resume-run-id`); keep remote commands in uploaded `.sh` files, inline quoting through
+`ssh` from PowerShell breaks; `codespace_sync.ps1 -Mode trees` (also part of `-Mode status`) compares `data/` and `data_holdout/` file
+lists, and a stray Codespace-only file shows up there. **A pull overwrites the whole of `ml/`** (models, scaler, schema, datasets AND
+`expert_models/`): back up all of `ml/` first, and after restoring verify it file-by-file; grep the engine log of the next backtest for
+`inference failed` within its first minutes. Check `docker info` before `aq backtest`; Windows can reap background commands when memory is
+critically low (the Lean container itself survives).
+
 ## Config Presets
 
 `phase_v2.presets` holds named bundles of dotted config keys (`moderate`,

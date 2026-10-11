@@ -132,6 +132,55 @@ def test_calibrate_book_confidence_spread_nan_scores_excluded_from_a_date():
     assert result["calibrated_min_rank_confidence_spread"] == pytest.approx(0.8)
 
 
+def test_calibrate_book_confidence_spread_skips_ineligible_names_but_keeps_them_in_the_normalization():
+    # Forex pair F has the most extreme raw score; with it ineligible the book selects from E1..E4 only.
+    rows = []
+    for date in ("2020-01-01", "2020-01-02"):
+        for ticker, score in [("F", 0.99), ("E1", 0.9), ("E2", 0.7), ("E3", 0.3), ("E4", 0.1)]:
+            rows.append({"date": date, "ticker": ticker, "raw_score": score})
+    frame = pd.DataFrame(rows)
+    pooled = calibrate_book_confidence_spread(frame, raw_score_column="raw_score", top_n=1, bottom_n=1, percentile=0.0)
+    metadata = {
+        "F": {"asset_class": "forex", "trading_eligible": False},
+        **{ticker: {"asset_class": "equity", "trading_eligible": True} for ticker in ("E1", "E2", "E3", "E4")},
+    }
+    live_pool = calibrate_book_confidence_spread(
+        frame, raw_score_column="raw_score", top_n=1, bottom_n=1, percentile=0.0, candidate_metadata_by_ticker=metadata
+    )
+    assert pooled["calibrated_min_rank_confidence_spread"] == pytest.approx(0.99 - 0.1)  # F was a candidate
+    assert live_pool["calibrated_min_rank_confidence_spread"] == pytest.approx(0.9 - 0.1)
+
+
+def test_segment_logged_records_by_run_also_splits_on_a_changed_run_id():
+    records = [
+        {"date": "2020-01-02", "run_id": "A"}, {"date": "2020-01-03", "run_id": "A"},
+        {"date": "2020-01-06", "run_id": "B"},  # dates continue, but the id changed -> new run
+        {"date": "2020-01-07"},  # an id-less record stays in the open run
+        {"date": "2020-01-01", "run_id": "B"},  # the date goes backwards -> new run, as before run ids existed
+    ]
+    segments = segment_logged_records_by_run(records)
+    assert [len(segment) for segment in segments] == [2, 2, 1]
+
+
+def test_calibrate_book_confidence_spread_session_filter_drops_dates_without_that_asset_class():
+    rows = []
+    for ticker, score in [("E1", 0.9), ("E2", 0.5), ("E3", 0.1)]:
+        rows.append({"date": "2020-01-03", "ticker": ticker, "raw_score": score})  # equity session
+    for ticker, score in [("C1", 0.9), ("C2", 0.5), ("C3", 0.1)]:
+        rows.append({"date": "2020-01-04", "ticker": ticker, "raw_score": score})  # weekend, crypto only
+    metadata = {
+        **{ticker: {"asset_class": "equity", "trading_eligible": True} for ticker in ("E1", "E2", "E3")},
+        **{ticker: {"asset_class": "crypto", "trading_eligible": True} for ticker in ("C1", "C2", "C3")},
+    }
+    frame = pd.DataFrame(rows)
+    everything = calibrate_book_confidence_spread(frame, raw_score_column="raw_score", top_n=1, bottom_n=1)
+    sessions = calibrate_book_confidence_spread(
+        frame, raw_score_column="raw_score", top_n=1, bottom_n=1, candidate_metadata_by_ticker=metadata,
+        session_asset_class="equity",
+    )
+    assert everything["num_dates_used"] == 2 and sessions["num_dates_used"] == 1
+
+
 # ---------------------------------------------------------------------------
 # reconcile_book_history_date() / summarize_book_history_reconciliation()
 # ---------------------------------------------------------------------------

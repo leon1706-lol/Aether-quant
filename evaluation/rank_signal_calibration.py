@@ -75,8 +75,17 @@ def calibrate_book_confidence_spread(
     top_n: int,
     bottom_n: int,
     percentile: float = 0.10,
+    candidate_metadata_by_ticker: dict[str, dict] | None = None,
+    session_asset_class: str | None = None,
 ) -> dict:
-    """Per date (sorted): normalizes that date's raw scores exactly as
+    """V5.7.0: `candidate_metadata_by_ticker` ({ticker: {"asset_class", "trading_eligible"}}, the same metadata the
+    as-live simulator and main.py's `book_candidate_trading_eligible` use) keeps ineligible names (a disabled forex
+    class, observation-only crypto) out of the selection while they still take part in the percentile normalization,
+    exactly like live; without it every row was a candidate and the floor was calibrated on a pool live never trades.
+    `session_asset_class` ("equity") keeps only dates on which that class has a row: live rebalances on equity-session
+    bars only, while the dataset also holds weekend dates with a handful of crypto rows.
+
+    Per date (sorted): normalizes that date's raw scores exactly as
     main.py's Pass 1 does (cross_sectional_rank_scores()), selects the
     natural top_n/bottom_n split with NO gate and NO hysteresis
     (build_rank_based_book(..., min_rank_confidence_spread=0.0,
@@ -103,8 +112,16 @@ def calibrate_book_confidence_spread(
     distribution, never raises."""
     spreads: list[float] = []
     num_dates_skipped_thin_universe = 0
+    metadata = candidate_metadata_by_ticker or {}
+    session_tickers = (
+        {ticker for ticker, entry in metadata.items() if entry.get("asset_class") == session_asset_class}
+        if session_asset_class
+        else None
+    )
 
     for _date, group in dataset.groupby(date_column, sort=True):
+        if session_tickers is not None and not set(map(str, group[ticker_column])) & session_tickers:
+            continue
         raw_scores = {
             str(ticker): float(score)
             for ticker, score in zip(group[ticker_column], group[raw_score_column])
@@ -116,7 +133,12 @@ def calibrate_book_confidence_spread(
             continue
 
         candidates = {
-            symbol: {"predicted_rank_20d": rank, "trading_eligible": True} for symbol, rank in normalized.items()
+            symbol: {
+                "predicted_rank_20d": rank,
+                "trading_eligible": bool(metadata.get(symbol, {}).get("trading_eligible", True)),
+                "asset_class": metadata.get(symbol, {}).get("asset_class"),
+            }
+            for symbol, rank in normalized.items()
         }
         allocations = build_rank_based_book(
             candidates,
@@ -598,14 +620,19 @@ def segment_logged_records_by_run(logged_records: list[dict]) -> list[list[dict]
     runs: list[list[dict]] = []
     current_run: list[dict] = []
     previous_date: str | None = None
+    current_run_id: str | None = None
     for record in logged_records:
         date = record.get("date")
-        if previous_date is not None and date is not None and date < previous_date:
+        run_id = record.get("run_id")
+        # V5.7.0: records carry the run's start stamp; a changed id is a boundary even when the dates happen to continue.
+        new_run_id = run_id is not None and current_run_id is not None and run_id != current_run_id
+        if new_run_id or (previous_date is not None and date is not None and date < previous_date):
             if current_run:
                 runs.append(current_run)
             current_run = []
         current_run.append(record)
         previous_date = date if date is not None else previous_date
+        current_run_id = run_id if run_id is not None else current_run_id
 
     if current_run:
         runs.append(current_run)

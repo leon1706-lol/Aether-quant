@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Sync the full project between this PC and the training Codespace over ssh/scp (not `gh cs cp`).
 
@@ -23,7 +23,7 @@
   .\scripts\codespace_sync.ps1 -Mode stop
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('push', 'pull', 'status', 'stop')][string]$Mode,
+    [Parameter(Mandatory = $true)][ValidateSet('push', 'pull', 'status', 'trees', 'stop')][string]$Mode,
     [string]$Codespace = 'aq-Training-Ground-Fixed',   # display name OR codespace name
     [string[]]$Candidate = @(),
     [string[]]$WalkForward = @(),
@@ -79,6 +79,38 @@ function Get-RemoteHashes([hashtable]$Ssh, [string]$Repo) {
         if ($line -match '^([0-9a-f]{64})\s+\*?(.+)$') { $result[$Matches[2]] = $Matches[1] }
     }
     return $result
+}
+
+# V5.7.0: `status` hashes 12 key files only; a data file that exists on one side alone (Problems.md #141: three FRED files)
+# is invisible to it. The tree digest is sha256 of the sorted "<relative path> <size>" lines, byte-ordered like `LC_ALL=C sort`.
+function Get-LocalTreeDigest([string]$Dir) {
+    $base = Join-Path $Root $Dir
+    if (-not (Test-Path $base)) { return @{ Count = 0; Digest = '-' } }
+    $lines = [string[]](Get-ChildItem -Path $base -Recurse -File | ForEach-Object { ($_.FullName.Substring($base.Length + 1) -replace '\\', '/') + ' ' + $_.Length })
+    [System.Array]::Sort($lines, [System.StringComparer]::Ordinal)
+    $text = ($lines -join "`n") + "`n"
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $digest = ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($text))) -replace '-', '').ToLower()
+    return @{ Count = $lines.Count; Digest = $digest }
+}
+
+function Get-RemoteTreeDigest([hashtable]$Ssh, [string]$Repo, [string]$Dir) {
+    # one single-line command, no double quotes and no piped script (a piped string arrives with a BOM and breaks `cd`)
+    $remoteCommand = 'cd ' + $Repo + ' && if [ -d ' + $Dir + ' ]; then n=$(find ' + $Dir + ' -type f | wc -l); d=$(find ' + $Dir + ' -type f -printf ''%P %s\n'' | LC_ALL=C sort | sha256sum | cut -d'' '' -f1); echo $n $d; else echo 0 -; fi'
+    $out = ssh -F $Ssh.Config $Ssh.Host $remoteCommand
+    $parts =($out | Select-Object -Last 1).Trim() -split ' '
+    return @{ Count = [int]$parts[0]; Digest = $parts[1] }
+}
+
+function Show-TreeComparison([hashtable]$Ssh, [string]$Repo) {
+    [int]$bad = 0
+    foreach ($dir in @('data', 'data_holdout')) {
+        $l = Get-LocalTreeDigest $dir
+        $r = Get-RemoteTreeDigest $Ssh $Repo $dir
+        $state = if ($l.Count -eq $r.Count -and $l.Digest -eq $r.Digest) { 'match' } else { $bad++; 'DIFFERENT' }
+        Write-Host ('{0,-14} local={1,6} files {2}  remote={3,6} files {4}  {5}' -f $dir, $l.Count, $l.Digest.Substring(0, [Math]::Min(12, $l.Digest.Length)), $r.Count, $r.Digest.Substring(0, [Math]::Min(12, $r.Digest.Length)), $state)
+    }
+    return [int]$bad
 }
 
 function Show-HashComparison([hashtable]$Local, [hashtable]$Remote, [string]$Prefix = '') {
@@ -159,5 +191,12 @@ switch ($Mode) {
         $bad = Show-HashComparison (Get-LocalHashes) (Get-RemoteHashes $ssh $repo)
         if ($bad -gt 0) { Write-Host "$bad key file(s) differ"; exit 1 }
         Write-Host 'local and Codespace key files match'
+        $treeBad = Show-TreeComparison $ssh $repo
+        if ($treeBad -gt 0) { Write-Host "$treeBad data tree(s) differ (a push overlays and never deletes)"; exit 1 }
+        Write-Host 'local and Codespace data trees match'
+    }
+    'trees' {
+        $treeBad = Show-TreeComparison $ssh $repo
+        if ($treeBad -gt 0) { exit 1 }
     }
 }

@@ -388,8 +388,14 @@ def compute_fill_slippage_divergence_bps(
     fill_price: float,
     reference_price: float,
     expected_cost_bps: float,
+    direction: float | None = None,
 ) -> float | None:
-    """V5.5.0 (Problems.md #88/#96) - realized-minus-expected slippage in bps
+    """V5.7.0 (Problems.md #148): with `direction` (the fill quantity's sign: > 0 buy, < 0 sell) only ADVERSE slippage
+    counts - a buy filled below the open (or a sell above it) is price improvement, a limit order doing its job, and used
+    to be added to the kill-switch average as if it were a cost (BT5: crypto limit fills 1-4% under the open locked 24 book
+    decisions). Without `direction` the absolute gap is used, as before.
+
+    V5.5.0 (Problems.md #88/#96) - realized-minus-expected slippage in bps
     for evaluate_kill_switch(). `reference_price` must be the FILL BAR's
     open (what a daily market order actually targets), NOT the prior bar's
     close - against the prior close this measured the overnight gap, which
@@ -406,7 +412,10 @@ def compute_fill_slippage_divergence_bps(
         return None
     if fill <= 0.0 or reference <= 0.0:
         return None
-    return abs(fill - reference) / reference * 10_000.0 - expected
+    gap_bps = (fill - reference) / reference * 10_000.0
+    if direction is not None and math.isfinite(float(direction)) and float(direction) != 0.0:
+        return (gap_bps if float(direction) > 0.0 else -gap_bps) - expected
+    return abs(gap_bps) - expected
 
 
 # Pure classification of main.py::_apply_signal()/_apply_option_order()'s

@@ -47,6 +47,16 @@ def test_add_asset_class_context_features_row_sums_to_exactly_one():
     assert (row_sums == 1.0).all()
 
 
+def test_forex_pairs_get_their_own_class_flag_instead_of_an_all_zero_context():
+    dataset = pd.DataFrame({"ticker": ["EURUSD", "AAPL"]})
+
+    result, columns = add_asset_class_context_features(dataset, {"EURUSD": "forex", "AAPL": "equity"})
+
+    assert "asset_class_forex" in columns
+    assert result.loc[0, "asset_class_forex"] == 1.0 and result.loc[0, "asset_class_equity"] == 0.0
+    assert (result[columns].sum(axis=1) == 1.0).all()
+
+
 def test_add_asset_class_context_features_missing_ticker_falls_back_to_equity():
     dataset = pd.DataFrame({"ticker": ["UNKNOWN"]})
 

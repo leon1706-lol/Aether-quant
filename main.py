@@ -68,7 +68,8 @@ from risk.futures_risk import build_live_contract_spec, load_futures_contract_sp
 from risk.kill_switch import evaluate_kill_switch
 from risk.manual_override import read_kill_switch_manual_override, read_manual_trade_lock_override
 from risk.position_sizing import cost_sizing_multiplier
-from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model
+from risk.rl_sizing import FOREX_RL_SIZING_STATE_KEYS, build_rl_sizing_state, load_rl_sizing_model, rl_sizing_multiplier
+from portfolio.forex_sleeve import build_forex_sleeve_weights, forex_resize_below_minimum
 from portfolio import (
     apply_book_weight_floor,
     build_book_history_record,
@@ -236,6 +237,7 @@ from features import (
     yield_curve_slope_proxy,
 )
 from features.cross_asset_timing import cross_asset_inputs
+from features.fx_carry import FX_CARRY_FEATURE_NAME, FX_RATE_PUBLICATION_LAG_DAYS, fx_carry_3m
 from data_pipeline.fred_backfill import (
     ALT_DATA_PUBLICATION_LAG_DAYS,
     load_cached_fred_series,
@@ -836,6 +838,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # legacy signal close it; off (False) is the pre-V5.5.0 behavior.
         self.hold_owned_positions_on_veto = bool(phase_v2_portfolio_book.get("hold_owned_positions_on_veto", False))
         self.max_forex_short_exposure = float(phase9_portfolio.get("max_forex_short_exposure", self.max_short_exposure))
+        # V5.7.0 - forex sleeve (portfolio/forex_sleeve.py): its own k-long/k-short book over the forex pairs ranked among
+        # themselves, own gross budget and cadence, a dollar deadband on resizes. Off by default: with it off forex keeps
+        # whatever phase_v2.forex_risk.enabled says and nothing below runs.
+        _forex_sleeve = self.phase_v2.get("forex_sleeve", {})
+        self.forex_sleeve_enabled = bool(_forex_sleeve.get("enabled", False))
+        self.forex_sleeve_per_side = int(_forex_sleeve.get("per_side", 2))
+        self.forex_sleeve_gross_budget = float(_forex_sleeve.get("gross_budget", 0.3))
+        self.forex_sleeve_max_weight = float(_forex_sleeve.get("max_weight_per_pair", 0.0)) or None
+        self.forex_sleeve_rebalance_every_bars = int(_forex_sleeve.get("rebalance_every_bars", 20))
+        self.forex_sleeve_min_trade_usd = float(_forex_sleeve.get("min_trade_usd", 0.0))
+        self.forex_sleeve_min_rank_confidence_spread = float(_forex_sleeve.get("min_rank_confidence_spread", 0.0))
+        self.forex_sleeve_hysteresis_rank_margin = float(_forex_sleeve.get("hysteresis_rank_margin", 0.0))
+        self.forex_sleeve_rl_enabled = bool(_forex_sleeve.get("rl_sizing_enabled", False))
+        self.forex_sleeve_rl_min_multiplier = float(_forex_sleeve.get("rl_min_multiplier", 0.0))
+        self.forex_sleeve_rl_max_multiplier = float(_forex_sleeve.get("rl_max_multiplier", 1.5))
+        self._forex_sleeve_allocations: dict = {}
+        self._forex_sleeve_formed: dict = {}
+        self._forex_sleeve_weights: dict[str, float] = {}
         _v550_diagnostics = self.phase_v2.get("diagnostics", {})
         self._timing_probe = TimingProbe(bool(_v550_diagnostics.get("timing_probe", {}).get("enabled", False)))
         self.teardown_cleanup_enabled = bool(_v550_diagnostics.get("teardown_cleanup", {}).get("enabled", False))
@@ -1034,6 +1054,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.adaptive_sell_band_min_observations = int(phase_v2_exits.get("adaptive_band_min_observations", 20))
         self.adaptive_sell_band_percentile = float(phase_v2_exits.get("adaptive_band_percentile", 0.25))
         self._probability_up_history_by_symbol: dict[str, deque] = {}
+        self._fx_rate_publication_lag_days = {
+            **FX_RATE_PUBLICATION_LAG_DAYS,
+            **self.phase1.get("features", {}).get("fx_rate_publication_lag_days", {}),
+        }
         self.target_daily_volatility = float(phase_v2_risk.get("target_daily_volatility", 0.015))
         self.low_volatility_threshold = float(phase_v2_risk.get("low_volatility_threshold", 0.01))
         self.high_volatility_threshold = float(phase_v2_risk.get("high_volatility_threshold", 0.03))
@@ -1407,6 +1431,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.expert_multitask_model_exports = self._load_expert_multitask_exports()
         self.strategy_selector_model = self._load_strategy_selector_model()
         self.rl_sizing_model = self._load_rl_sizing_model()
+        self.forex_rl_sizing_model = (
+            load_rl_sizing_model(self.root_path / "ml" / "rl_sizing_forex_model.json")
+            if self.forex_sleeve_enabled and self.forex_sleeve_rl_enabled
+            else None
+        )
 
         # Precomputed once here (never rebuilt per-bar) - expert exports
         # never change after this point in a run, so the same weight/bias
@@ -1639,6 +1668,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.book_history_path = self.root_path / phase_v2_diagnostics_book_history.get(
             "output_path", "visualization/book_history.jsonl"
         )
+        # V5.7.0 - every record carries the run's start stamp; per_run_files (default off = the one cumulative file)
+        # writes <output stem>/<run_id>.jsonl instead, so no file grows across runs.
+        self.book_history_run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        if bool(phase_v2_diagnostics_book_history.get("per_run_files", False)):
+            self.book_history_path = (
+                self.book_history_path.parent / self.book_history_path.stem / f"{self.book_history_run_id}.jsonl"
+            )
         # V5.2.3 (development/Problems.md #91) - opt-in on top of the
         # V5.2.2 toggle above: also snapshot EVERY symbol with a bar this
         # rebalance date (selected or not) - role/score alone couldn't
@@ -2281,11 +2317,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
             asset = self.asset_lookup[str(symbol)]
             book_candidates[symbol_key] = {
                 "predicted_rank_20d": predicted_rank_20d,
+                # With the forex sleeve on, the pairs never compete for the main book's slots: they rank among themselves.
                 "trading_eligible": book_candidate_trading_eligible(
                     self._is_trading_eligible(symbol),
                     asset.get("asset_class") or asset.get("security_type"),
                     self.futures_risk_enabled, self.options_risk_enabled, self.forex_risk_enabled,
-                ),
+                ) and not (self.forex_sleeve_enabled and (asset.get("asset_class") or asset.get("security_type")) == "forex"),
                 # Only consumed when portfolio_book_per_asset_class_slots is
                 # configured (development/Problems.md#29) - same
                 # asset.get("asset_class") or asset.get("security_type")
@@ -2518,6 +2555,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._book_target_weights = {}
             self._last_book_neutrality_diagnostics = {}
 
+        # V5.7.0 - forex sleeve (portfolio/forex_sleeve.py); see _update_forex_sleeve()'s docstring.
+        self._update_forex_sleeve(pass1_state)
+
         # V5.1 Phase 1 (development/Problems.md, item 6 / Finding 3 - the
         # book was silently truncated by max_active_positions in
         # self.symbols iteration order, not by rank): when the book is
@@ -2620,7 +2660,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # exact same sizing/liquidity/analyzer pipeline below as any
             # other signal - never bypasses it.
             is_forced_exit = False
-            book_allocation = book_allocations.get(symbol_key)
+            # V5.7.0 - a forex pair under the forex sleeve is governed by the SLEEVE's allocations and activity, never
+            # by the main book's (see the sleeve block above). Without the sleeve this is exactly the old lookup.
+            sleeve_asset = self.asset_lookup[symbol_key]
+            is_sleeve_symbol = (
+                self.forex_sleeve_enabled
+                and self.forex_risk_enabled
+                and (sleeve_asset.get("asset_class") or sleeve_asset.get("security_type")) == "forex"
+            )
+            book_allocation = (
+                self._forex_sleeve_allocations.get(symbol_key) if is_sleeve_symbol else book_allocations.get(symbol_key)
+            )
+            book_active_here = bool(self._forex_sleeve_allocations) if is_sleeve_symbol else bool(book_allocations)
             is_book_owned = update_book_owned_symbols(
                 self._book_owned_symbols, symbol_key, book_allocation is not None, is_currently_invested
             )
@@ -2638,12 +2689,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # happens) - .get() with this formula as the default,
                 # not a separate branch, so "no entry" and "disabled"
                 # degrade identically.
-                base_target_weight = self._book_target_weights.get(
-                    symbol_key,
-                    min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier,
+                base_target_weight = (
+                    self._forex_sleeve_weights.get(symbol_key, 0.0)
+                    if is_sleeve_symbol
+                    else self._book_target_weights.get(
+                        symbol_key,
+                        min(self.max_position_weight, 0.10 + 0.15 * confidence) * book_allocation.book_role_multiplier,
+                    )
                 )
             elif should_exit_non_selected_book_symbol(
-                bool(book_allocations),
+                book_active_here,
                 self.portfolio_book_enabled,
                 # V5.5.0 (Problems.md #128): with the legacy sleeve on, only positions the BOOK opened
                 # are rotation-exit candidates - a sleeve entry is left to the max-holding/trailing exits.
@@ -2680,10 +2735,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 book_allocation is not None,
                 is_book_owned,
                 is_currently_invested,
-                bool(book_allocations),
+                book_active_here,
             ):
                 # V5.5.0 (Problems.md #133): the book is vetoed - hold what it opened; only the backstop exits
                 # just below (max holding age / trailing stop) or the next active book may close it.
+                signal_name = "hold"
+                confidence = 0.0
+                base_target_weight = 0.0
+
+            if is_sleeve_symbol and book_allocation is None and not is_forced_exit:
+                # V5.7.0 - a pair the sleeve did not select is never traded by the legacy probability signal.
                 signal_name = "hold"
                 confidence = 0.0
                 base_target_weight = 0.0
@@ -2721,6 +2782,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # V5.5.0 (Problems.md #128) - margin sizing is an upper bound
                 # for a book member, never the target.
                 target_weight = cap_forex_target_to_book_weight(target_weight, base_target_weight)
+            if (
+                is_sleeve_symbol
+                and book_allocation is not None
+                and self.forex_sleeve_rl_enabled
+                and not is_currently_invested
+                and target_weight != 0.0
+            ):
+                # V5.7.0 - the forex policy sizes ENTRIES only (0 = skip, up to the configured cap); a held pair is
+                # never closed by it. State keys are the policy's own list; a missing key or model is a strict no-op.
+                forex_rl_state = build_rl_sizing_state(
+                    feature_payload["base_features"],
+                    confidence,
+                    FOREX_RL_SIZING_STATE_KEYS,
+                    {"log_order_notional": math.log(max(abs(target_weight) * float(self.Portfolio.TotalPortfolioValue), 1.0))},
+                )
+                forex_rl_multiplier, forex_rl_reason = rl_sizing_multiplier(
+                    self.forex_rl_sizing_model, forex_rl_state, True,
+                    self.forex_sleeve_rl_min_multiplier, self.forex_sleeve_rl_max_multiplier,
+                    expected_state_keys=FOREX_RL_SIZING_STATE_KEYS,
+                )
+                target_weight *= forex_rl_multiplier
+                sizing_payload["forex_rl_multiplier"] = forex_rl_multiplier
+                sizing_payload["forex_rl_reason"] = forex_rl_reason
             # Reuses the exact same spread estimate _build_model_input()
             # already computed and fed to the model as
             # liquidity_spread_proxy, rather than recomputing it here -
@@ -2857,7 +2941,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.book_weight_floor_fraction,
                     skip_floor=(liquidity_payload["recommended_action"] == "reduce_size"),
                 )
-            if self.portfolio_book_enabled and book_allocation is None:
+            if self.portfolio_book_enabled and book_allocation is None and not is_sleeve_symbol:
                 sleeve_decision = apply_legacy_sleeve_policy(
                     signal_name,
                     target_weight,
@@ -3207,6 +3291,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     book_member_decisions=(book_member_decisions if self.book_history_include_decisions else None),
                     gate_veto_reason=book_gate_veto_reason.get("reason"),
                     feature_snapshot=feature_snapshot,
+                    run_id=self.book_history_run_id,
                 )
                 self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:
@@ -3829,6 +3914,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             base_features[feature_name] = float(cross_asset_sensitivity.get(feature_name, 0.0) or 0.0)
         self.latest_cross_asset_sensitivity_by_symbol[str(symbol)] = cross_asset_sensitivity
 
+        # V5.7.0 - FX carry (features/fx_carry.py, the same function train.py::build_fx_carry_features() calls): the
+        # 3-month rate differential of a forex pair, 0.0 for every other asset. Reaches the model only once a retrained
+        # schema lists it, like the two blocks above.
+        carry_asset = self.asset_lookup[str(symbol)]
+        base_features[FX_CARRY_FEATURE_NAME] = fx_carry_3m(
+            carry_asset["ticker"],
+            carry_asset.get("asset_class") or carry_asset.get("security_type"),
+            self.Time.date(),
+            self.fred_series,
+            self._fx_rate_publication_lag_days,
+        )
+
         # Safe default (10.0) for scaler_stats.json files written before
         # clip_sigma existed - see train.py::write_scaler_artifacts().
         clip_sigma = float(self.scaler_stats.get("clip_sigma", 10.0))
@@ -4327,6 +4424,51 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         return classify_volatility_view(annualized, atm_iv, self.options_volatility_view_margin)
 
+    def _update_forex_sleeve(self, pass1_state: dict) -> None:
+        """V5.7.0 - forms the forex sleeve on its own cadence: the pairs are ranked AMONG THEMSELVES (not against
+        equities), `per_side` longs and shorts, each leg `gross_budget / 2`. The allocations stay out of `book_allocations`
+        so a vetoed main book never rotation-exits a sleeve position or vice versa (Pass 2 reads the sleeve's own activity
+        for forex symbols). No-op unless `phase_v2.forex_sleeve.enabled` and forex trading is enabled."""
+        if not (self.forex_sleeve_enabled and self.forex_risk_enabled):
+            return
+        forex_raw_scores: dict[str, float] = {}
+        for symbol_key, state in pass1_state.items():
+            asset = self.asset_lookup.get(symbol_key, {})
+            if (asset.get("asset_class") or asset.get("security_type")) != "forex":
+                continue
+            score = state["raw_rank_score"]
+            if score is not None and math.isfinite(float(score)):
+                forex_raw_scores[symbol_key] = float(score)
+        if not should_rebalance_this_bar(
+            self.bar_index,
+            self.forex_sleeve_rebalance_every_bars,
+            bool(self._forex_sleeve_allocations),
+            is_trading_day_bar=self.is_equity_session_bar,
+        ):
+            return
+        ranks = cross_sectional_rank_scores(forex_raw_scores)
+        candidates = {
+            symbol_key: {
+                "predicted_rank_20d": rank,
+                "trading_eligible": self._is_trading_eligible(pass1_state[symbol_key]["symbol"]),
+                "asset_class": "forex",
+            }
+            for symbol_key, rank in ranks.items()
+        }
+        allocations = build_rank_based_book(
+            candidates,
+            top_n=self.forex_sleeve_per_side,
+            bottom_n=self.forex_sleeve_per_side,
+            min_rank_confidence_spread=self.forex_sleeve_min_rank_confidence_spread,
+            previous_allocations=self._forex_sleeve_formed or None,
+            hysteresis_rank_margin=self.forex_sleeve_hysteresis_rank_margin,
+            spread_check_ranks=forex_raw_scores,
+        )
+        self._forex_sleeve_allocations = allocations
+        self._forex_sleeve_formed = remember_formed_book(self._forex_sleeve_formed, allocations)
+        self._forex_sleeve_weights = build_forex_sleeve_weights(
+            allocations, self.forex_sleeve_gross_budget, self.forex_sleeve_max_weight
+        )
     def _build_topology_payload(self) -> dict:
         # Runs at the START of a tick, before this tick's bars join symbol_windows, so
         # every payload built from it (topology, peers, macro proxies, cs_momentum_rank_20)
@@ -6036,6 +6178,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         delta = int(round(compute_incremental_order_quantity(order_units_for_weight, current_quantity)))
                         if delta == 0:
                             return "forex_zero_delta_kept"
+                        if self.forex_sleeve_enabled and forex_resize_below_minimum(delta, close_price, self.forex_sleeve_min_trade_usd):
+                            return "forex_min_notional_kept"
                         if abs(delta) < self.forex_resize_min_fraction * abs(order_units_for_weight):
                             return "forex_resize_deadband_kept"
                         order_quantity = delta
@@ -6228,6 +6372,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         delta = int(round(compute_incremental_order_quantity(order_units_for_weight, current_quantity)))
                         if delta == 0:
                             return "forex_zero_delta_kept"
+                        if self.forex_sleeve_enabled and forex_resize_below_minimum(delta, close_price, self.forex_sleeve_min_trade_usd):
+                            return "forex_min_notional_kept"
                         if abs(delta) < self.forex_resize_min_fraction * abs(order_units_for_weight):
                             return "forex_resize_deadband_kept"
                         order_quantity = delta
@@ -7519,6 +7665,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         expected = self._expected_cost_by_symbol.pop(resolved_symbol_key, None)
         if expected is None:
             return
+        # V5.7.0 (Problems.md #153): a tracked limit fill is bounded by its own limit price, and its gap to the BAR open
+        # is intraday drift since submission (BT6: LTCUSD limit buys 2-4% off the open), not execution cost.
+        if event_symbol_key in getattr(self, "pending_limit_orders", {}):
+            return
         fill_price = float(getattr(order_event, "FillPrice", 0.0) or 0.0)
         # V5.5.0 (Problems.md #88/#96) - reference is the FILL bar's open (what
         # a daily market order targets), not the prior close, which made this
@@ -7530,7 +7680,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         except Exception:
             fill_bar_open = 0.0
         divergence_bps = compute_fill_slippage_divergence_bps(
-            fill_price, fill_bar_open, float(expected["expected_cost_bps"]) * 0.5
+            fill_price,
+            fill_bar_open,
+            float(expected["expected_cost_bps"]) * 0.5,
+            direction=float(getattr(order_event, "FillQuantity", 0.0) or 0.0),
         )
         if divergence_bps is None:
             return

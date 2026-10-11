@@ -863,6 +863,8 @@ def test_compute_purged_cv_rank_ic_diagnostic_structure():
     assert result["n_folds_requested"] == 5
     assert result["n_folds_with_data"] == len(result["per_fold"])
     assert result["n_folds_with_data"] > 0
+    # the scored model was trained on these rows: the diagnostic must never read as out-of-sample evidence
+    assert result["scope"] == "in_sample_fold_stability_not_out_of_sample"
     for fold in result["per_fold"]:
         assert "fold" in fold and "mean_ic" in fold and "t_stat" in fold
     # A clean, strongly-correlated signal (small noise) should produce a

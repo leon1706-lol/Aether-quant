@@ -62,11 +62,29 @@ RL_SIZING_STATE_KEYS = [
     "regime_trend_sideways",
 ]
 
+# V5.7.0 - the forex sleeve's own policy: trained on book-level (20-day, per-order-fee) rewards over the forex pool, with
+# the two inputs that decide whether a small FX order is worth its dollar minimum. `log_order_notional` is
+# log(base book weight x NAV), computed by the caller (not a base feature).
+FOREX_RL_SIZING_STATE_KEYS = [
+    "confidence",
+    "rolling_volatility_20d",
+    "liquidity_spread_proxy",
+    "fx_carry_3m",
+    "log_order_notional",
+    "regime_signal_risk_score",
+    "alt_implied_volatility_level",
+]
+
 DEFAULT_MIN_RL_MULTIPLIER = 0.6
 DEFAULT_MAX_RL_MULTIPLIER = 1.0
 
 
-def build_rl_sizing_state(base_features: dict, confidence: float) -> dict | None:
+def build_rl_sizing_state(
+    base_features: dict,
+    confidence: float,
+    state_keys: list[str] | None = None,
+    extra_state: dict | None = None,
+) -> dict | None:
     """Pulls RL_SIZING_STATE_KEYS out of the SAME base_features dict
     main.py's _build_model_input_impl() already assembled this bar (plus
     the model's own separately-computed confidence score, not itself a
@@ -76,8 +94,12 @@ def build_rl_sizing_state(base_features: dict, confidence: float) -> dict | None
     to "no model" - a strict 1.0 no-op, never a crash or a partially-built
     state vector."""
     state = {}
-    for key in RL_SIZING_STATE_KEYS:
+    extra_state = extra_state or {}
+    for key in state_keys or RL_SIZING_STATE_KEYS:
         if key == "confidence":
+            continue
+        if key in extra_state:
+            state[key] = float(extra_state[key])
             continue
         if key not in base_features:
             return None
@@ -114,8 +136,12 @@ def rl_sizing_multiplier(
     rl_sizing_enabled: bool,
     min_rl_multiplier: float = DEFAULT_MIN_RL_MULTIPLIER,
     max_rl_multiplier: float = DEFAULT_MAX_RL_MULTIPLIER,
+    expected_state_keys: list[str] | None = None,
 ) -> tuple[float, str]:
-    """Bounded, deterministic (argmax, never sampled), shrink-only size
+    """`expected_state_keys` (V5.7.0, default RL_SIZING_STATE_KEYS) is the key list the CALLER's state was built with; a
+    model trained for another list (the forex policy) is refused, never silently misaligned.
+
+    Bounded, deterministic (argmax, never sampled), shrink-only size
     adjustment - exact contract clone of
     risk/position_sizing.py::rank_sizing_multiplier()/topology_sizing_multiplier():
     returns (1.0, "<reason>") whenever the flag is off, the model is
@@ -147,7 +173,7 @@ def rl_sizing_multiplier(
         bias = model.get("bias")
         mean = model.get("mean")
         scale = model.get("scale")
-        if state_keys != RL_SIZING_STATE_KEYS:
+        if state_keys != (expected_state_keys or RL_SIZING_STATE_KEYS):
             return 1.0, "rl_sizing_state_key_mismatch"
         if not actions or not weights or not bias or not mean or not scale:
             return 1.0, "rl_sizing_malformed_model"

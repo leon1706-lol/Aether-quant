@@ -9,11 +9,13 @@ import httpx
 from data_pipeline.fred_backfill import (
     DEFAULT_ALT_DATA_REFERENCE_SERIES,
     DEFAULT_BOND_REFERENCE_SERIES,
+    DEFAULT_FX_RATE_REFERENCE_SERIES,
     alt_data_reference_series,
     bond_reference_series,
     cache_csv_to_rows,
     fetch_all_bond_reference_series,
     fetch_fred_series,
+    fx_rate_reference_series,
     parse_fred_csv,
     reference_series,
     rows_to_cache_csv,
@@ -240,8 +242,20 @@ def test_reference_series_group_bond_alt_all():
     config = {}
     assert reference_series(config, "bond") == DEFAULT_BOND_REFERENCE_SERIES
     assert reference_series(config, "alt") == DEFAULT_ALT_DATA_REFERENCE_SERIES
+    assert reference_series(config, "fx") == DEFAULT_FX_RATE_REFERENCE_SERIES
     merged = reference_series(config, "all")
-    assert merged == {**DEFAULT_BOND_REFERENCE_SERIES, **DEFAULT_ALT_DATA_REFERENCE_SERIES}
+    assert merged == {**DEFAULT_BOND_REFERENCE_SERIES, **DEFAULT_ALT_DATA_REFERENCE_SERIES, **DEFAULT_FX_RATE_REFERENCE_SERIES}
+
+
+def test_fx_rate_series_cover_every_non_usd_currency_the_carry_feature_knows():
+    from features.fx_carry import CURRENCY_RATE_SERIES
+
+    foreign_keys = {key for currency, key in CURRENCY_RATE_SERIES.items() if currency != "USD"}
+    assert foreign_keys == set(DEFAULT_FX_RATE_REFERENCE_SERIES)
+    assert CURRENCY_RATE_SERIES["USD"] in DEFAULT_BOND_REFERENCE_SERIES  # the US leg is the existing daily bill
+    assert fx_rate_reference_series({"phase1": {"features": {"fx_rate_reference_series": {"interbank_3m_eur": "X"}}}})[
+        "interbank_3m_eur"
+    ] == "X"
 
 
 def test_bond_reference_series_unchanged_by_alt_addition():

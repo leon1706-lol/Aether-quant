@@ -83,3 +83,10 @@ model's input, never a crash. The one exception is
 sensitivity must stay distinguishable from a genuinely-zero one; callers
 are responsible for substituting the neutral default at the point they
 assign a model-input feature value.
+
+## FX carry — `fx_carry.py` (V5.7.0)
+
+`fx_carry_3m(ticker, asset_class, date, fred_series)`: the 3-month rate differential (base minus quote, percentage points) of a forex pair
+from the FRED OECD interbank series (`aq backfill fred --group fx`) and the daily US 3-month bill, through the publication-lag-aware
+`series_value_asof` (45 days for the monthly series). 0.0 for every non-forex row and when a rate is not yet published. One definition for
+`train.py::build_fx_carry_features` and `main.py`; the model sees it only once a retrain lists it in `phase1.features.input_set`.

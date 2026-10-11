@@ -119,21 +119,21 @@ SPY/QQQ/IWM/EEM, not a new Lean security type).
 | EOSUSD | Crypto | Observation-only (thin history) |
 | ETCUSD | Crypto | Observation-only (thin history) |
 | ZECUSD | Crypto | Observation-only (thin history) |
-| EURUSD | Forex | Trading |
-| GBPUSD | Forex | Trading |
-| USDJPY | Forex | Trading |
-| AUDUSD | Forex | Trading |
-| USDCAD | Forex | Trading |
-| USDCHF | Forex | Trading |
-| NZDUSD | Forex | Trading |
-| EURGBP | Forex | Trading |
-| EURJPY | Forex | Trading |
-| GBPJPY | Forex | Trading |
-| EURCHF | Forex | Trading |
-| EURAUD | Forex | Trading |
-| AUDJPY | Forex | Trading |
-| CADJPY | Forex | Trading |
-| GBPCAD | Forex | Trading |
+| EURUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| GBPUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| USDJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| AUDUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| USDCAD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| USDCHF | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| NZDUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| EURGBP | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| EURJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| GBPJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| EURCHF | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| EURAUD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| AUDJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| CADJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| GBPCAD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
 
 ## Trading vs observation-only
 

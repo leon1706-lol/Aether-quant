@@ -24,8 +24,13 @@ from portfolio.book_construction import (
 )
 from portfolio.book_neutrality import apply_book_neutrality
 from portfolio.rank_signal import cross_sectional_rank_scores
+from risk.kill_switch import evaluate_kill_switch
 
 DEFAULT_SECTOR_MAX_NET_WEIGHT = 0.05
+# main.py's `_kill_switch_return_history` deque length.
+_KILL_SWITCH_HISTORY_MAXLEN = 252
+# NAV the per-name impact and minimum-commission terms assume when none is configured (config.json initial cash).
+DEFAULT_ASSUMED_PORTFOLIO_VALUE_USD = 100_000.0
 
 
 @dataclass(frozen=True)
@@ -46,6 +51,13 @@ class RankBookSimulationResult:
     # V5.5.0 (as-live mode) - 0 / {} in the idealized default run.
     num_vetoed_rebalances: int = 0
     veto_reasons: dict = field(default_factory=dict)
+    # V5.7.0 - kill-switch lock days / frozen member decisions, 0 unless `kill_switch_config` is passed.
+    num_kill_switch_locked_dates: int = 0
+    num_kill_switch_frozen_decisions: int = 0
+    kill_switch_locked_date_list: list = field(default_factory=list)
+    # V5.7.0 - mean sum of |weight| and of signed weight over the dates used (NAV fractions), for sizing parity checks.
+    mean_gross_exposure: float = 0.0
+    mean_net_exposure: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -118,6 +130,13 @@ def _simulate_rank_book_core(
     max_holding_dates: int | None = None,
     commission_bps_by_ticker: dict[str, float] | None = None,
     entry_veto_column: str | None = None,
+    hysteresis_anchor_on_formed_book: bool | None = None,
+    kill_switch_config: dict | None = None,
+    kill_switch_sticky: bool = False,
+    member_weight_fn=None,
+    raw_weights_fn=None,
+    impact_inputs_fn=None,
+    min_commission_usd_by_ticker: dict[str, float] | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -194,10 +213,33 @@ def _simulate_rank_book_core(
     - `max_holding_dates`: live's `exits.max_holding_bars` age exit.
     - hysteresis anchors on the last NON-EMPTY book (remember_formed_book()),
       which a veto never erases.
+
+    V5.7.0 live mechanisms, all off by default (`evaluation.live_parity` builds them from the live config):
+    - `hysteresis_anchor_on_formed_book` (default: follows `hold_positions_on_veto`) separates the anchor choice from
+      the hold choice, which the lever attribution had confounded.
+    - `kill_switch_config` (`phase_v2.risk.kill_switch`): `risk.kill_switch.evaluate_kill_switch` runs every date on the
+      simulated net returns. A locked rebalance freezes member positions (analyzer Priority 1: entries and resizes become
+      `reduce_risk`, exits still pass). `kill_switch_sticky=False` mirrors the backtest bypass that clears the lock each
+      session, so the lock is re-derived every date; True latches the first trip for the rest of the run.
+    - `member_weight_fn(symbol=, date=, base_weight=, held_weight=, predicted_rank=, row=)` returns the final target
+      weight of one book member (live sizing chain, liquidity, net-edge gate; hold = return `held_weight`).
+    - `raw_weights_fn(allocations, date)` replaces `build_book_raw_weights` (HRP).
+    - `impact_inputs_fn(symbol, date) -> (daily_volatility, adv_usd) | None` charges the Almgren impact per name on its
+      own traded notional; `min_commission_usd_by_ticker` tops up each traded name to the broker's dollar floor.
     """
     sector_by_ticker = sector_by_ticker or {}
     candidate_metadata_by_ticker = candidate_metadata_by_ticker or {}
     as_live = bool(hold_positions_on_veto)
+    anchor_on_formed_book = as_live if hysteresis_anchor_on_formed_book is None else bool(hysteresis_anchor_on_formed_book)
+    kill_switch_active = bool(kill_switch_config) and bool((kill_switch_config or {}).get("enabled", False))
+    kill_switch_returns: list[float] = []
+    kill_switch_latched = False
+    kill_switch_previous_drawdown: float | None = None
+    kill_switch_consecutive_losses = 0
+    num_kill_switch_locked_dates = 0
+    num_kill_switch_frozen_decisions = 0
+    kill_switch_locked_dates: list[str] = []
+    pv_for_costs = assumed_portfolio_value_usd if assumed_portfolio_value_usd > 0 else DEFAULT_ASSUMED_PORTFOLIO_VALUE_USD
     formed_book: dict[str, BookAllocation] = {}
     last_rebalance_vetoed = False
     num_vetoed_rebalances = 0
@@ -215,6 +257,8 @@ def _simulate_rank_book_core(
     per_date_used: list = []
     names_long_series: list[int] = []
     names_short_series: list[int] = []
+    gross_exposure_series: list[float] = []
+    net_exposure_series: list[float] = []
     total_turnover = 0.0
     total_cost_return = 0.0
     num_rebalances = 0
@@ -246,6 +290,42 @@ def _simulate_rank_book_core(
             is_rebalance = True
         rebalance_counter += 1
         cost_this_date = 0.0
+        date_returns = dict(zip(eligible[ticker_column], eligible[forward_return_column]))
+
+        kill_switch_locked = False
+        if kill_switch_active:
+            # main.py's _refresh_risk_state() runs at the start of the tick on the portfolio value that already includes
+            # today's price move on yesterday's positions; with entry_lag_bars > 0 that move is known before deciding.
+            window = list(kill_switch_returns)
+            today_return = None
+            if entry_lag_bars > 0:
+                lag_index = len(weights_history) - entry_lag_bars
+                lagged_weights = weights_history[lag_index] if lag_index >= 0 else {}
+                today_return = sum(weight * float(date_returns.get(symbol, 0.0)) for symbol, weight in lagged_weights.items())
+                window.append(today_return)
+            drawdown_velocity = None
+            if kill_switch_previous_drawdown is not None:
+                value_now = net_cumprod * (1.0 + (today_return or 0.0))
+                drawdown_now = value_now / max(net_running_peak, value_now) - 1.0
+                drawdown_velocity = abs(drawdown_now) - abs(kill_switch_previous_drawdown)
+            decision = evaluate_kill_switch(
+                {
+                    "recent_bar_returns": window[-_KILL_SWITCH_HISTORY_MAXLEN:],
+                    "drawdown_velocity_pct_per_bar": drawdown_velocity,
+                    "live_rank_ic": None,
+                    "consecutive_losses": kill_switch_consecutive_losses,
+                    "slippage_divergence_bps": None,
+                    "model_age_days": None,
+                    "reconciliation_breach": False,
+                },
+                kill_switch_config,
+            )
+            if decision.tripped and kill_switch_sticky:
+                kill_switch_latched = True
+            kill_switch_locked = decision.tripped or kill_switch_latched
+            if kill_switch_locked:
+                num_kill_switch_locked_dates += 1
+                kill_switch_locked_dates.append(str(date))
 
         # V5.5.0 - live's `exits.max_holding_bars` age exit (as-live only).
         if max_holding_dates is not None and held_weights:
@@ -304,7 +384,7 @@ def _simulate_rank_book_core(
                 top_n=top_n,
                 bottom_n=bottom_n,
                 min_rank_confidence_spread=min_rank_confidence_spread,
-                previous_allocations=(formed_book if as_live else held_allocations) or None,
+                previous_allocations=(formed_book if anchor_on_formed_book else held_allocations) or None,
                 hysteresis_rank_margin=hysteresis_rank_margin,
                 spread_check_ranks=raw_scores_by_ticker if normalize_to_percentile else None,
                 rolling_ic_gate_result=gate_result,
@@ -325,7 +405,9 @@ def _simulate_rank_book_core(
                 long_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "long"]
                 short_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "short"]
                 raw_weights: dict[str, float] = {}
-                if live_weighting:
+                if raw_weights_fn is not None:
+                    raw_weights = raw_weights_fn(allocations, str(date))
+                elif live_weighting:
                     raw_weights = build_book_raw_weights(allocations, max_position_weight)
                 else:
                     if long_symbols:
@@ -352,6 +434,24 @@ def _simulate_rank_book_core(
                 new_weights = {}
                 held_allocations = {}
 
+            if member_weight_fn is not None and new_weights and allocations:
+                rows_by_ticker = eligible.set_index(ticker_column).to_dict("index")
+                adjusted_weights = {
+                    symbol: float(
+                        member_weight_fn(
+                            symbol=symbol,
+                            date=str(date),
+                            base_weight=weight,
+                            held_weight=held_weights.get(symbol, 0.0),
+                            predicted_rank=candidate_ranks.get(symbol),
+                            row=rows_by_ticker.get(symbol, {}),
+                        )
+                    )
+                    for symbol, weight in new_weights.items()
+                }
+                new_weights = {symbol: weight for symbol, weight in adjusted_weights.items() if weight != 0.0}
+                held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
+
             if entry_veto_column and entry_veto_column in eligible.columns and new_weights:
                 # Live's analyzer Priority 3 (elevated topology volatility) turns a NEW book entry into
                 # reduce_risk; positions already held are not force-closed by it.
@@ -365,6 +465,15 @@ def _simulate_rank_book_core(
                     for symbol, weight in new_weights.items()
                     if symbol in held_weights or symbol not in vetoed_entries
                 }
+                held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
+
+            if kill_switch_locked and new_weights:
+                # analyzer Priority 1: with the lock on, a member's entry or resize becomes reduce_risk (no trade);
+                # only the exits (names the book dropped, handled by the missing keys) go through.
+                frozen = {symbol: held_weights[symbol] for symbol in new_weights if symbol in held_weights}
+                if allocations:
+                    num_kill_switch_frozen_decisions += len(new_weights)
+                new_weights = frozen
                 held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
 
             for symbol in new_weights:
@@ -389,25 +498,49 @@ def _simulate_rank_book_core(
                 names_traded = sum(1 for delta in deltas_by_symbol.values() if delta != 0.0)
                 cost_this_date += names_traded * min_commission_usd / assumed_portfolio_value_usd
             total_cost_return += cost_this_date
+            if min_commission_usd_by_ticker:
+                # Top each traded name up to the broker's dollar floor: the rate leg is already in commission_bps*.
+                floor_topup = 0.0
+                for symbol, delta in deltas_by_symbol.items():
+                    floor_usd = float(min_commission_usd_by_ticker.get(symbol, 0.0))
+                    if floor_usd <= 0.0 or delta == 0.0:
+                        continue
+                    rate_bps = float(commission_bps_by_ticker.get(symbol, commission_bps)) if commission_bps_by_ticker else commission_bps
+                    rate_usd = abs(delta) * pv_for_costs * rate_bps / 1e4
+                    floor_topup += max(0.0, floor_usd - rate_usd) / pv_for_costs
+                cost_this_date += floor_topup
+                total_cost_return += floor_topup
 
-            # V5.4.2 - Almgren-style impact model (optional, off by default).
-            # Simplified date-level estimate: uses aggregate turnover and a
-            # configured daily vol + eta to approximate sqrt-impact cost.
+            # V5.4.2 - Almgren-style sqrt impact (optional, off by default). Impact is a cost RATE on the notional
+            # traded, so the NAV cost is rate x |delta weight|; V5.7.0 fixed the old date-level estimate, which
+            # charged the rate itself as a fraction of NAV on a $1M book.
             if impact_model_config and impact_model_config.get("enabled", False):
                 from evaluation.impact_model import compute_sqrt_impact_bps
 
                 eta = float(impact_model_config.get("eta", 0.5))
-                daily_vol = float(impact_model_config.get("daily_volatility", 0.02))
-                adv = float(impact_model_config.get("avg_daily_dollar_volume", 50_000_000))
-                pv = assumed_portfolio_value_usd if assumed_portfolio_value_usd > 0 else 1e6
-                impact_bps = compute_sqrt_impact_bps(
-                    trade_size_fraction=turnover_this_rebalance,
-                    daily_volatility=daily_vol,
-                    avg_daily_dollar_volume=adv,
-                    portfolio_value=pv,
-                    eta=eta,
-                )
-                impact_cost = impact_bps / 1e4
+                impact_cost = 0.0
+                if impact_inputs_fn is not None:
+                    for symbol, delta in deltas_by_symbol.items():
+                        inputs = impact_inputs_fn(symbol, str(date))
+                        if inputs is None or delta == 0.0:
+                            continue
+                        symbol_vol, symbol_adv = inputs
+                        impact_cost += abs(delta) * compute_sqrt_impact_bps(
+                            trade_size_fraction=abs(delta),
+                            daily_volatility=float(symbol_vol),
+                            avg_daily_dollar_volume=float(symbol_adv),
+                            portfolio_value=pv_for_costs,
+                            eta=eta,
+                        ) / 1e4
+                else:
+                    impact_bps = compute_sqrt_impact_bps(
+                        trade_size_fraction=turnover_this_rebalance,
+                        daily_volatility=float(impact_model_config.get("daily_volatility", 0.02)),
+                        avg_daily_dollar_volume=float(impact_model_config.get("avg_daily_dollar_volume", 50_000_000)),
+                        portfolio_value=pv_for_costs,
+                        eta=eta,
+                    )
+                    impact_cost = turnover_this_rebalance * impact_bps / 1e4
                 cost_this_date += impact_cost
                 total_cost_return += impact_cost
 
@@ -419,7 +552,6 @@ def _simulate_rank_book_core(
         names_long_series.append(sum(1 for weight in held_weights.values() if weight > 0.0))
         names_short_series.append(sum(1 for weight in held_weights.values() if weight < 0.0))
 
-        date_returns = dict(zip(eligible[ticker_column], eligible[forward_return_column]))
         # V5.2.1 - entry_lag_bars=0 (default) uses held_weights directly,
         # byte-identical to before this parameter existed. > 0 looks back
         # into weights_history instead - see this function's own docstring.
@@ -432,6 +564,8 @@ def _simulate_rank_book_core(
             weight * float(date_returns.get(symbol, 0.0)) for symbol, weight in effective_weights.items()
         )
         net_return = bar_return - cost_this_date
+        gross_exposure_series.append(sum(abs(weight) for weight in effective_weights.values()))
+        net_exposure_series.append(sum(effective_weights.values()))
 
         gross_returns.append(bar_return)
         net_returns.append(net_return)
@@ -441,6 +575,10 @@ def _simulate_rank_book_core(
         net_cumprod *= 1.0 + net_return
         net_running_peak = max(net_running_peak, net_cumprod)
         net_max_drawdown = min(net_max_drawdown, net_cumprod / net_running_peak - 1.0)
+        if kill_switch_active:
+            kill_switch_returns.append(net_return)
+            kill_switch_previous_drawdown = net_cumprod / net_running_peak - 1.0
+            kill_switch_consecutive_losses = kill_switch_consecutive_losses + 1 if net_return < 0.0 else 0
 
     if not per_date_used:
         return _empty_result(trading_days_per_year), held_days_by_ticker
@@ -466,6 +604,11 @@ def _simulate_rank_book_core(
         per_date=per_date_used,
         num_vetoed_rebalances=num_vetoed_rebalances,
         veto_reasons=dict(sorted(veto_reasons.items())),
+        num_kill_switch_locked_dates=num_kill_switch_locked_dates,
+        num_kill_switch_frozen_decisions=num_kill_switch_frozen_decisions,
+        kill_switch_locked_date_list=kill_switch_locked_dates,
+        mean_gross_exposure=float(np.mean(gross_exposure_series)) if gross_exposure_series else 0.0,
+        mean_net_exposure=float(np.mean(net_exposure_series)) if net_exposure_series else 0.0,
     )
     return result, held_days_by_ticker
 

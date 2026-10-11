@@ -149,6 +149,26 @@ renders it via `/api/evaluation`'s `benchmarks` key (BenchmarkPanel).
 - `feature_parity.py` macro / cs-rank replicas follow the live tick order (bars visible strictly
   before the row's own tick); see `features/README.md`.
 
+## V5.7.0 additions (the as-live simulator models what Pass 2 actually does)
+
+- `rolling_ic_series.py::make_rolling_ic_state_fn` — the rolling-IC state of every date computed once
+  (per-origin IC versions as tickers resolve), equal to `compute_rolling_ic_state` on every date incl. mixed
+  equity/crypto/forex calendars and live's bounded buffer; one state serves every floor
+  (`live_parity.make_rolling_ic_gate_fn(state_fn=...)`). Replaces the per-date full-history recompute (~15 min per gate).
+- `simulate_rank_book(kill_switch_config=, kill_switch_sticky=, member_weight_fn=, raw_weights_fn=, impact_inputs_fn=,
+  min_commission_usd_by_ticker=, hysteresis_anchor_on_formed_book=)` — all default off. The kill switch runs
+  `risk.kill_switch.evaluate_kill_switch` on the simulated returns; a locked rebalance freezes members (exits pass).
+  `live_parity.build_live_member_weight_fn` is the live per-member chain (dynamic sizing, liquidity gate, reduce_size,
+  net-edge gate + cost multiplier, book weight floor, analyzer verdicts) built from `main.py`'s own pure functions;
+  `build_live_mechanisms(config, frame)` assembles all of it. Almgren impact is now a rate on each name's traded notional.
+- `fill_price_audit.py` / `aq evaluate --audit-fills` — fills vs the dataset open and vs the Lean zip's own open.
+- `backtest_audit` — limit-order age in weekday sessions (`--max-open-sessions`), `load_book_history` reads the per-run
+  files, runs are selected by `run_id`. `rank_ic_core.newey_west_t_stat` — HAC t for daily IC series.
+- `rank_signal_calibration.calibrate_book_confidence_spread(candidate_metadata_by_ticker=, session_asset_class=)` — the
+  floor is calibrated on the pool live selects from.
+- Lever / gate research (scripts): `scripts/as_live_levers.py` (`AsLiveHarness`, cached scoring) and `scripts/gate_research.py`
+  (R-GATE on both splits).
+
 ## CLI
 
 `aq evaluate` (see the root README's CLI Reference for full flag

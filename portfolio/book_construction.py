@@ -775,6 +775,7 @@ def build_book_history_record(
     book_member_decisions: dict[str, dict] | None = None,
     gate_veto_reason: str | None = None,
     feature_snapshot: dict[str, dict] | None = None,
+    run_id: str | None = None,
 ) -> dict:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
@@ -864,7 +865,10 @@ def build_book_history_record(
     the log to diff feature-by-feature. Allowlist-bounded by design -
     without it every bar would serialize ~77 symbols x dozens of floats,
     ballooning this log for a diagnostic only ever needed for a handful
-    of tickers."""
+    of tickers.
+
+    `run_id` (V5.7.0): the backtest's start stamp; `None` omits the key. Lets the audit and reconcile tools select a
+    run by id instead of guessing run boundaries from a date that goes backwards."""
     record = {
         "date": date_str,
         "rank_signal_policy": {
@@ -912,4 +916,6 @@ def build_book_history_record(
             symbol_key: dict(snapshot) if isinstance(snapshot, Mapping) else snapshot
             for symbol_key, snapshot in feature_snapshot.items()
         }
+    if run_id is not None:
+        record["run_id"] = str(run_id)
     return record
