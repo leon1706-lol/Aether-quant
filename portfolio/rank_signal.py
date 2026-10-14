@@ -217,3 +217,37 @@ def cross_sectional_rank_scores(scores_by_symbol: dict[str, float]) -> dict[str,
         index = group_end + 1
 
     return ranks
+
+
+MAIN_RANK_GROUP = "main"
+
+
+def rank_group_by_symbol(asset_class_by_symbol: dict[str, str | None], separate_rank_groups: dict | None) -> dict[str, str]:
+    """{symbol: rank group} from `phase1.target.ranking.separate_rank_groups` ({group: [asset classes]}): a symbol whose
+    class is listed under a group belongs to it, everything else to "main". The same mapping train.py uses to build the
+    grouped rank targets (V5.7.0), so live ranks each group the way the model was trained."""
+    class_to_group: dict[str, str] = {}
+    for group, classes in (separate_rank_groups or {}).items():
+        for kind in classes or ():
+            class_to_group[str(kind)] = str(group)
+    return {
+        str(symbol): class_to_group.get(str(kind), MAIN_RANK_GROUP) if kind is not None else MAIN_RANK_GROUP
+        for symbol, kind in asset_class_by_symbol.items()
+    }
+
+
+def grouped_cross_sectional_rank_scores(
+    scores_by_symbol: dict[str, float], group_by_symbol: dict[str, str] | None
+) -> dict[str, float]:
+    """cross_sectional_rank_scores() applied WITHIN each rank group (V5.8.0): a model trained on grouped rank targets
+    (bonds ranked among bonds, forex among forex) emits scores that are only comparable inside their group, so the
+    percentile is taken per group. With no mapping (or every symbol in "main") this equals cross_sectional_rank_scores()."""
+    if not group_by_symbol:
+        return cross_sectional_rank_scores(scores_by_symbol)
+    by_group: dict[str, dict[str, float]] = {}
+    for symbol, score in scores_by_symbol.items():
+        by_group.setdefault(group_by_symbol.get(str(symbol), MAIN_RANK_GROUP), {})[symbol] = score
+    ranks: dict[str, float] = {}
+    for group_scores in by_group.values():
+        ranks.update(cross_sectional_rank_scores(group_scores))
+    return ranks

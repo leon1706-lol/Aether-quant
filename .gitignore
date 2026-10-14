@@ -206,3 +206,13 @@ ml/_candidate_*/
 ml/nohup_*.out
 ml/variant_configs_*/
 ml/rl_forex_config.json
+
+# V5.8.0 data window extension: pre-rewrite copy of data/ and the staging root (local only)
+data_backup_pre_v580/
+data_v580_staging/
+# V5.8.0 Codespace pull leftovers (job pid files, md5 lists, config snapshots next to the ignored model files)
+ml/*.pid
+ml/datasets_md5_*.txt
+ml/config_v560_models.json
+ml/rl_main_config.json
+

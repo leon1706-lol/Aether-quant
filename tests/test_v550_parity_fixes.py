@@ -614,10 +614,10 @@ def test_config_ships_the_v550_keys_with_the_owner_decisions():
     phase_v2 = config["phase_v2"]
     # V5.7.0 (Problems.md #146): the R-GATE decisions replace three V5.5.0/V5.6.0 values
     assert phase_v2["rolling_ic_gate"]["min_rolling_mean_ic"] == 0.0  # was 0.05
-    assert phase_v2["rolling_ic_gate"]["rolling_window_days"] == 80  # was 40
+    assert phase_v2["rolling_ic_gate"]["rolling_window_days"] == 120  # V5.8.0 R-GATE (was 80, V5.7.0; 40 before)
     assert phase_v2["legacy_sleeve"]["enabled"] is True
     assert phase_v2["legacy_sleeve"]["max_gross_exposure"] == 0.05  # was 0.1: the sleeve is market beta, not alpha
-    assert phase_v2["portfolio_book"]["min_rank_confidence_spread"] == 0.184  # p10 of the live pool (was 0.1985, calibrated with forex in the pool)
+    assert phase_v2["portfolio_book"]["min_rank_confidence_spread"] == 0.10  # V5.8.0 R-GATE (0.184 was the p10 of the V5.6.0 models' pool)
     assert phase_v2["liquidity"]["fill_slippage"]["source"] == "per_side"
     assert phase_v2["topology"]["elevated_volatility_threshold"]["crypto"] > 0.45
     assert phase_v2["costs"]["impact_model"]["enabled"] is False  # live impact is an owner decision

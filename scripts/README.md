@@ -101,3 +101,10 @@ codebase.
   the winner on VALIDATION IC against the control's seed spread (never the backtest split).
 - `overlap_vs_sharpe_analysis.py` — pairs each reconciled book-history run with the Lean Sharpe of the
   matching backtest (ordinal; runs sharing a window stay separate points since V5.6.0).
+
+## V5.8.0 additions
+
+- Research (each writes `ml/evaluation/*.json` and refreshes the README research block): `class_sleeve_research.py` (forex / bond sleeves, rule R-SLEEVE), `rl_sizing_research.py`, `topology_sizing_research.py` (rule R-TOPO), `crypto_graduation_research.py`, `gate_research.py`, `holdout_report.py` (the one-look holdout), `active_baseline.py` (the shipped models on the new splits, for R-MODEL8).
+- `coinbase_listing_dates.py` — derives each crypto pair's listing date and suspensions from Coinbase's own daily candles into `data/reference/crypto_listing_dates.json`.
+- `ml_manifest.py` — SHA-256 manifest of the installed model files; diff the local and Codespace output before trusting an evaluation that ran on the other side, and before a Lean run to prove the models are frozen.
+- `codespace_*.sh` — the Codespace helpers (`codespace_retrain_v580.sh` stage A/B retrain, `codespace_start_bg.sh` / `codespace_stop_jobs.sh` relaunch and stop resumable jobs, `codespace_final_session.sh` the last code push + test run, `codespace_status.sh` / `codespace_wf_progress.sh` progress). Always push with `-CodeOnly` after a retrain: a full push overwrites the remote `ml/`.

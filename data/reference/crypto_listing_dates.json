@@ -1,0 +1,83 @@
+{
+  "source": "Coinbase Exchange public daily candles (api.exchange.coinbase.com/products/<pair>/candles), first candle = listing, gaps > 7 days = suspension; built by scripts/coinbase_listing_dates.py",
+  "built_on": "2026-10-12",
+  "assets": {
+    "BTCUSD": {
+      "listed": "2015-07-20",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "ETHUSD": {
+      "listed": "2016-05-18",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "LTCUSD": {
+      "listed": "2016-08-17",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "XRPUSD": {
+      "listed": "2019-02-26",
+      "last": "2026-10-01",
+      "suspended": [
+        [
+          "2021-01-20",
+          "2023-07-13"
+        ]
+      ],
+      "delisted": null
+    },
+    "ADAUSD": {
+      "listed": "2021-03-18",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "BCHUSD": {
+      "listed": "2017-12-20",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "LINKUSD": {
+      "listed": "2019-06-27",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "DOGEUSD": {
+      "listed": "2021-06-03",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "XLMUSD": {
+      "listed": "2019-03-14",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "EOSUSD": {
+      "listed": "2019-04-09",
+      "last": "2025-12-10",
+      "suspended": [],
+      "delisted": "2025-12-11"
+    },
+    "ETCUSD": {
+      "listed": "2018-08-08",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    },
+    "ZECUSD": {
+      "listed": "2020-12-08",
+      "last": "2026-10-01",
+      "suspended": [],
+      "delisted": null
+    }
+  }
+}

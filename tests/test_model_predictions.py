@@ -312,3 +312,24 @@ def test_predict_heads_rejects_an_unknown_model_kind():
 
     with pytest.raises(ValueError):
         predict_heads(pd.DataFrame({"ticker": ["A"], "f1": [1.0]}), {}, ["f1"], ["rank_5d"], model_kind="nope")
+
+
+def test_batched_predict_heads_equals_the_per_row_path_across_chunk_boundaries(monkeypatch):
+    """V5.8.0: chunked batched scoring must give each row's per-row value (windows still reach back across chunks)."""
+    import evaluation.model_predictions as module
+
+    monkeypatch.setattr(module, "BATCH_CHUNK_ROWS", 4)
+    rng = np.random.default_rng(7)
+    frame = pd.DataFrame({"ticker": ["A"] * 9 + ["B"] * 9, "f1": rng.normal(size=18), "f2": rng.normal(size=18)})
+    mask = np.zeros(18, dtype=bool)
+    mask[[1, 2, 5, 8, 9, 12, 17]] = True
+    for kind, export, schema, heads in (
+        ("sequence", _synthetic_sequence_model_export(), {"window_size": 3}, ["rank_5d", "missing_head"]),
+        ("multitask", _synthetic_multitask_model_export(), None, ["rank_20d", "magnitude", "missing_head"]),
+    ):
+        common = dict(model_kind=kind, sequence_feature_schema=schema, configured_window_size=3)
+        for row_mask in (None, mask):
+            slow = module.predict_heads(frame, export, ["f1", "f2"], heads, **common, row_mask=row_mask)
+            fast = module.predict_heads(frame, export, ["f1", "f2"], heads, **common, row_mask=row_mask, batched=True)
+            for head in heads:
+                assert np.allclose(fast[head], slow[head], atol=1e-12, equal_nan=True), (kind, head)

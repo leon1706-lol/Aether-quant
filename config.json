@@ -9,7 +9,8 @@
     ],
     "runtime": {
         "initial_cash": 100000,
-        "warmup_bars": 30
+        "warmup_bars": 30,
+        "lean_window_override": null
     },
     "phase1": {
         "status": "defined",
@@ -1271,22 +1272,27 @@
             ],
             "common_window": {
                 "start": "2014-12-01",
-                "end": "2021-03-31"
+                "end": "2025-06-30"
             }
         },
         "windows": {
             "training": {
                 "start": "2014-12-01",
-                "end": "2017-12-31"
+                "end": "2021-12-31"
             },
             "validation": {
-                "start": "2018-01-01",
-                "end": "2018-12-31"
+                "start": "2022-01-01",
+                "end": "2023-06-30"
             },
             "backtest": {
-                "start": "2019-01-01",
-                "end": "2021-03-31"
-            }
+                "start": "2023-07-01",
+                "end": "2025-06-30"
+            },
+            "holdout": {
+                "start": "2025-07-01",
+                "end": "2026-09-30"
+            },
+            "purge_label_horizon_days": 20
         },
         "features": {
             "input_set": [
@@ -1338,7 +1344,8 @@
                 "sens_credit_beta",
                 "sens_credit_interaction",
                 "sens_dollar_beta",
-                "sens_dollar_interaction"
+                "sens_dollar_interaction",
+                "fx_carry_3m"
             ],
             "normalization": "Fit the scaler on the training window only and apply the same transformation to validation, backtest and live inference.",
             "winsorize_quantiles": [
@@ -1386,7 +1393,11 @@
                     "dollar": "dollar_index"
                 }
             },
-            "derivatives_in_input_set": false
+            "derivatives_in_input_set": false,
+            "bond_duration_beta": {
+                "mode": "rolling",
+                "lookback": 252
+            }
         },
         "target": {
             "type": "directional_return",
@@ -1473,7 +1484,16 @@
                     "market_ticker": "SPY",
                     "min_universe_size": 20,
                     "min_beta_observations": 60
-                }
+                },
+                "separate_rank_groups": {
+                    "forex": [
+                        "forex"
+                    ],
+                    "bond": [
+                        "bond"
+                    ]
+                },
+                "separate_rank_group_min_size": 8
             }
         }
     },
@@ -1560,9 +1580,14 @@
             "rank_sizing_enabled": true,
             "min_rank_multiplier": 0.75,
             "max_rank_multiplier": 1.25,
-            "rl_sizing_enabled": false,
-            "min_rl_multiplier": 0.6,
-            "max_rl_multiplier": 1.0
+            "rl_sizing_enabled": true,
+            "min_rl_multiplier": 0.9,
+            "max_rl_multiplier": 1.1,
+            "rl_shadow_guard": {
+                "enabled": true,
+                "window_bars": 60,
+                "tolerance_nav_fraction": 0.002
+            }
         },
         "rl_sizing": {
             "training": {
@@ -1597,7 +1622,8 @@
                 "max_slippage_divergence_bps": 80,
                 "max_model_age_days": 180,
                 "min_return_std_for_sharpe": 0.0005,
-                "action": "trade_lock"
+                "action": "trade_lock",
+                "slippage_reference": "auto"
             }
         },
         "ib": {
@@ -1616,23 +1642,24 @@
             "margin_source": "static"
         },
         "forex_risk": {
-            "enabled": false,
+            "enabled": true,
             "target_leverage_utilization": 0.2,
             "max_leverage_utilization": 0.4,
             "pair_specs_path": "data/reference/forex_pair_specs.json"
         },
         "forex_sleeve": {
-            "enabled": false,
+            "enabled": true,
             "per_side": 2,
-            "gross_budget": 0.3,
+            "gross_budget": 0.1,
             "max_weight_per_pair": 0.0,
             "rebalance_every_bars": 20,
-            "min_trade_usd": 2500.0,
+            "min_trade_usd": 1000.0,
             "min_rank_confidence_spread": 0.0,
             "hysteresis_rank_margin": 0.0,
             "rl_sizing_enabled": false,
             "rl_min_multiplier": 0.0,
-            "rl_max_multiplier": 1.5
+            "rl_max_multiplier": 1.5,
+            "signal": "carry"
         },
         "options_risk": {
             "enabled": false,
@@ -1693,7 +1720,7 @@
         },
         "gating_network": {
             "baseline_weight": 0.25,
-            "learned_model_enabled": true,
+            "learned_model_enabled": false,
             "sequence_weight": 0.5
         },
         "multitask_model": {
@@ -1753,7 +1780,7 @@
             "enabled": true,
             "top_n": 6,
             "bottom_n": 6,
-            "min_rank_confidence_spread": 0.184,
+            "min_rank_confidence_spread": 0.1,
             "rebalance_every_bars": 10,
             "allocation_method": "rank",
             "neutrality": {
@@ -1780,7 +1807,7 @@
         "rolling_ic_gate": {
             "enabled": true,
             "horizon_days": 20,
-            "rolling_window_days": 80,
+            "rolling_window_days": 120,
             "min_resolved_dates_required": 20,
             "min_rolling_mean_ic": 0.0,
             "min_names_per_date": 10
@@ -1872,7 +1899,10 @@
                 "include_feature_snapshot": true,
                 "feature_snapshot_symbols": [
                     "XOM",
-                    "NVDA"
+                    "NVDA",
+                    "TLT",
+                    "ETHUSD",
+                    "EURUSD"
                 ]
             },
             "timing_probe": {
@@ -1888,6 +1918,11 @@
             "forex_order_sizing": {
                 "enabled": true,
                 "output_path": "visualization/forex_order_sizing.jsonl"
+            },
+            "state_write": {
+                "every_n_ticks": 20,
+                "backtest_only_at_shutdown": false,
+                "compact_json_in_backtest": true
             }
         },
         "performance_triggers": {
@@ -1927,7 +1962,8 @@
             "freeze_after_load_enabled": true
         },
         "inference_parallelism": {
-            "enabled": false
+            "enabled": false,
+            "batch_flat_models_across_symbols": true
         },
         "runtime": {
             "mode": "backtest",
@@ -1969,7 +2005,7 @@
                 "train_span_days": 1095,
                 "validation_span_days": 365,
                 "backtest_span_days": 365,
-                "step_days": 90,
+                "step_days": 180,
                 "train_multitask": true,
                 "train_sequence": true,
                 "net_performance": true,
@@ -2344,7 +2380,8 @@
             ],
             "demoted": [
                 "residual_rank_20d"
-            ]
+            ],
+            "grouped_normalization": true
         },
         "presets": {
             "active": "aggressive",
@@ -2403,6 +2440,52 @@
             "value_tolerance_usd": 50.0,
             "max_tolerated_drift": 0.05,
             "trips_kill_switch": false
+        },
+        "bond_sleeve": {
+            "enabled": true,
+            "per_side": 2,
+            "gross_budget": 0.1,
+            "max_weight_per_name": 0.0,
+            "rebalance_every_bars": 20,
+            "min_trade_usd": 500.0,
+            "min_rank_confidence_spread": 0.0,
+            "hysteresis_rank_margin": 0.0,
+            "signal": "ts_momentum"
+        },
+        "sleeve_guards": {
+            "forex": {
+                "enabled": true,
+                "max_loss_fraction_nav": 0.01,
+                "lookback_bars": 60,
+                "cooldown_bars": 60
+            },
+            "bond": {
+                "enabled": true,
+                "max_loss_fraction_nav": 0.01,
+                "lookback_bars": 60,
+                "cooldown_bars": 60
+            },
+            "crypto_graduates": {
+                "enabled": true,
+                "max_loss_fraction_nav": 0.01,
+                "lookback_bars": 60,
+                "cooldown_bars": 60
+            }
+        },
+        "venue_listing_guard": {
+            "enabled": true,
+            "path": "data/reference/crypto_listing_dates.json"
+        },
+        "class_weight_caps": {
+            "crypto": {
+                "enabled": true,
+                "per_name_cap": 0.01,
+                "class_gross_cap": 0.05,
+                "exempt": [
+                    "BTCUSD",
+                    "LTCUSD"
+                ]
+            }
         }
     },
     "local-id": 694224972

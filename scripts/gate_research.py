@@ -74,7 +74,7 @@ def experiments(harnesses: dict[str, AsLiveHarness]) -> dict[str, dict[str, call
 
     ic = {"ic gate off": lambda h: h.as_live(gate="off")}
     for horizon, window in ((20, 40), (20, 80), (20, 120), (5, 40), (5, 80)):
-        for floor in (0.0, 0.02, 0.05):
+        for floor in (-0.10, -0.05, -0.02, 0.0, 0.02, 0.05):
             ic[f"ic h={horizon} w={window} floor={floor}"] = (
                 lambda h, horizon=horizon, window=window, floor=floor: h.as_live(
                     ic_floor=floor, gate_horizon=horizon, gate_window=window,
@@ -98,14 +98,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--group", nargs="*", default=None)
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--dataset-validation", default=None, help="V5.8.0: dataset CSV holding the validation split")
+    parser.add_argument("--dataset-backtest", default=None, help="V5.8.0: dataset CSV holding the backtest split")
+    parser.add_argument("--only", nargs="*", default=None, help="V5.8.0: run only experiments whose name contains one of these")
+    parser.add_argument("--out", default=None, help="V5.8.0: result file (default ml/evaluation/v570_gate_research.json)")
     args = parser.parse_args()
 
-    harnesses = {split: AsLiveHarness(split, use_cache=not args.no_cache) for split in ("backtest", "validation")}
+    dataset_by_split = {"validation": args.dataset_validation, "backtest": args.dataset_backtest}
+    harnesses = {
+        split: AsLiveHarness(split, use_cache=not args.no_cache, dataset_path=dataset_by_split[split])
+        for split in ("backtest", "validation")
+    }
     groups = experiments(harnesses)
     selected = args.group or [name for name in groups if name != "baseline"]
     results: dict[str, dict] = {}
     for group in ["baseline", *selected]:
         for name, run in groups[group].items():
+            if args.only and group != "baseline" and not any(token in name for token in args.only):
+                continue
             per_split = {split: summarize(run(harness)) for split, harness in harnesses.items()}
             results[name] = {"group": group, **per_split}
             print(
@@ -121,7 +131,7 @@ def main() -> int:
     for name, entry in results.items():
         if name != "as-live (config)":
             entry["decision"] = decide(baseline, entry)
-    out = ROOT_DIR / "ml" / "evaluation" / "v570_gate_research.json"
+    out = Path(args.out) if args.out else ROOT_DIR / "ml" / "evaluation" / "v570_gate_research.json"
     out.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(f"written {out}")
     # Switching a safety control off (kill switch, whole IC gate) is reported but never a candidate winner: R-GATE tunes

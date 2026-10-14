@@ -1,4 +1,4 @@
-import type { AssetsStatus } from '../../types/state'
+import type { AssetsStatus, SleeveGuardStatus } from '../../types/state'
 import { Panel } from '../layout/Panel'
 
 const IB_STATUS_LABEL: Record<string, string> = {
@@ -20,6 +20,18 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
       <span className={`text-xs break-words ${tone ?? 'text-white/60'}`}>{value}</span>
     </div>
   )
+}
+
+function guardLabel(guard: SleeveGuardStatus): { text: string; tone: string } {
+  if (!guard.enabled) return { text: 'guard off', tone: 'text-white/60' }
+  if (!guard.runtime) return { text: 'guard on (no live state yet)', tone: 'text-emerald-300' }
+  return guard.runtime.active
+    ? { text: 'guard on, trading', tone: 'text-emerald-300' }
+    : { text: `GUARD TRIPPED (${guard.runtime.reason})`, tone: 'text-red-300' }
+}
+
+function pct(value: number | null | undefined) {
+  return value === null || value === undefined ? '—' : `${(value * 100).toFixed(1)}%`
 }
 
 export function AssetsStatusPanel({ status }: { status: AssetsStatus | undefined }) {
@@ -64,6 +76,48 @@ export function AssetsStatusPanel({ status }: { status: AssetsStatus | undefined
           value={status ? String(status.configured_options_assets) : '—'}
         />
       </div>
+
+      {status?.sleeves && (
+        <div className="mt-4 grid min-w-0 gap-2.5">
+          <div className="text-xs uppercase tracking-wide text-white/50">Class sleeves and overlays</div>
+          {(
+            [
+              ['Forex sleeve', status.sleeves.forex_sleeve, status.sleeves.forex_sleeve.signal],
+              ['Bond sleeve', status.sleeves.bond_sleeve, status.sleeves.bond_sleeve.signal],
+            ] as const
+          ).map(([label, sleeve, signal]) => {
+            const guard = guardLabel(sleeve.guard)
+            return (
+              <Row
+                key={label}
+                label={label}
+                value={sleeve.enabled ? `on, ${signal}, gross ${pct(sleeve.gross_budget)}, ${guard.text}` : 'off'}
+                tone={sleeve.enabled ? guard.tone : 'text-white/60'}
+              />
+            )
+          })}
+          <Row
+            label="Crypto graduates"
+            value={
+              status.sleeves.crypto_graduates.enabled
+                ? `capped ${pct(status.sleeves.crypto_graduates.per_name_cap)} per name / ${pct(status.sleeves.crypto_graduates.class_gross_cap)} class, ${guardLabel(status.sleeves.crypto_graduates.guard).text}`
+                : 'uncapped'
+            }
+            tone={guardLabel(status.sleeves.crypto_graduates.guard).tone}
+          />
+          <Row
+            label="RL sizing"
+            value={
+              status.sleeves.rl_sizing.enabled
+                ? `on, ${status.sleeves.rl_sizing.range.join(' to ')}${status.sleeves.rl_sizing.shadow_guard ? ', shadow guard' : ''}`
+                : 'off'
+            }
+            tone={status.sleeves.rl_sizing.enabled ? 'text-emerald-300' : 'text-white/60'}
+          />
+          <Row label="Venue listing guard" value={status.sleeves.venue_listing_guard ? 'on' : 'off'} />
+          <Row label="Learned topology sizing" value={status.sleeves.learned_topology ? 'on' : 'off'} />
+        </div>
+      )}
     </Panel>
   )
 }

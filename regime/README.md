@@ -51,3 +51,7 @@ liquidity and topology (`liquidity/README.md`, `topology/README.md`).
   confidence/trend_score/risk_score values feed the model as input AND
   get reused (not recomputed) for gating/analyzer/dashboard, so what the
   model saw and what the rest of the system sees are always identical.
+
+## V5.8.0: the models read a drawdown-free regime
+
+`build_model_input_regime_vector()` is `build_market_regime_vector()` with the portfolio drawdown pinned to 0.0. The dataset has no account state, so its `regime_*` features were always built that way; live used to pass the real drawdown, which moved the model's inputs (and the top/bottom-6 of the blended score) exactly when the book was already losing (Problems.md #173). `train.py::_encode_regime_row` and `main.py::_build_model_input` both call it; risk decisions keep using the real-drawdown vector. `tests/test_regime_model_input.py` pins the equality.

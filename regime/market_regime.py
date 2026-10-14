@@ -185,3 +185,31 @@ def build_market_regime_vector(
         confidence=confidence,
         reasons=reasons,
     )
+
+
+def build_model_input_regime_vector(
+    features: dict,
+    average_correlation: float = 0.0,
+    bullish_threshold: float = 0.02,
+    bearish_threshold: float = -0.02,
+    low_volatility_threshold: float = 0.01,
+    high_volatility_threshold: float = 0.03,
+    risk_on_drawdown_threshold: float = 0.03,
+    high_correlation_threshold: float = 0.75,
+) -> MarketRegimeVector:
+    """The regime vector the MODELS read (`regime_*` one-hots and `regime_signal_*` scores). Portfolio drawdown is pinned
+    to 0.0 because the training dataset has no account state, so the model never saw a drawdown-dependent regime input
+    (V5.8.0, Problems.md #172: at an 8% live drawdown this moved the top/bottom-6 of the blended score by a third). The
+    dataset builder and `main.py::_build_model_input` both call this; risk decisions keep using the real-drawdown vector
+    from `build_market_regime_vector`."""
+    return build_market_regime_vector(
+        features,
+        portfolio_drawdown=0.0,
+        average_correlation=average_correlation,
+        bullish_threshold=bullish_threshold,
+        bearish_threshold=bearish_threshold,
+        low_volatility_threshold=low_volatility_threshold,
+        high_volatility_threshold=high_volatility_threshold,
+        risk_on_drawdown_threshold=risk_on_drawdown_threshold,
+        high_correlation_threshold=high_correlation_threshold,
+    )

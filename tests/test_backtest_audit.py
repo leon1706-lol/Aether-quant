@@ -20,6 +20,7 @@ from evaluation.backtest_audit import (
     holding_period_histogram,
     load_backtest_run,
     load_book_history,
+    period_summary,
     pnl_and_fees_by_asset_class,
     select_run_book_history,
     sharpe_from_equity,
@@ -238,6 +239,38 @@ def test_pnl_by_entry_bucket_splits_book_and_legacy_sleeve_net_of_fees():
     result = pnl_by_entry_bucket(trades, orders, HISTORY)
     assert result["equity"]["book_member"] == {"trades": 1, "realized_pnl": 100.0, "fees": 4.0, "net_pnl": 96.0}
     assert result["equity"]["non_member"] == {"trades": 2, "realized_pnl": -40.0, "fees": 6.0, "net_pnl": -46.0}
+
+
+def test_config_asset_classes_split_bond_etfs_out_of_equity():
+    """Bond ETFs are Lean equities; without the config map their P&L hides inside "equity" (BT7's bond loss was never visible)."""
+    orders = {"1": _order(1, "TLT", 9, 10), "2": _order(2, "AAPL", 9, 10)}
+    trades = [_trade("TLT", [1], 10, 20, pnl=-50.0, fees=2.0), _trade("AAPL", [2], 10, 20, pnl=30.0, fees=1.0)]
+    class_by_ticker = {"TLT": "bond", "AAPL": "equity"}
+    assert set(pnl_by_entry_bucket(trades, orders, HISTORY)) == {"equity"}
+    by_bucket = pnl_by_entry_bucket(trades, orders, HISTORY, class_by_ticker)
+    assert by_bucket["bond"]["non_member"]["realized_pnl"] == -50.0
+    assert by_bucket["equity"]["non_member"]["realized_pnl"] == 30.0
+    assert set(classify_entries(trades, orders, HISTORY, class_by_ticker)) == {"bond", "equity"}
+    assert pnl_and_fees_by_asset_class(trades, orders, [], class_by_ticker)["bond"]["realized_pnl"] == -50.0
+
+
+def test_period_summary_splits_a_run_into_sub_periods_that_chain():
+    """BT2 spans the backtest split and the holdout: each sub-period starts from the last equity before it, so the two
+    sub-period returns compound to the whole run's return."""
+    values = [100.0, 110.0, 99.0, 108.9, 119.79]
+    result = {
+        "charts": {"Strategy Equity": {"series": {"Equity": {"values": [[_epoch(day), v] for day, v in enumerate(values)]}}}},
+        "orders": {"1": _order(1, "TLT", 0, 1)},
+        "totalPerformance": {"closedTrades": [_trade("TLT", [1], 0, 2, pnl=-50.0), _trade("TLT", [1], 0, 3, pnl=20.0)]},
+    }
+    first = period_summary(result, "2019-01-01", "2019-01-03", {"TLT": "bond"})
+    second = period_summary(result, "2019-01-04", "2019-01-05", {"TLT": "bond"})
+    assert first["net_return"] == pytest.approx(99.0 / 100.0 - 1.0)  # starts at the first point: nothing before it
+    assert first["max_drawdown"] == pytest.approx(99.0 / 110.0 - 1.0)
+    assert first["realized_pnl_by_class"] == {"bond": -50.0} and first["closed_trades"] == 1
+    assert second["net_return"] == pytest.approx(119.79 / 99.0 - 1.0)
+    assert second["realized_pnl_by_class"] == {"bond": 20.0}
+    assert (1 + first["net_return"]) * (1 + second["net_return"]) == pytest.approx(1.1979)
 
 
 def test_select_run_book_history_picks_one_run_out_of_the_cumulative_log():

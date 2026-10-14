@@ -1,0 +1,10 @@
+{
+  "_doc": "V5.8.0: single-bar corrections for verified bad prints in the Yahoo source, applied by scripts/build_holdout_data.py before writing a zip. Each entry sets the listed fields on one date; every other field and date is untouched.",
+  "EURGBP": [
+    {
+      "date": "2022-10-10",
+      "set": {"close": 0.8786, "high": 0.8810},
+      "reason": "Yahoo close 0.9790 between 0.8769 and 0.8766 closes (+11.6% then -10.5%); EURGBP never moved 11% that week. Close set to the bar's open (Yahoo FX closes equal opens on every neighbouring day), high to the neighbouring range."
+    }
+  ]
+}

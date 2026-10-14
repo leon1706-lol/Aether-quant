@@ -22,8 +22,12 @@ import pandas as pd
 from inference.exported_model import (
     resolve_sequence_window_size,
     run_exported_multitask_model,
+    run_exported_multitask_model_rows,
     run_exported_sequence_multitask_model,
+    run_exported_sequence_multitask_model_batched,
 )
+
+BATCH_CHUNK_ROWS = 256
 
 
 def build_sequence_windows(
@@ -198,6 +202,7 @@ def predict_heads(
     configured_window_size: int = 30,
     ticker_column: str = "ticker",
     row_mask: np.ndarray | None = None,
+    batched: bool = False,
 ) -> dict[str, np.ndarray]:
     """Every requested head from ONE interpreter pass per row. predict_head() re-runs the whole model for each head
     (the interpreter returns all heads per call and one is kept), so N heads cost N passes; this costs one, with
@@ -205,6 +210,12 @@ def predict_heads(
     if model_kind not in {"multitask", "sequence"}:
         raise ValueError(f"unknown model_kind {model_kind!r} - expected 'multitask' or 'sequence'")
     predictions = {head: np.full(len(dataset), np.nan, dtype=np.float64) for head in heads}
+    if batched:
+        return _predict_heads_batched(
+            dataset, model_export, feature_names, heads, predictions, model_kind=model_kind,
+            sequence_feature_schema=sequence_feature_schema, configured_window_size=configured_window_size,
+            ticker_column=ticker_column, row_mask=row_mask,
+        )
     if model_kind == "multitask":
         feature_matrix = dataset[feature_names].to_numpy(dtype=np.float64)
         row_indices = np.arange(len(dataset)) if row_mask is None else np.flatnonzero(row_mask)
@@ -222,6 +233,35 @@ def predict_heads(
         outputs = run_exported_sequence_multitask_model(model_export, windows[slot].tolist())
         for head in heads:
             predictions[head][row_index] = outputs.get(head, np.nan)
+    return predictions
+
+
+def _predict_heads_batched(
+    dataset, model_export, feature_names, heads, predictions, *, model_kind, sequence_feature_schema,
+    configured_window_size, ticker_column, row_mask,
+) -> dict[str, np.ndarray]:
+    """V5.8.0: predict_heads() through the batched interpreters in chunks of BATCH_CHUNK_ROWS rows. Values equal the
+    per-row path to ~1e-15 (matmul summation order); memory is one chunk of windows, not the whole split's
+    (rows, window, features) tensor (~0.6 GB for a 2-year split), and the interpreter runs once per layer per chunk
+    instead of once per row, which is what made an as-live scoring pass take ten minutes."""
+    row_indices = np.arange(len(dataset)) if row_mask is None else np.flatnonzero(row_mask)
+    if model_kind == "multitask":
+        feature_matrix = dataset[feature_names].to_numpy(dtype=np.float64)
+        for start in range(0, len(row_indices), BATCH_CHUNK_ROWS):
+            chunk = row_indices[start : start + BATCH_CHUNK_ROWS]
+            outputs = run_exported_multitask_model_rows(model_export, feature_matrix[chunk].tolist())
+            for row_index, row_outputs in zip(chunk, outputs):
+                for head in heads:
+                    predictions[head][row_index] = row_outputs.get(head, np.nan)
+        return predictions
+    window_size = resolve_sequence_window_size(sequence_feature_schema, configured_window_size)
+    for start in range(0, len(row_indices), BATCH_CHUNK_ROWS):
+        chunk = row_indices[start : start + BATCH_CHUNK_ROWS]
+        windows = build_sequence_windows(dataset, feature_names, window_size, ticker_column, row_positions=chunk)
+        outputs = run_exported_sequence_multitask_model_batched(model_export, windows.tolist())
+        for row_index, row_outputs in zip(chunk, outputs):
+            for head in heads:
+                predictions[head][row_index] = (row_outputs or {}).get(head, np.nan)
     return predictions
 
 

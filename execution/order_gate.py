@@ -418,6 +418,36 @@ def compute_fill_slippage_divergence_bps(
     return abs(gap_bps) - expected
 
 
+IMMEDIATE_FILL_SECONDS = 3600.0
+
+
+def slippage_reference_price(
+    submit_price: float | None,
+    fill_bar_open: float | None,
+    submitted_at=None,
+    filled_at=None,
+    immediate_fill_seconds: float = IMMEDIATE_FILL_SECONDS,
+) -> tuple[float | None, str]:
+    """V5.8.0 (todo lead 3): which price a fill's slippage is measured from. An order that fills within
+    `immediate_fill_seconds` of its submission (crypto/forex, an open exchange) fills at the price it saw: its reference
+    is the submission price. An order queued past the close fills at the next session's open: its reference is that fill
+    bar's open (#88/#96 - against the submission price it would measure the overnight gap). Without timestamps or a
+    submission price the fill bar's open is used, the pre-V5.8.0 rule. Returns (price, "submit" | "fill_bar_open")."""
+    try:
+        elapsed = (filled_at - submitted_at).total_seconds() if submitted_at is not None and filled_at is not None else None
+    except (TypeError, AttributeError):
+        elapsed = None
+    if (
+        elapsed is not None
+        and 0.0 <= elapsed <= immediate_fill_seconds
+        and submit_price is not None
+        and math.isfinite(float(submit_price))
+        and float(submit_price) > 0.0
+    ):
+        return float(submit_price), "submit"
+    return (float(fill_bar_open) if fill_bar_open is not None else None), "fill_bar_open"
+
+
 # Pure classification of main.py::_apply_signal()/_apply_option_order()'s
 # execution_note return strings into "was a REAL order actually placed" -
 # used by the audit-log hook (development/Problems.md #42) at its single

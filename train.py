@@ -72,6 +72,7 @@ from features import (
 )
 from execution.cost_model import commission_bps_by_ticker
 from json_safety import atomic_write_json, load_json_lenient
+from features.bond_features import resolve_bond_duration_beta_mode, rolling_duration_beta_series
 from features.cross_asset_timing import CrossAssetTimeline, day_ordinal, fill_forward_open_forex_days
 from features.fx_carry import FX_CARRY_FEATURE_NAME, FX_RATE_PUBLICATION_LAG_DAYS, fx_carry_3m
 from data_pipeline.fred_backfill import load_cached_fred_series, series_change_asof, series_value_asof
@@ -81,13 +82,15 @@ from evaluation.rank_book_simulator import capacity_curve, simulate_rank_book, s
 from evaluation.rank_ic_core import rank_ic_from_arrays
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
-from regime import build_market_regime_vector
+from regime import build_model_input_regime_vector
 from sklearn.preprocessing import StandardScaler
 from topology import build_market_topology
 from topology.market_topology import ELEVATED_VOLATILITY_THRESHOLD, resolve_elevated_volatility_thresholds
 from torch import nn
 from torch.utils.data import DataLoader, Sampler, TensorDataset
 
+
+from performance_probe import install_sigterm_witness  # noqa: E402
 
 LOGGER = logging.getLogger("aether_quant.train")
 ROOT = Path(__file__).resolve().parent
@@ -661,6 +664,50 @@ def assign_split(date_value: pd.Timestamp, windows: dict) -> str | None:
     return None
 
 
+def resident_memory_mb() -> tuple[float, float] | None:
+    """(current, peak) resident set of this process in MB from /proc/self/status; None where that file does not exist."""
+    try:
+        values = {}
+        with open("/proc/self/status", encoding="ascii") as handle:
+            for line in handle:
+                if line.startswith(("VmRSS:", "VmHWM:")):
+                    values[line.split(":")[0]] = float(line.split()[1]) / 1024.0
+        return values["VmRSS"], values["VmHWM"]
+    except (OSError, KeyError, ValueError):
+        return None
+
+
+def log_resident_memory(label: str) -> None:
+    """One INFO line with the process's resident and peak memory - the Codespace SIGTERMs a process that crowds its
+    7.8 GB with no swap (Problems #83), and without this line a kill is a mystery (V5.8.0)."""
+    memory = resident_memory_mb()
+    if memory is not None:
+        LOGGER.info("memory %s: rss=%.0f MB peak=%.0f MB", label, memory[0], memory[1])
+
+
+def compact_dataset_for_training(dataset: pd.DataFrame) -> pd.DataFrame:
+    """float64 -> float32 for the in-memory frame that the baseline and expert trainers read (V5.8.0): the CSVs are already
+    written in float64, every trainer converts to float32 tensors, and the 280k x 251 frame is 560 MB that sat beside the
+    trainers' own copies on a machine that kills at ~5 GB. Columns that are not float64 are untouched."""
+    float_columns = dataset.columns[dataset.dtypes == np.float64]
+    if len(float_columns):
+        dataset[float_columns] = dataset[float_columns].astype(np.float32)
+    gc.collect()
+    return dataset
+
+
+def assign_split_series(dates: pd.Series, windows: dict) -> pd.Series:
+    """assign_split() for a whole column at once (V5.8.0: the per-row apply ran once per dataset row); same inclusive
+    bounds and precedence, None outside every window."""
+    stamps = pd.to_datetime(dates)
+    labels = pd.Series([None] * len(stamps), index=dates.index, dtype=object)
+    for split_name, key in (("backtest", "backtest"), ("validation", "validation"), ("train", "training")):
+        window = windows[key]
+        inside = (stamps >= pd.Timestamp(window["start"])) & (stamps <= pd.Timestamp(window["end"]))
+        labels[inside.to_numpy()] = split_name  # earlier splits written last win on overlap, as in assign_split()
+    return labels
+
+
 # volume_change_1d clamp bounds - see the comment at its append() call
 # below for why. Duplicated (not imported) in main.py::_build_model_input()
 # since main.py never imports train.py (heavy training-only deps).
@@ -862,7 +909,7 @@ def engineer_features(
     # so it never introduces additional dropped rows beyond what
     # target_return_1d already drops.
     result["target_volatility_next_day"] = result["high_low_range_pct"].shift(-1)
-    result["split"] = result["date"].apply(lambda value: assign_split(value, windows))
+    result["split"] = assign_split_series(result["date"], windows)
     purge_horizon_rows = int(windows.get("purge_label_horizon_days", 0) or 0)
     if purge_horizon_rows > 0:
         result["split"] = purge_label_overlap(result["split"].tolist(), purge_horizon_rows)
@@ -992,7 +1039,7 @@ def _encode_regime_row(row: pd.Series) -> dict:
         "rolling_volatility_20d": row["rolling_volatility_20d"],
     }
     average_correlation = float(row["topology_correlation_strength"]) if "topology_correlation_strength" in row else 0.0
-    vector = build_market_regime_vector(features, portfolio_drawdown=0.0, average_correlation=average_correlation)
+    vector = build_model_input_regime_vector(features, average_correlation=average_correlation)
     return {
         "regime_trend_bullish": 1.0 if vector.trend_regime == "bullish" else 0.0,
         "regime_trend_bearish": 1.0 if vector.trend_regime == "bearish" else 0.0,
@@ -1313,6 +1360,7 @@ def build_bond_features_by_date(
     treasury_5yr_asof = _series_asof_lookup("treasury_5yr")
     treasury_10yr_asof = _series_asof_lookup("treasury_10yr")
     credit_spread_asof = _series_asof_lookup("credit_spread_baa10y")
+    beta_mode, beta_lookback = resolve_bond_duration_beta_mode(config.get("phase1", {}).get("features"))
 
     all_dates = sorted({date_value for frame in asset_frames.values() for date_value in frame["date"]})
 
@@ -1364,7 +1412,15 @@ def build_bond_features_by_date(
                 if previous_value is not None and current_value is not None:
                     delta_10yr[index] = current_value - previous_value
             beta = empirical_duration_beta(result["close_to_close_return_1d"].tolist(), delta_10yr)
-        result["bond_empirical_duration_beta"] = beta if beta is not None else 0.0
+        if beta_mode == "rolling":
+            if is_bond and "close" in result.columns:
+                treasury_levels = [treasury_10yr_by_date.get(d) for d in result["date"].tolist()]
+                betas = rolling_duration_beta_series(result["close"].tolist(), treasury_levels, beta_lookback)
+                result["bond_empirical_duration_beta"] = [value if value is not None else 0.0 for value in betas]
+            else:
+                result["bond_empirical_duration_beta"] = 0.0
+        else:
+            result["bond_empirical_duration_beta"] = beta if beta is not None else 0.0
 
         bond_metadata = asset_config.get("bond_metadata", {})
         years_to_maturity = bond_metadata.get("duration_proxy_years")
@@ -3346,7 +3402,7 @@ def export_sequence_multitask_horizons_architecture(model: AetherNetSequenceMult
 
 
 def build_sequence_tensor_dataset(
-    dataset: pd.DataFrame, model_input_names: list[str], window_size: int
+    dataset: pd.DataFrame, model_input_names: list[str], window_size: int, row_mask: np.ndarray | None = None
 ) -> np.ndarray:
     """Builds a (rows, window_size, features) tensor, row-order-aligned
     with `dataset` itself (sequences[i] corresponds to dataset.iloc[i]),
@@ -3362,21 +3418,34 @@ def build_sequence_tensor_dataset(
     for their ticker are LEFT-PADDED with zeros - main.py's runtime
     rolling buffer (main.py::_build_sequence_model_input()) starts empty
     and fills up bar by bar the same way, so this is the correct offline
-    mirror of that behavior, not an approximation."""
+    mirror of that behavior, not an approximation.
+
+    `row_mask` (V5.8.0): build only the masked rows (in dataset order), still windowing over each ticker's FULL
+    history - a validation row's window reaches back into train rows exactly as before. Per-split tensors built this
+    way never materialise the full (rows, window, features) array, which with the 2014-2021 train window is ~2 GB."""
     feature_matrix = dataset[model_input_names].to_numpy(dtype=np.float32)
     tickers = dataset["ticker"].to_numpy()
 
-    sequences = np.zeros((len(dataset), window_size, len(model_input_names)), dtype=np.float32)
+    output_row_by_position: np.ndarray | None = None
+    if row_mask is not None:
+        row_mask = np.asarray(row_mask, dtype=bool)
+        output_row_by_position = np.full(len(dataset), -1, dtype=np.int64)
+        output_row_by_position[row_mask] = np.arange(int(row_mask.sum()))
+    output_rows = len(dataset) if row_mask is None else int(row_mask.sum())
+    sequences = np.zeros((output_rows, window_size, len(model_input_names)), dtype=np.float32)
     positions_by_ticker: dict[str, list[int]] = {}
     for position, ticker in enumerate(tickers):
         positions_by_ticker.setdefault(ticker, []).append(position)
 
     for positions in positions_by_ticker.values():
         for index_within_ticker, position in enumerate(positions):
+            output_row = position if output_row_by_position is None else output_row_by_position[position]
+            if output_row < 0:
+                continue
             window_start = max(0, index_within_ticker + 1 - window_size)
             window_positions = positions[window_start : index_within_ticker + 1]
             window_values = feature_matrix[window_positions]
-            sequences[position, -len(window_values):, :] = window_values
+            sequences[output_row, -len(window_values):, :] = window_values
 
     return sequences
 
@@ -7362,6 +7431,7 @@ def _run_walk_forward(
 
 
 def main() -> int:
+    install_sigterm_witness(LOGGER)
     setup_logging()
     args = parse_args()
     if args.candidate and not args.version_id:
@@ -7425,9 +7495,11 @@ def main() -> int:
         return 0
 
     dataset, metadata = build_feature_dataset(config)
+    log_resident_memory("after build_feature_dataset")
     feature_names = config["phase1"]["features"]["input_set"]
     asset_quality = build_asset_quality(config, dataset, metadata)
     dataset = apply_asset_quality_flags(dataset, asset_quality)
+    log_resident_memory("after asset-quality flags")
     LOGGER.info(
         "Built dataset with %s rows across %s assets.",
         len(dataset),
@@ -7450,11 +7522,13 @@ def main() -> int:
         winsorize_quantiles=winsorize_quantiles,
         clip_sigma=clip_sigma,
     )
+    log_resident_memory("after scaler")
     dataset, _ = add_asset_context_features(
         dataset,
         [asset["ticker"] for asset in config["phase1"]["universe"]["assets"]],
     )
     dataset, _ = add_asset_class_context_features(dataset, asset_class_by_ticker_from_config(config))
+    log_resident_memory("after context features")
     dataset_manifest = build_dataset_manifest(config, dataset, inventory, metadata, asset_quality)
 
     if args.candidate:
@@ -7522,6 +7596,7 @@ def main() -> int:
         return 0
 
     write_dataset_artifacts(dataset, dataset_manifest, scaler, config=config, clip_sigma=clip_sigma)
+    log_resident_memory("after dataset artifacts")
 
     if args.dataset_only:
         existing_context = load_existing_training_context()
@@ -7560,10 +7635,14 @@ def main() -> int:
         )
         return 0
 
+    dataset = compact_dataset_for_training(dataset)
+    log_resident_memory("before baseline training")
     LOGGER.info("Training model.")
     training_result = train_model(config, dataset)
+    log_resident_memory("after baseline training")
     LOGGER.info("Training expert models.")
     expert_training_result = train_expert_models(config, dataset, dataset_manifest)
+    log_resident_memory("after expert training")
     write_model_export(
         config,
         data_summary,

@@ -169,3 +169,39 @@ def test_topology_candidate_output_paths_shape():
     assert paths["version_dir"].name == "abc-123"
     for key in ("topology_model", "topology_training_metrics", "topology_feature_schema"):
         assert paths[key].parent == paths["version_dir"]
+
+
+def test_dataset_feature_vectors_label_wins_by_the_called_direction():
+    """V5.8.0 --source dataset: one FEATURE_KEYS vector per usable row, win = realised 20-day return has the called sign."""
+    from topology.learned_topology import FEATURE_KEYS
+    from train_topology import dataset_feature_vectors
+
+    base = {"rolling_volatility_20d": 0.01, "close": 100.0, "volume": 1e6, "topology_correlation_strength": 0.4,
+            "liquidity_spread_proxy": 0.001, "regime_signal_risk_score": 0.2, "regime_trend_bullish": 1.0}
+    rows = [dict(base, target_return_20d=0.05), dict(base, target_return_20d=-0.05), dict(base, target_return_20d=float("nan"))]
+    vectors, outcomes, regimes = dataset_feature_vectors(rows, [0.7, 0.7, 0.7])
+    assert len(vectors) == 2 and outcomes == ["win", "loss"] and regimes == ["unknown", "unknown"]  # no volatility flag in this row
+    assert set(vectors[0]) == set(FEATURE_KEYS)
+    assert abs(vectors[0]["volatility"] - 0.01 * 252 ** 0.5) < 1e-12 and abs(vectors[0]["momentum"] - 0.2) < 1e-12
+
+
+def test_primary_regime_label_matches_the_live_format():
+    from train_topology import primary_regime_label
+
+    base = {"regime_trend_bullish": 1.0, "regime_volatility_high": 1.0}
+    assert primary_regime_label(base) == "bullish_high_volatility"
+    assert primary_regime_label({**base, "regime_risk_off": 1.0}) == "bullish_risk_off"
+    assert primary_regime_label({"regime_trend_sideways": 1.0, "regime_volatility_low": 1.0}) == "sideways_low_volatility"
+    assert primary_regime_label({"regime_trend_bearish": 1.0, "regime_volatility_normal": 1.0}) == "bearish_normal_volatility"
+    assert primary_regime_label({}) == "unknown"
+
+
+def test_dataset_feature_vectors_indexed_reports_which_rows_survived():
+    from train_topology import dataset_feature_vectors, dataset_feature_vectors_indexed
+
+    good = {"rolling_volatility_20d": 0.01, "close": 10.0, "volume": 1000.0, "target_return_20d": 0.02,
+            "regime_trend_bullish": 1.0, "regime_volatility_high": 1.0}
+    bad = dict(good, close="not-a-number")
+    indices, vectors, outcomes, regimes = dataset_feature_vectors_indexed([good, bad, good], [0.7, 0.7, 0.3])
+    assert indices == [0, 2] and len(vectors) == len(outcomes) == len(regimes) == 2
+    assert dataset_feature_vectors([good, bad, good], [0.7, 0.7, 0.3]) == (vectors, outcomes, regimes)

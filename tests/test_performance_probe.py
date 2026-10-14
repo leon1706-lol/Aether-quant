@@ -75,3 +75,49 @@ def test_release_symbol_containers_clears_unfreezes_and_never_raises():
     assert result["collected"] >= 0
     assert result["seconds"] >= 0.0
     assert gc.get_freeze_count() == 0
+
+
+def test_state_write_policy_defaults_to_every_tick_and_thins_only_backtests():
+    from performance_probe import resolve_state_write_policy, should_write_runtime_state, state_json_indent
+
+    default = resolve_state_write_policy(None)
+    assert all(should_write_runtime_state(default, False, tick) for tick in range(5))
+    assert state_json_indent(default, False) == 2
+    thinned = resolve_state_write_policy({"every_n_ticks": 20, "compact_json_in_backtest": True})
+    assert [tick for tick in range(41) if should_write_runtime_state(thinned, False, tick)] == [0, 20, 40]
+    assert all(should_write_runtime_state(thinned, True, tick) for tick in range(5))  # live always writes
+    assert state_json_indent(thinned, False) is None and state_json_indent(thinned, True) == 2
+    shutdown_only = resolve_state_write_policy({"backtest_only_at_shutdown": True, "every_n_ticks": "x"})
+    assert not should_write_runtime_state(shutdown_only, False, 0) and shutdown_only["every_n_ticks"] == 1
+
+
+def test_sigterm_witness_reports_the_sender_and_exits_143():
+    """V5.8.0: the witness names who sent SIGTERM (Linux only)."""
+    import signal
+    import subprocess
+    import sys
+    import textwrap
+    import time
+
+    import pytest
+
+    if not (hasattr(signal, "sigwaitinfo") and hasattr(signal, "pthread_sigmask")):
+        pytest.skip("sigwaitinfo is not available on this platform")
+    code = textwrap.dedent(
+        """
+        import logging, sys, time
+        logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
+        from performance_probe import install_sigterm_witness
+        assert install_sigterm_witness(logging.getLogger("t"))
+        print("ready", flush=True)
+        time.sleep(30)
+        """
+    )
+    child = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    assert child.stdout.readline().strip() == "ready"
+    child.send_signal(signal.SIGTERM)
+    output = child.stdout.read()
+    child.wait(timeout=20)
+    assert child.returncode == 143
+    assert "SIGTERM received from pid" in output and "MemAvailable=" in output
+    time.sleep(0)

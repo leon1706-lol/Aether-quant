@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import bisect
 import math
+from pathlib import Path
 
 import pandas as pd
 
@@ -34,11 +35,31 @@ from portfolio.book_construction import (
 )
 from portfolio.rolling_ic_gate import evaluate_rolling_ic_gate
 from risk.position_sizing import build_dynamic_position_sizing, cost_sizing_multiplier
+from risk.rl_sizing import build_rl_sizing_state, resolve_rl_shadow_guard, rl_excess_return, rl_shadow_guard_allows
 
 # Asset classes whose bar lands AFTER the equity-session tick (forex 19:00/20:00,
 # crypto ~midnight UTC): live decides them on the previous day's bar
 # (main.py on_data() "borrowed bar" path), so offline must too.
 LATE_BAR_ASSET_CLASSES = frozenset({"forex", "crypto"})
+# Cross-asset inputs are built from the bars available strictly before the tick, so for a late-bar symbol they belong to
+# the tick's own dataset row; the symbol's own price / volume / liquidity / sensitivity block is the previous row
+# (measured on BT1 and BT2 snapshots of ETHUSD and EURUSD, Problems.md #172).
+LATE_BAR_SAME_ROW_FEATURE_PREFIXES = (
+    "peer_", "alt_", "topology_", "cs_momentum_rank", "bond_yield_curve", "bond_credit_spread", "macro_crypto_risk_appetite",
+)
+
+
+def late_bar_offline_row(previous_row: dict | None, same_row: dict | None) -> dict | None:
+    """The dataset row a late-bar symbol's live features at tick D correspond to: the previous row, with the cross-asset
+    features taken from row D. None when the previous row is missing."""
+    if previous_row is None:
+        return None
+    merged = dict(previous_row)
+    for name, value in (same_row or {}).items():
+        if str(name).startswith(LATE_BAR_SAME_ROW_FEATURE_PREFIXES):
+            merged[name] = value
+    return merged
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
 def lag_predictions_for_tickers(
@@ -70,14 +91,18 @@ def make_rolling_ic_gate_fn(
     date_column: str = "date",
     close_column: str = "close",
     state_fn=None,
+    include_tickers: set[str] | frozenset[str] | None = None,
 ):
     """A date -> gate-result callable for `rolling_ic_gate_fn`: the rolling-IC state as of that date (no lookahead)
     run through main.py's own `evaluate_rolling_ic_gate()`. The state comes from `make_rolling_ic_state_fn`, which
     equals `compute_rolling_ic_state()` on the events dated <= that date; it does not depend on the floor, so pass one
-    shared `state_fn` to build several floor variants without re-resolving anything."""
+    shared `state_fn` to build several floor variants without re-resolving anything. `include_tickers` (V5.8.0) keeps
+    only those tickers' events - main.py feeds the buffer from the main rank group only when ranking is grouped."""
     config = dict(gate_config)
     config["enabled"] = True
     if state_fn is None:
+        if include_tickers is not None:
+            frame = frame[frame[ticker_column].astype(str).isin(set(map(str, include_tickers)))]
         state_fn = make_rolling_ic_state_fn(
             build_event_buffer(
                 frame,
@@ -116,6 +141,9 @@ def build_live_member_weight_fn(
     nav: float = DEFAULT_ASSUMED_PORTFOLIO_VALUE_USD,
     core_crypto_tickers: set[str] | frozenset[str] | None = None,
     predicted_volatility_by_key: dict | None = None,
+    rl_model: dict | None = None,
+    daily_returns_by_date: dict[str, dict[str, float]] | None = None,
+    topology_inputs_fn=None,
 ):
     """`member_weight_fn` for `simulate_rank_book`: the live per-member decision chain of `main.py`'s Pass 2 built
     from the SAME pure functions (nothing re-derived here): dynamic sizing (`build_dynamic_position_sizing`), the
@@ -123,10 +151,17 @@ def build_live_member_weight_fn(
     decision and cost multiplier, the book weight floor, then the analyzer's verdicts for a book member (min confidence,
     liquidity block / thin market and a failing net edge on a new entry -> no trade; a held member keeps its weight).
 
-    Offline approximations, all conservative to document: no learned-topology multiplier (live falls back to 1.0
-    without a trained topology model), volatility comes from `rolling_volatility_20d` unless `predicted_volatility_by_key`
+    Offline approximations, all conservative to document: no learned-topology multiplier unless `topology_inputs_fn`
+    ((symbol, date) -> {topology_source, topology_confidence, topology_disagreement} or None, see
+    topology.learned_topology.learned_sizing_inputs) supplies it, volatility comes from `rolling_volatility_20d` unless `predicted_volatility_by_key`
     ({(date, ticker): value}) supplies the multitask head, RL sizing is whatever the config says, and the regime override
-    (Priority 2) uses the dataset's `regime_risk_off` flag."""
+    (Priority 2) uses the dataset's `regime_risk_off` flag.
+
+    V5.8.0 - RL sizing: with `rl_model` and `dynamic_risk.rl_sizing_enabled`, the member's sizing gets the same
+    `rl_model` / `rl_state` / multiplier range main.py passes to `build_dynamic_position_sizing` (state from the row's
+    raw feature columns, as train_rl_sizing.py builds it). With `dynamic_risk.rl_shadow_guard.enabled` the RL-vs-constant
+    excess return of the positions this function sized is accumulated per date from `daily_returns_by_date`
+    ({date: {ticker: target_return_1d}}) and `risk.rl_sizing.rl_shadow_guard_allows` switches RL off exactly as live."""
     phase_v2 = config.get("phase_v2", {})
     risk = phase_v2.get("dynamic_risk", {})
     book = phase_v2.get("portfolio_book", {})
@@ -157,8 +192,32 @@ def build_live_member_weight_fn(
     min_cost_multiplier = float(costs.get("min_cost_multiplier", 0.25))
     core = frozenset(core_crypto_tickers or ())
     forex_enabled = bool(phase_v2.get("forex_risk", {}).get("enabled", False))
+    sizing_risk = phase_v2.get("risk", {})
+    topology_sizing_enabled = bool(sizing_risk.get("topology_sizing_enabled", True)) and topology_inputs_fn is not None
+    min_topology_multiplier = float(sizing_risk.get("min_topology_multiplier", 0.5))
+    max_topology_multiplier = float(sizing_risk.get("max_topology_multiplier", 1.0))
+    rl_enabled = bool(risk.get("rl_sizing_enabled", False)) and rl_model is not None
+    rl_guard = resolve_rl_shadow_guard(risk.get("rl_shadow_guard"))
+    rl_state_holder: dict = {"history": [], "positions": {}, "last_date": None, "allows": True}
+    sorted_return_dates = sorted(daily_returns_by_date or {})
+
+    def _advance_rl_guard(date: str) -> None:
+        last = rl_state_holder["last_date"]
+        if last == date:
+            return
+        if last is not None and rl_guard["enabled"] and rl_state_holder["positions"]:
+            start = bisect.bisect_right(sorted_return_dates, last)
+            end = bisect.bisect_right(sorted_return_dates, date)
+            for day in sorted_return_dates[start:end]:
+                rl_state_holder["history"].append(
+                    rl_excess_return(rl_state_holder["positions"], daily_returns_by_date.get(day, {}))
+                )
+            rl_state_holder["allows"] = rl_shadow_guard_allows(rl_state_holder["history"], rl_guard)
+        rl_state_holder["last_date"] = date
 
     def member_weight_fn(*, symbol, date, base_weight, held_weight, predicted_rank, row, **_unused):
+        if rl_enabled:
+            _advance_rl_guard(str(date)[:10])
         if predicted_rank is None or not math.isfinite(float(predicted_rank)):
             return held_weight
         security_type = str(security_type_by_ticker.get(symbol, "equity"))
@@ -167,6 +226,7 @@ def build_live_member_weight_fn(
         confidence = min(1.0, abs(float(predicted_rank) - 0.5) * 2.0)
         predicted_volatility = (predicted_volatility_by_key or {}).get((date, symbol))
         rolling_volatility = _finite(row.get("rolling_volatility_20d"))
+        topology_inputs = (topology_inputs_fn(symbol, date) if topology_sizing_enabled else None) or {}
         sizing = build_dynamic_position_sizing(
             base_weight,
             confidence,
@@ -185,8 +245,19 @@ def build_live_member_weight_fn(
             rank_sizing_enabled=bool(risk.get("rank_sizing_enabled", False)) and rank_sizing_applies,
             min_rank_multiplier=float(risk.get("min_rank_multiplier", 0.75)),
             max_rank_multiplier=float(risk.get("max_rank_multiplier", 1.25)),
+            rl_model=rl_model if rl_enabled else None,
+            rl_state=build_rl_sizing_state(row, confidence) if rl_enabled else None,
+            rl_sizing_enabled=rl_enabled and rl_state_holder["allows"],
+            min_rl_multiplier=float(risk.get("min_rl_multiplier", 0.6)),
+            max_rl_multiplier=float(risk.get("max_rl_multiplier", 1.0)),
+            topology_source=topology_inputs.get("topology_source"),
+            topology_confidence=topology_inputs.get("topology_confidence"),
+            topology_disagreement=topology_inputs.get("topology_disagreement"),
+            min_topology_multiplier=min_topology_multiplier,
+            max_topology_multiplier=max_topology_multiplier,
         )
         target = float(sizing.target_weight)
+        rl_multiplier = float(sizing.rl_multiplier)
         fallback = None
         if security_type == "forex":
             fallback = fallback_ddv.get("forex")
@@ -229,8 +300,14 @@ def build_live_member_weight_fn(
             "risk_off_override_min_severity"
         ) is None:
             return held_weight
+        if rl_enabled:
+            if target != 0.0:
+                rl_state_holder["positions"][symbol] = (target, rl_multiplier)
+            else:
+                rl_state_holder["positions"].pop(symbol, None)
         return target
 
+    member_weight_fn.rl_state = rl_state_holder
     return member_weight_fn
 
 
@@ -301,6 +378,8 @@ def build_live_mechanisms(
     nav: float | None = None,
     include: tuple[str, ...] = ("kill_switch", "member_sizing", "hrp", "impact"),
     predicted_volatility_by_key: dict | None = None,
+    rl_model_path: str | None = None,
+    topology_inputs_fn=None,
 ) -> dict:
     """The optional live mechanisms of `build_as_live_kwargs`, built from the config: kill switch (+ whether a
     trip latches, i.e. no backtest bypass), the member sizing/liquidity/net-edge chain, HRP weights when
@@ -318,12 +397,26 @@ def build_live_mechanisms(
         mechanisms["kill_switch_config"] = kill_switch or None
         mechanisms["kill_switch_sticky"] = not bool(phase_v2.get("backtest", {}).get("bypass_sticky_trade_lock", False))
     if "member_sizing" in include and {"close", "volume", "rolling_volatility_20d"} <= set(frame.columns):
+        rl_model = None
+        daily_returns_by_date = None
+        if bool(phase_v2.get("dynamic_risk", {}).get("rl_sizing_enabled", False)):
+            from risk.rl_sizing import load_rl_sizing_model
+
+            rl_model = load_rl_sizing_model(Path(rl_model_path) if rl_model_path else ROOT_DIR / "ml" / "rl_sizing_model.json")
+            if "target_return_1d" in frame.columns:
+                daily_returns_by_date = {}
+                for date, ticker, value in zip(frame["date"].astype(str), frame["ticker"].astype(str), frame["target_return_1d"]):
+                    if value == value:
+                        daily_returns_by_date.setdefault(date[:10], {})[ticker] = float(value)
         mechanisms["member_weight_fn"] = build_live_member_weight_fn(
             config,
             security_type_by_ticker=security_types,
             nav=portfolio_nav,
             core_crypto_tickers=core_crypto_tickers,
             predicted_volatility_by_key=predicted_volatility_by_key,
+            rl_model=rl_model,
+            daily_returns_by_date=daily_returns_by_date,
+            topology_inputs_fn=topology_inputs_fn,
         )
     if "hrp" in include and str(book.get("allocation_method", "rank")) == "hrp":
         mechanisms["raw_weights_fn"] = build_hrp_raw_weights_fn(
@@ -369,6 +462,9 @@ def build_as_live_kwargs(
     member_weight_fn=None,
     raw_weights_fn=None,
     impact_inputs_fn=None,
+    rank_group_by_ticker: dict[str, str] | None = None,
+    venue_listing_dates: dict[str, dict] | None = None,
+    class_weight_caps: dict[str, dict] | None = None,
 ) -> dict:
     """base_kwargs (idealized, from `phase1...net_performance`) + the live
     overrides, read from `phase_v2.portfolio_book` / `phase_v2.exits` - the
@@ -406,6 +502,9 @@ def build_as_live_kwargs(
         member_weight_fn=member_weight_fn,
         raw_weights_fn=raw_weights_fn,
         impact_inputs_fn=impact_inputs_fn,
+        rank_group_by_ticker=rank_group_by_ticker or None,
+        venue_listing_dates=venue_listing_dates or None,
+        class_weight_caps=class_weight_caps or None,
         max_holding_dates=(
             int(exits_config["max_holding_bars"])
             if exits_config.get("enabled", False) and exits_config.get("max_holding_bars") is not None
@@ -417,3 +516,35 @@ def build_as_live_kwargs(
         ),
     )
     return kwargs
+
+
+def build_rank_groups(config: dict, asset_class_by_ticker: dict[str, str]) -> dict[str, str] | None:
+    """{ticker: rank group} when `phase_v2.rank_signal.grouped_normalization` is on (main.py's `_rank_group_by_symbol`),
+    else None: the as-live run then ranks one pool exactly as before."""
+    from portfolio.rank_signal import rank_group_by_symbol
+
+    if not bool(config.get("phase_v2", {}).get("rank_signal", {}).get("grouped_normalization", False)):
+        return None
+    groups = config.get("phase1", {}).get("target", {}).get("ranking", {}).get("separate_rank_groups")
+    return rank_group_by_symbol(dict(asset_class_by_ticker), groups)
+
+
+def main_group_tickers(rank_groups: dict[str, str] | None, tickers) -> set[str] | None:
+    """Tickers whose events feed the rolling-IC gate (main group only), None when ranking is not grouped."""
+    from portfolio.rank_signal import MAIN_RANK_GROUP
+
+    if not rank_groups:
+        return None
+    return {str(ticker) for ticker in tickers if rank_groups.get(str(ticker), MAIN_RANK_GROUP) == MAIN_RANK_GROUP}
+
+
+def load_live_venue_listing_dates(config: dict, root_dir) -> dict[str, dict] | None:
+    """main.py's `venue_listing_dates`: the listing file when `phase_v2.venue_listing_guard.enabled`, else None."""
+    from pathlib import Path
+
+    from risk.asset_class_router import load_venue_listing_dates
+
+    guard = config.get("phase_v2", {}).get("venue_listing_guard", {})
+    if not guard.get("enabled", False):
+        return None
+    return load_venue_listing_dates(Path(root_dir) / guard.get("path", "data/reference/crypto_listing_dates.json")) or None

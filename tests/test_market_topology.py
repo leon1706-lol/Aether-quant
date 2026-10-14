@@ -965,3 +965,36 @@ def test_vectorised_correlations_fall_back_cleanly_without_enough_full_windows()
     assert _full_window_correlation_matrix({"A": [0.1, 0.2, 0.3]}, ["A"]) is None
     assert _full_window_correlation_matrix({"A": [0.1], "B": [0.2]}, ["A", "B"]) is None
     assert _full_window_correlation_matrix({}, []) is None
+
+
+def test_peers_from_matrix_row_match_the_scalar_ranking_including_ties():
+    """V5.8.0: the vectorised peer ranking must equal rank_correlated_peers() - descending correlation, ties alphabetical."""
+    import numpy as np
+
+    from topology.market_topology import rank_correlated_peers, rank_correlated_peers_from_row
+
+    symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+    rng = np.random.default_rng(4)
+    matrix = rng.uniform(-1, 1, size=(6, 6))
+    matrix = (matrix + matrix.T) / 2.0
+    matrix[0, 3] = matrix[3, 0] = matrix[0, 5] = matrix[5, 0] = 0.75  # an exact tie for AAA
+    np.fill_diagonal(matrix, 1.0)
+    index = {symbol: i for i, symbol in enumerate(symbols)}
+    for symbol in symbols:
+        expected = rank_correlated_peers(symbol, symbols, lambda a, b: float(matrix[index[a], index[b]]), 3)
+        assert rank_correlated_peers_from_row(index[symbol], symbols, matrix[index[symbol]], 3) == expected
+
+
+def test_embedding_from_a_target_matrix_equals_the_distance_function_path():
+    import numpy as np
+
+    from topology.market_topology import _stress_majorize
+
+    symbols = ["A", "B", "C", "D"]
+    corr = np.array([[1, .8, .1, -.2], [.8, 1, .3, 0.0], [.1, .3, 1, .6], [-.2, 0.0, .6, 1]])
+    index = {s: i for i, s in enumerate(symbols)}
+    seeds = {s: (float(10 * i), float(5 * i), float(i)) for i, s in enumerate(symbols)}
+    by_function = _stress_majorize(symbols, lambda a, b: max(0.0, 1.0 - corr[index[a], index[b]]), seeds, iterations=25)
+    by_matrix = _stress_majorize(symbols, lambda a, b: 99.0, seeds, iterations=25, target_distance_matrix=np.maximum(0.0, 1.0 - corr))
+    for symbol in symbols:
+        assert by_function[symbol] == by_matrix[symbol]

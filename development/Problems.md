@@ -1,5 +1,13 @@
 # Problems
 
+<p align="center">
+  <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
+  <img src="https://img.shields.io/badge/tests-3310%2F3310%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3310 of 3310 tests passing">
+  <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
+  <img src="https://img.shields.io/badge/problems-171%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="171 problem entries">
+</p>
+
 Bugs and infrastructure issues found in this codebase, how they were fixed
 (or why still open), with severity rating (1 = cosmetic, 10 = critical
 data-loss/safety issue) and status. Ordered by entry number (oldest first);
@@ -13,7 +21,7 @@ unrenumbered to avoid breaking cross-references elsewhere in this repo
 - 🟡 `partial` — fix shipped but verification incomplete/pending (e.g. needs a real Lean backtest or IB connection), or a real known caveat/open sub-issue remains.
 - 🔴 `closed` — no code fix applied: declined/won't-fix, non-goal, moot, or superseded without ever being fixed on its own terms.
 
-Every entry follows **Problem** → **Fix** → **Verification** (real Lean backtest, unit tests, or manual review; standing convention: `main.py` itself has zero direct unit test coverage, so many Lean-adapter fixes are verified only by manual review or a real backtest).
+Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences each; real Lean backtest, unit tests, or manual review; standing convention: `main.py` itself has zero direct unit test coverage, so many Lean-adapter fixes are verified only by manual review or a real backtest). 🟢 entries with nothing pending are condensed; 🟡/🔴 entries and 🟢 entries that still carry an explicit open caveat keep their full detail.
 
 ---
 
@@ -21,11 +29,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed` (V5.1.11)
 
-**Problem:** On some Windows Docker Desktop hosts Lean CLI's generated temp `requirements.txt` mount could be rejected by Docker even though project files were readable; separately, `main.py` importing `performance` at module scope pulled the training/PyTorch graph into Lean's 90-second startup isolator window.
+**Problem:** On some Windows Docker Desktop hosts Lean CLI's generated temp `requirements.txt` mount was rejected even though project files were readable; separately, `main.py` importing `performance` at module scope pulled the training/PyTorch graph into Lean's 90-second startup isolator window.
 
-**Fix:** `aq backtest` builds cached local image with Redis pre-installed (no generated requirements mount); Windows wrapper grants Docker read access to Lean-created temp dirs; `main.py` imports `evaluate_all_triggers` only inside dashboard view. Follow-up added missing `httpx` to `requirements/lean-runtime.txt` (needed by `data_pipeline.fred_backfill`, post-last-known-good-backtest).
+**Fix:** `aq backtest` builds a cached local image with Redis pre-installed (no generated requirements mount), the Windows wrapper grants Docker read access to Lean-created temp dirs, and `main.py` defers `evaluate_all_triggers` to dashboard view; the missing `httpx` runtime dep was added to `requirements/lean-runtime.txt`.
 
-**Verification:** Regression tests cover both boundaries without real Lean runs. `httpx` add initially flagged unverified vs real backtest — since resolved: still present in `requirements/lean-runtime.txt`, `fred_backfill` still module-scope imported, 4 real backtests succeeded since (V5.2.4-V5.2.7) exercising this chain.
+**Verification:** Regression tests cover both boundaries; four real backtests (V5.2.4-V5.2.7) later confirmed the `httpx`/`fred_backfill` chain.
 
 ---
 
@@ -141,11 +149,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 3/10 · **Status:** 🟢 `fixed`
 
-**Problem:** First-ever clean-install + bare-`pytest` CI run (vs local dev's populated `.venv`) surfaced three masked problems: nonexistent PyPI package name; pytest import-mode not adding repo root to `sys.path`; then 4 failures + 11 errors — reference files `futures_contract_specs.json`/`sector_mapping.json` swallowed by blanket `.gitignore` rule; genuine Python 3.11-vs-3.14 float-summation stdlib difference in `empirical_duration_beta()`; Lean-backtest skip-guard checking binary presence rather than usable Lean Data folder.
+**Problem:** The first clean-install bare-`pytest` CI run surfaced four masked problems: a nonexistent PyPI package name, pytest not adding the repo root to `sys.path`, two reference files swallowed by a blanket `.gitignore` rule, a Python 3.11-vs-3.14 float-summation difference in `empirical_duration_beta()`, and a Lean-backtest skip-guard checking binary presence rather than a usable Lean Data folder.
 
-**Fix:** Corrected package (`lean>=1.0.225`); `pythonpath = ["."]`; `.gitignore` exception + committed both files; exact-zero variance check → `<1e-12` tolerance; skip guard requires real Lean Data file.
+**Fix:** Corrected the package (`lean>=1.0.225`), set `pythonpath = ["."]`, committed both reference files via a `.gitignore` exception, replaced the exact-zero variance check with a `<1e-12` tolerance, and required a real Lean Data file in the skip guard.
 
-**Verification:** All 4 previously-failed tests + 3 new regression tests pass locally. **Confirmed: real GitHub Actions run passed** post-fix (user-confirmed).
+**Verification:** The four previously-failed tests plus three new regression tests pass locally, and a real GitHub Actions run passed post-fix (user-confirmed).
 
 ---
 
@@ -165,11 +173,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `mark_to_market()` ran once per symbol per bar → `N·B` equity-curve entries instead of `B`; with #11's every-bar flush plus full-file CSV rebuild, write cost `O((bars·symbols)²)`.
+**Problem:** `mark_to_market()` ran once per symbol per bar, producing `N·B` equity-curve entries instead of `B`, and #11's every-bar flush plus full-file CSV rebuild made write cost `O((bars·symbols)²)`.
 
-**Fix:** `on_data()` accumulates closes, calls `mark_to_market()` once per bar; CSV writer replaced with append-only flush (`_flush_observation_equity_csv()`) tracked by written-count offset.
+**Fix:** `on_data()` now accumulates closes and calls `mark_to_market()` once per bar, with an append-only flush (`_flush_observation_equity_csv()`) tracked by a written-count offset.
 
-**Verification:** Unit test asserts one entry per multi-symbol call; row-count-equals-bar-count verified via real Lean backtest integration output.
+**Verification:** A unit test asserts one entry per multi-symbol call; row-count-equals-bar-count was confirmed via real Lean backtest output.
 
 ---
 
@@ -177,11 +185,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 · **Status:** 🟢 `fixed`
 
-**Problem:** At Daily resolution the once-per-session rollover check fires every bar, each firing doing uncached `open()`+`json.load()` of `config.json` in multiple places (`main.py`, `retraining/worker.py` poll loop).
+**Problem:** At Daily resolution the once-per-session rollover check fires every bar, each firing doing uncached `open()`+`json.load()` of `config.json` in several places (`main.py`, `retraining/worker.py` poll loop).
 
-**Fix:** New `execution/config_cache.py::read_cached()`, mtime-gated cache keyed `(config_path, loader)` — first path-only key collided across readers of same file, returning wrong values and crashing `_recompute_broker_config()` on bar 1 of a real backtest; fixed by keying on loader too.
+**Fix:** New `execution/config_cache.py::read_cached()`, an mtime-gated cache keyed on both path and loader (a path-only key collided across readers and crashed `_recompute_broker_config()` on bar 1 of a real backtest).
 
-**Verification:** New `tests/test_config_cache.py` (incl. collision regression); re-confirmed via real Lean backtest integration re-run.
+**Verification:** New `tests/test_config_cache.py` (with a collision regression), re-confirmed via a real Lean backtest re-run.
 
 ---
 
@@ -213,11 +221,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 8/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Loading all model/expert/topology artifacts plus deriving ~40 config values inside `initialize()` pushed isolator-timed cost past Lean's non-configurable 90s cap at 20 assets — every `lean backtest .` failed.
+**Problem:** Loading all model/expert/topology artifacts plus deriving ~40 config values inside `initialize()` pushed isolator-timed cost past Lean's non-configurable 90s cap at 20 assets, so every `lean backtest .` failed.
 
-**Fix:** Split into minimal Lean-critical path (dates/cash/subscriptions/warm-up) plus `_ensure_ready()` carrying artifact/config loading, deferred to first `on_data()` (no isolator limit there).
+**Fix:** Split into a minimal Lean-critical path (dates/cash/subscriptions/warm-up) plus `_ensure_ready()` carrying artifact/config loading, deferred to the first `on_data()` (no isolator limit there).
 
-**Verification:** Disk-log instrumentation (`self.Debug()` inside timed-out `initialize()` is silently lost) confirmed `initialize()` completes in 1.85s, full window ~51s. Non-Lean suite (525 tests) green throughout.
+**Verification:** Disk-log instrumentation (a timed-out `initialize()`'s `self.Debug()` is silently lost) confirmed `initialize()` completes in 1.85s with a ~51s full window; the 525-test non-Lean suite stayed green.
 
 ---
 
@@ -225,11 +233,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Lean's `AlgorithmImports` bridge imports matplotlib; ephemeral per-run containers meant 20-40+s font-cache rebuild every run — occasionally breaching 90s isolator cap even after #16.
+**Problem:** Lean's `AlgorithmImports` bridge imports matplotlib, so ephemeral per-run containers rebuilt the font cache (20-40s) every run, occasionally breaching the 90s isolator cap even after #16.
 
-**Fix:** `main.py` sets `MPLCONFIGDIR` to host-mounted `.matplotlib_cache/` before any other import; cache survives containers.
+**Fix:** `main.py` sets `MPLCONFIGDIR` to a host-mounted `.matplotlib_cache/` before any other import, so the cache survives containers.
 
-**Verification:** Two consecutive real runs: cold-cache rebuild + ~82s import vs warm-cache none + ~58s import, zero timeout.
+**Verification:** Two consecutive real runs: ~82s import cold vs ~58s warm, zero timeout.
 
 ---
 
@@ -237,11 +245,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 · **Status:** 🟢 `addressed` (opt-in statistical bypass, default behavior unchanged)
 
-**Problem:** One-time mass liquidation crossing 12% total-drawdown limit froze trading remaining 374 days of 3-year backtest — sticky lock plus `peak_equity` running-max never falling meant lock could never self-clear. Earlier-firing (8%) twin existed independently in regime `risk_off` drawdown branch.
+**Problem:** A one-time mass liquidation crossing the 12% total-drawdown limit froze trading for the remaining 374 days of a 3-year backtest — the sticky lock plus a `peak_equity` running-max that never fell meant it could never self-clear; an earlier-firing 8% twin sat in the regime `risk_off` drawdown branch.
 
-**Fix:** Opt-in `phase_v2.backtest.bypass_safety_gates` (default `false`, backtest-only) bypasses only these two mechanisms; other gates fully active; live/paper unaffected regardless of flag.
+**Fix:** Opt-in `phase_v2.backtest.bypass_safety_gates` (default `false`, backtest-only) bypasses only these two mechanisms, with other gates fully active and live/paper unaffected.
 
-**Verification:** Deliberately not wired into `aq trade-lock` (separate pre-existing meaning); scoped to statistical/model-quality backtesting only, never representative of live behavior.
+**Verification:** Scoped to statistical/model-quality backtesting only (never representative of live behavior) and deliberately not wired into `aq trade-lock`.
 
 ---
 
@@ -299,11 +307,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 · **Status:** 🟢 `fixed`
 
-**Problem:** BTCUSD raw volume jumped ~520,000x one date (real Coinbase feed unit-convention change), producing 5.2-million-percent single-day "return" through unclipped `StandardScaler`, poisoning 30 rows of sequence sliding window — 66%+ of entire backtest squared error.
+**Problem:** BTCUSD raw volume jumped ~520,000x on one date (a real Coinbase feed unit-convention change), producing a 5.2-million-percent single-day "return" through an unclipped `StandardScaler` that poisoned 30 rows of the sequence window — 66%+ of the backtest's squared error.
 
-**Fix:** Three layers: clamp `volume_change_1d` to `[-1.0, 20.0]`; winsorize scaler-fit columns pre-fit; clip scaled values to `±10σ` (persisted to `scaler_stats.json` so `main.py` applies identical bound at runtime). Plus automated regression-quality gate catching future blowups without manual investigation.
+**Fix:** Three layers: clamp `volume_change_1d` to `[-1.0, 20.0]`, winsorize scaler-fit columns pre-fit, and clip scaled values to `±10σ` (persisted to `scaler_stats.json` so `main.py` applies the same bound at runtime), plus an automated regression-quality gate.
 
-**Verification:** Post-fix max absolute scaled value exactly 10.0 (clip firing); retrained RMSE/MAE ratio 31x → 1.59x.
+**Verification:** Post-fix the max absolute scaled value is exactly 10.0 (clip firing) and the retrained RMSE/MAE ratio fell 31x → 1.59x.
 
 ---
 
@@ -311,11 +319,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 8/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `train.py`'s independent raw-zip reader bypassed Lean split/dividend adjustment — real corporate actions (AAPL 2020 4-for-1, USO reverse split) produced fake ±74%/+745% "returns" in every label/feature spanning boundary, for every equity with split/dividend history. Lean's live/backtest engine unaffected; purely offline train/runtime parity gap.
+**Problem:** `train.py`'s independent raw-zip reader bypassed Lean's split/dividend adjustment, so real corporate actions (AAPL's 2020 4-for-1, USO's reverse split) produced fake ±74%/+745% "returns" in every label/feature spanning the boundary — an offline train/runtime parity gap (Lean's own engine was unaffected).
 
-**Fix:** New `train.py::apply_split_adjustments()` reads each equity's real Lean factor file, rescales OHLCV exactly as Lean does; `yfinance_backfill.py` → `auto_adjust=True`; per-security-type label-outlier guard defense-in-depth.
+**Fix:** New `train.py::apply_split_adjustments()` reads each equity's real Lean factor file and rescales OHLCV exactly as Lean does; `yfinance_backfill.py` switched to `auto_adjust=True`, with a per-security-type label-outlier guard as defense-in-depth.
 
-**Verification:** Real data: AAPL split-boundary "return" -74% → ~3.4%; USO +745% → ~5.6%.
+**Verification:** On real data the AAPL split-boundary "return" fell from -74% to ~3.4% and USO's from +745% to ~5.6%.
 
 ---
 
@@ -347,11 +355,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `split_into_non_overlapping_eras()`/`purged_embargoed_folds()` did Timestamp arithmetic on `np.asarray(dates)` — correct only for datetime input; real callers pass stringified date columns, crashing first real run despite passing all unit tests (synthetic datetime fixtures).
+**Problem:** `split_into_non_overlapping_eras()`/`purged_embargoed_folds()` did Timestamp arithmetic on `np.asarray(dates)`, correct only for datetime input — real callers pass stringified date columns, so the first real run crashed despite all unit tests passing on synthetic datetime fixtures.
 
-**Fix:** Both functions plus identically-bugged caller coerce via `pd.to_datetime(np.asarray(dates))` — robust to string/Timestamp/datetime64.
+**Fix:** Both functions (and an identically-bugged caller) coerce via `pd.to_datetime(np.asarray(dates))`, robust to string/Timestamp/datetime64.
 
-**Verification:** New regression tests use plain string dates, real object-array shapes — specifically preventing "passes unit tests, fails first real run" gap recurring.
+**Verification:** New regression tests use plain string dates with real object-array shapes, closing the "passes unit tests, fails first real run" gap.
 
 ---
 
@@ -371,11 +379,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (scope note) · **Status:** 🟢 `fixed` (core multi-asset-class trading is fully implemented; remaining items are permanent non-goals)
 
-**Problem:** Tracked multi-asset-class gaps after initial architecture pass — options order placement against resolved contract, real derivatives-macro data, per-asset-class book slot caps — originally deferred.
+**Problem:** Tracked multi-asset-class gaps after the initial architecture pass — options order placement against a resolved contract, real derivatives-macro data, per-asset-class book slot caps — were originally deferred.
 
-**Fix:** All three resolved later: real option contract order placement; real futures/options derivatives-macro features (offline and live); optional `per_asset_class_slots` book parameter (default `None`, byte-identical to prior pooled ranking).
+**Fix:** All three resolved later: real option-contract order placement, real futures/options derivatives-macro features (offline and live), and an optional `per_asset_class_slots` book parameter (default `None`, byte-identical to the prior pooled ranking).
 
-**Verification:** 7 new tests for per-class slotting (ranking, exclusion, thin-class isolation, confidence-spread gating, backward compat). Remaining items (ML-driven multi-leg spread selection, IBC headless TWS login, live IB margin, bulk historical derivatives fetch) permanent non-goals blocked on external dependencies — tracked in README Known Limitations.
+**Verification:** Seven new tests for per-class slotting (ranking, exclusion, thin-class isolation, confidence-spread gating, backward compat); the remaining items (ML-driven multi-leg spread selection, IBC headless TWS login, live IB margin, bulk historical derivatives fetch) are permanent non-goals tracked in README Known Limitations.
 
 ---
 
@@ -383,11 +391,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Top-level `data_pipeline.fred_backfill` import never copied into `Dockerfile.retraining_worker`; pre-existing gap: `liquidity/` also missing. Either crashes first retrain.
+**Problem:** A top-level `data_pipeline.fred_backfill` import was never copied into `Dockerfile.retraining_worker`, which also pre-existing missed `liquidity/` — either would crash the first retrain.
 
-**Fix:** Both COPYs added. Superseded July 17 consolidation: Dockerfile gone; compose's `retraining-worker` builds consolidated `aether-quant-engine:latest` (`COPY . .`), whose comment names this entry as structurally eliminated.
+**Fix:** Both COPYs were added, then the whole class was structurally eliminated by the July 17 consolidation (the Dockerfile is gone; compose builds a consolidated `aether-quant-engine:latest` via `COPY . .`).
 
-**Verification:** Import-graph tracing (#2/#20 method); confirmed directly — bug class now impossible.
+**Verification:** Import-graph tracing (#2/#20 method) confirmed directly — the bug class is now impossible.
 
 ---
 
@@ -395,11 +403,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 8/10 (aq test) / 6/10 (inference latency) / 4/10 (CI cache) · **Status:** 🟢 `fixed`
 
-**Problem:** `aq test`'s Lean-backtest file checked binary presence only — routine runs paid real (over-an-hour) backtest cost; inference hot path unprofiled; CI Docker release builds uncached.
+**Problem:** `aq test`'s Lean-backtest file checked binary presence only, so routine runs paid a real (over-an-hour) backtest cost; the inference hot path was unprofiled and CI Docker release builds were uncached.
 
-**Fix:** Opt-in `lean_backtest` pytest marker (excluded by default; `--lean`/`--full` opt-in) + per-subsystem `aq test` flags; new `scripts/profile_inference.py` harness; hot-path fixes: causal-conv Python loop → batched `einsum`; 4 per-expert dispatch calls → one batched; `cache-from`/`cache-to: type=gha` on release Docker step.
+**Fix:** Opt-in `lean_backtest` pytest marker (excluded by default; `--lean`/`--full` opt-in) plus per-subsystem `aq test` flags, a new `scripts/profile_inference.py` harness, hot-path fixes (causal-conv Python loop → batched `einsum`; four per-expert dispatch calls → one batched), and `cache-from`/`cache-to: type=gha` on the release Docker step.
 
-**Verification:** Collect-only 1132/1143 (11 deselected); non-Lean run >1h → ~73s-4min; measured 448.4s→290.6s (-35.2%, 10k-iteration real-weight workload); 200-trial fuzz parity old loop vs batched conv1d.
+**Verification:** Collect-only 1132/1143 (11 deselected), non-Lean run >1h → ~73s-4min; a 10k-iteration real-weight workload measured 448.4s→290.6s (-35.2%), with a 200-trial fuzz parity check between the old loop and batched conv1d.
 
 ---
 
@@ -407,11 +415,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (optimization pass) · **Status:** 🟢 `fixed`
 
-**Problem:** Re-profiling after #31: repeated `numpy.asarray()` conversions of same static JSON-loaded weights every bar — largest remaining cost.
+**Problem:** Re-profiling after #31 showed repeated `numpy.asarray()` conversions of the same static JSON-loaded weights every bar were the largest remaining cost.
 
-**Fix:** `convert_state_dict_arrays()` converts once at load (zero downstream API change); batched-stack caching precomputes expert weights in `_ensure_ready()`; added `aq profile` CLI, opt-in per-symbol multiprocessing (default off, sequential fallback), C++/pybind11 extension (`cpp_inference_ext`) accelerating batched linear layer.
+**Fix:** `convert_state_dict_arrays()` converts once at load (no downstream API change), batched-stack caching precomputes expert weights in `_ensure_ready()`, and it added `aq profile`, opt-in per-symbol multiprocessing (default off, sequential fallback), and a C++/pybind11 extension (`cpp_inference_ext`) accelerating the batched linear layer.
 
-**Verification:** Measured 448.4s→48.4s (-89.2%); mean latency/symbol/bar 44.8ms→4.83ms; 14 parity tests prove cached path bit-identical; extension gave further modest consistent speedup (two paired comparisons); naming-collision bug (source dir shadowing built module) + wrong-Python-env install caught/fixed during verification; multiprocessing win/loss left to a real backtest — not attempted enabled this pass.
+**Verification:** Measured 448.4s→48.4s (-89.2%; mean 44.8ms→4.83ms per symbol/bar); 14 parity tests prove the cached path bit-identical. A naming-collision bug and a wrong-Python-env install were caught during verification; the multiprocessing win/loss was left to a real backtest and not enabled this pass.
 
 ---
 
@@ -419,11 +427,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `build_liquidity_decision()` computed a real spread+impact estimate every bar, nothing consumed it — no security had a `SlippageModel`; simulated fills hardcoded zero slippage; historical backtests had systematically too-good fills.
+**Problem:** `build_liquidity_decision()` computed a real spread+impact estimate every bar that nothing consumed — no security had a `SlippageModel`, simulated fills hardcoded zero slippage, and historical backtests had systematically too-good fills.
 
-**Fix:** Pure `slippage_amount()`/`resolve_slippage_bps()`/`resolve_fill_slippage()` in `execution/order_gate.py`, threaded into Lean fill path (new `_LiquidityAwareSlippageModel` adapter) + simulated-fill path; cost source and safety clamp later made config-configurable.
+**Fix:** Pure `slippage_amount()`/`resolve_slippage_bps()`/`resolve_fill_slippage()` in `execution/order_gate.py`, threaded into both the Lean fill path (a new `_LiquidityAwareSlippageModel` adapter) and the simulated-fill path; the cost source and safety clamp were later made config-configurable.
 
-**Verification:** 12+13 new tests (`test_order_gate.py`/`test_simulated_portfolio.py`) incl. default-vs-explicit-zero parity; adapter not unit-testable in isolation (same `main.py`-outside-Lean constraint); logic lives in tested pure functions.
+**Verification:** 12+13 new tests (`test_order_gate.py`/`test_simulated_portfolio.py`) including default-vs-explicit-zero parity; the adapter itself is not unit-testable in isolation (the usual `main.py`-outside-Lean constraint), so the logic lives in tested pure functions.
 
 ---
 
@@ -499,11 +507,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 (test-harness bug) / 5/10 (liquidity threshold collision) / 3/10 (limit-order timeout) / 2/10 (book-slot crash risk) · **Status:** 🟢 `fixed`
 
-**Problem:** Sweep found: (1) wrong dict-key path in Lean coverage test silently failing 3 real assertions regardless of backtest correctness; (2) two liquidity thresholds drifted to same value, collapsing two-tier gate to one; (3) limit-order timeout handler contradicting dependency's documented "unknown status = still pending" contract; (4) no shape validation on optional per-asset-class book-slot config (unpack-crash risk).
+**Problem:** A final pre-backtest sweep found four defects: a wrong dict-key path silently failing three Lean coverage assertions, two liquidity thresholds collapsed to one value (merging a two-tier gate), a limit-order timeout handler contradicting the dependency's "unknown status = still pending" contract, and no shape validation on optional per-asset-class book-slot config.
 
-**Fix:** Key path fixed; `thin < high_impact` ordering restored; handler pops-without-cancel only on genuinely terminal statuses; new `normalize_per_asset_class_slots()` pure validator degrading gracefully on malformed entries.
+**Fix:** Fixed the key path, restored the `thin < high_impact` ordering, made the handler pop-without-cancel only on genuinely terminal statuses, and added a `normalize_per_asset_class_slots()` pure validator degrading gracefully on malformed entries.
 
-**Verification:** 6 new validator tests; other three fixes verified via direct inspection/config check (pre-real-backtest by design — the point of entry); suite green after all four.
+**Verification:** Six new validator tests; the other three fixes were verified by direct inspection/config check (pre-real-backtest by design), with the suite green after all four.
 
 ---
 
@@ -511,11 +519,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `lean backtest .` resolved mutable `quantconnect/lean:latest` unpinned — whenever QC moved the tag, even machines with the full 42.5GB image cached re-pulled, indefinitely, every clone and run.
+**Problem:** `lean backtest .` resolved the mutable `quantconnect/lean:latest` unpinned, so whenever QC moved the tag even machines with the full 42.5GB image cached re-pulled — indefinitely, every clone and run.
 
-**Fix:** Pinned immutable `quantconnect/lean:17900` by default, always passed explicitly; `aq backtest --image <other>` for deliberate newer-build opt-in.
+**Fix:** Pinned the immutable `quantconnect/lean:17900` by default (always passed explicitly), with `aq backtest --image <other>` for deliberate newer-build opt-in.
 
-**Verification:** Tests confirm pin-by-default + working override flag; documented in README Getting Started.
+**Verification:** Tests confirm pin-by-default plus the working override flag; documented in README Getting Started.
 
 ---
 
@@ -535,11 +543,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Pre-live pass found: runbook instructed hand-editing real IB credentials into git-tracked `lean.json`; `.dockerignore` didn't exclude secret files from published images; Postgres/Redis published to `0.0.0.0` behind a password published in this public repo; nothing structurally prevented future secret commits.
+**Problem:** A pre-live review found the runbook instructed hand-editing real IB credentials into git-tracked `lean.json`, `.dockerignore` didn't exclude secret files from published images, Postgres/Redis were published to `0.0.0.0` behind a password published in this public repo, and nothing structurally prevented future secret commits.
 
-**Fix:** Credential render step (`aq render-lean-config`) overlays secrets from gitignored `.env.live` onto gitignored `lean.live.json` (tracked `lean.json` stays empty); secret list mirrored into `.dockerignore` (caught second instance of the bug in fix's own new file); DB/Redis bound to `127.0.0.1` + fail-closed live-mode guard vs default password; added `aq secrets-check` and opt-in pre-commit hook.
+**Fix:** A credential render step (`aq render-lean-config`) overlays secrets from a gitignored `.env.live` onto a gitignored `lean.live.json` (tracked `lean.json` stays empty), the secret list is mirrored into `.dockerignore`, DB/Redis are bound to `127.0.0.1` with a fail-closed live-mode guard, and `aq secrets-check` plus an opt-in pre-commit hook were added.
 
-**Verification:** New `tests/test_dockerignore_secrets.py` evaluates real Docker pattern semantics, not literal line-grep; no secret anywhere in git history; no deserialization-RCE surface; deferred audit-logging item closed later — see #44's audit-log update.
+**Verification:** New `tests/test_dockerignore_secrets.py` evaluates real Docker pattern semantics (not a literal line-grep); no secret exists anywhere in git history and there is no deserialization-RCE surface.
 
 ---
 
@@ -547,11 +555,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 9/10 · **Status:** 🟢 `fixed` (see #52/#54)
 
-**Problem:** Second backtest after #41's recalibration produced bit-identical results to pre-fix (same 14 trades/profit) — calibration had zero effect on actual trades. Causes spanned trading logic (soft position-cap overshoot; sell-vetoing risk logic; sell threshold ~10σ from live output; neutered drawdown breaker; no stop-loss/trailing/max-holding-age exits) and training (untrained epoch-1 checkpoints from broken early stopping; degenerate threshold search; MoE blend diluting skill to 0.5; no skill-floor gates; 35/85 static one-hot inputs; ~52-row crypto training; trading ignoring `rank_20d`/`rank_5d` — the only statistically significant signal in the codebase).
+**Problem:** A second backtest after #41's recalibration produced bit-identical results (same 14 trades/profit), showing calibration had zero effect on actual trades — causes spanned trading logic (soft position-cap overshoot, sell-vetoing risk logic, a sell threshold ~10σ from live output, a neutered drawdown breaker, no stop-loss/trailing/max-holding-age exits) and training (untrained epoch-1 checkpoints, degenerate threshold search, an MoE blend diluting skill to 0.5, no skill-floor gates, 35/85 static one-hot inputs, ~52-row crypto training, and trading that ignored `rank_20d`/`rank_5d`, the only statistically significant signal).
 
-**Fix:** Early stopping rewritten (`min_best_epoch` floor); non-degenerate threshold-search bounds; unified asset-context columns; dead features removed; `min_training_rows`/skill-floor gates raised; no-skill experts zeroed; `portfolio_book` wired to trade `rank_20d` directly; exit-veto bypass; safety exits (max holding age + trailing stop); adaptive sell band; same-bar position-cap fix; drawdown breaker re-armed; crypto/`InteractiveBrokersFeeModel` crash fixed.
+**Fix:** Rewrote early stopping with a `min_best_epoch` floor, fixed the threshold-search bounds, unified asset-context columns, removed dead features, raised the `min_training_rows`/skill-floor gates, zeroed no-skill experts, wired `portfolio_book` to trade `rank_20d` directly, bypassed the exit veto, added safety exits (max holding age + trailing stop) and an adaptive sell band, fixed the same-bar position cap, re-armed the drawdown breaker, and fixed the crypto/`InteractiveBrokersFeeModel` crash.
 
-**Verification:** Real backtest (2026-07-17): 653 orders (vs stuck-at-14), 11.1% drawdown — mechanical fixes confirmed, still -4.6%/Sharpe -0.59 (edge not yet profitable); tests extended across `train.py`, gating, `market_analyzer`, `validation_gate`, experts, `portfolio_book_construction`; superseded by #52/#54: rank-pivot roadmap's 2026-07-20 backtest profitable (Sharpe 0.403, Net +10.4%).
+**Verification:** Real backtest (2026-07-17) went from stuck-at-14 to 653 orders at 11.1% drawdown (mechanical fixes confirmed; still -4.6%/Sharpe -0.59), with tests extended across `train.py`, gating, `market_analyzer`, `validation_gate`, experts, and `portfolio_book_construction`; superseded by #52/#54's profitable rank-pivot backtest (Sharpe 0.403, Net +10.4%).
 
 ---
 
@@ -559,25 +567,23 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `main.py`'s `ExperienceQueue` silently no-oped during every real `lean backtest .` run (missing `redis`). Lean CLI auto-installs deps from project-root `requirements.txt`, separate from the repo's own `requirements/requirements.txt` convention which Lean never reads; everything else happened to exist in the image, so invisible until `redis`.
+**Problem:** `main.py`'s `ExperienceQueue` silently no-oped during every real `lean backtest .` run because `redis` was missing: Lean CLI auto-installs deps from a project-root `requirements.txt`, separate from the repo's `requirements/requirements.txt` convention Lean never reads, and everything else happened to exist in the image.
 
-**Fix:** Repo-root `requirements.txt` containing `redis>=5.0.0`, cross-referenced from `requirements/README.md`.
+**Fix:** A repo-root `requirements.txt` containing `redis>=5.0.0`, cross-referenced from `requirements/README.md`; later superseded by #88a's Lean CLI Windows dependency-mount workaround.
 
-**Verification:** Not re-verified against a real run this session (left for user); confirmed correct reading Lean CLI's source (`lean_runner.py`).
+**Verification:** Confirmed by reading Lean CLI's source (`lean_runner.py`), with the real-run re-verification left to the user.
 
 ---
-
-**Update (2026-10-06, V5.5.0):** superseded by #88a - the Lean CLI Windows dependency-mount workaround replaced this approach.
 
 ### 45. `av` (Aether-Vault CLI) was broken on this machine — never actually run once in this repo
 
 **Severity:** 4/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `retraining/vault_client.py` commit stage shells out to `av`, failing every call (`ModuleNotFoundError: questionary`); never initialized (`.av/` absent) — invisible because `commit_candidate_to_vault()` degrades gracefully by design.
+**Problem:** `retraining/vault_client.py`'s commit stage shells out to `av`, which failed every call (`ModuleNotFoundError: questionary`) and had never been initialized (`.av/` absent) — invisible because `commit_candidate_to_vault()` degrades gracefully by design.
 
-**Fix:** Installed `questionary` into correct environment (`av.exe` resolves via separate user-scoped Python 3.14 install, not repo `.venv`); ran `av init --mode local -y --no-repl` in repo root.
+**Fix:** Installed `questionary` into the correct environment (`av.exe` resolves via a separate user-scoped Python 3.14 install, not the repo `.venv`) and ran `av init --mode local -y --no-repl` in the repo root.
 
-**Verification:** Confirmed via `av status`; local-only accepted (no remote registry; degrades to local pending-push queue).
+**Verification:** Confirmed via `av status`; local-only is accepted (no remote registry, degrading to a local pending-push queue).
 
 ---
 
@@ -585,11 +591,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `experience/postgres_worker.py`/`audit/postgres_worker.py` called `xreadgroup(..., block=0)` believing it non-blocking; Redis `BLOCK 0` blocks forever — with client `socket_timeout=5`, every idle poll raised a timeout exception. Invisible because `fakeredis` doesn't reproduce blocking-socket-timeout behavior.
+**Problem:** `experience/postgres_worker.py`/`audit/postgres_worker.py` called `xreadgroup(..., block=0)` believing it non-blocking, but Redis `BLOCK 0` blocks forever — with a client `socket_timeout=5`, every idle poll raised a timeout exception (invisible to `fakeredis`, which doesn't reproduce blocking-socket behavior).
 
-**Fix:** Removed `block=0` from both call sites — default `None` omits `BLOCK`, letting existing correct `sleep(1)` idle loops work.
+**Fix:** Removed `block=0` from both call sites; the default `None` omits `BLOCK`, letting the existing correct `sleep(1)` idle loops work.
 
-**Verification:** Real Compose Redis: both workers 0% CPU, zero errors post-fix; `tests/test_postgres_worker.py`/`tests/test_audit_postgres_worker.py` (18 tests) pass unchanged — they never asserted on `block`.
+**Verification:** Real Compose Redis showed both workers at 0% CPU with zero errors; the 18 tests in `test_postgres_worker.py`/`test_audit_postgres_worker.py` pass unchanged (they never asserted on `block`).
 
 ---
 
@@ -597,11 +603,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Compose mounted `./data:/app/data:ro`, but crypto daily-series derivation (#15) must read-then-write `data/crypto/coinbase/daily/*.zip` every invocation — container crashed `OSError: Read-only file system`. Never caught before because rehearsals ran `train.py` on the host, where writable.
+**Problem:** Compose mounted `./data:/app/data:ro`, but crypto daily-series derivation (#15) must read-then-write `data/crypto/coinbase/daily/*.zip` every invocation, so the container crashed with `OSError: Read-only file system` — never caught before because rehearsals ran `train.py` on the (writable) host.
 
-**Fix:** Mount changed to writable (`./data:/app/data`).
+**Fix:** Changed the mount to writable (`./data:/app/data`).
 
-**Verification:** Rehearsal re-run after `docker compose up -d --force-recreate` confirms completion past this point.
+**Verification:** A rehearsal re-run after `docker compose up -d --force-recreate` completes past this point.
 
 ---
 
@@ -609,11 +615,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Mid-cycle recreation killed an in-flight `train.py` subprocess before Postgres report-back, leaving `retraining_events`/`model_versions` rows permanently stuck `"running"`/`"candidate"` — cooldown check then blocked all future retraining (nothing detected orphaned rows). Related: container ran `python -m retraining.worker` as PID 1 without init process, so a subprocess killed on orchestrator timeout could become an unreapable zombie, blocking even `docker compose stop`.
+**Problem:** Recreating `retraining-worker` mid-cycle killed the in-flight `train.py` before it reported back, leaving `retraining_events`/`model_versions` rows stuck `"running"`/`"candidate"` so the cooldown check blocked all future retraining; the container also ran `python -m retraining.worker` as PID 1 without an init process, so a subprocess killed on orchestrator timeout could become an unreapable zombie that blocked even `docker compose stop`.
 
-**Fix:** Startup reconciliation `fetch_stale_active_events()`/`reconcile_stale_running_events()` marks stale `running`/`planned` rows `failed` (rejecting still-`candidate` `model_versions` rows) after configurable `stale_running_timeout_seconds` (default 10800s = sum of stage timeouts); `init: true` on Compose service (Docker's tini) so killed subprocesses are reaped.
+**Fix:** Startup reconciliation `fetch_stale_active_events()`/`reconcile_stale_running_events()` marks stale `running`/`planned` rows `failed` (rejecting still-`candidate` `model_versions` rows) after a configurable `stale_running_timeout_seconds` (default 10800s), and `init: true` gives the Compose service Docker's tini so killed subprocesses are reaped.
 
-**Verification:** 8 new tests across `postgres_registry`, `orchestrator`, `retraining_worker`; suite green (1465 passed) before/after; zombie scenario hit live and manually recovered (`docker rm -f`) before `init: true`; `docker compose config --quiet` clean.
+**Verification:** Eight new tests across `postgres_registry`, `orchestrator`, and `retraining_worker`, suite green (1465 passed) before/after; the zombie scenario was hit live and manually recovered (`docker rm -f`) before `init: true`, and `docker compose config --quiet` is clean.
 
 ---
 
@@ -621,25 +627,23 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (operational-maturity verification, not a bug) · **Status:** 🟢 `verified`
 
-**Problem:** N/A — rehearsal proving a genuine closed loop vs mocked-unit-test logic. One follow-up deliberately unfixed: `lean` CLI absent from worker image, so `backtest_gate` silently no-ops rather than crashing — flagged known deliberate infrastructure gap.
+**Problem:** N/A — a rehearsal to prove a genuine closed loop rather than mocked-unit-test logic; one follow-up (the `lean` CLI absent from the worker image, so `backtest_gate` silently no-ops rather than crashing) was a known deliberate infrastructure gap, later settled by #62.
 
 **Fix:** None (verification exercise).
 
-**Verification:** Three real cycles via worker poll loop (`plan→train→train_topology→train_gating→train_multitask→train_sequence→validate`); `train_sequence` timed out once at its 1800s cap (real resource-constrained-host finding, not crash), pipeline continued to `validate`; all three candidates rejected on legitimate quality grounds (consistent with #43 weak-edge finding); rollback tested vs real Postgres/files — happy path flips status `active`, tamper path (corrupted hash) refused with no files copied/no row touched; `backtest_gate` never organically exercised (nothing cleared `validate`), confirmed structurally unable to run as configured.
+**Verification:** Three real cycles ran through the worker poll loop (`plan→train→train_topology→train_gating→train_multitask→train_sequence→validate`), with `train_sequence` timing out once at its 1800s cap (a real resource-constrained-host finding, not a crash); all three candidates were rejected on legitimate quality grounds (consistent with #43), and rollback was tested against real Postgres/files both ways (happy path flips `active`; a corrupted-hash tamper path is refused with nothing copied); `backtest_gate` was never organically exercised (nothing cleared `validate`).
 
 ---
-
-**Update (2026-10-06, V5.5.0):** `lean` CLI availability was settled by #62; kept for history.
 
 ### 50. This dev machine's 4GB RAM couldn't reliably run a real `lean backtest .` — blocked verifying #34/#36/#37/#38
 
 **Severity:** n/a (hardware constraint) · **Status:** 🟢 `fixed` (superseded — see #54)
 
-**Problem:** Four consecutive real `aq backtest` attempts failed at Lean's hardcoded 90-second `initialize()` isolator cap. Precise root cause: plain top-level imports (torch/pandas/sklearn) alone took ~82 seconds under memory pressure (~300MB free on this 4GB host) — not a code regression. Blocked verification of #34/#36/#37/#38.
+**Problem:** Four consecutive real `aq backtest` attempts failed at Lean's hardcoded 90-second `initialize()` isolator cap, root-caused to plain top-level imports (torch/pandas/sklearn) taking ~82 seconds under memory pressure (~300MB free on this 4GB host) — not a code regression; it blocked verification of #34/#36/#37/#38.
 
-**Fix:** Narrowed `main.py`'s `from audit import ...` (transitively pulling unused Postgres/status-export code) to `from audit.redis_queue import ...`, trimming import cost inside timed window. Documented (not a code fix): failed `lean backtest` containers aren't reliably cleaned up on failure, leaving orphaned `lean_cli_*` containers holding memory.
+**Fix:** Narrowed `main.py`'s `from audit import ...` (which transitively pulled unused Postgres/status-export code) to `from audit.redis_queue import ...`, trimming in-window import cost; also documented that failed `lean backtest` containers aren't reliably cleaned up, leaving orphaned `lean_cli_*` containers holding memory.
 
-**Verification:** `python -m py_compile main.py` + suite green. Superseded 2026-07-20 (#54): real backtest completed successfully on same machine, verifying #34/#36/#37 (~40 min run, manual zombie cleanup needed). #38 remains open for unrelated reason (no option asset registered).
+**Verification:** `python -m py_compile main.py` and the suite were green; superseded 2026-07-20 (#54) when a real backtest completed on the same machine, verifying #34/#36/#37 (~40 min run needing manual zombie cleanup), with #38 still open for an unrelated reason (no option asset registered).
 
 ---
 
@@ -647,11 +651,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Endpoint 500'd in real deployment. #42 excludes `lean.json` from the published image but nothing volume-mounted it back at deploy time, so `build_assets_status_from_disk()` hit an uncaught `FileNotFoundError`.
+**Problem:** `GET /api/assets-status` 500'd in real deployment: #42 excludes `lean.json` from the published image but nothing volume-mounted it back at deploy time, so `build_assets_status_from_disk()` hit an uncaught `FileNotFoundError`.
 
-**Fix:** Read-only runtime mount (`./lean.json:/app/lean.json:ro`) on `engine` service (never baked into image, preserving #42); reader catches `FileNotFoundError`, degrades to empty `lean_config` so `ib_readiness_status()` reports graceful degraded status instead of 500ing.
+**Fix:** Added a read-only runtime mount (`./lean.json:/app/lean.json:ro`) on the `engine` service (never baked into the image, preserving #42); the reader now catches `FileNotFoundError` and degrades to an empty `lean_config` so `ib_readiness_status()` reports gracefully instead of 500ing.
 
-**Verification:** New `test_build_assets_status_from_disk_degrades_gracefully_when_lean_json_missing`; all 8 tests in file pass; real rebuilt container returns 200 with correct content where it previously 500'd.
+**Verification:** New `test_build_assets_status_from_disk_degrades_gracefully_when_lean_json_missing`; all 8 tests in the file pass and the rebuilt container returns 200 with correct content where it previously 500'd.
 
 ---
 
@@ -671,11 +675,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 · **Status:** 🟢 `fixed`
 
-**Problem:** 4GB machine spent hours wall-clock on ~800 CPU-seconds of training (#50/#52). Codespaces setup hit a real bug: `docker-in-docker` feature silently swapped the pinned Debian image to Alpine, breaking `pip install` against musl libc (matches upstream `devcontainers/images#1114`). Deeper blocker: Codespaces containers run unprivileged — Lean/Docker backtests can't run inside a Codespace at all; platform limitation, unfixable from this repo.
+**Problem:** The 4GB machine spent hours wall-clock on ~800 CPU-seconds of training (#50/#52), and Codespaces setup hit a real bug — the `docker-in-docker` feature silently swapped the pinned Debian image to Alpine, breaking `pip install` against musl libc (matching upstream `devcontainers/images#1114`); deeper, Codespaces containers run unprivileged so Lean/Docker backtests cannot run there at all (a platform limitation).
 
-**Fix:** Dropped `docker-in-docker` (training needs none), kept `sshd` only; prepended CPU-only `pip install torch --index-url .../cpu` to `postCreateCommand` (bare install resolved a CUDA build failing to import GPU-less). Git hygiene: 9 generated `ml/` artifact files tracked inconsistently — `.gitignore`d and untracked.
+**Fix:** Dropped `docker-in-docker` (training needs none) and kept only `sshd`, prepended a CPU-only `pip install torch --index-url .../cpu` to `postCreateCommand` (a bare install resolved a GPU-failing CUDA build), and `.gitignore`d 9 inconsistently-tracked generated `ml/` artifacts.
 
-**Verification:** Verified via 5 systematic A/B Codespace rebuilds (with/without docker-in-docker, sshd); full 8-artifact retrain <15 min on fixed Codespace vs 4+ hours unfinished locally; `git check-ignore -v`/`git status` confirm clean/untracked.
+**Verification:** Five systematic A/B Codespace rebuilds confirmed the fix; a full 8-artifact retrain ran <15 min on the fixed Codespace vs 4+ hours unfinished locally, with `git check-ignore -v`/`git status` clean.
 
 ---
 
@@ -695,11 +699,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Bundle mounted as `StaticFiles(directory=WEBUI_DIST, html=True)` — `html=True` maps directory paths only, not unknown paths, so direct load/hard refresh of `/risk`, `/topology`, `/neural-network`, `/tracing`, `/operations` returned raw 404 (client-side nav worked; vite SPA fallback masked it in dev).
+**Problem:** The webui bundle mounted as `StaticFiles(directory=WEBUI_DIST, html=True)`, and `html=True` maps only directory paths, so a direct load/hard refresh of `/risk`, `/topology`, `/neural-network`, `/tracing`, or `/operations` returned a raw 404 (client-side nav worked, masked in dev by vite's SPA fallback).
 
-**Fix:** `SpaStaticFiles(StaticFiles)` subclass overriding `get_response()` falls back to `index.html` on 404, limited to extensionless paths so genuinely missing assets (`/assets/*.js`) still 404. Subtleties: Starlette raises `HTTPException(404)` rather than returning one, and raises Starlette's specifically (FastAPI's is a subclass — catching that misses it).
+**Fix:** A `SpaStaticFiles(StaticFiles)` subclass overrides `get_response()` to fall back to `index.html` on 404, limited to extensionless paths so genuinely missing assets (`/assets/*.js`) still 404 (careful to catch Starlette's own `HTTPException(404)`, not FastAPI's subclass).
 
-**Verification:** Parametrized tests for all six client routes, missing-asset-still-404 case, `/api/*` not shadowed.
+**Verification:** Parametrized tests cover all six client routes, the missing-asset-still-404 case, and `/api/*` not being shadowed.
 
 ---
 
@@ -707,25 +711,23 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 1/10 (latent; unreachable until a model exists) · **Status:** 🟢 `fixed`
 
-**Problem:** V4-W3 made z a real `0..100` correlation-distance axis in 3D embedding mode, but prototype z offsets were still emitted on old `0..1` formula — overlay moved nodes x/y, effectively not z.
+**Problem:** V4-W3 made z a real `0..100` correlation-distance axis in 3D embedding mode, but prototype z offsets were still emitted on the old `0..1` formula, so the overlay effectively moved nodes in x/y rather than z.
 
-**Fix:** Z normalized `[-1, 1]`; `topology/learned_topology.py::_score_node()` scales by active `max_offset_z` before same clamp as x/y — provably identity-preserving 2D, proportionally larger 3D; `offset_schema` detection field (no migration branch — no old-format model ever existed). Training the first real topology model remains a separate user milestone (`aq train --topology-only` added) — none ever trained, overlay dormant.
+**Fix:** Z is normalized to `[-1, 1]`, with `topology/learned_topology.py::_score_node()` scaling by the active `max_offset_z` before the same clamp as x/y (provably identity-preserving in 2D, proportionally larger in 3D) and an `offset_schema` detection field since no old-format model ever existed.
 
-**Verification:** Byte-identical output vs old raw formula in 2D; 60x more z travel under raised 3D cap.
+**Verification:** Byte-identical output vs the old raw formula in 2D, and 60x more z travel under the raised 3D cap. A schema-2 `ml/topology_model.json` (6 prototypes, trained 2026-07-29 from live experience events) later exercised the fix in the first-bar smoke test; retraining the overlay was declined because it fits logged live win/loss events and a dataset proxy would be a different distribution.
 
 ---
-
-**Update (V5.6.0):** a schema-2 `ml/topology_model.json` (6 prototypes, trained 2026-07-29 from live experience events) exists and loads in the first-bar smoke test, so the fix was exercised after all. Retraining the overlay was declined: it is fit on logged live events (win/loss outcomes per node) and a proxy built from the dataset would be a different distribution.
 
 ### 57. Futures/options had a live incremental-vs-absolute order-sizing bug — fixed, plus position scale-up for all 5 asset classes
 
 **Severity:** 5/10 (dormant, reachable only via `futures_risk.enabled`/`options_risk.enabled`, both default off) · **Status:** 🟢 `fixed`
 
-**Problem:** Equity/crypto/bond add-to-position blocked by simple `main.py::_apply_signal()` gate; futures/options had none — worse, correctly-recomputed **absolute** per-bar targets fired through **incremental** primitives (`MarketOrder`/`Buy`) every bar the signal held, stacking contracts unbounded; options could additionally orphan a position by re-selecting strike/expiry each bar without closing the old one.
+**Problem:** Equity/crypto/bond add-to-position was blocked by a simple `main.py::_apply_signal()` gate, but futures/options had none — worse, correctly-recomputed **absolute** per-bar targets fired through **incremental** primitives (`MarketOrder`/`Buy`) every bar the signal held, stacking contracts unbounded, and options could orphan a position by re-selecting strike/expiry each bar without closing the old one.
 
-**Fix:** New `risk_controls.py::compute_incremental_order_quantity()` — futures/options submit only signed delta toward absolute target, unconditionally (genuine bug fix, no flag). Two opt-in tiers: `position_scaling.enabled` (default false) scale-up/down with churn guard; `rotate_on_drift` (default false) liquidate-then-reenter drifted contracts.
+**Fix:** New `risk_controls.py::compute_incremental_order_quantity()` makes futures/options submit only the signed delta toward the absolute target, unconditionally (a genuine bug fix, no flag), with two opt-in tiers: `position_scaling.enabled` scale-up/down with a churn guard and `rotate_on_drift` liquidate-then-reenter.
 
-**Verification:** Default path unreachable via grep/call-graph trace (sizing returns 0/None first); tests 1521→1558 passing (`tests/test_risk_controls.py`, `tests/test_order_gate.py`); `main.py` has no direct unit tests (subclasses `QCAlgorithm`) — trace-only.
+**Verification:** The default path is unreachable via grep/call-graph trace; tests rose 1521→1558 passing (`test_risk_controls.py`, `test_order_gate.py`), with `main.py` verified by call-graph trace only (it subclasses `QCAlgorithm` and has no direct unit tests).
 
 ---
 
@@ -781,11 +783,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (surfacing pass), plus one real bug rated 4/10 (silently wrong data persisted, never a crash) · **Status:** 🟢 `fixed`
 
-**Problem:** 3-agent audit: `lean` CLI missing from production image used by `retraining-worker`; compose missing `data/reference` mount (silently zeroing Forex/futures/FRED specs) + stale comment; `aq` lacking bulk-backfill dispatcher; `aq test` subsystem file lists stale; real bug — `corporate_action_payload` computed in Pass 1's per-symbol loop but read in Pass 2's separate loop, so (no block scoping in Python) every symbol reused whatever Pass 1 left from the last symbol processed. Several V4.7 fields (bond analytics, assignment risk, dividend schedule, strategy-selector scores) computed but never reached `state.json` despite a comment claiming otherwise.
+**Problem:** A 3-agent audit found `lean` missing from the production image used by `retraining-worker`, the compose `data/reference` mount missing (silently zeroing Forex/futures/FRED specs), `aq` lacking a bulk-backfill dispatcher, stale `aq test` subsystem file lists, and a real bug where `corporate_action_payload` was computed in Pass 1's per-symbol loop but read in Pass 2's separate loop (no block scoping, so every symbol reused the last one's value); several V4.7 fields (bond analytics, assignment risk, dividend schedule, strategy-selector scores) were computed but never reached `state.json`.
 
-**Fix:** `lean` added to production requirements + Docker socket mount; compose mount/comment fixed; added `aq backfill <target>`; stale dict fixed; payload threaded through `pass1_state` per-symbol; all 5 fields wired into `signals[symbol_key]` in `_write_state()`; new `/options-strategy` page.
+**Fix:** Added `lean` to production requirements plus a Docker socket mount, fixed the compose mount/comment, added `aq backfill <target>`, fixed the stale dict and threaded the payload through `pass1_state` per-symbol, wired all 5 fields into `signals[symbol_key]` in `_write_state()`, and added a `/options-strategy` page.
 
-**Verification:** Bug fix via call-graph trace plus full suite green; 1813→1818 python tests; webui 13 tests across 2 files; npm build/lint/test clean.
+**Verification:** The bug fix was confirmed via call-graph trace plus a full green suite; python tests 1813→1818, webui 13 tests across 2 files, npm build/lint/test clean.
 
 ---
 
@@ -805,9 +807,9 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (no code change — a documented decision) · **Status:** 🟢 `fixed` (declined by design, no code change)
 
-**Problem:** Candidate optimization: gate `_build_options_chains_payload()` (runs once per bar per configured option asset) behind `self.options_risk_enabled`.
+**Problem:** A candidate optimization to gate `_build_options_chains_payload()` (runs once per bar per configured option asset) behind `self.options_risk_enabled`.
 
-**Fix:** Declined. Configuring an option asset is already the deliberate visibility trigger (feeds `state.json`/webui regardless of multi-leg trading enabled), matching the "compute for visibility even when trading is off" pattern bond analytics/assignment risk follow; never appeared as meaningful profiling cost.
+**Fix:** Declined — configuring an option asset is already the deliberate visibility trigger (it feeds `state.json`/webui regardless of multi-leg trading), matching the "compute for visibility even when trading is off" pattern bond analytics/assignment risk follow, and it never appeared as a meaningful profiling cost.
 
 **Verification:** Decision recorded so future passes don't re-investigate from scratch.
 
@@ -817,11 +819,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (feature/optimization pass, all off by default) · **Status:** 🟢 `fixed`
 
-**Problem:** Profiling-roadmap continuation: sequence encoder cost paid once per symbol; fixed topology cache tolerance poorly calibrated; hoistable per-bar options cost; blocking experience-event delivery in live/paper; unmeasured `ProcessPoolExecutor` IPC assumption; missing options profiling coverage; unclear framing of which latency work is genuine HFT-fork prep.
+**Problem:** A profiling-roadmap continuation: the sequence encoder cost was paid once per symbol, the fixed topology cache tolerance was poorly calibrated, per-bar options cost was hoistable, live/paper experience-event delivery was blocking, the `ProcessPoolExecutor` IPC assumption was unmeasured, options profiling coverage was missing, and the framing of which latency work is genuine HFT-fork prep was unclear.
 
-**Fix:** P1 — `run_exported_sequence_multitask_model_batched()` stacks all symbols into one batched pass (default off; falls back on <2 sequences or any failure). P2 — percentile-based rolling-window tolerance (`correlation_stability_tolerance_percentile`, default `null` = old behavior). P3 — `group_chain_by_expiry()` hoisted to once per routing call. P5 — `ExperienceQueue.push()` non-blocking `async_enabled` mode (default off). P6 — IPC benchmark confirming `ProcessPoolExecutor` dramatically slower than sequential on this Windows/spawn machine (measured). P7 — `"options"` workload in `profile_subsystems.py`. P8 — `development/architecture.md` section separating genuine HFT-transfer work from daily-bar-loop speedups.
+**Fix:** Added batched sequence inference (`run_exported_sequence_multitask_model_batched()`, default off, falling back on <2 sequences or any failure), a percentile-based rolling-window tolerance, a hoisted `group_chain_by_expiry()` per routing call, non-blocking `ExperienceQueue.push()` (`async_enabled`, default off), an IPC benchmark confirming `ProcessPoolExecutor` is dramatically slower than sequential on this Windows/spawn machine, an `"options"` workload in `profile_subsystems.py`, and an architecture doc section separating genuine HFT-transfer work from daily-bar-loop speedups.
 
-**Verification:** Tests 1818→1857 (39 new: batching parity, percentile math, chain-grouping parity, async semantics, pool-failure degradation, options workload shape); all new keys grep-verified defaulting `false`/`null` (byte-identical off); `main.py` via trace only.
+**Verification:** Tests 1818→1857 (39 new: batching parity, percentile math, chain-grouping parity, async semantics, pool-failure degradation, options workload shape); all new keys grep-verified defaulting `false`/`null` (byte-identical off); `main.py` via call-graph trace only.
 
 ---
 
@@ -853,11 +855,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** low (silent perf-only gap, not correctness) · **Status:** 🟢 `fixed`
 
-**Problem:** Only compiled extension was hand-built for dev-machine Python 3.14, ABI-incompatible with deployed `python:3.11-slim`; Dockerfile lacked compiler/pybind11/extension entirely — C++ acceleration never ran deployed, a 100% silent gap (fallback silent by design).
+**Problem:** The only compiled extension was hand-built for dev-machine Python 3.14 (ABI-incompatible with the deployed `python:3.11-slim`), and the Dockerfile lacked a compiler/pybind11/extension entirely, so C++ acceleration never ran deployed — a 100% silent gap.
 
-**Fix:** Soft-fail `RUN` step installing `build-essential`+`pybind11`, pip-installing `cpp_inference_ext`, purging `build-essential` same layer, wrapped `(...) || echo ...` so toolchain/ABI failure degrades to NumPy fallback rather than breaking build; `.dockerignore` excludes block locally-built incompatible binaries leaking into published image.
+**Fix:** Added a soft-fail `RUN` step installing `build-essential`+`pybind11`, pip-installing `cpp_inference_ext`, and purging `build-essential` in the same layer, wrapped in `(...) || echo ...` so a toolchain/ABI failure degrades to the NumPy fallback rather than breaking the build; a `.dockerignore` block keeps locally-built incompatible binaries out of the published image.
 
-**Verification:** Unconfirmed two phases (Docker/WSL2 outage); Phase 4.12.3 confirmed: `docker compose build engine` succeeds and in-image `import cpp_inference` loads real compiled linkage (`cpp_inference.cpython-311-x86_64-linux-gnu.so`), not fallback.
+**Verification:** Confirmed in Phase 4.12.3: `docker compose build engine` succeeds and in-image `import cpp_inference` loads the real compiled linkage (`cpp_inference.cpython-311-x86_64-linux-gnu.so`), not the fallback.
 
 ---
 
@@ -865,11 +867,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** low · **Status:** 🟢 `fixed`
 
-**Problem:** `main.py` had zero CI coverage — not even syntax check (`AlgorithmImports` undefined outside real Lean process). Separately, `phase_v2.inference_parallelism.enabled` unguarded despite #65 Priority 6 measuring it dramatically slower than sequential on Windows/spawn; key also absent from `config.json`, so `aq config set` on it failed outright rather than silently succeeding.
+**Problem:** `main.py` had zero CI coverage, not even a syntax check (`AlgorithmImports` is undefined outside a real Lean process), and `phase_v2.inference_parallelism.enabled` was unguarded despite #65 measuring it dramatically slower than sequential on Windows/spawn — with the key also absent from `config.json`, so `aq config set` on it failed rather than silently succeeding.
 
-**Fix:** `python -m py_compile main.py` CI step (parse only; mypy/pyright via `quantconnect-stubs` considered, declined as too noisy); `windows_parallelism_slowdown_warning()` fires `Debug()` only on win32 after real pool construction; key-specific stderr warning citing #65 measurement; explicit `phase_v2.inference_parallelism: {"enabled": false}` block added to `config.json` (previously code-side-only, key unsettable).
+**Fix:** Added a `python -m py_compile main.py` CI step (parse only; mypy/pyright via `quantconnect-stubs` was declined as too noisy), a `windows_parallelism_slowdown_warning()` that fires `Debug()` only on win32 after real pool construction, a key-specific stderr warning citing the #65 measurement, and an explicit `phase_v2.inference_parallelism: {"enabled": false}` block in `config.json`.
 
-**Verification:** New `tests/test_parallel_inference.py` cases (win32 vs linux/darwin) + 4 in `tests/test_aq_cli.py` (fires only this path, only truthy, only vs `config.json` not `lean.json`).
+**Verification:** New `test_parallel_inference.py` cases (win32 vs linux/darwin) plus 4 in `test_aq_cli.py` confirm it fires only on this path, only when truthy, and only against `config.json` (not `lean.json`).
 
 ---
 
@@ -925,11 +927,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 9/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Priority 6.5 net-edge gate re-derived its own pass/fail from raw `net_edge_bps` instead of trusting `build_net_edge_decision()`'s `passes` field; "disabled" state still carried real `net_edge_bps=0.0`, so with the `aggressive` preset's `min_net_edge_bps: 2.0`, `0.0 < 2.0` evaluated True every symbol/bar, routing every directional signal away from trading — 100% blocked, 0 orders entire backtest.
+**Problem:** The Priority 6.5 net-edge gate re-derived its own pass/fail from raw `net_edge_bps` instead of trusting `build_net_edge_decision()`'s `passes` field, and the "disabled" state still carried `net_edge_bps=0.0`, so with the `aggressive` preset's `min_net_edge_bps: 2.0`, `0.0 < 2.0` evaluated True every symbol/bar and routed every directional signal away from trading — 100% blocked, 0 orders for the whole backtest.
 
-**Fix:** Removed re-derived comparison + `min_net_edge_bps` parameter from `build_market_analysis_decision()`; trusts `net_edge.get("passes", True)`, the single verdict already computed by `build_net_edge_decision()`; call site updated.
+**Fix:** Removed the re-derived comparison and `min_net_edge_bps` parameter from `build_market_analysis_decision()`, which now trusts `net_edge.get("passes", True)`, the single verdict already computed by `build_net_edge_decision()`.
 
-**Verification:** 5 regression tests in `tests/test_market_analyzer.py` incl. exact "disabled" dict shape asserted reaching `"trade"`; root cause surfaced by real backtest (0 orders); no prior unit test exercised realistic non-`None` disabled dict.
+**Verification:** 5 regression tests in `test_market_analyzer.py` assert the exact "disabled" dict shape reaches `"trade"`; the root cause was surfaced by a real backtest (0 orders) since no prior unit test exercised a realistic non-`None` disabled dict.
 
 ---
 
@@ -937,25 +939,23 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 8/10 · **Status:** 🟢 `fixed`
 
-**Problem:** `_select_book_group()` conviction gate read the cross-sectionally-normalized `predicted_rank_20d` (introduced by F1 fix, #73) instead of raw score; fixed top-6/bottom-6 selection percentile-ranked always shows ~0.90+ spread regardless of dispersion, so the `aggressive` preset's `min_rank_confidence_spread: 0.20` never disengaged book across the whole 2019-2021 run. Sharpe −0.145→−2.526; net profit flipped +3.41%→−3.11%.
+**Problem:** `_select_book_group()`'s conviction gate read the cross-sectionally-normalized `predicted_rank_20d` (introduced by the F1 fix, #73) instead of the raw score, and a fixed top-6/bottom-6 selection percentile-ranks to a ~0.90+ spread regardless of dispersion, so the `aggressive` preset's `min_rank_confidence_spread: 0.20` never disengaged the book across the whole 2019-2021 run — Sharpe −0.145→−2.526 and net profit +3.41%→−3.11%.
 
-**Fix:** Optional `spread_check_ranks` parameter on `_select_book_group()`/`build_rank_based_book()`; `main.py` builds it from each symbol's pre-normalization `raw_rank_score` alongside normalized `book_candidates`; sizing/confidence still reads normalized value — only engagement gate's input changed.
+**Fix:** Added an optional `spread_check_ranks` parameter to `_select_book_group()`/`build_rank_based_book()` that `main.py` builds from each symbol's pre-normalization `raw_rank_score` alongside the normalized `book_candidates`, changing only the engagement gate's input while sizing/confidence still read the normalized value.
 
-**Verification:** 6 new tests in `tests/test_portfolio_book_construction.py` incl. one reproducing bug directly, one proving selection unaffected; not yet re-verified with a Lean backtest — deliberately held in reserve, bundled with Phase 2's retrained-model backtest.
+**Verification:** 6 new tests in `test_portfolio_book_construction.py` (including one reproducing the bug directly and one proving selection is unaffected); the deferred Lean re-verification was superseded by the real runs recorded from #89 onward (#127 for the latest).
 
 ---
-
-**Update (2026-10-06, V5.5.0):** "not yet re-verified with a Lean backtest" is superseded by the real runs recorded from #89 onward (#127 for the latest).
 
 ### 78. `tests/test_retraining_worker.py` — 7 of 11 tests spawned a real, unmocked subprocess, adding ~17 minutes to every full suite run
 
 **Severity:** 3/10 (dev-velocity/CI-cost only, no correctness impact) · **Status:** 🟢 `fixed`
 
-**Problem:** 7 tests patched the first four of `run_once()`'s five best-effort trainer stages but never `train_strategy_selector` — each spawned a real `subprocess.run()` shelling `train_strategy_selector.py` (~140-168s apiece), collectively ~1,050-1,200s of a ~28-minute suite.
+**Problem:** 7 tests in `test_retraining_worker.py` patched the first four of `run_once()`'s five best-effort trainer stages but never `train_strategy_selector`, so each spawned a real `subprocess.run()` shelling `train_strategy_selector.py` (~140-168s apiece) — collectively ~1,050-1,200s of a ~28-minute suite.
 
-**Fix:** Added `patch("retraining.worker.train_strategy_selector")` alongside other stage patches in all 7, matching the file's per-stage mocking convention.
+**Fix:** Added `patch("retraining.worker.train_strategy_selector")` alongside the other stage patches in all 7, matching the file's per-stage mocking convention.
 
-**Verification:** File re-run 11/11 passed, 86.8s total (down from >1,050s for the same 7 tests) — roughly 15-16 minutes off every future full-suite run.
+**Verification:** The file re-runs 11/11 passed in 86.8s total (down from >1,050s for the same 7 tests), roughly 15-16 minutes off every future full-suite run.
 
 ---
 
@@ -963,11 +963,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 (blocked V5.1 Phase 2's CODESPACE RUN 1 entirely — 0 of 12 FRED series fetchable) · **Status:** 🟢 `fixed`
 
-**Problem:** stdlib `urllib.request` (HTTP/1.1-only) could no longer reliably reach FRED's `fredgraph.csv` endpoint — external FRED-side change, not regression; all 12 series failed with read timeouts. Secondary finding: browser-spoofing `User-Agent` header (prior code's own) caused immediate `RST_STREAM` even over HTTP/2, plausibly FRED's WAF cross-checking UA vs TLS fingerprint.
+**Problem:** stdlib `urllib.request` (HTTP/1.1-only) could no longer reliably reach FRED's `fredgraph.csv` endpoint — an external FRED-side change, not a regression — so all 12 series failed with read timeouts; a secondary finding was that the prior browser-spoofing `User-Agent` caused an immediate `RST_STREAM` even over HTTP/2, plausibly FRED's WAF cross-checking UA against the TLS fingerprint.
 
-**Fix:** Swapped to `httpx.Client(http2=True)`; added `httpx[http2]>=0.27.0`; removed browser-spoofing `User-Agent` entirely (left unset).
+**Fix:** Swapped to `httpx.Client(http2=True)` (adding `httpx[http2]>=0.27.0`) and removed the browser-spoofing `User-Agent` entirely.
 
-**Verification:** Network-mocking tests rewritten against `httpx.Client` in `tests/test_fred_backfill.py`; 31/31 pass; verified live locally and on Codespace: all 12 series incl. 3 new ones fetch successfully with full historical coverage.
+**Verification:** Network-mocking tests were rewritten against `httpx.Client` in `test_fred_backfill.py` (31/31 pass) and verified live locally and on the Codespace: all 12 series, including 3 new ones, fetch successfully with full historical coverage.
 
 ---
 
@@ -975,11 +975,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 (would have buried the 3 genuine orphans under ~70 false positives) · **Status:** 🟢 `fixed`
 
-**Problem:** Manifest builds on the post-scaling dataset, but `_computed_but_unused_feature_columns()` excluded only `base_feature_names`/`context_feature_names` — never `scaled_feature_names`, `categorical_feature_names`, or raw OHLCV/bookkeeping columns — so every `_scaled` sibling, categorical one-hot, and bookkeeping column (timestamp/open/high/low/close/volume, security_type, etc.) was flagged orphan; tiny synthetic fixtures never included these column classes.
+**Problem:** `train.py::build_dataset_manifest()`'s new `computed_but_unused_features` (V5.1 Phase 2) built on the post-scaling dataset but `_computed_but_unused_feature_columns()` excluded only `base_feature_names`/`context_feature_names` — never `scaled_feature_names`, `categorical_feature_names`, or raw OHLCV/bookkeeping columns — so it flagged ~70 legitimate columns as orphaned; tiny synthetic fixtures never included those column classes.
 
-**Fix:** Threaded `scaled_feature_names`/`categorical_feature_names` into exclusion set; expanded `_NON_FEATURE_DATASET_COLUMNS` with `RAW_COLUMNS` plus `security_type`/`market`/`quality_tier`/`trading_eligible`/`training_eligible`.
+**Fix:** Threaded `scaled_feature_names`/`categorical_feature_names` into the exclusion set and expanded `_NON_FEATURE_DATASET_COLUMNS` with `RAW_COLUMNS` plus `security_type`/`market`/`quality_tier`/`trading_eligible`/`training_eligible`.
 
-**Verification:** Regression test covering all three previously-missed classes; Codespace real-dataset build returns exactly the 3 genuine orphans (`futures_term_structure_slope`, `options_implied_vol_skew`, `options_put_call_ratio`).
+**Verification:** A regression test covers all three previously-missed classes, and a Codespace real-dataset build returns exactly the 3 genuine orphans (`futures_term_structure_slope`, `options_implied_vol_skew`, `options_put_call_ratio`).
 
 ---
 
@@ -1001,11 +1001,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 7/10 (crashed the entire walk-forward run on window 1) · **Status:** 🟢 `fixed`
 
-**Problem:** Net-performance call site passed outer `feature_names` (49 raw pre-scaling names from `config["phase1"]["features"]["input_set"]`) instead of the 66-column `model_input_names` models actually trained against — `ValueError: _conv1d_causal: in_channels mismatch (49 vs weight's 66)`.
+**Problem:** V5.1 Phase 4's walk-forward net-performance call site passed the outer `feature_names` (49 raw pre-scaling names) instead of the 66-column `model_input_names` the models were actually trained against, crashing window 1 with `ValueError: _conv1d_causal: in_channels mismatch (49 vs weight's 66)`.
 
 **Fix:** Both call sites now use `dataset_manifest["model_input_names"]`.
 
-**Verification:** Exact run that crashed window 1 completed all 6 windows post-fix; no unit test caught it — fixtures used tiny single-feature lists where "raw" vs "model input" names never genuinely distinct.
+**Verification:** The exact run that crashed window 1 completed all 6 windows post-fix; no unit test caught it because fixtures used tiny single-feature lists where "raw" and "model input" names were never genuinely distinct.
 
 ---
 
@@ -1013,11 +1013,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 (no corruption — degraded cleanly to multitask fallback — but weakened statistical power of 3 of 6 windows) · **Status:** 🟢 `fixed` (root cause found and fixed at start of Phase 5)
 
-**Problem:** SIGTERM-killed on windows >~130-147k rows (3 of 6 in CODESPACE RUN 3), always constructing dense `(rows, 30, 66)` tensor; partial fix (freeing parent's held dataset) recovered one window, not ceiling. Root cause: built full `sequences` array once but extracted backtest split ~250 lines later — ~1.08GB resident through entire training loop on machine with 7.8GB RAM, zero swap.
+**Problem:** Walk-forward sequence training was SIGTERM-killed on windows >~130-147k rows (3 of 6 in CODESPACE RUN 3) while constructing the dense `(rows, 30, 66)` tensor; a partial fix (freeing the parent's held dataset) recovered one window but not the ceiling, root-caused to building the full `sequences` array once and extracting the backtest split ~250 lines later — ~1.08GB resident through the whole training loop on a 7.8GB machine.
 
-**Fix:** Moved split extraction next to train/validation splits; `del sequences; gc.collect()` before training starts; switched `evaluation/model_predictions.py::build_sequence_windows()` float64→float32 matching `train.py` dtype.
+**Fix:** Moved the split extraction next to the train/validation splits, added `del sequences; gc.collect()` before training, and switched `evaluation/model_predictions.py::build_sequence_windows()` from float64 to float32 to match `train.py`.
 
-**Verification:** Standalone re-runs on 3 largest windows (146,868 / 153,696 / 160,219 rows) succeeded first attempt; summary regenerated at full 6/6 windows; sequence Sharpe windows 3-5 moved from fallback values (0.91, −0.26, −0.26) to real sequence values (0.39, 0.62, 1.47), all positive.
+**Verification:** Standalone re-runs on the 3 largest windows (146,868 / 153,696 / 160,219 rows) succeeded first attempt; the summary regenerated at full 6/6 windows, with sequence Sharpe windows 3-5 moving from fallback values (0.91, −0.26, −0.26) to real ones (0.39, 0.62, 1.47), all positive.
 
 ---
 
@@ -1025,11 +1025,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 8/10 · **Status:** 🟢 `fixed` (V5.1)
 
-**Problem:** Rank heads (`rank_5d`/`rank_20d`/`sector_neutral_rank_20d`) trained raw linear output vs `[0,1]` percentile target, but export wrapped every head in leftover `"sigmoid"` — compressing live `predicted_rank_20d` into ~[0.475, 0.75], silently tightening `min_rank_confidence_spread` ~4x, capping confidence near 0.5, zero-sizing bottom-ranked shorts; invisible to rank-quality gates because rank-IC is invariant under monotone transforms.
+**Problem:** Rank heads (`rank_5d`/`rank_20d`/`sector_neutral_rank_20d`) trained raw linear output against a `[0,1]` percentile target, but export wrapped every head in a leftover `"sigmoid"` — compressing live `predicted_rank_20d` into ~[0.475, 0.75], silently tightening `min_rank_confidence_spread` ~4x, capping confidence near 0.5, and zero-sizing bottom-ranked shorts, all invisible to rank-quality gates since rank-IC is invariant under monotone transforms.
 
-**Fix:** Export activation `"sigmoid"`→`None` for every rank head; per-bar cross-sectional percentile normalization at inference (`portfolio/rank_signal.py::cross_sectional_rank_scores()`), since pure ranking loss makes absolute output scale meaningless by construction.
+**Fix:** Set the export activation to `None` for every rank head and added per-bar cross-sectional percentile normalization at inference (`portfolio/rank_signal.py::cross_sectional_rank_scores()`), since a pure ranking loss makes absolute output scale meaningless by construction.
 
-**Verification:** Manual code/architecture fix; no backtest cited.
+**Verification:** Manual code/architecture fix (V5.1), no backtest cited.
 
 ---
 
@@ -1037,11 +1037,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed` (V5.1)
 
-**Problem:** 75 of 104 tickers defaulted `"Unknown"` (all 15 forex pairs, most crypto/equities), making `target_sector_neutral_rank_20d` (live head, `loss_weight: 0.3`) nearly duplicate plain `rank_20d` for 72% of universe; genuinely small sectors NaN'd under `min_sector_size: 3`.
+**Problem:** `sector_mapping.json` covered only 29 of the universe's 104 assets — 75 tickers (all 15 forex pairs, most crypto/equities) defaulted `"Unknown"`, making `target_sector_neutral_rank_20d` (a live head with `loss_weight: 0.3`) nearly duplicate plain `rank_20d` for 72% of the universe, while genuinely small sectors NaN'd under `min_sector_size: 3`.
 
-**Fix:** Full 104-ticker mapping (GICS-like buckets equities; `Forex`/`Crypto`/`Fixed Income`/`Broad Market ETF` rest); `AAA` deliberately unmapped as documented ambiguous legacy ticker.
+**Fix:** Added a full 104-ticker mapping (GICS-like buckets for equities; `Forex`/`Crypto`/`Fixed Income`/`Broad Market ETF` for the rest), leaving `AAA` deliberately unmapped as a documented ambiguous legacy ticker.
 
-**Verification:** Manual review; no backtest cited.
+**Verification:** Manual review (V5.1), no backtest cited.
 
 ---
 
@@ -1049,11 +1049,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 · **Status:** 🟢 `fixed` (V5.1)
 
-**Problem:** `top_n=10 + bottom_n=10` requests 20 names but `max_active_positions=15`; excess rejected in `self.symbols` iteration order — accident of universe ordering, not conviction.
+**Problem:** `top_n=10 + bottom_n=10` requested 20 names but `max_active_positions=15`, so excess names were rejected in `self.symbols` iteration order — an accident of universe ordering, not conviction.
 
-**Fix:** Presets set `max_active_positions >= top_n + bottom_n`; when cap binds, Pass 2 sorts candidates by rank-confidence so strongest convictions survive.
+**Fix:** Presets now set `max_active_positions >= top_n + bottom_n`, and when the cap binds, Pass 2 sorts candidates by rank-confidence so the strongest convictions survive.
 
-**Verification:** Manual code/config fix; no backtest cited.
+**Verification:** Manual code/config fix (V5.1), no backtest cited.
 
 ---
 
@@ -1061,11 +1061,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Binding-ticker search picks lowest-average-dollar-volume held name; forex pairs always report `liquidity_log_dollar_volume == 0.0` (Yahoo reports no FX volume), so any forex pair won automatically, producing sub-$1 `capacity_usd` (0.3-0.6 observed) failing every promotion gate regardless of rest of book's real liquidity. Secondary bug: inverse of `log1p()` is `np.expm1()`, not `np.exp()` (used instead).
+**Problem:** `capacity_curve()`'s binding-ticker search picked the lowest-average-dollar-volume held name, and forex pairs always report `liquidity_log_dollar_volume == 0.0` (Yahoo reports no FX volume), so any forex pair won automatically and produced a sub-$1 `capacity_usd` failing every promotion gate regardless of the rest of the book's real liquidity; a secondary bug was using `np.exp()` where `log1p()`'s inverse is `np.expm1()`.
 
-**Fix:** Exact-zero tickers excluded from binding search (true zero = no liquidity signal, not "most illiquid"); `np.exp`→`np.expm1` fixed alongside.
+**Fix:** Excluded exact-zero tickers from the binding search (a true zero is no liquidity signal, not "most illiquid") and fixed `np.exp`→`np.expm1`.
 
-**Verification:** 3 new tests in `tests/test_rank_book_simulator.py` (zero-volume exclusion, all-zero fallback, exact value distinguishing `expm1` from `exp`).
+**Verification:** 3 new tests in `test_rank_book_simulator.py` cover zero-volume exclusion, the all-zero fallback, and an exact value distinguishing `expm1` from `exp`.
 
 ---
 
@@ -1121,11 +1121,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 10/10 · **Status:** 🟢 `fixed` (V5.2.6)
 
-**Problem:** Crypto/FX were regularly selected but never placed one real order — forex's synthetic quote-bar conversion hardcodes `volume=0.0`, tripping liquidity gate's zero-volume block. Live also carries ~10 risk/execution gates offline's Sharpe engine never models, two duplicating signal already an active input feature.
+**Problem:** Crypto/FX were regularly selected but never placed a single real order — forex's synthetic quote-bar conversion hardcodes `volume=0.0`, tripping the liquidity gate's zero-volume block — and live carries ~10 risk/execution gates that offline's Sharpe engine never models, two of them duplicating a signal already an active input feature.
 
-**Fix:** Added `zero_volume_fallback_ddv` (forex always; crypto only `quality_tier=="core"`) substituting realistic daily-dollar-volume estimate without bypassing participation/cost gates. Book-selection-aware confidence thresholds; narrowed `risk_off`/`topology_elevated` overrides using real-data-derived thresholds; `aq evaluate --calibrate-confidence-threshold` + `book_member_decisions` diagnostic.
+**Fix:** Added `zero_volume_fallback_ddv` (always for forex; for crypto only when `quality_tier=="core"`) to substitute a realistic daily-dollar-volume estimate without bypassing participation/cost gates, added book-selection-aware confidence thresholds, narrowed the `risk_off`/`topology_elevated` overrides using real-data-derived thresholds, and added `aq evaluate --calibrate-confidence-threshold` plus a `book_member_decisions` diagnostic.
 
-**Verification:** 33 new tests; suite 2530 passed. Real backtest (2026-08-10): Sharpe -4.103→-2.984. First attempt crashed deferred-write bug (`spread_check_ranks` UnboundLocalError), catchable only via real bar-to-bar Lean run — fixed, re-run succeeded. Surfaced two further bugs (forex sizing, sticky kill-switch lockout) — see #93.
+**Verification:** 33 new tests, suite 2530 passed; a real backtest (2026-08-10) improved Sharpe −4.103→−2.984. A first attempt crashed on a deferred-write bug (`spread_check_ranks` UnboundLocalError) catchable only via a real bar-to-bar Lean run (fixed, re-run succeeded), surfacing two further bugs — forex sizing and sticky kill-switch lockout — see #93.
 
 ---
 
@@ -1262,17 +1262,17 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 3/10 · **Status:** 🟢 `fixed`
 
-**Problem:** Refreshing README evaluation numbers post-#100 (`aq evaluate --all --model sequence`/`--model multitask`, non-`--json`) crashed both with `UnicodeEncodeError: 'charmap' codec can't encode character 'Δ'` — `aq_cli.py`'s delta-print line (`f"  Δnet_sharpe vs entry_lag_bars=0: ..."`) used literal Δ, absent from Windows cp1252 console codec (unlike em-dashes safe elsewhere). Crash hit mid-`--all`, after rank-book reporting but before capacity/stress/calibrate-edge ran and before README refresh call — Windows-console `--all` runs silently left capacity/cost-stress numbers stale, README unrefreshed, error only on stderr.
+**Problem:** Refreshing README evaluation numbers post-#100 (`aq evaluate --all`, non-`--json`) crashed on Windows with `UnicodeEncodeError: 'charmap' codec can't encode character 'Δ'` — `aq_cli.py`'s delta-print line used a literal Δ, absent from the cp1252 console codec. The crash hit mid-`--all`, after rank-book reporting but before capacity/stress/calibrate-edge and the README refresh, so Windows-console runs silently left those numbers stale, with the error only on stderr.
 
-**Fix:** Δ replaced with ASCII `delta_net_sharpe` label.
+**Fix:** Replaced Δ with an ASCII `delta_net_sharpe` label.
 
-**Verification:** `py_compile aq_cli.py` clean; `tests/test_aq_cli.py` (216 tests) green; both `--all` re-runs completed end-to-end, refreshing sections stuck since Aug 13.
+**Verification:** `py_compile aq_cli.py` clean; `test_aq_cli.py` (216 tests) green; both `--all` re-runs completed end-to-end, refreshing sections stuck since Aug 13.
 
 ---
 
 ### 102. Real V5.3.3 backtest (2026-08-17): factor-file fix strongly confirmed live for 3-4 of 5 tracked tickers — but the confidence-spread recalibration made real Sharpe measurably worse, isolated cleanly to that one change
 
-**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (factor-file fix, #100, for GE/BA/NVDA/WFC); 🔴 `regressed` (confidence-spread recalibration) — recommend reconsidering the applied value
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` (factor-file fix, #100, for GE/BA/NVDA/WFC); the confidence-spread regression is superseded: the floor was recalibrated to 0.1985 (V5.6.0) and 0.184 on the live pool (#146), confirmed by BT5-BT7 (V5.8.0 closure)
 
 **Problem:** #100 shipped factor-file fix (offline-verified only) plus applied recalibration of `min_rank_confidence_spread` (0.5014→0.2831, verification deferred to user's own backtest). That backtest ran (Docker/`aq backtest`, 2019-01-01→2021-04-02, ~6.8 hours). Factor-file fix never touches `main.py`'s live path (#100); no other code changed vs prior real run (`backtests/2026-08-14_18-46-38`) — clean single-variable A/B on recalibration alone.
 
@@ -1296,7 +1296,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 103. A rolling trailing-IC gate, addressing #102's recommendation directly — built, offline-verified against real data, wired into `main.py` behind `enabled: false`; live effect not yet tested
 
-**Severity:** 6/10 (same issue as #102) · **Status:** 🟡 `built and offline-verified, not yet live-tested` — real `aq backtest` still needed before this can close #102
+**Severity:** 6/10 (same issue as #102) · **Status:** 🟢 `fixed and verified` — enabled since V5.5.0 and live in every backtest from 2026-10-07 on; its window/floor were re-decided by R-GATE in #146 and confirmed by BT5-BT7 (V5.8.0 closure; the holdout veto rate is studied in V5.8.0's gate audit)
 
 **Problem:** #102 found `min_rank_confidence_spread` (same-day raw-score dispersion) can't tell "model differentiates symbols today" from "differentiation directionally correct" — recalibrated threshold traded through known no-skill eras because dispersion looked normal when skill didn't exist. #102's recommendation: smarter calibration accounting for per-era IC stability.
 
@@ -1336,6 +1336,8 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Update (V5.6.0) - closed as environmental:** BT1 ran the strongest cleanup yet (Python slippage model detached from all 104 securities, GC unfrozen, containers cleared, no `gc.freeze()`): still `Operation timed out` at `PythonInitializer.Shutdown()`. A 15-line algorithm (SPY daily, no custom objects, `mini_teardown/`) hangs identically in the pinned `lean:17900` image (`Failed to shutdown python`), so the cause is the engine image, not this code; results are always written first. The experiment code stays behind `phase_v2.diagnostics.teardown_cleanup.release_models` (default off). The `latest` image probe was cut short by the memory reaper.
 
+**V5.8.0 evidence:** BT1 and BT2 both ended with `PythonInitializer.Shutdown(): calling engine shutdown...` and the 10-second `Execution Security Error` only after `*-summary.json`, the order events and the report data were written; results were never affected, so the entry stays 🔴 environmental.
+
 ### 105. Train-vs-live feature-parity audit (V5.3.6 WS-A) - scaler artifact verified exact; NO live-path formula drift found in all OHLCV-recomputable families; residual deltas fully attributed to replica boundary artifacts
 
 **Severity:** n/a (verification pass; would have been 9/10 had drift been found) · **Status:** 🟢 `verified clean` for covered families; watch items documented
@@ -1366,7 +1368,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 ### 106. Gate sweep, kill-switch offline finding, promotion-gate null calibration, overlap-vs-Sharpe pairs, first Codespace retrain on synced tree (V5.3.6 WS-B/C/D/E + training)
 
-**Severity:** n/a (calibration/verification round) · **Status:** 🟡 `results banked; live decisions pending user`
+**Severity:** n/a (calibration/verification round) · **Status:** 🟢 `fixed` — every pending decision was taken in V5.6.0/V5.7.0 (spread floor, IC gate, kill switch, promotion rule: #142-#146) (V5.8.0 closure)
 
 **WS-B gate sweep** (`scripts/gate_sweep.py` -> `ml/evaluation/gate_sweep_results.json`; multitask rank_5d mirror, 2019+ window, 82 rebalance dates):
 - Base offline book: **net Sharpe +1.497 / gross +1.567** - the offline edge is real; the gap to live -1.8 remains execution-side.
@@ -1406,14 +1408,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (verification-layer feature) · **Status:** 🟢 `shipped and live-verified`
 
-**Shipped:**
-- `evaluation/monte_carlo.py` - pure, seeded, numpy-only core: stationary block bootstrap (default 20-day blocks; `iid` variant) of the offline rank book's daily NET returns into N=1000 alternative equity histories. Emits per-run downsampled curves, the element-wise average curve (the README's red line), and return/Sharpe/maxDD percentile tables + loss probability. Degrades cleanly under 30 samples.
-- CLI: `aq evaluate --monte-carlo [--mc-runs --mc-block-size --mc-seed --mc-method]` (implies base `--rank-book`). Writes `ml/evaluation/monte_carlo.json` (summary+avg+band) and `monte_carlo_curves.npz` (full runs matrix for the PNG).
-- README "live updates": new `### Monte Carlo Simulation` subsection between Lean Backtest and Offline Evaluation, driven by `AQ:MONTECARLO_*` markers handled in `generate_evaluation_report.py`; every evaluate run regenerates `development/monte_carlo_equity_curves.png` (all runs faint blue + red average + start baseline) and the foldable deep-stats block.
+**Problem:** N/A — Monte Carlo simulation over the offline rank book, surfaced as an auto-refreshing README section and a webui panel.
 
-**First real run (promoted multitask book, 565 days):** final return p5/p50/p95 = **-2.00% / +9.38% / +21.45%**, Sharpe p5/p95 = -0.18 / 2.52, maxDD p95 = 9.11%, P(negative) = 9.5%. I.e., even resampling away the lucky path ordering leaves a >95% probability of a positive total return with sub-10% tail drawdowns.
+**Fix:** Added `evaluation/monte_carlo.py` (pure, seeded, numpy-only: a stationary block bootstrap, default 20-day blocks, of the book's daily NET returns into N=1000 alternative equity histories, emitting per-run downsampled curves, the element-wise average, and return/Sharpe/maxDD percentile tables + loss probability, degrading cleanly under 30 samples); the `aq evaluate --monte-carlo [--mc-runs --mc-block-size --mc-seed --mc-method]` CLI (implying `--rank-book`) writing `monte_carlo.json` and `monte_carlo_curves.npz`; a README subsection plus the all-runs PNG (faint blue runs + red average + baseline); and a `MonteCarloPanel.tsx` webui panel served via `/api/evaluation`'s `monte_carlo` key.
 
-**Verification:** 9 dedicated tests (seeded determinism, shapes/downsampling, avg==mean-of-runs, zero-return degenerate, percentile ordering on a losing series, short-input degrade, unknown method skip, block-vs-iid smoke, config echo) + full suite green.
+**Verification:** 9 dedicated python tests plus 4 vitest component tests and 2 state tests (vitest 100/100 across 23 files, tsc/build clean); the first real run on the promoted multitask book (565 days) gave return p5/p50/p95 = −2.00% / +9.38% / +21.45%, Sharpe p5/p95 = −0.18 / 2.52, maxDD p95 = 9.11%, P(negative) = 9.5%.
 
 
 **V5.3.8 webui integration addendum:** Monte Carlo surfaced as a first-class evaluation panel — `webui/src/components/evaluation/MonteCarloPanel.tsx` (config echo, inline SVG average curve with p5/p95 band, return/Sharpe/maxDD percentile table, loss probability + best/worst) mounted on the Evaluation page; `monitoring/evaluation_state.py` now serves `monte_carlo.json` via `/api/evaluation` (`monte_carlo` key, honest not-evaluated fallback). TS types added (`MonteCarloReport` etc.; legacy fixtures tolerated via optional keys). Tests: 4 vitest component tests (empty state, config/distribution render, SVG paths present, backend not_evaluated parity), 2 python state tests, full vitest suite **100/100 across 23 files**, `tsc -b --noEmit` clean, production build clean. Bugs found en route: float artifact in fixture (9.38-2=7.380000000000001) and missing KillSwitchReplayReport TS type — both fixed.
@@ -1423,31 +1422,20 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (verification-infrastructure round) · **Status:** 🟢 `shipped`
 
-**Gap list found when auditing ci.yml:** the 100 vitest frontend tests never ran in CI; no Python lint existed; no coverage measurement/gate; Linux-only runners despite Windows being the dev platform (past platform bugs like #10's float-summation variance were exactly this class); `release.yml` published PyPI/Docker/GitHub-Release on tag push with zero test visibility.
+**Problem:** Auditing `ci.yml` found the 100 vitest frontend tests never ran in CI, no Python lint or coverage measurement/gate existed, runners were Linux-only despite Windows being the dev platform (the class of past bugs like #10's float-summation variance), and `release.yml` published to PyPI/Docker/GitHub-Release on tag push with zero test visibility.
 
-**Shipped:**
-- `ci.yml` rewritten to five jobs:
-  1. `python-tests` — matrix `[ubuntu-latest, windows-latest]`, full offline suite with coverage (`--cov-fail-under=80`, calibrated from the measured 82% total on this suite minus two points of slack), coverage.xml artifact uploaded from the ubuntu leg.
-  2. `python-lint` — NEW ruff job (E/F ruleset calibrated to existing style: line-length 240, main.py star-import exemptions per Lean pattern, `__init__.py` re-export exemption). Adopted into requirements-dev.txt for local parity; **604 pre-existing findings triaged to zero** (23 auto-fixed unused imports, remainder hand-fixed: dead stores incl. three unused `rank_signal_config` assignments, loop-variable shadowing, ambiguous names).
-  3. `webui-tests` — the pre-existing tsc/oxlint/build job now ALSO runs `npx vitest run --pool=threads`: the frontend suite finally executes in CI.
-  4. `cli-smoke` — editable install + deterministic offline battery (`aq --help`, `aq evaluate --help`, `aq config get phase1.universe.name`, `aq secrets-check`) catching packaging drift.
-  5. `workflows-lint` — actionlint validating both workflow files.
-- `release.yml`: NON-BLOCKING `tag-tests` visibility job added per user decision — releases still proceed regardless of test results; gaps are visible directly on the tag run instead.
-- `tests/test_ci_workflows.py` — 7 meta-tests pinning triggers, matrix contents, the coverage gate value, vitest-in-CI ordering, ruff/py_compile presence, the deliberately non-gated release structure, all three publish targets, and the README's `--monte-carlo` documentation.
-- Coverage config lives in pyproject ([tool.coverage.run/report]) with source/omit lists so local runs match CI exactly.
+**Fix:** Rewrote `ci.yml` into five jobs — `python-tests` (ubuntu+windows matrix, full offline suite with `--cov-fail-under=80` calibrated from the measured 82% total minus two points of slack, coverage artifact from ubuntu), a new `python-lint` ruff job (E/F ruleset calibrated to existing style; 604 pre-existing findings triaged to zero), `webui-tests` now also running `npx vitest run --pool=threads`, a `cli-smoke` packaging-drift battery, and `workflows-lint` actionlint validation. Added a non-blocking `tag-tests` visibility job to `release.yml` (releases proceed regardless, gaps visible on the tag run), 7 meta-tests in `test_ci_workflows.py` pinning all this, and coverage config in pyproject so local matches CI.
 
-**Verification:** ruff clean; full suite 2751 passed / 11 deselected locally including the new meta tests (the subsystem-mapping guard itself caught the unregistered test file mid-round - working as designed).
+**Verification:** ruff clean; full suite 2751 passed / 11 deselected including the new meta-tests (the subsystem-mapping guard itself caught the unregistered test file mid-round).
 
 
 ### 110. V5.3.10 - CI regression fixes (requirements parse meta-test, pinned actionlint single-step) + aq test --ruff flag + main.py extraction batch #1
 
 **Severity:** n/a · **Status:** 🟢 `shipped`
 
-**CI regressions fixed:** requirements-dev.txt had a PowerShell-backtick-mangled line (`uff check .)`) failing ubuntu install at 9s; actionlint two-step PATH-append pattern lost the binary between steps. Both root-caused from GH run logs, fixed, and pinned by meta-tests (`test_every_requirements_line_parses_as_a_valid_requirement` and `test_actionlint_is_pinned_to_a_fixed_version`).
+**Problem:** V5.3.10 addressed three items: two CI regressions (a PowerShell-backtick-mangled `requirements-dev.txt` line failing the ubuntu install at 9s, and a two-step actionlint PATH pattern losing the binary between steps), the lack of a fast lint gate, and further `main.py` extraction.
 
-**aq test --ruff:** new flag runs ruff check . before pytest so lint failures fail fast; ci.yml python-lint job uses it (single source of truth).
-
-**main.py extraction batch #1:** `_midpoint_bar_from_quote_bar()` -> `data_pipeline/bar_synthesis.py::midpoint_bar_from_quote_bar()`; `_pad_sequence_history()` -> same module::`pad_sequence_history()`. Thin delegations in main.py; bodies verbatim in the module.
+**Fix:** Fixed both CI regressions and pinned them with meta-tests, added the `aq test --ruff` flag (runs ruff before pytest so lint failures fail fast, used by the ci.yml lint job), and extracted `_midpoint_bar_from_quote_bar()`/`_pad_sequence_history()` verbatim into `data_pipeline/bar_synthesis.py` as thin main.py delegations.
 
 **Verification:** py_compile clean; ruff clean; 2757 tests green.
 
@@ -1456,13 +1444,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** n/a (CI infrastructure) · **Status:** 🟢 `shipped`
 
-**Problem:** the `python-lint` job (V5.3.10) used `aq test --ruff` which requires importing aq_cli → data_pipeline.fetch → pandas — but the lint job intentionally has a minimal environment (ruff only, no full deps). Result: ModuleNotFoundError at ~9 seconds. Additionally, a duplicated "Syntax-check main.py" step existed in the same job.
+**Problem:** The `python-lint` job (V5.3.10) used `aq test --ruff`, which imports `aq_cli`→`data_pipeline.fetch`→pandas, but the lint job intentionally runs in a minimal ruff-only environment, so it failed with `ModuleNotFoundError` at ~9s; the same job also held a duplicated "Syntax-check main.py" step.
 
-**Fix:** reverted to bare `ruff check .` (the lint job's minimal environment is by design; local devs use `aq test --ruff` where full deps are installed). Removed the duplicate py_compile step. Meta-test updated to match.
+**Fix:** Reverted to bare `ruff check .` (the minimal lint env is by design; local devs use `aq test --ruff` with full deps), removed the duplicate py_compile step, and added a new `dependency-audit` job running `pip-audit --requirement requirements/*.txt` against runtime and dev deps on every push/PR to catch CVEs before a release tag.
 
-**NEW: dependency-audit job** — `pip-audit --requirement requirements/*.txt` scanning for known CVEs against both runtime and dev dependencies on every push/PR. Catches supply-chain vulnerabilities before they reach a release tag.
-
-**Verification:** ci.yml parses cleanly with 6 jobs; meta-tests updated to match.
+**Verification:** `ci.yml` parses cleanly with 6 jobs; meta-tests updated to match.
 
 
 ### 112. V5.4.1 - RL sizing reward asymmetry fix (root-cause of 3× honest negative), regime conditioning in state vector, auto-rollback hardening (dry-run + degradation score), prediction provenance counters, topology EWM option deferred
@@ -1483,15 +1469,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 8/10 (would have crashed forex path + silently killed sequence model on every bar) · **Status:** 🟢 `fixed and verified`
 
-**Problem:** the V5.3.10 extraction of `_midpoint_bar_from_quote_bar()` and `_pad_sequence_history()` to `data_pipeline/bar_synthesis.py` never added the import statement to main.py (`from data_pipeline.bar_synthesis import ...`). The thin delegation bodies referenced unbound names → NameError at runtime. py_compile stayed green (NameError is runtime, not syntax). CI stayed green because zero tests import main.py.
+**Problem:** The V5.3.10 extraction of `_midpoint_bar_from_quote_bar()` and `_pad_sequence_history()` into `data_pipeline/bar_synthesis.py` never added the corresponding import to main.py, so the thin delegation bodies referenced unbound names — a runtime `NameError` that `py_compile` and CI both missed since no test imports main.py. The blast radius was a hard crash on the first forex quote-bar tick, a silently dead sequence model every bar, and a permanently-zero `sequence_served` counter.
 
-**Blast radius if not caught:** (1) forex path = hard crash on first forex quote-bar tick, killing the algorithm. (2) sequence model = silently dead every bar (NameError caught by existing try/except → returns None → gating loses all sequence input). (3) prediction provenance counter would show `sequence_served=0` forever.
+**Fix:** Added the module-scope import in main.py, 5 parity tests in `test_bar_synthesis_parity.py` registered in `_SUBSYSTEM_TEST_FILES`, and removed a duplicate "Syntax-check main.py" CI step (a V5.3.11 rebase regression).
 
-**Fix:** added `from data_pipeline.bar_synthesis import midpoint_bar_from_quote_bar, pad_sequence_history` at module scope in main.py (line 217). Added 5 parity tests in `tests/test_bar_synthesis_parity.py`. Registered in `_SUBSYSTEM_TEST_FILES`.
-
-**Also fixed:** duplicate "Syntax-check main.py" step in ci.yml's python-lint job (V5.3.11 regression from rebase conflict resolution keeping wrong side).
-
-**Verification:** full suite 2769 passed / 0 failed; py_compile clean; ruff clean; all 6 pre-backtest config checks PASS.
+**Verification:** Full suite 2769 passed / 0 failed; py_compile clean; ruff clean; all 6 pre-backtest config checks PASS.
 
 
 ### 112. V5.4.2 - residual_rank_20d head documented as non-promotable; factor-neutralization check scoped for V5.4.3; Almgren impact model shipped; residual head excluded from decision process via config
@@ -1507,69 +1489,68 @@ Every entry follows **Problem** → **Fix** → **Verification** (real Lean back
 
 **Severity:** 5/10 (CI red blocks the merge signal for every later PR; the HRP bug would have silently halved the default book's exposure the moment `allocation_method: "hrp"` went live) · **Status:** 🟢 `fixed and verified`
 
-**Problem 1 (CI):** `ci.yml`'s `python-lint` job failed after ~8s on every push since V5.4.3 — that release shipped two ruff findings with it: `F841` unused local `next_date` (`evaluation/benchmark_comparison.py:48`, dead leftover from the baseline's return-window logic) and `F401` unused `scipy.cluster.hierarchy.fcluster` import (`portfolio/hrp_allocation.py:16`). Local dev never noticed because `aq test` runs ruff only via the `--ruff` flag.
+**Problem 1 (CI):** `ci.yml`'s `python-lint` job failed after ~8s on every push since V5.4.3, which had shipped two ruff findings — `F841` unused local `next_date` (`evaluation/benchmark_comparison.py:48`) and `F401` unused `scipy.cluster.hierarchy.fcluster` import (`portfolio/hrp_allocation.py:16`) — unnoticed locally because `aq test` runs ruff only under `--ruff`.
+**Fix 1:** Removed the dead assignment; dropped `fcluster` and hoisted the function-level `leaves_list` import to module scope.
 
-**Fix 1:** removed the dead assignment; dropped `fcluster` and hoisted the function-level `leaves_list` import to module scope. `ruff check .` clean.
+**Problem 2 (README chart clobbered by the test suite):** the Monte Carlo PNG showed only the red average with a degenerate 2-point x-axis, root-caused (by byte-hashing the PNG before/after isolated test runs, not staleness) to `generate_evaluation_report.py::update_readme_evaluation_sections()` unconditionally rendering the real repo PNG from `load_monte_carlo()`, while a report test monkeypatched `EVALUATION_DIR` to a tmp dir holding a degenerate `(10×2)` fixture — so **every full-suite run overwrote the real chart with the fixture render**.
+**Fix 2:** Render the chart only when the target readme resolves to the real `README_PATH`, spy-assert the tmp-readme path doesn't render, add a fully-hermetic companion test, add two regression tests intercepting `Axes.plot`, and regenerate the chart from the real npz.
 
-**Problem 2 (README chart clobbered by the test suite):** the README's Monte Carlo chart (`development/monte_carlo_equity_curves.png`) showed ONLY the red average line — no individual runs — and a degenerate 2-point x-axis, while the full `(1000×500)` per-run matrix sat unused in `ml/evaluation/monte_carlo_curves.npz`. Root cause (found by byte-hashing the PNG before/after isolated test runs, NOT staleness): `generate_evaluation_report.py::update_readme_evaluation_sections()` unconditionally rendered `MONTECARLO_CHART_PATH` (a module constant pointing at the REAL repo PNG) from `load_monte_carlo()`'s output — and `tests/test_generate_evaluation_report.py::test_monte_carlo_markers_render_not_run_yet_fallback_when_json_absent` monkeypatched `EVALUATION_DIR` to a tmp dir containing a degenerate fixture (`runs_curves=np.ones((10,2))` — 10 flat invisible lines, 2-point x-axis) but NOT the chart path. **Every full test-suite run therefore silently overwrote the real chart with the fixture render** — the committed PNG was fixture output, not `aq evaluate` output, and the individual-run renderer (correct since V5.3.8) never got to show its work in the README.
+**Problem 2b (test-badge reset, same bug class):** the README tests badge stayed frozen at `2751` because `test_aq_test_ruff_flag.py::test_ruff_flag_clean_repo_passes_through` mocked `_run_captured` with a hardcoded `"2751 passed"` but (unlike its siblings) didn't mock `aq_cli._update_readme_test_badge`, so the real writer rewrote the README badge every full-suite run.
+**Fix 2b:** The test now mocks the badge writer like its siblings.
 
-**Fix 2 (two layers):** (a) `update_readme_evaluation_sections()` now renders the chart ONLY when the target readme IS the real `README_PATH` (resolve comparison) — the chart is a repo asset of the repo README; a scratch/tmp readme caller (tests, offline experiments) can never mutate repo assets again. (b) The offending test now spy-asserts the render is NOT called for a tmp readme, and a new fully-hermetic companion test (`ROOT_DIR`/`EVALUATION_DIR`/`README_PATH`/`MONTECARLO_CHART_PATH` all pointed into tmp_path) covers the real-README render path end-to-end. Chart regenerated from the real npz (all 1000 runs visible as light blue semi-transparent lines under the red average) plus two regression tests intercepting `Axes.plot` (every run drawn, plotted y-extent spans the runs' extremes; missing-data degrade returns False without writing).
+**Problem 3 (found during V5.4.4 HRP integration, pre-wiring):** `build_hrp_allocation()` split gross unconditionally 50/50 across legs, so a single-sided book (the shipped `long_flat` default) would have received only gross/2 on its one populated leg; latent since the module had no production caller before V5.4.4.
+**Fix 3:** Two-sided books keep the ±gross/2 split (byte-identical); single-sided books give the present leg the full gross, with regression tests for long-only (+1.0), short-only (−1.0), and two-sided (±0.5) leg sums.
 
-**Problem 2b (same bug class, found by the same method — the test-badge reset):** the README's tests badge/count was frozen at a stale `2751` despite the suite having grown past 2800, and `aq test`'s own correct badge write kept getting reverted. Root cause: `tests/test_aq_test_ruff_flag.py::test_ruff_flag_clean_repo_passes_through` mocked `_run_captured` with a HARDCODED `"2751 passed"` fixture string but — unlike every sibling `cmd_test` test in `test_aq_cli.py` — did NOT mock `aq_cli._update_readme_test_badge`, so the real `cmd_test` ran to completion and rewrote the REAL README badge from the fixture string on every full-suite run. **Fix:** the test now mocks the badge writer like all its siblings (the writer's own behavior stays covered by the `test_update_readme_test_badge_*` tests on tmp paths).
+**Also fixed (test-caught):** `pct_returns_from_closes()` skipped only non-positive *previous* closes, so a 0 current close still emitted a −100% return (a variance bomb into HRP's covariance estimate); now any pair touching a non-positive/None close is skipped.
 
-**Problem 3 (found during V5.4.4 HRP integration, pre-wiring):** `portfolio/hrp_allocation.py::build_hrp_allocation()` split gross exposure unconditionally 50/50 across legs — a single-sided book (the long-only book `phase5.backtest.strategy_mode: "long_flat"` produces, the shipped default) would have received only gross/2 on its one populated leg. Latent until now: the module had no production caller before V5.4.4's `apply_hrp_weights()` wiring.
-
-**Fix 3:** two-sided books keep the ±gross/2 dollar-neutral split (byte-identical); single-sided books give the present leg the full gross. Regression tests for long-only (+1.0), short-only (−1.0), and two-sided (±0.5) leg sums.
-
-**Also fixed (test-caught, same round):** `pct_returns_from_closes()` initially skipped only non-positive PREVIOUS closes — a 0 CURRENT close still emitted a −100% return (a variance bomb straight into HRP's covariance estimate). Now any pair touching a non-positive/None close is skipped. Caught by the new `tests/test_hrp_book_sizing.py` edge-case tests before ever running live.
-
-**Verification:** full suite 2816 passed / 0 failed (up from 2790); ruff clean; py_compile clean; chart manually inspected.
+**Verification:** Full suite 2816 passed / 0 failed (up from 2790); ruff clean; py_compile clean; chart manually inspected.
 
 
 ### 115. V5.4.4 - installed `aq` console script broken for `evaluate`/`audit` (packaging gap); mean-reversion baseline was a hardcoded placeholder
 
 **Severity:** 6/10 (the published CLI's flagship subcommand crashed on import for anyone who installed it; the placeholder silently contributed a meaningless 0.0 row to benchmark comparisons) · **Status:** 🟢 `fixed`
 
-**Problem 1:** running the installed `aq` console script (`pip install -e .` + `aq evaluate ...`) raised `ModuleNotFoundError: No module named 'evaluation'`. `[tool.setuptools] packages` listed only `risk`/`execution`/`data_pipeline`, but `aq_cli.py` has imported `evaluation`, `features`, and `audit` in-process (function-level) for many versions - and `evaluation` transitively imports `portfolio` (rank_book_simulator), `inference` (model_predictions), and `analyzer` (confidence_threshold_calibration). Exactly the `execution` failure class the packages list's own comment documents: pytest and the Lean container put the repo root on sys.path, masking the gap locally. The README-refresh call inside `aq evaluate` failed the same way (`No module named 'generate_evaluation_report'` - the module was missing from `py-modules`).
+**Problem 1:** Running the installed `aq` console script (`pip install -e .` + `aq evaluate ...`) raised `ModuleNotFoundError: No module named 'evaluation'` — `[tool.setuptools] packages` listed only `risk`/`execution`/`data_pipeline`, but `aq_cli.py` imports `evaluation`, `features`, and `audit` in-process and `evaluation` transitively pulls `portfolio`/`inference`/`analyzer`; the same class of gap hid `generate_evaluation_report` from `py-modules`, breaking the README refresh. Masked locally because pytest and the Lean container put the repo root on `sys.path`.
 
-**Fix 1:** `packages` extended with `evaluation`, `portfolio`, `features`, `audit`, `inference`, `analyzer`; `py-modules` extended with `generate_evaluation_report` - per the list's own documented transitive-import rule. `pip install -e .` re-run; `aq evaluate --benchmarks` now runs end-to-end from the installed script.
+**Fix 1:** Extended `packages` with `evaluation`, `portfolio`, `features`, `audit`, `inference`, `analyzer` and `py-modules` with `generate_evaluation_report`; `aq evaluate --benchmarks` now runs end-to-end from the installed script.
 
-**Problem 2:** `evaluation/benchmark_comparison.py::mean_reversion_baseline()` (V5.4.3) accrued a hardcoded placeholder (`sum(held_weights.values()) * 0.001`) instead of realized returns - its Sharpe was structurally 0.0 and its total return structurally 0.0% no matter the data, so the row it contributed to the new Benchmark Comparison table was meaningless.
+**Problem 2:** `evaluation/benchmark_comparison.py::mean_reversion_baseline()` (V5.4.3) accrued a hardcoded placeholder (`sum(held_weights.values()) * 0.001`) instead of realized returns, so its Sharpe and total return were structurally 0.0 no matter the data.
 
-**Fix 2:** real next-day close-to-close accrual, mirroring `momentum_baseline()`'s convention (decide on today's close, earn today-close -> next-close), plus `pct_change(fill_method=None)` (kills a pandas FutureWarning and stops pad-fill fabricating flat 0% return days across NaN gaps). Real backtest-split numbers moved 0.0 -> -0.119 Sharpe / -20.96% total return. Two new tests pin it: a trending-universe test (must be nonzero and negative-leaning) and a deterministic known-value test (long the faller / short the riser earns exactly r_B - r_A per accrued day).
+**Fix 2:** Real next-day close-to-close accrual mirroring `momentum_baseline()` (plus `pct_change(fill_method=None)` to kill a pandas FutureWarning and stop pad-fill fabricating flat 0% days), moving real backtest-split numbers to −0.119 Sharpe / −20.96% total return; two new tests pin it.
 
-**Verification:** full suite 2834 passed / 0 failed; vitest 103/103; ruff clean; real `aq evaluate --benchmarks` run verified end-to-end from the installed console script (README section populated, no import errors, no warnings).
+**Verification:** Full suite 2834 passed / 0 failed; vitest 103/103; ruff clean; real `aq evaluate --benchmarks` verified end-to-end from the installed console script.
 
 
 ### 116. V5.4.5 - pre-backtest live-execution audit: round-trip commission undercounted 2x in the net-edge gate; paper mode ignored every risk lock
 
 **Severity:** 6/10 (the gate is enabled+calibrated in the shipped config.json, so every entry/resize decision in the upcoming backtest understated its cost leg; the paper-mode gap would have let a tripped kill switch keep submitting real broker orders) --- **Status:** 🟢 `fixed`
 
-**Problem 1:** `execution/cost_model.py::estimate_round_trip_cost_bps()` computed ONE side's commission (rate leg AND min_commission_usd floor alike) inside a function whose contract is a ROUND-TRIP estimate against a parameter literally named `commission_bps_per_side`. With the shipped config (1.5 bps/side, $1 floor), expected cost was understated by ~1.5-2x on the commission component, so trades whose true net edge sat between the real cost and the underestimated one passed the gate. The offline simulator (evaluation/rank_book_simulator.py) already charged per-side costs on both-side turnover, so live was more optimistic than offline here - backwards.
+**Problem 1:** `execution/cost_model.py::estimate_round_trip_cost_bps()` computed only ONE side's commission (rate leg and `min_commission_usd` floor alike) inside a function contracted as a round-trip estimate against a parameter named `commission_bps_per_side`; with the shipped config (1.5 bps/side, $1 floor) the commission was understated ~1.5-2x, letting trades through whose true net edge sat between the real and underestimated cost — live more optimistic than the offline simulator, which charged per-side on both-side turnover.
 
-**Fix 1:** each side's commission = max(rate leg, dollar floor); the round trip pays it twice. The two tests pinning the old single-side math were updated with comments naming this problem; two new tests pin both sides' coverage (rate-dominated and floor-dominated).
+**Fix 1:** Each side's commission is `max(rate leg, dollar floor)` and the round trip pays it twice; the two tests pinning the old single-side math were updated and two new tests pin both sides (rate- and floor-dominated).
 
-**Problem 2:** `execution/order_gate.py::resolve_order_permission()` checked `risk_locks_healthy` only in the `live` branch - the `paper` branch returned True from flags+broker config alone. Since main.py:4761 feeds `risk_locks_healthy = not self.trade_lock_active`, a tripped kill switch / drawdown lock / manual trade lock could not stop real broker orders in the one mode besides live that actually reaches a brokerage.
+**Problem 2:** `execution/order_gate.py::resolve_order_permission()` checked `risk_locks_healthy` only in the `live` branch, so `paper` returned True from flags + broker config alone — a tripped kill switch/drawdown lock/manual lock could not stop real broker orders in the one non-live mode that reaches a brokerage.
 
-**Fix 2:** paper now requires all three; blocked-with-lock returns a distinct reason (`paper_orders_blocked_risk_lock`) so diagnostics distinguish it from missing-flag/config. Backtest mode unchanged (unrestricted by design). New test pins the lock-blocked combination.
+**Fix 2:** Paper now requires all three, returning a distinct `paper_orders_blocked_risk_lock` reason; backtest mode unchanged by design.
 
-**Verification:** full suite 2858 passed / 0 failed; ruff clean.
+**Verification:** Full suite 2858 passed / 0 failed; ruff clean.
 
 
 ### 117. V5.4.5 - NaN propagation family: NaN silently skipped safety triggers, poisoned fill prices, reconciliation reported false-clean, and NaN ranks bypassed the book spread veto
 
 **Severity:** 7/10 latent (every guard in the family was a one-sided float comparison or an `is not None` check - all of them are False/pass-through for NaN) --- **Status:** 🟢 `fixed`
 
-Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan <= x` are ALL False; max/min pass NaN through). Found by structural review across the live path:
+**Problem:** A single root cause across the live path — every guard in this family was a one-sided float comparison or an `is not None` check, all of which are False/pass-through for NaN (found by structural review; `nan > x`, `nan < x`, `nan <= x` are all False and max/min pass NaN through).
 
-- **risk/kill_switch.py:** metric guards only checked `is not None` before comparing, so a NaN drawdown-velocity/rank-IC/slippage-divergence silently skipped its own condition while the switch appeared armed; one NaN return in the rolling window made `_rolling_sharpe()` return NaN with the same effect. **Fix:** `_finite_or_none()` normalization at the five metric inputs (NaN degrades exactly like the documented None path); `_rolling_sharpe()` returns None for any window containing a non-finite value.
-- **execution/order_gate.py::slippage_amount()/resolve_slippage_bps():** the clamp whose documented purpose is guarding degenerate estimates was exactly what NaN defeated (`max(nan, 0)` = nan -> `price * nan` fill adjustment). **Fix:** non-finite price/bps degrade to 0.0 slippage at both chokepoints.
-- **execution/reconciliation.py:** symbols with NaN weights still classified drifted/orphan, but `max(0.0, abs(nan))` kept `max_abs_weight_drift` at 0.0 -> breach=False -> the kill switch's reconciliation trigger could never fire on a corrupted mark (a false-clean in a safety trigger). An explicit None weight crashed `float(None)`. **Fix:** non-finite weights force infinite drift (breach=True whenever a threshold is configured - fail-closed); None degrades through the same path without raising.
-- **execution/cost_model.py::build_net_edge_decision():** NaN edge/cost failed closed but with the generic below-threshold reason, indistinguishable from an ordinary signal veto. **Fix:** explicit `non_finite_cost_estimate` fail-closed reason; finite sentinels keep JSON state exports valid.
-- **portfolio/book_construction.py:** a NaN `predicted_rank_20d` passed eligibility (`is not None`), poisoned sort/hysteresis, and - worst - made the spread veto's `spread < floor` comparison False, silently disabling the dispersion veto; `pct_returns_from_closes()` let NaN closes through to HRP's covariance (`nan <= 0` is False). **Fix:** `_is_finite_number()` eligibility guard; main.py's spread-check ranks filtered the same way; NaN closes skipped like other unusable closes.
-- **portfolio/book_neutrality.py:** `gross_exposure_cap <= 0` scaled the whole book by cap/gross == 0 (silent erasure - the #81 class the sector step already guarded against). **Fix:** skip with a `gross_cap_skipped_nonpositive_cap` diagnostic step.
-- **risk/position_sizing.py:** a misconfigured `min_position_weight > max_position_weight` pushed sized weight ABOVE the leverage cap (floor applied after cap, no re-clamp). **Fix:** floor re-clamped by cap (cap wins, conservative).
-- **train_rl_sizing/risk/rl_sizing runtime note:** training skips NaN rows but runtime argmax has no NaN guard - bounded (clamped post-argmax, default-off overlay) and left as-is, documented here rather than churned.
+**Fix:**
+- **risk/kill_switch.py:** guards checked only `is not None` before comparing, so a NaN drawdown-velocity/rank-IC/slippage-divergence silently skipped its own condition while the switch appeared armed, and one NaN return made `_rolling_sharpe()` NaN; added `_finite_or_none()` normalization at the five metric inputs and made `_rolling_sharpe()` return None for any non-finite window.
+- **execution/order_gate.py:** the clamp meant to guard degenerate estimates was defeated by NaN (`max(nan, 0)` = nan); non-finite price/bps now degrade to 0.0 slippage at both chokepoints.
+- **execution/reconciliation.py:** `max(0.0, abs(nan))` kept `max_abs_weight_drift` at 0.0 so a corrupted mark could never trip the kill switch's reconciliation trigger, and an explicit None weight crashed `float(None)`; non-finite weights now force infinite drift (fail-closed) and None degrades through the same path.
+- **execution/cost_model.py:** NaN edge/cost failed closed but with the generic below-threshold reason; now an explicit `non_finite_cost_estimate` reason with finite JSON sentinels.
+- **portfolio/book_construction.py:** a NaN `predicted_rank_20d` passed eligibility, poisoned sort/hysteresis, and silently disabled the spread veto (NaN comparisons are False); fixed via a `_is_finite_number()` eligibility guard, filtered spread-check ranks, and skipping NaN closes into HRP.
+- **portfolio/book_neutrality.py:** a non-positive `gross_exposure_cap` silently scaled the whole book to zero; now skipped with a `gross_cap_skipped_nonpositive_cap` diagnostic step.
+- **risk/position_sizing.py:** `min_position_weight > max_position_weight` pushed sized weight above the leverage cap; the floor is now re-clamped by the cap.
+- A `train_rl_sizing` runtime note (training skips NaN rows but runtime argmax has no NaN guard) was left as-is, bounded and documented rather than churned.
 
 **Verification:** 24 new tests across the seven modules pin every behavior above; full suite 2858 green.
 
@@ -1578,136 +1559,130 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 **Severity:** 4/10 (dormant under the shipped `allocation_method: "rank"`, but live the moment the planned `"hrp"` flip happens early in a run when history is thin) --- **Status:** 🟢 `fixed`
 
-**Problem:** both fallback paths in `portfolio/hrp_allocation.py::build_hrp_allocation()` (<2 names with usable history; scipy exception) divided gross across BOTH legs combined (`gross / len(longs + shorts)`), so a two-sided book with unequal legs (e.g. 6 longs / 2 shorts) came out long +0.75*gross / short -0.25*gross - net exposure +/-0.5*gross instead of dollar-neutral, contradicting the function's own docstring ("equal weight within each leg") and the neutrality contract. The main HRP path normalized per leg correctly; only the fallbacks diverged. Existing tests pinned symmetric cases (2/2, 1/1) so the asymmetry was invisible.
+**Problem:** Both fallback paths in `build_hrp_allocation()` (<2 names with usable history; scipy exception) divided gross across both legs combined (`gross / len(longs + shorts)`), so a two-sided book with unequal legs (e.g. 6 longs / 2 shorts) came out +0.75·gross / −0.25·gross instead of dollar-neutral, contradicting the function's own docstring; the main HRP path normalized per leg correctly and existing tests only pinned symmetric cases.
 
-**Fix:** one shared `_equal_weight_fallback()` helper using the same leg-total convention as the HRP path itself (long_total/short_total computed once at the top of the function, shared by all three paths - they can never disagree again). New tests: asymmetric thin-history fallback sums to exactly +/-gross/2 per leg; linkage-exception fallback (monkeypatched) likewise; single-sided keeps full gross.
+**Fix:** One shared `_equal_weight_fallback()` using the same leg-total convention as the HRP path (computed once at the top, shared by all three paths), with new tests for asymmetric thin-history, linkage-exception, and single-sided books.
 
-**Verification:** new tests green; full suite 2858 green.
+**Verification:** New tests green; full suite 2858 green.
 
 
 ### 119. V5.4.5 - V5.4.1's RL asymmetric-penalty reward fix was dead code at its only production call site
 
 **Severity:** 3/10 (RL sizing overlay is default-off and not part of the current backtest, but every future retrain would have validated a model trained under the OLD symmetric reward while the changelog claimed otherwise) --- **Status:** 🟢 `fixed`
 
-**Problem:** `compute_action_reward()`'s `asymmetric_penalty_weight` parameter (V5.4.1) gates the opportunity-cost term behind `> 1.0` and defaults to 1.0 - correct API design, except `build_bandit_rows()` never accepted or forwarded such a value and `main()` never loaded one from config. Only `tests/test_rl_sizing_v541.py` exercised the feature, via explicit kwargs. Real training runs used the exact symmetric reward whose documented failure mode motivated the fix.
+**Problem:** `compute_action_reward()`'s `asymmetric_penalty_weight` (V5.4.1) was dead code at its only production call site — `build_bandit_rows()` never accepted or forwarded it and `main()` never loaded it from config, so real training used the exact symmetric reward whose failure mode motivated the fix; only `test_rl_sizing_v541.py` exercised it via explicit kwargs.
 
-**Fix:** `phase_v2.rl_sizing.training.asymmetric_penalty_weight` (default 1.0 - byte-identical until set) loaded in `main()`, threaded through `build_bandit_rows()` into `compute_action_reward()`, and recorded in `training_metrics_payload` for provenance. New test proves threading changes rewards (the dead-config regression) plus a reward-level asymmetry test.
+**Fix:** Added `phase_v2.rl_sizing.training.asymmetric_penalty_weight` (default 1.0, byte-identical until set), loaded in `main()`, threaded through `build_bandit_rows()` into `compute_action_reward()`, and recorded in `training_metrics_payload` for provenance.
 
-**Verification:** new tests green; full suite 2858 green.
+**Verification:** New tests prove the threading changes rewards (the dead-config regression) plus reward-level asymmetry; full suite 2858 green.
 
 
 ### 120. V5.4.7 - one NaN event could permanently wedge the Redis->Postgres pipeline; torn JSON writes 500'd the API
 
 **Severity:** 7/10 (silent permanent data loss of every batch containing one non-finite payload; dashboards intermittently broken under normal concurrent operation) --- **Status:** 🟢 `fixed`
 
-**Problem 1 (pipeline wedge):** `json.dumps` happily serializes bare `NaN`/`Infinity`, so a poisoned event passed the producers' XADD and the consumers' per-message `json.loads` untouched - then failed at PostgreSQL's JSONB column ("Token 'NaN' is invalid"), failing the whole `executemany`, rolling back every good row in the batch AND leaving all of them pending forever: `xreadgroup(..., ">")` only delivers never-delivered messages, and nothing anywhere reclaimed the PEL. One bad float = silent permanent loss of that batch plus every later batch containing it. Compounding: numpy scalars (`np.float64`) raise `TypeError` under `json.dumps` at the PRODUCER and were silently dropped with only a warning.
+**Problem 1 (pipeline wedge):** `json.dumps` serializes bare `NaN`/`Infinity`, so a poisoned event passed XADD and `json.loads` untouched, then failed at PostgreSQL's JSONB column (`Token 'NaN' is invalid`), failing the whole `executemany`, rolling back every good row in the batch and leaving all of them pending forever (`xreadgroup(..., ">")` only delivers never-delivered messages and nothing reclaimed the PEL) — one bad float silently lost that batch and every later one containing it; numpy scalars additionally raised `TypeError` at the producer and were dropped with only a warning.
 
-**Fix 1:** new top-level `json_safety.py` (`sanitize_json_finite()` / `dumps_json_safe()` / `atomic_write_json()` / `atomic_write_text()` / `load_json_lenient()`, registered in pyproject py-modules per the #115 rule): both producers (experience + audit `redis_queue.py`) serialize through `dumps_json_safe` (non-finite -> None, numpy -> python scalars). Both Postgres workers gained a poison-row fallback on batch failure - with a first-row probe distinguishing POISON ROW (head inserts fine -> persist the clean prefix per row, dead-letter + ack the rest) from POSTGRES DOWN (even the head fails -> re-raise, everything stays pending exactly like the pre-existing contract). The audit twin stops at its first poison row and dead-letters every LATER row too: their hashes chain off a parent that never landed, and inserting them would fork the tamper-evident chain.
+**Fix 1:** Added top-level `json_safety.py` (`sanitize_json_finite()`/`dumps_json_safe()`/`atomic_write_json()`/`atomic_write_text()`/`load_json_lenient()`, registered per the #115 rule): both producers serialize through `dumps_json_safe` (non-finite→None, numpy→python), and both Postgres workers gained a poison-row fallback using a first-row probe to distinguish POISON ROW (persist the clean prefix per row, dead-letter + ack the rest) from POSTGRES DOWN (re-raise, everything stays pending as before); the audit twin stops at its first poison row and dead-letters all later rows so the hash chain can't fork.
 
-**Problem 2 (torn reads/writes):** every status-file writer (`main.py::_write_state`'s seven files, both workers' `status_export.py`, `paper_readiness_report.py`) truncated-then-wrote, and `monitoring/api_server.py` read without guarding `JSONDecodeError`/TOCTOU - a reader racing a writer got HTTP 500s; a writer dying mid-write left a corrupt file until the next successful write.
+**Problem 2 (torn reads/writes):** Every status-file writer (`main.py::_write_state`'s seven files, both workers' `status_export.py`, `paper_readiness_report.py`) truncated-then-wrote and `monitoring/api_server.py` read without guarding `JSONDecodeError`/TOCTOU, so a reader racing a writer got HTTP 500s and a writer dying mid-write left a corrupt file.
 
-**Fix 2:** all writers go through `atomic_write_json` (same-dir temp + `os.replace`, previous generation survives any crash); api_server's readers degrade to the documented 404 shape via `load_json_lenient`; `neural_network_state._load_json` matches its siblings; `/api/state`'s two inline reads hardened; evaluation_state's walk-forward mtime sort no longer raises when a dir vanishes mid-glob; assets_status tolerates a missing/mid-write config.json. State payloads are finite-sanitized, so the webui can never receive a bare `NaN` again (#121's M1).
+**Fix 2:** All writers go through `atomic_write_json` (same-dir temp + `os.replace`), readers degrade to the documented 404 shape via `load_json_lenient`, and several inline reads (neural-network state, `/api/state`, evaluation-state walk-forward sort, assets-status) were hardened; state payloads are finite-sanitized so the webui can never receive a bare `NaN` again.
 
-**Verification:** new `tests/test_json_safety.py` (10) + worker tests (poison-batch wedge, outage-stays-pending, chained-deadletter semantics) + producer sanitize tests; full suite 2929 green.
+**Verification:** New `test_json_safety.py` (10) plus worker tests (poison-batch wedge, outage-stays-pending, chained-deadletter) and producer sanitize tests; full suite 2929 green.
 
 
 ### 121. V5.4.7 - gating blend deflated magnitude/volatility by missing-head weight mass; NaN confidence scored as PERFECT
 
 **Severity:** 6/10 (positions oversized whenever any expert's optional multitask head was absent - an underestimated volatility feeds vol-targeting directly; NaN confidence sailed straight through Priority 7's trade gate) --- **Status:** 🟢 `fixed`
 
-**Problem 1:** `moe/gating.py::_weighted_blend()` summed `weight * value` over experts with a non-None value but never renormalized - and `weight.weight` sums to 1 across ALL experts. Any expert whose optional/best-effort multitask head was missing contributed implicit w*0, deflating blended magnitude/volatility toward zero by exactly the missing mass (one of four heads gone = ~25% downward bias). Downstream: underestimated volatility -> `risk/position_sizing.py` vol targeting -> OVERSIZED positions.
+**Problem 1:** `moe/gating.py::_weighted_blend()` never renormalized — any expert whose optional multitask head was missing contributed an implicit w·0 while weights sum to 1, deflating blended magnitude/volatility toward zero by the missing mass (~25% with one of four heads gone), which underestimates volatility in position sizing and oversizes positions.
 
-**Fix 1:** blend divides by the contributing weights' sum (None when no contributors or zero mass). Direction probability was already correct (missing-probability experts get weight 0).
+**Fix 1:** The blend divides by the contributing weights' sum (None when no contributors or zero mass); direction probability was already correct.
 
-**Problem 2:** `analyzer/market_analyzer.py::_clamp01()` used `max(0.0, min(1.0, value))` - `min(1.0, nan)` returns 1.0, so a NaN confidence/regime component became a perfect quality score and cleared `min_confidence_to_trade`. (gating's own `_clamp` mapped NaN to 0.0 - the two clamps disagreed.)
+**Problem 2:** `analyzer/market_analyzer.py::_clamp01()` used `max(0.0, min(1.0, value))`, and `min(1.0, nan)` returns 1.0, so a NaN confidence/regime component became a perfect score clearing `min_confidence_to_trade` (gating's own clamp mapped NaN to 0.0 — the two disagreed).
 
-**Fix 2:** non-finite -> 0.0 (no confidence), matching gating's clamp. Also fixed `_performance_score()`'s `or default` coercing legitimate stored 0.0 metrics to neutral defaults, and gave the inference interpreter a layernorm eps floor (artifact-controlled eps <= 0 with flat inputs previously divided by zero); interpreter-level input sanitization stays deliberately out - downstream guards (this clamp, kill switch #117, cost gate #117) own that contract.
+**Fix 2:** Non-finite → 0.0 to match gating; also fixed `_performance_score()`'s `or default` coercing legitimate 0.0 metrics to neutral defaults, and gave the inference interpreter a layernorm eps floor (input sanitization stays deliberately out — downstream guards own that contract).
 
-**Verification:** blend renormalization + clamp + eps-floor tests in test_v547_bug_hunt.py / test_gating_network.py; suite green.
+**Verification:** Blend renormalization, clamp, and eps-floor tests in `test_v547_bug_hunt.py`/`test_gating_network.py`; suite green.
 
 
 ### 122. V5.4.7 - retraining gates compared against FAKE zeros: missing files deadlocked promotion, NaN sailed through every gate
 
 **Severity:** 6/10 (a fresh deploy or deleted report file deadlocked ALL candidate promotion forever while looking like strict quality gates; a NaN metric failed NOTHING - `nan < x` and `nan > x` are both False) --- **Status:** 🟢 `fixed`
 
-**Problem 1:** `retraining/validation_gate.py` defaulted every extracted metric to `0.0` via `.get(key, 0.0) or 0.0`. With the ACTIVE side's file missing (fresh deploy/corrupt report), active drawdown became 0.0 - every real candidate (drawdown < 0) failed "worse than active" - and max_allowed_validation_loss became 0.0 - any positive loss failed stability: all candidates rejected forever. With the CANDIDATE side missing, fake-perfect zeros passed vacuously.
+**Problem 1:** `retraining/validation_gate.py` defaulted every metric to `0.0` via `.get(key, 0.0) or 0.0`, so with the ACTIVE side's file missing a real candidate's negative drawdown failed "worse than active" and any positive loss failed stability — deadlocking all promotion forever while looking like strict gates; with the CANDIDATE side missing, fake-perfect zeros passed vacuously.
 
-**Problem 2:** train.py-written JSON can carry bare NaN (Python json default); every gate check is a one-sided comparison, so a NaN sharpe/drawdown/loss/gap failed NOTHING. Same pattern in `retraining/backtest_gate.py`'s excess-return comparison.
+**Problem 2:** train.py-written JSON can carry bare NaN and every gate check is a one-sided comparison, so a NaN sharpe/drawdown/loss/gap failed NOTHING (same pattern in `backtest_gate.py`'s excess-return comparison).
 
-**Fix:** required candidate metrics (drawdown/sharpe/validation-loss/gap) extract as finite-or-None; None fails closed with an explicit `*_missing_or_non_finite` reason. Missing ACTIVE baseline metrics fail with `active_baseline_metrics_missing` instead of comparing against fake zeros. Floor-style checks (trade count/exposure/skill) coerce non-finite to 0.0 (conservative direction). backtest_gate treats non-finite returns as the no-edge default. Byte-identical verdicts when everything is present and finite (existing tests unchanged).
+**Fix:** Required candidate metrics extract as finite-or-None, with None failing closed via an explicit `*_missing_or_non_finite` reason; a missing ACTIVE baseline fails with `active_baseline_metrics_missing`; floor-style checks coerce non-finite to 0.0 and `backtest_gate` treats non-finite returns as the no-edge default; verdicts stay byte-identical when everything is present and finite.
 
-**Verification:** fail-closed tests for both directions in test_v547_bug_hunt.py; existing gate tests pass unmodified.
+**Verification:** Fail-closed tests for both directions in `test_v547_bug_hunt.py`; existing gate tests pass unmodified.
 
 
 ### 123. V5.4.7 - data-pipeline corruption class: Yahoo NaN frames written as real bars; FRED cache destroyed by narrow refetch; config.json truncation window
 
 **Severity:** 5/10 (all require operator-triggered backfills/fetches to hit, but each silently poisons training data or the whole system config) --- **Status:** 🟢 `fixed`
 
-- **Yahoo NaN-frame rows:** rate-limit/delisting responses return a NON-empty frame of all-NaN rows; `float(record["Open"])` produced nan and `write_lean_zip` persisted them as genuine OHLCV. Non-finite rows are now dropped (all-dropped degrades to the honest no-data path).
-- **yfinance end-exclusivity off-by-one:** `backfill_to` is inclusive but `yf.download(end=...)` is exclusive - the configured final day could never be fetched, so `needs_backfill` stayed True forever and every run refetched. run_backfill passes fetch_end + 1 day.
-- **FRED cache truncation:** unlike the yfinance sibling's merge-by-date, cache writes were full-file replacement clipped to the CLI's --start/--end - `aq backfill fred --series DGS10 --start 2024-01-01 --apply` destroyed all pre-2024 history and silently drifted bond features. Cache writes now MERGE (new rows win their own dates; uncovered dates preserved; unreadable old cache replaced rather than blocking).
-- **config.json atomicity:** `aq fetch --apply` rewrote the entire system config truncate-then-write - a crash mid-write left a truncated config.json (breaking train.py, orchestrator, everything). Now atomic via json_safety; FRED cache writes likewise.
-- **liquidity guards:** a misconfigured non-positive `min_daily_dollar_volume` with close*volume == 0 previously divided by zero mid-bar; negative/non-finite dynamic spreads lowered round-trip cost below the ceiling. Both block conservatively now.
-- **bar_synthesis:** `pad_sequence_history([])` IndexError -> explicit ValueError naming the broken caller contract (unreachable from current call sites; latent-only).
+**Problem:** A data-pipeline corruption class (each requires an operator-triggered backfill/fetch, but silently poisons training data or the whole config):
+- **Yahoo NaN-frame rows:** rate-limit/delisting responses return non-empty all-NaN frames, so `float(record["Open"])` wrote nan as genuine OHLCV (now dropped, degrading to the honest no-data path).
+- **yfinance end-exclusivity off-by-one:** `backfill_to` is inclusive but `yf.download(end=...)` is exclusive, so the configured final day could never be fetched and `needs_backfill` stayed True forever (now fetches `fetch_end + 1 day`).
+- **FRED cache truncation:** cache writes were full-file replacement clipped to `--start/--end`, so a narrow refetch destroyed prior history (now merges, new rows winning their own dates).
+- **config.json atomicity:** `aq fetch --apply` rewrote the whole config truncate-then-write, so a mid-write crash left it truncated (now atomic via `json_safety`, as are FRED cache writes).
+- **liquidity guards:** a non-positive `min_daily_dollar_volume` with `close*volume == 0` divided by zero mid-bar, and negative/non-finite dynamic spreads lowered round-trip cost below the ceiling (both now block conservatively).
+- **bar_synthesis:** `pad_sequence_history([])` raised IndexError → now an explicit ValueError naming the broken caller contract.
 
-**Verification:** regression tests for each in test_v547_bug_hunt.py; existing data-pipeline suites updated only where they pinned the buggy behavior.
+**Verification:** Regression tests for each in `test_v547_bug_hunt.py`; existing data-pipeline suites updated only where they pinned the buggy behavior.
 
 
 ### 124. V5.4.7 - auto-rollback/promote artifact verification gaps; Telegram watermark freeze; worker startup crash-loop
 
 **Severity:** 4/10 (RL overlay default-off and IB unconnected keep most of these latent, but each breaks its subsystem permanently once triggered) --- **Status:** 🟢 `fixed`
 
-- **promote() never verified artifacts:** rollback verified sha256s, promote copied blindly - post-commit corruption/tampering promoted without complaint. Promote now runs `verify_version_artifacts()` (new shared helper) BEFORE any file move or status flip and fails closed with `candidate_artifact_verification_failed`.
-- **rollback to a hashless/missing version silently "succeeded":** `restore_active_from_version` skipped verification when `artifact_hashes` was empty AND returned ok=True after copying NOTHING (empty version dir) - registry said active while ml/ held the PREVIOUS model's weights. An empty-copy restore now fails with `no_artifacts_found`; `candidate_dir()` validates version-id charset (defense-in-depth traversal guard).
-- **Telegram watermark freeze:** an explicit JSONB null crashed f-string formatting, aborted before `set_watermark`, and the same poison row refetched forever - ALL future alerts blocked. Numeric fields coerce null/junk to defaults; the worker loop skips unformattable rows while still advancing the watermark.
-- **Worker startup crash-loop:** a Redis-down constructor ping hard-crashed both Postgres workers into container restart loops; they now warn and let run()'s backoff loop reconnect.
-- **version-id events:** a garbage --version-id on `train` left the event running until the 3h startup reconcile (documented; reconcile covers it - no change).
+**Problem:** A batch of auto-rollback/promote artifact-verification gaps and worker robustness bugs:
+- **promote() never verified artifacts:** rollback verified sha256s but promote copied blindly (now runs `verify_version_artifacts()` before any move/status flip, failing closed with `candidate_artifact_verification_failed`).
+- **rollback to a hashless/missing version silently "succeeded":** an empty version dir returned ok=True after copying nothing (now fails with `no_artifacts_found`, and `candidate_dir()` validates version-id charset).
+- **Telegram watermark freeze:** an explicit JSONB null crashed f-string formatting before `set_watermark`, so the same poison row refetched forever and blocked all alerts (numeric fields now coerce junk to defaults and the loop advances the watermark past unformattable rows).
+- **Worker startup crash-loop:** a Redis-down constructor ping hard-crashed both Postgres workers into restart loops (now warns and lets `run()`'s backoff reconnect).
+- **version-id events:** a garbage `--version-id` left the event running until the 3h startup reconcile (documented; reconcile covers it).
 
-**Verification:** promote preflight/verification/no-artifacts/charset tests; telegram null-format test; startup-outage test.
+**Verification:** Promote preflight/verification/no-artifacts/charset tests; telegram null-format test; startup-outage test.
 
 
 ### 125. V5.4.7 - `aq` help surfaces drifted: stale `--all` text since V5.4.4; README missing five flags; CI covered 2 of ~23 help screens
 
 **Severity:** 3/10 (docs/tooling trust, not capital) --- **Status:** 🟢 `fixed`
 
-- `aq evaluate --all`'s help said "rank-book/capacity/stress/calibrate-edge" - benchmarks joined the bundle in V5.4.4. Text + the code comment updated.
-- README's `aq train` synopsis lacked `--strategy-selector-only`/`--rl-sizing-only` (shipped V4.7/V4.12); the evaluate block lacked `--calibrate-rolling-ic-floor`, `--replay-rolling-ic-gate`, `--reconcile-run-index/--reconcile-all-runs` (V5.2-V5.3 era). All documented now, including per-flag bullets.
-- CI's cli-smoke job exercised exactly TWO help screens. New `tests/test_cli_help_surface.py`: parametrized exit-0 `--help` across EVERY parser leaf (23 top-level + nested children), plus a two-directional README-CLI-reference <-> build_parser() flag-sync guard so neither surface can drift silently again.
-- ci.yml's ruff install pinned (`ruff==0.16.4`) - the unbounded range let new ruff releases change CI results independently of repo changes.
+**Problem:** `aq evaluate --all`'s help text was stale since V5.4.4 (benchmarks had joined the bundle), the README's `aq train`/`aq evaluate` synopses were missing six shipped flags, CI's cli-smoke job exercised only two help screens, and ci.yml's `ruff` install was unpinned (new ruff releases could change CI independently of repo changes).
 
-**Verification:** 36 new meta-tests green; full suite 2929 green; ruff clean; installed `aq` re-installed (`pip install -e .`) to pick up json_safety per the #115 packaging rule.
+**Fix:** Updated the `--all` help and code comment and documented all missing flags with per-flag bullets; added `tests/test_cli_help_surface.py` (parametrized exit-0 `--help` across every parser leaf plus a two-directional README↔`build_parser()` flag-sync guard) and pinned `ruff==0.16.4`; reinstalled the editable `aq` per the #115 packaging rule.
+
+**Verification:** 36 new meta-tests green; full suite 2929 green; ruff clean.
 
 
 ### 126. V5.4.10 \- 34% of backtest data requests failed on missing crypto QUOTE zips; only the traded LTCUSD needed a fix (observation-only assets are quote-less by design)
 
 **Severity:** 2/10 (cosmetic — no results affected; Lean fell back to trade data and this algorithm never reads crypto quote bars) · **Status:** 🟢 `fixed` (data + tooling; see #104-style caveat below — no code in the Lean hot path changed)
 
-**Problem:** the V5.4.8+ backtest (`backtests/2026-08-27_12-01-48`) reported `data-monitor-report`: **107 succeeded / 55 failed / 34%** of 162 data requests. Every one of the 55 failures was a missing `/crypto/coinbase/daily/<ticker>_quote.zip`. Lean's default `AddCrypto` subscription requests BOTH a trade and a quote feed, but this project's pipeline (`data_pipeline/yfinance_backfill.py`, `train.py::ensure_derived_crypto_daily_series()`) only ever generates `*_trade.zip` — so quote requests failed for every crypto asset except BTC (whose `btcusd_quote.zip` was produced by an earlier external/manual step with genuine bid/ask).
+**Problem:** The V5.4.8+ backtest reported 107 succeeded / 55 failed (34%) of 162 data requests, every failure a missing `crypto/coinbase/daily/<ticker>_quote.zip`: Lean's default `AddCrypto` requests both a trade and a quote feed, but the pipeline only ever generated `*_trade.zip`, so quote requests failed for every crypto asset except BTC (which had a manual bid/ask quote zip).
 
-**Diagnosis (why this is almost entirely non-issue):** only **2** of the 12 crypto assets are actually traded (`ml/dataset_manifest.json`: `BTCUSD`, `LTCUSD` = `model_training_and_trading`). The other **10** (ETH/XRP/ADA/BCH/LINK/DOGE/XLM/EOS/ETC/ZEC) are `observation_only` watch-mode assets (`observation_only_assets_can_trade: false`) that are never traded — quote data for them is correctly absent by design. `main.py` only ever reads `Slice.quote_bars` for **forex** (V4.6 `_midpoint_bar_from_quote_bar`), never for crypto — crypto signals and fills run entirely on **trade** bars, and fills are governed by `main.py`'s own `_LiquidityAwareSlippageModel`, not Lean's default quote-based fill model. So the 44 requests for observation-only quotes and the LTCUSD quote request were all functionally benign; Lean gracefully fell back to trade data and the backtest completed and filled correctly. The sole genuine gap was **LTCUSD** — a real traded asset whose quote subscription never found data.
+**Diagnosis (largely a non-issue):** only the 2 traded crypto assets matter (BTCUSD, LTCUSD = `model_training_and_trading`); the other 10 are `observation_only` and correctly quote-less by design, and `main.py` only ever reads `Slice.quote_bars` for forex, never crypto, so the 44 observation-only requests and even the LTCUSD quote request were functionally benign — Lean fell back to trade data and fills use `main.py`'s own slippage model. The sole genuine gap was traded LTCUSD's missing quote subscription.
 
-**Fix:** new crypto sibling of the existing forex synthesis path (V4.10, #66's `synthesize_forex_bid_ask_row`/`write_lean_forex_zip` convention) in `data_pipeline/yfinance_backfill.py`:
-- `synthesize_crypto_bid_ask_row()` — documented **zero-spread** approximation (bid = ask = trade OHLC; trade volume carried into both volume columns), matching Lean's real 11-column crypto quote CSV shape (`btcusd_quote.zip`), no fake spread invented. This algorithm never reads crypto quote bars, so this is data-completeness for the subscription, not a live spread feed.
-- `crypto_rows_to_lean_csv()` / `_read_existing_lean_crypto_quote_rows()` — format/read helpers mirroring the forex siblings.
-- `write_lean_crypto_quote_zip(trade_zip, quote_zip, ticker)` — derives a quote zip from an existing trade zip, preserving any existing REAL bid/ask rows on merge (existing rows always win, same convention as `write_lean_zip()`); raises `FileNotFoundError` on a missing trade zip.
-- CLI: `aq backfill yfinance --quotes [--tickers ...] [--apply]` — dry-runs or writes a `_quote.zip` per crypto asset from its existing `_trade.zip`. **Only the traded LTCUSD was generated** (`aq backfill yfinance --quotes --tickers LTCUSD --apply` → 1917 rows, matching the trade zip); the 10 observation-only assets were intentionally left quote-less.
+**Fix:** Added a crypto sibling of the forex synthesis path in `data_pipeline/yfinance_backfill.py` — `synthesize_crypto_bid_ask_row()` (documented zero-spread approximation matching Lean's 11-column crypto quote CSV, no fake spread invented), `crypto_rows_to_lean_csv()`/`_read_existing_lean_crypto_quote_rows()`, `write_lean_crypto_quote_zip()` (preserving existing real bid/ask rows, raising on a missing trade zip), and CLI `aq backfill yfinance --quotes [--tickers ...] [--apply]`. Only traded LTCUSD was generated (1917 rows); the 10 observation-only assets were left quote-less.
 
-**Verification:** 6 new tests in `tests/test_yfinance_backfill.py` (row synthesis, 11-column CSV, zip derivation, real-spread-preserving merge, missing-trade-raise); full suite **2935 green**; ruff clean. `data/crypto/coinbase/daily/ltcusd_quote.zip` now exists (1917 rows, validated round-trip); BTC + LTCUSD both have quote zips; 10 observation-only assets unchanged. File only — the Lean image need not be rebuilt; a future backtest should show the quote failures drop from 55 to ~44 (observation-only remain by design) and the **traded** universe fully subscribed.
-
-**Follow-ups:** if the data-monitor 34% ever needs to be literally 0% (e.g. dashboards alarm on any failure), either generate the observation-only quote zips too, or switch `AddCrypto` to a trade-only subscription — neither is needed today because those assets never trade and crypto ignores quote bars.
-
+**Verification:** 6 new tests in `test_yfinance_backfill.py`; full suite 2935 green; ruff clean; `ltcusd_quote.zip` validated round-trip. A future backtest should see quote failures drop to ~44 (observation-only remain by design). **Later (V5.6.0):** the 10 observation-only quote zips were also generated, so the monitor no longer reports them.
 
 ---
-
-**Update (V5.6.0):** quote zips for the 10 observation-only crypto assets were generated too (`aq backfill yfinance --quotes ...`), so the data monitor no longer reports their missing `*_quote.zip` requests.
 
 ### 127. 2026-08-27 backtest written up: Sharpe −2.51 against an offline +1 — what the run actually traded (V5.5.0)
 
 **Severity:** 9/10 · **Status:** 🟢 `fixed` — decomposed and fixed (#128–#134); verified by the 2026-10-07 19:28 backtest (Lean Sharpe −1.05, +0.17 without a risk-free rate, +0.68% net, vs −2.51 / −1.16 / −4.25% on 08-27). 
 
-**Problem:** `backtests/2026-08-27_12-01-48` (the first live run of the V5.3.7 models + V5.4.x fixes) was never recorded: Sharpe −2.514, −4.25% net, DD 5.3%, 571 orders, $769.88 fees; its prediction-provenance counter (`sequence_served=78833 multitask_fallback=0`) closes V5.4.1's "pending Lean runtime". New `aq evaluate --audit-backtest` shows it was **not trading the offline book**: equity long averaged 2.45% of NAV (max 10.4%), equity short 0.70%, forex short 13.4% (forex long up to 45.7%), crypto 0%; equity entries were 36 book vs 135 non-book; forex lost −$3,031 of −$3,422 realized (equity −$391); equity fees averaged 16 bps/fill; 115 same-symbol order pairs overlapped (34 limit), 21 limit orders stayed open >5 days; 159 of 367 trades closed after 11–15 days; the book engaged on 47/172 rebalances (21 spread vetoes, 104 rolling-IC vetoes).
-**Fix:** none in this entry — the audit tool (`evaluation/backtest_audit.py`) plus #128/#129/#130/#131. Lean's −2.514 subtracts a risk-free rate; the same equity curve scores −1.16 without one, which is the convention every offline number uses.
-**Verification:** `aq evaluate --audit-backtest` reproduces the figures above from the run folder alone; 21 unit tests on synthetic Lean runs.
+**Problem:** `backtests/2026-08-27_12-01-48` (the first live run of the V5.3.7 models + V5.4.x fixes) was never recorded — Sharpe −2.514, −4.25% net, DD 5.3%, 571 orders, $769.88 fees, and a prediction-provenance counter of `sequence_served=78833 multitask_fallback=0` closing V5.4.1's "pending Lean runtime". The new `aq evaluate --audit-backtest` showed it was not trading the offline book: equity long averaged 2.45% of NAV, forex short 13.4% (long up to 45.7%), crypto 0%; equity entries were 36 book vs 135 non-book; forex lost −$3,031 of −$3,422 realized; equity fees averaged 16 bps/fill; 115 same-symbol order pairs overlapped (34 limit) and 21 limit orders stayed open >5 days; 159 of 367 trades closed after 11–15 days; the book engaged on 47 of 172 rebalances (21 spread vetoes, 104 rolling-IC vetoes).
+
+**Fix:** None in this entry — the audit tool (`evaluation/backtest_audit.py`) plus #128/#129/#130/#131; note Lean's −2.514 subtracts a risk-free rate, while the same equity curve scores −1.16 without one (the convention every offline number uses).
+
+**Verification:** `aq evaluate --audit-backtest` reproduces the figures from the run folder alone; 21 unit tests on synthetic Lean runs.
 
 ### 128. Offline/live execution parity: ten divergences between `aq evaluate` and `main.py`, fixed (V5.5.0)
 
@@ -1733,16 +1708,22 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 ### 131. Four latent defects found by the new guards (V5.5.0)
 
 **Severity:** 5/10 · **Status:** 🟢 `fixed`
-**Problem:** (1) the wheel omitted `monitoring`, `topology`, `liquidity`, `experience` and `risk_controls`, so `aq assets`, `aq evaluate --replay-kill-switch`, feature-parity and paper-readiness-report raised `ModuleNotFoundError` for any non-editable install (an editable install masks it); (2) `scripts/feature_parity_audit.py`'s synthetic check had been **silently dead** — a length mismatch, then a changed replica signature, swallowed as `SKIPPED` while the audit printed PASS; (3) `compute_factor_exposure()` averaged residuals only, which is ~0 by construction with an intercept, so `alpha_sharpe`/`alpha_annualized_return_pct` were always 0.0 (no caller existed until now); (4) `--reconcile-book-history` read a **vetoed** live rebalance (empty book) as 0% overlap, and its hysteresis replay ignored the veto.
-**Fix:** `tests/test_packaging_modules.py` (static) + `scripts/wheel_smoke.py` (a real built wheel) + the five entries in `pyproject.toml`; the audit's date alignment, replica call and a `--synthetic-only` mode that fails when the check did not run; alpha = intercept + residuals; vetoed dates flagged and excluded from every match statistic, `--hysteresis-survives-veto` for V5.5.0+ logs.
-**Verification:** the smoke script passes on a real wheel (0 import / 0 help failures across 23 subcommands); 22/22 synthetic feature families match `train.py` to 3e-18; regression tests for each.
+
+**Problem:** (1) the wheel omitted `monitoring`, `topology`, `liquidity`, `experience` and `risk_controls`, so `aq assets`, `--replay-kill-switch`, feature-parity and the paper-readiness report raised `ModuleNotFoundError` on any non-editable install; (2) `scripts/feature_parity_audit.py`'s synthetic check was **silently dead** — a swallowed `SKIPPED` still printed PASS; (3) `compute_factor_exposure()` averaged residuals only (~0 by construction), so its alpha metrics were always 0.0; (4) `--reconcile-book-history` read a vetoed live rebalance as 0% overlap and its hysteresis replay ignored the veto.
+
+**Fix:** The five `pyproject.toml` entries plus `tests/test_packaging_modules.py` and a real-wheel `scripts/wheel_smoke.py`; the audit's date alignment, a real replica call and `--synthetic-only` (fails when the check did not run); alpha = intercept + residuals; vetoed dates flagged and excluded, with `--hysteresis-survives-veto`.
+
+**Verification:** The smoke script passes on a real wheel (0 import / 0 help failures across 23 subcommands); 22/22 synthetic feature families match `train.py` to 3e-18; regression test per item.
 
 ### 132. V5.5.0's first backtest attempt crashed on bar 1: Lean's star import shadows `time` (and a second trap hid behind it)
 
 **Severity:** 7/10 · **Status:** 🟢 `fixed` (verified: the re-run, `backtests/2026-10-07_15-39-04`, completed in 2840 s)
-**Problem:** `backtests/2026-10-07_15-19-36` stopped after 11 seconds with `Runtime Error: type object 'datetime.time' has no attribute 'perf_counter'` at `_ensure_ready`: `from AlgorithmImports import *` exports Lean's `time` (`datetime.time`), silently replacing the stdlib `time` module `main.py` had imported for the V5.5.0 timing probe. The unit/wiring tests never ran `_ensure_ready()` and their Lean stub did not export `time`, so 3132 green tests could not see it. The same run's engine log carried the second, worse problem (#130): the sentinel-only factor files the first repair wrote made Lean move ~62 tickers' data start to 12/30/2050.
-**Fix:** `main.py` uses `from time import perf_counter as _perf_counter` after the star import (and never `import time`); the wiring stub now exports `time = datetime.time` like Lean; `tests/test_main_ensure_ready_smoke.py` runs the real `initialize()` + `_ensure_ready()` against the real config/model files (skipped on a fresh checkout), a structural test forbids `time.<attr>` in `main.py`, and #130's repair now removes the files.
-**Verification:** mutation-checked - reintroducing `import time` + `time.perf_counter()` fails the smoke test with the identical `datetime.time` message. A static check also confirmed every `self.<attr>` read in V5.5.0's `main.py` diff is assigned somewhere. **Lesson recorded in AGENTS.md:** read the engine log of ANY run, even a crashed one, before declaring the failure understood.
+
+**Problem:** `backtests/2026-10-07_15-19-36` stopped after 11 seconds with `type object 'datetime.time' has no attribute 'perf_counter'` at `_ensure_ready`: `from AlgorithmImports import *` exports Lean's `time` (`datetime.time`), shadowing the stdlib module `main.py` imported for the timing probe. The wiring tests never ran `_ensure_ready()` and their stub did not export `time`, so 3132 green tests could not see it. The same run's engine log carried the worse trap in #130 (sentinel-only factor files moved ~62 tickers' data start to 12/30/2050).
+
+**Fix:** `main.py` uses `from time import perf_counter as _perf_counter` after the star import; the wiring stub exports `time = datetime.time`; `tests/test_main_ensure_ready_smoke.py` runs the real `initialize()`/`_ensure_ready()` (skipped on a fresh checkout), a structural test forbids `time.<attr>` in `main.py`, and #130's repair now removes the files.
+
+**Verification:** Mutation-checked (reintroducing `import time` fails the smoke test with the identical message); a static check confirmed every `self.<attr>` read is assigned somewhere. Lesson recorded in AGENTS.md: read the engine log of any run, even a crashed one, before declaring the failure understood.
 
 ### 133. 2026-10-07 backtest (V5.5.0 first full run): Sharpe −4.55, 230 of 355 trades closed within 2 days, crypto and most forex still blocked
 
@@ -1770,7 +1751,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 136. CI on `main` red since the V5.5.0 push: 29 `NameError: Slice` errors, README links into gitignored READMEs, 43 gitleaks findings (V5.6.0)
 
-**Severity:** 5/10 · **Status:** 🟡 `partial` — fixed and verified locally; real CI confirms on the owner's next push
+**Severity:** 5/10 · **Status:** 🟢 `fixed and verified` — CI on `main` is green since the V5.7.1 push (run 38158358489, after #155 fixed the last 3.11-only failure)
 **Problem:** run 37667920328 failed `python-tests` (both OSes), `subsystem-matrix (live)`, `fast-guards` and `secret-scan`, and every Dependabot PR inherited it. (1) `main.py` annotates `on_data(self, slice: Slice)`; Python < 3.14 evaluates annotations at import, so the wiring/smoke stubs (no `Slice`) raised `NameError` on CI's 3.11 — the dev PC runs 3.14, which evaluates them lazily, hence green locally. (2) `README.md` linked `backtests/`, `data/`, `storage/` and the vault README, all gitignored. (3) gitleaks' `generic-api-key` rule read the exported-model JSON fields `"weight_key": "head_rank_5d.weight"` / `"bias_key"` (and the tests mocking them) as credentials.
 **Fix:** both stubs export `Slice`; `test_lean_runtime_imports.py` gains an AST guard that fails on any interpreter if `main.py` evaluates a new Lean name at import. `.gitignore` un-ignores the three folder READMEs, the vault link became plain text, and `test_docs_links.py` now also fails when a link target is gitignored. `.gitleaks.toml` allowlists exactly the `*_key` tensor-name lines (a planted key still fails) and CI passes `--config .gitleaks.toml`.
 **Verification:** guard tests mutation-checked (removing the stub export / restoring the old `.gitignore` fails them); gitleaks 8.18.4 on a `git archive HEAD` export: 43 findings before, 0 after, 2 on a planted secret; suite green.
@@ -1784,7 +1765,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 138. Crypto fills paid $0 fees: Lean's default crypto fee model charges nothing (V5.6.0)
 
-**Severity:** 6/10 · **Status:** 🟡 `partial` — fee model wired and unit-tested; the realised rate is read from the next backtest's order events
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` — BT2 realised 46.7 bps per crypto fill (Coinbase maker 60 / taker 80, #142), unchanged through BT7
 **Problem:** `main.py` skips `InteractiveBrokersFeeModel` for crypto (it throws) and the comment claimed `add_crypto(..., Market.COINBASE)` brings a Coinbase fee model; it does not — all 30 crypto fills of `backtests/2026-10-07_19-28-54` carry `orderFeeAmount 0.0`, so the +$385 / −$403 crypto P&L never paid an exchange fee, the net-edge gate assumed IB's 1.5 bps, and the offline book charged 6 bps.
 **Fix:** `phase_v2.costs.fee_by_type.crypto = {"model": "coinbase", "fee_bps": 80.0, "min_usd": 0.0}`: `main.py` assigns Lean's own `CoinbaseFeeModel()` (present in the pinned `lean:17900` image) to crypto securities, `build_net_edge_decision(..., security_type=)` charges the class its fee instead of the equity commission, and `commission_bps_by_ticker()` gives the offline simulator the same rate (`simulate_rank_book(commission_bps_by_ticker=)`, scaled by the stress multipliers). Absent key = old behaviour. At 80 bps a side only rank-extreme crypto selections clear the gate (0.90 rank: 158 bps edge vs 170 bps cost).
 **Verification:** cost-model, simulator, stress-scaling and wiring tests; the 80 bps is Lean's post-2019-10 taker rate from its source (earlier dates charge 25 bps) — confirm in BT1/BT2 order events. **Audit of the 16 crypto trades:** all LTCUSD longs sized at the 0.5 book-weight floor (4–5% NAV on a ~5% daily-vol asset); the four big losses (−$421…−$991) were 22–24% gap-downs within 2–9 days that no stop prevents. Sizing left unchanged: the offline simulator models no sizing multipliers, so a floor change cannot be validated, and the exchange fee is now the effective control.
@@ -1792,9 +1773,12 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 ### 139. Training-pipeline and tooling defects fixed before the V5.6.0 retrain
 
 **Severity:** 6/10 · **Status:** 🟢 `fixed` — unit-tested; the retrain itself is recorded in the entries that follow
-**Problem:** (1) `retraining/validation_gate.py`'s ranking gate judged `residual_rank_20d`, a head demoted from the book that has never been promotable, so `aq retrain validate` rejected every candidate. (2) `train_rl_sizing.py` compared its penalty-trained policy with constant 1.0 on the PENALISED reward (the baseline pays no penalty by construction) and had no way to choose the penalty. (3) A VM reboot at walk-forward window 5 lost the whole run three times (#107). (4) `--reconcile-book-history` loaded all 251 dataset columns and re-ran the whole model once per head (~1.3 GB, killed on this PC). (5) `scripts/overlap_vs_sharpe_analysis.py` collapsed runs sharing a sim window into one point. (6) Topology cost 332 ms/call, 87% of it ~5k pure-Python Pearson loops.
-**Fix:** (1) `ranking.heads` (`rank_5d`, `rank_20d` = the book heads); the candidate passes when any clears the gate. (2) `policy_beats_constant_unpenalized` + `--penalty-sweep`/`penalty_sweep` chosen on a chronological holdout of the validation split. (3) `window_result.json` per finished window and `train.py --walk-forward --resume-run-id`. (4) `predict_heads()` (one pass per row) + `row_mask` + chunked column-pruned reads: ~0.5 GB peak. (5) per-run points. (6) numpy correlation matrix with a scalar fallback: 1.16 s → 0.16 s for 104 symbols, equal to 1e-12.
-**Verification:** tests per item (`test_validation_gate`, `test_train_rl_sizing`, `test_walk_forward_multimodel`, `test_model_predictions`, `test_overlap_vs_sharpe_analysis`, `test_market_topology`).
+
+**Problem:** Six defects blocked the V5.6.0 retrain: `validation_gate` judged the never-promotable `residual_rank_20d` head (rejecting every candidate); `train_rl_sizing.py` compared its penalised policy against an unpenalised constant with no way to pick the penalty; a VM reboot at walk-forward window 5 lost the run three times; `--reconcile-book-history` loaded all 251 dataset columns and re-ran the model per head (~1.3 GB, killed on this PC); `overlap_vs_sharpe_analysis.py` collapsed runs sharing a sim window; and topology cost 332 ms/call, 87% of it pure-Python Pearson loops.
+
+**Fix:** The ranking gate now reads `ranking.heads` (`rank_5d`/`rank_20d`, passes if any clears); `policy_beats_constant_unpenalized` + `--penalty-sweep` on a chronological holdout; per-window `window_result.json` + `train.py --resume-run-id`; `predict_heads()` + `row_mask` + chunked column-pruned reads (~0.5 GB); per-run points; numpy correlation matrix with a scalar fallback (1.16 s → 0.16 s for 104 symbols, exact to 1e-12).
+
+**Verification:** Tests per item (`test_validation_gate`, `test_train_rl_sizing`, `test_walk_forward_multimodel`, `test_model_predictions`, `test_overlap_vs_sharpe_analysis`, `test_market_topology`).
 
 ### 140. Lean fills forward forex bars: live windows hold flat Sunday bars (and filled gap days) the dataset never had (V5.6.0)
 
@@ -1838,29 +1822,31 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 145. The offline simulator modelled almost none of Pass 2 and its gate took 15 minutes: rebuilt on main.py's own functions (V5.7.0)
 
-**Severity:** 7/10 · **Status:** 🟢 `fixed and verified` — built, unit-tested, reproduces BT4's kill-switch dates and its return level; the decisions it enabled (#146) held up in BT5 (#148)
-**Problem:** the as-live simulator (#128) skipped the kill switch, the per-member sizing chain (volatility/cost multipliers, book weight floor), the liquidity gate, the net-edge gate, HRP and per-name impact, hardcoded `hold_positions_on_veto=True` (so flipping the config changed live but not offline), calibrated the spread floor on a pool containing disabled forex, charged the Almgren rate as a fraction of NAV on a $1M book (`0.78 -> 0.53` was an artifact) and spent ~12 min per rolling-IC gate (full-history re-resolution per date). The audit's "11 limit orders open > 5 days" counted calendar days against a timeout counted in equity sessions.
-**Fix:** `evaluation/rolling_ic_series.py` (state per date once, equal to `compute_rolling_ic_state` on every date incl. mixed calendars and live's bounded buffer; one state serves every floor), `simulate_rank_book(kill_switch_config, member_weight_fn, raw_weights_fn, impact_inputs_fn, min_commission_usd_by_ticker, hysteresis_anchor_on_formed_book)` with `live_parity.build_live_member_weight_fn / build_hrp_raw_weights_fn / build_live_mechanisms` (the live pure functions, not copies), per-name impact on traded notional at the real NAV, `--calibrate-book-spread` on the live pool (eligible names, equity-session dates), `--audit-fills` (fill vs dataset open vs Lean zip open), limit-order age in weekday sessions, `run_id` on every book-history record plus `per_run_files`, `newey_west_t_stat`. `scripts/as_live_levers.py` caches scoring and shares the IC state (a variant takes ~20 s).
-**Verification:** first full as-live run on the backtest split: net Sharpe 0.087 (+0.52%) against the V5.6 simulator's 0.781 (+11.92%, reproduced exactly with the new mechanisms off). The kill switch is the throttle: without it 0.535 (+4.23%), without the sizing chain 1.139 (+14.35%). The simulated kill switch locks 6 of the 8 rebalances Lean BT4 locked and 7 of 39 engaged dates (Lean 8 of 39). Mean gross exposure 0.187 (Lean's equity+crypto book 0.12 incl. the sleeve). The 0.087 was missing one parity detail: the as-live frame dropped the observation-only names, but live's percentile normalisation (hysteresis margins, the confidence the sizing chain reads) runs over every symbol with features. With every row kept the same configuration gives backtest net Sharpe **+0.661 / +4.16%** (Lean BT4: +0.663 without a risk-free rate, +4.73%) and validation +0.745 / +2.54%: the simulator now reproduces the Lean run it was calibrated against. It is still book-only (no legacy sleeve, no whole-portfolio return series), so decisions use the relative R-GATE comparison on both splits.
+**Severity:** 7/10 · **Status:** 🟢 `fixed and verified` — built, unit-tested, reproduces BT4's kill-switch dates and return level; the decisions it enabled (#146) held up in BT5 (#148)
+
+**Problem:** The as-live simulator (#128) skipped the kill switch, the per-member sizing chain, the liquidity and net-edge gates, HRP and per-name impact; hardcoded `hold_positions_on_veto=True`; calibrated the spread floor on a pool containing disabled forex; charged the Almgren rate as a fraction of NAV on a $1M book (the "0.78 → 0.53" was an artifact); spent ~12 min per rolling-IC gate (full-history re-resolution per date); and the audit's "11 limit orders open > 5 days" counted calendar days against an equity-session timeout.
+
+**Fix:** `evaluation/rolling_ic_series.py` (state per date once, one state serves every floor) and a rebuilt `simulate_rank_book(...)` taking `live_parity.build_live_member_weight_fn / build_hrp_raw_weights_fn / build_live_mechanisms` (the live pure functions, not copies), per-name impact at real NAV, `--calibrate-book-spread` on the live pool, `--audit-fills`, weekday-session limit ages, `run_id` + `per_run_files` on book-history records, and `newey_west_t_stat`; `scripts/as_live_levers.py` caches scoring and shares the IC state (~20 s per variant).
+
+**Verification:** First full as-live run: net Sharpe 0.087 (+0.52%) vs V5.6's 0.781, reproduced exactly with the new mechanisms off; the kill switch is the throttle (off 0.535, sizing chain off 1.139). Keeping observation-only rows — live's percentile normalisation runs over every symbol — gives backtest **+0.661 / +4.16%** (Lean BT4 +0.663 / +4.73%) and validation +0.745 / +2.54%, so the simulator now reproduces the Lean run it was calibrated against. Still book-only, so decisions use the relative R-GATE comparison on both splits.
 
 ### 146. Gate research on the rebuilt simulator, both splits: one rule-driven flip, five rejected, the kill switch kept (V5.7.0)
 
-**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` — decided offline by the pre-registered R-GATE rule (backtest net Sharpe +0.10, validation not worse by more than 0.02, drawdown not worse by more than 1 pp) and confirmed in Lean by BT5 (#148)
-**Problem:** todo findings 1-5: the kill switch was the main throttle (96 `reduce_risk` decisions in BT4), the spread floor 0.1985 was calibrated with forex in the pool, the rolling-IC gate vetoed 157 of 281 rebalances, hold-on-veto and HRP were "not evaluable offline".
-**Result** (`scripts/gate_research.py`, `ml/evaluation/v570_gate_research.json`; the as-live frame now keeps observation-only rows because live's percentile normalisation runs over every symbol, which moved the simulator onto Lean: baseline backtest net Sharpe **+0.661 / +4.16%** against Lean BT4's +0.663 no-risk-free / +4.73%, validation +0.745 / +2.54%):
-- **IC gate** (`h=20, window 80, floor 0.0`): backtest +0.797 (+0.136), validation +0.787 (+0.042), drawdown 4.05% vs 4.89% -> the only point to pass R-GATE, **shipped** (`rolling_window_days` 40 -> 80, `min_rolling_mean_ic` 0.05 -> 0.0, `min_resolved_dates_required` stays 20). Fragile by construction (15 gate points on two short splits: floor 0.02 at window 40 gives backtest +1.15 and validation -0.49; raising `min_resolved_dates_required` to 40 moves validation 0.79 -> 0.55), so BT5 is the check.
-- **Kill switch:** keeping it is right (off: backtest 0.561). Best variant `bars=120, std floor 0.0005`: backtest +0.756 (gain +0.095, **0.005 under the +0.10 bar**), validation -0.003, drawdown 3.95% -> not flipped, the rule is the rule. Looser floors only raise validation noise.
-- **Spread floor:** the grid around the old value says 0.1985 beats 0.15 (validation -0.27), 0.25 (-1.95) and 0.2831 (-2.68), but q evaluate --calibrate-book-spread on the live pool (eligible names, equity-session dates) gives p10 = **0.1840** on the backtest split and 0.1767 on validation (old 0.1985 was calibrated with forex in the pool). On top of the shipped IC gate, 0.1840 passes R-GATE: backtest +0.954 (+0.156), validation +1.244 (+0.457), drawdown unchanged -> **shipped** (portfolio_book and both presets). The neighbourhood 0.177-0.19 is a plateau on validation (+0.38..+0.59); 0.20 and above falls off a cliff (validation 0.48, then -0.20 at 0.21).
-- **Hold-on-veto:** turning it off now loses on both splits (backtest 0.561, validation -0.49), the earlier "+0.44 backtest / -0.01 validation" was confounded with the hysteresis anchor (now separated) -> kept. **HRP:** backtest 0.932 but validation -0.325 -> rejected. **Own-tick:** closed (+0.06 and no live path). **Almgren impact** at the real $100k NAV costs 0.002 Sharpe: immaterial, stays off.
-- **Legacy sleeve** (`scripts/sleeve_alpha_check.py`, BT4 non-book equity trades): alpha -0.14% per trade (t -0.23), beta 0.93 against SPY -> market exposure, not skill; the book members' alpha is +1.09% per trade (t 2.46). Rule D2.8: `legacy_sleeve.max_gross_exposure` 0.10 -> **0.05** (shipped).
-**Verification:** the shipped bundle (IC window 80 / floor 0.0, spread 0.184) in the full as-live simulator: backtest net Sharpe **+0.954 / +6.48%** (drawdown 4.01%), validation **+1.244 / +3.79%** (2.36%); on top of it no kill-switch value, hold-on-veto, HRP or IC-gate neighbour passes R-GATE again (the best kill-switch point, std floor 0.001, raises validation to 1.786 but leaves the backtest at 0.954: +0.00 against the +0.10 bar). The simulated kill switch locks the same rebalances as Lean (6 of Lean's 8 on BT4). Not modeled, so decided by rule only: the legacy-sleeve cap.
+**Severity:** 6/10 · **Status:** 🟢 `fixed and verified` — decided offline by the pre-registered R-GATE rule and confirmed in Lean by BT5 (#148)
+
+**Problem:** todo findings 1-5: the kill switch was the main throttle (96 `reduce_risk` decisions in BT4), the spread floor 0.1985 was calibrated with forex in the pool, the rolling-IC gate vetoed 157 of 281 rebalances, and hold-on-veto and HRP were "not evaluable offline".
+
+**Result** (`scripts/gate_research.py`, `ml/evaluation/v570_gate_research.json`; baseline backtest +0.661 / +4.16% vs Lean BT4 +0.663 / +4.73%, validation +0.745 / +2.54%): the **IC gate** (window 80 / floor 0.0) was the only point to pass R-GATE (backtest +0.797, validation +0.787, drawdown 4.05% vs 4.89%) → shipped; the **spread floor 0.1840** (calibrated on the live pool, was 0.1985 with forex in it) also passed (backtest +0.954, validation +1.244) → shipped; the **kill switch**, hold-on-veto, HRP, own-tick and Almgren were kept or rejected by measurement; the **legacy-sleeve cap** went 0.10 → 0.05 (alpha -0.14%/trade, t -0.23, vs book +1.09%, t 2.46).
+
+**Verification:** The shipped bundle in the full as-live simulator gives backtest **+0.954 / +6.48%** and validation **+1.244 / +3.79%**; no kill-switch value, hold-on-veto, HRP or IC-gate neighbour passes R-GATE again; the simulated kill switch locks the same rebalances as Lean (6 of 8 on BT4).
 
 ### 147. Execution-cost leads closed with measurements: no data-source gap, market fills pay the modelled 5 bps, no limit order was stale (V5.7.0)
 
 **Severity:** 4/10 · **Status:** 🟢 `fixed and verified` (IB paper fills stay deferred with #116's IB part)
-**Problem:** todo finding 6: a median 5 bps fill-vs-open gap was attributed to "a data-source gap, not slippage"; 11 limit orders were "open > 5 days".
-**Result** (`aq evaluate --audit-fills` on BT4, 495 fills): the dataset's open equals the Lean zip's open adjusted by the factor files on **all 495 traded ticker-dates (0.0 bps, max 0.0)**, so there is no price-source gap. Equity market fills sit **+4.98 bps** from the open (p99 5.18): the configured per-side slippage, not noise. Equity limit fills have a median 0 bps (mean -24.6 bps, i.e. better than the open, long tails to 925 bps). Crypto market fills +3.9 bps. The limit-order audit counted calendar days against a timeout counted in equity sessions: measured in weekday sessions (`--max-open-sessions`, default timeout + 1) BT4 has **0** stale limit orders (was 11).
-**Fix:** `evaluation/fill_price_audit.py` (factor files applied the way `train.apply_split_adjustments` does), `backtest_audit` session ages.
+
+**Problem:** todo finding 6: a median 5 bps fill-vs-open gap was blamed on "a data-source gap, not slippage"; 11 limit orders were flagged "open > 5 days".
+
+**Fix:** `aq evaluate --audit-fills` on BT4 (495 fills) found no price-source gap — the dataset open equals the Lean zip open adjusted by the factor files on all 495 traded ticker-dates (0.0 bps) — with equity market fills at the configured +4.98 bps per side (p99 5.18), equity limit fills a median 0 bps, and crypto market fills +3.9 bps; counted in weekday sessions (`--max-open-sessions`), BT4 has **0** stale limit orders (was 11). Added `evaluation/fill_price_audit.py` and session ages in `backtest_audit`.
 
 ### 148. BT5: the V5.7.0 gate bundle in Lean, and a kill-switch trigger that counted price improvement as slippage (V5.7.0)
 
@@ -1873,9 +1859,10 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 ### 149. Crypto: no observation-only name graduates, and BTC/LTC stay (V5.7.0)
 
 **Severity:** 4/10 · **Status:** 🟢 `fixed and verified` as a decision (no code change; the machinery below ships default-off)
-**Problem:** todo finding 7: the crypto book pool is two names (BTCUSD, LTCUSD; the other ten fail the 250-TRAIN-row rule, ETH has 54) and every fill costs 56 bps; BT5's 13 crypto book trades earned $64 gross for $257 of fees.
-**Result** (`scripts/crypto_graduation_research.py`, full as-live simulator, both splits, Coinbase fees; baseline backtest +0.954 / validation +1.244): none of the ten names passes R-GATE alone (DOGE backtest +0.086 but validation -0.40; ZEC validation +0.25 but backtest -0.07; XLM backtest +1.03 but validation **-1.67**; ADA/ETC/EOS lose on validation or drawdown) and all ten together collapse the book (0.383 / 0.085). The opposite question, removing BTC/LTC, loses on both splits (backtest 0.449, validation -0.342), and neither name alone is dispensable (BTC off: validation -0.39; LTC off: validation -0.11). **Decision:** crypto stays as is.
-**Shipped, default-off:** `phase9.asset_quality.trading_eligibility_basis: "history"` (+ `min_trading_history_rows`) lets a name with too few TRAIN rows trade on its validation + backtest history (scored by the pooled model, never fitted on); `quality_tier` stays `core`, so the zero-volume fallback applies. Revisit after the V5.7.0 retrain, when the models and the holdout can say whether a name has an edge.
+
+**Problem:** todo finding 7: the crypto book pool is two names (BTCUSD, LTCUSD; the other ten fail the 250-TRAIN-row rule, ETH has 54) and every fill costs ~56 bps; BT5's 13 crypto book trades earned $64 gross for $257 of fees.
+
+**Fix:** `scripts/crypto_graduation_research.py` (full as-live simulator, both splits, Coinbase fees) found no name passes R-GATE alone (XLM backtest +1.03 but validation -1.67; DOGE/ZEC fail the other side) and all ten together collapse the book; removing BTC/LTC also loses on both splits, so **crypto stays as is**. Shipped default-off: `phase9.asset_quality.trading_eligibility_basis: "history"` (+ `min_trading_history_rows`) lets a thin-history name trade on validation + backtest history scored by the pooled model, to revisit after the V5.7.0 retrain.
 
 ### 150. V5.7.0 retrain: leakage fixed, honest numbers are lower, R-MODEL fails, V5.6.0 stays (V5.7.0)
 
@@ -1888,7 +1875,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 
 ### 151. Forex sleeve: no within-pool rank edge, R-FX fails, forex stays off (V5.7.0)
 
-**Severity:** 4/10 · **Status:** 🔴 `closed` (forex stays `forex_risk.enabled: false`); the sleeve code ships default-off and tested
+**Severity:** 4/10 · **Status:** 🔴 `closed` (superseded by #163: forex trades again, only as the carry-ranked sleeve at the minimum cap)
 **Problem:** todo finding 8: forex is off because IB's $2 minimum is ~10 bps per side at ~2% NAV against ~$0 gross edge; the plan was a fee-aware sleeve (top/bottom-k within the 15 pairs, 20-bar rebalance, dollar deadband) plus RL sizing.
 **Result** (`scripts/forex_sleeve_research.py`, as-live simulator, $2 minimum modelled, grid gross {20,30,40%} x k {2,3} x deadband {$1k,$2.5k}): V5.6.0 models - forex within-pool rank IC **-0.065** validation (HAC t -1.16) and **-0.034** backtest (t -0.47); every sleeve config has negative net Sharpe on both splits (validation -0.60..-0.79, backtest -0.25..-0.49), gross return also negative, costs only 13-21 bps/yr. Retrained candidate (forex one-hot, `fx_carry_3m`, separate forex rank group): IC still **-0.070** / **-0.068** (t -0.96 / -1.15); its sleeves are still net-negative on both splits (e.g. k=2, 30% gross: validation Sharpe -0.73, backtest -0.28; backtest gross return at most +0.1%); full grid in `ml/evaluation/forex_sleeve_research_candidate_v570.json`. R-FX offline (net Sharpe > 0 on both splits AND forex IC > 0 on validation) fails; no Lean forex run is justified. The fee floor is no longer the problem (the sleeve's fees are small); the model has no cross-sectional forex signal, and the carry feature did not create one.
 **Other pieces:** the forex RL policy is data-starved (96 validation rows) and fails R-RL (#150). The 2021-25 holdout was not used to tune anything here.
@@ -1896,8 +1883,7 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 ### 152. Gating, label timing and the shipped checks that need no change (V5.7.0)
 
 **Severity:** 2/10 · **Status:** 🟢 `fixed` (verified, no code change)
-**Gating (M3.9):** the learned gating model (MCC 0.0097) feeds only the MoE direction path (`moe_gating` in `main.py`), which drives the capped legacy sleeve (5% gross after #146, alpha -0.14%, t -0.23); the rank book and the as-live simulator do not read it, so it cannot be evaluated by the book simulator and its effect is bounded by the sleeve cap. Left unchanged.
-**Execution-aligned labels (M3.8):** realized rank IC of the live rank score against open-to-open (t+1 open to t+21 open) vs close-to-close 20-day returns: backtest +0.1494 vs +0.1506 (-0.8%), validation +0.0466 vs +0.0497 (-6.3%); both inside the plan's 20% threshold, so no open-to-open label variant is needed.
+**Problem/Fix:** No code change. **Gating (M3.9):** the learned model (MCC 0.0097) feeds only the MoE direction path (`moe_gating` in `main.py`), which drives the capped legacy sleeve (5% gross after #146; alpha -0.14%, t -0.23); the rank book and as-live simulator never read it, so its effect is bounded by the sleeve cap. **Execution-aligned labels (M3.8):** realized rank IC of the live score against open-to-open vs close-to-close 20-day returns is backtest +0.1494 vs +0.1506 (-0.8%) and validation +0.0466 vs +0.0497 (-6.3%), both inside the plan's 20% threshold, so no open-to-open label variant is needed.
 
 ### 153. BT6: the direction-aware slippage fix did nothing; the trigger was crypto limit-fill drift (V5.7.0)
 
@@ -1911,13 +1897,204 @@ Single root cause: Python float comparison semantics (`nan > x`, `nan < x`, `nan
 ### 154. Closing the minor leads against BT7 (V5.7.0)
 
 **Severity:** 2/10 · **Status:** 🟢 `fixed` (all closed as accepted residuals with numbers; no code change)
-- **Topology cache tolerance (#36):** BT7 `--reconcile-features`: `topology_correlation_strength` differs from the dataset on 7/192 (NVDA, mean |delta| 0.027, max 0.11) and 10/192 (XOM, mean 0.018, max 0.042) rebalance dates (3.6-5.2%), the largest divergence of the 52 compared features; the other divergent features (peer ranks, regime scores) move on 1-4% of dates by at most 0.15. Divergent dates fell from 19 -> 12 (XOM) and 18 -> 11 (NVDA) between BT6 and BT7 without any topology change, which points to run-dependent state (the topology/regime windows depend on which fills happened) rather than a systematic cache bias; not investigated further. Accepted.
-- **XOM/NVDA selection residuals (#91/#97/#100):** the book-member selection those entries tracked is now measured by the same reconcile at 6% of dates per symbol and the rest of the 52 features match exactly; the thin-sample "open" status is closed as accepted.
-- **AAA's late Lean start (#140):** AAA has 139 of 163,234 dataset rows and is observation-only (never a book member); removing it needs a retrain that was not adopted (#150). Left as is.
-- **Live-only feature:** the snapshot carries `fx_carry_3m` (computed live for the retrain's schema) that the shipped V5.6.0 models do not read; it costs one dict lookup per symbol and is documented, not removed, because the next retrain consumes it.
+
+**Problem/Fix:** BT7's `--reconcile-features` closed every minor lead as an accepted residual. **Topology cache tolerance (#36):** `topology_correlation_strength` differs on 7/192 (NVDA, mean |delta| 0.027) and 10/192 (XOM, mean 0.018) rebalance dates — the largest of the 52 features — and fell 19→12 / 18→11 between BT6 and BT7 with no topology change, pointing to run-dependent state, not a cache bias. **XOM/NVDA selection residuals (#91/#97/#100):** now 6% of dates per symbol with the other 52 features exact; closed as accepted. **AAA's late Lean start (#140):** observation-only (139 of 163,234 rows), removable only by an unadopted retrain (#150), left as is. **Live-only `fx_carry_3m`:** kept because the next retrain consumes it (one dict lookup per symbol).
 
 ### 155. CI-only failure: a constant return window correlated as noise on Python <= 3.11 (V5.7.1)
 
 **Severity:** 3/10 · **Status:** 🟢 `fixed and verified` (reproduced on Python 3.10, fixed, 54/54 topology tests pass there and on 3.14)
-**Problem:** `test_vectorised_correlations_match_the_scalar_pearson_for_every_pair` failed on every CI python-tests / subsystem-matrix(ml) job since V5.6.0 (CI runs 3.11, the dev PC 3.14). `_pearson_correlation` relied on an EXACT zero variance for a constant window: Python <= 3.11 sums naively, so `mean([0.001] * 24) != 0.001` and the variance came out ~1e-35, which gave a ~1e-17 correlation instead of 0.0; Python >= 3.12 sums with compensation (exact zero -> 0.0), and the numpy path (pairwise mean) also saw an exact zero. Exact 0.0 ties are broken alphabetically but 1e-17 'ties' are broken by the noise, so the two paths picked different top peers. Lean runs 3.11 too, so live peer ranking for a flat series could differ from the dataset's (3.14) by the same mechanism.
-**Fix:** a window whose values are all equal returns 0.0 in the scalar path and the vectorised matrix zeroes that row and column (decided on the VALUES, independent of how `sum()` rounds). Tests: 4 constant levels through both paths; with the old code the original test and all 4 new cases fail on 3.10, with the fix everything passes.
+**Problem:** `test_vectorised_correlations_match_the_scalar_pearson_for_every_pair` failed on every CI job since V5.6.0 (CI runs 3.11, the dev PC 3.14): `_pearson_correlation` relied on an exact zero variance for a constant window, but Python <= 3.11 sums naively so `mean([0.001] * 24) != 0.001` and the variance came out ~1e-35, giving a ~1e-17 correlation instead of 0.0 and breaking the alphabetical top-peer tie. Lean also runs 3.11, so live peer ranking for a flat series could differ from the 3.14 dataset the same way.
+
+**Fix:** A window whose values are all equal now returns 0.0 in the scalar path and zeroes that row and column in the vectorised matrix (decided on the values, independent of `sum()` rounding). Tests: 4 constant levels through both paths.
+
+**Verification:** With the old code the original test and all 4 new cases fail on 3.10; with the fix all 54 topology tests pass on 3.10 and 3.14.
+
+### 156. All Lean data stopped at 2021-03-31: ten crypto pairs never reached 250 train rows, the shipped models were stale for live, and the holdout was a separate root (V5.8.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed and verified` (data, audit, parity of both trees; the models retrained on it are #160+)
+
+**Problem:** every zip under `data/` ended 2021-03-31 (BTC's quote zip 2018-12), the train window was 2014-12..2017-12, so ETH had 54 and the other nine crypto pairs 52 train rows (observation-only by the 250-row rule), forex mixed OANDA quotes with Yahoo patches on different clocks, 15 Lean factor files sat beside zips that were already adjusted, and the 2021-25 holdout lived in `data_holdout/` where it could only be read, never trained on. The shipped V5.6.0 models, scored on the new 2022-01..2023-06 validation split, have no rank edge at all: pooled `rank_20d` IC -0.003 (HAC t -0.07), within-bond -0.10 (t -1.07), within-equity +0.036 (t 0.85), between-class -0.06 (`aq evaluate --ic-by-class`).
+
+**Fix:** all 104 universe zips rewritten 2013-01..2026-09 from ONE Yahoo source (forex high/low widened to contain open/close in 57-226 rows per pair, one verified bad EURGBP print on 2022-10-10 corrected through `data_pipeline/price_overrides.json`), crypto quote zips regenerated, the 19 FRED series refetched in full, the 15 obsolete Lean factor files removed (a missing file is an identity; never a sentinel stub, #130), `data/reference/crypto_listing_dates.json` built from Coinbase's own candles (XRP suspended 2021-01-20..2023-07-13, EOS delisted 2025-12-11, ADA listed 2021-03, DOGE 2021-06, ZEC 2020-12). New splits train 2014-12..2021-12 / validation 2022-01..2023-06 / backtest 2023-07..2025-06 / holdout 2025-07..2026-09 (`phase1.windows.holdout`, read once), `runtime.lean_window_override` for a Lean run over the holdout.
+
+**Verification:** `aq evaluate --audit-data`: 104 assets, 20 flagged, every flag a real market event (FB -26% 2022-02, IBM -25% 2026-07, crypto spikes, the CHF/GBP shocks); `factor_file_backfill --audit` 0; the local and Codespace `data/` trees match by name, size and content digest (679 hashed files each).
+
+### 157. Eight audit tools, so each question below is answered by a measurement (V5.8.0)
+
+**Severity:** n/a (tooling) · **Status:** 🟢 `fixed`
+
+**Problem:** the backtest audit counted bonds as "equity" (it groups by Lean securityType), the rolling-IC gate had never been compared with the IC it estimates, there was no check that a data rewrite is sound, no single view of which heads are promotable, and nobody could say whether a feature was a ticker ID.
+
+**Fix:** `--ic-by-class` (within vs between class IC), `--audit-gates` (gate reading vs fully resolved IC, false-veto share; a constant true IC of +0.05 must be vetoed on well under half of the rebalances, pinned by a test), `--audit-data`, `--audit-heads` (R-HEAD), `--audit-features` (ticker-ID suspects, class-constant features, per-split IC sign, permutation drop), `aq clean ml`, per-order slippage trace in the book-history record, and `scripts/codespace_status.sh`.
+
+**Verification:** a test file per module with synthetic data, `aq evaluate --audit-heads` on the shipped models: 2 of the heads the live path reads fail their own gate (`multitask.rank_20d` not promotable, `gating` MCC 0.0096 below the baseline's 0.031).
+
+### 158. Bond duration beta leaked later data into every training row and was a per-ticker constant (V5.8.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed` (point-in-time on both sides; the retrained model is judged in the entries that follow)
+
+**Problem:** `bond_empirical_duration_beta` was one OLS slope over a bond ETF's WHOLE 2014-2021 history broadcast to every row (so validation and backtest returns shaped the training feature, and it identified the ticker); live froze its own estimate after 260 bars and never saw that value.
+
+**Fix:** `features/bond_features.py::rolling_duration_beta` / `rolling_duration_beta_series` (trailing 252 bars; the vectorised series equals the scalar at every row to 4e-16, holes included), used by `train.build_bond_features_by_date` and `main.py::_bond_empirical_duration_beta_for_symbol` behind `phase1.features.bond_duration_beta.mode` (default `full_history` = unchanged).
+
+**Verification:** `tests/test_v580_live_parity.py` replays `main.py`'s deque over 400 bars and matches the training column on every row.
+
+### 159. Latency and memory: the biggest per-tick costs measured and cut (V5.8.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (the per-stage numbers are in and BT1's probe gave the in-Lean split: `write_state` was 34% of the run, throttled for backtests in BT2, 48 minutes for 3.25 years against 53 for 2; the rest is listed as L8 in todo.md)
+
+**Problem:** per-tick `inference_cluster` 166-494 ms (57 separate NumPy-dispatched model calls), topology 332-542 ms (pure-Python pair dict, sort per symbol, SMACOF target by function), `write_state` rewriting ~1.2 MB of JSON every tick, the sequence trainer holding a 1.3 GB dense tensor plus two copies, tests spawning one git process per link.
+
+**Fix:** flat baseline and multitask models for all pending symbols in one matmul per layer (`inference_parallelism.batch_flat_models_across_symbols`, now on): 64 ms -> 2 ms per tick for the multitask model on 57 rows, outputs equal to 5e-16; topology correlation lookups, peer ranking (`np.lexsort`, same alphabetical tie-break) and the SMACOF target from one dense matrix (output identical on 6 random universes incl. constant windows, young windows and exact ties; 230 -> ~160 ms); scaler terms and the sensitivity regression trimmed to the lookback; per-split sequence tensors built straight from the matrix (`row_mask`); vectorised split assignment; dashboard writes throttleable in backtests (`diagnostics.state_write`, default unchanged); `TimingProbe` stages `write_state` and `pass2`; docs-link test 5.8 s -> 0.65 s; chunked dataset read in the lever harness.
+
+**Verification:** equality tests for every changed numeric path; on the full suite the Codespace needs 96 s against the 4 GB PC's 11 minutes and a harness reap.
+
+### 160. The Codespace retrain was killed five times: a memory spike in the sequence trainer, a push that overwrote the retrain's own artifacts, and VM restarts (V5.8.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (every cause removed or made recoverable; the lessons are in `development/infrastructure.md`)
+
+**Problem:** (1) `train_sequence.py` ran the whole 170k-row train tensor through the model in one call at the end (`compute_sequence_multitask_metrics`, the purged-CV pass): several GB of activations on top of 3 GB resident, which the 8 GB no-swap Codespace answers with an external SIGTERM and no OOM line (a 3-second sampler is too coarse to see it; the kill is at the spike). (2) `codespace_sync.ps1 -Mode push` overlays the local `ml/` top-level files, so a mid-retrain push replaced the new scaler, schema, manifest, baseline model and experts with the old ones and still printed "verified" (it only compares the local files' hashes). (3) The VM restarts (uptime 18 min at 16:48) and kills every nohup job. (4) After 3 hours the VM held 1.7 GB of memory outside any process visible from the container, and `train.py`'s dataset build peaks at 5.6 GB.
+
+**Fix:** `forward_in_batches` (4,096 rows) for every full-split forward pass, per-split sequence tensors, a float32 chunked CSV read, a float32 in-memory frame for the baseline/expert trainers, stage-by-stage RSS lines in `train.py`, `performance_probe.install_sigterm_witness`, `codespace_sync.ps1 -Mode push -CodeOnly` (never touches `ml/`, `data/`) and `-Mode pull -NoDatasets`, a restart of the VM to reset its memory, `train.py` re-run with a dataset checksum comparison (`scripts/codespace_rebuild_then_b.sh`: **byte-identical**, so the stage A multitask fits still match the regenerated scaler), detached `setsid` launchers with pid files (`codespace_start_bg.sh`), a walk-forward disk cleaner side-car and `codespace_status.sh` / `codespace_grep.sh` / `codespace_memwatch.sh` / `codespace_diag.sh`.
+
+**Verification:** the sequence model trains through to its artifacts in 9.5 minutes with the batched evaluation (backtest direction MCC 0.0189); the dataset MD5s before and after the rebuild match for all four files.
+
+### 161. The rolling-IC gate vetoes the better periods: lead 1 closed with the audit and decided by R-GATE (V5.8.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed` (decided by rule; Lean read the gates: 47 of 94 rebalances vetoed in BT1, 140 of 210 in BT2, all by the rolling-IC gate. The offline benefit of the gates did not transfer, see #172, so they are safety controls, not alpha)
+
+**Problem:** on the 2021-25 holdout the gated book lost (-0.21) while the ungated one earned +0.55; the gate vetoed 513 of 630 rebalances although the pooled IC was positive.
+
+**Result** (`--audit-gates`, retrained candidate): the gate's vetoes are anti-informative. Backtest split 2023-07..2025-06: 25% of dates vetoed, 82% of them false, mean forward IC on vetoed dates +0.156 against +0.095 overall; validation: 37% vetoed, forward IC +0.036 vs +0.004. Trailing IC mean-reverts here, so a low trailing reading is followed by BETTER skill. R-GATE grid (window 40/80/120 x floor -0.10..+0.05, spread floors, kill switch, hold-on-veto, HRP, impact) on both splits: the previous config (window 80 / floor 0.0) gave backtest +0.475, validation -0.624; three settings pass; the best validation Sharpe is **window 120, floor 0.0** (+0.966 / +0.048, drawdown 5.5% vs 7.1%), then the spread floor **0.184 -> 0.10** (backtest +1.176 vs +0.966, validation unchanged); the kill switch stays (off: +0.85 / -0.11); hold-on-veto, HRP (validation -1.2) and Almgren impact stay rejected.
+
+**Caveat, stated plainly:** about 40 variants were scored on two splits and neighbouring floors swing by +-0.5 Sharpe (floor +0.05: +1.36 backtest, -1.73 validation), so the selection is a noise-level improvement picked by a fixed rule, not an estimated edge; BT1 and the one-look holdout are the real tests.
+
+### 162. V5.8.0 retrain, R-MODEL8 and the walk-forward (V5.8.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed` (walk-forward done, R-MODEL8 decided by the owner on 2026-10-13, Lean read in BT1 and BT2: #172, #174)
+
+**Result so far:** the shipped V5.6.0 models, scored on the new splits with their own scaler, have no rank edge on 2022-23 (pooled `rank_20d` IC -0.003, t -0.07) and their as-live book is degenerate (validation: 7 of 335 rebalances engaged; backtest: 0 of 518, the spread floor calibrated on 2014-21 scores vetoes everything, Sharpe exactly 0.0; ungated books -0.03 and +1.07). Stage A (train 2014-12..2021-12, purge 20 d, bond/forex rank groups, point-in-time bond beta, `fx_carry_3m`): control mean full-daily validation IC +0.0229 (3 seeds, spread 0.042); no variant beats it by more than the spread (`v7_small_net` +0.0413 is closest), so the **control wins**. Candidate vs active on the same splits (config of that moment): ungated book validation +0.58 vs -0.03, backtest -0.22 vs +1.07; gated as-live validation -0.62 vs +1.22 (7 engaged rebalances), backtest +0.47 vs 0.0; with the R-GATE settings of #161 the candidate's as-live book was +0.05 / +1.18 (validation / backtest) before the sleeve decisions. **Final config, same for both** (bonds in their sleeve, crypto caps, RL; main book only): candidate validation +0.52 (28 engaged of 139 rebalances) and backtest +0.62 (50 of 79); active models validation +0.94 (10 of 311 engaged) and backtest -0.84 (5 of 484), so the old models still veto 97% of rebalances and their Sharpe rests on a handful of trades. **Walk-forward (12 expanding windows, 2014-12..2025-05):** rank_20d IC +0.0525 (bootstrap CI +0.019..+0.083, positive in 10 of 12 windows, t 2.2-3.2 depending on window overlap, sign flips 0.17), rank_5d +0.022, direction MCC +0.018 but fading (0.042 in window 5, about 0 in windows 9-11); the idealized book is net-positive in only 4 of 12 windows (mean Sharpe -0.16): costs eat most of the IC. **R-MODEL8:** clauses 1-3 pass, clause 4 fails numerically; the owner decided on 2026-10-13 to **keep the candidate** and to keep the four rank heads (below the single-split promotion gate, t 0.55-1.26, but passing the walk-forward) as watchlist; the learned gating network (MCC 0.0007 vs baseline 0.015) is switched to the hardcoded blend by the R-HEAD rule (`gating_network.learned_model_enabled: false`, it never fed the rank book). The out-of-sample verdict is in #169.
+
+### 163. Forex: a carry-ranked sleeve at the minimum cap (V5.8.0, R-SLEEVE)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (shipped at the minimum cap with its guard; BT2: -$188 gross, -$544 net of fees over 3.25 years, guard never tripped, so the sleeve earns nothing and costs 0.5%; keep it capped or drop it, owner call)
+
+**Problem:** no signal source gives forex a net-positive sleeve on both splits (4 signals x k {2,3} x gross {0.10, 0.20, 0.30} x deadband, the $2 IB minimum modelled per order). Within-pool rank IC: model rank +0.026 (t 0.30) validation / -0.014 backtest, **carry +0.070 (t 0.73) / +0.062 (t 0.65)**, time-series momentum -0.013 / -0.081, carry+momentum +0.027 / +0.048. Best variant (carry, k=2, gross 0.30): Sharpe +0.45 validation, -0.13 backtest.
+
+**Fix:** by the owner's decision (every research area ends up trading) and the R-SLEEVE rule the sleeve ships at the **minimum cap**: `forex_risk.enabled` and `forex_sleeve.enabled` true, `signal: carry`, `gross_budget 0.10`, `per_side 2`, dollar deadband $1,000, its own loss guard (1% of NAV over 60 bars, 60-bar cooldown), RL off. `features/fx_signals.py` ranks by the 3-month rate differential, point-in-time.
+
+### 164. Bonds: they lost money in the book; a momentum-ranked sleeve passes R-SLEEVE (V5.8.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (shipped at the minimum cap after BT1's -$540; BT2 with gross 0.10: +$37 gross, -$31 net over 34 trades, guard never tripped)
+
+**Problem:** every one of the 18 bond ETFs the V5.7 book traded lost money (about -$598 gross in BT7), which the audit never showed because it counted bonds as equities. Within-bond rank IC of the retrained model: -0.042 (t -0.58) validation, +0.074 (t 1.20) backtest, so the model has no stable bond edge; the 22 ETFs in the equity pool also made the book a bonds-vs-equities bet.
+
+**Result:** bond sleeve (22 ETFs ranked among themselves, k 2/3, gross 0.10/0.20/0.30): ranked by the model it loses (Sharpe -0.41 validation / -0.61 backtest); ranked by vol-scaled 60/120-day momentum it is positive on both splits (k=2, gross 0.30: **+0.35 validation, +0.20 backtest**, +0.46% over two years) and adding it changes the combined backtest Sharpe by +0.02 (0.472 vs 0.451 without bonds). R-SLEEVE passes ("edge_pass"). The main book with bonds left IN its pool scored +1.18 on the backtest split but only +0.05 on validation; the rule is not to choose by hindsight.
+
+**Fix:** `phase_v2.bond_sleeve` enabled (`signal: ts_momentum`, per_side 2, gross 0.30, deadband $500, loss guard on); bonds leave the main pool (live `_sleeve_class_for_asset`, offline `_universe_asset_metadata`).
+
+**BT1 verdict (#172):** the sleeve traded 17 times and lost -$540 gross (-$574 net) in Lean over the same window it earned +0.46% offline, the second Lean run in which the bond ETFs lost. The Lean evidence overturns the offline edge pass, so R-SLEEVE's trade-anyway branch applies: gross 0.30 -> 0.10 (the minimum cap), loss guard unchanged. The status stays 🟡: BT2 reads the capped sleeve.
+
+### 165. Crypto: all twelve pairs trade, the ten extra ones capped (V5.8.0, R-SLEEVE)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (all twelve pairs trade, the ten extra ones capped; BT2: crypto +$775 gross but $1,131 of fees at 70 bps per fill, -$356 net, holdout stretch -$864: the exchange fee eats the edge, see L11 in todo.md)
+
+**Problem:** with the data to 2026 every pair has >= 1,400 train rows, so all twelve are trading-eligible; none had a proven edge (V5.7.0 #149) and each fill costs 49-56 bps.
+
+**Result** (as-live simulator, Coinbase fees, listing guard): core only (BTC, LTC) backtest +0.707 / validation +0.406; all twelve uncapped +1.176 / +0.043; **capped 1% per name / 5% class gross +0.712 / +0.308** (larger caps are worse on validation); removing a single graduate moves the backtest Sharpe by -0.1..+0.4 and the validation by -0.1..+0.3 (no name is clearly bad, none clearly good). No capped configuration passes R-GATE against core-only.
+
+**Fix:** the graduates trade at the minimum cap: `phase_v2.class_weight_caps.crypto` per name 0.01, class gross 0.05, BTC/LTC exempt (`portfolio/book_construction.py::apply_class_weight_caps`, shared by `main.py` and the simulator); the crypto-graduates loss guard; the venue listing guard (no order before a pair's Coinbase listing, none while XRP was suspended, none after EOS's delisting).
+
+### 166. RL sizing, a sixth time: no edge, so it ships at the minimum range with a shadow guard (V5.8.0, R-SLEEVE)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (shipped at the minimum range with the shadow guard; the multiplier is not logged per order, so the Lean effect is not separable and is bounded by +-10% of a position)
+
+**Problem:** the book-level 20-day reward policy (actions 0.6-1.2) again does not beat constant 1.0 on its own backtest rows (-0.00167 vs -0.00152; 593 rows); the forex policy had 148 usable rows (need 200). Through the new offline hook (the same `rl_sizing_multiplier` as live) no multiplier range gains >= +0.05 Sharpe on both splits (+0.02..+0.04 backtest, -0.01..-0.18 validation).
+
+**Fix:** RL is in use at `[0.9, 1.1]` with `dynamic_risk.rl_shadow_guard` (falls back to constant 1.0 while the policy's trailing 60-bar excess return is below -0.2% of NAV): the offline result with the guard is -0.018 validation / +0.025 backtest. The forex sleeve does not use RL.
+
+### 167. Latency and resources: what shipped, what R-LAT rejected (V5.8.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (the shipped items are pinned by equality tests; the rejected ones are rejected with numbers)
+
+**Problem:** the Lean runtime was 6,900-8,800 s for 2.25 years with a per-tick cost dominated by inference (~164-494 ms), topology (~332-542 ms), state writes and `build_model_input` (1.9 ms x ~115k calls), and the training/evaluation tools held several GB of redundant copies.
+
+**Shipped (each measured, outputs equal to <= 1e-12):** flat baseline and multitask models for all pending symbols in one matmul per layer (57 rows: 64 ms -> 2 ms per tick), topology peers and SMACOF target from one dense matrix (~25% less per call), scaler terms precomputed, sensitivity regression on the trailing window only, state writes throttled in backtests (`diagnostics.state_write`, default unchanged), probes for `write_state` and Pass 2, batched head scoring for the offline tools (an as-live scoring pass 10 min -> 83 s, ~0.6 GB lower peak), float32 chunked dataset reads, per-split sequence tensors and `forward_in_batches` in training, `tests/test_docs_links.py` 5.8 s -> 0.65 s.
+
+**Rejected by R-LAT (< 10% on the touched stage):** L5, parsing the 95 KB `config.json` three times at each session rollover: 6.9 ms per parse x 3 x ~821 rollovers = 17 s of a 2,800-8,800 s run (0.2-0.6%). L11, the Lean code snapshot: measured 486 files / ~6 MB per run (`build/` 1.3 MB), a whole run folder is ~10 MB, so the 532 MB `backtests/` folder is accumulated runs, not snapshot bloat; Lean CLI offers no ignore list and a post-run prune would save ~1 MB.
+
+**Verification:** `tests/test_exported_model.py`, `test_market_topology.py`, `test_model_predictions.py`, `test_performance_probe.py`; the BT1 timing probe reads the end-to-end effect.
+
+### 168. Feature audit verdict: the flagged features are class descriptors, not leaks; no input-set change (V5.8.0)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (no leak evidence: the flagged features are class descriptors, and BT2's live features equal the dataset's on 89 of 90 equity dates; the out-of-sample weakness is lack of edge, not leakage)
+
+**Problem:** `aq evaluate --audit-features` on validation + backtest flags 13 "ticker-ID suspects" (constant per ticker): `asset_class_*`, `bond_analytic_convexity/modified_duration`, `bond_dv01`, `bond_empirical_duration_beta`, `fx_carry_3m_scaled`, `regime_volatility_high`, `topology_risk_elevated`; 26 features that are constant for forex (volume, bond, macro, alt-data columns); 18 whose IC sign flips between splits.
+
+**Verdict:** the asset-class flags and bond analytics are instrument descriptors by design, the forex-constant columns are simply not applicable to FX, and the point-in-time bond beta (V5.8.0) removed the one real look-ahead leak. A leak would show as in-sample IC that vanishes out of sample: the pooled rank_20d IC is +0.060 (t 2.34) on the untouched backtest split with only 2% of it between classes, and the holdout reads once more. Dropping inputs would force a retrain for no demonstrated gain (the control already won over the small-net and weight-decay variants), so the input set stays; `bond_dv01` stays price-dependent because bonds now trade in a momentum sleeve that reads no model feature.
+
+**Verification:** `evaluation/feature_quality_audit.py` tests; class IC audit (`ml/evaluation/class_ic_audit_backtest.json`); the holdout report decides whether this verdict holds.
+
+### 169. Holdout, one look (2025-07-01..2026-09-29, 104 tickers): no out-of-sample rank edge, the gated book loses 2.4% (V5.8.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed` (reported as measured, nothing tuned on it; BT2 repeated the window in Lean: -1.61%, drawdown -3.85%, against -2.4% offline as-live)
+
+**Result** (`scripts/holdout_report.py`, models and config frozen before the look): daily rank IC against the 20-day return, HAC t: multitask rank_5d +0.019 (1.08), multitask rank_20d +0.037 (0.98), sequence rank_5d +0.023 (1.41), sequence rank_20d -0.0001 (-0.00); the non-overlapping t of every head is below 1.2. The idealized top-6/bottom-6 book makes -0.81 Sharpe (-6.1%, drawdown 12.9%, turnover 8.7x, cost drag 189 bps); the as-live book makes **-0.59 Sharpe (-2.4%, drawdown 4.3%)** with 153 of 172 rebalances vetoed (152 by the rolling-IC gate) and a mean gross exposure of 13%, so the gates turned a -6% book into a -2.4% one by staying mostly in cash.
+
+**Reading:** the in-window evidence (12-window walk-forward IC +0.0525 with CI +0.019..+0.083, backtest split +0.060 at t 2.34, ending 2025-05) did not persist into the 15 months after it. The honest status of the model stack is "weak, unproven edge": the safety layers work, the alpha is not demonstrated out of sample. No parameter was changed after this look.
+
+**Verification:** `ml/evaluation/holdout_report.json`; the README "Research and Audit Results" block carries the same numbers.
+
+### 170. Learned topology sizing, measured offline for the first time (rule R-TOPO): stays on (V5.8.0)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed` (the offline blind spot is closed; the decision is "no change")
+
+**Problem:** the live shrink-only topology multiplier (0.5..1.0) was invisible to every offline run, so `topology_learning` could not be judged by R-GATE.
+
+**Fix and result:** `topology.learned_topology.learned_sizing_inputs` scores each dataset row with the live prototype distances, `build_live_member_weight_fn(topology_inputs_fn=...)` applies the same `topology_sizing_multiplier`, and `scripts/topology_sizing_research.py` brackets the unknown whole-bar peer term at 0 / 0.5 / 1. The retrained topology (6 clusters, regime labels now in the live `primary_regime` format) shrinks every node (mean multiplier 0.82 / 0.72 / 0.62, learned share 100%). Net Sharpe OFF vs ON(mid): validation +0.52 vs +0.09, backtest +0.62 vs +1.07; the sign differs by split and neither direction clears the R-GATE margins, so it stays ON, the shipped state. A learned share of 100% means the overlay acts as a uniform shrink, not a selector.
+
+**Verification:** `tests/test_learned_topology.py`, `test_v570_live_mechanisms.py`, `test_topology_sizing_research.py`.
+
+### 171. README results are refreshed by the commands that produce them; Monte Carlo is part of `--all` (V5.8.0)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the README's Monte Carlo section claimed to refresh with every `aq evaluate` but only re-rendered a stale result (`--monte-carlo` was not in `--all`), `--monte-carlo` crashed with a KeyError on fewer than 30 daily returns, the as-live book and all V5.8.0 research were not on the page, and a second Lean run overwrote the first one's row.
+
+**Fix:** `aq evaluate --all` includes Monte Carlo (a short dataset reports SKIPPED), `evaluation/readme_research.py` renders the as-live book per split and the research/audit block, `generate_backtest_report.build_history_markdown` lists every finished Lean run, and the audit flags and research scripts refresh the README on exit.
+
+**Verification:** `tests/test_readme_research.py`, `test_generate_backtest_report.py`, `test_aq_cli.py`.
+
+### 172. BT1 (Lean, 2023-07-01..2025-06-30): the retrained candidate loses 5.0% in the engine, the offline +0.62 does not reproduce (V5.8.0)
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed` (BT1 measured and attributed; the regime-input skew it exposed shipped as #173 and BT2 ran on it; the main-book posture is the owner's call, L3)
+
+**Result** (`backtests/2026-10-13_17-54-47`, config sha256 `01de086f5b5d42cf`, installed-model manifest `ml/evaluation/v580/installed_manifest_local.txt`): Sharpe -2.98 with Lean's risk-free rate (-0.75 without), net -5.03% (-$5,026), drawdown 8.2%, 514 orders, fees $975. R-LEAN8 fails on Sharpe (needs >= +0.31, half the offline +0.62) and drawdown (limit 5%). The engine log is clean: 0 `inference failed`, `sequence_served=70159` with 0 multitask fallbacks, no 2050 starts, no numerical-precision lines, 0 failed data requests, and the known #104 teardown timeout after the results were written. Realized P&L by config class (new in `--audit-backtest`, which used to file bond ETFs under "equity"): main-book equity -$4,847 gross (132 entries), non-book equity +$171, **bond sleeve -$540 (17 trades; BT7's bonds lost about -$598)**, crypto +$1,180 (net +$648 after $532 fees), forex sleeve -$14 gross / -$88 net.
+
+**Reading:** the loss sits in the main equity book, not in plumbing. Equity and bond features reconcile with the dataset (XOM, NVDA, TLT: only `regime_signal_*` steps on 64 of 94 dates and one topology value), fills sit at the modelled ~5 bps, and the slippage-divergence veto fires 0 times (35 before the submit-price fix). The offline as-live book (+5.95%, Sharpe +0.62) and BT1 are uncorrelated (daily r = 0.02): the offline figure came from gates dodging an ungated book that loses (-0.72 Sharpe, -7.5% on the same split), and the same gates did not dodge the same days in Lean (47 of 94 rebalances vetoed live against 29 of 79 offline; with the live pool and hysteresis replayed the BT1 book shared 0.77 of its names with the offline replay, raw scores 0.0100 apart). That agrees with the holdout (#169): the rank IC of +0.05 does not turn into a book that beats its costs. Crypto and forex bars close after the equity tick, so their own-price features at tick D equal the dataset's previous row (ETHUSD: 37 of 53 features, the other 20 cross-asset / macro features match the same row; EURUSD: its price block 85%); `--reconcile-features` now applies that lag. Forex `atr_pct_14`, `liquidity_spread_proxy` and the `sens_*` betas match neither row (a different high/low and window source), which does not touch P&L because the forex sleeve ranks by carry. The one equity-relevant gap is #173.
+
+**Latency (L0 probe, mean per call):** `write_state` 580 ms x 1,871 = 1,086 s (34% of the 53-minute run), `build_model_input` 3.6 ms x 106,535 = 386 s, `topology_payload` 186 ms = 347 s, `inference_cluster` 152 ms = 284 s, `pass2` 54 ms = 101 s. `write_state` passes R-LAT (>= 10%), so the shipped backtest-only throttle goes on for BT2.
+
+**Verification:** `aq evaluate --audit-backtest / --audit-fills / --reconcile-features / --reconcile-book-history` (reconcile flags now take `--dataset`), `tests/test_backtest_audit.py`.
+
+### 173. The models read a regime vector the dataset never produced: live fed the account drawdown into the `regime_*` inputs (V5.8.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed` (fixed, tested and confirmed in BT2: equity features equal the dataset on 89 of 90 dates and the live-pool book replay shares 0.81 of the names)
+
+**Problem:** the dataset builds `regime_*` with `portfolio_drawdown=0.0` (it has no account state), while `main.py` passed the real `current_total_drawdown`, so `regime_signal_risk_score` / `_confidence` and the risk one-hots differed from training on 64 of 94 BT1 dates (mean |delta| 0.155 and 0.052). Re-scoring 42 backtest-split dates with the drawdown inserted (both models, both rank heads; the recomputation reproduces the dataset to 7e-7): at -2% nothing changes; at -4% every row's regime inputs change and the top/bottom-6 overlap falls to 0.91; at -8% to 0.66 (mean rank-score change 0.107). A losing book therefore changed its own inputs. Measured with the same replay tool on the live pool, the fix cut the raw-score error between live and the offline replay from 0.0100 (BT1) to 0.0064 (BT2) and lifted the shared names from 0.77 to 0.81 (BT3: 0.77, error 0.0044): a real but modest parity gain, not the whole reason BT2 did better than BT1.
+
+**Fix:** `regime.build_model_input_regime_vector` (drawdown pinned to 0.0) is the one definition; `train._encode_regime_row` and `main.py::_build_model_input` (`_build_model_regime_payload`) both call it. Risk decisions keep the real-drawdown vector, and the second vector is built only while the account is in drawdown (nothing new per bar otherwise).
+
+**Verification:** `tests/test_regime_model_input.py` (dataset encoding equals the model vector over a grid, live model regime is drawdown-independent, live risk regime is not), `ml/evaluation/v580/regime_dd_sensitivity.txt`. BT2's `--reconcile-features` must show the regime features within the 10% rule and `--reconcile-book-history --replay-hysteresis` an overlap back near 77%.
+
+### 174. BT2 (Lean, 2023-07-01..2026-09-30): capital preserved, no edge demonstrated, the regime fix is confirmed (V5.8.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (measured, written up and verified; the verdict is no demonstrated edge, which is the owner's call at L3)
+
+**Result** (`backtests/2026-10-14_07-27-32`, config sha256 `30534b24d02969457369e8ca991df0d562431f13836520b8ae4ade82618094e9`, manifest sha256 `cf8f68fe242da1e837b01598c3ec95bae1aee26c4dad50e4c2393ce622ed05fa`, models unchanged since BT1): 48 minutes, engine log clean (0 `inference failed`, `sequence_served=114283`, 0 multitask fallbacks, 0 numerical-precision lines, 0 2050 starts, 0 failed data requests; the known #104 teardown timeout after the results). **Whole run net -0.58%, drawdown 4.3%, 1,150 orders, fees $2,195; Sharpe -2.03 with Lean's risk-free rate, -0.03 without.** Backtest stretch 2023-07..2025-06: +1.04%, drawdown 3.6%, Sharpe +0.14 (BT1 on the same dates: -5.03%, -0.75). Holdout stretch 2025-07..2026-09 (reported, never tuned on): -1.61%, drawdown 3.9%, Sharpe -0.40. P&L by class (gross / net of fees): equity +$990 / +$350 (main-book members -$279 gross, non-members +$1,270), crypto +$775 / -$356, bonds +$37 / -$31, forex -$188 / -$544. **Costs ($2,195) exceed the gross result ($1,614)**; crypto alone pays $1,131 at 70 bps per fill. The rolling-IC gate vetoed 140 of 210 rebalances; the run ended with the kill switch's rolling-Sharpe lock active.
+
+**Verdict by rule:** R-LEAN8's BT2 clause holds (engine clean); the drawdown limit holds (4.3% <= 5%); the BT1-style Sharpe bar (>= 0.31 on the backtest stretch) is still missed (+0.14). The +0.88 Sharpe gain over BT1 comes from a changed configuration (regime inputs, bond cap), one path each, so it is evidence for the fix, not proof of an edge. The holdout stretch agrees in sign and size with the offline holdout (as-live -2.4%).
+
+**Parity:** equity and bond features equal the dataset on 89 of 90 reconciled dates for XOM, NVDA and TLT (BT1: 65 of 94 diverged on the regime scores), so #173 is confirmed in the engine. Crypto and forex own-price features equal the dataset's previous row (late-bar convention); their cross-asset block belongs to the tick's row, which `--reconcile-features` now applies. The book-history replay (`--replay-hysteresis`) first ranked all 104 tickers while the live main book excludes the bond and forex sleeves (0.46 shared names, an artefact of the tool); with the live pool it shares **0.81 of the names in BT2** (11 of 47 dates exactly, raw scores 0.0064 apart) against 0.77 in BT1 (8 of 47, 0.0100) and 0.77 in BT3 (0.0044), so book parity is at the BT3 level or better.
+
+**Verification:** `aq evaluate --audit-backtest --period 2023-07-01..2025-06-30 --period 2025-07-01..2026-09-30`, `--audit-fills`, `--reconcile-features`, `ml/evaluation/v580/bt2_book_reconcile_pool.txt`, `bt1_book_reconcile_pool.txt`.

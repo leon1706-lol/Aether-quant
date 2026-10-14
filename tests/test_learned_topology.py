@@ -484,3 +484,27 @@ def test_learned_offset_bounded_when_max_offset_z_is_raised_to_the_xy_scale():
         assert abs(node["z"] - base["z"]) <= 6.0 + 1e-9
         # and the raised cap genuinely lets z move further than the 2D 0.1
         assert abs(node["z"] - base["z"]) > 0.1
+
+
+def test_learned_sizing_inputs_matches_the_node_scoring_and_brackets_the_peer_term():
+    from topology.learned_topology import learned_sizing_inputs
+
+    schema, model = _sample_feature_schema(), _sample_model()
+    calm = {"volatility": 0.15, "momentum": 0.01, "correlation_strength": 0.6, "liquidity_score": 0.6, "regime_risk_score": -0.4}
+    best = learned_sizing_inputs(calm, model, schema, cluster_regime_label="bullish", peer_distance=0.0)
+    worst = learned_sizing_inputs(calm, model, schema, cluster_regime_label="bullish", peer_distance=1.0)
+    assert best["topology_source"] == "learned" and best["topology_confidence"] > 0.5
+    assert best["topology_disagreement"] == 0.0 and worst["topology_disagreement"] == 0.5
+    mismatch = learned_sizing_inputs(calm, model, schema, cluster_regime_label="bearish", peer_distance=0.0)
+    assert mismatch["topology_disagreement"] == 0.5
+    assert learned_sizing_inputs(calm, model, schema, cluster_regime_label=None, peer_distance=0.0)["topology_disagreement"] == 0.0
+
+
+def test_learned_sizing_inputs_falls_back_without_a_model_or_below_the_confidence_floor():
+    from topology.learned_topology import learned_sizing_inputs
+
+    vector = {"volatility": 0.2, "momentum": 0.0, "correlation_strength": 0.5, "liquidity_score": 0.5, "regime_risk_score": 0.0}
+    assert learned_sizing_inputs(vector, None, None)["topology_source"] == "fallback"
+    assert learned_sizing_inputs(vector, {"prototypes": []}, _sample_feature_schema())["topology_source"] == "fallback"
+    unsure = learned_sizing_inputs(vector, _sample_model(), _sample_feature_schema(), min_confidence_for_learned=0.99)
+    assert unsure["topology_source"] == "fallback" and unsure["topology_confidence"] < 0.99

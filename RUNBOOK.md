@@ -61,6 +61,18 @@ Since V5.6.0 the sync is scripted (`gh codespace cp` upload is broken and `-r` d
 
 The VM reboots about hourly: walk-forward resumes with `--resume-run-id`. See `development/infrastructure.md`.
 
+## Deploy checklist (paper first, V5.8.0)
+
+Run top to bottom; stop at the first red item. Evidence status at V5.8.0: the models carry a weak, unproven rank edge (`development/Problems.md` #169, #172, #174), so **paper trading only, no live capital**, until a paper period shows otherwise.
+
+1. **Freeze:** `aq test` green, `ruff check .` clean, `aq secrets-check` passes, `python scripts/ml_manifest.py` equals the manifest the last Lean run used.
+2. **Image:** `aq docker build`, then `aq docker up` and `GET /api/assets-status` returns 200.
+3. **Config:** `aq render-lean-config` from `.env.live` (secrets only in the gitignored `lean.live.json`); `phase_v2.runtime.mode` stays `observation` until step 4.
+4. **Gate:** `aq paper-readiness` (needs the Postgres observation history and the paper broker config) before flipping the mode to `paper`.
+5. **Dashboard (`/api/assets-status`, Operations page):** forex carry sleeve (gross 0.10), bond momentum sleeve (gross 0.10), crypto graduates (1% per name, 5% class), RL range [0.9, 1.1] with its shadow guard, the venue listing guard, and every `sleeve_guards.*` entry reading `sleeve_guard_ok`.
+6. **Kill switch fields to watch:** rolling Sharpe floor, drawdown velocity, slippage divergence (reference = submit price), the rolling-IC gate state and the spread floor.
+7. **First week:** keep `diagnostics.book_history.include_feature_snapshot` on for a few symbols and run `aq evaluate --reconcile-features --symbol X` against a fresh dataset; the regime inputs must match (they are drawdown-free since V5.8.0).
+
 ---
 
 ## Incident procedures
@@ -131,3 +143,13 @@ aq evaluate --reconcile-book-history --replay-hysteresis
 - Offline eval still positive → live-vs-offline gap widened; check reconciliation for new divergences.
 - Offline eval also negative → model degraded; trigger a retrain via codespace.
 - Both positive but live losing → execution-side issue; review fills, slippage, fees in order-events log.
+
+---
+
+## 6. A class sleeve is suspended by its loss guard
+
+**Symptoms:** `sleeve_guards.<forex|bond|crypto_graduates>.active` is false and `reason` is not `sleeve_guard_ok`; the sleeve holds no positions.
+
+**Diagnosis:** read `drawdown` and `suspended_until_bar` in `visualization/state.json` (`sleeve_guards`); compare with `phase_v2.sleeve_guards.<sleeve>.max_loss_fraction_nav` and the sleeve's P&L in `aq evaluate --audit-backtest` (P&L by class).
+
+**Resolution:** nothing to do until `suspended_until_bar`; the guard is a hard limit by design. Two suspensions in a row mean the sleeve has no edge: cut its gross budget or disable it (`phase_v2.<sleeve>.enabled`), record the decision in the Changelog.

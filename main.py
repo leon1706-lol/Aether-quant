@@ -50,14 +50,17 @@ from risk_controls import (
     is_regime_drawdown_bypass_active,
     is_sticky_trade_lock_bypass_active,
     projected_signed_quantity,
+    resolve_lean_window,
     should_lock_in_duration_beta,
     should_scale_position,
 )
 from analyzer import build_market_analysis_decision
 from moe import EXPERT_NAMES, build_gating_decision
-from regime import build_market_regime_vector
+from regime import build_market_regime_vector, build_model_input_regime_vector
 from risk.asset_class_router import (
+    asset_listed_on_venue,
     book_candidate_trading_eligible,
+    load_venue_listing_dates,
     resolve_asset_class_enabled,
     route_multi_leg_option_sizing,
     route_position_sizing,
@@ -68,10 +71,21 @@ from risk.futures_risk import build_live_contract_spec, load_futures_contract_sp
 from risk.kill_switch import evaluate_kill_switch
 from risk.manual_override import read_kill_switch_manual_override, read_manual_trade_lock_override
 from risk.position_sizing import cost_sizing_multiplier
-from risk.rl_sizing import FOREX_RL_SIZING_STATE_KEYS, build_rl_sizing_state, load_rl_sizing_model, rl_sizing_multiplier
+from risk.rl_sizing import (
+    FOREX_RL_SIZING_STATE_KEYS,
+    build_rl_sizing_state,
+    load_rl_sizing_model,
+    resolve_rl_shadow_guard,
+    rl_excess_return,
+    rl_shadow_guard_allows,
+    rl_sizing_multiplier,
+)
+from portfolio.class_sleeve import build_class_sleeve_weights, resolve_class_sleeve_config
 from portfolio.forex_sleeve import build_forex_sleeve_weights, forex_resize_below_minimum
+from portfolio.sleeve_guard import evaluate_sleeve_guard, resolve_sleeve_guard_config
 from portfolio import (
     apply_book_weight_floor,
+    apply_class_weight_caps,
     build_book_history_record,
     build_book_raw_weights,
     build_rank_based_book,
@@ -81,6 +95,7 @@ from portfolio import (
     normalize_per_asset_class_slots,
     pct_returns_from_closes,
     remember_formed_book,
+    resolve_class_weight_caps,
     resolve_rank_signal_policy,
     select_raw_rank_score,
     should_exit_non_selected_book_symbol,
@@ -89,11 +104,19 @@ from portfolio import (
     update_book_owned_symbols,
 )
 from portfolio.book_neutrality import apply_book_neutrality
+from portfolio.rank_signal import MAIN_RANK_GROUP, grouped_cross_sectional_rank_scores, rank_group_by_symbol
 # V5.5.0 (Problems.md #128) - light direct submodule import, same rule as
 # rolling_ic_gate below (never route main.py's startup through a heavier
 # package __init__).
 from portfolio.legacy_sleeve import apply_legacy_sleeve_policy, compute_sleeve_gross_used, resolve_legacy_sleeve_config
-from performance_probe import TimingProbe, collect_teardown_diagnostics, release_symbol_containers
+from performance_probe import (
+    TimingProbe,
+    collect_teardown_diagnostics,
+    release_symbol_containers,
+    resolve_state_write_policy,
+    should_write_runtime_state,
+    state_json_indent,
+)
 # `from AlgorithmImports import *` above exports Lean's `time` (datetime.time), which silently replaces the
 # stdlib module of that name in this namespace; `time.perf_counter()` crashed V5.5.0's first backtest on
 # bar 1. Import the function under a private alias AFTER the star import - never `import time` here.
@@ -168,6 +191,7 @@ from execution import (
     build_net_edge_decision,
     classify_order_status,
     compute_fill_slippage_divergence_bps,
+    slippage_reference_price,
     credentials_present,
     evaluate_broker_config,
     is_real_order_placement,
@@ -194,7 +218,9 @@ from inference import (
     init_worker,
     resolve_sequence_window_size,
     run_exported_model,
+    run_exported_model_rows,
     run_exported_multitask_model,
+    run_exported_multitask_model_rows,
     run_exported_multitask_models_batched,
     run_exported_models_batched,
     run_exported_sequence_multitask_model,
@@ -236,8 +262,10 @@ from features import (
     yield_curve_level,
     yield_curve_slope_proxy,
 )
+from features.bond_features import resolve_bond_duration_beta_mode, rolling_duration_beta
 from features.cross_asset_timing import cross_asset_inputs
 from features.fx_carry import FX_CARRY_FEATURE_NAME, FX_RATE_PUBLICATION_LAG_DAYS, fx_carry_3m
+from features.fx_signals import fx_sleeve_scores
 from data_pipeline.fred_backfill import (
     ALT_DATA_PUBLICATION_LAG_DAYS,
     load_cached_fred_series,
@@ -450,9 +478,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._ready = False
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
-        backtest_window = self.phase1["windows"]["backtest"]
-        start_year, start_month, start_day = map(int, backtest_window["start"].split("-"))
-        end_year, end_month, end_day = map(int, backtest_window["end"].split("-"))
+        (start_year, start_month, start_day), (end_year, end_month, end_day) = resolve_lean_window(
+            self.runtime, self.phase1["windows"]
+        )
         self.set_start_date(start_year, start_month, start_day)
         self.set_end_date(end_year, end_month, end_day)
         self.set_cash(float(self.runtime["initial_cash"]))
@@ -482,6 +510,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # symbol (see that method's own docstring for why) rather than
         # re-rolling a fresh, drifting estimate every bar.
         self._bond_empirical_duration_beta_cache: dict[str, float] = {}
+        # V5.8.0 - "rolling" recomputes a point-in-time trailing slope (train.py does the same per row); absent config
+        # keeps the lock-in-once value above.
+        self.bond_duration_beta_mode, self.bond_duration_beta_lookback = resolve_bond_duration_beta_mode(
+            self.phase1.get("features")
+        )
+        self._bond_rolling_beta_by_symbol: dict[str, tuple[tuple, float]] = {}
         # V5.2.6 (development/Problems.md) - per-symbol {"total":, "zero_volume":}
         # counters confirming how systematic the volume=0.0 delivery issue
         # behind the liquidity zero-volume fallback (self._zero_volume_fallback_ddv_by_type)
@@ -856,8 +890,38 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._forex_sleeve_allocations: dict = {}
         self._forex_sleeve_formed: dict = {}
         self._forex_sleeve_weights: dict[str, float] = {}
+        # V5.8.0 - the forex sleeve can rank by carry / time-series momentum instead of the model (features/fx_signals.py)
+        self.forex_sleeve_signal = str(_forex_sleeve.get("signal", "model_rank"))
+        # V5.8.0 - bond sleeve (portfolio/class_sleeve.py): bonds ranked among themselves with their own budget, the same
+        # structure as the forex sleeve. Off by default: bonds then stay in the main book's pool.
+        self.bond_sleeve_config = resolve_class_sleeve_config("bond", self.phase_v2.get("bond_sleeve"))
+        self.bond_sleeve_enabled = self.bond_sleeve_config.enabled
+        self._bond_sleeve_allocations: dict = {}
+        self._bond_sleeve_formed: dict = {}
+        self._bond_sleeve_weights: dict[str, float] = {}
+        # V5.8.0 - per-class book-weight caps for names that must trade without a proven edge (default: none)
+        self.class_weight_caps = resolve_class_weight_caps(self.phase_v2.get("class_weight_caps"))
+        # V5.8.0 - venue listing guard: no crypto pair is a book candidate before its exchange listed it (off by default)
+        _listing_guard = self.phase_v2.get("venue_listing_guard", {})
+        self.venue_listing_dates = (
+            load_venue_listing_dates(self.root_path / _listing_guard.get("path", "data/reference/crypto_listing_dates.json"))
+            if _listing_guard.get("enabled", False)
+            else {}
+        )
+        # V5.8.0 - per-sleeve loss guard (portfolio/sleeve_guard.py), off by default
+        _sleeve_guards = self.phase_v2.get("sleeve_guards", {})
+        self.sleeve_guard_configs = {
+            name: resolve_sleeve_guard_config(_sleeve_guards.get(name)) for name in ("forex", "bond", "crypto_graduates")
+        }
+        self._sleeve_guard_state = {
+            name: {"increments": deque(maxlen=config.lookback_bars + 1), "last_level": None, "suspended_until": None,
+                   "active": True, "reason": "sleeve_guard_disabled", "drawdown": 0.0}
+            for name, config in self.sleeve_guard_configs.items()
+        }
         _v550_diagnostics = self.phase_v2.get("diagnostics", {})
         self._timing_probe = TimingProbe(bool(_v550_diagnostics.get("timing_probe", {}).get("enabled", False)))
+        # V5.8.0 - dashboard state cadence in backtests (performance_probe.should_write_runtime_state)
+        self._state_write_policy = resolve_state_write_policy(_v550_diagnostics.get("state_write"))
         self.teardown_cleanup_enabled = bool(_v550_diagnostics.get("teardown_cleanup", {}).get("enabled", False))
         # V5.6.0 (#104) - also detach the Python-implemented slippage model from every security and close the Redis
         # clients before the interpreter is finalized; off keeps the V5.5.0 cleanup exactly.
@@ -932,6 +996,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Debug(f"rank_signal: failed to load {metrics_path.name} - {error}")
             rank_signal_training_metrics[model_name] = metrics_value
         self._rank_signal_policy = resolve_rank_signal_policy(rank_signal_training_metrics, self.config)
+        # V5.8.0 - a model trained on grouped rank targets (phase1.target.ranking.separate_rank_groups) is ranked per group
+        # live; the spread gate and the rolling-IC events then read the main group only. Off = one pool (pre-V5.8.0).
+        self._rank_group_by_symbol: dict[str, str] = {}
+        if bool(self.phase_v2.get("rank_signal", {}).get("grouped_normalization", False)):
+            self._rank_group_by_symbol = rank_group_by_symbol(
+                {key: asset.get("asset_class") or asset.get("security_type") for key, asset in self.asset_lookup.items()},
+                self.phase1.get("target", {}).get("ranking", {}).get("separate_rank_groups"),
+            )
         if self._rank_signal_policy["demoted"]:
             self.Debug(
                 f"rank_signal: demoted heads {self._rank_signal_policy['demoted']} "
@@ -1091,6 +1163,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.rl_sizing_enabled = bool(phase_v2_risk.get("rl_sizing_enabled", False))
         self.min_rl_multiplier = float(phase_v2_risk.get("min_rl_multiplier", 0.6))
         self.max_rl_multiplier = float(phase_v2_risk.get("max_rl_multiplier", 1.0))
+        # V5.8.0 - RL shadow guard (risk/rl_sizing.py): RL sizing falls back to 1.0 while its excess return over
+        # constant sizing is below tolerance in the trailing window. Off by default.
+        self.rl_shadow_guard = resolve_rl_shadow_guard(phase_v2_risk.get("rl_shadow_guard"))
+        self._rl_excess_history: deque = deque(maxlen=self.rl_shadow_guard["window_bars"] + 1)
+        self._rl_multiplier_by_symbol: dict[str, float] = {}
+        self._rl_shadow_allows = True
         self.regime_bullish_threshold = float(phase_v2_regime.get("bullish_threshold", 0.02))
         self.regime_bearish_threshold = float(phase_v2_regime.get("bearish_threshold", -0.02))
         self.regime_risk_off_drawdown_threshold = float(phase_v2_regime.get("risk_off_drawdown_threshold", 0.08))
@@ -1483,6 +1561,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # multiprocess parallelism are alternative optimizations for this
         # pass, not combined.
         self.sequence_batching_enabled = bool(phase_v2_sequence.get("batched_across_symbols_enabled", False))
+        # V5.8.0 (latency) - the flat baseline and multitask models for every pending symbol in one matmul per layer
+        # (57 rows: 64 ms -> 2 ms per tick for the multitask model alone). Off = the per-symbol calls of earlier releases.
+        self.flat_model_batching_enabled = bool(
+            self.phase_v2.get("inference_parallelism", {}).get("batch_flat_models_across_symbols", False)
+        )
 
         # development/Problems.md#37: every model/expert/weight-array load
         # above is now complete - these are large, long-lived NumPy arrays
@@ -1789,6 +1872,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # grained one from.
         self._consecutive_losing_sessions: int = 0
         self._slippage_divergence_history: deque = deque(maxlen=20)
+        # V5.8.0 - the fills behind that average, written into each book-history record (todo lead 3)
+        self._slippage_trace: deque = deque(maxlen=20)
+        self.slippage_reference_mode = str(
+            self.phase_v2.get("risk", {}).get("kill_switch", {}).get("slippage_reference", "fill_bar_open")
+        )
         self._expected_cost_by_symbol: dict = {}
         self._live_rank_ic: float | None = None
         self._kill_switch_manual_override: bool | None = None
@@ -1986,6 +2074,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # never happened, corrupting every technical indicator/sequence-
             # model input that reads these windows.
             if has_fresh_bar_this_tick:
+                self._accumulate_rl_excess(symbol, float(bar.close))
                 self.symbol_long_windows[symbol].append(float(bar.close))
                 self.symbol_treasury_10yr_history[symbol].append(self.latest_bond_payload.get("treasury_10yr_level"))
                 for driver_key, driver_history in self.symbol_sensitivity_driver_history[symbol].items():
@@ -2187,6 +2276,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     )
                     precomputed_sequence_results = dict(zip(batch_symbol_keys, batched_results))
 
+            baseline_rows: dict[str, float] = {}
+            multitask_rows: dict[str, dict] = {}
+            if self.flat_model_batching_enabled and len(pending) >= 2:
+                flat_inputs = [item["feature_payload"]["model_inputs"] for item in pending]
+                flat_keys = [str(item["symbol"]) for item in pending]
+                try:
+                    baseline_rows = dict(zip(flat_keys, run_exported_model_rows(self.model_export, flat_inputs)))
+                except Exception as error:
+                    self.Debug(f"Batched baseline inference failed ({error}) - using the per-symbol path this tick")
+                if self.multitask_model:
+                    try:
+                        multitask_rows = dict(zip(flat_keys, run_exported_multitask_model_rows(self.multitask_model, flat_inputs)))
+                    except Exception as error:
+                        self.Debug(f"Batched multitask inference failed ({error}) - using the per-symbol path this tick")
+
             for item in pending:
                 symbol_key = str(item["symbol"])
                 inference_results[symbol_key] = self._run_inference_cluster_sequential(
@@ -2195,6 +2299,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     precomputed_sequence_result=precomputed_sequence_results.get(
                         symbol_key, _SEQUENCE_RESULT_NOT_PRECOMPUTED
                     ),
+                    precomputed_baseline_probability=baseline_rows.get(symbol_key, _SEQUENCE_RESULT_NOT_PRECOMPUTED),
+                    precomputed_multitask_result=multitask_rows.get(symbol_key, _SEQUENCE_RESULT_NOT_PRECOMPUTED),
                 )
 
         self._timing_probe.stop("inference_cluster", _probe_started)
@@ -2305,7 +2411,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # own "model unavailable" skip contract, never fabricates one.
             # bar.close mirrors Pass 2's own close_price = float(bar.close)
             # read on this exact same bar object further down.
-            if self.rolling_ic_gate_enabled and raw_rank_score is not None:
+            if (
+                self.rolling_ic_gate_enabled
+                and raw_rank_score is not None
+                and self._rank_group_by_symbol.get(symbol_key, MAIN_RANK_GROUP) == MAIN_RANK_GROUP
+            ):
                 self._rolling_ic_event_buffer.append(
                     {
                         "ticker": symbol_key,
@@ -2317,12 +2427,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
             asset = self.asset_lookup[str(symbol)]
             book_candidates[symbol_key] = {
                 "predicted_rank_20d": predicted_rank_20d,
-                # With the forex sleeve on, the pairs never compete for the main book's slots: they rank among themselves.
+                # With a class sleeve on (forex, bond), its names never compete for the main book's slots: they rank
+                # among themselves. V5.8.0: a crypto pair before its venue listing date is not a candidate either.
                 "trading_eligible": book_candidate_trading_eligible(
                     self._is_trading_eligible(symbol),
                     asset.get("asset_class") or asset.get("security_type"),
                     self.futures_risk_enabled, self.options_risk_enabled, self.forex_risk_enabled,
-                ) and not (self.forex_sleeve_enabled and (asset.get("asset_class") or asset.get("security_type")) == "forex"),
+                ) and self._sleeve_class_for_asset(asset) is None
+                and not self._graduate_suspended(symbol_key, asset)
+                and asset_listed_on_venue(symbol_key, self.Time.date(), getattr(self, "venue_listing_dates", {})),
                 # Only consumed when portfolio_book_per_asset_class_slots is
                 # configured (development/Problems.md#29) - same
                 # asset.get("asset_class") or asset.get("security_type")
@@ -2345,7 +2458,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 for symbol_key, state in pass1_state.items()
                 if state["raw_rank_score"] is not None
             }
-            normalized_ranks_by_symbol = cross_sectional_rank_scores(raw_scores_by_symbol)
+            normalized_ranks_by_symbol = grouped_cross_sectional_rank_scores(raw_scores_by_symbol, self._rank_group_by_symbol)
             for symbol_key, state in pass1_state.items():
                 normalized_value = normalized_ranks_by_symbol.get(symbol_key)
                 state["predicted_rank_20d"] = normalized_value
@@ -2418,6 +2531,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     for symbol_key, state in pass1_state.items()
                     if state["raw_rank_score"] is not None
                     and math.isfinite(float(state["raw_rank_score"]))
+                    and self._rank_group_by_symbol.get(symbol_key, MAIN_RANK_GROUP) == MAIN_RANK_GROUP
                 }
                 # V5.3.5 (development/Problems.md #102) - computed BEFORE
                 # build_rank_based_book() so its result can be threaded
@@ -2555,8 +2669,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._book_target_weights = {}
             self._last_book_neutrality_diagnostics = {}
 
+        # V5.8.0 - per-class weight caps (portfolio/book_construction.py::apply_class_weight_caps), applied to the neutrality-
+        # adjusted book weights before the sizing chain reads them - the offline simulator does the same after neutrality.
+        if self.class_weight_caps and self._book_target_weights:
+            self._book_target_weights = apply_class_weight_caps(
+                self._book_target_weights,
+                {key: asset.get("asset_class") or asset.get("security_type") for key, asset in self.asset_lookup.items()},
+                self.class_weight_caps,
+            )
+
         # V5.7.0 - forex sleeve (portfolio/forex_sleeve.py); see _update_forex_sleeve()'s docstring.
         self._update_forex_sleeve(pass1_state)
+        # V5.8.0 - bond sleeve, then the per-sleeve loss guards (a suspended sleeve loses its allocations here)
+        self._update_bond_sleeve(pass1_state)
+        self._update_sleeve_guards()
+        self._flush_rl_excess()
 
         # V5.1 Phase 1 (development/Problems.md, item 6 / Finding 3 - the
         # book was silently truncated by max_active_positions in
@@ -2597,6 +2724,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # symbol - see this dict's own comment at __init__ for why it
         # exists (reconciliation's "expected" input).
         self._realized_target_weights_by_symbol = {}
+        _pass2_probe_started = self._timing_probe.start()
 
         # V5.5.0 (Problems.md #128) - gross already held OUTSIDE the book
         # (the legacy-signal sleeve's used budget), threaded through Pass 2
@@ -2660,18 +2788,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # exact same sizing/liquidity/analyzer pipeline below as any
             # other signal - never bypasses it.
             is_forced_exit = False
-            # V5.7.0 - a forex pair under the forex sleeve is governed by the SLEEVE's allocations and activity, never
-            # by the main book's (see the sleeve block above). Without the sleeve this is exactly the old lookup.
-            sleeve_asset = self.asset_lookup[symbol_key]
-            is_sleeve_symbol = (
-                self.forex_sleeve_enabled
-                and self.forex_risk_enabled
-                and (sleeve_asset.get("asset_class") or sleeve_asset.get("security_type")) == "forex"
-            )
+            # V5.7.0 - a forex pair under the forex sleeve (V5.8.0: or a bond under the bond sleeve) is governed by the
+            # SLEEVE's allocations and activity, never by the main book's. Without a sleeve this is the old lookup.
+            sleeve_class = self._sleeve_class_for_asset(self.asset_lookup[symbol_key])
+            is_sleeve_symbol = sleeve_class is not None
+            sleeve_allocations = self._sleeve_allocations_for(sleeve_class) if is_sleeve_symbol else {}
             book_allocation = (
-                self._forex_sleeve_allocations.get(symbol_key) if is_sleeve_symbol else book_allocations.get(symbol_key)
+                sleeve_allocations.get(symbol_key) if is_sleeve_symbol else book_allocations.get(symbol_key)
             )
-            book_active_here = bool(self._forex_sleeve_allocations) if is_sleeve_symbol else bool(book_allocations)
+            book_active_here = bool(sleeve_allocations) if is_sleeve_symbol else bool(book_allocations)
             is_book_owned = update_book_owned_symbols(
                 self._book_owned_symbols, symbol_key, book_allocation is not None, is_currently_invested
             )
@@ -2690,7 +2815,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # not a separate branch, so "no entry" and "disabled"
                 # degrade identically.
                 base_target_weight = (
-                    self._forex_sleeve_weights.get(symbol_key, 0.0)
+                    self._sleeve_weights_for(sleeve_class).get(symbol_key, 0.0)
                     if is_sleeve_symbol
                     else self._book_target_weights.get(
                         symbol_key,
@@ -2748,6 +2873,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 signal_name = "hold"
                 confidence = 0.0
                 base_target_weight = 0.0
+            if (
+                is_sleeve_symbol
+                and is_currently_invested
+                and not getattr(self, "_sleeve_guard_state", {}).get(sleeve_class, {}).get("active", True)
+            ):
+                # V5.8.0 - the sleeve's loss guard suspended it: close the position (portfolio/sleeve_guard.py).
+                signal_name = "sell"
+                confidence = 1.0
+                base_target_weight = 0.0
+                is_forced_exit = True
 
             if is_currently_invested and signal_name != "sell":
                 non_model_exit_reason = self._check_non_model_exit(symbol_key, float(bar.close))
@@ -2777,13 +2912,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 is_book_member=(book_allocation is not None),
             )
             target_weight = float(sizing_payload["target_weight"])
+            if self.rl_sizing_enabled and target_weight != 0.0:
+                # V5.8.0 - the multiplier this position was sized with, for the RL shadow guard's excess return
+                self._rl_multiplier_by_symbol[symbol_key] = float(sizing_payload.get("rl_multiplier", 1.0) or 1.0)
             asset_class_for_book = asset.get("asset_class") or asset.get("security_type")
             if book_allocation is not None and self.forex_cap_to_book_weight and asset_class_for_book == "forex":
                 # V5.5.0 (Problems.md #128) - margin sizing is an upper bound
                 # for a book member, never the target.
                 target_weight = cap_forex_target_to_book_weight(target_weight, base_target_weight)
             if (
-                is_sleeve_symbol
+                sleeve_class == "forex"
                 and book_allocation is not None
                 and self.forex_sleeve_rl_enabled
                 and not is_currently_invested
@@ -3202,6 +3340,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # tool exists to diagnose backtest-vs-offline gaps, not to run
         # forever.
         #
+        self._timing_probe.stop("pass2", _pass2_probe_started)
         # V5.2.6 (development/Problems.md) - deferred from immediately
         # after book_allocations was computed (pre-Pass-2) to HERE, after
         # Pass 2's loop has finished for this bar - book_member_decisions
@@ -3293,6 +3432,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     feature_snapshot=feature_snapshot,
                     run_id=self.book_history_run_id,
                 )
+                if self._slippage_trace:
+                    record["slippage_divergence"] = {
+                        "mean_bps": sum(self._slippage_divergence_history) / len(self._slippage_divergence_history),
+                        "fills": list(self._slippage_trace),
+                    }
                 self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:
                     book_history_file.write(json.dumps(record) + "\n")
@@ -3753,9 +3897,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         base_features["dist_52w_high"] = distance_from_52w_high(long_closes, window=self.long_bar_history_size)
 
         topology_payload = topology_payload or {}
-        regime_payload = self._build_regime_payload(
-            base_features,
-            average_correlation=float(topology_payload.get("correlation_strength", 0.0) or 0.0),
+        _regime_correlation = float(topology_payload.get("correlation_strength", 0.0) or 0.0)
+        regime_payload = self._build_regime_payload(base_features, average_correlation=_regime_correlation)
+        # V5.8.0: the model reads the dataset's drawdown-free regime; only an account in drawdown needs a second vector.
+        model_regime = (
+            self._build_model_regime_payload(base_features, average_correlation=_regime_correlation)
+            if abs(self.current_total_drawdown) > 1e-12 else regime_payload
         )
 
         # Same asset-intrinsic spread estimate build_liquidity_decision()
@@ -3772,9 +3919,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             asset_for_spread = self.asset_lookup[str(symbol)]
             dynamic_spread = TYPICAL_SPREAD_BY_TYPE.get(str(asset_for_spread.get("security_type", "equity")), 0.001)
 
-        base_features["regime_signal_confidence"] = float(regime_payload.get("confidence", 0.0) or 0.0)
-        base_features["regime_signal_trend_score"] = float(regime_payload.get("trend_score", 0.0) or 0.0)
-        base_features["regime_signal_risk_score"] = float(regime_payload.get("risk_score", 0.0) or 0.0)
+        base_features["regime_signal_confidence"] = float(model_regime.get("confidence", 0.0) or 0.0)
+        base_features["regime_signal_trend_score"] = float(model_regime.get("trend_score", 0.0) or 0.0)
+        base_features["regime_signal_risk_score"] = float(model_regime.get("risk_score", 0.0) or 0.0)
         base_features["liquidity_log_dollar_volume"] = math.log1p(max(current["close"] * current["volume"], 0.0))
         base_features["liquidity_spread_proxy"] = float(dynamic_spread)
         base_features["topology_correlation_strength"] = float(topology_payload.get("correlation_strength", 0.0) or 0.0)
@@ -3929,12 +4076,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # Safe default (10.0) for scaler_stats.json files written before
         # clip_sigma existed - see train.py::write_scaler_artifacts().
         clip_sigma = float(self.scaler_stats.get("clip_sigma", 10.0))
+        # V5.8.0 (latency) - the per-feature float() conversions of scaler_stats ran on every call (~115k per backtest);
+        # converted once, same arithmetic.
+        scaler_terms = getattr(self, "_scaler_terms", None)
+        if scaler_terms is None or scaler_terms[0] is not self.scaler_stats:
+            scaler_terms = (
+                self.scaler_stats,
+                [float(value) for value in self.scaler_stats["mean"]],
+                [float(value) if float(value) != 0 else 1.0 for value in self.scaler_stats["scale"]],
+            )
+            self._scaler_terms = scaler_terms
+        _scaler_stats_ref, scaler_means, scaler_scales = scaler_terms
         scaled_features = {}
         for index, base_name in enumerate(self.base_feature_names):
             scaled_name = self.scaled_feature_names[index]
-            mean_value = float(self.scaler_stats["mean"][index])
-            scale_value = float(self.scaler_stats["scale"][index]) if float(self.scaler_stats["scale"][index]) != 0 else 1.0
-            scaled_value = (base_features[base_name] - mean_value) / scale_value
+            scaled_value = (base_features[base_name] - scaler_means[index]) / scaler_scales[index]
             # Mirrors train.py::fit_and_apply_scaler()'s scaled-space clip -
             # the layer that actually protects the sequence model's sliding
             # window from a single poisoned bar replicating into every
@@ -3950,21 +4106,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
             ("bearish", "regime_trend_bearish"),
             ("sideways", "regime_trend_sideways"),
         ):
-            if key in categorical_values and regime_payload.get("trend_regime") == label:
+            if key in categorical_values and model_regime.get("trend_regime") == label:
                 categorical_values[key] = 1.0
         for label, key in (
             ("low_volatility", "regime_volatility_low"),
             ("normal_volatility", "regime_volatility_normal"),
             ("high_volatility", "regime_volatility_high"),
         ):
-            if key in categorical_values and regime_payload.get("volatility_regime") == label:
+            if key in categorical_values and model_regime.get("volatility_regime") == label:
                 categorical_values[key] = 1.0
         for label, key in (
             ("risk_on", "regime_risk_on"),
             ("risk_off", "regime_risk_off"),
             ("risk_neutral", "regime_risk_neutral"),
         ):
-            if key in categorical_values and regime_payload.get("risk_regime") == label:
+            if key in categorical_values and model_regime.get("risk_regime") == label:
                 categorical_values[key] = 1.0
         for label, key in (
             ("normal", "topology_risk_normal"),
@@ -4100,7 +4256,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return None
 
     def _run_inference_cluster_sequential(
-        self, model_inputs: list[float], symbol, precomputed_sequence_result=_SEQUENCE_RESULT_NOT_PRECOMPUTED
+        self, model_inputs: list[float], symbol, precomputed_sequence_result=_SEQUENCE_RESULT_NOT_PRECOMPUTED,
+        precomputed_baseline_probability=_SEQUENCE_RESULT_NOT_PRECOMPUTED,
+        precomputed_multitask_result=_SEQUENCE_RESULT_NOT_PRECOMPUTED,
     ) -> dict:
         """Bundles the exact same 5 calls Pass 1 has always made
         (_run_model/_run_sequence_model/_run_expert_models/
@@ -4123,13 +4281,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         pending symbol in one call. The default sentinel (every existing
         caller/test that doesn't pass it) reproduces the exact original
         per-symbol behavior."""
-        baseline_probability_up = self._run_model(model_inputs)
+        if precomputed_baseline_probability is _SEQUENCE_RESULT_NOT_PRECOMPUTED:
+            baseline_probability_up = self._run_model(model_inputs)
+        else:
+            baseline_probability_up = precomputed_baseline_probability
         if precomputed_sequence_result is _SEQUENCE_RESULT_NOT_PRECOMPUTED:
             sequence_prediction = self._run_sequence_model(symbol)
         else:
             sequence_prediction = precomputed_sequence_result
         expert_probabilities = self._run_expert_models(model_inputs)
-        multitask_payload = self._run_multitask_model(model_inputs)
+        if precomputed_multitask_result is _SEQUENCE_RESULT_NOT_PRECOMPUTED:
+            multitask_payload = self._run_multitask_model(model_inputs)
+        else:
+            multitask_payload = precomputed_multitask_result
         expert_magnitudes, expert_volatilities = self._run_expert_multitask_models(model_inputs)
         return {
             "baseline_probability": baseline_probability_up,
@@ -4257,7 +4421,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             max_rank_multiplier=self.max_rank_multiplier,
             rl_model=self.rl_sizing_model,
             rl_state=rl_state,
-            rl_sizing_enabled=self.rl_sizing_enabled,
+            rl_sizing_enabled=self.rl_sizing_enabled and getattr(self, "_rl_shadow_allows", True),
             min_rl_multiplier=self.min_rl_multiplier,
             max_rl_multiplier=self.max_rl_multiplier,
         )
@@ -4428,17 +4592,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         """V5.7.0 - forms the forex sleeve on its own cadence: the pairs are ranked AMONG THEMSELVES (not against
         equities), `per_side` longs and shorts, each leg `gross_budget / 2`. The allocations stay out of `book_allocations`
         so a vetoed main book never rotation-exits a sleeve position or vice versa (Pass 2 reads the sleeve's own activity
-        for forex symbols). No-op unless `phase_v2.forex_sleeve.enabled` and forex trading is enabled."""
+        for forex symbols). No-op unless `phase_v2.forex_sleeve.enabled` and forex trading is enabled.
+        V5.8.0: `forex_sleeve.signal` other than "model_rank" ranks by carry / momentum (features/fx_signals.py)."""
         if not (self.forex_sleeve_enabled and self.forex_risk_enabled):
             return
-        forex_raw_scores: dict[str, float] = {}
-        for symbol_key, state in pass1_state.items():
-            asset = self.asset_lookup.get(symbol_key, {})
-            if (asset.get("asset_class") or asset.get("security_type")) != "forex":
-                continue
-            score = state["raw_rank_score"]
-            if score is not None and math.isfinite(float(score)):
-                forex_raw_scores[symbol_key] = float(score)
+        forex_raw_scores = self._class_raw_scores(pass1_state, "forex")
         if not should_rebalance_this_bar(
             self.bar_index,
             self.forex_sleeve_rebalance_every_bars,
@@ -4446,29 +4604,213 @@ class AetherQuantAlgorithm(QCAlgorithm):
             is_trading_day_bar=self.is_equity_session_bar,
         ):
             return
-        ranks = cross_sectional_rank_scores(forex_raw_scores)
+        signal = getattr(self, "forex_sleeve_signal", "model_rank")
+        if signal != "model_rank":
+            closes_by_pair = {}
+            carry_by_pair = {}
+            for symbol_key in forex_raw_scores:
+                symbol = pass1_state[symbol_key]["symbol"]
+                closes_by_pair[symbol_key] = list(self.symbol_long_windows.get(symbol, []))
+                asset = self.asset_lookup.get(symbol_key, {})
+                carry_by_pair[symbol_key] = fx_carry_3m(
+                    asset.get("ticker", symbol_key), "forex", self.Time.date(), self.fred_series,
+                    self._fx_rate_publication_lag_days,
+                )
+            forex_raw_scores = fx_sleeve_scores(
+                signal, model_scores=forex_raw_scores, closes_by_pair=closes_by_pair, carry_by_pair=carry_by_pair
+            )
+        allocations, formed = self._form_class_sleeve(
+            pass1_state, forex_raw_scores, "forex",
+            per_side=self.forex_sleeve_per_side,
+            min_rank_confidence_spread=self.forex_sleeve_min_rank_confidence_spread,
+            hysteresis_rank_margin=self.forex_sleeve_hysteresis_rank_margin,
+            formed=self._forex_sleeve_formed,
+        )
+        self._forex_sleeve_allocations = allocations
+        self._forex_sleeve_formed = formed
+        self._forex_sleeve_weights = build_forex_sleeve_weights(
+            allocations, self.forex_sleeve_gross_budget, self.forex_sleeve_max_weight
+        )
+
+    def _update_bond_sleeve(self, pass1_state: dict) -> None:
+        """V5.8.0 - the bond sleeve: the bond ETFs ranked among themselves (portfolio/class_sleeve.py), same structure and
+        cadence rules as the forex sleeve. No-op unless `phase_v2.bond_sleeve.enabled`."""
+        config = getattr(self, "bond_sleeve_config", None)
+        if config is None or not config.enabled:
+            return
+        if not should_rebalance_this_bar(
+            self.bar_index, config.rebalance_every_bars, bool(self._bond_sleeve_allocations),
+            is_trading_day_bar=self.is_equity_session_bar,
+        ):
+            return
+        bond_scores = self._class_raw_scores(pass1_state, "bond")
+        if config.signal == "ts_momentum":
+            # V5.8.0: rank the bond ETFs by vol-scaled trailing momentum (features/fx_signals.py, the research's signal)
+            bond_scores = fx_sleeve_scores(
+                "ts_momentum",
+                closes_by_pair={key: list(self.symbol_long_windows.get(pass1_state[key]["symbol"], [])) for key in bond_scores},
+            )
+        allocations, formed = self._form_class_sleeve(
+            pass1_state, bond_scores, "bond",
+            per_side=config.per_side,
+            min_rank_confidence_spread=config.min_rank_confidence_spread,
+            hysteresis_rank_margin=config.hysteresis_rank_margin,
+            formed=self._bond_sleeve_formed,
+        )
+        self._bond_sleeve_allocations = allocations
+        self._bond_sleeve_formed = formed
+        self._bond_sleeve_weights = build_class_sleeve_weights(allocations, config.gross_budget, config.max_weight_per_name)
+
+    def _class_raw_scores(self, pass1_state: dict, asset_class: str) -> dict[str, float]:
+        scores: dict[str, float] = {}
+        for symbol_key, state in pass1_state.items():
+            asset = self.asset_lookup.get(symbol_key, {})
+            if (asset.get("asset_class") or asset.get("security_type")) != asset_class:
+                continue
+            score = state["raw_rank_score"]
+            if score is not None and math.isfinite(float(score)):
+                scores[symbol_key] = float(score)
+        return scores
+
+    def _form_class_sleeve(
+        self, pass1_state: dict, scores: dict[str, float], asset_class: str, *, per_side: int,
+        min_rank_confidence_spread: float, hysteresis_rank_margin: float, formed: dict,
+    ) -> tuple[dict, dict]:
+        """Ranks `scores` among themselves and selects `per_side` longs/shorts (build_rank_based_book with the sleeve's
+        own spread floor and hysteresis). Returns (allocations, remembered formed book)."""
+        ranks = cross_sectional_rank_scores(scores)
         candidates = {
             symbol_key: {
                 "predicted_rank_20d": rank,
                 "trading_eligible": self._is_trading_eligible(pass1_state[symbol_key]["symbol"]),
-                "asset_class": "forex",
+                "asset_class": asset_class,
             }
             for symbol_key, rank in ranks.items()
         }
         allocations = build_rank_based_book(
             candidates,
-            top_n=self.forex_sleeve_per_side,
-            bottom_n=self.forex_sleeve_per_side,
-            min_rank_confidence_spread=self.forex_sleeve_min_rank_confidence_spread,
-            previous_allocations=self._forex_sleeve_formed or None,
-            hysteresis_rank_margin=self.forex_sleeve_hysteresis_rank_margin,
-            spread_check_ranks=forex_raw_scores,
+            top_n=per_side,
+            bottom_n=per_side,
+            min_rank_confidence_spread=min_rank_confidence_spread,
+            previous_allocations=formed or None,
+            hysteresis_rank_margin=hysteresis_rank_margin,
+            spread_check_ranks=scores,
         )
-        self._forex_sleeve_allocations = allocations
-        self._forex_sleeve_formed = remember_formed_book(self._forex_sleeve_formed, allocations)
-        self._forex_sleeve_weights = build_forex_sleeve_weights(
-            allocations, self.forex_sleeve_gross_budget, self.forex_sleeve_max_weight
-        )
+        return allocations, remember_formed_book(formed, allocations)
+
+    def _sleeve_class_for_asset(self, asset: dict) -> str | None:
+        """'forex' / 'bond' when that asset's class is governed by an enabled sleeve, else None (main book)."""
+        kind = asset.get("asset_class") or asset.get("security_type")
+        if kind == "forex" and self.forex_sleeve_enabled and self.forex_risk_enabled:
+            return "forex"
+        if kind == "bond" and getattr(self, "bond_sleeve_enabled", False):
+            return "bond"
+        return None
+
+    def _sleeve_allocations_for(self, sleeve: str) -> dict:
+        return self._forex_sleeve_allocations if sleeve == "forex" else self._bond_sleeve_allocations
+
+    def _sleeve_weights_for(self, sleeve: str) -> dict[str, float]:
+        return self._forex_sleeve_weights if sleeve == "forex" else self._bond_sleeve_weights
+
+    def _accumulate_rl_excess(self, symbol, close: float) -> None:
+        """V5.8.0 - the RL shadow guard's input: called once per FRESH bar of `symbol` before its close joins the window,
+        it adds that bar's RL-vs-constant excess return of the held position (risk/rl_sizing.py::rl_excess_return) and
+        re-decides whether RL may keep sizing. A no-op unless RL sizing and the guard are both on."""
+        guard = getattr(self, "rl_shadow_guard", None)
+        if not (self.rl_sizing_enabled and guard and guard.get("enabled")):
+            return
+        symbol_key = str(symbol)
+        multiplier = self._rl_multiplier_by_symbol.get(symbol_key)
+        window = self.symbol_long_windows.get(symbol)
+        if multiplier is None or not window or not window[-1]:
+            return
+        holding = self.Portfolio[symbol]
+        nav = float(self.Portfolio.TotalPortfolioValue) or 0.0
+        if not getattr(holding, "Invested", False) or nav <= 0.0:
+            return
+        weight = float(holding.HoldingsValue) / nav
+        excess = rl_excess_return({symbol_key: (weight, multiplier)}, {symbol_key: close / float(window[-1]) - 1.0})
+        self._rl_excess_pending = getattr(self, "_rl_excess_pending", 0.0) + excess
+
+    def _flush_rl_excess(self) -> None:
+        """Once per tick: the summed excess of this tick's fresh bars becomes one point of the guard's history."""
+        guard = getattr(self, "rl_shadow_guard", None)
+        if not (self.rl_sizing_enabled and guard and guard.get("enabled")):
+            return
+        self._rl_excess_history.append(getattr(self, "_rl_excess_pending", 0.0))
+        self._rl_excess_pending = 0.0
+        self._rl_shadow_allows = rl_shadow_guard_allows(list(self._rl_excess_history), guard)
+
+    def _graduate_suspended(self, symbol_key: str, asset: dict) -> bool:
+        """V5.8.0 - True while the crypto-graduates loss guard has the non-exempt crypto names suspended (set by
+        _update_sleeve_guards on the previous bar)."""
+        if (asset.get("asset_class") or asset.get("security_type")) != "crypto":
+            return False
+        caps = getattr(self, "class_weight_caps", {}).get("crypto")
+        if not caps or symbol_key in caps["exempt"]:
+            return False
+        return not getattr(self, "_sleeve_guard_state", {}).get("crypto_graduates", {}).get("active", True)
+
+    def _sleeve_guard_snapshot(self) -> dict:
+        """JSON-safe view of every sleeve guard for the dashboard state (`/api/assets-status` reads it back)."""
+        return {
+            name: {
+                "enabled": bool(self.sleeve_guard_configs[name].enabled),
+                "active": bool(state["active"]),
+                "reason": str(state["reason"]),
+                "drawdown": float(state["drawdown"]),
+                "suspended_until_bar": state["suspended_until"],
+            }
+            for name, state in getattr(self, "_sleeve_guard_state", {}).items()
+        }
+
+    def _update_sleeve_guards(self) -> None:
+        """V5.8.0 - one mark-to-market P&L increment per bar for every guarded sleeve (net profit + unrealized profit of
+        its class's holdings: with a sleeve on, only the sleeve trades those symbols), then portfolio/sleeve_guard.py
+        decides whether it may keep trading. A suspended sleeve has no allocations, so Pass 2 closes its positions."""
+        for sleeve, config in getattr(self, "sleeve_guard_configs", {}).items():
+            if not config.enabled:
+                continue
+            if sleeve == "forex":
+                enabled = self.forex_sleeve_enabled and self.forex_risk_enabled
+            elif sleeve == "crypto_graduates":
+                enabled = "crypto" in self.class_weight_caps
+            else:
+                enabled = getattr(self, "bond_sleeve_enabled", False)
+            if not enabled:
+                continue
+            state = self._sleeve_guard_state[sleeve]
+            level = 0.0
+            for symbol in self.symbols:
+                asset = self.asset_lookup.get(str(symbol), {})
+                asset_class = asset.get("asset_class") or asset.get("security_type")
+                if sleeve == "crypto_graduates":
+                    if asset_class != "crypto" or str(symbol) in self.class_weight_caps["crypto"]["exempt"]:
+                        continue
+                elif asset_class != sleeve:
+                    continue
+                holding = self.Portfolio[symbol]
+                level += float(getattr(holding, "NetProfit", 0.0) or 0.0) + float(getattr(holding, "UnrealizedProfit", 0.0) or 0.0)
+            if state["last_level"] is not None:
+                state["increments"].append(level - state["last_level"])
+            state["last_level"] = level
+            decision = evaluate_sleeve_guard(
+                list(state["increments"]), float(self.Portfolio.TotalPortfolioValue), config,
+                current_bar=self.bar_index, suspended_until_bar=state["suspended_until"],
+            )
+            state.update(
+                suspended_until=decision["suspended_until_bar"], active=decision["active"], reason=decision["reason"],
+                drawdown=decision["drawdown"],
+            )
+            if not decision["active"]:
+                if sleeve == "forex":
+                    self._forex_sleeve_allocations, self._forex_sleeve_weights = {}, {}
+                elif sleeve == "bond":
+                    self._bond_sleeve_allocations, self._bond_sleeve_weights = {}, {}
+                # crypto_graduates: no allocations of its own - the graduates stop being book candidates (see
+                # _graduate_suspended) and the book's rotation exit closes what it holds
+
     def _build_topology_payload(self) -> dict:
         # Runs at the START of a tick, before this tick's bars join symbol_windows, so
         # every payload built from it (topology, peers, macro proxies, cs_momentum_rank_20)
@@ -4762,7 +5104,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         min_observations = int(sensitivity_config.get("min_observations", CROSS_ASSET_SENSITIVITY_MIN_OBSERVATIONS))
         drivers = sensitivity_config.get("drivers", CROSS_ASSET_SENSITIVITY_DRIVERS)
 
+        # V5.8.0 (latency) - only the trailing lookback + 1 bars reach the regression; the earlier ones were converted
+        # to returns and deltas on every call and then sliced away (identical values, a fraction of the work).
+        tail = lookback + 1 if lookback > 0 else None
         closes = list(self.symbol_long_windows.get(symbol, []))
+        if tail is not None:
+            closes = closes[-tail:]
         returns: list[float | None] = [None] + [
             (closes[i] / closes[i - 1] - 1.0) if closes[i - 1] else None for i in range(1, len(closes))
         ]
@@ -4771,6 +5118,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         driver_history = self.symbol_sensitivity_driver_history.get(symbol, {})
         for driver_key in drivers:
             levels = list(driver_history.get(driver_key, []))
+            if tail is not None:
+                levels = levels[-tail:]
             deltas: list[float | None] = [None] * len(levels)
             for index in range(1, len(levels)):
                 if levels[index] is not None and levels[index - 1] is not None:
@@ -4820,6 +5169,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return 0.0
 
         symbol_key = str(symbol)
+        if getattr(self, "bond_duration_beta_mode", "full_history") == "rolling":
+            closes = list(self.symbol_long_windows.get(symbol, []))
+            cache_key = (getattr(self, "bar_index", 0), len(closes), closes[-1] if closes else None)
+            cached = self._bond_rolling_beta_by_symbol.get(symbol_key)
+            if cached is not None and cached[0] == cache_key:
+                return cached[1]
+            beta = rolling_duration_beta(
+                closes, list(self.symbol_treasury_10yr_history.get(symbol, [])), self.bond_duration_beta_lookback
+            )
+            result = beta if beta is not None else 0.0
+            self._bond_rolling_beta_by_symbol[symbol_key] = (cache_key, result)
+            return result
         if symbol_key in self._bond_empirical_duration_beta_cache:
             return self._bond_empirical_duration_beta_cache[symbol_key]
 
@@ -5088,6 +5449,21 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 _nearest_delta_iv("put", -0.25), _nearest_delta_iv("call", 0.25)
             ),
         }
+
+    def _build_model_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
+        """The regime payload the MODEL inputs are read from: no portfolio drawdown, exactly as the training dataset
+        builds it (regime/market_regime.py::build_model_input_regime_vector). `_build_regime_payload` keeps the real
+        drawdown for the risk decisions."""
+        return build_model_input_regime_vector(
+            base_features,
+            average_correlation=average_correlation,
+            bullish_threshold=self.regime_bullish_threshold,
+            bearish_threshold=self.regime_bearish_threshold,
+            low_volatility_threshold=self.low_volatility_threshold,
+            high_volatility_threshold=self.high_volatility_threshold,
+            risk_on_drawdown_threshold=self.regime_risk_on_drawdown_threshold,
+            high_correlation_threshold=self.regime_high_correlation_threshold,
+        ).to_dict()
 
     def _build_regime_payload(self, base_features: dict, average_correlation: float = 0.0) -> dict:
         # Statistical/diagnostic bypass only (see risk_controls.py::
@@ -7679,27 +8055,59 @@ class AetherQuantAlgorithm(QCAlgorithm):
             fill_bar_open = float(self.Securities[order_event.Symbol].Open)
         except Exception:
             fill_bar_open = 0.0
+        reference_price, reference_kind = fill_bar_open, "fill_bar_open"
+        order_id = getattr(order_event, "OrderId", None)
+        if getattr(self, "slippage_reference_mode", "fill_bar_open") == "auto":
+            # V5.8.0 (todo lead 3): an order that filled at once (crypto, forex) is measured from its submission price;
+            # one queued past the close keeps the fill bar's open (execution.order_gate.slippage_reference_price).
+            submit_price = submitted_at = None
+            try:
+                order = self.Transactions.GetOrderById(order_id)
+                submit_price = float(order.OrderSubmissionData.LastPrice)
+                submitted_at = order.CreatedTime
+            except Exception:
+                pass
+            reference_price, reference_kind = slippage_reference_price(
+                submit_price, fill_bar_open, submitted_at, getattr(order_event, "UtcTime", None)
+            )
         divergence_bps = compute_fill_slippage_divergence_bps(
             fill_price,
-            fill_bar_open,
+            reference_price,
             float(expected["expected_cost_bps"]) * 0.5,
             direction=float(getattr(order_event, "FillQuantity", 0.0) or 0.0),
         )
         if divergence_bps is None:
             return
         self._slippage_divergence_history.append(divergence_bps)
+        trace = getattr(self, "_slippage_trace", None)
+        if trace is not None:
+            trace.append(
+                {"order_id": order_id, "symbol": event_symbol_key, "reference": reference_kind,
+                 "reference_price": reference_price, "fill_price": fill_price, "divergence_bps": round(divergence_bps, 3)}
+            )
 
     def _write_state(self, mode: str, insight: str, signals: dict | None = None) -> None:
         now = self.Time if hasattr(self, "Time") else datetime.utcnow()
         if self.last_state_write == now:
             return
+        if mode == "runtime" and not should_write_runtime_state(
+            getattr(self, "_state_write_policy", None), bool(getattr(self, "LiveMode", False)), self.bar_index
+        ):
+            return
+        _write_state_probe_started = self._timing_probe.start()
+        try:
+            self._write_state_impl(mode, insight, now, signals)
+        finally:
+            self._timing_probe.stop("write_state", _write_state_probe_started)
 
+    def _write_state_impl(self, mode: str, insight: str, now, signals: dict | None) -> None:
         state = {
             "project": "Aether Quant",
             "mode": mode,
             "updated_at": now.isoformat(),
             "insight": insight,
             "portfolio": self._snapshot_portfolio_summary(),
+            "sleeve_guards": self._sleeve_guard_snapshot(),
             "universe": {
                 "name": self.phase1["universe"]["name"],
                 "resolution": self.phase1["universe"]["resolution"],
@@ -7845,7 +8253,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 ("observation_summary_path", state["observation"]),
                 ("performance_triggers_path", state["performance_triggers"]),
             ):
-                atomic_write_json(getattr(self, path_key), payload, indent=2)
+                atomic_write_json(getattr(self, path_key), payload, indent=state_json_indent(getattr(self, "_state_write_policy", None), bool(getattr(self, "LiveMode", False))))
             atomic_write_text(self.runtime_asset_metrics_path, self._build_runtime_asset_csv(state))
             self._flush_observation_equity_csv()
             self.last_state_write = now

@@ -221,3 +221,43 @@ def load_rl_sizing_model(path: Path) -> dict | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def resolve_rl_shadow_guard(raw: dict | None) -> dict:
+    """`phase_v2.dynamic_risk.rl_shadow_guard` -> {"enabled", "window_bars", "tolerance_nav_fraction"}; absent =
+    disabled (RL, when enabled, is never switched off by its own track record - the pre-V5.8.0 behaviour)."""
+    raw = raw or {}
+    try:
+        window = max(1, int(raw.get("window_bars", 60)))
+        tolerance = max(0.0, float(raw.get("tolerance_nav_fraction", 0.002)))
+    except (TypeError, ValueError):
+        window, tolerance = 60, 0.002
+    return {"enabled": bool(raw.get("enabled", False)), "window_bars": window, "tolerance_nav_fraction": tolerance}
+
+
+def rl_excess_return(positions: dict[str, tuple[float, float]], returns: dict[str, float]) -> float:
+    """V5.8.0: one bar's return (NAV fraction) of the RL-sized book minus the same book at constant 1.0 sizing.
+    `positions` maps symbol -> (signed weight actually held, RL multiplier applied when it was sized); the constant book
+    would have held weight / multiplier, so the excess is weight * (1 - 1/multiplier) * return. Non-finite or
+    non-positive multipliers and missing returns contribute nothing."""
+    total = 0.0
+    for symbol, (weight, multiplier) in positions.items():
+        value = returns.get(symbol)
+        try:
+            weight, multiplier, value = float(weight), float(multiplier), float(value)
+        except (TypeError, ValueError):
+            continue
+        if not (math.isfinite(weight) and math.isfinite(multiplier) and math.isfinite(value)) or multiplier <= 0.0:
+            continue
+        total += weight * (1.0 - 1.0 / multiplier) * value
+    return total
+
+
+def rl_shadow_guard_allows(excess_history: list[float], guard: dict) -> bool:
+    """True while RL may size: always when the guard is off; otherwise the summed excess return over the trailing
+    `window_bars` must not be below -`tolerance_nav_fraction` (RL that has cost more than the tolerance against
+    constant sizing falls back to 1.0 until the loss leaves the window)."""
+    if not guard.get("enabled", False):
+        return True
+    recent = excess_history[-int(guard.get("window_bars", 60)):]
+    return sum(value for value in recent if math.isfinite(value)) >= -float(guard.get("tolerance_nav_fraction", 0.002))

@@ -1071,3 +1071,51 @@ def test_linear_batched_correct_when_cpp_inference_absent(monkeypatch):
     expected = np.einsum("noi,ni->no", weights_stack, current) + bias_stack
 
     assert result == pytest.approx(expected, abs=1e-9)
+
+
+def _flat_export(seed: int = 0, with_layernorm: bool = True) -> dict:
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    state = {"w1": rng.normal(size=(6, 4)).tolist(), "b1": rng.normal(size=6).tolist(), "g": rng.normal(size=6).tolist(),
+             "n": rng.normal(size=6).tolist(), "w2": rng.normal(size=(1, 6)).tolist(), "b2": [0.1]}
+    architecture = [{"type": "linear", "weight_key": "w1", "bias_key": "b1"}]
+    if with_layernorm:
+        architecture.append({"type": "layernorm", "weight_key": "g", "bias_key": "n", "eps": 1e-5})
+    architecture += [{"type": "relu"}, {"type": "linear", "weight_key": "w2", "bias_key": "b2"}, {"type": "sigmoid"}]
+    return {"export": {"architecture": architecture, "state_dict": state}}
+
+
+def test_row_batched_flat_model_equals_the_per_row_interpreter():
+    """V5.8.0: one matmul per layer for N rows must give each row's run_exported_model() value (layernorm per row)."""
+    import numpy as np
+
+    from inference.exported_model import run_exported_model, run_exported_model_rows
+
+    rows = np.random.default_rng(1).normal(size=(9, 4)).tolist()
+    for with_layernorm in (True, False):
+        export = _flat_export(with_layernorm=with_layernorm)
+        expected = [run_exported_model(export, row) for row in rows]
+        assert run_exported_model_rows(export, rows) == pytest.approx(expected, abs=1e-12)
+    assert run_exported_model_rows(_flat_export(), []) == []
+
+
+def test_row_batched_multitask_model_equals_the_per_row_interpreter():
+    import numpy as np
+
+    from inference.exported_model import run_exported_multitask_model, run_exported_multitask_model_rows
+
+    flat = _flat_export(with_layernorm=True)["export"]
+    state = dict(flat["state_dict"])
+    state.update({"hw": np.random.default_rng(2).normal(size=(1, 6)).tolist(), "hb": [0.0]})
+    trunk = flat["architecture"][:3]  # linear, layernorm, relu
+    export = {"export": {"trunk": trunk, "state_dict": state, "heads": {
+        "direction": [{"type": "linear", "weight_key": "hw", "bias_key": "hb"}, {"type": "sigmoid"}],
+        "volatility": [{"type": "linear", "weight_key": "hw", "bias_key": "hb"}, {"type": "softplus"}],
+    }}}
+    rows = np.random.default_rng(3).normal(size=(7, 4)).tolist()
+    expected = [run_exported_multitask_model(export, row) for row in rows]
+    actual = run_exported_multitask_model_rows(export, rows)
+    assert len(actual) == 7
+    for want, got in zip(expected, actual):
+        assert got == pytest.approx(want, abs=1e-12)

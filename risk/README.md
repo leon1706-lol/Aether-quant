@@ -296,3 +296,8 @@ supplied by the caller). A model whose `state_keys` differ from what the caller 
 1.0 no-op), never silently misaligned. The forex policy (`ml/rl_sizing_forex_model.json`, trained by `train_rl_sizing.py` with
 `reward_mode: "book_member_20d"`) may choose 0 (skip) and sizes above 1 within `forex_sleeve.rl_min/max_multiplier`; `main.py` applies it
 to ENTRIES only.
+
+## V5.8.0 additions
+
+- `asset_class_router.py` — `load_venue_listing_dates` / `asset_listed_on_venue`: a crypto pair takes no order before its Coinbase listing or during a suspension (XRP, Jan 2021 - Jul 2023); data from `scripts/coinbase_listing_dates.py`, switch `phase_v2.venue_listing_guard`. `book_candidate_trading_eligible` also keeps a class that a sleeve governs out of the main pool.
+- `rl_sizing.py` — `rl_excess_return`, `rl_shadow_guard_allows`: the RL multiplier falls back to 1.0 when it trails the constant-1.0 counterfactual over the guard window (`phase_v2.dynamic_risk.rl_shadow_guard`); the shipped range is [0.9, 1.1].

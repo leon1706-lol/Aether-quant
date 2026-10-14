@@ -192,6 +192,45 @@ def _score_node(
     return node, learned_neighbors
 
 
+def learned_sizing_inputs(
+    vector: dict,
+    model: dict | None,
+    feature_schema: dict | None,
+    *,
+    cluster_regime_label: str | None = None,
+    peer_distance: float = 0.5,
+    temperature: float = DEFAULT_TEMPERATURE,
+    min_confidence_for_learned: float = DEFAULT_MIN_CONFIDENCE_FOR_LEARNED,
+) -> dict:
+    """The three numbers `risk.position_sizing.topology_sizing_multiplier` reads, for ONE node from its feature vector
+    alone: the same prototype distances, softmax confidence and regime-mismatch term `_score_node` computes. The peer
+    term (`_jaccard_distance` of the learned neighbours vs the deterministic cluster peers) needs the whole bar's
+    topology, so offline callers pass it as `peer_distance` (a bracket, 0.0..1.0). `cluster_regime_label` is the
+    deterministic cluster's dominant regime; None means "no mismatch information" (term 0). Never raises: a missing or
+    malformed model gives the fallback no-op."""
+    fallback = {"topology_source": "fallback", "topology_confidence": 0.0, "topology_disagreement": 0.0}
+    try:
+        prototypes = (model or {}).get("prototypes") or []
+        feature_stats = (feature_schema or {}).get("feature_stats") or {}
+        if not prototypes or not feature_stats:
+            return fallback
+        own = _normalize(vector, feature_stats)
+        distances = {str(p.get("label")): _euclidean_distance(own, p.get("centroid") or {}) for p in prototypes}
+        probabilities = _softmax_neg_distances(distances, temperature)
+        confidence = max(probabilities.values())
+        if confidence < min_confidence_for_learned:
+            return fallback | {"topology_confidence": confidence}
+        nearest = max(probabilities, key=lambda key: probabilities[key])
+        nearest_regime = next(
+            (p.get("dominant_regime_label", "unknown") for p in prototypes if str(p.get("label")) == nearest), "unknown"
+        )
+        mismatch = 1.0 if cluster_regime_label is not None and nearest_regime != cluster_regime_label else 0.0
+        disagreement = 0.5 * mismatch + 0.5 * _clamp(float(peer_distance), 0.0, 1.0)
+        return {"topology_source": "learned", "topology_confidence": confidence, "topology_disagreement": disagreement}
+    except Exception:  # noqa: BLE001 - same never-raise contract as apply_learned_topology
+        return fallback
+
+
 def apply_learned_topology(
     deterministic_topology: dict,
     symbol_features: dict[str, dict] | None = None,

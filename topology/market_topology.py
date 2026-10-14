@@ -256,6 +256,7 @@ def _stress_majorize(
     initial_positions: dict[str, tuple[float, ...]],
     iterations: int = 100,
     convergence_tolerance: float | None = None,
+    target_distance_matrix=None,
 ) -> dict[str, tuple[float, ...]]:
     """Deterministic SMACOF (Scaling by MAjorizing a COmplicated Function):
     iteratively moves each point toward the position implied by every other
@@ -292,10 +293,13 @@ def _stress_majorize(
     denominator = n - 1
     positions = np.array([initial_positions[symbol] for symbol in symbols], dtype=np.float64)
     dimensions = positions.shape[1]
-    target_distances = np.array(
-        [[distance_fn(symbol_a, symbol_b) for symbol_b in symbols] for symbol_a in symbols],
-        dtype=np.float64,
-    )
+    if target_distance_matrix is not None:
+        target_distances = np.array(target_distance_matrix, dtype=np.float64, copy=True)
+    else:
+        target_distances = np.array(
+            [[distance_fn(symbol_a, symbol_b) for symbol_b in symbols] for symbol_a in symbols],
+            dtype=np.float64,
+        )
     np.fill_diagonal(target_distances, 0.0)
 
     for _ in range(iterations):
@@ -427,6 +431,22 @@ def rank_correlated_peers(
     return ranked[:top_n]
 
 
+def rank_correlated_peers_from_row(
+    row_index: int, symbols: list[str], correlation_row, top_n: int, alphabetical_positions=None
+) -> list[str]:
+    """rank_correlated_peers() on one row of the full correlation matrix (V5.8.0): the same ordering - descending
+    correlation, ties by symbol name - via one stable lexsort instead of a Python sort with a lookup per pair.
+    `symbols` must be in the matrix's row order; `alphabetical_positions` (rank of each symbol's name) defaults to the
+    row order, which equals alphabetical order for build_market_topology()'s sorted eligible symbols."""
+    import numpy as np  # noqa: PLC0415
+
+    values = -np.asarray(correlation_row, dtype=np.float64)
+    names = np.arange(len(symbols)) if alphabetical_positions is None else np.asarray(alphabetical_positions)
+    order = np.lexsort((names, values))
+    peers = [symbols[index] for index in order if index != row_index]
+    return peers[:top_n]
+
+
 def build_market_topology(
     returns_by_symbol: dict[str, list[float]],
     regime_labels_by_symbol: dict[str, str] | None = None,
@@ -535,11 +555,21 @@ def build_market_topology(
                     returns_by_symbol[symbol_a], returns_by_symbol[symbol_b]
                 )
 
+    # V5.8.0 - one dense symmetric matrix (nested lists for scalar reads, numpy for the embedding and peer ranking)
+    # holding exactly the floats in `correlations`; every lookup below used to probe the pair dict twice.
+    position_by_symbol = {symbol: index for index, symbol in enumerate(eligible_symbols)}
+    correlation_rows = [[0.0] * len(eligible_symbols) for _ in eligible_symbols]
+    for index in range(len(eligible_symbols)):
+        correlation_rows[index][index] = 1.0
+    for (symbol_a, symbol_b), value in correlations.items():
+        index_a, index_b = position_by_symbol[symbol_a], position_by_symbol[symbol_b]
+        correlation_rows[index_a][index_b] = value
+        correlation_rows[index_b][index_a] = value
+
     def correlation_between(symbol_a: str, symbol_b: str) -> float:
         if symbol_a == symbol_b:
             return 1.0
-        key = (symbol_a, symbol_b) if (symbol_a, symbol_b) in correlations else (symbol_b, symbol_a)
-        return correlations.get(key, 0.0)
+        return correlation_rows[position_by_symbol[symbol_a]][position_by_symbol[symbol_b]]
 
     union_find = _UnionFind(eligible_symbols)
     for (symbol_a, symbol_b), correlation in correlations.items():
@@ -718,6 +748,8 @@ def build_market_topology(
         # above) so the result is deterministic and converges fast. This
         # is what makes spatial distance actually reflect correlation
         # distance instead of arbitrary index-based placement.
+        import numpy as np  # noqa: PLC0415
+
         final_positions = _rescale_positions_to_bounds(
             _stress_majorize(
                 eligible_symbols,
@@ -725,6 +757,7 @@ def build_market_topology(
                 seed_positions,
                 iterations=embedding_iterations,
                 convergence_tolerance=convergence_tolerance,
+                target_distance_matrix=np.maximum(0.0, 1.0 - np.asarray(correlation_rows, dtype=np.float64)),
             )
         )
 
@@ -749,7 +782,9 @@ def build_market_topology(
         else:
             topology_risk = "normal"
 
-        top_peer_symbols = rank_correlated_peers(symbol, eligible_symbols, correlation_between, top_peers_n)
+        top_peer_symbols = rank_correlated_peers_from_row(
+            position_by_symbol[symbol], eligible_symbols, correlation_rows[position_by_symbol[symbol]], top_peers_n
+        )
         top_peer_returns = [returns_by_symbol[peer][-1] for peer in top_peer_symbols]
 
         nodes.append(

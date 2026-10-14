@@ -118,3 +118,89 @@ def release_symbol_containers(containers: list) -> dict:
     except Exception:
         collected = -1
     return {"cleared": cleared, "collected": collected, "seconds": round(time.perf_counter() - started, 4)}
+
+
+def resolve_state_write_policy(raw: dict | None) -> dict:
+    """`phase_v2.diagnostics.state_write` -> {"every_n_ticks", "backtest_only_at_shutdown", "compact_json_in_backtest"}.
+    Absent = write every tick with indented JSON (the pre-V5.8.0 behaviour)."""
+    raw = raw or {}
+    try:
+        every = max(1, int(raw.get("every_n_ticks", 1)))
+    except (TypeError, ValueError):
+        every = 1
+    return {
+        "every_n_ticks": every,
+        "backtest_only_at_shutdown": bool(raw.get("backtest_only_at_shutdown", False)),
+        "compact_json_in_backtest": bool(raw.get("compact_json_in_backtest", False)),
+    }
+
+
+def should_write_runtime_state(policy: dict | None, live_mode: bool, tick_index: int) -> bool:
+    """V5.8.0: the dashboard state (6 JSON files + a CSV, ~1.1 MB) was rewritten on every tick - about 2 GB of disk
+    writes per backtest. Live/paper always write every tick (the dashboard reads them); a backtest may thin them out
+    or write only at shutdown. The initialize/shutdown writes never pass through here."""
+    if live_mode or not policy:
+        return True
+    if policy.get("backtest_only_at_shutdown"):
+        return False
+    every = int(policy.get("every_n_ticks", 1))
+    return every <= 1 or int(tick_index) % every == 0
+
+
+def state_json_indent(policy: dict | None, live_mode: bool) -> int | None:
+    """2 (human-readable) unless a backtest asked for compact JSON."""
+    if not live_mode and policy and policy.get("compact_json_in_backtest"):
+        return None
+    return 2
+
+
+def install_sigterm_witness(log) -> bool:
+    """Linux only: record WHO sends SIGTERM to this process (V5.8.0). The Codespace kills trainers with no OOM event in the
+    cgroup and no kernel line; without the sender's pid and command line the kill stays a mystery. SIGTERM is blocked in
+    the calling thread (so every thread started afterwards inherits the mask) and a daemon thread waits for it with
+    `sigwaitinfo`, logs si_pid, that process's command line and the machine's memory, then exits 143 like the default
+    action would. Call it once, first thing in `main()`. Returns False where the facility does not exist."""
+    import os
+    import signal
+    import threading
+
+    if not (hasattr(signal, "sigwaitinfo") and hasattr(signal, "pthread_sigmask")):
+        return False
+
+    def _memory_line() -> str:
+        try:
+            with open("/proc/meminfo", encoding="ascii") as handle:
+                fields = {line.split(":")[0]: line.split()[1] for line in handle if line.startswith(("MemAvailable", "MemFree"))}
+            return f"MemAvailable={int(fields['MemAvailable']) // 1024} MB MemFree={int(fields['MemFree']) // 1024} MB"
+        except (OSError, KeyError, ValueError):
+            return "meminfo unavailable"
+
+    def _command_of(pid: int) -> str:
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as handle:
+                return handle.read().replace(b"\0", b" ").decode("utf-8", "replace")[:200] or "?"
+        except OSError:
+            return "?"
+
+    def _wait() -> None:
+        info = signal.sigwaitinfo({signal.SIGTERM})
+        sender = getattr(info, "si_pid", 0)
+        log.error("SIGTERM received from pid %s (%s), parent of sender %s; %s", sender, _command_of(sender),
+                  _command_of(_parent_of(sender)), _memory_line())
+        for handler in getattr(log, "handlers", []) or []:
+            try:
+                handler.flush()
+            except Exception:  # noqa: BLE001 - dying anyway
+                pass
+        os._exit(143)
+
+    def _parent_of(pid: int) -> int:
+        try:
+            with open(f"/proc/{pid}/stat", encoding="ascii") as handle:
+                return int(handle.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            return 0
+
+    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+    threading.Thread(target=_wait, name="sigterm-witness", daemon=True).start()
+    return True

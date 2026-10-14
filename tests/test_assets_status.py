@@ -110,3 +110,41 @@ def test_build_assets_status_from_disk_degrades_gracefully_when_lean_json_missin
         report = build_assets_status_from_disk()
 
     assert report["ib_status"] == "enabled_but_lean_credentials_missing"
+
+
+def test_sleeve_status_reads_config_and_merges_the_runtime_guard_state():
+    from monitoring.assets_status import build_sleeve_status
+
+    config = {"phase_v2": {
+        "forex_risk": {"enabled": True}, "forex_sleeve": {"enabled": True, "signal": "carry", "gross_budget": 0.1},
+        "bond_sleeve": {"enabled": True, "signal": "ts_momentum", "gross_budget": 0.3},
+        "class_weight_caps": {"crypto": {"enabled": True, "per_name_cap": 0.01, "class_gross_cap": 0.05}},
+        "sleeve_guards": {"bond": {"enabled": True, "max_loss_fraction_nav": 0.01, "lookback_bars": 60, "cooldown_bars": 60}},
+        "dynamic_risk": {"rl_sizing_enabled": True, "min_rl_multiplier": 0.9, "max_rl_multiplier": 1.1, "rl_shadow_guard": {"enabled": True}},
+        "venue_listing_guard": {"enabled": True}, "topology_learning": {"enabled": True},
+    }}
+    status = build_sleeve_status(config, {"bond": {"active": False, "reason": "sleeve_loss_guard_tripped"}})
+    assert status["forex_sleeve"]["enabled"] is True and status["forex_sleeve"]["signal"] == "carry"
+    assert status["bond_sleeve"]["guard"]["enabled"] is True
+    assert status["bond_sleeve"]["guard"]["runtime"] == {"active": False, "reason": "sleeve_loss_guard_tripped"}
+    assert status["forex_sleeve"]["guard"]["enabled"] is False and status["forex_sleeve"]["guard"]["runtime"] is None
+    assert status["crypto_graduates"]["per_name_cap"] == 0.01
+    assert status["rl_sizing"] == {"enabled": True, "range": [0.9, 1.1], "shadow_guard": True}
+    assert status["venue_listing_guard"] is True and status["learned_topology"] is True
+
+
+def test_sleeve_status_of_an_empty_config_reads_as_disabled():
+    from monitoring.assets_status import build_sleeve_status
+
+    status = build_sleeve_status({})
+    assert status["forex_sleeve"]["enabled"] is False and status["bond_sleeve"]["enabled"] is False
+    assert status["rl_sizing"]["enabled"] is False and status["learned_topology"] is False
+
+
+def test_assets_status_report_carries_the_sleeves_block():
+    with patch("monitoring.assets_status.load_futures_contract_specs", return_value={}), patch(
+        "monitoring.assets_status.load_cached_fred_series", return_value={}
+    ):
+        report = build_assets_status(_config(), {}, {"forex": {"active": True}})
+    assert set(report["sleeves"]) >= {"forex_sleeve", "bond_sleeve", "crypto_graduates", "rl_sizing"}
+    assert report["sleeves"]["forex_sleeve"]["guard"]["runtime"] == {"active": True}

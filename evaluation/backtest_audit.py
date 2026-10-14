@@ -54,7 +54,13 @@ def _symbol_value(order: dict) -> str:
     return str(symbol or "")
 
 
-def _asset_class(order: dict) -> str:
+def _asset_class(order: dict, class_by_ticker: dict[str, str] | None = None) -> str:
+    """The config's asset class when `class_by_ticker` knows the ticker (bond ETFs are Lean equities, so the security
+    type alone files them under "equity"), else Lean's security type."""
+    if class_by_ticker:
+        configured = class_by_ticker.get(_symbol_value(order).upper())
+        if configured:
+            return configured
     return SECURITY_TYPE_NAMES.get(int(order.get("securityType", 0) or 0), "other")
 
 
@@ -96,6 +102,46 @@ def sharpe_from_equity(
     if variance <= 0.0:
         return None
     return mean / math.sqrt(variance) * math.sqrt(trading_days)
+
+
+def period_summary(
+    result: dict, start: str, end: str, class_by_ticker: dict[str, str] | None = None, risk_free_annual: float = 0.02,
+) -> dict:
+    """One sub-period of a longer run (V5.8.0: BT2 spans the backtest split and the holdout, and the two are judged
+    separately). Return and drawdown start from the last equity point before `start`; trades count by exit date;
+    `start`/`end` are ISO dates, inclusive."""
+    equity = daily_equity_from_chart(result)
+    before = [point for point in equity if point[0] < start]
+    inside = [point for point in equity if start <= point[0] <= end]
+    curve = before[-1:] + inside
+    values = [value for _, value in curve]
+    peak, max_drawdown = 0.0, 0.0
+    for value in values:
+        peak = max(peak, value)
+        if peak > 0.0:
+            max_drawdown = min(max_drawdown, value / peak - 1.0)
+    orders = result.get("orders", {})
+    pnl: dict[str, float] = defaultdict(float)
+    trades = 0
+    for trade in result.get("totalPerformance", {}).get("closedTrades", []):
+        exit_time = _parse_time(trade.get("exitTime"))
+        if exit_time is None or not (start <= exit_time.date().isoformat() <= end):
+            continue
+        order_ids = trade.get("orderIds") or []
+        first_order = orders.get(str(order_ids[0])) if order_ids else None
+        pnl[_asset_class(first_order, class_by_ticker) if first_order else "other"] += float(trade.get("profitLoss", 0.0) or 0.0)
+        trades += 1
+    return {
+        "start": start,
+        "end": end,
+        "num_days": len(inside),
+        "net_return": (values[-1] / values[0] - 1.0) if len(values) >= 2 and values[0] > 0.0 else None,
+        "max_drawdown": max_drawdown,
+        "sharpe_no_risk_free": sharpe_from_equity(curve, 0.0),
+        "sharpe_with_risk_free": sharpe_from_equity(curve, risk_free_annual),
+        "closed_trades": trades,
+        "realized_pnl_by_class": {asset_class: round(value, 2) for asset_class, value in sorted(pnl.items())},
+    }
 
 
 def exposure_summary(result: dict) -> dict[str, dict[str, float]]:
@@ -196,19 +242,25 @@ def carried_book_members(book_history: list[dict], on_date: str) -> frozenset[st
     return frozenset((chosen.get("allocations") or {}).keys())
 
 
-def classify_entries(closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict]) -> dict:
+def classify_entries(
+    closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict],
+    class_by_ticker: dict[str, str] | None = None,
+) -> dict:
     """Per asset class: how many position openings were book members, how
     many were non-members (the old probability signal), and how many have no
     book record to compare against. `closed_trades` is Lean's
     totalPerformance.closedTrades; the entry's decision date is the
     createdTime of the trade's first order."""
     counts: dict[str, Counter] = defaultdict(Counter)
-    for asset_class, bucket, _trade in _bucketed_trades(closed_trades, orders, book_history):
+    for asset_class, bucket, _trade in _bucketed_trades(closed_trades, orders, book_history, class_by_ticker):
         counts[asset_class][bucket] += 1
     return {asset_class: dict(counter) for asset_class, counter in sorted(counts.items())}
 
 
-def _bucketed_trades(closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict]):
+def _bucketed_trades(
+    closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict],
+    class_by_ticker: dict[str, str] | None = None,
+):
     """(asset_class, bucket, trade) per closed trade; bucket is book_member, non_member or no_book_record."""
     history = sorted(book_history, key=lambda record: record.get("date", ""))
     for trade in closed_trades:
@@ -216,7 +268,7 @@ def _bucketed_trades(closed_trades: list[dict], orders: dict[str, dict], book_hi
         symbol = str(symbols[0].get("value", "")) if symbols else ""
         order_ids = trade.get("orderIds") or []
         first_order = orders.get(str(order_ids[0])) if order_ids else None
-        asset_class = _asset_class(first_order) if first_order else "other"
+        asset_class = _asset_class(first_order, class_by_ticker) if first_order else "other"
         created = _parse_time((first_order or {}).get("createdTime")) or _parse_time(trade.get("entryTime"))
         members = carried_book_members(history, created.date().isoformat()) if created else None
         if members is None:
@@ -228,11 +280,14 @@ def _bucketed_trades(closed_trades: list[dict], orders: dict[str, dict], book_hi
         yield asset_class, bucket, trade
 
 
-def pnl_by_entry_bucket(closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict]) -> dict:
+def pnl_by_entry_bucket(
+    closed_trades: list[dict], orders: dict[str, dict], book_history: list[dict],
+    class_by_ticker: dict[str, str] | None = None,
+) -> dict:
     """Realized P&L and fees per asset class and entry bucket - the evidence for keeping or disabling the legacy
     (non-book) sleeve. `net_pnl` = Lean's profitLoss minus the trade's totalFees."""
     totals: dict[str, dict[str, dict[str, float]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
-    for asset_class, bucket, trade in _bucketed_trades(closed_trades, orders, book_history):
+    for asset_class, bucket, trade in _bucketed_trades(closed_trades, orders, book_history, class_by_ticker):
         cell = totals[asset_class][bucket]
         cell["trades"] += 1
         cell["realized_pnl"] += float(trade.get("profitLoss", 0.0) or 0.0)
@@ -269,12 +324,15 @@ def holding_period_histogram(closed_trades: list[dict]) -> dict[str, int]:
     return dict(histogram)
 
 
-def pnl_and_fees_by_asset_class(closed_trades: list[dict], orders: dict[str, dict], order_events: list[dict]) -> dict:
+def pnl_and_fees_by_asset_class(
+    closed_trades: list[dict], orders: dict[str, dict], order_events: list[dict],
+    class_by_ticker: dict[str, str] | None = None,
+) -> dict:
     """Realized P&L and fees per asset class, and fees in bps of traded
     notional per fill. Per-share fees on a mis-adjusted ~$4 price inflate
     this (16-49 bps per side in the 08-27 run), which is how the double
     split adjustment (Problems.md #128) shows up."""
-    class_by_symbol = {_symbol_value(order): _asset_class(order) for order in orders.values()}
+    class_by_symbol = {_symbol_value(order): _asset_class(order, class_by_ticker) for order in orders.values()}
     pnl: dict[str, float] = defaultdict(float)
     for trade in closed_trades:
         symbols = trade.get("symbols") or []
@@ -412,9 +470,12 @@ def audit_backtest_run(
     max_open_days: float = 5.0,
     book_run_index: int = -1,
     max_open_sessions: int | None = None,
+    class_by_ticker: dict[str, str] | None = None,
+    periods: list[tuple[str, str]] | None = None,
 ) -> dict:
     """The full audit. `run` is load_backtest_run()'s dict; `book_history`
-    is the raw (multi-run) log, of which `book_run_index` selects one run."""
+    is the raw (multi-run) log, of which `book_run_index` selects one run. `class_by_ticker` (upper-case ticker ->
+    config asset class) splits bonds out of "equity" and crypto/forex by config."""
     book_history = select_run_book_history(book_history, book_run_index)
     result = run["result"]
     orders = result.get("orders", {})
@@ -422,7 +483,7 @@ def audit_backtest_run(
     equity = daily_equity_from_chart(result)
     start_date = equity[0][0] if equity else None
     end_date = equity[-1][0] if equity else None
-    return {
+    audit = {
         "run_id": run.get("run_id"),
         "window": {"start": start_date, "end": end_date, "num_days": len(equity)},
         "lean_statistics": {
@@ -435,11 +496,17 @@ def audit_backtest_run(
             "risk_free_annual_assumed": risk_free_annual,
         },
         "exposure": exposure_summary(result),
-        "entries_by_asset_class": classify_entries(closed_trades, orders, book_history),
-        "pnl_by_entry_bucket": pnl_by_entry_bucket(closed_trades, orders, book_history),
+        "entries_by_asset_class": classify_entries(closed_trades, orders, book_history, class_by_ticker),
+        "pnl_by_entry_bucket": pnl_by_entry_bucket(closed_trades, orders, book_history, class_by_ticker),
         "orders": find_overlapping_orders(orders, max_open_days=max_open_days, max_open_sessions=max_open_sessions),
         "holding_period_days": holding_period_histogram(closed_trades),
-        "pnl_and_fees": pnl_and_fees_by_asset_class(closed_trades, orders, run.get("order_events", [])),
+        "pnl_and_fees": pnl_and_fees_by_asset_class(closed_trades, orders, run.get("order_events", []), class_by_ticker),
         "book": summarize_book_history(book_history, start_date, end_date),
         "teardown": teardown_status(run.get("engine_log", "")),
     }
+    if periods:
+        audit["periods"] = [
+            period_summary(result, period_start, period_end, class_by_ticker, risk_free_annual)
+            for period_start, period_end in periods
+        ]
+    return audit

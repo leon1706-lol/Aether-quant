@@ -4,7 +4,7 @@ The trading universe currently spans **104 assets**: 55 stocks/broad-market
 ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs.
 It is defined in `config.json`'s `phase1.universe.assets` and
 shared across training, validation, and backtesting
-(`phase1.universe.common_window`: `2014-12-01` to `2021-03-31`).
+(`phase1.universe.common_window`: `2014-12-01` to `2025-06-30`; V5.8.0 moved it from `2021-03-31`). Splits: train 2014-12-01..2021-12-31, validation 2022-01-01..2023-06-30, backtest 2023-07-01..2025-06-30, plus a holdout 2025-07-01..2026-09-30 that was looked at once (`phase1.windows.holdout`). Every class is one Yahoo-sourced vintage through 2026-09-30.
 
 The universe was deliberately grown — from an original 30 assets
 (`Problems.md` #52) to add bonds/crypto, then 15 forex pairs in V4.10
@@ -44,7 +44,7 @@ SPY/QQQ/IWM/EEM, not a new Lean security type).
 | GOOGL | Equity | Trading |
 | USO | Equity | Trading |
 | WM | Equity | Trading |
-| AAA | Equity | Observation-only (thin history) |
+| AAA | Equity | Trading (V5.8.0: enough rows after the window move) |
 | MSFT | Equity | Trading |
 | NVDA | Equity | Trading |
 | AMZN | Equity | Trading |
@@ -108,32 +108,32 @@ SPY/QQQ/IWM/EEM, not a new Lean security type).
 | JNK | Equity (Fixed Income ETF) | Trading - high-yield corporate |
 | BWX | Equity (Fixed Income ETF) | Trading - international Treasury |
 | BTCUSD | Crypto | Trading |
-| ETHUSD | Crypto | Observation-only (thin history) |
+| ETHUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
 | LTCUSD | Crypto | Trading |
-| XRPUSD | Crypto | Observation-only (thin history) |
-| ADAUSD | Crypto | Observation-only (thin history) |
-| BCHUSD | Crypto | Observation-only (thin history) |
-| LINKUSD | Crypto | Observation-only (thin history) |
-| DOGEUSD | Crypto | Observation-only (thin history) |
-| XLMUSD | Crypto | Observation-only (thin history) |
-| EOSUSD | Crypto | Observation-only (thin history) |
-| ETCUSD | Crypto | Observation-only (thin history) |
-| ZECUSD | Crypto | Observation-only (thin history) |
-| EURUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| GBPUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| USDJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| AUDUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| USDCAD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| USDCHF | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| NZDUSD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| EURGBP | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| EURJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| GBPJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| EURCHF | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| EURAUD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| AUDJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| CADJPY | Forex | Feature-only (trading off: no rank edge, Problems #151) |
-| GBPCAD | Forex | Feature-only (trading off: no rank edge, Problems #151) |
+| XRPUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| ADAUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| BCHUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| LINKUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| DOGEUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| XLMUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| EOSUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| ETCUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| ZECUSD | Crypto | Trading, capped (graduate: 1% per name, 5% class, loss guard) |
+| EURUSD | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| GBPUSD | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| USDJPY | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| AUDUSD | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| USDCAD | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| USDCHF | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| NZDUSD | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| EURGBP | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| EURJPY | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| GBPJPY | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| EURCHF | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| EURAUD | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| AUDJPY | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| CADJPY | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
+| GBPCAD | Forex | Carry-ranked sleeve (gross 0.10, loss guard); never in the main book pool |
 
 ## Trading vs observation-only
 
@@ -145,19 +145,21 @@ short relative to the training window to be trusted for trading decisions (see
 re-evaluated automatically every time `train.py` rebuilds the dataset, so an
 asset can move between these two roles as more history accumulates.
 
-All 7 newly-added crypto pairs land observation-only today. Their Yahoo history
-only starts 2017-11-09, giving them almost no rows inside the fixed 2014-2017
-train-split window (the same reason ETHUSD/XRPUSD/ADAUSD are observation-only),
-so tradeable crypto stays at 2 names (BTCUSD, LTCUSD). The new crypto tickers
-add cross-sectional/observation diversity, not new tradeable positions, until
-the training window itself moves forward. (Two of the original 7 picks,
+**V5.8.0: all 104 assets are training- and trading-eligible.** Moving the train split to 2021-12-31 gave
+every crypto pair (Yahoo history from 2017-11-09) well over the 250 training rows the `asset_quality` rule asks for,
+and AAA (from 2020-09) enough as well (`ml/dataset_manifest.json`). The ten crypto pairs that were observation-only
+trade as capped "graduates" (`phase_v2.crypto_graduates`: 1% per name, 5% for the class, a loss guard, and the venue
+listing guard that blocks orders before a pair's Coinbase listing or during the XRP suspension). Bonds are no longer in
+the main book pool: they run as a momentum-ranked sleeve (`phase_v2.bond_sleeve`, gross 0.10 after BT1,
+`max_bond_exposure` 0.3 stays the hard cap) and forex as a carry-ranked sleeve (`phase_v2.forex_sleeve`, gross 0.10).
+The history below describes the older observation-only state. (Two of the original 7 picks,
 BNBUSD/TRXUSD, were swapped for ETCUSD/ZECUSD after a real `aq backtest` run
 found Coinbase never actually listed Binance Coin or TRON pairs. Lean's local
 symbol-properties database confirmed it, so those two could never subscribe.
 ETCUSD/ZECUSD are real Coinbase-listed pairs with the same 2017-11-09 Yahoo
 history start as the rest of this batch.)
 
-**All 15 forex pairs are confirmed "Trading"** as of the V4.11 retrain
+**All 15 forex pairs are training-eligible** (confirmed at the V4.11 retrain, still true; since V5.8.0 they trade only through the carry sleeve)
 (`development/Problems.md` #70). The first-ever full `train.py` run that
 included forex classified all 15 pairs training-eligible via the same
 `asset_quality` classifier used for every other asset class (trainable

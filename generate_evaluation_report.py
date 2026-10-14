@@ -38,6 +38,17 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from evaluation.readme_research import (
+    AS_LIVE_MARKER_END,
+    AS_LIVE_MARKER_START,
+    LEAN_COMPARE_MARKER_END,
+    LEAN_COMPARE_MARKER_START,
+    RESEARCH_MARKER_END,
+    RESEARCH_MARKER_START,
+    build_as_live_markdown,
+    build_lean_vs_offline_markdown,
+    build_research_markdown,
+)
 from generate_backtest_report import (
     README_PATH,
     _atomic_write,
@@ -675,6 +686,20 @@ def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
         WALKFORWARD_FULL_STATS_MARKER_START,
         WALKFORWARD_FULL_STATS_MARKER_END,
         _build_walk_forward_full_stats_markdown(walk_forward_summary),
+    )
+    if updated is not None:
+        text, changed = updated, True
+
+    updated = _replace_between_markers(text, AS_LIVE_MARKER_START, AS_LIVE_MARKER_END, build_as_live_markdown(EVALUATION_DIR))
+    if updated is not None:
+        text, changed = updated, True
+
+    updated = _replace_between_markers(text, RESEARCH_MARKER_START, RESEARCH_MARKER_END, build_research_markdown(EVALUATION_DIR))
+    if updated is not None:
+        text, changed = updated, True
+
+    updated = _replace_between_markers(
+        text, LEAN_COMPARE_MARKER_START, LEAN_COMPARE_MARKER_END, build_lean_vs_offline_markdown(EVALUATION_DIR)
     )
     if updated is not None:
         text, changed = updated, True

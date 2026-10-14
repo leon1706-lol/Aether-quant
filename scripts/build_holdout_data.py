@@ -26,7 +26,14 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from data_pipeline.fetch import ASSET_CLASS_CONFIG  # noqa: E402
 from data_pipeline.fred_backfill import fetch_fred_series, reference_series, write_fred_series_cache  # noqa: E402
-from data_pipeline.yfinance_backfill import fetch_yahoo_ohlcv, scale_for_lean, write_lean_zip  # noqa: E402
+from data_pipeline.yfinance_backfill import (  # noqa: E402
+    apply_price_overrides,
+    fetch_yahoo_ohlcv,
+    sanitize_ohlc,
+    scale_for_lean,
+    write_lean_crypto_quote_zip,
+    write_lean_zip,
+)
 
 
 def holdout_zip_path(root: Path, asset: dict) -> Path:
@@ -58,10 +65,17 @@ def main() -> int:
     parser.add_argument("--root", default="data_holdout")
     parser.add_argument("--apply", action="store_true", help="write the zips and FRED cache (default: dry run)")
     parser.add_argument("--tickers", nargs="*", default=None)
+    parser.add_argument(
+        "--report-name", default="holdout_report.json",
+        help="V5.8.0: report file written under --root (the V5.8.0 window extension writes refresh_report.json)",
+    )
+    parser.add_argument("--skip-fred", action="store_true", help="V5.8.0: zips only (FRED handled by `aq backfill fred`)")
     args = parser.parse_args()
 
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
     root = ROOT_DIR / args.root
+    overrides_path = ROOT_DIR / "data_pipeline" / "price_overrides.json"
+    price_overrides = json.loads(overrides_path.read_text(encoding="utf-8")) if overrides_path.exists() else {}
     report: dict[str, dict] = {}
     for asset in config["phase1"]["universe"]["assets"]:
         ticker, security_type = asset["ticker"], asset["security_type"]
@@ -71,13 +85,15 @@ def main() -> int:
             report[ticker] = {"status": "skipped_security_type", "security_type": security_type}
             continue
         symbol = yahoo_symbol(asset)
-        rows = fetch_yahoo_ohlcv(symbol, args.start, args.end)
+        rows, overridden = apply_price_overrides(fetch_yahoo_ohlcv(symbol, args.start, args.end), price_overrides.get(ticker))
+        rows, ohlc_fixed = sanitize_ohlc(rows)
         if not rows:
             report[ticker] = {"status": "no_data", "yahoo_symbol": symbol}
             print(f"{ticker:10s} {symbol:10s} NO DATA")
             continue
         report[ticker] = {
-            "status": "ok", "yahoo_symbol": symbol, "rows": len(rows),
+            "status": "ok", "yahoo_symbol": symbol, "rows": len(rows), "ohlc_rows_widened": ohlc_fixed,
+            "price_overrides_applied": overridden,
             "first": rows[0]["date"].isoformat(), "last": rows[-1]["date"].isoformat(),
         }
         print(f"{ticker:10s} {symbol:10s} {len(rows):5d} rows {report[ticker]['first']}..{report[ticker]['last']}")
@@ -86,9 +102,15 @@ def main() -> int:
             target = holdout_zip_path(root, asset)
             target.parent.mkdir(parents=True, exist_ok=True)
             write_fn(target, ticker, scale_for_lean(rows, security_type), merge_with_existing=False)
+            if security_type == "crypto" and target.name.endswith("_trade.zip"):
+                # V5.8.0: Lean requests a crypto quote feed too; derive it from the fresh trade zip (zero-spread rows)
+                write_lean_crypto_quote_zip(
+                    target, target.with_name(target.name.replace("_trade.zip", "_quote.zip")), ticker,
+                    merge_with_existing=False,
+                )
 
     fred_report: dict[str, int] = {}
-    for key, series_id in reference_series(config, "all").items():
+    for key, series_id in ({} if args.skip_fred else reference_series(config, "all")).items():
         rows = fetch_fred_series(series_id, "1990-01-01", args.end)
         fred_report[key] = len(rows)
         if args.apply and rows:
@@ -99,7 +121,7 @@ def main() -> int:
     print(f"{len(report) - len(failures)} assets ok, {len(failures)} without holdout data: {failures}")
     if args.apply:
         root.mkdir(parents=True, exist_ok=True)
-        (root / "holdout_report.json").write_text(json.dumps({"assets": report, "fred_rows": fred_report}, indent=2), encoding="utf-8")
+        (root / args.report_name).write_text(json.dumps({"assets": report, "fred_rows": fred_report}, indent=2), encoding="utf-8")
     return 0
 
 

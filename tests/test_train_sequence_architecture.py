@@ -308,3 +308,21 @@ def test_build_sequence_tensor_dataset_full_window_once_enough_history_exists():
     sequences = build_sequence_tensor_dataset(dataset, ["f1", "f2"], window_size=3)
 
     assert np.allclose(sequences[last_a_position], [[2.0, 20.0], [3.0, 30.0], [4.0, 40.0]], atol=1e-6)
+
+
+def test_build_sequence_tensor_dataset_row_mask_equals_slicing_the_full_tensor():
+    """V5.8.0: per-split construction must give exactly the windows the full tensor held (windows still reach back
+    across split boundaries into earlier rows of the same ticker)."""
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame(
+        {
+            "ticker": ["A"] * 7 + ["B"] * 5,
+            "f1": rng.normal(size=12),
+            "f2": rng.normal(size=12),
+            "split": ["train"] * 4 + ["validation"] * 3 + ["train"] * 2 + ["validation"] * 3,
+        }
+    )
+    full = build_sequence_tensor_dataset(frame, ["f1", "f2"], window_size=3)
+    for split in ("train", "validation"):
+        mask = (frame["split"] == split).to_numpy()
+        assert np.array_equal(build_sequence_tensor_dataset(frame, ["f1", "f2"], 3, row_mask=mask), full[mask])

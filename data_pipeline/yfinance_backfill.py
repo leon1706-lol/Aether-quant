@@ -90,6 +90,38 @@ def detect_gap(asset: dict, existing_rows: list[dict]) -> dict:
     }
 
 
+def apply_price_overrides(rows: list[dict], overrides: list[dict] | None) -> tuple[list[dict], int]:
+    """V5.8.0: applies verified single-bar corrections ({"date": "YYYY-MM-DD", "set": {field: value}}, from
+    data_pipeline/price_overrides.json) to unscaled Yahoo rows. Returns (rows, number of rows changed)."""
+    by_date = {str(entry["date"])[:10]: dict(entry.get("set") or {}) for entry in (overrides or [])}
+    if not by_date:
+        return rows, 0
+    out, changed = [], 0
+    for row in rows:
+        fields = by_date.get(row["date"].isoformat() if hasattr(row["date"], "isoformat") else str(row["date"])[:10])
+        if fields:
+            row = {**row, **{key: float(value) for key, value in fields.items()}}
+            changed += 1
+        out.append(row)
+    return out, changed
+
+
+def sanitize_ohlc(rows: list[dict]) -> tuple[list[dict], int]:
+    """V5.8.0: Yahoo's forex bars often carry a high below max(open, close) or a low above min(open, close) (57-226 rows
+    per pair over 2013-2026). Lean and every range feature (ATR, Corwin-Schultz spread) assume low <= open/close <= high,
+    so the high/low are widened to contain the open and close. Returns (rows, number of rows changed); consistent rows
+    pass through untouched."""
+    cleaned, changed = [], 0
+    for row in rows:
+        high = max(row["high"], row["open"], row["close"])
+        low = min(row["low"], row["open"], row["close"])
+        if high != row["high"] or low != row["low"]:
+            changed += 1
+            row = {**row, "high": high, "low": low}
+        cleaned.append(row)
+    return cleaned, changed
+
+
 def scale_for_lean(rows: list[dict], security_type: str) -> list[dict]:
     """Applies train.py's x10000 integer convention for equities (Lean's
     deflated-price format — see train.py::load_lean_bars()); crypto rows

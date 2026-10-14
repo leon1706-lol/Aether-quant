@@ -919,3 +919,50 @@ def build_book_history_record(
     if run_id is not None:
         record["run_id"] = str(run_id)
     return record
+
+
+def resolve_class_weight_caps(raw: dict | None) -> dict[str, dict]:
+    """`phase_v2.class_weight_caps` -> {asset_class: {"per_name_cap", "class_gross_cap", "exempt"}} for the enabled classes.
+    Absent/empty = no caps (the pre-V5.8.0 behaviour). A cap of 0 or less means "no cap on that dimension"."""
+    caps: dict[str, dict] = {}
+    for asset_class, entry in (raw or {}).items():
+        if not isinstance(entry, dict) or not bool(entry.get("enabled", True)):
+            continue
+
+        def _cap(key: str) -> float | None:
+            try:
+                value = float(entry.get(key, 0.0))
+            except (TypeError, ValueError):
+                return None
+            return value if value > 0.0 and value == value and value != float("inf") else None
+
+        per_name, gross = _cap("per_name_cap"), _cap("class_gross_cap")
+        if per_name is None and gross is None:
+            continue
+        caps[str(asset_class)] = {"per_name_cap": per_name, "class_gross_cap": gross, "exempt": frozenset(map(str, entry.get("exempt", ())))}
+    return caps
+
+
+def apply_class_weight_caps(
+    weights: dict[str, float], asset_class_by_symbol: dict[str, str | None], caps: dict[str, dict]
+) -> dict[str, float]:
+    """V5.8.0: bounds the book weights of a class — each name to `per_name_cap`, then the class to `class_gross_cap`
+    (proportional scale-down) — leaving `exempt` names (the proven core, e.g. BTC/LTC) and every other class untouched.
+    Used for the names that must trade without a proven edge (the 10 crypto pairs that became eligible with the
+    extended window). Capping a leg of a dollar-neutral book can leave a small net exposure; the sizing chain and the
+    kill switch run after this, exactly as live and as-live both do. Pure; input is not mutated."""
+    if not caps:
+        return dict(weights)
+    result = dict(weights)
+    for asset_class, cap in caps.items():
+        names = [s for s in result if asset_class_by_symbol.get(s) == asset_class and s not in cap["exempt"]]
+        if cap["per_name_cap"] is not None:
+            for symbol in names:
+                result[symbol] = max(-cap["per_name_cap"], min(cap["per_name_cap"], result[symbol]))
+        if cap["class_gross_cap"] is not None:
+            gross = sum(abs(result[s]) for s in names)
+            if gross > cap["class_gross_cap"] > 0.0:
+                scale = cap["class_gross_cap"] / gross
+                for symbol in names:
+                    result[symbol] *= scale
+    return result

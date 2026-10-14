@@ -59,16 +59,34 @@ def _is_external(target: str) -> bool:
     return target.startswith(("http://", "https://", "mailto:", "#", "tel:", "data:")) or "://" in target
 
 
+_IGNORED_CACHE: dict[str, bool] = {}
+
+
+def _ignored_batch(relatives: list[str]) -> None:
+    """One `git check-ignore --stdin` for every path not yet asked about (V5.8.0: the test spawned one git process per
+    link, ~3 s on Windows). Results land in _IGNORED_CACHE."""
+    pending = [relative for relative in dict.fromkeys(relatives) if relative not in _IGNORED_CACHE]
+    if not pending:
+        return
+    try:
+        completed = subprocess.run(
+            ["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(pending), capture_output=True, text=True, timeout=60
+        )
+        ignored = {line.strip() for line in completed.stdout.splitlines()}
+    except (OSError, subprocess.SubprocessError):
+        ignored = set()
+    for relative in pending:
+        _IGNORED_CACHE[relative] = relative in ignored
+
+
 def _is_gitignored(path: Path) -> bool:
     """A link into a gitignored path resolves locally but 404s on a fresh clone / CI checkout."""
     try:
-        relative = path.relative_to(ROOT)
+        relative = path.relative_to(ROOT).as_posix()
     except ValueError:
         return False
-    try:
-        return subprocess.run(["git", "check-ignore", "-q", str(relative)], cwd=ROOT, timeout=30).returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+    _ignored_batch([relative])
+    return _IGNORED_CACHE[relative]
 
 
 def _broken_links(path: Path) -> list[str]:
@@ -87,7 +105,23 @@ def _broken_links(path: Path) -> list[str]:
 
 
 def test_every_relative_markdown_link_resolves():
-    broken = [problem for path in _tracked_markdown() for problem in _broken_links(path)]
+    paths = _tracked_markdown()
+    # warm the ignore cache with one git call for every resolvable link target of every doc
+    targets = []
+    for path in paths:
+        text = _strip_fenced_code(path.read_text(encoding="utf-8", errors="replace"))
+        for target in _LINK_RE.findall(text) + _IMAGE_RE.findall(text):
+            relative = target.split("#", 1)[0].split("?", 1)[0]
+            if _is_external(target) or not relative:
+                continue
+            resolved = (path.parent / relative).resolve() if not relative.startswith("/") else (ROOT / relative.lstrip("/"))
+            if resolved.exists():
+                try:
+                    targets.append(resolved.relative_to(ROOT).as_posix())
+                except ValueError:
+                    continue
+    _ignored_batch(targets)
+    broken = [problem for path in paths for problem in _broken_links(path)]
     assert not broken, "broken relative links:\n" + "\n".join(sorted(broken))
 
 

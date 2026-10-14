@@ -334,3 +334,22 @@ def test_as_live_kwargs_hold_on_veto_follows_the_config_and_forwards_the_mechani
 
 
 
+
+
+def test_member_weight_applies_the_learned_topology_multiplier_only_when_a_provider_is_given():
+    plain = build_live_member_weight_fn(_config(), security_type_by_ticker={"AAA": "equity"})
+    inputs = {"topology_source": "learned", "topology_confidence": 0.8, "topology_disagreement": 0.5}
+    with_topology = build_live_member_weight_fn(
+        _config(), security_type_by_ticker={"AAA": "equity"}, topology_inputs_fn=lambda symbol, date: inputs
+    )
+    multiplier = 0.5 + 0.5 * 0.8 * (1.0 - 0.5)  # topology_sizing_multiplier at the default 0.5..1.0 range
+    unshrunk = _call(plain)
+    shrunk = _call(with_topology)
+    assert shrunk == pytest.approx(unshrunk * multiplier, rel=1e-9)  # 0.7, above the book floor, so it passes through exactly
+    fallback = build_live_member_weight_fn(
+        _config(), security_type_by_ticker={"AAA": "equity"},
+        topology_inputs_fn=lambda symbol, date: {"topology_source": "fallback", "topology_confidence": 0.0, "topology_disagreement": 0.0},
+    )
+    assert _call(fallback) == pytest.approx(unshrunk)  # a fallback node is a strict no-op
+    assert _call(build_live_member_weight_fn(_config(risk={"topology_sizing_enabled": False}), security_type_by_ticker={"AAA": "equity"},
+                                             topology_inputs_fn=lambda symbol, date: inputs)) == pytest.approx(unshrunk)

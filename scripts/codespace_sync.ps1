@@ -7,7 +7,7 @@
   moves it with scp -F <gh ssh config>, and verifies sha256 of key artifacts on both ends.
 
   Modes
-    push    local tree -> Codespace. Includes gitignored data/ and ml/ (config, scaler, models); excludes .git,
+    push    local tree -> Codespace (-CodeOnly: source files only, ml/ and data/ untouched). Includes gitignored data/ and ml/ (config, scaler, models); excludes .git,
             .venv, node_modules, backtests, ml/versions and ml/_backup_*. Datasets are excluded unless
             -IncludeDatasets (a retrain regenerates them).
     pull    Codespace ml/ (+ the named -Candidate / -WalkForward version dirs) -> local, then verify hashes.
@@ -28,6 +28,8 @@ param(
     [string[]]$Candidate = @(),
     [string[]]$WalkForward = @(),
     [switch]$IncludeDatasets,
+    [switch]$NoDatasets, # pull: leave ml/datasets and ml/expert_datasets on the Codespace (they are ~2.3 GB; fetch single CSVs with scp)
+    [switch]$CodeOnly,   # push: source only - NEVER touches ml/, data/ or data_holdout/ (use while a retrain's artifacts live on the Codespace)
     [switch]$DryRun
 )
 
@@ -102,6 +104,32 @@ function Get-RemoteTreeDigest([hashtable]$Ssh, [string]$Repo, [string]$Dir) {
     return @{ Count = [int]$parts[0]; Digest = $parts[1] }
 }
 
+# V5.8.0: path+size cannot see a rewritten file of the same size; the content digest is sha256 over the sorted
+# "<relative path> <sha256>" lines of every file under the tracked data subfolders (crypto, equity, forex, reference).
+function Get-LocalContentDigest([string]$Dir) {
+    $base = Join-Path $Root $Dir
+    if (-not (Test-Path $base)) { return '-' }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($sub in @('crypto', 'equity', 'forex', 'reference')) {
+        $subPath = Join-Path $base $sub
+        if (-not (Test-Path $subPath)) { continue }
+        Get-ChildItem -Path $subPath -Recurse -File | ForEach-Object {
+            $lines.Add(($_.FullName.Substring($base.Length + 1) -replace '\\', '/') + ' ' + (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLower())
+        }
+    }
+    $array = $lines.ToArray()
+    [System.Array]::Sort($array, [System.StringComparer]::Ordinal)
+    $text = ($array -join "`n") + "`n"
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    return ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($text))) -replace '-', '').ToLower()
+}
+
+function Get-RemoteContentDigest([hashtable]$Ssh, [string]$Repo, [string]$Dir) {
+    $remoteCommand = 'cd ' + $Repo + '/' + $Dir + ' 2>/dev/null && find crypto equity forex reference -type f -exec sha256sum {} + 2>/dev/null | awk ''{print $2, $1}'' | LC_ALL=C sort | sha256sum | cut -d'' '' -f1 || echo -'
+    $out = ssh -F $Ssh.Config $Ssh.Host $remoteCommand
+    return ($out | Select-Object -Last 1).Trim()
+}
+
 function Show-TreeComparison([hashtable]$Ssh, [string]$Repo) {
     [int]$bad = 0
     foreach ($dir in @('data', 'data_holdout')) {
@@ -110,6 +138,10 @@ function Show-TreeComparison([hashtable]$Ssh, [string]$Repo) {
         $state = if ($l.Count -eq $r.Count -and $l.Digest -eq $r.Digest) { 'match' } else { $bad++; 'DIFFERENT' }
         Write-Host ('{0,-14} local={1,6} files {2}  remote={3,6} files {4}  {5}' -f $dir, $l.Count, $l.Digest.Substring(0, [Math]::Min(12, $l.Digest.Length)), $r.Count, $r.Digest.Substring(0, [Math]::Min(12, $r.Digest.Length)), $state)
     }
+    $lc = Get-LocalContentDigest 'data'
+    $rc = Get-RemoteContentDigest $Ssh $Repo 'data'
+    $contentState = if ($lc -eq $rc) { 'match' } else { $bad++; 'DIFFERENT' }
+    Write-Host ('data content  local={0}  remote={1}  {2}' -f $lc.Substring(0, [Math]::Min(12, $lc.Length)), $rc.Substring(0, [Math]::Min(12, $rc.Length)), $contentState)
     return [int]$bad
 }
 
@@ -142,8 +174,9 @@ switch ($Mode) {
     'push' {
         $archive = Join-Path $Scratch 'push.tgz'
         $excludes = @('.git', '.venv', 'node_modules', 'backtests', 'build', '__pycache__', '.pytest_cache', '.ruff_cache',
-            '.matplotlib_cache', '.claude', '.av', '.coverage', '*.egg-info', 'ml/versions', 'ml/_backup_*', 'Aether-quant-Obsidian-Vault', 'visualization')
+            '.matplotlib_cache', '.claude', '.av', '.coverage', '*.egg-info', 'ml/versions', 'ml/_backup_*', 'Aether-quant-Obsidian-Vault', 'visualization', 'data_backup_pre_v580', 'data_v580_staging', 'backtests_invalid')
         if (-not $IncludeDatasets) { $excludes += @('ml/datasets', 'ml/expert_datasets') }
+        if ($CodeOnly) { $excludes += @('ml', 'data', 'data_holdout') }
         $tarArgs = @('-czf', $archive) + ($excludes | ForEach-Object { "--exclude=$_" }) + @('-C', $Root, '.')
         Write-Host "building $archive (excluding: $($excludes -join ', '))"
         tar @tarArgs
@@ -154,12 +187,13 @@ switch ($Mode) {
         scp -F $ssh.Config $archive "$($ssh.Host):/tmp/aq_push.tgz"
         if ($LASTEXITCODE -ne 0) { throw 'scp upload failed' }
         Invoke-Remote $ssh ('cd ' + $repo + ' && tar -xzf /tmp/aq_push.tgz && rm /tmp/aq_push.tgz && mkdir -p ml/versions')
-        $bad = Show-HashComparison (Get-LocalHashes) (Get-RemoteHashes $ssh $repo)
+        $bad = if ($CodeOnly) { 0 } else { Show-HashComparison (Get-LocalHashes) (Get-RemoteHashes $ssh $repo) }
         if ($bad -gt 0) { throw "push verification: $bad key file(s) differ after extract" }
         Write-Host 'push verified'
     }
     'pull' {
         $remoteExcludes = "--exclude='ml/versions' --exclude='ml/_backup_*' --exclude='ml/datasets/*.csv.bak'"
+        if ($NoDatasets) { $remoteExcludes += " --exclude='ml/datasets' --exclude='ml/expert_datasets'" }
         $names = @($Candidate) + @($WalkForward) | Where-Object { $_ }
         $versionArgs = ($names | ForEach-Object { "'ml/versions/$_'" }) -join ' '
         if ($DryRun) { Write-Host "dry run: would pull ml (minus versions) + $versionArgs"; break }

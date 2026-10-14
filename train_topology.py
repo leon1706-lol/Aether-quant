@@ -49,7 +49,103 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version-id", type=str, required=True, help="Candidate model_version_id (UUID)")
     parser.add_argument("--postgres-dsn", type=str, default="", help="Overridden by AETHER_POSTGRES_DSN env")
     parser.add_argument("--config-path", type=str, default=str(CONFIG_PATH))
+    parser.add_argument(
+        "--source", choices=["postgres", "dataset"], default="postgres",
+        help="V5.8.0: 'dataset' builds the training events from ml/datasets/train_dataset.csv instead of Postgres "
+        "experience events (a full-information replay, like train_rl_sizing.py), so the model is retrainable offline.",
+    )
+    parser.add_argument("--dataset-path", type=str, default=str(ML_DIR / "datasets" / "train_dataset.csv"))
+    parser.add_argument("--max-rows", type=int, default=60_000, help="with --source dataset: deterministic row sample cap")
     return parser.parse_args()
+
+
+def primary_regime_label(row: dict) -> str:
+    """regime.market_regime's `primary_regime` rebuilt from the dataset's one-hot columns, in the exact format the live topology
+    compares prototypes against: '<trend>_risk_off', 'sideways_<volatility>' or '<trend>_<volatility>' (e.g.
+    'bullish_high_volatility'). A trend-only label would never equal a live cluster label, so every node would read as a
+    regime mismatch and the sizing multiplier would shrink permanently."""
+    def _flag(name: str) -> bool:
+        try:
+            return float(row.get(name, 0) or 0) > 0.5
+        except (TypeError, ValueError):
+            return False
+
+    trend = next((label for label in ("bullish", "bearish", "sideways") if _flag(f"regime_trend_{label}")), None)
+    volatility = next(
+        (label for label in ("low_volatility", "normal_volatility", "high_volatility") if _flag(f"regime_volatility_{label.split('_')[0]}")),
+        None,
+    )
+    if trend is None or volatility is None:
+        return "unknown"
+    if _flag("regime_risk_off"):
+        return f"{trend}_risk_off"
+    return f"{trend}_{volatility}"
+
+
+def dataset_feature_vectors(
+    rows: list[dict], probabilities: list[float], *, nominal_notional: float = 5_000.0
+) -> tuple[list[dict], list[str | None], list[str]]:
+    indices, vectors, outcomes, regimes = dataset_feature_vectors_indexed(rows, probabilities, nominal_notional=nominal_notional)
+    return vectors, outcomes, regimes
+
+
+def dataset_feature_vectors_indexed(
+    rows: list[dict], probabilities: list[float], *, nominal_notional: float = 5_000.0
+) -> tuple[list[int], list[dict], list[str | None], list[str]]:
+    """V5.8.0 - FEATURE_KEYS vectors, win/loss labels and regime labels from dataset rows (the offline counterpart of
+    build_feature_vector() over experience events). `probabilities` is the multitask direction head per row (live uses
+    the model's probability_up the same way). Approximations, documented in the parity contract: volatility_pressure is
+    the annualised 20-day rolling volatility (live: the topology window's annualised volatility) and the liquidity score
+    uses a nominal order notional against the row's dollar volume. A row is a "win" when the realised 20-day return has
+    the sign the probability called."""
+    indices, vectors, outcomes, regimes = [], [], [], []
+    for index, (row, probability) in enumerate(zip(rows, probabilities)):
+        try:
+            volatility = float(row["rolling_volatility_20d"]) * (252.0 ** 0.5)
+            close, volume = float(row["close"]), float(row["volume"])
+            forward = float(row["target_return_20d"])
+            vector = {
+                "volatility": volatility,
+                "momentum": float(probability) - 0.5,
+                "correlation_strength": float(row.get("topology_correlation_strength", 0.0) or 0.0),
+                "liquidity_score": liquidity_score_from_decision({
+                    "participation_rate": nominal_notional / (close * volume) if close * volume > 0 else 1.0,
+                    "estimated_slippage": float(row.get("liquidity_spread_proxy", 0.0) or 0.0) / 2.0,
+                }),
+                "regime_risk_score": float(row.get("regime_signal_risk_score", 0.0) or 0.0),
+            }
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not all(np.isfinite(list(vector.values()))) or not np.isfinite(forward):
+            continue
+        indices.append(index)
+        vectors.append(vector)
+        outcomes.append("win" if (float(probability) - 0.5) * forward > 0 else "loss")
+        regimes.append(primary_regime_label(row))
+    return indices, vectors, outcomes, regimes
+
+
+def load_dataset_events(dataset_path: Path, max_rows: int) -> tuple[list[dict], list[str | None], list[str]]:
+    """Reads the train split, scores the multitask direction head on it and returns dataset_feature_vectors()."""
+    import pandas as pd
+
+    from evaluation.model_predictions import predict_multitask_head
+
+    schema = json.loads((ML_DIR / "multitask_feature_schema.json").read_text(encoding="utf-8"))
+    model = json.loads((ML_DIR / "multitask_model.json").read_text(encoding="utf-8"))
+    names = list(schema["model_input_names"])
+    needed = set(names) | {"rolling_volatility_20d", "close", "volume", "target_return_20d", "topology_correlation_strength",
+                           "liquidity_spread_proxy", "regime_signal_risk_score", "regime_trend_bullish",
+                           "regime_trend_bearish", "regime_trend_sideways", "regime_volatility_low",
+                           "regime_volatility_normal", "regime_volatility_high", "regime_risk_off", "training_eligible", "date"}
+    frame = pd.read_csv(dataset_path, usecols=lambda column: column in needed)
+    if "training_eligible" in frame.columns:
+        frame = frame[frame["training_eligible"].astype(bool)]
+    frame = frame.dropna(subset=["target_return_20d"]).reset_index(drop=True)
+    if len(frame) > max_rows:
+        frame = frame.iloc[np.linspace(0, len(frame) - 1, max_rows).astype(int)].reset_index(drop=True)
+    probabilities = predict_multitask_head(frame, model, names, "direction")
+    return dataset_feature_vectors(frame.to_dict("records"), list(probabilities))
 
 
 def load_topology_learning_config(config_path: Path = CONFIG_PATH) -> dict:
@@ -245,28 +341,31 @@ def main() -> int:
         num_prototypes = int(training_config.get("num_prototypes", 6))
         distance_scale_percentile = float(training_config.get("distance_scale_percentile", 90))
 
-        import psycopg
+        if getattr(args, "source", "postgres") == "dataset":
+            feature_vectors, outcome_labels, regime_labels = load_dataset_events(Path(args.dataset_path), args.max_rows)
+        else:
+            import psycopg
 
-        dsn = os.environ.get("AETHER_POSTGRES_DSN", args.postgres_dsn)
-        conn = psycopg.connect(dsn, autocommit=False)
-        try:
-            since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
-            events = fetch_recent_events(conn, limit=max(min_training_events * 4, 5000), since=since)
-        finally:
-            conn.close()
+            dsn = os.environ.get("AETHER_POSTGRES_DSN", args.postgres_dsn)
+            conn = psycopg.connect(dsn, autocommit=False)
+            try:
+                since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+                events = fetch_recent_events(conn, limit=max(min_training_events * 4, 5000), since=since)
+            finally:
+                conn.close()
 
-        outcomes = derive_realized_outcomes(events)
+            outcomes = derive_realized_outcomes(events)
 
-        feature_vectors: list[dict] = []
-        outcome_labels: list = []
-        regime_labels: list[str] = []
-        for event, outcome in zip(events, outcomes):
-            vector = build_feature_vector(event)
-            if vector is None:
-                continue
-            feature_vectors.append(vector)
-            outcome_labels.append(outcome)
-            regime_labels.append((event.get("regime") or {}).get("primary_regime", "unknown"))
+            feature_vectors = []
+            outcome_labels = []
+            regime_labels = []
+            for event, outcome in zip(events, outcomes):
+                vector = build_feature_vector(event)
+                if vector is None:
+                    continue
+                feature_vectors.append(vector)
+                outcome_labels.append(outcome)
+                regime_labels.append((event.get("regime") or {}).get("primary_regime", "unknown"))
 
         if len(feature_vectors) < min_training_events:
             LOGGER.info(
@@ -304,6 +403,7 @@ def main() -> int:
             "version_id": args.version_id,
             "trained_at": trained_at,
             "training_window_days": lookback_days,
+            "source": getattr(args, "source", "postgres"),
             "sample_count": len(feature_vectors),
             "labeled_sample_count": sum(1 for label in outcome_labels if label is not None),
             "n_clusters": fit_result["n_clusters"],

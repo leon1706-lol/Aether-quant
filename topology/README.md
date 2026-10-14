@@ -138,3 +138,7 @@ for the other two):
   columns `topology_risk_normal/elevated/isolated` as model inputs. Thin
   dates default to the same "isolated, zero correlation" signal the
   runtime fallback produces — never NaN.
+
+## V5.8.0 additions
+
+`learned_topology.learned_sizing_inputs(...)` scores a dataset row with the live prototype distances and returns the `topology_source` / `confidence` / `disagreement` the sizing multiplier `0.5 + 0.5 * confidence * (1 - disagreement)` needs, so the offline as-live run models the multiplier (the unknown whole-bar peer term is bracketed at 0 / 0.5 / 1). `train_topology.py` fits the prototypes from the dataset; R-TOPO keeps the overlay on (Problems.md #170).

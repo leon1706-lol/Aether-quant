@@ -70,7 +70,7 @@ def main() -> int:
         predictions = predict_heads(
             dataset, model_export, schema["model_input_names"], list(HEAD_TARGETS),
             model_kind=model_kind, sequence_feature_schema=schema if model_kind == "sequence" else None,
-            configured_window_size=window,
+            configured_window_size=window, batched=True,
         )
         per_head = {}
         for head, (target, horizon) in HEAD_TARGETS.items():
@@ -93,6 +93,10 @@ def main() -> int:
         report["idealized_book"] = summarize(harness.idealized())
         print("as-live book:", json.dumps(report["as_live_book"]))
     Path(args.output).write_text(json.dumps(report, indent=2, default=float), encoding="utf-8")
+    if Path(args.output).resolve() == (ROOT_DIR / "ml" / "evaluation" / "holdout_report.json").resolve():
+        from evaluation.readme_research import refresh_readme_best_effort
+
+        refresh_readme_best_effort()
     print(f"written {args.output}")
     return 0
 

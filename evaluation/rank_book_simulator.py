@@ -18,12 +18,15 @@ import pandas as pd
 
 from portfolio.book_construction import (
     BookAllocation,
+    apply_class_weight_caps,
     build_book_raw_weights,
     build_rank_based_book,
     remember_formed_book,
 )
 from portfolio.book_neutrality import apply_book_neutrality
-from portfolio.rank_signal import cross_sectional_rank_scores
+from portfolio.rank_signal import MAIN_RANK_GROUP, grouped_cross_sectional_rank_scores
+from portfolio.sleeve_guard import evaluate_sleeve_guard, resolve_sleeve_guard_config
+from risk.asset_class_router import asset_listed_on_venue
 from risk.kill_switch import evaluate_kill_switch
 
 DEFAULT_SECTOR_MAX_NET_WEIGHT = 0.05
@@ -55,6 +58,8 @@ class RankBookSimulationResult:
     num_kill_switch_locked_dates: int = 0
     num_kill_switch_frozen_decisions: int = 0
     kill_switch_locked_date_list: list = field(default_factory=list)
+    # V5.8.0 - dates on which the sleeve guard kept the book flat (0 unless `sleeve_guard_config` is enabled).
+    num_sleeve_guard_suspended_dates: int = 0
     # V5.7.0 - mean sum of |weight| and of signed weight over the dates used (NAV fractions), for sizing parity checks.
     mean_gross_exposure: float = 0.0
     mean_net_exposure: float = 0.0
@@ -137,6 +142,10 @@ def _simulate_rank_book_core(
     raw_weights_fn=None,
     impact_inputs_fn=None,
     min_commission_usd_by_ticker: dict[str, float] | None = None,
+    rank_group_by_ticker: dict[str, str] | None = None,
+    sleeve_guard_config: dict | None = None,
+    venue_listing_dates: dict[str, dict] | None = None,
+    class_weight_caps: dict[str, dict] | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -226,6 +235,16 @@ def _simulate_rank_book_core(
     - `raw_weights_fn(allocations, date)` replaces `build_book_raw_weights` (HRP).
     - `impact_inputs_fn(symbol, date) -> (daily_volatility, adv_usd) | None` charges the Almgren impact per name on its
       own traded notional; `min_commission_usd_by_ticker` tops up each traded name to the broker's dollar floor.
+
+    V5.8.0, both off by default:
+    - `rank_group_by_ticker` ({ticker: group}): percentiles are taken within each rank group and the spread gate reads
+      only the main group's raw scores (main.py with `rank_signal.grouped_normalization`).
+    - `sleeve_guard_config` (`phase_v2.sleeve_guards.<sleeve>`): `portfolio.sleeve_guard.evaluate_sleeve_guard` on this
+      book's own simulated net returns (NAV fractions, nav=1.0); while suspended the book is flat and does not rebalance.
+    - `class_weight_caps` (`portfolio.book_construction.resolve_class_weight_caps`): per-name / class-gross caps applied to the
+      neutrality-adjusted weights before the member sizing chain, as main.py does (`phase_v2.class_weight_caps`).
+    - `venue_listing_dates` (`risk.asset_class_router.load_venue_listing_dates`): a pair is not a candidate before its
+      exchange listing date or inside a suspension (main.py with `venue_listing_guard.enabled`).
     """
     sector_by_ticker = sector_by_ticker or {}
     candidate_metadata_by_ticker = candidate_metadata_by_ticker or {}
@@ -247,6 +266,10 @@ def _simulate_rank_book_core(
     entry_date_index_by_ticker: dict[str, int] = {}
     working = frame.dropna(subset=[prediction_column]).copy()
     unique_dates = sorted(working[date_column].unique())
+    guard = resolve_sleeve_guard_config(sleeve_guard_config)
+    guard_suspended_until: int | None = None
+    num_sleeve_guard_suspended_dates = 0
+    guard_resume_pending = False
 
     held_weights: dict[str, float] = {}
     held_allocations: dict[str, BookAllocation] = {}
@@ -348,17 +371,49 @@ def _simulate_rank_book_core(
                 for symbol in expired:
                     entry_date_index_by_ticker.pop(symbol, None)
 
+        if guard.enabled:
+            guard_decision = evaluate_sleeve_guard(
+                net_returns, 1.0, guard, current_bar=rebalance_counter - 1, suspended_until_bar=guard_suspended_until
+            )
+            guard_suspended_until = guard_decision["suspended_until_bar"]
+            if not guard_decision["active"]:
+                num_sleeve_guard_suspended_dates += 1
+                if held_weights:
+                    flattened = sum(abs(weight) for weight in held_weights.values())
+                    cost_this_date += flattened * (cost_bps_per_side + commission_bps) / 1e4 + sum(
+                        abs(weight) * _commission_override_delta(symbol) for symbol, weight in held_weights.items()
+                    ) / 1e4
+                    total_turnover += flattened
+                    held_weights = {}
+                    held_allocations = {}
+                    entry_date_index_by_ticker.clear()
+                is_rebalance = False
+                guard_resume_pending = True
+            elif guard_resume_pending:
+                is_rebalance = True  # re-form the book on the first date the guard lets it trade again
+                guard_resume_pending = False
+
         if is_rebalance:
             raw_scores_by_ticker = {
                 str(ticker): float(rank) for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
             }
             candidate_ranks = (
-                cross_sectional_rank_scores(raw_scores_by_ticker) if normalize_to_percentile else raw_scores_by_ticker
+                grouped_cross_sectional_rank_scores(raw_scores_by_ticker, rank_group_by_ticker)
+                if normalize_to_percentile
+                else raw_scores_by_ticker
             )
+            spread_scores = raw_scores_by_ticker
+            if rank_group_by_ticker:
+                spread_scores = {
+                    ticker: score
+                    for ticker, score in raw_scores_by_ticker.items()
+                    if rank_group_by_ticker.get(ticker, MAIN_RANK_GROUP) == MAIN_RANK_GROUP
+                }
             book_candidates = {
                 ticker: {
                     "predicted_rank_20d": float(rank),
-                    "trading_eligible": bool(candidate_metadata_by_ticker.get(ticker, {}).get("trading_eligible", True)),
+                    "trading_eligible": bool(candidate_metadata_by_ticker.get(ticker, {}).get("trading_eligible", True))
+                    and asset_listed_on_venue(ticker, str(date), venue_listing_dates),
                     "asset_class": candidate_metadata_by_ticker.get(ticker, {}).get("asset_class"),
                 }
                 for ticker, rank in candidate_ranks.items()
@@ -386,7 +441,7 @@ def _simulate_rank_book_core(
                 min_rank_confidence_spread=min_rank_confidence_spread,
                 previous_allocations=(formed_book if anchor_on_formed_book else held_allocations) or None,
                 hysteresis_rank_margin=hysteresis_rank_margin,
-                spread_check_ranks=raw_scores_by_ticker if normalize_to_percentile else None,
+                spread_check_ranks=spread_scores if normalize_to_percentile else None,
                 rolling_ic_gate_result=gate_result,
                 veto_reason_out=veto_reason_out,
             )
@@ -426,6 +481,12 @@ def _simulate_rank_book_core(
                     max_weight_per_name=max_weight_per_name,
                     sector_max_net_weight=sector_max_net_weight,
                 )
+                if class_weight_caps:
+                    new_weights = apply_class_weight_caps(
+                        new_weights,
+                        {ticker: meta.get("asset_class") for ticker, meta in candidate_metadata_by_ticker.items()},
+                        class_weight_caps,
+                    )
                 held_allocations = {
                     symbol: replace(allocation, target_weight=new_weights.get(symbol, 0.0))
                     for symbol, allocation in allocations.items()
@@ -607,6 +668,7 @@ def _simulate_rank_book_core(
         num_kill_switch_locked_dates=num_kill_switch_locked_dates,
         num_kill_switch_frozen_decisions=num_kill_switch_frozen_decisions,
         kill_switch_locked_date_list=kill_switch_locked_dates,
+        num_sleeve_guard_suspended_dates=num_sleeve_guard_suspended_dates,
         mean_gross_exposure=float(np.mean(gross_exposure_series)) if gross_exposure_series else 0.0,
         mean_net_exposure=float(np.mean(net_exposure_series)) if net_exposure_series else 0.0,
     )

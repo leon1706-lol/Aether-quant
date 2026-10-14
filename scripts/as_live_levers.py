@@ -47,21 +47,31 @@ def _fingerprint(config: dict, dataset_path: Path) -> str:
 class AsLiveHarness:
     """The scored dataset of one split plus everything needed to run any as-live variant of it."""
 
-    def __init__(self, split: str, *, use_cache: bool = True, dataset_path: str | Path | None = None):
+    def __init__(
+        self, split: str, *, use_cache: bool = True, dataset_path: str | Path | None = None, rl_model_path: str | Path | None = None,
+        topology_inputs_fn=None,
+    ):
         from aq_cli import _blend_raw_scores_for_dataset, _core_quality_tickers, _universe_asset_metadata
         from evaluation.live_parity import LATE_BAR_ASSET_CLASSES, build_candidate_metadata, lag_predictions_for_tickers
         from execution.cost_model import commission_bps_by_ticker
         from features import load_sector_mapping
 
         self.split = split
+        self.rl_model_path = str(rl_model_path) if rl_model_path else None
+        self.topology_inputs_fn = topology_inputs_fn
         self.config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
         ranking = self.config["phase1"]["target"]["ranking"]
         net_perf = ranking["net_performance"]
         dataset_path = Path(dataset_path) if dataset_path else ML_DIR / "datasets" / "full_dataset.csv"
-        dataset = pd.read_csv(dataset_path)
         # Every row, observation-only names included: main.py's percentile normalisation (hysteresis margins, the
-        # confidence the sizing chain reads) runs over every symbol with features, eligible or not.
-        dataset = dataset[dataset["split"] == split].reset_index(drop=True)
+        # confidence the sizing chain reads) runs over every symbol with features, eligible or not. Read in chunks
+        # and keep only this split's rows: the whole 250-column file is ~0.5 GB resident on the 4 GB dev PC (V5.8.0).
+        parts = [
+            chunk[chunk["split"] == split]
+            for chunk in pd.read_csv(dataset_path, chunksize=40_000)
+        ]
+        dataset = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+        del parts
         window = int(self.config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30))
 
         cache_path = CACHE_DIR / f"live_rank_score_allrows_{split}_{_fingerprint(self.config, dataset_path)}.npy"
@@ -75,8 +85,14 @@ class AsLiveHarness:
 
         self.asset_class_by_ticker, eligible_by_ticker = _universe_asset_metadata(self.config)
         self.metadata = build_candidate_metadata(self.asset_class_by_ticker, eligible_by_ticker)
+        from evaluation.live_parity import build_rank_groups
+
+        self.rank_groups = build_rank_groups(self.config, self.asset_class_by_ticker)
+        from evaluation.live_parity import load_live_venue_listing_dates
+
+        self.venue_listing_dates = load_live_venue_listing_dates(self.config, ROOT_DIR)
         self.core_crypto = _core_quality_tickers()
-        self.frame = dataset.copy()
+        self.frame = dataset
         self.frame["live_rank_score"] = raw_scores
         late = {t for t, kind in self.asset_class_by_ticker.items() if kind in LATE_BAR_ASSET_CLASSES}
         self.lagged_frame = lag_predictions_for_tickers(self.frame, prediction_column="live_rank_score", tickers=late)
@@ -112,8 +128,12 @@ class AsLiveHarness:
         names = int(min_names if min_names is not None else self.ic_config.get("min_names_per_date", 10))
         state_key = (id(frame), horizon, window, names)
         if state_key not in self._states:
+            from evaluation.live_parity import main_group_tickers
+
+            main_tickers = main_group_tickers(self.rank_groups, frame["ticker"].unique())
+            event_frame = frame if main_tickers is None else frame[frame["ticker"].astype(str).isin(main_tickers)]
             self._states[state_key] = make_rolling_ic_state_fn(
-                build_event_buffer(frame, raw_score_column="live_rank_score"),
+                build_event_buffer(event_frame, raw_score_column="live_rank_score"),
                 horizon_days=horizon, rolling_window_days=window, min_names_per_date=names,
             )
         gate_config = dict(self.ic_config, horizon_days=horizon, rolling_window_days=window, min_names_per_date=names)
@@ -132,7 +152,8 @@ class AsLiveHarness:
         key = (id(frame), tuple(include))
         if key not in self._mechanisms:
             self._mechanisms[key] = build_live_mechanisms(
-                self.config, frame, core_crypto_tickers=self.core_crypto, include=tuple(include)
+                self.config, frame, core_crypto_tickers=self.core_crypto, include=tuple(include), rl_model_path=self.rl_model_path,
+                topology_inputs_fn=self.topology_inputs_fn,
             )
         return self._mechanisms[key]
 
@@ -148,6 +169,7 @@ class AsLiveHarness:
         `config_overrides` ({dotted.phase_v2.key: value}) changes the live config for this run only."""
         from evaluation import simulate_rank_book
         from evaluation.live_parity import build_as_live_kwargs
+        from portfolio.book_construction import resolve_class_weight_caps
 
         frame = self.lagged_frame if lagged else self.frame
         config = self.config
@@ -173,15 +195,29 @@ class AsLiveHarness:
         else:
             from evaluation.live_parity import build_live_mechanisms
 
-            mechanisms = build_live_mechanisms(config, frame, core_crypto_tickers=self.core_crypto, include=tuple(include))
+            mechanisms = build_live_mechanisms(
+                config, frame, core_crypto_tickers=self.core_crypto, include=tuple(include), rl_model_path=self.rl_model_path,
+                topology_inputs_fn=self.topology_inputs_fn,
+            )
         kwargs = build_as_live_kwargs(
             dict(self.base), book_config=phase_v2.get("portfolio_book", {}), exits_config=phase_v2.get("exits", {}),
             max_position_weight=float(config.get("phase6", {}).get("risk", {}).get("max_position_weight", 0.25)),
             candidate_metadata=self.metadata, rolling_ic_gate_fn=gate_fn, topology_config=phase_v2.get("topology", {}),
-            **mechanisms,
+            rank_group_by_ticker=self.rank_groups, venue_listing_dates=self.venue_listing_dates,
+            class_weight_caps=resolve_class_weight_caps(phase_v2.get("class_weight_caps")), **mechanisms,
         )
         kwargs.update(overrides)
         return simulate_rank_book(frame, **kwargs)
+
+
+def add_split_dataset_args(parser) -> None:
+    """--dataset-validation / --dataset-backtest: dataset CSVs holding those splits (V5.8.0: a candidate's split files)."""
+    parser.add_argument("--dataset-validation", default=None, help="dataset CSV holding the validation split")
+    parser.add_argument("--dataset-backtest", default=None, help="dataset CSV holding the backtest split")
+
+
+def dataset_for_split(args, split: str):
+    return {"validation": args.dataset_validation, "backtest": args.dataset_backtest}[split]
 
 
 def summarize(result) -> dict:

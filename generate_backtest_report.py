@@ -238,8 +238,38 @@ def _atomic_write(path: Path, text: str) -> None:
     tmp_path.replace(path)
 
 
+HISTORY_MARKER_START = "<!-- AQ:BACKTEST_HISTORY_START -->"
+HISTORY_MARKER_END = "<!-- AQ:BACKTEST_HISTORY_END -->"
+HISTORY_LIMIT = 8
+
+
+def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HISTORY_LIMIT) -> str:
+    """One row per finished Lean run, newest first: the README's main table shows only the latest run, so two runs on
+    different windows (the backtest window, then backtest + holdout) would otherwise overwrite each other."""
+    rows: list[str] = []
+    for candidate in _iter_backtest_result_jsons(backtests_dir):
+        if len(rows) >= limit:
+            break
+        try:
+            summary = load_backtest_summary(candidate)
+        except (OSError, ValueError, IndexError):
+            continue
+        statistics = summary["statistics"]
+        if not summary["strategy_series"] or not statistics:
+            continue
+        start, end = summary["start_date"], summary["end_date"]
+        window = f"{start.date().isoformat()} to {end.date().isoformat()}" if start and end else "unknown"
+        rows.append(
+            f"| `{candidate.parent.name}` | {window} | {statistics.get('Sharpe Ratio', 'n/a')} | "
+            f"{statistics.get('Net Profit', 'n/a')} | {statistics.get('Drawdown', 'n/a')} | {statistics.get('Total Orders', 'n/a')} |"
+        )
+    if not rows:
+        return "_No finished Lean run yet._"
+    return "\n".join(["| Run | Window | Sharpe | Net profit | Drawdown | Orders |", "|---|---|---|---|---|---|", *rows])
+
+
 def update_readme_backtest_section(
-    summary: dict, readme_path: Path = README_PATH, chart_path: Path = CHART_PATH
+    summary: dict, readme_path: Path = README_PATH, chart_path: Path = CHART_PATH, history_markdown: str | None = None
 ) -> bool:
     """Atomically replaces the content between the AQ:BACKTEST markers in
     README.md with a fresh stats table + chart image reference, and the
@@ -269,6 +299,11 @@ def update_readme_backtest_section(
     if full_stats_text is not None:
         text = full_stats_text
 
+    if history_markdown is not None:
+        history_text = _replace_between_markers(text, HISTORY_MARKER_START, HISTORY_MARKER_END, history_markdown)
+        if history_text is not None:
+            text = history_text
+
     _atomic_write(readme_path, text)
     return True
 
@@ -287,7 +322,7 @@ def update_readme_from_latest_backtest(
         return False
     summary = load_backtest_summary(result_json_path)
     generate_equity_chart(summary, chart_path)
-    return update_readme_backtest_section(summary, readme_path, chart_path)
+    return update_readme_backtest_section(summary, readme_path, chart_path, build_history_markdown(backtests_dir))
 
 
 def main() -> int:

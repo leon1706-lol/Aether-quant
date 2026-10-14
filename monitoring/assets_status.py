@@ -25,7 +25,42 @@ CONFIG_PATH = ROOT_DIR / "config.json"
 LEAN_JSON_PATH = ROOT_DIR / "lean.json"
 
 
-def build_assets_status(config: dict, lean_config: dict) -> dict:
+def build_sleeve_status(config: dict, runtime_guards: dict | None = None) -> dict:
+    """V5.8.0 - what each class sleeve / overlay is set to (from config.json) and, when the algorithm has written one,
+    each guard's live state (`visualization/state.json` -> `sleeve_guards`). Pure; a missing block reads as disabled."""
+    phase_v2 = config.get("phase_v2", {})
+    guards = phase_v2.get("sleeve_guards", {})
+    runtime_guards = runtime_guards or {}
+
+    def _guard(name: str) -> dict:
+        settings = guards.get(name, {}) or {}
+        return {
+            "enabled": bool(settings.get("enabled", False)),
+            "max_loss_fraction_nav": settings.get("max_loss_fraction_nav"),
+            "lookback_bars": settings.get("lookback_bars"),
+            "cooldown_bars": settings.get("cooldown_bars"),
+            "runtime": runtime_guards.get(name),
+        }
+
+    forex, bond = phase_v2.get("forex_sleeve", {}) or {}, phase_v2.get("bond_sleeve", {}) or {}
+    crypto_caps = (phase_v2.get("class_weight_caps", {}) or {}).get("crypto", {}) or {}
+    dynamic_risk = phase_v2.get("dynamic_risk", {}) or {}
+    return {
+        "forex_sleeve": {"enabled": bool(forex.get("enabled", False)) and bool(phase_v2.get("forex_risk", {}).get("enabled", False)),
+                         "signal": forex.get("signal", "model_rank"), "gross_budget": forex.get("gross_budget"), "guard": _guard("forex")},
+        "bond_sleeve": {"enabled": bool(bond.get("enabled", False)), "signal": bond.get("signal", "model_rank"),
+                        "gross_budget": bond.get("gross_budget"), "guard": _guard("bond")},
+        "crypto_graduates": {"enabled": bool(crypto_caps.get("enabled", False)), "per_name_cap": crypto_caps.get("per_name_cap"),
+                             "class_gross_cap": crypto_caps.get("class_gross_cap"), "guard": _guard("crypto_graduates")},
+        "rl_sizing": {"enabled": bool(dynamic_risk.get("rl_sizing_enabled", False)),
+                      "range": [dynamic_risk.get("min_rl_multiplier"), dynamic_risk.get("max_rl_multiplier")],
+                      "shadow_guard": bool((dynamic_risk.get("rl_shadow_guard", {}) or {}).get("enabled", False))},
+        "venue_listing_guard": bool((phase_v2.get("venue_listing_guard", {}) or {}).get("enabled", False)),
+        "learned_topology": bool((phase_v2.get("topology_learning", {}) or {}).get("enabled", False)),
+    }
+
+
+def build_assets_status(config: dict, lean_config: dict, runtime_guards: dict | None = None) -> dict:
     """Returns the same facts `aq assets status` prints, as a JSON-safe
     dict: IB readiness tri-state, futures/options feature flags, futures
     contract specs loaded, FRED yield-curve cache freshness, and how many
@@ -58,6 +93,7 @@ def build_assets_status(config: dict, lean_config: dict) -> dict:
         "configured_forex_assets": sum(
             1 for asset in assets if (asset.get("asset_class") or asset.get("security_type")) == "forex"
         ),
+        "sleeves": build_sleeve_status(config, runtime_guards),
     }
 
 
@@ -87,4 +123,9 @@ def build_assets_status_from_disk() -> dict:
         lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         lean_config = {}
-    return build_assets_status(config, lean_config)
+    try:
+        runtime_state = json.loads((ROOT_DIR / "visualization" / "state.json").read_text(encoding="utf-8"))
+        runtime_guards = runtime_state.get("sleeve_guards") if isinstance(runtime_state, dict) else None
+    except (OSError, ValueError):
+        runtime_guards = None
+    return build_assets_status(config, lean_config, runtime_guards)

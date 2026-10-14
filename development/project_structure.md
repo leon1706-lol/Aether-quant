@@ -18,14 +18,14 @@ aether-quant/
 ├── .github/                       # CI workflows (tests, guards, wheel smoke, webui build, release) + Dependabot
 ├── development/                   # Architecture docs, changelog, problems log, backtest chart
 ├── data/                        # Local Lean data folder (equities, crypto, bonds, Forex)
-├── data_pipeline/                # Lean-data contract + Yahoo Finance / FRED (bond + alt-data) / IB historical backfill
+├── data_pipeline/                # Lean-data contract + Yahoo Finance / FRED (bond + alt-data) / IB historical backfill + V5.8.0 data audit and price overrides
 ├── analyzer/                    # Central market analyzer (final per-asset decision layer)
 ├── moe/                         # Mixture-of-Experts gating network
 ├── experts/                     # Bullish / bearish / sideways / volatility expert models
 ├── features/                    # Shared feature-computation functions (train.py + main.py parity)
-├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation) + V5.5.0 as-live parity, backtest audit, volatility calibration
-├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing + V5.5.0 legacy-signal sleeve
-├── regime/                      # Market regime detection
+├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation) + V5.5.0 as-live parity, backtest audit, volatility calibration + V5.8.0 audits (class IC, gates, heads, features), `aq clean ml` plan, README research blocks
+├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing + V5.5.0 legacy-signal sleeve + V5.8.0 class sleeves (forex, bonds) and their loss guard
+├── regime/                      # Market regime detection (+ V5.8.0 drawdown-free vector the models read)
 ├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
 ├── liquidity/                   # Liquidity / market-impact engine
 ├── risk/                        # Dynamic position sizing, leverage, drawdown controls
@@ -42,7 +42,7 @@ aether-quant/
 ├── webui/                       # React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing)
 ├── ml/                          # Model weights, datasets, versioned retraining candidates
 ├── storage/                     # Reserved for future persistent artifact storage
-├── scripts/                     # Standalone dev tooling (profile_inference.py, wheel_smoke.py, check_test_count_drift.py, feature_parity_audit.py)
+├── scripts/                     # Standalone dev tooling (profile_inference.py, wheel_smoke.py, check_test_count_drift.py, feature_parity_audit.py) + V5.8.0 research scripts, ml_manifest.py and the Codespace helpers
 ├── requirements/                # All requirements*.txt variants
 ├── tests/                       # Full pytest suite (one file per source module)
 ├── backtests/                   # Lean backtest run outputs (gitignored)

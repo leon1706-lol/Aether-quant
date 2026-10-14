@@ -597,3 +597,36 @@ def route_position_sizing(
         **(equity_crypto_kwargs or {}),
     )
     return decision, {}
+
+
+def load_venue_listing_dates(path) -> dict[str, dict]:
+    """{ticker: {"listed": "YYYY-MM-DD", "suspended": [["start", "end"], ...]}} from a JSON file
+    (data/reference/crypto_listing_dates.json, V5.8.0). Missing or unreadable file -> {} (no guard, the old behaviour)."""
+    import json
+    from pathlib import Path
+
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(ticker): dict(entry) for ticker, entry in (raw.get("assets", raw) or {}).items() if isinstance(entry, dict)}
+
+
+def asset_listed_on_venue(ticker: str, on_date, listing_dates: dict[str, dict] | None) -> bool:
+    """False before a pair's venue listing date, from its delisting date on, or inside a suspension window (e.g. Coinbase suspended XRP from
+    2021-01-19 to 2023-07-13): a backtest must not trade a pair the exchange did not list. Tickers without an entry, and
+    an empty mapping, are always listed. `on_date` is a date/datetime or an ISO string."""
+    entry = (listing_dates or {}).get(str(ticker))
+    if not entry:
+        return True
+    day = str(on_date.isoformat() if hasattr(on_date, "isoformat") else on_date)[:10]
+    listed = entry.get("listed")
+    if listed and day < str(listed)[:10]:
+        return False
+    delisted = entry.get("delisted")
+    if delisted and day >= str(delisted)[:10]:
+        return False
+    for window in entry.get("suspended") or ():
+        if len(window) == 2 and str(window[0])[:10] <= day < str(window[1])[:10]:
+            return False
+    return True

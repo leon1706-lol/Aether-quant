@@ -630,3 +630,14 @@ def test_tracking_update_noop_when_never_invested():
         bar_index=12,
     )
     assert update == {"action": "noop"}
+
+
+def test_lean_window_defaults_to_the_backtest_split_and_honours_the_override():
+    from risk_controls import resolve_lean_window
+
+    windows = {"backtest": {"start": "2023-07-01", "end": "2025-06-30"}}
+    assert resolve_lean_window({}, windows) == ((2023, 7, 1), (2025, 6, 30))
+    assert resolve_lean_window({"lean_window_override": None}, windows) == ((2023, 7, 1), (2025, 6, 30))
+    override = {"lean_window_override": {"start": "2023-07-01", "end": "2026-09-30"}}
+    assert resolve_lean_window(override, windows) == ((2023, 7, 1), (2026, 9, 30))
+    assert resolve_lean_window({"lean_window_override": {"end": "2026-01-15"}}, windows) == ((2023, 7, 1), (2026, 1, 15))

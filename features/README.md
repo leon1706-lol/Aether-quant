@@ -90,3 +90,8 @@ assign a model-input feature value.
 from the FRED OECD interbank series (`aq backfill fred --group fx`) and the daily US 3-month bill, through the publication-lag-aware
 `series_value_asof` (45 days for the monthly series). 0.0 for every non-forex row and when a rate is not yet published. One definition for
 `train.py::build_fx_carry_features` and `main.py`; the model sees it only once a retrain lists it in `phase1.features.input_set`.
+
+## V5.8.0 additions
+
+- `fx_signals.py` — `fx_sleeve_scores(signal, ...)`: the forex (and bond) sleeve can rank by `model_rank`, `carry` (3-month rate differential, point-in-time), `ts_momentum` (vol-scaled 60/120-day return) or `carry_momentum`; `main.py` and the research scripts call the same function.
+- `bond_features.py` — `rolling_duration_beta` / `rolling_duration_beta_series` replace the full-history OLS slope (a future-data leak that also acted as a ticker ID) with a trailing window; `train.py` and the live path compute it from the same function, mode via `resolve_bond_duration_beta_mode`.

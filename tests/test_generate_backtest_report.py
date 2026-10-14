@@ -257,3 +257,47 @@ def test_update_readme_from_latest_backtest_returns_false_when_no_backtests(tmp_
     updated = update_readme_from_latest_backtest(tmp_path / "backtests", readme_path, tmp_path / "chart.png")
 
     assert updated is False
+
+
+def test_history_table_lists_finished_runs_newest_first_and_skips_unfinished(tmp_path):
+    from generate_backtest_report import build_history_markdown
+
+    backtests_dir = tmp_path / "backtests"
+    _write_result_json(backtests_dir / "2026-06-01_00-00-00" / "111.json")
+    _write_result_json(backtests_dir / "2026-06-02_00-00-00" / "222.json")
+    _write_result_json(backtests_dir / "2026-06-03_00-00-00" / "333.json", has_statistics=False)
+    for offset, name in enumerate(("2026-06-01_00-00-00", "2026-06-02_00-00-00", "2026-06-03_00-00-00")):
+        _set_mtime(backtests_dir / name, offset * 10.0)
+
+    text = build_history_markdown(backtests_dir)
+
+    rows = [line for line in text.splitlines() if line.startswith("| `")]
+    assert [row.split("`")[1] for row in rows] == ["2026-06-02_00-00-00", "2026-06-01_00-00-00"]
+    assert "-0.765" in rows[0] and "2014-12-01 to 2014-12-02" in rows[0]
+
+
+def test_history_table_respects_limit_and_handles_no_runs(tmp_path):
+    from generate_backtest_report import build_history_markdown
+
+    assert build_history_markdown(tmp_path / "missing") == "_No finished Lean run yet._"
+    backtests_dir = tmp_path / "backtests"
+    for day in range(1, 5):
+        _write_result_json(backtests_dir / f"2026-06-0{day}_00-00-00" / "1.json")
+    assert len([line for line in build_history_markdown(backtests_dir, limit=2).splitlines() if line.startswith("| `")]) == 2
+
+
+def test_end_to_end_update_fills_the_history_markers(tmp_path):
+    from generate_backtest_report import HISTORY_MARKER_END, HISTORY_MARKER_START
+
+    backtests_dir = tmp_path / "backtests"
+    _write_result_json(backtests_dir / "2026-06-01_00-00-00" / "222.json")
+    readme_path = tmp_path / "README.md"
+    _write_readme_with_markers(readme_path)
+    readme_path.write_text(
+        readme_path.read_text(encoding="utf-8") + f"\n{HISTORY_MARKER_START}\nold\n{HISTORY_MARKER_END}\n", encoding="utf-8"
+    )
+
+    assert update_readme_from_latest_backtest(backtests_dir, readme_path, tmp_path / "chart.png") is True
+
+    text = readme_path.read_text(encoding="utf-8")
+    assert "| `2026-06-01_00-00-00` |" in text and "\nold\n" not in text

@@ -477,3 +477,9 @@ so the default `"rank"` path never pays the import.
 over its names (one-sided or unfunded -> `{}`); `forex_resize_below_minimum(delta_units, price, min_trade_usd)`: the dollar deadband that
 keeps a resize worth less than IB's minimum commission from trading. Shared by `main.py::_update_forex_sleeve` and
 `scripts/forex_sleeve_research.py`; the contract is in `development/architecture.md` ("Forex sleeve contract").
+
+## V5.8.0 additions
+
+- `class_sleeve.py` — `resolve_class_sleeve_config` and `build_class_sleeve_weights`: a small, separately budgeted long/short book over one asset class ranked among itself (forex via `phase_v2.forex_sleeve`, bonds via `phase_v2.bond_sleeve`, `signal` = `model_rank` or `ts_momentum`). Sleeve allocations never enter `book_allocations`, and the class takes no main-book slot.
+- `sleeve_guard.py` — `evaluate_sleeve_guard`: a per-sleeve loss guard (drawdown from the trailing peak over `lookback_bars` against `max_loss_fraction_nav`, then a cooldown). `main.py::_update_sleeve_guards` and the simulator call the same function; the state is in `state.json` under `sleeve_guards`.
+- `book_construction.py` — `resolve_class_weight_caps` / `apply_class_weight_caps` bound the crypto graduates (1% per name, 5% for the class).

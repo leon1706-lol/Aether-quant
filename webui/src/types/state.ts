@@ -818,6 +818,24 @@ export interface PaperReadiness {
 // FRED readiness, computed live on every /api/assets-status request (not
 // embedded in RuntimeState/state.json, unlike paper_readiness/
 // retraining_status - see fetchAssetsStatus() in api/client.ts).
+// V5.8.0 - config view of every class sleeve / overlay plus each guard's live state (state.json `sleeve_guards`).
+export interface SleeveGuardStatus {
+  enabled: boolean
+  max_loss_fraction_nav: number | null
+  lookback_bars: number | null
+  cooldown_bars: number | null
+  runtime: { enabled?: boolean; active: boolean; reason: string; drawdown?: number; suspended_until_bar?: number | null } | null
+}
+
+export interface SleeveStatus {
+  forex_sleeve: { enabled: boolean; signal: string; gross_budget: number | null; guard: SleeveGuardStatus }
+  bond_sleeve: { enabled: boolean; signal: string; gross_budget: number | null; guard: SleeveGuardStatus }
+  crypto_graduates: { enabled: boolean; per_name_cap: number | null; class_gross_cap: number | null; guard: SleeveGuardStatus }
+  rl_sizing: { enabled: boolean; range: (number | null)[]; shadow_guard: boolean }
+  venue_listing_guard: boolean
+  learned_topology: boolean
+}
+
 export interface AssetsStatus {
   ib_status: 'disabled' | 'enabled_but_lean_credentials_missing' | 'ready' | string
   futures_risk_enabled: boolean
@@ -832,6 +850,7 @@ export interface AssetsStatus {
   configured_futures_assets: number
   configured_options_assets: number
   configured_forex_assets: number
+  sleeves?: SleeveStatus
 }
 
 // monitoring/strategy_catalog.py::build_strategy_catalog() -

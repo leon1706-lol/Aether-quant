@@ -2743,6 +2743,8 @@ def test_evaluate_all_flag_runs_every_report(tmp_path, capsys, monkeypatch):
     }
     assert (ml_dir / "evaluation" / "capacity_report.json").exists()
     assert (ml_dir / "evaluation" / "cost_stress_report.json").exists()
+    # V5.8.0: --all also refreshes the Monte Carlo result (a short fixture dataset writes a SKIPPED status, never crashes)
+    assert (ml_dir / "evaluation" / "monte_carlo.json").exists()
     assert (ml_dir / "evaluation" / "benchmark_comparison.json").exists()
 
 
@@ -3213,6 +3215,54 @@ def test_evaluate_reconcile_features_end_to_end(tmp_path, capsys, monkeypatch):
 
     written = json.loads((ml_dir / "evaluation" / "feature_reconciliation.json").read_text(encoding="utf-8"))
     assert written == payload
+
+
+def test_evaluate_reconcile_features_compares_late_bar_classes_with_the_previous_dataset_row(tmp_path, capsys, monkeypatch):
+    """Crypto and forex bars close after the equity tick: the features live logs at tick D are the dataset's previous row
+    (Problems.md #172). `--dataset` points the tool at a split other than ml/datasets/full_dataset.csv."""
+    import pandas as pd
+
+    ml_dir = tmp_path / "ml"
+    _write_tiny_dataset(ml_dir, num_tickers=6, num_days=10)
+    dataset = pd.read_csv(ml_dir / "datasets" / "full_dataset.csv")
+    coin_rows = dataset[dataset["ticker"] == "T3"].copy()
+    coin_rows["ticker"] = "BTCUSD"
+    coin_rows["peer_mean_return_1d"] = [0.001 * (index + 1) for index in range(len(coin_rows))]
+    dataset["peer_mean_return_1d"] = 0.0
+    other_path = tmp_path / "other_dataset.csv"
+    pd.concat([dataset, coin_rows], ignore_index=True).to_csv(other_path, index=False)
+    coin_rows = coin_rows.sort_values("date").reset_index(drop=True)
+
+    config = _evaluate_config()
+    config.setdefault("phase1", {}).setdefault("universe", {})["assets"] = [
+        {"ticker": "BTCUSD", "asset_class": "crypto", "security_type": "crypto"},
+    ]
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(aq_cli, "ML_DIR", ml_dir)
+
+    book_history_path = tmp_path / "book_history.jsonl"
+    with open(book_history_path, "w", encoding="utf-8") as book_history_file:
+        for index in (4, 7):
+            previous = coin_rows.iloc[index - 1]
+            record = {
+                "date": str(coin_rows.iloc[index]["date"]),
+                "rank_signal_policy": {"heads": {"rank_20d": 1.0}, "model_priority": ["sequence"], "demoted": [], "normalization": "cross_sectional"},
+                "allocations": {},
+                "feature_snapshot": {"BTCUSD": {"f1": float(previous["f1"]), "f2": float(previous["f2"]), "peer_mean_return_1d": float(coin_rows.iloc[index]["peer_mean_return_1d"])}},
+            }
+            book_history_file.write(json.dumps(record) + "\n")
+
+    args = aq_cli.build_parser().parse_args(
+        ["evaluate", "--reconcile-features", "--symbol", "BTCUSD", "--dataset", str(other_path),
+         "--book-history-path", str(book_history_path), "--json"]
+    )
+    assert args.func(args) == 0
+    captured = capsys.readouterr().out
+    payload = json.loads(captured[captured.index("{"):])
+    assert payload["run_metadata"]["num_dates_reconciled"] == 2
+    assert payload["summary"]["total_divergences"] == 0
 
 
 def test_evaluate_reconcile_features_no_snapshots_degrades_cleanly(tmp_path, capsys, monkeypatch):

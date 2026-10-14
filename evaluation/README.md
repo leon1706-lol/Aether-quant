@@ -106,6 +106,10 @@ without pulling in the training stack, the same torch-free-core convention
   (abs AND rel), NaN-degrading, worst offenders aggregated first. Pure
   diff core only — the CLI (`aq evaluate --reconcile-features --symbol
   XOM`) owns all I/O and joins.
+- `readme_research.py` (V5.8.0) — also `build_lean_vs_offline_markdown`: the audited Lean run's sub-periods (`--audit-backtest --period`) next to the offline books and the S&P 500 / 60-40 over the same dates, in the README's Lean section (`AQ:LEANCMP`); README markdown for the as-live book per split
+  and the research/audit block (sleeve and RL verdicts, class IC, gate audit,
+  head audit, holdout). Pure JSON-to-markdown; `generate_evaluation_report.py`
+  calls it, and every audit flag and research script refreshes the README on exit.
 - `monte_carlo.py::run_monte_carlo(...)` (V5.3.8) — stationary-block (or
   i.i.d.) bootstrap of the offline rank book's daily NET returns into N
   alternative equity histories: per-run curves, red average curve,
@@ -207,3 +211,14 @@ heads' sigmoid-at-inference/raw-at-training mismatch. `IC` is invariant
 under any monotone transform, which is exactly why no rank-IC-based gate
 ever caught it; this package's net-Sharpe simulation is sensitive to the
 compressed dispersion in a way IC is not.
+
+## V5.8.0 additions (Problems.md #156-#174)
+
+- `class_ic_audit.py` (`aq evaluate --ic-by-class`) — pooled vs within-class vs between-class rank IC with HAC t, so a pooled edge can be told apart from a class-timing bet.
+- `gate_audit.py` (`--audit-gates`) — the rolling-IC gate's own reading next to the realised IC: veto share by reason, false-veto share, the gate's lag; it self-checks on synthetic constant-IC data.
+- `head_audit.py` (`--audit-heads`) — the R-HEAD table: every head and submodel, its own gate verdict, and whether the live path reads it.
+- `feature_quality_audit.py` (`--audit-features`) — per-feature IC per class, constant-per-class share and ticker-ID / leak suspects.
+- `audit_runners.py` — loads the inputs the way the live path sees them for the four flags above (heavy imports stay lazy).
+- `ml_cleanup.py` (`aq clean ml`) — a dry-run disk plan for `ml/versions` and `ml/_backup_*`; nothing is deleted without `--apply`, and the installed models are always protected.
+- `backtest_audit.py` — `class_by_ticker` splits P&L by the config's asset class (bond ETFs are Lean equities), `period_summary` backs `--audit-backtest --period START..END` (BT2 spans the backtest split and the holdout).
+- `live_parity.py` — `topology_inputs_fn` feeds the learned-topology sizing multiplier into the as-live run; `late_bar_offline_row` / `LATE_BAR_SAME_ROW_FEATURE_PREFIXES` say which dataset row a crypto or forex snapshot belongs to (own-price block = previous row, cross-asset block = the tick's row).

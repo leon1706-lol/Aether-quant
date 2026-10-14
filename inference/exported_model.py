@@ -58,6 +58,35 @@ def run_exported_model(model_export: dict, inputs: list[float]) -> float:
     return float(current[0])
 
 
+def run_exported_model_rows(model_export: dict, rows: list[list[float]]) -> list[float]:
+    """V5.8.0 (latency): run_exported_model() for N input rows of ONE shared model in a single matmul per layer
+    (the per-symbol loop paid NumPy's per-call dispatch ~57 times a tick). Same layer set and the same result per row
+    as run_exported_model() up to BLAS summation order (~1e-16); an empty list returns [].
+
+    Per-row semantics are kept for the layers that are not row-wise elementwise: layernorm normalises each row by its
+    own mean/variance (axis=-1) with the one shared weight/bias."""
+    if not rows:
+        return []
+    export = model_export["export"]
+    current = _run_layer_stack_shared_batched(export["architecture"], export["state_dict"], np.asarray(rows, dtype=np.float64))
+    return [float(value) for value in current[:, 0]]
+
+
+def run_exported_multitask_model_rows(model_export: dict, rows: list[list[float]]) -> list[dict[str, float]]:
+    """V5.8.0 (latency): run_exported_multitask_model() for N rows of ONE shared model — the trunk once for all rows,
+    then each head once for all rows. Returns one {head: value} dict per row, same keys as the per-row function."""
+    if not rows:
+        return []
+    export = model_export["export"]
+    state_dict = export["state_dict"]
+    trunk_output = _run_layer_stack_shared_batched(export["trunk"], state_dict, np.asarray(rows, dtype=np.float64))
+    head_outputs = {
+        head_name: _run_layer_stack_shared_batched(head_layers, state_dict, trunk_output.copy())[:, 0]
+        for head_name, head_layers in export["heads"].items()
+    }
+    return [{head_name: float(values[index]) for head_name, values in head_outputs.items()} for index in range(len(rows))]
+
+
 def convert_state_dict_arrays(export: dict) -> None:
     """Converts every value in export["export"]["state_dict"] from a plain
     Python list to a np.float64 ndarray, IN PLACE - call this ONCE, right

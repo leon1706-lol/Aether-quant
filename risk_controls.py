@@ -461,3 +461,18 @@ def compute_position_exit_tracking_update(
         return {"action": "clear"}
 
     return {"action": "noop"}
+
+
+def resolve_lean_window(runtime: dict | None, windows: dict) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    """((start y, m, d), (end y, m, d)) of the Lean run: `runtime.lean_window_override` {"start", "end"} when both are
+    ISO dates, else `phase1.windows.backtest`. The override exists so a Lean run can cover the holdout period (V5.8.0 BT2)
+    without editing `phase1.windows`, which also defines the dataset split the models were trained and judged on."""
+    override = (runtime or {}).get("lean_window_override") or {}
+    window = windows["backtest"]
+    start, end = override.get("start") or window["start"], override.get("end") or window["end"]
+
+    def _parts(text: str) -> tuple[int, int, int]:
+        year, month, day = (int(part) for part in str(text).split("-"))
+        return year, month, day
+
+    return _parts(start), _parts(end)

@@ -664,7 +664,7 @@ def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
 # default run.
 _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "cli": [
-        "test_aq_cli.py", "test_generate_backtest_report.py", "test_generate_evaluation_report.py",
+        "test_aq_cli.py", "test_generate_backtest_report.py", "test_generate_evaluation_report.py", "test_readme_research.py", "test_topology_sizing_research.py", "test_ml_manifest.py",
         "test_lean_config_render.py", "test_dockerignore_secrets.py", "test_secret_scan.py",
         "test_profile_inference.py", "test_profile_subsystems.py", "test_lean_runtime_imports.py",
         "test_order_events_audit.py",
@@ -699,6 +699,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_legacy_sleeve.py",
         # V5.7.0 - portfolio/forex_sleeve.py.
         "test_forex_sleeve.py",
+        # V5.8.0 - portfolio/sleeve_guard.py, portfolio/class_sleeve.py.
+        "test_sleeve_guard.py", "test_class_sleeve.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -710,10 +712,14 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_cross_asset_timing.py", "test_fx_carry.py", "test_overlap_vs_sharpe_analysis.py", "test_v560_fixes.py", "test_compare_training_variants.py", "test_make_variant_configs.py", "test_train_forex_fill_forward.py",
         # V5.1 Phase 2 (item 8 / F2) - features/cross_asset_sensitivity.py.
         "test_cross_asset_sensitivity.py", "test_train_cross_asset_sensitivity.py",
+        # V5.8.0 - features/fx_signals.py.
+        "test_fx_signals.py",
     ],
     "data-pipeline": [
         "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
         "test_dividend_backfill.py", "test_factor_file_backfill.py",
+        # V5.8.0 - data_pipeline/data_audit.py.
+        "test_data_audit.py",
     ],
     "webui": [
         "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
@@ -725,7 +731,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_multitask.py", "test_train_multitask_architecture.py", "test_train_sequence.py",
         "test_train_sequence_architecture.py", "test_train_pipeline.py", "test_train_ranking_validation.py",
         "test_train_walk_forward_windows.py", "test_train_topology.py", "test_learned_topology.py",
-        "test_exported_model.py", "test_market_topology.py", "test_market_regime.py",
+        "test_exported_model.py", "test_market_topology.py", "test_market_regime.py", "test_regime_model_input.py",
         "test_market_analyzer.py", "test_market_liquidity.py",
         "test_train_strategy_selector.py", "test_strategy_selector_inference.py",
         "test_parallel_inference.py", "test_train_threshold_and_early_stop.py",
@@ -734,6 +740,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_residual_rank_targets.py",
         # V5.7.0 - label purge, scaler reuse, holdout config, FX carry column, rank groups, trading eligibility.
         "test_v570_training_fixes.py",
+        # V5.8.0 - training-pipeline round file.
+        "test_v580_training_fixes.py",
         # V5.1 Phase 3 (items 1, 10, 11) - cross-sectional batching, ranking
         # losses, optimizer/schedule/SWA/smoothing helpers.
         "test_train_cross_sectional_batching.py", "test_train_ranking_loss.py", "test_train_optimizer_and_swa.py",
@@ -807,6 +815,11 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_v570_live_mechanisms.py",
         # V5.7.0 - evaluation/fill_price_audit.py (aq evaluate --audit-fills).
         "test_fill_price_audit.py",
+        # V5.8.0 - audit tools (class IC, gate, heads, feature quality) and the release's parity round file.
+        "test_class_ic_audit.py", "test_gate_audit.py", "test_head_audit.py", "test_feature_quality_audit.py",
+        "test_ml_cleanup.py",
+        "test_class_sleeve_research.py",
+        "test_v580_live_parity.py",
     ],
     # V5.5.0 - repo-level guards about the repo itself (CI workflow shape, the
     # `aq test --ruff` flag, packaging lists, docs links, CI helper scripts),
@@ -1244,6 +1257,38 @@ def cmd_backfill(args: argparse.Namespace) -> int:
 
 def cmd_paper_readiness(_args: argparse.Namespace) -> int:
     return _run([sys.executable, "-m", "execution.paper_readiness_report"])
+
+
+def cmd_clean(args: argparse.Namespace) -> int:
+    """`aq clean ml`: list (and with --apply, delete) what `evaluation/ml_cleanup.py` plans to remove from ml/."""
+    import shutil
+
+    from evaluation.ml_cleanup import plan_ml_cleanup
+
+    plan = plan_ml_cleanup(
+        ML_DIR, keep_versions=args.keep_versions, keep_backups=args.keep_backups,
+        strip_walk_forward_datasets=args.strip_walk_forward_datasets,
+    )
+    gigabytes = plan["total_bytes"] / 1e9
+    if args.json:
+        print(json.dumps(plan, indent=2))
+    else:
+        print(f"ml/ cleanup plan: {len(plan['items'])} items, {gigabytes:.2f} GB; protected {len(plan['protected'])} paths; "
+              f"active version ids {plan['active_version_ids']}")
+        for item in sorted(plan["items"], key=lambda entry: -entry["bytes"])[:40]:
+            print(f"  {item['bytes'] / 1e6:10.1f} MB  {item['kind']:<20} {item['path']}  ({item['reason']})")
+    if not args.apply:
+        if not args.json:
+            print("dry run: nothing deleted (pass --apply to delete the items above)")
+        return 0
+    for item in plan["items"]:
+        path = Path(item["path"])
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        elif path.is_file():
+            path.unlink(missing_ok=True)
+    print(f"deleted {len(plan['items'])} items ({gigabytes:.2f} GB)")
+    return 0
 
 
 def cmd_trade_lock(args: argparse.Namespace) -> int:
@@ -1714,6 +1759,7 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
             model_kind=model_kind_for_head,
             sequence_feature_schema=feature_schema if model_kind_for_head == "sequence" else None,
             configured_window_size=int(sequence_window_default),
+            batched=True,  # V5.8.0: chunked batched interpreters (same values to ~1e-15, bounded memory, far faster)
         )
     return compute_blended_raw_scores(dataset, predictions_by_model_head, policy), policy
 
@@ -1740,11 +1786,18 @@ def _universe_asset_metadata(config: dict) -> tuple[dict[str, str], dict[str, bo
         }
     phase_v2 = config.get("phase_v2", {})
     class_flags = [bool(phase_v2.get(key, {}).get("enabled", False)) for key in ("futures_risk", "options_risk", "forex_risk")]
+    # V5.8.0 - a class governed by an enabled sleeve (forex with forex trading on, bond) takes no main-book slot,
+    # exactly as main.py::_sleeve_class_for_asset() keeps it out of the live candidates.
+    sleeve_classes = set()
+    if phase_v2.get("forex_sleeve", {}).get("enabled", False) and phase_v2.get("forex_risk", {}).get("enabled", False):
+        sleeve_classes.add("forex")
+    if phase_v2.get("bond_sleeve", {}).get("enabled", False):
+        sleeve_classes.add("bond")
     for asset in config.get("phase1", {}).get("universe", {}).get("assets", []):
         ticker = asset["ticker"]
         trading_eligible_by_ticker[ticker] = book_candidate_trading_eligible(
             trading_eligible_by_ticker.get(ticker, True), asset_class_by_ticker[ticker], *class_flags
-        )
+        ) and asset_class_by_ticker[ticker] not in sleeve_classes
     return asset_class_by_ticker, trading_eligible_by_ticker
 
 
@@ -1807,6 +1860,42 @@ _EVALUATE_MODEL_ARTIFACTS = {
     "sequence": ("sequence_model.json", "sequence_feature_schema.json"),
     "multitask": ("multitask_model.json", "multitask_feature_schema.json"),
 }
+
+
+def _print_v580_audit_summary(flag: str, audit: dict) -> None:
+    """One short human summary per V5.8.0 audit (the JSON holds everything)."""
+    if flag == "ic_by_class":
+        print(f"Class IC audit ({audit['split']}, {audit['rows']} rows):")
+        for target, decomposition in audit["heads"].items():
+            pooled, between = decomposition["pooled"], decomposition["between"]
+            print(f"  {target}: pooled={pooled['mean_ic']} (t {pooled['hac_t']:.2f})  between-class={between['mean_ic']}  "
+                  f"class share of pooled={decomposition['class_share_of_pooled']}")
+            for kind, stats in decomposition["within"].items():
+                print(f"    within {kind}: {stats['mean_ic']} (t {stats['hac_t']:.2f}, {stats['num_dates']} dates)")
+    elif flag == "audit_gates":
+        print(f"Gate audit ({audit['split']}): {audit['num_vetoed']}/{audit['num_decisions']} dates vetoed "
+              f"(share {audit['veto_share']}), false vetoes {audit['num_false_vetoes']} "
+              f"({audit['false_veto_share_of_vetoes']}), resolved-gate veto share {audit['resolved_gate_veto_share']}")
+        print(f"  state vs resolved trailing IC: corr={audit['state_vs_resolved_correlation']} "
+              f"gap={audit['state_minus_resolved_mean_gap']}; mean forward IC all={audit['mean_forward_ic_all']} "
+              f"vetoed={audit['mean_forward_ic_vetoed']}")
+    elif flag == "audit_data":
+        print(f"Data audit ({audit['data_root']}): {audit['num_assets']} assets, flagged {len(audit['flagged'])}: {audit['flagged']}")
+        for ticker in audit["flagged"]:
+            print(f"  {ticker}: {audit['assets'][ticker].get('problems')}")
+    elif flag == "audit_heads":
+        print(f"Head audit: {audit['num_passed']}/{audit['num_components']} components pass")
+        for row in audit["rows"]:
+            mark = "PASS" if row["passed"] else "FAIL"
+            path = " [live path]" if row["in_decision_path"] else ""
+            print(f"  {mark} {row['component']}: {row['metric']} = {row['value']}{path}")
+        print(f"  failing in the live path: {audit['failing_in_decision_path'] or 'none'}")
+    else:
+        flags = audit["flags"]
+        print(f"Feature audit: {len(audit['features'])} features; ticker-ID suspects {flags['ticker_id_suspects']}")
+        for kind, names in flags["constant_for_class"].items():
+            print(f"  constant for {kind}: {names}")
+        print(f"  IC sign unstable across splits: {len(flags['ic_sign_unstable'])}")
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
@@ -1877,9 +1966,22 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         max_open_sessions = getattr(args, "max_open_sessions", None)
         if max_open_sessions is None:
             max_open_sessions = int(config.get("phase_v2", {}).get("limit_orders", {}).get("unfilled_timeout_bars", 3)) + 1
+        periods = []
+        for period_text in getattr(args, "period", None) or []:
+            period_start, _, period_end = str(period_text).partition("..")
+            if not (period_start and period_end):
+                print(f"error: --period expects START..END (ISO dates), got {period_text!r}", file=sys.stderr)
+                return 1
+            periods.append((period_start, period_end))
+        class_by_ticker = {
+            str(asset["ticker"]).upper(): str(asset["asset_class"])
+            for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+            if asset.get("ticker") and asset.get("asset_class")
+        }
         audit = audit_backtest_run(
             run, load_book_history(book_history_path), book_run_index=getattr(args, "book_run_index", -1),
-            max_open_sessions=max_open_sessions,
+            max_open_sessions=max_open_sessions, class_by_ticker=class_by_ticker,
+            periods=periods,
         )
         audit["backtest_dir"] = str(run_dir)
         _write_evaluation_json(ML_DIR / "evaluation" / "backtest_audit.json", audit)
@@ -1910,7 +2012,47 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"  P&L / fees: {audit['pnl_and_fees']}")
             print(f"  book: {audit['book']['num_engaged']}/{audit['book']['num_rebalance_records']} rebalances engaged; vetoes {audit['book']['veto_reasons']}")
             print(f"  engine teardown: {audit['teardown']}")
+            for period in audit.get("periods", []):
+                net = period["net_return"]
+                print(
+                    f"  period {period['start']}..{period['end']}: net {'n/a' if net is None else f'{net:+.2%}'}, "
+                    f"max drawdown {period['max_drawdown']:.2%}, Sharpe (no risk-free) {period['sharpe_no_risk_free']}, "
+                    f"{period['closed_trades']} closed trades, P&L {period['realized_pnl_by_class']}"
+                )
             print(f"  Wrote {ML_DIR / 'evaluation' / 'backtest_audit.json'}")
+        return 0
+
+    # V5.8.0 - the audit flags (evaluation/audit_runners.py): each writes one JSON and returns before any book run.
+    v580_audits = (
+        ("ic_by_class", "class_ic_audit.json"), ("audit_gates", "gate_audit.json"), ("audit_data", "data_audit.json"),
+        ("audit_heads", "head_audit.json"), ("audit_features", "feature_quality_audit.json"),
+    )
+    requested = [(flag, filename) for flag, filename in v580_audits if getattr(args, flag, False)]
+    if requested:
+        from evaluation import audit_runners
+
+        split = getattr(args, "split", None) or "backtest"
+        dataset_arg = getattr(args, "dataset", None)
+        for flag, filename in requested:
+            if flag == "ic_by_class":
+                audit = audit_runners.run_ic_by_class(config, split=split, dataset_path=dataset_arg)
+            elif flag == "audit_gates":
+                audit = audit_runners.run_audit_gates(config, split=split, dataset_path=dataset_arg)
+            elif flag == "audit_data":
+                audit = audit_runners.run_audit_data(config, data_root=Path(getattr(args, "data_root", None) or (ROOT_DIR / "data")))
+            elif flag == "audit_heads":
+                audit = audit_runners.run_audit_heads(config)
+            else:
+                audit = audit_runners.run_audit_features(config, dataset_path=dataset_arg, permutation=bool(getattr(args, "permutation", False)))
+            _write_evaluation_json(ML_DIR / "evaluation" / filename, audit)
+            if flag in ("ic_by_class", "audit_gates") and isinstance(audit.get("split"), str):
+                _write_evaluation_json(ML_DIR / "evaluation" / f"{Path(filename).stem}_{audit['split']}.json", audit)
+            if args.json:
+                print(json.dumps({key: value for key, value in audit.items() if key != "rows"}, indent=2, default=str))
+            else:
+                _print_v580_audit_summary(flag, audit)
+                print(f"  Wrote {ML_DIR / 'evaluation' / filename}")
+        _refresh_readme_evaluation_sections()
         return 0
 
     # V5.7.0 - `aq evaluate --audit-fills`: every fill of one finished run against the dataset's open and against the
@@ -2082,7 +2224,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 return 1
             selected_run_indices.append(normalized_index)
 
-        recon_dataset_path = ML_DIR / "datasets" / "full_dataset.csv"
+        recon_dataset_path = Path(args.dataset) if getattr(args, "dataset", None) else ML_DIR / "datasets" / "full_dataset.csv"
         if not recon_dataset_path.exists():
             print(f"error: {recon_dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
             return 1
@@ -2096,6 +2238,25 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 (str(date), str(ticker)): row
                 for (date, ticker), row in full_dataset.set_index(["date", "ticker"]).to_dict("index").items()
             }
+
+        # Crypto and forex bars close after the equity tick, so the features live reads at tick D are the dataset's
+        # PREVIOUS row (the same one-day lag the as-live simulator applies to LATE_BAR_ASSET_CLASSES).
+        from evaluation.live_parity import LATE_BAR_ASSET_CLASSES, late_bar_offline_row
+
+        target_asset_class = next(
+            (
+                str(asset.get("asset_class") or asset.get("security_type"))
+                for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+                if str(asset.get("ticker", "")).upper() == str(target_symbol).upper()
+            ),
+            "",
+        )
+        lag_to_previous_row = target_asset_class in LATE_BAR_ASSET_CLASSES
+        previous_row_date: dict[str, str] = {}
+        if lag_to_previous_row and dataset_has_ticker_column:
+            ordered_dates = sorted({str(date) for date, ticker in rows_by_date_ticker if ticker == target_symbol})
+            previous_row_date = dict(zip(ordered_dates[1:], ordered_dates[:-1]))
+            print(f"  {target_symbol} is a {target_asset_class} symbol: own-price features at tick D are compared with the dataset's previous row, cross-asset ones with row D.")
 
         per_run_payloads = []
         total_compared_dates = 0
@@ -2120,7 +2281,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 if not isinstance(snapshot_entry, Mapping):
                     continue
                 date_str = str(record.get("date", ""))
-                offline_row = rows_by_date_ticker.get((date_str, target_symbol)) if dataset_has_ticker_column else None
+                lookup_date = previous_row_date.get(date_str, "") if lag_to_previous_row else date_str
+                offline_row = rows_by_date_ticker.get((lookup_date, target_symbol)) if dataset_has_ticker_column else None
+                if lag_to_previous_row and offline_row is not None:
+                    offline_row = late_bar_offline_row(offline_row, rows_by_date_ticker.get((date_str, target_symbol)))
                 if offline_row is None:
                     num_missing_offline_rows += 1
                     continue
@@ -2301,7 +2465,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 "num_records": len(run_records),
             }
 
-        recon_dataset_path = ML_DIR / "datasets" / "full_dataset.csv"
+        recon_dataset_path = Path(args.dataset) if getattr(args, "dataset", None) else ML_DIR / "datasets" / "full_dataset.csv"
         if not recon_dataset_path.exists():
             print(f"error: {recon_dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
             return 1
@@ -2394,6 +2558,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
             recorded_subset = context_dataset[context_dataset["date"].isin(recorded_dates)]
             raw_scores_by_date: dict[str, dict[str, float]] = {}
+            # V5.8.0: the live main book ranks only its own pool (a class governed by an enabled sleeve, a disabled class
+            # and an ineligible asset take no slot), so the replay must rank that pool and not all 104 tickers.
+            _, pool_eligible_by_ticker = _universe_asset_metadata(config)
             for recon_date, group in recorded_subset.groupby("date", sort=True):
                 if recon_date not in logged_records_by_date:
                     continue
@@ -2401,6 +2568,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     str(ticker): float(score)
                     for ticker, score in zip(group["ticker"], group["raw_blended_score"])
                     if score is not None and not (isinstance(score, float) and pd.isna(score))
+                    and pool_eligible_by_ticker.get(str(ticker), True)
                 }
                 ordered_scores = {
                     ticker: scores_lookup[ticker] for ticker in canonical_symbol_order if ticker in scores_lookup
@@ -2652,7 +2820,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     run_rank_book = bool(args.rank_book or args.all)
     # V5.3.8 - Monte Carlo layer rides on top of the base rank-book run's
     # daily net returns, so requesting it implicitly requests the sim.
-    run_monte_carlo = bool(getattr(args, "monte_carlo", False))
+    run_monte_carlo = bool(getattr(args, "monte_carlo", False) or args.all)
     if run_monte_carlo:
         run_rank_book = True
     # V5.4.4 - benchmark comparison: cheap (pure pandas over the dataset's
@@ -2770,8 +2938,11 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             mc_payload["head"] = head
             mc_payload["split"] = split
             _write_evaluation_json(evaluation_dir / "monte_carlo.json", mc_payload)
-            _np_mc.savez_compressed(evaluation_dir / "monte_carlo_curves.npz", runs_curves=_np_mc.asarray(mc["runs_curves"]))
-            if not args.json:
+            if mc.get("runs_curves") is not None:
+                _np_mc.savez_compressed(evaluation_dir / "monte_carlo_curves.npz", runs_curves=_np_mc.asarray(mc["runs_curves"]))
+            if not args.json and mc.get("status") != "OK":
+                print(f"Monte Carlo {mc.get('status')}")
+            elif not args.json:
                 fr = mc["final_return_pct"]
                 md = mc["max_drawdown"]
                 sh = mc["sharpe"]
@@ -2795,12 +2966,17 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             build_as_live_kwargs,
             build_candidate_metadata,
             build_live_mechanisms,
+            build_rank_groups,
             lag_predictions_for_tickers,
+            load_live_venue_listing_dates,
+            main_group_tickers,
             make_rolling_ic_gate_fn,
         )
+        from portfolio.book_construction import resolve_class_weight_caps
 
         phase_v2_config = config.get("phase_v2", {})
         asset_class_by_ticker, trading_eligible_by_ticker = _universe_asset_metadata(config)
+        rank_groups = build_rank_groups(config, asset_class_by_ticker)
         live_source = as_live_dataset if as_live_dataset is not None else dataset
         raw_scores, live_policy = _blend_raw_scores_for_dataset(live_source, config, int(sequence_window_default))
         live_frame = live_source.copy()
@@ -2811,7 +2987,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         live_frame = lag_predictions_for_tickers(live_frame, prediction_column="live_rank_score", tickers=late_tickers)
         rolling_ic_gate_config = phase_v2_config.get("rolling_ic_gate", {})
         gate_fn = (
-            make_rolling_ic_gate_fn(live_frame, raw_score_column="live_rank_score", gate_config=rolling_ic_gate_config)
+            make_rolling_ic_gate_fn(
+                live_frame, raw_score_column="live_rank_score", gate_config=rolling_ic_gate_config,
+                include_tickers=main_group_tickers(rank_groups, live_frame["ticker"].unique()),
+            )
             if rolling_ic_gate_config.get("enabled", False)
             else None
         )
@@ -2823,6 +3002,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             candidate_metadata=build_candidate_metadata(asset_class_by_ticker, trading_eligible_by_ticker),
             rolling_ic_gate_fn=gate_fn,
             topology_config=phase_v2_config.get("topology", {}),
+            rank_group_by_ticker=rank_groups,
+            venue_listing_dates=load_live_venue_listing_dates(config, ROOT_DIR),
+            class_weight_caps=resolve_class_weight_caps(phase_v2_config.get("class_weight_caps")),
             **build_live_mechanisms(config, live_frame, core_crypto_tickers=_core_quality_tickers()),
         )
         as_live_result = simulate_rank_book(live_frame, **as_live_kwargs)
@@ -2849,7 +3031,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             impact_result = simulate_rank_book(live_frame, **dict(as_live_kwargs, impact_model_config=impact_config))
             as_live_report["as_live_with_impact_model"] = impact_result.to_dict()
         report["rank_book_as_live"] = as_live_report
+        as_live_report["split"] = split
         _write_evaluation_json(evaluation_dir / "rank_book_simulation_as_live.json", as_live_report)
+        _write_evaluation_json(evaluation_dir / f"rank_book_simulation_as_live_{split}.json", as_live_report)
         if not args.json:
             print("Rank book AS-LIVE (blended head, live gates, hold-on-veto, confidence weights, 1-bar lag):")
             print(f"  idealized net_sharpe={idealized_result.net_sharpe:.4f}  ->  as-live net_sharpe={as_live_result.net_sharpe:.4f}")
@@ -3754,6 +3938,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     paper_readiness_parser.set_defaults(func=cmd_paper_readiness)
 
+    clean_parser = subparsers.add_parser(
+        "clean", help="V5.8.0: list (dry run by default) and delete regenerable ml/ artifacts: old candidate versions, "
+        "older backups, walk-forward window datasets",
+    )
+    clean_parser.add_argument("target", choices=["ml"])
+    clean_parser.add_argument("--keep-versions", type=int, default=5, help="newest N ml/versions directories to keep (default 5)")
+    clean_parser.add_argument("--keep-backups", type=int, default=1, help="newest N ml/_backup_* directories to keep (default 1)")
+    clean_parser.add_argument(
+        "--strip-walk-forward-datasets", action="store_true",
+        help="also list the regenerable window_*/full_dataset.csv etc. inside kept walk-forward runs",
+    )
+    clean_parser.add_argument("--apply", action="store_true", help="delete the listed items (default: dry run)")
+    clean_parser.add_argument("--json", action="store_true")
+    clean_parser.set_defaults(func=cmd_clean)
+
     trade_lock_parser = subparsers.add_parser(
         "trade-lock", help="Manually override the sticky total-drawdown trade lock"
     )
@@ -3839,7 +4038,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--calibrate-edge", action="store_true",
         help="Print an edge_bps_per_rank_unit calibrated from this split's realized rank-vs-return relationship",
     )
-    evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress, --calibrate-edge and --benchmarks together")
+    evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress, --calibrate-edge, --benchmarks and --monte-carlo together")
     evaluate_parser.add_argument(
         "--walk-forward-summary", action="store_true",
         help="Print an already-written ml/versions/walk-forward-*/walk_forward_summary.json (V5.1 Phase 4) - "
@@ -3976,7 +4175,7 @@ def build_parser() -> argparse.ArgumentParser:
         "bootstraps the base rank-book run's daily net returns into --mc-runs alternative equity histories, "
         "writing ml/evaluation/monte_carlo.json + monte_carlo_curves.npz and refreshing the README's Monte "
         "Carlo section (curves chart + red average line + foldable deep stats). Requires/implies the base "
-        "--rank-book simulation. Not included in --all.",
+        "--rank-book simulation. Included in --all.",
     )
     evaluate_parser.add_argument("--mc-runs", type=int, default=1000,
                                  help="Number of Monte Carlo resampled equity runs (default: 1000).")
@@ -4020,6 +4219,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="V5.5.0: with --audit-backtest or --audit-fills, the backtests/<timestamp> folder to audit (default: the newest).",
     )
     evaluate_parser.add_argument(
+        "--period", action="append", default=None, metavar="START..END",
+        help="V5.8.0: with --audit-backtest, also summarise this sub-period (ISO dates, repeatable): return, drawdown, Sharpe, "
+        "closed trades and realized P&L per class - BT2 spans the backtest split and the holdout and is judged on each.",
+    )
+    evaluate_parser.add_argument(
         "--audit-fills", action="store_true",
         help="V5.7.0: every fill of one finished Lean backtest against the dataset's open and the Lean zip's own open, per "
         "asset class and order type, plus the dataset-vs-zip gap on the traded dates -> ml/evaluation/fill_price_audit.json. "
@@ -4050,6 +4254,42 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_parser.add_argument(
         "--volatility-threshold-percentile", type=float, default=0.80,
         help="V5.5.0: with --calibrate-volatility-threshold, the percentile used as the cutoff (default: 0.80).",
+    )
+    evaluate_parser.add_argument(
+        "--ic-by-class", action="store_true",
+        help="V5.8.0: within- vs between-asset-class rank IC of the live blended score on --split "
+        "(-> ml/evaluation/class_ic_audit.json). Needs the model and dataset. Not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--audit-gates", action="store_true",
+        help="V5.8.0: the rolling-IC gate's own reading vs the fully resolved IC on every date of --split, false-veto "
+        "share and lag (-> ml/evaluation/gate_audit.json). Not included in --all.",
+    )
+    evaluate_parser.add_argument(
+        "--audit-data", action="store_true",
+        help="V5.8.0: audit every universe zip (coverage, gaps, suspicious moves, OHLC sanity, quote coverage, factor "
+        "files) and write a size+SHA-256 manifest of the data root (-> ml/evaluation/data_audit.json). No model.",
+    )
+    evaluate_parser.add_argument(
+        "--data-root", default=None, help="V5.8.0: with --audit-data, the Lean data root to audit (default: data).",
+    )
+    evaluate_parser.add_argument(
+        "--audit-heads", action="store_true",
+        help="V5.8.0: every model head and submodel against its own promotion gate, marking what the live path reads "
+        "(-> ml/evaluation/head_audit.json). Reads only ml/*_training_metrics.json.",
+    )
+    evaluate_parser.add_argument(
+        "--audit-features", action="store_true",
+        help="V5.8.0: model-input feature quality - ticker-ID suspects, class-constant features, per-split IC sign "
+        "(-> ml/evaluation/feature_quality_audit.json).",
+    )
+    evaluate_parser.add_argument(
+        "--permutation", action="store_true",
+        help="V5.8.0: with --audit-features, also the multitask model's validation IC drop per shuffled feature (slow).",
+    )
+    evaluate_parser.add_argument(
+        "--dataset", default=None,
+        help="V5.8.0: with --ic-by-class / --audit-gates / --audit-features / --reconcile-features / --reconcile-book-history, a dataset CSV other than ml/datasets/full_dataset.csv.",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

@@ -152,6 +152,87 @@ def empirical_duration_beta(
     return covariance / variance_x
 
 
+BOND_DURATION_BETA_LOOKBACK = 252
+
+
+def resolve_bond_duration_beta_mode(features_config: dict | None) -> tuple[str, int]:
+    """(`mode`, `lookback`) from `phase1.features.bond_duration_beta`. Absent = ("full_history", 252): train.py's single
+    whole-history slope and main.py's lock-in-once cache, the pre-V5.8.0 behaviour. "rolling" = a point-in-time trailing
+    slope on both sides (V5.8.0: the whole-history slope leaked validation/backtest data into every training row and was
+    constant per ticker, i.e. a ticker ID)."""
+    raw = (features_config or {}).get("bond_duration_beta") or {}
+    mode = str(raw.get("mode", "full_history"))
+    if mode not in {"full_history", "rolling"}:
+        mode = "full_history"
+    try:
+        lookback = max(2, int(raw.get("lookback", BOND_DURATION_BETA_LOOKBACK)))
+    except (TypeError, ValueError):
+        lookback = BOND_DURATION_BETA_LOOKBACK
+    return mode, lookback
+
+
+def _returns_and_yield_deltas(closes, treasury_levels) -> tuple[list[float | None], list[float | None]]:
+    returns: list[float | None] = [None]
+    deltas: list[float | None] = [None]
+    for index in range(1, len(closes)):
+        previous_close, close = closes[index - 1], closes[index]
+        returns.append((close / previous_close - 1.0) if previous_close and close is not None else None)
+        previous_level, level = treasury_levels[index - 1], treasury_levels[index]
+        deltas.append((level - previous_level) if level is not None and previous_level is not None else None)
+    return returns, deltas
+
+
+def rolling_duration_beta(
+    closes: list[float | None],
+    treasury_levels: list[float | None],
+    lookback: int = BOND_DURATION_BETA_LOOKBACK,
+    min_observations: int = 60,
+) -> float | None:
+    """Point-in-time duration beta at the LAST element: empirical_duration_beta() over the trailing `lookback` daily
+    returns (built from the last `lookback + 1` closes and 10-year yield levels, index-aligned per bar). main.py calls
+    this on its per-symbol windows; train.py's rolling_duration_beta_series() produces the same value for every row."""
+    length = min(len(closes), len(treasury_levels))
+    closes = list(closes)[len(closes) - length:][-(lookback + 1):]
+    treasury_levels = list(treasury_levels)[len(treasury_levels) - length:][-(lookback + 1):]
+    returns, deltas = _returns_and_yield_deltas(closes, treasury_levels)
+    return empirical_duration_beta(returns, deltas, min_observations=min_observations)
+
+
+def rolling_duration_beta_series(
+    closes: list[float | None],
+    treasury_levels: list[float | None],
+    lookback: int = BOND_DURATION_BETA_LOOKBACK,
+    min_observations: int = 60,
+) -> list[float | None]:
+    """rolling_duration_beta() evaluated at every position (row i sees elements <= i only), vectorised with pandas so
+    a 2,700-row bond history costs milliseconds. Pairs with either side missing are dropped exactly as the scalar
+    function drops them (both series masked together), and the same min-observation / degenerate-variance guards apply."""
+    import numpy as np
+    import pandas as pd
+
+    returns, deltas = _returns_and_yield_deltas(list(closes), list(treasury_levels))
+    x = pd.Series([np.nan if value is None else float(value) for value in deltas], dtype=float)
+    y = pd.Series([np.nan if value is None else float(value) for value in returns], dtype=float)
+    valid = x.notna() & y.notna()
+    x = x.where(valid)
+    y = y.where(valid)
+    window = x.rolling(lookback, min_periods=1)
+    count = valid.astype(float).rolling(lookback, min_periods=1).sum()
+    mean_x = window.mean()
+    mean_y = y.rolling(lookback, min_periods=1).mean()
+    sum_xy = (x * y).rolling(lookback, min_periods=1).sum()
+    sum_xx = (x * x).rolling(lookback, min_periods=1).sum()
+    covariance_sum = sum_xy - count * mean_x * mean_y
+    variance_sum = sum_xx - count * mean_x * mean_x
+    out: list[float | None] = []
+    for n, cov, var in zip(count.to_numpy(), covariance_sum.to_numpy(), variance_sum.to_numpy()):
+        if not np.isfinite(n) or n < min_observations or not np.isfinite(var) or var < 1e-12:
+            out.append(None)
+        else:
+            out.append(float(cov / var))
+    return out
+
+
 def _bond_cash_flows(coupon_rate: float, years_to_maturity: float, payments_per_year: int, face_value: float = 100.0) -> list[float]:
     """Coupon + principal cash-flow schedule for a plain-vanilla,
     fixed-coupon bond priced at face_value=100 (a standard convention -

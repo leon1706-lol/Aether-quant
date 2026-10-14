@@ -85,6 +85,8 @@ from train import (
     swa_finalize,
 )
 
+from performance_probe import install_sigterm_witness  # noqa: E402
+
 LOGGER = logging.getLogger("aether_quant.train_sequence")
 ROOT = Path(__file__).resolve().parent
 ML_DIR = ROOT / "ml"
@@ -143,17 +145,36 @@ def sequence_candidate_output_paths(version_id: str) -> dict[str, Path]:
     }
 
 
+def read_dataset_compact(path: Path, chunk_rows: int = 40_000) -> pd.DataFrame:
+    """pd.read_csv() as float32 (V5.8.0): the V5.8.0 dataset has 280k rows x 251 float64 columns (~560 MB, twice that while
+    pandas parses and again for the filtered copy), which with the sequence windows pushed the 8 GB Codespace into the
+    kernel's memory-pressure SIGTERM. The model path converts every feature and target to float32 anyway; dates, tickers
+    and the boolean flags keep their types."""
+    parts = []
+    for chunk in pd.read_csv(path, chunksize=chunk_rows):
+        float_columns = {name: np.float32 for name in chunk.columns[chunk.dtypes == np.float64]}
+        parts.append(chunk.astype(float_columns))
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
 def _split_sequence_tensors(
-    dataset: pd.DataFrame, sequences: np.ndarray, split_name: str
+    dataset: pd.DataFrame, sequences: np.ndarray | None, split_name: str, *, feature_names: list[str] | None = None,
+    window_size: int | None = None,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor], pd.Series]:
     """Returns (features, targets, dates) for one split - targets is a dict
     keyed by head name, same shape as train_multitask.py::frame_to_multitask_tensors()'s
     return, so compute_sequence_multitask_metrics() below can share its
-    structure with train_multitask.py's compute_multitask_metrics()."""
+    structure with train_multitask.py's compute_multitask_metrics().
+
+    V5.8.0: with `sequences=None` the split's windows are built directly (build_sequence_tensor_dataset(row_mask=...))
+    and wrapped without a copy, so the full-dataset array and its two copies never exist at once."""
     mask = (dataset["split"] == split_name).to_numpy()
-    split_sequences = sequences[mask]
+    if sequences is None:
+        split_sequences = build_sequence_tensor_dataset(dataset, feature_names, window_size, row_mask=mask)
+    else:
+        split_sequences = sequences[mask]
     split_frame = dataset[mask]
-    features = torch.tensor(split_sequences, dtype=torch.float32)
+    features = torch.from_numpy(np.ascontiguousarray(split_sequences, dtype=np.float32))
     targets = {
         "direction": torch.tensor(split_frame["target_direction"].to_numpy(dtype=np.float32), dtype=torch.float32),
         "magnitude": torch.tensor(split_frame["target_return_1d"].to_numpy(dtype=np.float32), dtype=torch.float32),
@@ -164,6 +185,26 @@ def _split_sequence_tensors(
     for head_name, (column, _kind, _stride) in HORIZON_HEAD_SPECS.items():
         targets[head_name] = torch.tensor(split_frame[column].to_numpy(dtype=np.float32), dtype=torch.float32)
     return features, targets, split_frame["date"]
+
+
+FORWARD_BATCH_ROWS = 4096
+
+
+def forward_in_batches(model: nn.Module, features: torch.Tensor, batch_rows: int | None = None) -> dict[str, torch.Tensor]:
+    """model(features) for a whole split without materialising the whole split's activations (V5.8.0). The final
+    evaluation ran the 170k-row train tensor through the causal-conv stack in one call - several GB of intermediate
+    activations on top of the 3 GB already resident, which the 8 GB Codespace answered with SIGTERM at the end of every
+    attempt. The model is in eval mode there (no dropout, per-row layernorm), so chunking is exact up to float
+    summation order. Returns the same {head: tensor} dict, rows in the original order."""
+    batch_rows = int(batch_rows or FORWARD_BATCH_ROWS)
+    with torch.no_grad():
+        if len(features) <= batch_rows:
+            return model(features)
+        pieces: dict[str, list[torch.Tensor]] = {}
+        for start in range(0, len(features), batch_rows):
+            for head, value in model(features[start : start + batch_rows]).items():
+                pieces.setdefault(head, []).append(value)
+    return {head: torch.cat(values, dim=0) for head, values in pieces.items()}
 
 
 def compute_sequence_multitask_metrics(
@@ -181,8 +222,7 @@ def compute_sequence_multitask_metrics(
     """net_performance_context - see train_multitask.py::compute_multitask_metrics()'s
     identical docstring (V5.1 Phase 4, items 7/12)."""
     model.eval()
-    with torch.no_grad():
-        outputs = model(features)
+    outputs = forward_in_batches(model, features)
     metrics = {
         "direction": compute_binary_metrics(outputs["direction"], targets["direction"], direction_criterion, threshold),
         "magnitude": compute_regression_metrics(outputs["magnitude"], targets["magnitude"]),
@@ -239,6 +279,7 @@ def compute_sequence_multitask_metrics(
 
 
 def main() -> int:
+    install_sigterm_witness(LOGGER)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = parse_args()
 
@@ -331,7 +372,7 @@ def main() -> int:
         if not dataset_path.exists():
             LOGGER.info("train_sequence: dataset not found at %s - skipping.", dataset_path)
             return 0
-        dataset = pd.read_csv(dataset_path)
+        dataset = read_dataset_compact(dataset_path)
 
         required_columns = set(feature_names) | {
             "target_direction",
@@ -361,6 +402,8 @@ def main() -> int:
             eligible = dataset[dataset["training_eligible"]].reset_index(drop=True)
         else:
             eligible = dataset.reset_index(drop=True)
+        del dataset  # V5.8.0: the unfiltered frame is not needed again (280k rows x 251 columns)
+        gc.collect()
 
         train_rows = int((eligible["split"] == "train").sum())
         validation_rows = int((eligible["split"] == "validation").sum())
@@ -382,13 +425,18 @@ def main() -> int:
         device = torch.device("cpu")
 
         LOGGER.info("train_sequence: building (rows=%d, window=%d, features=%d) sequence tensor...", len(eligible), window_size, len(feature_names))
-        sequences = build_sequence_tensor_dataset(eligible, feature_names, window_size)
+        sequences = None  # V5.8.0: each split builds its own windows (no full-dataset array, no copies)
+        split_kwargs = {"feature_names": feature_names, "window_size": window_size}
 
-        train_features, train_targets, train_dates = _split_sequence_tensors(eligible, sequences, "train")
-        validation_features, validation_targets, validation_dates = _split_sequence_tensors(eligible, sequences, "validation")
+        train_features, train_targets, train_dates = _split_sequence_tensors(eligible, sequences, "train", **split_kwargs)
+        validation_features, validation_targets, validation_dates = _split_sequence_tensors(
+            eligible, sequences, "validation", **split_kwargs
+        )
         validation_features = validation_features.to(device)
         validation_targets = {name: tensor.to(device) for name, tensor in validation_targets.items()}
-        backtest_features, backtest_targets, backtest_dates = _split_sequence_tensors(eligible, sequences, "backtest")
+        backtest_features, backtest_targets, backtest_dates = _split_sequence_tensors(
+            eligible, sequences, "backtest", **split_kwargs
+        )
         backtest_features = backtest_features.to(device)
         backtest_targets = {name: tensor.to(device) for name, tensor in backtest_targets.items()}
         # V5.1 Phase 5 (Problems.md #83) - `sequences` (the full-dataset
@@ -565,8 +613,8 @@ def main() -> int:
                 scheduler.step()
 
             model.eval()
+            validation_outputs = forward_in_batches(model, validation_features)
             with torch.no_grad():
-                validation_outputs = model(validation_features)
                 validation_loss = compute_combined_multitask_loss(
                     validation_outputs,
                     validation_targets,
@@ -639,8 +687,7 @@ def main() -> int:
 
         model.load_state_dict(best_state)
         model.eval()
-        with torch.no_grad():
-            validation_outputs_for_threshold = model(validation_features)
+        validation_outputs_for_threshold = forward_in_batches(model, validation_features)
         tuned_threshold, tuned_validation_direction_metrics = find_optimal_threshold(
             validation_outputs_for_threshold["direction"],
             validation_targets["direction"],
@@ -754,8 +801,7 @@ def main() -> int:
         purged_cv_config = full_config.get("phase1", {}).get("target", {}).get("ranking", {}).get("purged_cv", {})
         if purged_cv_config.get("enabled", False) and horizon_head_config["rank_20d"].get("enabled", True):
             model.eval()
-            with torch.no_grad():
-                train_outputs_for_purged_cv = model(train_features_device)
+            train_outputs_for_purged_cv = forward_in_batches(model, train_features_device)
             metrics["purged_cv_rank_20d"] = compute_purged_cv_rank_ic_diagnostic(
                 train_outputs_for_purged_cv["rank_20d"],
                 train_targets_device["rank_20d"],
