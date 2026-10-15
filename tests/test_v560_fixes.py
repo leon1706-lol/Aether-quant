@@ -45,16 +45,17 @@ def test_main_builds_cross_asset_inputs_from_the_shared_function():
     assert "returns_by_symbol, momentum_by_symbol = cross_asset_inputs(" in body, "live and offline must share one window/return/momentum construction"
 
 
-def test_forex_trades_only_as_a_capped_sleeve_and_the_cross_asset_inputs_it_feeds_stay_on():
-    """V5.6.0 switched forex off after two Lean runs lost money on it (IB's $2 minimum on ~$2k positions is ~8 bps a
-    fill). V5.8.0 (owner decision: every research area trades) brings it back ONLY as the carry-ranked class sleeve at the
-    minimum cap with its own loss guard, never inside the main book's pool. Forex bars always flow into the cross-asset
-    windows the topology/peer/macro features read."""
+def test_forex_is_dropped_by_the_clean_switch_and_the_cross_asset_inputs_it_feeds_stay_on():
+    """V5.6.0 switched forex off after two Lean runs lost money on it (IB's $2 minimum on ~$2k positions is ~8 bps a fill);
+    V5.8.0 brought it back as a carry-ranked class sleeve at the minimum cap; V6.0.0's R-FX6 (every one of 48 sleeve variants
+    lost on the backtest split, BT2 -$544 net) dropped it again. `forex_risk.enabled` is the clean switch: it also turns off
+    the sleeve, its guard and the pairs' book eligibility. Forex bars always flow into the cross-asset windows the
+    topology/peer/macro features read."""
     config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     phase_v2 = config["phase_v2"]
-    assert phase_v2["forex_risk"]["enabled"] is True and phase_v2["forex_sleeve"]["enabled"] is True
-    assert phase_v2["forex_sleeve"]["signal"] == "carry" and phase_v2["forex_sleeve"]["gross_budget"] <= 0.10
-    assert phase_v2["sleeve_guards"]["forex"]["enabled"] is True
+    assert phase_v2["forex_risk"]["enabled"] is False and phase_v2["forex_sleeve"]["enabled"] is False
+    assert phase_v2["sleeve_guards"]["forex"]["enabled"] is False
+    assert phase_v2["forex_sleeve"]["signal"] == "carry"  # the research settings stay in the file for a re-evaluation
     assert any(asset["security_type"] == "forex" for asset in config["phase1"]["universe"]["assets"])
     assert config["phase_v2"]["costs"]["fee_by_type"]["forex"]["min_usd"] == 2.0
 

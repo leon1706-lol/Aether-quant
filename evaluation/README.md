@@ -44,6 +44,7 @@ without pulling in the training stack, the same torch-free-core convention
   `hold_positions_on_veto`, `retry_rebalance_after_veto`, `max_holding_dates`,
   `candidate_metadata_by_ticker`; the result gains `num_vetoed_rebalances`/`veto_reasons`.
   Exposed as `aq evaluate --rank-book --as-live`.
+- `lean_attribution.py` (V6.0.0, `aq evaluate --attribute-lean`) — a Lean run's daily P&L per ticker and component from its order events and the data zips, reconciled with the equity curve; fee per fill by route.
 - `backtest_audit.py` (V5.5.0, #127) — order-level audit of one finished Lean
   run (`aq evaluate --audit-backtest`): exposure per asset class, book-member vs
   non-member entries (`classify_entries`, against the run's own

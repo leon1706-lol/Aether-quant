@@ -177,6 +177,53 @@ def audit_universe(config: dict, data_root: Path, *, start: str | None = None, e
     return report
 
 
+NON_DAILY_RESOLUTIONS = ("hour", "minute", "second", "tick")
+
+
+def _last_bar_date(path: Path) -> str | None:
+    """YYYY-MM-DD of the last bar in a Lean zip: the file name for per-day zips (`20131011_trade.zip`), else the last
+    csv row's leading YYYYMMDD."""
+    stem = path.name.split("_", 1)[0]
+    if len(stem) == 8 and stem.isdigit():
+        return f"{stem[:4]}-{stem[4:6]}-{stem[6:8]}"
+    try:
+        with zipfile.ZipFile(path) as archive:
+            members = [name for name in archive.namelist() if name.endswith(".csv")]
+            if not members:
+                return None
+            rows = [row for row in archive.read(sorted(members)[-1]).decode("utf-8", "replace").splitlines() if row.strip()]
+    except (OSError, zipfile.BadZipFile):
+        return None
+    if not rows:
+        return None
+    stamp = rows[-1].split(",", 1)[0].strip()[:8]
+    return f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:8]}" if stamp.isdigit() else None
+
+
+def audit_non_daily_files(config: dict, data_root: Path) -> dict:
+    """Every hour/minute/second/tick zip under `data_root` with its last bar date and whether a run reads it.
+
+    The universe trades daily bars, so a non-daily file is read only as Lean's default benchmark (an internal hourly SPY
+    feed) while `runtime.benchmark_ticker` is unset; the rest are Lean's own sample data, kept for Lean."""
+    data_root = Path(data_root)
+    resolution = str(config.get("phase1", {}).get("universe", {}).get("resolution", "Daily")).lower()
+    benchmark_set = bool((config.get("runtime") or {}).get("benchmark_ticker"))
+    files = []
+    for path in sorted(data_root.rglob("*.zip")):
+        parts = path.relative_to(data_root).parts
+        found = next((part for part in parts[:-1] if part in NON_DAILY_RESOLUTIONS), None)
+        if found is None:
+            continue
+        relative = "/".join(parts)
+        read_by = None
+        if relative == "equity/usa/hour/spy.zip" and not benchmark_set:
+            read_by = "lean_default_benchmark"
+        elif found == resolution:
+            read_by = "universe_resolution"
+        files.append({"path": relative, "resolution": found, "bytes": path.stat().st_size, "last": _last_bar_date(path), "read_by": read_by})
+    return {"num_files": len(files), "read": [entry["path"] for entry in files if entry["read_by"]], "files": files}
+
+
 def build_data_manifest(root: Path, *, subdirs: tuple[str, ...] = ("crypto", "equity", "forex", "reference")) -> dict:
     """{relative posix path: {"size", "sha256"}} for every file under root/<subdir>."""
     root = Path(root)

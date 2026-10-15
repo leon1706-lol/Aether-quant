@@ -561,3 +561,28 @@ def test_slippage_amount_non_finite_inputs_return_zero():
 
 def test_resolve_fill_slippage_nan_estimate_never_reaches_price():
     assert resolve_fill_slippage("X", 50.0, {"X": float("nan")}) == 0.0
+
+
+# ---------------------------------------------------------------- V6.0.0: which exits may rest as a limit order
+
+
+def test_exit_route_needs_a_configured_class_and_a_non_risk_reason():
+    from execution.order_gate import LIMIT_EXIT_REASONS, resolve_exit_order_route
+
+    assert resolve_exit_order_route("crypto", "rotation", []) == "market"  # default: every exit stays a market order
+    assert resolve_exit_order_route("crypto", "rotation", ["crypto"]) == "limit"
+    assert resolve_exit_order_route("crypto", "model_sell", {"crypto"}) == "limit"
+    assert resolve_exit_order_route("crypto", "max_holding_age_exceeded", ["crypto"]) == "limit"
+    assert resolve_exit_order_route("equity", "rotation", ["crypto"]) == "market"
+    for risk_reason in ("trailing_stop_triggered", "sleeve_guard", "kill_switch", None):
+        assert resolve_exit_order_route("crypto", risk_reason, ["crypto"]) == "market"
+    assert LIMIT_EXIT_REASONS == {"model_sell", "rotation", "max_holding_age_exceeded"}
+
+
+def test_a_per_class_limit_setting_falls_back_to_the_global_value():
+    from execution.order_gate import resolve_limit_setting_by_class
+
+    assert resolve_limit_setting_by_class("crypto", {"crypto": 0}, 1.0) == 0.0
+    assert resolve_limit_setting_by_class("crypto", {"crypto": 5}, 3) == 5 and isinstance(resolve_limit_setting_by_class("crypto", {"crypto": 5.0}, 3), int)
+    assert resolve_limit_setting_by_class("equity", {"crypto": 5}, 3) == 3
+    assert resolve_limit_setting_by_class("crypto", {}, 3) == 3 and resolve_limit_setting_by_class(None, {"crypto": 5}, 3) == 3

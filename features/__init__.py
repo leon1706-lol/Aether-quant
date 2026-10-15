@@ -25,6 +25,7 @@ from .bond_features import (
 from .cross_asset_sensitivity import (
     CROSS_ASSET_SENSITIVITY_FEATURE_NAMES,
     rolling_sensitivity,
+    sensitivity_features_vector,
     sensitivity_interaction,
 )
 from .derivatives_macro_features import (
@@ -129,6 +130,7 @@ __all__ = [
     "relative_strength_index",
     "resolve_sector",
     "rolling_sensitivity",
+    "sensitivity_features_vector",
     "sensitivity_interaction",
     "volume_zscore",
     "yield_curve_curvature",

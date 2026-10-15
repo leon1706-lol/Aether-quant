@@ -311,3 +311,40 @@ def test_forex_round_trip_cost_in_the_gate_is_dominated_by_the_two_dollar_floor_
 
     assert small.expected_cost_bps == pytest.approx(2 * 2.0 / 2_600.0 * 1e4)  # both sides pay the $2 minimum
     assert large.expected_cost_bps == pytest.approx(2 * 0.2)  # rate-dominated once the notional clears the floor
+
+
+# ---------------------------------------------------------------- V6.0.0: route-aware exchange fee
+
+
+def test_a_limit_route_pays_the_maker_rate_when_it_fills_and_the_taker_rate_when_it_times_out():
+    from execution.cost_model import expected_fill_fee_bps
+
+    assert expected_fill_fee_bps(False, 0.9, 60.0, 80.0) == 80.0
+    assert expected_fill_fee_bps(True, 1.0, 60.0, 80.0) == 60.0
+    assert expected_fill_fee_bps(True, 0.0, 60.0, 80.0) == 80.0
+    assert expected_fill_fee_bps(True, 0.75, 60.0, 80.0) == pytest.approx(65.0)
+    assert expected_fill_fee_bps(True, 7.0, 60.0, 80.0) == 60.0  # a fill rate above 1 is clipped
+
+
+def test_route_aware_fee_is_off_unless_enabled_and_changes_only_the_per_side_rate():
+    from execution.cost_model import commission_bps_by_ticker, commission_terms_for_security_type, route_aware_fee_bps
+
+    route = {"maker_bps": 60.0, "taker_bps": 80.0, "entry_limit": True, "exit_limit": False, "fill_rate": 1.0}
+    off = {"fee_by_type": {"crypto": {"fee_bps": 80.0, "min_usd": 0.0, "route_aware": dict(route, enabled=False)}}}
+    on = {"fee_by_type": {"crypto": {"fee_bps": 80.0, "min_usd": 0.0, "route_aware": dict(route, enabled=True)}}}
+    assert route_aware_fee_bps(off["fee_by_type"]["crypto"]) is None
+    assert commission_terms_for_security_type(off, "crypto") == (80.0, 0.0)
+    assert commission_terms_for_security_type(on, "crypto") == (70.0, 0.0)  # entry 60 (maker), exit 80 (market)
+    assert commission_bps_by_ticker(on, {"BTCUSD": "crypto", "AAPL": "equity"}) == {"BTCUSD": 70.0}
+    both = {"fee_by_type": {"crypto": {"fee_bps": 80.0, "route_aware": dict(route, enabled=True, exit_limit=True)}}}
+    assert commission_terms_for_security_type(both, "crypto")[0] == 60.0
+    broken = {"fee_by_type": {"crypto": {"fee_bps": 80.0, "route_aware": {"enabled": True}}}}
+    assert commission_terms_for_security_type(broken, "crypto")[0] == 80.0  # a malformed block degrades to the plain fee
+
+
+def test_exit_fill_rate_prices_the_exit_side_separately():
+    from execution.cost_model import route_aware_per_side_fee_bps
+
+    block = {"maker_bps": 60.0, "taker_bps": 80.0, "entry_limit": True, "exit_limit": True, "fill_rate": 1.0, "exit_fill_rate": 0.5}
+    assert route_aware_per_side_fee_bps(block) == pytest.approx((60.0 + 70.0) / 2.0)
+    assert route_aware_per_side_fee_bps(dict(block, exit_limit=False)) == pytest.approx(70.0)

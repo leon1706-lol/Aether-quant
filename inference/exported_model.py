@@ -561,6 +561,118 @@ def run_exported_multitask_models_batched(
     return results
 
 
+def _tiled_stacks(
+    layer_stacks: list[tuple[np.ndarray, np.ndarray] | None], symbol_count: int
+) -> list[tuple[np.ndarray, np.ndarray] | None]:
+    """Each layer's (E, ...) weight/bias stacks repeated for `symbol_count` symbols, symbol-major: row s * E + e is expert e
+    of symbol s. Pure copies of the same numbers, so every row computes exactly what the per-symbol call would."""
+    tiled: list[tuple[np.ndarray, np.ndarray] | None] = []
+    for stacks in layer_stacks:
+        if stacks is None:
+            tiled.append(None)
+            continue
+        weights, bias = stacks
+        tiled.append((np.tile(weights, (symbol_count,) + (1,) * (weights.ndim - 1)),
+                      np.tile(bias, (symbol_count,) + (1,) * (bias.ndim - 1))))
+    return tiled
+
+
+def _tiled_cache_for(stack_cache, key: str, build, symbol_count: int):
+    """`stack_cache.tiled[(key, symbol_count)]`, built once per distinct symbol count (an equity tick, the crypto tick and the
+    forex tick each have their own), or built fresh when there is no cache object."""
+    if stack_cache is None:
+        return build()
+    store = stack_cache.__dict__.setdefault("tiled", {})
+    cache_key = (key, symbol_count)
+    if cache_key not in store:
+        if len(store) >= 16:
+            store.clear()
+        store[cache_key] = build()
+    return store[cache_key]
+
+
+def run_exported_models_across_symbols(
+    model_exports: list[dict | None],
+    input_rows: list[list[float]],
+    stack_cache: BatchedLayerStackCache | None = None,
+) -> list[list[float | None]]:
+    """The experts of `run_exported_models_batched` for EVERY symbol in one pass (V6.0.0, latency: 16 ms of per-symbol expert
+    calls per equity tick). Returns `[symbol][expert]`, None for a missing expert, exactly the numbers the per-symbol call
+    returns (the rows are the same matmuls; `tests/test_v600_across_symbols.py` pins them to 1e-12). Falls back to the
+    per-symbol path whenever batching does not apply."""
+    if not input_rows:
+        return []
+    present = [i for i, export in enumerate(model_exports) if export]
+    if len(present) < 2:
+        return [_run_models_individually_with_fallback(model_exports, row) for row in input_rows]
+    architectures = [model_exports[i]["export"]["architecture"] for i in present]
+    if not _architectures_match(architectures):
+        return [_run_models_individually_with_fallback(model_exports, row) for row in input_rows]
+    try:
+        state_dicts = [model_exports[i]["export"]["state_dict"] for i in present]
+        symbols, experts = len(input_rows), len(present)
+        usable = stack_cache if stack_cache is not None and stack_cache.present_indices == present else None
+        base = usable.layer_stacks if usable is not None else build_layer_stacks(architectures[0], state_dicts)
+        stacks = _tiled_cache_for(usable, "flat", lambda: _tiled_stacks(base, symbols), symbols)
+        current = np.repeat(np.asarray(input_rows, dtype=np.float64), experts, axis=0)
+        current = _run_batched_layer_stack(architectures[0], state_dicts * symbols, current, precomputed_stacks=stacks)
+    except Exception:
+        return [run_exported_models_batched(model_exports, row, stack_cache=stack_cache) for row in input_rows]
+    results: list[list[float | None]] = []
+    for symbol_index in range(symbols):
+        row: list[float | None] = [None] * len(model_exports)
+        for position, original_index in enumerate(present):
+            row[original_index] = float(current[symbol_index * experts + position, 0])
+        results.append(row)
+    return results
+
+
+def run_exported_multitask_models_across_symbols(
+    model_exports: list[dict | None],
+    input_rows: list[list[float]],
+    stack_cache: BatchedMultitaskLayerStackCache | None = None,
+) -> list[list[dict[str, float] | None]]:
+    """Multitask experts for every symbol in one pass (`[symbol][expert] -> {head: value}`), the sibling of
+    `run_exported_models_across_symbols`; falls back to the per-symbol path under the same conditions."""
+    if not input_rows:
+        return []
+    present = [i for i, export in enumerate(model_exports) if export]
+    if len(present) < 2:
+        return [_run_multitask_models_individually_with_fallback(model_exports, row) for row in input_rows]
+    exports = [model_exports[i]["export"] for i in present]
+    trunk_architectures = [export["trunk"] for export in exports]
+    head_name_sets = [tuple(sorted(export["heads"].keys())) for export in exports]
+    if not _architectures_match(trunk_architectures) or len(set(head_name_sets)) != 1:
+        return [_run_multitask_models_individually_with_fallback(model_exports, row) for row in input_rows]
+    head_names = head_name_sets[0]
+    head_architectures = {name: [export["heads"][name] for export in exports] for name in head_names}
+    if any(not _architectures_match(archs) for archs in head_architectures.values()):
+        return [_run_multitask_models_individually_with_fallback(model_exports, row) for row in input_rows]
+    try:
+        state_dicts = [export["state_dict"] for export in exports]
+        symbols, experts = len(input_rows), len(present)
+        usable = stack_cache if stack_cache is not None and stack_cache.present_indices == present else None
+        trunk_base = usable.trunk_stacks if usable is not None else build_layer_stacks(trunk_architectures[0], state_dicts)
+        trunk_stacks = _tiled_cache_for(usable, "trunk", lambda: _tiled_stacks(trunk_base, symbols), symbols)
+        tiled_states = state_dicts * symbols
+        current = np.repeat(np.asarray(input_rows, dtype=np.float64), experts, axis=0)
+        trunk_output = _run_batched_layer_stack(trunk_architectures[0], tiled_states, current, precomputed_stacks=trunk_stacks)
+        head_outputs: dict[str, np.ndarray] = {}
+        for name in head_names:
+            head_base = usable.head_stacks_by_name.get(name) if usable is not None else build_layer_stacks(head_architectures[name][0], state_dicts)
+            head_stacks = _tiled_cache_for(usable, f"head:{name}", lambda base=head_base: _tiled_stacks(base, symbols), symbols)
+            head_outputs[name] = _run_batched_layer_stack(head_architectures[name][0], tiled_states, trunk_output.copy(), precomputed_stacks=head_stacks)
+    except Exception:
+        return [run_exported_multitask_models_batched(model_exports, row, stack_cache=stack_cache) for row in input_rows]
+    results: list[list[dict[str, float] | None]] = []
+    for symbol_index in range(symbols):
+        row: list[dict[str, float] | None] = [None] * len(model_exports)
+        for position, original_index in enumerate(present):
+            row[original_index] = {name: float(head_outputs[name][symbol_index * experts + position, 0]) for name in head_names}
+        results.append(row)
+    return results
+
+
 def _softmax(values, axis: int = -1):
     """Numerically stable softmax along `axis` (subtracts the per-axis max
     before exponentiating). Phase 2 primitive - used by

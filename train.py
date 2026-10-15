@@ -734,6 +734,25 @@ DEFAULT_MAX_ABS_RETURN_5D = {"equity": 0.9, "crypto": 2.5}
 DEFAULT_MAX_ABS_RETURN_20D = {"equity": 1.5, "crypto": 4.0}
 
 
+def resolve_extra_horizon_days(config: dict) -> tuple[int, ...]:
+    """`phase1.target.ranking.extra_horizon_days` (V6.0.0): forward-return / rank targets beyond the built-in 5 and 20
+    days (empty = none, the old dataset). The label purge must cover the longest one, or the last rows of a split would
+    carry the next split's prices."""
+    target = config.get("phase1", {}).get("target", {})
+    days = tuple(sorted({int(day) for day in target.get("ranking", {}).get("extra_horizon_days", []) or []} - {5, 20}))
+    purge = int(config.get("phase1", {}).get("windows", {}).get("purge_label_horizon_days", 0) or 0)
+    if days and purge < max(days):
+        raise ValueError(f"purge_label_horizon_days {purge} is shorter than the {max(days)}-day target")
+    return days
+
+
+def extra_horizon_return_bound(horizon_days: int, security_type: str, bounds_20d: dict) -> float:
+    """|forward return| above which an extra-horizon target is treated as a data error: the 20-day bound scaled by
+    sqrt(horizon / 20), like a random walk's spread."""
+    base = float(bounds_20d.get(security_type, bounds_20d.get("equity", 1.5)))
+    return base * float(np.sqrt(horizon_days / 20.0))
+
+
 def engineer_features(
     frame: pd.DataFrame,
     feature_names: list[str],
@@ -743,6 +762,7 @@ def engineer_features(
     max_abs_daily_return: dict | None = None,
     max_abs_return_5d: dict | None = None,
     max_abs_return_20d: dict | None = None,
+    extra_horizon_days: tuple[int, ...] = (),
 ) -> pd.DataFrame:
     result = frame.copy()
     closes = result["close"].tolist()
@@ -900,6 +920,11 @@ def engineer_features(
     result["target_direction_20d"] = np.where(
         result["target_return_20d"].notna(), (result["target_return_20d"] > 0).astype(float), np.nan
     )
+    for horizon_days in extra_horizon_days:
+        column = f"target_return_{horizon_days}d"
+        result[column] = result["close"].shift(-horizon_days) / result["close"] - 1.0
+        bound = extra_horizon_return_bound(horizon_days, security_type, max_abs_return_20d or DEFAULT_MAX_ABS_RETURN_20D)
+        result.loc[result[column].abs() > bound, column] = np.nan
 
     # Next-day realized-volatility proxy for the multitask model's volatility
     # head (train_multitask.py): next day's own high_low_range_pct, already
@@ -2165,7 +2190,7 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     beta_min_observations = int(beta_neutral_config.get("min_observations", DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS))
 
     updated_frames: dict[str, pd.DataFrame] = dict(asset_frames)
-    for horizon_days in (5, 20):
+    for horizon_days in (5, 20) + resolve_extra_horizon_days(config):
         return_column = f"target_return_{horizon_days}d"
         rank_column = f"target_rank_{horizon_days}d"
         sector_neutral_rank_column = f"target_sector_neutral_rank_{horizon_days}d"
@@ -2333,6 +2358,7 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     max_abs_daily_return = target_config.get("max_abs_daily_return", DEFAULT_MAX_ABS_DAILY_RETURN)
     max_abs_return_5d = target_config.get("max_abs_return_5d", DEFAULT_MAX_ABS_RETURN_5D)
     max_abs_return_20d = target_config.get("max_abs_return_20d", DEFAULT_MAX_ABS_RETURN_20D)
+    extra_horizon_days = resolve_extra_horizon_days(config)
 
     apply_factor_files = bool(phase1["universe"].get("apply_factor_files", True))
     asset_frames = {
@@ -2360,6 +2386,7 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
                 max_abs_daily_return=max_abs_daily_return,
                 max_abs_return_5d=max_abs_return_5d,
                 max_abs_return_20d=max_abs_return_20d,
+                extra_horizon_days=extra_horizon_days,
             )
         else:
             # add_liquidity_features() runs on the RAW frame (before
@@ -2376,6 +2403,7 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
                 max_abs_daily_return=max_abs_daily_return,
                 max_abs_return_5d=max_abs_return_5d,
                 max_abs_return_20d=max_abs_return_20d,
+                extra_horizon_days=extra_horizon_days,
             )
         engineered_frames[ticker] = engineered
         asset_summaries.append(
@@ -3065,6 +3093,7 @@ class AetherNetMultiTaskHorizons(nn.Module):
         dropout: float,
         activation: str = "relu",
         normalization: str = "none",
+        extra_heads: tuple[str, ...] = (),
     ) -> None:
         super().__init__()
         layers: list[nn.Module] = []
@@ -3104,10 +3133,16 @@ class AetherNetMultiTaskHorizons(nn.Module):
         self.head_residual_rank_5d = nn.Linear(current_dim, 1)
         self.head_residual_rank_20d = nn.Linear(current_dim, 1)
         self.head_beta_neutral_rank_20d = nn.Linear(current_dim, 1)
+        # V6.0.0: heads from EXTRA_HORIZON_HEAD_SPECS, built last so the default model's parameters (and their random
+        # initialisation order) are unchanged when none is enabled.
+        self.extra_heads = tuple(extra_heads)
+        for name in self.extra_heads:
+            setattr(self, f"head_{name}", nn.Linear(current_dim, 1))
 
     def forward(self, features: torch.Tensor) -> dict[str, torch.Tensor]:
         trunk_output = self.trunk(features)
-        return {
+        extra = {name: getattr(self, f"head_{name}")(trunk_output).squeeze(-1) for name in self.extra_heads}
+        return extra | {
             "direction": self.head_direction(trunk_output).squeeze(-1),
             "magnitude": self.head_magnitude(trunk_output).squeeze(-1),
             "volatility": nn.functional.softplus(self.head_volatility(trunk_output).squeeze(-1)),
@@ -4792,6 +4827,22 @@ HORIZON_HEAD_SPECS = {
     # fully dead code and gets full metrics on a one-key config flip.
     "beta_neutral_rank_20d": ("target_beta_neutral_rank_20d", "rank", 20),
 }
+# V6.0.0: heads that exist only when a trainer's horizon_heads block enables them (and the dataset carries the target,
+# phase1.target.ranking.extra_horizon_days); never part of the default model, export or metrics.
+EXTRA_HORIZON_HEAD_SPECS = {
+    "rank_60d": ("target_rank_60d", "rank", 60),
+}
+
+
+def enabled_extra_heads(horizon_head_config: dict) -> tuple[str, ...]:
+    return tuple(name for name in EXTRA_HORIZON_HEAD_SPECS if horizon_head_config.get(name, {}).get("enabled", False))
+
+
+def horizon_head_specs(horizon_head_config: dict) -> dict:
+    """HORIZON_HEAD_SPECS plus every enabled extra head (identical to HORIZON_HEAD_SPECS when none is)."""
+    return HORIZON_HEAD_SPECS | {name: EXTRA_HORIZON_HEAD_SPECS[name] for name in enabled_extra_heads(horizon_head_config)}
+
+
 DEFAULT_HORIZON_HEAD_CONFIG = {
     "direction_5d": {"enabled": True, "loss_weight": 1.0},
     "direction_20d": {"enabled": True, "loss_weight": 0.5},
@@ -4824,6 +4875,9 @@ def resolve_horizon_head_config(training_config: dict) -> dict:
     for head_name, defaults in DEFAULT_HORIZON_HEAD_CONFIG.items():
         head_config = {**defaults, **configured.get(head_name, {})}
         resolved[head_name] = head_config
+    for head_name in EXTRA_HORIZON_HEAD_SPECS:
+        if head_name in configured:
+            resolved[head_name] = {"enabled": False, "loss_weight": 0.0, **configured[head_name]}
     return resolved
 
 
@@ -4951,7 +5005,7 @@ def compute_combined_multitask_loss(
         + volatility_loss_weight * nn.functional.mse_loss(outputs["volatility"], targets["volatility"])
     )
     use_ranking_loss = date_group_ids is not None and ranking_loss_config is not None
-    for head_name, (_column, kind, _stride) in HORIZON_HEAD_SPECS.items():
+    for head_name, (_column, kind, _stride) in horizon_head_specs(horizon_head_config).items():
         head_config = horizon_head_config[head_name]
         if not head_config.get("enabled", True):
             continue
@@ -5124,6 +5178,10 @@ def export_multitask_horizons_architecture(model: AetherNetMultiTaskHorizons) ->
             "beta_neutral_rank_20d": _export_head(
                 model.head_beta_neutral_rank_20d, "head_beta_neutral_rank_20d", None
             ),
+        }
+        | {
+            name: _export_head(getattr(model, f"head_{name}"), f"head_{name}", None)
+            for name in getattr(model, "extra_heads", ())
         },
     }
 

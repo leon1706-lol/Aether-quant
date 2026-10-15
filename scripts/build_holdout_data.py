@@ -1,15 +1,18 @@
-"""Fetch the out-of-window holdout data (V5.7.0, todo.md finding 10) into a SEPARATE root, `data_holdout/`.
+"""Fetch Yahoo-adjusted bars for every universe asset into a staging root (V5.7.0 holdout fetcher, V5.8.0 data refresh).
 
 Every trained model and every lever was tuned on 2014-12..2021-03; only the 2018 validation year is independent, and it
 is thin. This fetches Yahoo (already split/dividend-adjusted) daily bars for every universe asset from `--start` to
 `--end` (default 2014-06-01..2025-06-30), writes them as Lean-format zips at the same relative paths under
-`data_holdout/`, and re-fetches every FRED series the features read (bond, alt-data, FX rates) through the same end date
-into `data_holdout/reference/fred_series/`. Nothing under `data/` is touched, so the trained models, the dataset and
+`--root`, and re-fetches every FRED series the features read (bond, alt-data, FX rates) through the same end date
+into `<root>/reference/fred_series/`. Nothing under `data/` is touched, so the trained models, the dataset and
 Lean backtests stay exactly as they were; the holdout is evaluation-only (`scripts/build_holdout_dataset.py`).
 
 Assets Yahoo cannot serve (delisted, renamed) are skipped and listed - the holdout universe is whatever survives.
 
-    python scripts/build_holdout_data.py [--start 2014-06-01] [--end 2025-06-30] [--root data_holdout] [--apply]
+    python scripts/build_holdout_data.py [--start 2014-06-01] [--end 2025-06-30] [--root data_v6_staging] [--apply]
+
+V6.0.0: `data_holdout/` was deleted (the holdout lives inside `data/` since V5.8.0); the default root is a staging folder
+that `aq evaluate --audit-data --data-root` checks before anything is copied over `data/`.
 
 Dry run by default (fetches and reports, writes nothing).
 """
@@ -62,7 +65,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--start", default="2014-06-01")
     parser.add_argument("--end", default="2025-06-30")
-    parser.add_argument("--root", default="data_holdout")
+    parser.add_argument("--root", default="data_v6_staging")
     parser.add_argument("--apply", action="store_true", help="write the zips and FRED cache (default: dry run)")
     parser.add_argument("--tickers", nargs="*", default=None)
     parser.add_argument(

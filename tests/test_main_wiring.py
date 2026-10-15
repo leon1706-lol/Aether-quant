@@ -82,8 +82,12 @@ def _algorithm(main_module, **overrides):
         forex_sleeve_min_trade_usd=0.0,
         limit_orders_enabled=True,
         limit_orders_asset_classes={"equity"},
+        limit_order_exit_asset_classes=set(),
+        option_positions_by_symbol={},
         limit_order_offset_multiplier=1.0,
         limit_order_unfilled_timeout_bars=3,
+        limit_order_offset_by_class={},
+        limit_order_timeout_by_class={},
         pending_limit_orders={},
         latest_liquidity_by_symbol={},
         _pending_entries_this_bar=set(),
@@ -313,6 +317,77 @@ def test_limit_orders_stay_off_for_asset_classes_not_configured(main_module):
     algorithm = _limit_algorithm(main_module)
     assert algorithm._try_submit_limit_order("EURUSD", "EURUSD", "forex", is_buy=True, target_weight=0.05, close_price=1.1) is False
     assert algorithm.submitted == []
+
+
+# ---------------------------------------------------------------- V6.0.0: limit exits for the configured classes
+
+
+def _exit_algorithm(main_module, exit_classes, quantity=10.0, asset_class="crypto"):
+    held = _Portfolio({"BTCUSD": _holding("BTCUSD", quantity, value=500.0)})
+    algorithm = _limit_algorithm(
+        main_module, Portfolio=held, limit_orders_asset_classes={"equity", "crypto"}, limit_order_exit_asset_classes=set(exit_classes),
+        asset_lookup={"BTCUSD": {"asset_class": asset_class, "security_type": asset_class}}, option_positions_by_symbol={},
+        simulated_liquidations=[],
+    )
+    return algorithm
+
+
+def _sell(algorithm, reason):
+    return algorithm._apply_signal("BTCUSD", "sell", 0.0, 100.0, {}, is_forced_exit=reason != "model_sell", exit_reason=reason)
+
+
+def test_a_crypto_exit_rests_as_a_limit_order_only_when_the_class_is_configured(main_module):
+    off = _exit_algorithm(main_module, [])
+    assert _sell(off, "rotation") == "liquidated_on_sell" and off.liquidated == ["BTCUSD"] and off.submitted == []
+    on = _exit_algorithm(main_module, ["crypto"])
+    assert _sell(on, "rotation") == "submitted_limit_exit"
+    assert on.liquidated == [] and on.submitted == [("BTCUSD", -10.0, 100.0)]
+    assert on.pending_limit_orders["BTCUSD"]["direction"] == "sell"
+
+
+def test_a_risk_exit_stays_a_market_order_even_for_a_configured_class(main_module):
+    for reason in ("trailing_stop_triggered", "sleeve_guard"):
+        algorithm = _exit_algorithm(main_module, ["crypto"])
+        assert _sell(algorithm, reason) == "liquidated_on_sell"
+        assert algorithm.liquidated == ["BTCUSD"] and algorithm.submitted == []
+
+
+def test_the_same_exit_on_the_next_bar_keeps_the_resting_order_and_a_timeout_replaces_it(main_module):
+    algorithm = _exit_algorithm(main_module, ["crypto"])
+    _sell(algorithm, "model_sell")
+    algorithm.bar_index = 101
+    assert _sell(algorithm, "model_sell") == "submitted_limit_exit"
+    assert len(algorithm.submitted) == 1  # one order per symbol (#128)
+    algorithm.bar_index = 103
+    _sell(algorithm, "model_sell")
+    assert len(algorithm.submitted) == 2 and algorithm.cancelled == [1]
+
+
+def test_covering_a_short_buys_to_close_with_a_limit_below_the_market(main_module):
+    algorithm = _exit_algorithm(main_module, ["crypto"], quantity=-4.0)
+    assert _sell(algorithm, "max_holding_age_exceeded") == "submitted_limit_exit"
+    assert algorithm.submitted == [("BTCUSD", 4.0, 100.0)]
+    assert algorithm.pending_limit_orders["BTCUSD"]["direction"] == "buy"
+
+
+def test_a_class_with_its_own_offset_and_timeout_uses_them_and_other_classes_keep_the_globals(main_module):
+    held = _Portfolio({"BTCUSD": _holding("BTCUSD", 10.0, value=500.0)})
+    algorithm = _limit_algorithm(
+        main_module, Portfolio=held, limit_orders_asset_classes={"equity", "crypto"}, limit_order_exit_asset_classes={"crypto"},
+        asset_lookup={"BTCUSD": {"asset_class": "crypto", "security_type": "crypto"}, "AMZN": {"asset_class": "equity", "security_type": "equity"}},
+        option_positions_by_symbol={}, limit_order_offset_by_class={"crypto": 0.0}, limit_order_timeout_by_class={"crypto": 5},
+        latest_liquidity_by_symbol={"BTCUSD": {"spread_proxy": 0.01}, "AMZN": {"spread_proxy": 0.01}},
+    )
+    algorithm._apply_signal("BTCUSD", "sell", 0.0, 100.0, {}, is_forced_exit=True, exit_reason="rotation")
+    assert algorithm.submitted[-1] == ("BTCUSD", -10.0, 100.0)  # offset 0: the limit sits at the last close, no half-spread
+    algorithm.bar_index = 104  # 4 bars on: inside the crypto timeout of 5, past the global 3
+    algorithm._apply_signal("BTCUSD", "sell", 0.0, 100.0, {}, is_forced_exit=True, exit_reason="rotation")
+    assert len(algorithm.submitted) == 1 and algorithm.cancelled == []  # the resting order is kept
+    algorithm.bar_index = 105
+    algorithm._apply_signal("BTCUSD", "sell", 0.0, 100.0, {}, is_forced_exit=True, exit_reason="rotation")
+    assert len(algorithm.submitted) == 2 and algorithm.cancelled == [1]  # timed out at 5: cancelled and replaced
+    equity_ticket = algorithm._try_submit_limit_order("AMZN", "AMZN", "equity", is_buy=True, target_weight=0.05, close_price=100.0)
+    assert equity_ticket is True and algorithm.submitted[-1][2] == pytest.approx(99.5)  # the global offset 1.0 x half of 1%
 
 
 # ---------------------------------------------------------------- exit tracking adopts fills that land a bar late

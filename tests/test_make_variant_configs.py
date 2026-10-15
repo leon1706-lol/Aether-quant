@@ -31,6 +31,9 @@ def test_every_variant_differs_from_the_shipped_config_only_in_its_documented_ke
     for name, config in built.items():
         changed = {path for path, value in _flatten(config) if base_flat.get(path) != value}
         expected = {variants.MULTITASK_PATH + path for path, _ in variants.VARIANTS[name]}
+        for path, value in variants.NEW_MODEL_KEYS.get(name, []):
+            expected |= {variants.MULTITASK_PATH + path + leaf for leaf, _ in _flatten(value)}
+        expected |= {path for path, _ in variants.GLOBAL_CHANGES.get(name, [])}
         assert changed == expected, name
     assert base == json.loads((ROOT / "config.json").read_text(encoding="utf-8"))  # the base is never mutated
 
@@ -38,6 +41,7 @@ def test_every_variant_differs_from_the_shipped_config_only_in_its_documented_ke
 def test_the_same_variants_apply_to_the_sequence_model():
     base = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     built = variants.build_variant_configs(base, "sequence")
+    assert set(built) == set(variants.VARIANTS) - variants.MULTITASK_ONLY
     for name, config in built.items():
         node = config["phase_v2"]["retraining"]["sequence_training"]
         control = base["phase_v2"]["retraining"]["sequence_training"]
@@ -51,3 +55,13 @@ def test_a_typo_in_a_variant_key_fails_loudly():
         variants.apply_changes(base, [(("gate_aware_ranking_weights", "enabld"), False)])
     with pytest.raises(KeyError):
         variants.apply_changes(base, [(("no_such_block", "enabled"), False)])
+
+
+def test_the_60_day_variant_sets_its_target_purge_and_head():
+    base = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    config = variants.build_variant_configs(base)["v8_rank60"]
+    assert config["phase1"]["target"]["ranking"]["extra_horizon_days"] == [60]
+    assert config["phase1"]["windows"]["purge_label_horizon_days"] == 60
+    head = config["phase_v2"]["retraining"]["multitask_training"]["horizon_heads"]["rank_60d"]
+    assert head == {"enabled": True, "loss_weight": 1.0}
+    assert "extra_horizon_days" not in base["phase1"]["target"]["ranking"]

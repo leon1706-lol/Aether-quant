@@ -71,9 +71,10 @@ def run_audit_gates(config: dict, *, split: str, dataset_path: str | None = None
 
 def run_audit_data(config: dict, *, data_root: Path, start: str | None = None, end: str | None = None,
                    write_manifest: bool = True) -> dict:
-    from data_pipeline.data_audit import audit_universe, build_data_manifest
+    from data_pipeline.data_audit import audit_non_daily_files, audit_universe, build_data_manifest
 
     report = audit_universe(config, data_root, start=start, end=end)
+    report["non_daily_files"] = audit_non_daily_files(config, data_root)
     if write_manifest:
         manifest = build_data_manifest(data_root)
         manifest_path = Path(data_root) / "manifest_v580.json"

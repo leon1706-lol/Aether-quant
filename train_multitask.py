@@ -71,7 +71,9 @@ from train import (
     compute_purged_cv_rank_ic_diagnostic,
     compute_rank_ic,
     compute_regression_metrics,
+    enabled_extra_heads,
     export_multitask_horizons_architecture,
+    horizon_head_specs,
     export_state_dict,
     find_optimal_masked_threshold,
     find_optimal_threshold,
@@ -151,7 +153,9 @@ def multitask_candidate_output_paths(version_id: str) -> dict[str, Path]:
     }
 
 
-def frame_to_multitask_tensors(frame: pd.DataFrame, feature_names: list[str]) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+def frame_to_multitask_tensors(
+    frame: pd.DataFrame, feature_names: list[str], head_specs: dict | None = None
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Returns (features, targets) where targets is a dict keyed by head
     name - direction/magnitude/volatility are never NaN (engineer_features()'s
     required_columns dropna already guarantees this), the 4 horizon heads
@@ -163,7 +167,7 @@ def frame_to_multitask_tensors(frame: pd.DataFrame, feature_names: list[str]) ->
         "magnitude": torch.tensor(frame["target_return_1d"].to_numpy(dtype=np.float32), dtype=torch.float32),
         "volatility": torch.tensor(frame["target_volatility_next_day"].to_numpy(dtype=np.float32), dtype=torch.float32),
     }
-    for head_name, (column, _kind, _stride) in HORIZON_HEAD_SPECS.items():
+    for head_name, (column, _kind, _stride) in (head_specs or HORIZON_HEAD_SPECS).items():
         targets[head_name] = torch.tensor(frame[column].to_numpy(dtype=np.float32), dtype=torch.float32)
     return features, targets
 
@@ -200,7 +204,7 @@ def compute_multitask_metrics(
         "magnitude": compute_regression_metrics(outputs["magnitude"], targets["magnitude"]),
         "volatility": compute_regression_metrics(outputs["volatility"], targets["volatility"]),
     }
-    for head_name, (_column, kind, stride) in HORIZON_HEAD_SPECS.items():
+    for head_name, (_column, kind, stride) in horizon_head_specs(horizon_head_config).items():
         if not horizon_head_config[head_name].get("enabled", True):
             metrics[head_name] = None
             continue
@@ -361,7 +365,8 @@ def main() -> int:
         if missing_columns:
             LOGGER.info("train_multitask: dataset missing columns %s - skipping.", sorted(missing_columns))
             return 0
-        for head_name, (column, _kind, _stride) in HORIZON_HEAD_SPECS.items():
+        head_specs = horizon_head_specs(horizon_head_config)
+        for head_name, (column, _kind, _stride) in head_specs.items():
             if column not in dataset.columns:
                 dataset[column] = np.nan
                 horizon_head_config[head_name] = {**horizon_head_config[head_name], "enabled": False}
@@ -391,8 +396,8 @@ def main() -> int:
         set_seed(seed)
         device = torch.device("cpu")
 
-        train_features, train_targets = frame_to_multitask_tensors(train_frame, feature_names)
-        validation_features, validation_targets = frame_to_multitask_tensors(validation_frame, feature_names)
+        train_features, train_targets = frame_to_multitask_tensors(train_frame, feature_names, head_specs)
+        validation_features, validation_targets = frame_to_multitask_tensors(validation_frame, feature_names, head_specs)
         validation_features = validation_features.to(device)
         validation_targets = {name: tensor.to(device) for name, tensor in validation_targets.items()}
 
@@ -441,6 +446,7 @@ def main() -> int:
             dropout=dropout,
             activation=activation,
             normalization=normalization,
+            extra_heads=enabled_extra_heads(horizon_head_config),
         ).to(device)
 
         # V5.1 Phase 3 (item 11) - "adam" is build_optimizer()'s own
@@ -494,7 +500,7 @@ def main() -> int:
         monitor_rank_ic = (
             early_stop_metric in ("rank_ic", "rank_ic_non_overlapping")
             and early_stop_head in horizon_head_config
-            and early_stop_head in HORIZON_HEAD_SPECS
+            and early_stop_head in head_specs
             and horizon_head_config[early_stop_head].get("enabled", True)
         )
         monitored_metric_key = f"validation_{early_stop_head}_mean_ic"
@@ -591,7 +597,7 @@ def main() -> int:
 
             validation_head_ic = None
             if monitor_rank_ic:
-                _column, _kind, head_stride = HORIZON_HEAD_SPECS[early_stop_head]
+                _column, _kind, head_stride = head_specs[early_stop_head]
                 non_overlapping_stride = head_stride if early_stop_metric == "rank_ic_non_overlapping" else 1
                 validation_head_ic = compute_rank_ic(
                     validation_outputs[early_stop_head],
@@ -667,7 +673,7 @@ def main() -> int:
         # validation logit distribution - see find_optimal_masked_threshold()'s
         # docstring for why reusing the primary head's threshold is wrong.
         head_thresholds = {"direction": tuned_threshold}
-        for head_name, (_column, kind, _stride) in HORIZON_HEAD_SPECS.items():
+        for head_name, (_column, kind, _stride) in head_specs.items():
             if kind != "binary" or not horizon_head_config[head_name].get("enabled", True):
                 continue
             head_threshold, _head_metrics = find_optimal_masked_threshold(
@@ -683,7 +689,7 @@ def main() -> int:
 
         train_features_device = train_features.to(device)
         train_targets_device = {name: tensor.to(device) for name, tensor in train_targets.items()}
-        backtest_features, backtest_targets = frame_to_multitask_tensors(backtest_frame, feature_names)
+        backtest_features, backtest_targets = frame_to_multitask_tensors(backtest_frame, feature_names, head_specs)
         backtest_features = backtest_features.to(device)
         backtest_targets = {name: tensor.to(device) for name, tensor in backtest_targets.items()}
 

@@ -476,3 +476,16 @@ def resolve_lean_window(runtime: dict | None, windows: dict) -> tuple[tuple[int,
         return year, month, day
 
     return _parts(start), _parts(end)
+
+
+def resolve_benchmark_ticker(runtime: dict | None, universe_tickers) -> str | None:
+    """Ticker Lean's benchmark should follow (`runtime.benchmark_ticker`), or None to keep Lean's default.
+
+    Lean's default benchmark is an internal HOUR SPY feed; the local hourly zip is Lean's sample file and ends 2021-03-31,
+    so every later run charted a constant benchmark. Pointing the benchmark at the daily universe subscription fixes that
+    without a second feed; a ticker outside the universe falls back to the default rather than adding a subscription."""
+    ticker = (runtime or {}).get("benchmark_ticker")
+    if not ticker:
+        return None
+    wanted = str(ticker).upper()
+    return next((str(t) for t in universe_tickers if str(t).upper() == wanted), None)

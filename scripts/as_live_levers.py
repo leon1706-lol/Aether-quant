@@ -34,10 +34,12 @@ MODEL_FINGERPRINT_FILES = (
 )
 
 
-def _fingerprint(config: dict, dataset_path: Path) -> str:
+def _fingerprint(config: dict, dataset_path: Path, ml_dir: Path = ML_DIR) -> str:
     digest = hashlib.sha1()
+    if ml_dir != ML_DIR:
+        digest.update(str(ml_dir.resolve()).encode())
     for name in MODEL_FINGERPRINT_FILES:
-        path = ML_DIR / name
+        path = ml_dir / name
         digest.update(f"{name}:{path.stat().st_size if path.exists() else 0}:{int(path.stat().st_mtime) if path.exists() else 0}".encode())
     digest.update(f"dataset:{dataset_path.stat().st_size}:{int(dataset_path.stat().st_mtime)}".encode())
     digest.update(json.dumps(config.get("phase_v2", {}).get("rank_signal", {}), sort_keys=True).encode())
@@ -49,17 +51,18 @@ class AsLiveHarness:
 
     def __init__(
         self, split: str, *, use_cache: bool = True, dataset_path: str | Path | None = None, rl_model_path: str | Path | None = None,
-        topology_inputs_fn=None,
+        topology_inputs_fn=None, ml_dir: str | Path | None = None, config: dict | None = None,
     ):
         from aq_cli import _blend_raw_scores_for_dataset, _core_quality_tickers, _universe_asset_metadata
         from evaluation.live_parity import LATE_BAR_ASSET_CLASSES, build_candidate_metadata, lag_predictions_for_tickers
-        from execution.cost_model import commission_bps_by_ticker
+        from execution.cost_model import commission_bps_by_ticker, min_commission_usd_by_ticker
         from features import load_sector_mapping
 
         self.split = split
+        splits = (split,) if isinstance(split, str) else tuple(split)  # V6.0.0: e.g. ("backtest", "holdout") for one Lean run
         self.rl_model_path = str(rl_model_path) if rl_model_path else None
         self.topology_inputs_fn = topology_inputs_fn
-        self.config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
+        self.config = config if config is not None else json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
         ranking = self.config["phase1"]["target"]["ranking"]
         net_perf = ranking["net_performance"]
         dataset_path = Path(dataset_path) if dataset_path else ML_DIR / "datasets" / "full_dataset.csv"
@@ -67,18 +70,19 @@ class AsLiveHarness:
         # confidence the sizing chain reads) runs over every symbol with features, eligible or not. Read in chunks
         # and keep only this split's rows: the whole 250-column file is ~0.5 GB resident on the 4 GB dev PC (V5.8.0).
         parts = [
-            chunk[chunk["split"] == split]
+            chunk[chunk["split"].isin(splits)]
             for chunk in pd.read_csv(dataset_path, chunksize=40_000)
         ]
         dataset = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
         del parts
         window = int(self.config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30))
 
-        cache_path = CACHE_DIR / f"live_rank_score_allrows_{split}_{_fingerprint(self.config, dataset_path)}.npy"
+        self.ml_dir = Path(ml_dir) if ml_dir else ML_DIR
+        cache_path = CACHE_DIR / f"live_rank_score_allrows_{'+'.join(splits)}_{_fingerprint(self.config, dataset_path, self.ml_dir)}.npy"
         if use_cache and cache_path.exists():
             raw_scores = np.load(cache_path)
         else:
-            raw_scores, _policy = _blend_raw_scores_for_dataset(dataset, self.config, window)
+            raw_scores, _policy = _blend_raw_scores_for_dataset(dataset, self.config, window, ml_dir=self.ml_dir)
             raw_scores = np.asarray(raw_scores, dtype=float)
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             np.save(cache_path, raw_scores)
@@ -94,6 +98,9 @@ class AsLiveHarness:
         self.core_crypto = _core_quality_tickers()
         self.frame = dataset
         self.frame["live_rank_score"] = raw_scores
+        from evaluation.live_parity import add_next_intraday_return
+
+        add_next_intraday_return(self.frame)
         late = {t for t, kind in self.asset_class_by_ticker.items() if kind in LATE_BAR_ASSET_CLASSES}
         self.lagged_frame = lag_predictions_for_tickers(self.frame, prediction_column="live_rank_score", tickers=late)
         security_types = {str(a["ticker"]): str(a["security_type"]) for a in self.config["phase1"]["universe"]["assets"]}
@@ -109,6 +116,14 @@ class AsLiveHarness:
             min_universe_size=int(ranking.get("min_universe_size", 20)),
             commission_bps_by_ticker=commission_bps_by_ticker(self.config["phase_v2"].get("costs", {}), security_types) or None,
         )
+        # V6.0.0: the broker's per-order dollar floor at the live NAV (used when an as-live run asks for it).
+        self.min_commission_usd_by_ticker = min_commission_usd_by_ticker(self.config["phase_v2"].get("costs", {}), security_types)
+        # V6.0.0: live's cadence counts equity sessions only; the as-live runs rebalance on those dates.
+        equity_tickers = {ticker for ticker, kind in security_types.items() if kind == "equity"}
+        self.session_dates = {
+            str(date) for date in self.frame.loc[self.frame["ticker"].astype(str).isin(equity_tickers), "date"].unique()
+        }
+        self.initial_cash = float(self.config.get("runtime", {}).get("initial_cash", 100_000.0))
         self.phase_v2 = self.config["phase_v2"]
         self.ic_config = dict(self.phase_v2.get("rolling_ic_gate", {}))
         self._states: dict = {}
@@ -204,10 +219,19 @@ class AsLiveHarness:
             max_position_weight=float(config.get("phase6", {}).get("risk", {}).get("max_position_weight", 0.25)),
             candidate_metadata=self.metadata, rolling_ic_gate_fn=gate_fn, topology_config=phase_v2.get("topology", {}),
             rank_group_by_ticker=self.rank_groups, venue_listing_dates=self.venue_listing_dates,
-            class_weight_caps=resolve_class_weight_caps(phase_v2.get("class_weight_caps")), **mechanisms,
+            class_weight_caps=resolve_class_weight_caps(phase_v2.get("class_weight_caps")),
+            resize_threshold_weight=_resize_threshold(phase_v2),
+            trade_cooldown_bars=int(config.get("phase6", {}).get("risk", {}).get("trade_cooldown_bars", 0)),
+            **mechanisms,
         )
+        kwargs["rebalance_session_dates"] = self.session_dates
         kwargs.update(overrides)
         return simulate_rank_book(frame, **kwargs)
+
+
+def _resize_threshold(phase_v2: dict) -> float:
+    scaling = phase_v2.get("functionality", {}).get("position_scaling", {})
+    return float(scaling.get("rebalance_threshold_weight", 0.03)) if scaling.get("enabled", False) else 0.0
 
 
 def add_split_dataset_args(parser) -> None:

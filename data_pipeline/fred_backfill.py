@@ -187,6 +187,26 @@ def cache_csv_to_rows(text: str) -> list[dict]:
     return rows
 
 
+# V6.0.0 (latency): the as-of lookups re-sorted the whole series (~8,000 daily rows) on every call, several times per tick.
+# The sorted (dates, values) of a list is built once and reused while the list is unchanged. The cache keeps the list itself
+# alive, so its id cannot be reused by another list, and a changed length rebuilds the entry.
+_SORTED_INDEX_CACHE: dict[int, tuple[list[dict], int, list, list]] = {}
+_SORTED_INDEX_CACHE_MAX = 256
+
+
+def _sorted_index(rows: list[dict]) -> tuple[list, list]:
+    entry = _SORTED_INDEX_CACHE.get(id(rows))
+    if entry is not None and entry[0] is rows and entry[1] == len(rows):
+        return entry[2], entry[3]
+    ordered = sorted(rows, key=lambda row: row["date"])
+    dates = [row["date"] for row in ordered]
+    values = [row["value"] for row in ordered]
+    if len(_SORTED_INDEX_CACHE) >= _SORTED_INDEX_CACHE_MAX:
+        _SORTED_INDEX_CACHE.clear()
+    _SORTED_INDEX_CACHE[id(rows)] = (rows, len(rows), dates, values)
+    return dates, values
+
+
 def series_value_asof(rows: list[dict], current_date, publication_lag_days: int = 0) -> float | None:
     """Most recent observation whose value was PUBLISHED on or before
     current_date - the shared, publication-lag-aware as-of lookup for
@@ -217,9 +237,7 @@ def series_value_asof(rows: list[dict], current_date, publication_lag_days: int 
         return None
     target = current_date.date() if hasattr(current_date, "date") else current_date
     effective_date = target - timedelta(days=publication_lag_days)
-    ordered = sorted(rows, key=lambda row: row["date"])
-    dates = [row["date"] for row in ordered]
-    values = [row["value"] for row in ordered]
+    dates, values = _sorted_index(rows)
     position = bisect.bisect_right(dates, effective_date)
     if position == 0:
         return None
@@ -248,9 +266,7 @@ def series_change_asof(
         return None
     target = current_date.date() if hasattr(current_date, "date") else current_date
     effective_date = target - timedelta(days=publication_lag_days)
-    ordered = sorted(rows, key=lambda row: row["date"])
-    dates = [row["date"] for row in ordered]
-    values = [row["value"] for row in ordered]
+    dates, values = _sorted_index(rows)
     position = bisect.bisect_right(dates, effective_date)
     prior_index = position - 1 - periods_back
     if position == 0 or prior_index < 0:

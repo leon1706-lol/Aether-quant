@@ -196,6 +196,7 @@ model_input_timing.log
 
 # V5.7.0: out-of-window holdout data (scripts/build_holdout_data.py) and the runtime forex sizing log
 data_holdout/
+data_v6_staging/
 visualization/book_history/
 visualization/forex_order_sizing.jsonl
 backtests_invalid/

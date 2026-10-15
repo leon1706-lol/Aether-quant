@@ -57,7 +57,7 @@ aether-quant/
 ├── train_strategy_selector.py   # Offline trainer for the options strategy-selector model (dormant until options trade)
 ├── generate_backtest_report.py  # Regenerates the README's Backtest Results section
 ├── generate_evaluation_report.py # Regenerates the README's evaluation sections (Monte Carlo chart, benchmarks, ...)
-├── risk_controls.py             # Pure position-scaling / exit-tracking / forex-units helpers (+ V5.5.0 cooldown exemption, pending-quantity projection, exit adoption)
+├── risk_controls.py             # (V6.0.0: + `resolve_benchmark_ticker`) Pure position-scaling / exit-tracking / forex-units helpers (+ V5.5.0 cooldown exemption, pending-quantity projection, exit adoption)
 ├── performance_probe.py         # V5.5.0 stdlib-only timing probe + Lean teardown diagnostics/cleanup experiment
 ├── todo.md                      # Owner's live objectives canvas (read first; rewritten as objectives change)
 ├── aq_cli.py                    # `aq` convenience CLI

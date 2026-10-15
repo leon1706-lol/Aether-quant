@@ -641,3 +641,13 @@ def test_lean_window_defaults_to_the_backtest_split_and_honours_the_override():
     override = {"lean_window_override": {"start": "2023-07-01", "end": "2026-09-30"}}
     assert resolve_lean_window(override, windows) == ((2023, 7, 1), (2026, 9, 30))
     assert resolve_lean_window({"lean_window_override": {"end": "2026-01-15"}}, windows) == ((2023, 7, 1), (2026, 1, 15))
+
+
+def test_benchmark_ticker_must_be_in_the_universe():
+    from risk_controls import resolve_benchmark_ticker
+
+    universe = ["AAPL", "SPY", "BTCUSD"]
+    assert resolve_benchmark_ticker({}, universe) is None
+    assert resolve_benchmark_ticker({"benchmark_ticker": None}, universe) is None
+    assert resolve_benchmark_ticker({"benchmark_ticker": "spy"}, universe) == "SPY"
+    assert resolve_benchmark_ticker({"benchmark_ticker": "QQQ"}, universe) is None

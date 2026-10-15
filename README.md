@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-3424%2F3424%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3424 of 3424 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-3535%2F3535%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3535 of 3535 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -63,7 +63,7 @@ features) but remain **data-empty until an Interactive Brokers key is
 connected** (`phase_v2.ib.enabled`, see `aq ib status`/`aq assets
 status`). Remaining, still-open items:
 
-- **No demonstrated out-of-sample edge (V5.8.0, the honest status)**: the retrained models have a positive in-window rank IC (+0.0525 over 12 walk-forward windows), but the one-look holdout (2025-07..2026-09) shows head ICs of +0.02..+0.04 at t < 1.5 and an idealized book at −0.81 Sharpe. In Lean, BT1 lost 5.0% and, after the regime-input fix, BT2 over 2023-07..2026-09 ended at **−0.58% (drawdown 4.3%, $1,614 gross against $2,195 of costs)**, +1.04% on the backtest stretch and −1.61% on the holdout stretch (`development/Problems.md` #169, #172–#174). The gates, sleeve caps and kill switch keep the loss small; they do not create alpha, and the offline as-live Sharpe is not a forecast of Lean. **Paper trading only until a paper period says otherwise; no live capital.**
+- **No demonstrated out-of-sample edge (V6.0.0, the honest status)**: the retrained models have a positive in-window rank IC (+0.0525 over 12 walk-forward windows), but the one-look holdout (2025-07..2026-09) shows head ICs of +0.02..+0.04 at t < 1.5 and an idealized book at −0.81 Sharpe. Over the same Lean span V5.8.0 ended at −0.58%; the V6 config (a book that rebalances every 20 bars, crypto limit exits, no forex sleeve, a real Lean benchmark) ended at **+6.72% (BT1) and +5.28% (BT2), drawdown 5.4–5.5%, fees $1,061 / $963 against $2,195** (`development/Problems.md` #185, #186). The gain sits in the holdout stretch, a window already seen (+8.4% / +7.0%); on the 2023-07..2025-06 stretch both V6 runs lost 1.5–1.6% and breached the 5% drawdown limit, and two runs of the same book differ by $2k of main-book P&L from one routing change: one Lean path cannot rank configs at this precision. The gates, sleeve caps and kill switch keep the loss small; they do not create alpha, and the offline simulator, now calibrated to a daily correlation of 0.5–0.7 with Lean's main book, is still not a forecast of it (#176). **Paper trading only until a paper period says otherwise; no live capital.**
 - **The execution fixes are backtest-verified, the edge is thin and untested out of window**: V5.7.0's final Lean run (2026-10-11, 2019-01..2021-03) scores Sharpe +0.47 (+1.15 without a risk-free rate, +8.64% net, 2.8% drawdown), up from −0.04 (+0.66) in V5.6.0, on a book that engages on only 47 of 192 rebalances (`development/Problems.md` #145–#154). The same models score a *positive* rank IC on a 2021-04..2025-06 holdout (+0.055 at 5 days) but the gated book loses there (Sharpe −0.21), the retrain with leakage fixes did not beat them, forex has no within-pool rank edge and RL sizing is negative for the fifth time (#150, #151). Treat the Lean number as in-sample (the gates were tuned on that window); the offline numbers below describe the book, not a live result.
 - **IB is unverified end-to-end**: futures margin uses a static reference file by default; an opt-in live (Lean/IB-calibrated) margin source exists (`phase_v2.futures_risk.margin_source`, see `development/Problems.md` #67) but, like the connection itself, has never been tested against a real Gateway. All 43 option structures (#38, #59) are unverified for the same reason, no option/future asset exists in the universe yet, and adding a real one goes through the IB-backed `aq fetch options --apply` path.
 - **Production-safety machinery is unit- and backtest-verified, not field-tested**: the kill switch, position reconciliation, and auto-rollback (`aq kill-switch`, see [CLI Reference](#cli-reference)) are fully covered by unit tests and have now run for real inside a completed Lean backtest (kill switch stayed untripped through its warmup window, reconciliation reported zero false breaches) — but nothing has yet run them against a real, continuously-running broker/Postgres deployment over live/paper hours. That's the same gap IB testing itself needs to close.
@@ -409,7 +409,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->3424<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->3535<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -452,13 +452,13 @@ and how it's wired in, this table is the index.
 | Metric | Value |
 |---|---|
 | Backtest window | 2023-07-01 to 2026-10-02 |
-| Sharpe Ratio | -2.034 |
-| Net Profit | -0.581% |
-| Compounding Annual Return | -0.179% |
-| Drawdown | 4.300% |
-| Total Orders | 1150 |
-| Win Rate | 48% |
-| Last updated | 2026-10-14 06:39 UTC (auto-generated by `aq backtest`) |
+| Sharpe Ratio | -1.673 |
+| Net Profit | 5.277% |
+| Compounding Annual Return | 1.591% |
+| Drawdown | 5.500% |
+| Total Orders | 612 |
+| Win Rate | 53% |
+| Last updated | 2026-10-15 17:34 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 **All finished Lean runs** (newest first; the table above is the latest only)
@@ -466,14 +466,14 @@ and how it's wired in, this table is the index.
 <!-- AQ:BACKTEST_HISTORY_START -->
 | Run | Window | Sharpe | Net profit | Drawdown | Orders |
 |---|---|---|---|---|---|
+| `2026-10-15_17-29-50` | 2023-07-01 to 2026-10-02 | -1.673 | 5.277% | 5.500% | 612 |
+| `2026-10-15_14-55-24` | 2023-07-01 to 2026-10-02 | -1.55 | 6.724% | 5.400% | 611 |
 | `2026-10-14_07-27-32` | 2023-07-01 to 2026-10-02 | -2.034 | -0.581% | 4.300% | 1150 |
 | `2026-10-13_17-54-47` | 2023-07-01 to 2025-07-02 | -2.982 | -5.026% | 8.200% | 514 |
 | `2026-10-11_14-23-30` | 2019-01-01 to 2021-04-02 | 0.474 | 8.638% | 2.800% | 641 |
 | `2026-10-11_11-42-14` | 2019-01-01 to 2021-04-02 | 0.128 | 6.048% | 3.600% | 575 |
 | `2026-10-10_19-22-24` | 2019-01-01 to 2021-04-02 | 0.068 | 5.570% | 3.600% | 583 |
 | `2026-10-09_22-13-03` | 2019-01-01 to 2021-04-02 | -0.042 | 4.728% | 2.800% | 534 |
-| `2026-10-08_17-48-37` | 2019-01-01 to 2021-04-02 | -0.763 | 2.608% | 1.400% | 276 |
-| `2026-10-08_15-01-33` | 2019-01-01 to 2021-04-02 | -0.949 | 1.829% | 1.400% | 503 |
 <!-- AQ:BACKTEST_HISTORY_END -->
 
 **Lean vs the offline books and the benchmarks (same dates)** — refreshed by `aq evaluate --audit-backtest --period ...`
@@ -483,7 +483,7 @@ and how it's wired in, this table is the index.
 
 | Book | Net Sharpe (no risk-free) | Net return | Max drawdown |
 |---|---|---|---|
-| **Lean run `1577208524`** (engine: fills, fees, slippage) | +0.137 | +1.04% | -3.59% |
+| **Lean run `1452059497`** (engine: fills, fees, slippage) | -0.221 | -1.63% | -5.40% |
 | Offline as-live book | +0.620 | +5.95% | -4.43% |
 | Offline idealized book | -0.720 | -7.53% | n/a |
 | S&P 500 buy and hold | +0.882 | +23.52% | n/a |
@@ -493,7 +493,7 @@ and how it's wired in, this table is the index.
 
 | Book | Net Sharpe (no risk-free) | Net return | Max drawdown |
 |---|---|---|---|
-| **Lean run `1577208524`** (engine: fills, fees, slippage) | -0.397 | -1.61% | -3.85% |
+| **Lean run `1452059497`** (engine: fills, fees, slippage) | +1.381 | +7.02% | -3.27% |
 | Offline as-live book | -0.594 | -2.40% | -4.34% |
 | Offline idealized book | -0.810 | -6.14% | -12.89% |
 
@@ -506,33 +506,33 @@ _Same dates and the same Sharpe formula in every row; the Lean row is the engine
 <!-- AQ:BACKTEST_FULL_STATS_START -->
 | Metric | Value |
 |---|---|
-| Total Orders | 1150 |
-| Average Win | 0.11% |
-| Average Loss | -0.11% |
-| Compounding Annual Return | -0.179% |
-| Drawdown | 4.300% |
-| Expectancy | -0.011 |
+| Total Orders | 612 |
+| Average Win | 0.17% |
+| Average Loss | -0.16% |
+| Compounding Annual Return | 1.591% |
+| Drawdown | 5.500% |
+| Expectancy | 0.118 |
 | Start Equity | 100000 |
-| End Equity | 99418.73 |
-| Net Profit | -0.581% |
-| Sharpe Ratio | -2.034 |
-| Sortino Ratio | -2.258 |
+| End Equity | 105276.84 |
+| Net Profit | 5.277% |
+| Sharpe Ratio | -1.673 |
+| Sortino Ratio | -1.821 |
 | Probabilistic Sharpe Ratio | 0.000% |
-| Loss Rate | 52% |
-| Win Rate | 48% |
-| Profit-Loss Ratio | 1.05 |
-| Alpha | 0 |
-| Beta | 0 |
-| Annual Standard Deviation | 0.027 |
+| Loss Rate | 47% |
+| Win Rate | 53% |
+| Profit-Loss Ratio | 1.12 |
+| Alpha | -0.049 |
+| Beta | 0.063 |
+| Annual Standard Deviation | 0.026 |
 | Annual Variance | 0.001 |
-| Information Ratio | -0.031 |
-| Tracking Error | 0.027 |
-| Treynor Ratio | 0 |
-| Total Fees | $2195.07 |
-| Estimated Strategy Capacity | $11000000.00 |
-| Lowest Capacity Asset | USDCHF 8G |
-| Portfolio Turnover | 2.11% |
-| Drawdown Recovery | 227 |
+| Information Ratio | -1.081 |
+| Tracking Error | 0.119 |
+| Treynor Ratio | -0.696 |
+| Total Fees | $963.23 |
+| Estimated Strategy Capacity | $31000000.00 |
+| Lowest Capacity Asset | ETHUSD 2XR |
+| Portfolio Turnover | 1.02% |
+| Drawdown Recovery | 631 |
 <!-- AQ:BACKTEST_FULL_STATS_END -->
 
 </details>
@@ -617,7 +617,7 @@ separately re-derived approximation. Two models feed the live ensemble
 | Cost drag (bps/yr) | 76.7 | 233.1 |
 | Capacity (USD) | 11,146,287 | 104,633 |
 
-_Backtest split, full history. Last updated 2026-10-14 15:30 UTC (auto-generated by `aq evaluate --all`)._
+_Backtest split, full history. Last updated 2026-10-15 17:41 UTC (auto-generated by `aq evaluate --all`)._
 <!-- AQ:EVAL_END -->
 
 <details>
@@ -750,7 +750,7 @@ SPY/TLT) shows its skip reason instead of fabricated numbers.
 | sp500 | 0.882 | 23.52% | public benchmark |
 | 60_40 | 0.895 | 18.06% | public benchmark |
 
-_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Last updated 2026-10-14 15:30 UTC (auto-generated by `aq evaluate --benchmarks`)._
+_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Last updated 2026-10-15 17:41 UTC (auto-generated by `aq evaluate --benchmarks`)._
 <!-- AQ:BENCHMARK_END -->
 
 ### Walk-Forward Training/Testing
@@ -771,7 +771,7 @@ distinct from the single final model shown above.
 | residual_rank_20d_ic | 0.0240 | [0.0071, 0.0410] | yes |
 | net_sharpe (per-window) | -0.158 | — | 4/12 windows positive |
 
-12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`. Last updated 2026-10-14 15:30 UTC (auto-generated by `aq train --walk-forward`).
+12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`. Last updated 2026-10-15 17:41 UTC (auto-generated by `aq train --walk-forward`).
 <!-- AQ:WALKFORWARD_END -->
 
 <details>
@@ -863,31 +863,31 @@ have repeatedly run far more optimistic than real ones
 
 | Source | Sharpe |
 |---|---|
-| Real Lean backtest (2023-07-01 to 2026-10-02) | -2.034 |
+| Real Lean backtest (2023-07-01 to 2026-10-02) | -1.673 |
 | Offline evaluation — sequence model (full backtest split) | -0.720 |
 | Offline evaluation — multitask model (full backtest split) | -0.450 |
 | Walk-forward mean (out-of-sample, per-window) | -0.158 |
-| Gap: sequence offline − real Lean | +1.314 |
-| Gap: walk-forward − real Lean | +1.876 |
+| Gap: sequence offline − real Lean | +0.953 |
+| Gap: walk-forward − real Lean | +1.515 |
 
 **Book-history reconciliation** (real Lean selections vs. a fresh offline re-derivation of the same dates)
 
 | Metric | Value |
 |---|---|
-| Dates reconciled | 340 |
+| Dates reconciled | 430 |
 | Exact matches | 8 |
-| Mean overlap fraction | 76.74% |
-| Mean raw-score delta | 0.0100 |
+| Mean overlap fraction | 80.13% |
+| Mean raw-score delta | 0.0069 |
 | Replay mode | replay_hysteresis |
 
-Book-member decision outcomes (1316 total, real Lean run):
+Book-member decision outcomes (1124 total, real Lean run):
 
 | Action | Count | Share |
 |---|---|---|
-| reduce_risk | 852 | 64.7% |
-| trade | 308 | 23.4% |
-| simulate | 152 | 11.6% |
-| observe | 4 | 0.3% |
+| simulate | 446 | 39.7% |
+| trade | 432 | 38.4% |
+| reduce_risk | 237 | 21.1% |
+| observe | 9 | 0.8% |
 
 **Kill-switch: real trips vs. offline replay estimate**
 
@@ -896,7 +896,7 @@ Book-member decision outcomes (1316 total, real Lean run):
 | Real Lean backtest (2023-07-01 to 2026-10-02) | _not measurable from a standalone backtest (see Disclaimer)_ | — |
 | Offline replay (approximation, see Disclaimer) | 94 | 70.6% |
 
-_Last updated 2026-10-14 15:30 UTC (auto-generated by `aq evaluate`)._
+_Last updated 2026-10-15 17:41 UTC (auto-generated by `aq evaluate`)._
 <!-- AQ:OTHER_METRICS_END -->
 
 Regenerated on every `aq evaluate` run
@@ -941,7 +941,7 @@ whatever combination of the above has actually been run.
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->3424<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->3535<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -1157,6 +1157,7 @@ aq evaluate --benchmarks
 aq evaluate --rank-book --as-live
 aq evaluate --audit-backtest [--backtest-dir backtests/<timestamp>] [--book-history-path PATH] [--max-open-sessions N] [--period START..END]
 aq evaluate --audit-fills [--backtest-dir backtests/<timestamp>]
+aq evaluate --attribute-lean [--backtest-dir backtests/<timestamp>] [--book-history-file PATH] [--period START..END]
 aq evaluate --ic-by-class [--split S] [--dataset PATH]
 aq evaluate --audit-gates [--split S] [--dataset PATH]
 aq evaluate --audit-data [--data-root PATH]

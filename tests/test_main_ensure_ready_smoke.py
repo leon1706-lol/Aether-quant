@@ -99,3 +99,13 @@ def test_the_v550_config_blocks_were_read_into_real_values(algorithm):
 def test_the_new_per_symbol_state_containers_exist_before_the_first_bar(algorithm):
     for name in ("_last_formed_book_allocations", "_book_owned_symbols", "_limit_order_kept_flag", "_crypto_bar_probe_counts"):
         assert name in algorithm.__dict__, name
+
+
+def test_the_benchmark_follows_the_daily_spy_subscription(algorithm):
+    # A Symbol would make Lean add its own internal HOURLY benchmark feed (a local zip that ends 2021-03-31 gave a flat
+    # line); a function reads the daily subscription's own price.
+    algorithm.set_benchmark.assert_called_once()
+    (benchmark,), _kwargs = algorithm.set_benchmark.call_args
+    assert callable(benchmark)
+    algorithm.securities[algorithm.ticker_to_symbol["SPY"]].price = 123.5
+    assert benchmark(datetime.datetime(2024, 1, 2)) == 123.5

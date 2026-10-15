@@ -15,12 +15,15 @@ cross-file join needed:
 - `charts["Strategy Equity"]["series"]["Equity"]["values"]`: the algorithm's
   own dated equity curve.
 - `charts["Benchmark"]["series"]["Benchmark"]["values"]`: Lean's own
-  benchmark series. `main.py`/`lean.json` never call `SetBenchmark(...)`, so
-  this is Lean's documented default - SPY - already time-aligned with
-  "Strategy Equity" in the same file.
+  benchmark series, time-aligned with "Strategy Equity" in the same file.
+  Since V6.0.0 `main.py` points it at the daily SPY subscription
+  (`runtime.benchmark_ticker`); before that Lean used its internal hourly SPY
+  feed, whose local zip ends 2021-03-31, so every later run carries a constant
+  benchmark. For such a run the chart redraws SPY from the daily zip.
 
 Usage:
-    python generate_backtest_report.py [--backtests-dir backtests] [--readme README.md] [--chart-path development/backtest_equity_chart.png]
+    python generate_backtest_report.py [--backtests-dir backtests] [--backtest-dir backtests/<run>] [--readme README.md]
+        [--chart-path development/backtest_equity_chart.png]
 """
 
 from __future__ import annotations
@@ -30,7 +33,8 @@ import json
 import re
 import sys
 from collections.abc import Iterator
-from datetime import datetime, timezone
+import zipfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import matplotlib
@@ -42,6 +46,10 @@ ROOT_DIR = Path(__file__).resolve().parent
 BACKTESTS_DIR = ROOT_DIR / "backtests"
 README_PATH = ROOT_DIR / "README.md"
 CHART_PATH = ROOT_DIR / "development" / "backtest_equity_chart.png"
+DAILY_SPY_ZIP = ROOT_DIR / "data" / "equity" / "usa" / "daily" / "spy.zip"
+LEAN_EQUITY_PRICE_SCALE = 10_000.0
+# Lean stamps a daily chart point at New York midnight; UTC-4 maps every point to its own session date.
+_NEW_YORK_OFFSET = timedelta(hours=4)
 
 _RESULT_JSON_PATTERN = re.compile(r"^\d+\.json$")
 BACKTEST_MARKER_START = "<!-- AQ:BACKTEST_START -->"
@@ -117,7 +125,8 @@ def load_backtest_summary(result_json_path: Path) -> dict:
     # benchmark points are plain [timestamp, price]. The last element is
     # the value we want in both cases.
     strategy_series = [(int(point[0]), float(point[-1])) for point in strategy_points]
-    benchmark_series = [(int(point[0]), float(point[-1])) for point in benchmark_points]
+    # a benchmark function answers 0.0 until the first price exists: such leading points cannot be rebased
+    benchmark_series = [(int(point[0]), float(point[-1])) for point in benchmark_points if float(point[-1]) > 0.0]
 
     start_date = datetime.fromtimestamp(strategy_series[0][0], tz=timezone.utc) if strategy_series else None
     end_date = datetime.fromtimestamp(strategy_series[-1][0], tz=timezone.utc) if strategy_series else None
@@ -130,6 +139,49 @@ def load_backtest_summary(result_json_path: Path) -> dict:
         "end_date": end_date,
         "result_json_path": result_json_path,
     }
+
+
+def benchmark_is_flat(series: list[tuple[int, float]]) -> bool:
+    """True when Lean's benchmark carries at most one distinct value (a stale benchmark feed, see the module doc)."""
+    return len({value for _, value in series}) <= 1
+
+
+def read_daily_closes(zip_path: Path) -> list[tuple[str, float]]:
+    """(YYYYMMDD, close) per bar of a Lean daily equity zip, prices unscaled."""
+    with zipfile.ZipFile(zip_path) as archive:
+        member = next(name for name in archive.namelist() if name.endswith(".csv"))
+        rows = archive.read(member).decode("utf-8").splitlines()
+    closes = []
+    for row in rows:
+        fields = row.split(",")
+        if len(fields) >= 5:
+            closes.append((fields[0][:8], float(fields[4]) / LEAN_EQUITY_PRICE_SCALE))
+    return closes
+
+
+def daily_benchmark_series(strategy_series: list[tuple[int, float]], closes: list[tuple[str, float]]) -> list[tuple[int, float]]:
+    """The benchmark at each strategy timestamp: the last daily close on or before that point's session date."""
+    import bisect
+
+    dates = [day for day, _ in closes]
+    series = []
+    for timestamp, _ in strategy_series:
+        session = (datetime.fromtimestamp(timestamp, tz=timezone.utc) - _NEW_YORK_OFFSET).strftime("%Y%m%d")
+        index = bisect.bisect_right(dates, session) - 1
+        if index >= 0:
+            series.append((timestamp, closes[index][1]))
+    return series
+
+
+def with_daily_benchmark_fallback(summary: dict, spy_zip: Path | None = None) -> dict:
+    """Replace a flat Lean benchmark with SPY from the daily zip; flags the summary so the chart says so."""
+    spy_zip = spy_zip or DAILY_SPY_ZIP
+    if not benchmark_is_flat(summary["benchmark_series"]) or not summary["strategy_series"] or not spy_zip.is_file():
+        return summary
+    rebuilt = daily_benchmark_series(summary["strategy_series"], read_daily_closes(spy_zip))
+    if not rebuilt:
+        return summary
+    return dict(summary, benchmark_series=rebuilt, benchmark_source="daily_zip")
 
 
 def _rebase_to_100(series: list[tuple[int, float]]) -> list[tuple[int, float]]:
@@ -168,7 +220,11 @@ def generate_equity_chart(summary: dict, output_path: Path = CHART_PATH) -> None
         ax.plot(
             benchmark_dates,
             [value for _, value in benchmark],
-            label="S&P 500 (SPY) Benchmark",
+            label=(
+                "S&P 500 (SPY, daily file; Lean's benchmark feed was stale)"
+                if summary.get("benchmark_source") == "daily_zip"
+                else "S&P 500 (SPY) Benchmark"
+            ),
             color="#A23B72",
             linewidth=1.6,
             linestyle="--",
@@ -215,7 +271,14 @@ def _build_full_stats_markdown(summary: dict) -> str:
     if not statistics:
         return "_No statistics available in this backtest result._"
 
-    lines = ["| Metric | Value |", "|---|---|"]
+    lines = []
+    if summary.get("benchmark_source") == "daily_zip":
+        lines += [
+            "_Lean's benchmark feed was stale for this run (a constant series), so its Alpha, Beta, Information Ratio, "
+            "Tracking Error and Treynor Ratio are meaningless; the chart redraws SPY from the daily file._",
+            "",
+        ]
+    lines += ["| Metric | Value |", "|---|---|"]
     for key, value in statistics.items():
         lines.append(f"| {key} | {value} |")
     return "\n".join(lines)
@@ -308,19 +371,24 @@ def update_readme_backtest_section(
     return True
 
 
+def _result_json_in(run_dir: Path) -> Path | None:
+    return next((path for path in sorted(Path(run_dir).iterdir()) if _RESULT_JSON_PATTERN.match(path.name)), None)
+
+
 def update_readme_from_latest_backtest(
     backtests_dir: Path = BACKTESTS_DIR,
     readme_path: Path = README_PATH,
     chart_path: Path = CHART_PATH,
+    backtest_dir: Path | None = None,
 ) -> bool:
     """Top-level entrypoint `aq_cli.py::cmd_backtest` calls after a
     successful `lean backtest .` run. Callers should still wrap this in a
     try/except - a report-generation bug must never fail the backtest
     command itself."""
-    result_json_path = find_latest_backtest_result_json(backtests_dir)
+    result_json_path = find_latest_backtest_result_json(backtests_dir) if backtest_dir is None else _result_json_in(backtest_dir)
     if result_json_path is None:
         return False
-    summary = load_backtest_summary(result_json_path)
+    summary = with_daily_benchmark_fallback(load_backtest_summary(result_json_path))
     generate_equity_chart(summary, chart_path)
     return update_readme_backtest_section(summary, readme_path, chart_path, build_history_markdown(backtests_dir))
 
@@ -332,9 +400,10 @@ def main() -> int:
     parser.add_argument("--backtests-dir", type=Path, default=BACKTESTS_DIR)
     parser.add_argument("--readme", type=Path, default=README_PATH)
     parser.add_argument("--chart-path", type=Path, default=CHART_PATH)
+    parser.add_argument("--backtest-dir", type=Path, default=None, help="render this run instead of the newest one")
     args = parser.parse_args()
 
-    updated = update_readme_from_latest_backtest(args.backtests_dir, args.readme, args.chart_path)
+    updated = update_readme_from_latest_backtest(args.backtests_dir, args.readme, args.chart_path, args.backtest_dir)
     if updated:
         print(f"Updated {args.readme} with the latest backtest results.")
         return 0

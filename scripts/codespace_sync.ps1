@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Sync the full project between this PC and the training Codespace over ssh/scp (not `gh cs cp`).
 
@@ -29,7 +29,7 @@ param(
     [string[]]$WalkForward = @(),
     [switch]$IncludeDatasets,
     [switch]$NoDatasets, # pull: leave ml/datasets and ml/expert_datasets on the Codespace (they are ~2.3 GB; fetch single CSVs with scp)
-    [switch]$CodeOnly,   # push: source only - NEVER touches ml/, data/ or data_holdout/ (use while a retrain's artifacts live on the Codespace)
+    [switch]$CodeOnly,   # push: source only - NEVER touches ml/ or data/ (use while a retrain's artifacts live on the Codespace)
     [switch]$DryRun
 )
 
@@ -132,7 +132,7 @@ function Get-RemoteContentDigest([hashtable]$Ssh, [string]$Repo, [string]$Dir) {
 
 function Show-TreeComparison([hashtable]$Ssh, [string]$Repo) {
     [int]$bad = 0
-    foreach ($dir in @('data', 'data_holdout')) {
+    foreach ($dir in @('data')) {
         $l = Get-LocalTreeDigest $dir
         $r = Get-RemoteTreeDigest $Ssh $Repo $dir
         $state = if ($l.Count -eq $r.Count -and $l.Digest -eq $r.Digest) { 'match' } else { $bad++; 'DIFFERENT' }
@@ -174,9 +174,9 @@ switch ($Mode) {
     'push' {
         $archive = Join-Path $Scratch 'push.tgz'
         $excludes = @('.git', '.venv', 'node_modules', 'backtests', 'build', '__pycache__', '.pytest_cache', '.ruff_cache',
-            '.matplotlib_cache', '.claude', '.av', '.coverage', '*.egg-info', 'ml/versions', 'ml/_backup_*', 'Aether-quant-Obsidian-Vault', 'visualization', 'data_backup_pre_v580', 'data_v580_staging', 'backtests_invalid')
+            '.matplotlib_cache', '.claude', '.av', '.coverage', '*.egg-info', 'ml/versions', 'ml/_backup_*', 'Aether-quant-Obsidian-Vault', 'visualization', 'data_v580_staging', 'data_v6_staging', 'backtests_invalid')
         if (-not $IncludeDatasets) { $excludes += @('ml/datasets', 'ml/expert_datasets') }
-        if ($CodeOnly) { $excludes += @('ml', 'data', 'data_holdout') }
+        if ($CodeOnly) { $excludes += @('ml', 'data') }
         $tarArgs = @('-czf', $archive) + ($excludes | ForEach-Object { "--exclude=$_" }) + @('-C', $Root, '.')
         Write-Host "building $archive (excluding: $($excludes -join ', '))"
         tar @tarArgs

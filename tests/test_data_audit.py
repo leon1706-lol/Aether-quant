@@ -84,3 +84,22 @@ def test_manifest_detects_missing_and_changed_files(tmp_path):
     diff = compare_manifests(left, right)
     assert diff["differing"] == ["equity/a.csv"] and diff["only_left"] == ["equity/only.csv"] and not diff["identical"]
     assert compare_manifests(left, left)["identical"]
+
+
+def test_non_daily_files_report_which_one_lean_reads(tmp_path):
+    from data_pipeline.data_audit import audit_non_daily_files
+
+    _write_zip(tmp_path / "equity/usa/hour/spy.zip", "spy.csv", ["20210331 15:00,1,1,1,1,1"])
+    _write_zip(tmp_path / "equity/usa/minute/spy/20131011_trade.zip", "20131011_spy_minute_trade.csv", ["0,1,1,1,1,1"])
+    _write_zip(tmp_path / "equity/usa/daily/spy.zip", "spy.csv", ["20260930 00:00,1,1,1,1,1"])
+    config = {"phase1": {"universe": {"resolution": "Daily"}}, "runtime": {}}
+
+    report = audit_non_daily_files(config, tmp_path)
+    by_path = {entry["path"]: entry for entry in report["files"]}
+    assert set(by_path) == {"equity/usa/hour/spy.zip", "equity/usa/minute/spy/20131011_trade.zip"}
+    assert by_path["equity/usa/hour/spy.zip"]["last"] == "2021-03-31"
+    assert by_path["equity/usa/minute/spy/20131011_trade.zip"]["last"] == "2013-10-11"
+    assert report["read"] == ["equity/usa/hour/spy.zip"]
+
+    config["runtime"]["benchmark_ticker"] = "SPY"
+    assert audit_non_daily_files(config, tmp_path)["read"] == []

@@ -301,3 +301,67 @@ def test_end_to_end_update_fills_the_history_markers(tmp_path):
 
     text = readme_path.read_text(encoding="utf-8")
     assert "| `2026-06-01_00-00-00` |" in text and "\nold\n" not in text
+
+
+def _write_spy_zip(path, rows):
+    import zipfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("spy.csv", "\n".join(rows) + "\n")
+
+
+def test_a_flat_lean_benchmark_is_redrawn_from_the_daily_zip(tmp_path):
+    from generate_backtest_report import benchmark_is_flat, with_daily_benchmark_fallback
+
+    # 2014-12-01 and 2014-12-02 New York midnight, as Lean stamps daily chart points
+    summary = {
+        "strategy_series": [(1417410000, 100000.0), (1417496400, 101000.0)],
+        "benchmark_series": [(1417410000, 425.9975), (1417496400, 425.9975)],
+    }
+    spy_zip = tmp_path / "spy.zip"
+    _write_spy_zip(spy_zip, ["20141128 00:00,2000000,2010000,1990000,2005000,1", "20141201 00:00,2000000,2010000,1990000,2010000,1"])
+    assert benchmark_is_flat(summary["benchmark_series"])
+    rebuilt = with_daily_benchmark_fallback(summary, spy_zip)
+    assert rebuilt["benchmark_source"] == "daily_zip"
+    assert rebuilt["benchmark_series"] == [(1417410000, 201.0), (1417496400, 201.0)]
+
+
+def test_a_moving_benchmark_is_left_alone(tmp_path):
+    from generate_backtest_report import with_daily_benchmark_fallback
+
+    summary = {"strategy_series": [(1, 1.0), (2, 2.0)], "benchmark_series": [(1, 180.0), (2, 182.0)]}
+    assert with_daily_benchmark_fallback(summary, tmp_path / "absent.zip") is summary
+
+
+def test_render_a_named_run_and_note_the_stale_benchmark(tmp_path, monkeypatch):
+    import generate_backtest_report as report
+
+    backtests_dir = tmp_path / "backtests"
+    run = backtests_dir / "2026-06-01_00-00-00"
+    _write_result_json(run / "222.json")
+    data = json.loads((run / "222.json").read_text(encoding="utf-8"))
+    data["charts"]["Benchmark"]["series"]["Benchmark"]["values"] = [[1417410000, 425.9975], [1417496400, 425.9975]]
+    (run / "222.json").write_text(json.dumps(data), encoding="utf-8")
+    _write_result_json(backtests_dir / "2026-07-01_00-00-00" / "333.json")
+    readme_path = tmp_path / "README.md"
+    _write_readme_with_markers(readme_path)
+    spy_zip = tmp_path / "spy.zip"
+    _write_spy_zip(spy_zip, ["20141201 00:00,2000000,2010000,1990000,2010000,1"])
+    monkeypatch.setattr(report, "DAILY_SPY_ZIP", spy_zip)
+
+    assert update_readme_from_latest_backtest(backtests_dir, readme_path, tmp_path / "chart.png", run) is True
+    text = readme_path.read_text(encoding="utf-8")
+    assert "benchmark feed was stale" in text
+    assert "2014-12-01" in text
+
+
+def test_leading_zero_benchmark_points_are_dropped_before_rebasing(tmp_path):
+    result = tmp_path / "1.json"
+    result.write_text(json.dumps({
+        "statistics": {"Sharpe Ratio": "1"},
+        "charts": {"Strategy Equity": {"series": {"Equity": {"values": [[1, 1, 1, 1, 100.0], [2, 1, 1, 1, 101.0], [3, 1, 1, 1, 102.0]]}}},
+                   "Benchmark": {"series": {"Benchmark": {"values": [[1, 0.0], [2, 300.0], [3, 303.0]]}}}},
+    }), encoding="utf-8")
+    summary = load_backtest_summary(result)
+    assert summary["benchmark_series"] == [(2, 300.0), (3, 303.0)]

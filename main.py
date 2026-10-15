@@ -21,14 +21,13 @@ import os
 # across container runs, so only the very first run ever pays this cost.
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".matplotlib_cache"))
 
-import bisect
 import gc
 import json
 import math
 import sys
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -50,6 +49,7 @@ from risk_controls import (
     is_regime_drawdown_bypass_active,
     is_sticky_trade_lock_bypass_active,
     projected_signed_quantity,
+    resolve_benchmark_ticker,
     resolve_lean_window,
     should_lock_in_duration_beta,
     should_scale_position,
@@ -200,7 +200,9 @@ from execution import (
     resolve_fill_slippage,
     resolve_fill_slippage_source,
     resolve_limit_order_timeout_action,
+    resolve_exit_order_route,
     resolve_limit_price,
+    resolve_limit_setting_by_class,
     resolve_order_permission,
     resolve_pending_order_action,
     resolve_runtime_mode,
@@ -222,7 +224,9 @@ from inference import (
     run_exported_multitask_model,
     run_exported_multitask_model_rows,
     run_exported_multitask_models_batched,
+    run_exported_models_across_symbols,
     run_exported_models_batched,
+    run_exported_multitask_models_across_symbols,
     run_exported_sequence_multitask_model,
     run_exported_sequence_multitask_model_batched,
     run_symbol_inference,
@@ -255,15 +259,14 @@ from features import (
     options_implied_vol_skew,
     options_put_call_ratio,
     relative_strength_index,
-    rolling_sensitivity,
-    sensitivity_interaction,
+    sensitivity_features_vector,
     volume_zscore,
     yield_curve_curvature,
     yield_curve_level,
     yield_curve_slope_proxy,
 )
 from features.bond_features import resolve_bond_duration_beta_mode, rolling_duration_beta
-from features.cross_asset_timing import cross_asset_inputs
+from features.cross_asset_timing import LateBarCrossAssetCache, cross_asset_inputs, is_late_bar_asset
 from features.fx_carry import FX_CARRY_FEATURE_NAME, FX_RATE_PUBLICATION_LAG_DAYS, fx_carry_3m
 from features.fx_signals import fx_sleeve_scores
 from data_pipeline.fred_backfill import (
@@ -272,7 +275,7 @@ from data_pipeline.fred_backfill import (
     series_change_asof,
     series_value_asof,
 )
-from data_pipeline.bar_synthesis import midpoint_bar_from_quote_bar, pad_sequence_history
+from data_pipeline.bar_synthesis import flatten_fill_forward_bar, midpoint_bar_from_quote_bar, pad_sequence_history
 from data_pipeline.dividend_backfill import load_cached_dividend_schedule
 
 # volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/
@@ -476,6 +479,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.phase1 = self.config["phase1"]
         self.runtime = self.config["runtime"]
         self._ready = False
+        # V6.0.0: "flat" builds forex fill-forward bars as the dataset does (flat at the previous close) and keeps the
+        # real-bar windows the dataset's sensitivity regression uses; "lean" (default) keeps Lean's cloned bar.
+        self.forex_fill_forward_mode = str(self.phase1.get("features", {}).get("forex_fill_forward_bars", "lean"))
+        # V6.0.0: "own_tick" re-scores a crypto/forex symbol on the equity tick with the cross-asset payloads it had at its
+        # own midnight tick (the dataset row's), "equity_tick" (default) rebuilds them on the equity tick.
+        self.late_bar_cross_asset_own_tick = (
+            str(self.phase1.get("features", {}).get("late_bar_cross_asset", "equity_tick")) == "own_tick"
+        )
+        self._late_bar_cross_asset_cache = LateBarCrossAssetCache()
 
         self.resolution = self._resolve_resolution(self.phase1["universe"]["resolution"])
         (start_year, start_month, start_day), (end_year, end_month, end_day) = resolve_lean_window(
@@ -527,6 +539,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # sensitivity driver (vix/real_rate/credit/dollar) - see
         # _cross_asset_sensitivity_for_symbol()'s docstring.
         self.symbol_sensitivity_driver_history = {}
+        self.symbol_real_bar_closes = {}
+        self.symbol_real_bar_driver_history = {}
         self.latest_momentum_by_symbol = {}
         self.latest_signal_state = {}
         self.last_trade_bar_by_symbol = {}
@@ -641,6 +655,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.symbol_sensitivity_driver_history[symbol] = {
                 driver_key: deque(maxlen=self.long_bar_history_size) for driver_key in CROSS_ASSET_SENSITIVITY_DRIVERS
             }
+            self.symbol_real_bar_closes[symbol] = deque(maxlen=self.long_bar_history_size)
+            self.symbol_real_bar_driver_history[symbol] = {
+                driver_key: deque(maxlen=self.long_bar_history_size) for driver_key in CROSS_ASSET_SENSITIVITY_DRIVERS
+            }
             self.latest_signal_state[str(symbol)] = "hold"
             self.last_trade_bar_by_symbol[symbol] = -1000000
             # InteractiveBrokersFeeModel() does not support security_type
@@ -697,6 +715,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # every backtest, on top of (not fixed by) V5.2.5's own change.
         # Cannot be verified against a real backtest this round (no live
         # Lean run in scope) - see Problems.md #97 for that caveat.
+        benchmark_ticker = resolve_benchmark_ticker(self.runtime, self.ticker_to_symbol)
+        if benchmark_ticker is not None:
+            # A Symbol argument makes Lean create its own INTERNAL HOURLY feed for the benchmark (the stale data this fixes);
+            # a function reads the daily subscription's price instead (checked in a Lean run: no hourly feed, a moving series).
+            benchmark_symbol = self.ticker_to_symbol[benchmark_ticker]
+            self.set_benchmark(lambda time: float(self.securities[benchmark_symbol].price))
         self.set_warm_up(max(int(self.runtime["warmup_bars"]), self.long_bar_history_size), self.resolution)
 
     def _ensure_ready(self) -> None:
@@ -1566,6 +1590,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.flat_model_batching_enabled = bool(
             self.phase_v2.get("inference_parallelism", {}).get("batch_flat_models_across_symbols", False)
         )
+        # V6.0.0 (latency) - the regime experts and their multitask heads for every pending symbol in one pass as well
+        # (39 ms of per-symbol calls on a 92-symbol tick); numbers equal the per-symbol calls (tests/test_v600_across_symbols.py).
+        self.expert_batching_across_symbols_enabled = bool(
+            self.phase_v2.get("inference_parallelism", {}).get("batch_experts_across_symbols", False)
+        )
 
         # development/Problems.md#37: every model/expert/weight-array load
         # above is now complete - these are large, long-lived NumPy arrays
@@ -1690,8 +1719,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.limit_orders_asset_classes = set(
             phase_v2_limit_orders.get("asset_classes", ["equity", "crypto", "bond", "future", "option"])
         )
+        self.limit_order_exit_asset_classes = set(phase_v2_limit_orders.get("exit_asset_classes", []))
         self.limit_order_offset_multiplier = float(phase_v2_limit_orders.get("offset_multiplier", 1.0))
         self.limit_order_unfilled_timeout_bars = int(phase_v2_limit_orders.get("unfilled_timeout_bars", 3))
+        # V6.0.0: per-class overrides (crypto rests at the last close for up to 5 sessions; every other class keeps the globals)
+        self.limit_order_offset_by_class = dict(phase_v2_limit_orders.get("offset_multiplier_by_class", {}))
+        self.limit_order_timeout_by_class = dict(phase_v2_limit_orders.get("unfilled_timeout_bars_by_class", {}))
         # Per-asset-class, not a single global bool: a fallback market fill
         # is low-consequence for equity/crypto/bond (the same trade
         # SetHoldings would have placed anyway), but a real position the
@@ -2073,6 +2106,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # from), so appending it again would duplicate a timestep that
             # never happened, corrupting every technical indicator/sequence-
             # model input that reads these windows.
+            lean_bar = bar  # what Lean delivered (the bar probe logs it; a flattened fill-forward bar replaces `bar`)
+            if has_fresh_bar_this_tick and self.forex_fill_forward_mode == "flat" and getattr(bar, "is_fill_forward", False):
+                if self._is_forex_symbol(symbol_key) and self.symbol_windows[symbol]:
+                    bar = SimpleNamespace(
+                        **flatten_fill_forward_bar({}, self.symbol_windows[symbol][-1]["close"]), is_fill_forward=True
+                    )
+            if has_fresh_bar_this_tick and self.forex_fill_forward_mode == "flat" and self._is_forex_symbol(symbol_key):
+                if not getattr(bar, "is_fill_forward", False):
+                    self._append_real_forex_bar(symbol, bar)
             if has_fresh_bar_this_tick:
                 self._accumulate_rl_excess(symbol, float(bar.close))
                 self.symbol_long_windows[symbol].append(float(bar.close))
@@ -2115,12 +2157,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         self._crypto_bar_probe_counts[symbol_key] = probe_count + 1
                         self.Debug(
                             f"crypto-bar-probe: {symbol_key} {self.Time} type={type(bar).__name__} "
-                            f"close={float(bar.close)} volume={float(bar.volume)}"
+                            f"close={float(bar.close)} volume={float(bar.volume)} lean_high={float(lean_bar.high)} "
+                            f"lean_low={float(lean_bar.low)} high={float(bar.high)} low={float(bar.low)} "
+                            f"fill_forward={bool(getattr(lean_bar, 'is_fill_forward', False))}"
                         )
 
             topology_payload = topology_by_symbol.get(str(symbol))
+            momentum_override = None
+            if self.late_bar_cross_asset_own_tick and is_late_bar_asset(
+                self.asset_lookup.get(symbol_key, {}).get("asset_class") or self.asset_lookup.get(symbol_key, {}).get("security_type")
+            ):
+                if has_fresh_bar_this_tick:
+                    self._late_bar_cross_asset_cache.record(symbol_key, topology_payload, self.latest_momentum_by_symbol)
+                else:
+                    cached_inputs = self._late_bar_cross_asset_cache.lookup(symbol_key)
+                    if cached_inputs is not None:
+                        topology_payload, momentum_override = cached_inputs
             _probe_started = self._timing_probe.start()
-            feature_payload = self._build_model_input(symbol, topology_payload)
+            feature_payload = self._build_model_input(symbol, topology_payload, momentum_by_symbol=momentum_override)
             self._timing_probe.stop("build_model_input", _probe_started)
             signal_payload = {
                 "ticker": self.asset_lookup[str(symbol)]["ticker"],
@@ -2291,6 +2345,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     except Exception as error:
                         self.Debug(f"Batched multitask inference failed ({error}) - using the per-symbol path this tick")
 
+            expert_rows: dict[str, dict] = {}
+            expert_multitask_rows: dict[str, tuple[dict, dict]] = {}
+            if self.expert_batching_across_symbols_enabled and len(pending) >= 2:
+                try:
+                    expert_rows, expert_multitask_rows = self._run_experts_across_symbols(pending)
+                except Exception as error:
+                    self.Debug(f"Batched expert inference failed ({error}) - using the per-symbol path this tick")
+                    expert_rows, expert_multitask_rows = {}, {}
+
             for item in pending:
                 symbol_key = str(item["symbol"])
                 inference_results[symbol_key] = self._run_inference_cluster_sequential(
@@ -2301,6 +2364,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     ),
                     precomputed_baseline_probability=baseline_rows.get(symbol_key, _SEQUENCE_RESULT_NOT_PRECOMPUTED),
                     precomputed_multitask_result=multitask_rows.get(symbol_key, _SEQUENCE_RESULT_NOT_PRECOMPUTED),
+                    precomputed_expert_probabilities=expert_rows.get(symbol_key),
+                    precomputed_expert_multitask=expert_multitask_rows.get(symbol_key),
                 )
 
         self._timing_probe.stop("inference_cluster", _probe_started)
@@ -2788,6 +2853,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # exact same sizing/liquidity/analyzer pipeline below as any
             # other signal - never bypasses it.
             is_forced_exit = False
+            exit_reason = None  # V6.0.0: why a full exit fires (execution.order_gate.resolve_exit_order_route)
             # V5.7.0 - a forex pair under the forex sleeve (V5.8.0: or a bond under the bond sleeve) is governed by the
             # SLEEVE's allocations and activity, never by the main book's. Without a sleeve this is the old lookup.
             sleeve_class = self._sleeve_class_for_asset(self.asset_lookup[symbol_key])
@@ -2855,6 +2921,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 confidence = 1.0
                 base_target_weight = 0.0
                 is_forced_exit = True
+                exit_reason = "rotation"
             elif should_hold_owned_position_on_veto(
                 self.hold_owned_positions_on_veto,
                 book_allocation is not None,
@@ -2883,6 +2950,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 confidence = 1.0
                 base_target_weight = 0.0
                 is_forced_exit = True
+                exit_reason = "sleeve_guard"
 
             if is_currently_invested and signal_name != "sell":
                 non_model_exit_reason = self._check_non_model_exit(symbol_key, float(bar.close))
@@ -2891,6 +2959,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     confidence = 1.0
                     base_target_weight = 0.0
                     is_forced_exit = True
+                    exit_reason = non_model_exit_reason
                     self.latest_non_model_exit_reason_by_symbol[symbol_key] = non_model_exit_reason
                 else:
                     self.latest_non_model_exit_reason_by_symbol.pop(symbol_key, None)
@@ -3160,6 +3229,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     is_book_selected=(book_allocation is not None),
                     is_rebalance_bar=is_rebalance_bar,
                     is_forced_exit=is_forced_exit,
+                    exit_reason=exit_reason or ("model_sell" if signal_name == "sell" else None),
                 )
                 if self._limit_order_kept_flag and execution_note.startswith("submitted_limit"):
                     # V5.5.0: no new order was sent - an earlier one is still working - so the audit log
@@ -3824,7 +3894,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.debug(f"{ticker} subscription skipped: {error}")
             return None
 
-    def _build_model_input(self, symbol, topology_payload: dict | None = None) -> dict:
+    def _build_model_input(self, symbol, topology_payload: dict | None = None, momentum_by_symbol: dict | None = None) -> dict:
         """Builds the full model input vector - the original 10 price/
         volume-derived features, plus regime/liquidity/topology as genuine
         input features (Phase 1 remainder, not just downstream consumers of
@@ -3948,7 +4018,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # not a new one. Ties/thin-universe handling matches
         # build_cross_sectional_momentum_rank_features()'s offline default.
         base_features["cs_momentum_rank_20"] = cross_sectional_momentum_rank(
-            self.latest_momentum_by_symbol, str(symbol)
+            self.latest_momentum_by_symbol if momentum_by_symbol is None else momentum_by_symbol, str(symbol)
         )
 
         # Macro features (Phase 1b) - computed once per bar in
@@ -4188,6 +4258,32 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.Debug(f"Expert inference failed for {expert_name}")
         return probabilities
 
+    def _run_experts_across_symbols(self, pending: list[dict]) -> tuple[dict, dict]:
+        """V6.0.0: every pending symbol's expert probabilities and expert multitask magnitudes / volatilities from ONE
+        batched pass each, in the shapes `_run_expert_models` / `_run_expert_multitask_models` return per symbol."""
+        keys = [str(item["symbol"]) for item in pending]
+        rows = [item["feature_payload"]["model_inputs"] for item in pending]
+        flat_exports = [self.expert_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
+        flat_results = run_exported_models_across_symbols(flat_exports, rows, stack_cache=self.expert_models_stack_cache)
+        multitask_exports = [self.expert_multitask_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
+        multitask_results = run_exported_multitask_models_across_symbols(
+            multitask_exports, rows, stack_cache=self.expert_multitask_models_stack_cache
+        )
+        probabilities: dict[str, dict] = {}
+        magnitudes_and_volatilities: dict[str, tuple[dict, dict]] = {}
+        for key, flat_row, multitask_row in zip(keys, flat_results, multitask_results):
+            probabilities[key] = dict(zip(EXPERT_NAMES, flat_row))
+            for expert_name, export, result in zip(EXPERT_NAMES, flat_exports, flat_row):
+                if export and result is None:
+                    self.Debug(f"Expert inference failed for {expert_name}")
+            magnitudes = {name: (result.get("magnitude") if result else None) for name, result in zip(EXPERT_NAMES, multitask_row)}
+            volatilities = {name: (result.get("volatility") if result else None) for name, result in zip(EXPERT_NAMES, multitask_row)}
+            magnitudes_and_volatilities[key] = (magnitudes, volatilities)
+            for expert_name, export, result in zip(EXPERT_NAMES, multitask_exports, multitask_row):
+                if export and result is None:
+                    self.Debug(f"Expert multitask inference failed for {expert_name}")
+        return probabilities, magnitudes_and_volatilities
+
     def _run_multitask_model(self, inputs: list[float]) -> dict | None:
         """Runs the optional joint direction+magnitude+volatility model
         (train_multitask.py) alongside _run_model()/_run_expert_models() -
@@ -4259,6 +4355,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self, model_inputs: list[float], symbol, precomputed_sequence_result=_SEQUENCE_RESULT_NOT_PRECOMPUTED,
         precomputed_baseline_probability=_SEQUENCE_RESULT_NOT_PRECOMPUTED,
         precomputed_multitask_result=_SEQUENCE_RESULT_NOT_PRECOMPUTED,
+        precomputed_expert_probabilities: dict | None = None,
+        precomputed_expert_multitask: tuple[dict, dict] | None = None,
     ) -> dict:
         """Bundles the exact same 5 calls Pass 1 has always made
         (_run_model/_run_sequence_model/_run_expert_models/
@@ -4289,12 +4387,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
             sequence_prediction = self._run_sequence_model(symbol)
         else:
             sequence_prediction = precomputed_sequence_result
-        expert_probabilities = self._run_expert_models(model_inputs)
+        expert_probabilities = (
+            self._run_expert_models(model_inputs) if precomputed_expert_probabilities is None else precomputed_expert_probabilities
+        )
         if precomputed_multitask_result is _SEQUENCE_RESULT_NOT_PRECOMPUTED:
             multitask_payload = self._run_multitask_model(model_inputs)
         else:
             multitask_payload = precomputed_multitask_result
-        expert_magnitudes, expert_volatilities = self._run_expert_multitask_models(model_inputs)
+        expert_magnitudes, expert_volatilities = (
+            self._run_expert_multitask_models(model_inputs) if precomputed_expert_multitask is None else precomputed_expert_multitask
+        )
         return {
             "baseline_probability": baseline_probability_up,
             "sequence_result": sequence_prediction,
@@ -4962,15 +5064,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         train.py::build_bond_features_by_date()'s identical lookup exactly
         for train/runtime parity. Returns None if the series is empty
         (cache never populated) or current_date precedes every observation."""
-        rows = self.fred_series.get(series_key, [])
-        if not rows:
-            return None
-        dates = [row["date"] for row in rows]
-        values = [row["value"] for row in rows]
-        position = bisect.bisect_right(dates, current_date)
-        if position == 0:
-            return None
-        return values[position - 1]
+        # V6.0.0 (latency): the shared as-of lookup with its cached sorted index (same value as the bisect it replaces).
+        return series_value_asof(self.fred_series.get(series_key, []), current_date, 0)
 
     def _build_bond_payload(self) -> dict:
         """Real-data sibling of _build_macro_payload() -
@@ -5079,6 +5174,29 @@ class AetherQuantAlgorithm(QCAlgorithm):
             )
         return levels
 
+    def _is_forex_symbol(self, symbol_key: str) -> bool:
+        asset = self.asset_lookup.get(symbol_key, {})
+        return (asset.get("asset_class") or asset.get("security_type")) == "forex"
+
+    def _append_real_forex_bar(self, symbol, bar) -> None:
+        """V6.0.0: a real (not fill-forward) forex bar's close and the sensitivity drivers as of the BAR's own date - the
+        dataset regresses forex returns on driver changes between consecutive real-bar rows; the tick that delivers a
+        forex bar is the next day, so the tick date would read the next day's FRED value."""
+        end_time = getattr(bar, "end_time", None)
+        try:
+            bar_date = (end_time - timedelta(seconds=1)).date()
+        except (TypeError, AttributeError):
+            bar_date = self.Time.date()
+        self.symbol_real_bar_closes[symbol].append(float(bar.close))
+        features = self.phase1.get("features", {})
+        publication_lag = {**ALT_DATA_PUBLICATION_LAG_DAYS, **features.get("alt_data_publication_lag_days", {})}
+        drivers = features.get("cross_asset_sensitivity", {}).get("drivers", CROSS_ASSET_SENSITIVITY_DRIVERS)
+        history = self.symbol_real_bar_driver_history[symbol]
+        for driver_key, friendly_name in drivers.items():
+            history.setdefault(driver_key, deque(maxlen=self.long_bar_history_size)).append(
+                series_value_asof(self.fred_series.get(friendly_name, []), bar_date, publication_lag.get(friendly_name, 0))
+            )
+
     def _cross_asset_sensitivity_for_symbol(self, symbol) -> dict:
         """V5.1 Phase 2 (item 8 / F2) - runtime sibling of
         train.py::build_cross_asset_sensitivity_features(), using the exact
@@ -5104,33 +5222,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         min_observations = int(sensitivity_config.get("min_observations", CROSS_ASSET_SENSITIVITY_MIN_OBSERVATIONS))
         drivers = sensitivity_config.get("drivers", CROSS_ASSET_SENSITIVITY_DRIVERS)
 
-        # V5.8.0 (latency) - only the trailing lookback + 1 bars reach the regression; the earlier ones were converted
-        # to returns and deltas on every call and then sliced away (identical values, a fraction of the work).
+        # V5.8.0 (latency) - only the trailing lookback + 1 bars reach the regression; V6.0.0 builds returns and deltas as
+        # float64 arrays (features.sensitivity_features_vector: the list-and-loop version was ~55% of this method's caller).
         tail = lookback + 1 if lookback > 0 else None
-        closes = list(self.symbol_long_windows.get(symbol, []))
+        real_bars = self.forex_fill_forward_mode == "flat" and self._is_forex_symbol(str(symbol))
+        closes = list((self.symbol_real_bar_closes if real_bars else self.symbol_long_windows).get(symbol, []))
         if tail is not None:
             closes = closes[-tail:]
-        returns: list[float | None] = [None] + [
-            (closes[i] / closes[i - 1] - 1.0) if closes[i - 1] else None for i in range(1, len(closes))
-        ]
-
-        result = {}
-        driver_history = self.symbol_sensitivity_driver_history.get(symbol, {})
-        for driver_key in drivers:
-            levels = list(driver_history.get(driver_key, []))
-            if tail is not None:
-                levels = levels[-tail:]
-            deltas: list[float | None] = [None] * len(levels)
-            for index in range(1, len(levels)):
-                if levels[index] is not None and levels[index - 1] is not None:
-                    deltas[index] = levels[index] - levels[index - 1]
-
-            window_returns = returns[-lookback:] if lookback > 0 else returns
-            window_deltas = deltas[-lookback:] if lookback > 0 else deltas
-            beta = rolling_sensitivity(window_returns, window_deltas, lookback=lookback, min_observations=min_observations)
-            latest_delta = deltas[-1] if deltas else None
-            result[f"sens_{driver_key}_beta"] = beta if beta is not None else 0.0
-            result[f"sens_{driver_key}_interaction"] = sensitivity_interaction(beta, latest_delta)
+        driver_history = (self.symbol_real_bar_driver_history if real_bars else self.symbol_sensitivity_driver_history).get(symbol, {})
+        levels_by_driver = {
+            driver_key: list(driver_history.get(driver_key, []))[-tail:] if tail is not None else list(driver_history.get(driver_key, []))
+            for driver_key in drivers
+        }
+        result = sensitivity_features_vector(closes, levels_by_driver, lookback=lookback, min_observations=min_observations)
 
         for feature_name in CROSS_ASSET_SENSITIVITY_FEATURE_NAMES:
             result.setdefault(feature_name, 0.0)
@@ -5634,9 +5738,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # never timed out (submitted_bar kept resetting) and could fill too
         # (AMZN filled three orders = 689 shares, ~3x its target).
         existing_pending = self.pending_limit_orders.get(str(symbol))
-        pending_action = resolve_pending_order_action(
-            existing_pending, is_buy, self.bar_index, self.limit_order_unfilled_timeout_bars
+        class_timeout_bars = resolve_limit_setting_by_class(
+            asset_class, self.limit_order_timeout_by_class, self.limit_order_unfilled_timeout_bars
         )
+        pending_action = resolve_pending_order_action(existing_pending, is_buy, self.bar_index, class_timeout_bars)
         if pending_action == "keep":
             self._limit_order_kept_flag = True
             return True
@@ -5651,7 +5756,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         liquidity_payload = self.latest_liquidity_by_symbol.get(symbol_key, {})
         spread_fraction = float(liquidity_payload.get("spread_proxy", 0.0) or 0.0)
-        limit_price = resolve_limit_price(close_price, spread_fraction, is_buy, self.limit_order_offset_multiplier)
+        limit_price = resolve_limit_price(
+            close_price, spread_fraction, is_buy,
+            resolve_limit_setting_by_class(asset_class, self.limit_order_offset_by_class, self.limit_order_offset_multiplier),
+        )
 
         ticket = self.LimitOrder(symbol, quantity, limit_price)
         self.pending_limit_orders[str(symbol)] = {
@@ -5665,6 +5773,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "target_weight": target_weight,
         }
         return True
+
+    def _try_submit_limit_exit(self, symbol, symbol_key: str, asset: dict, exit_reason: str | None, close_price: float) -> bool:
+        """V6.0.0: a full exit of a class in `limit_orders.exit_asset_classes` rests as a limit order for the held quantity
+        (execution.order_gate.resolve_exit_order_route); False sends the caller to its market Liquidate() as before.
+        The order is tracked like an entry (one per symbol, timeout, market fallback for the remainder)."""
+        asset_class = asset.get("asset_class") or asset.get("security_type")
+        if resolve_exit_order_route(asset_class, exit_reason, self.limit_order_exit_asset_classes) != "limit":
+            return False
+        if symbol_key in self.option_positions_by_symbol:
+            return False
+        held = float(self.Portfolio[symbol].Quantity)
+        if held == 0.0:
+            return False
+        placed = self._try_submit_limit_order(
+            symbol, symbol_key, asset_class, is_buy=held < 0.0, target_weight=0.0, close_price=close_price,
+            contract_quantity=-held,
+        )
+        return bool(placed)
 
     def _build_option_strategy_object(self, strategy_name: str, canonical_symbol, strikes: list, expiries: tuple):
         """V4.5 - resolves and constructs the real Lean OptionStrategy
@@ -6408,6 +6534,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         is_book_selected: bool = False,
         is_rebalance_bar: bool = True,
         is_forced_exit: bool = False,
+        exit_reason: str | None = None,
     ) -> str:
         # V5.2.1 (development/Problems.md) - is_book_selected/is_rebalance_bar
         # both default to values that reproduce today's exact behavior for
@@ -6633,6 +6760,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         if signal_name == "sell":
             if self._is_invested(symbol, orders_allowed):
+                if orders_allowed and self._try_submit_limit_exit(symbol, symbol_key, asset, exit_reason, close_price):
+                    return "submitted_limit_exit"
                 if orders_allowed:
                     self._liquidate_position(symbol)
                 else:
@@ -7912,7 +8041,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 continue
             processed_record_ids.add(id(pending))
 
-            if self.bar_index - pending["submitted_bar"] < self.limit_order_unfilled_timeout_bars:
+            if self.bar_index - pending["submitted_bar"] < resolve_limit_setting_by_class(
+                pending.get("asset_class"), self.limit_order_timeout_by_class, self.limit_order_unfilled_timeout_bars
+            ):
                 continue
 
             fell_back = False

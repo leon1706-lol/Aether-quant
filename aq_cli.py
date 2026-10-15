@@ -720,6 +720,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_dividend_backfill.py", "test_factor_file_backfill.py",
         # V5.8.0 - data_pipeline/data_audit.py.
         "test_data_audit.py",
+        # V6.0.0 - scripts/refresh_universe_availability.py.
+        "test_refresh_universe_availability.py",
     ],
     "webui": [
         "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
@@ -727,6 +729,10 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_api_server.py",
     ],
     "ml": [
+        # V6.0.0 - extra-horizon (rank_60d) targets and heads.
+        "test_v600_extra_horizon.py",
+        "test_build_holdout_dataset.py",
+        "test_as_live_levers.py",
         "test_expert_models.py", "test_expert_datasets.py", "test_gating_network.py", "test_train_gating.py",
         "test_train_multitask.py", "test_train_multitask_architecture.py", "test_train_sequence.py",
         "test_train_sequence_architecture.py", "test_train_pipeline.py", "test_train_ranking_validation.py",
@@ -806,6 +812,19 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_v550_parity_fixes.py",
         "test_v550_backtest_findings.py",
         "test_backtest_audit.py",
+        # V6.0.0 - Lean run attribution (evaluation/lean_attribution.py).
+        "test_lean_attribution.py",
+        # V6.0.0 - simulator execution parity (cadence, next-open fills, resize / cooldown / trailing stop, replay).
+        "test_v600_simulator_parity.py",
+        "test_v600_forex_parity.py",
+        "test_v600_late_bar_cross_asset.py",
+        "test_v600_sensitivity_vector.py",
+        "test_v600_across_symbols.py",
+        "test_v600_config_decisions.py",
+        "test_lean_calibration.py",
+        "test_book_variant_research.py",
+        "test_crypto_fee_research.py",
+        "test_forex_keep_or_drop.py",
         "test_live_parity.py",
         "test_volatility_threshold_calibration.py",
         "test_performance_probe.py",
@@ -1723,14 +1742,18 @@ def _refresh_readme_evaluation_sections() -> None:
         print(f"warning: README evaluation-section refresh failed: {exc}", file=sys.stderr)
 
 
-def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default: int):
+def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default: int, ml_dir: Path | None = None):
     """The live path's rank score for every dataset row: the config-driven,
     promotion-gate-aware head blend (portfolio/rank_signal.py), NOT the
     single hard-coded head the idealized `--rank-book` run scores with.
     Mirrors the block --calibrate-book-spread / --replay-rolling-ic-gate
     each carry inline (this file's established duplication convention);
-    new callers use this one. Returns (raw_scores, policy)."""
+    new callers use this one. Returns (raw_scores, policy). `ml_dir` (V6.0.0)
+    scores the models of another directory, e.g. a candidate's
+    ml/versions/<id>, without installing them."""
     from evaluation import compute_blended_raw_scores, predict_heads
+
+    ml_dir = Path(ml_dir) if ml_dir is not None else ML_DIR
     from portfolio.rank_signal import resolve_rank_signal_policy
 
     training_metrics_by_model: dict[str, dict | None] = {}
@@ -1738,7 +1761,7 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
         ("sequence", "sequence_training_metrics.json"),
         ("multitask", "multitask_training_metrics.json"),
     ):
-        metrics_path = ML_DIR / metrics_filename
+        metrics_path = ml_dir / metrics_filename
         training_metrics_by_model[model_name] = (
             json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else None
         )
@@ -1748,8 +1771,8 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
     predictions_by_model_head: dict[str, dict[str, object]] = {}
     for model_kind_for_head in policy["model_priority"]:
         model_filename, schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
-        model_path = ML_DIR / model_filename
-        schema_path = ML_DIR / schema_filename
+        model_path = ml_dir / model_filename
+        schema_path = ml_dir / schema_filename
         if not model_path.exists() or not schema_path.exists():
             continue  # best-effort - a missing model falls through to the next model_priority entry
         model_export = json.loads(model_path.read_text(encoding="utf-8"))
@@ -2022,6 +2045,50 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print(f"  Wrote {ML_DIR / 'evaluation' / 'backtest_audit.json'}")
         return 0
 
+    # V6.0.0 - `aq evaluate --attribute-lean`: one Lean run's daily P&L rebuilt per ticker and component (main book,
+    # legacy signal, sleeves, crypto core / graduates), reconciled with Lean's equity curve; no dataset, no model.
+    if getattr(args, "attribute_lean", False):
+        from evaluation.backtest_audit import load_backtest_run
+        from evaluation.lean_attribution import attribute_run, find_book_history_for_run
+
+        backtests_dir = ROOT_DIR / "backtests"
+        run_dir = Path(args.backtest_dir) if getattr(args, "backtest_dir", None) else None
+        if run_dir is None:
+            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir()) if backtests_dir.exists() else []
+            run_dir = run_dirs[-1] if run_dirs else None
+        if run_dir is None or not run_dir.exists():
+            print("error: no backtest folder found - pass --backtest-dir PATH.", file=sys.stderr)
+            return 1
+        history_path = Path(args.book_history_file) if getattr(args, "book_history_file", None) else find_book_history_for_run(
+            run_dir, ROOT_DIR / "visualization" / "book_history"
+        )
+        if history_path is None or not history_path.exists():
+            print("error: no per-run book history for this run - pass --book-history-file PATH.", file=sys.stderr)
+            return 1
+        history = [json.loads(line) for line in history_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        run = load_backtest_run(run_dir)
+        periods: list[tuple[str, str] | None] = [None]
+        for period_text in getattr(args, "period", None) or []:
+            period_start, _, period_end = str(period_text).partition("..")
+            if not (period_start and period_end):
+                print(f"error: --period expects START..END (ISO dates), got {period_text!r}", file=sys.stderr)
+                return 1
+            periods.append((period_start, period_end))
+        reports = {}
+        for period in periods:
+            label = "whole_run" if period is None else f"{period[0]}..{period[1]}"
+            reports[label] = attribute_run(run, history, config, ROOT_DIR, period=period)
+            reconciliation = reports[label]["reconciliation"]
+            print(f"{run_dir.name} {label}: rebuilt net {reconciliation['rebuilt_net_usd']:+.2f} vs Lean "
+                  f"{reconciliation['lean_net_usd']:+.2f} USD (daily r {reconciliation['daily_change_correlation']})")
+            for name, entry in reports[label]["components"].items():
+                if entry["fills"] or entry["pnl"]:
+                    print(f"  {name:16s} gross {entry['pnl']:+9.2f}  fees {entry['fee']:8.2f}  net {entry['net']:+9.2f}  fills {entry['fills']}")
+        out_path = ML_DIR / "evaluation" / "lean_attribution.json"
+        _write_evaluation_json(out_path, {"backtest_dir": str(run_dir), "book_history": str(history_path), "reports": reports})
+        print(f"  Wrote {out_path}")
+        return 0
+
     # V5.8.0 - the audit flags (evaluation/audit_runners.py): each writes one JSON and returns before any book run.
     v580_audits = (
         ("ic_by_class", "class_ic_audit.json"), ("audit_gates", "gate_audit.json"), ("audit_data", "data_audit.json"),
@@ -2076,7 +2143,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         except FileNotFoundError as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
-        opens_frame = _read_dataset_rows(ML_DIR / "datasets" / "full_dataset.csv", columns=["ticker", "date", "open"])
+        opens_dataset = Path(args.dataset) if getattr(args, "dataset", None) else ML_DIR / "datasets" / "full_dataset.csv"
+        opens_frame = _read_dataset_rows(opens_dataset, columns=["ticker", "date", "open"])
         dataset_opens = {
             (str(ticker), str(date)[:10]): float(value)
             for ticker, date, value in zip(opens_frame["ticker"], opens_frame["date"], opens_frame["open"])
@@ -2241,7 +2309,12 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
         # Crypto and forex bars close after the equity tick, so the features live reads at tick D are the dataset's
         # PREVIOUS row (the same one-day lag the as-live simulator applies to LATE_BAR_ASSET_CLASSES).
-        from evaluation.live_parity import LATE_BAR_ASSET_CLASSES, late_bar_offline_row
+        from evaluation.live_parity import (
+            LATE_BAR_ASSET_CLASSES,
+            forex_monday_payload_only,
+            late_bar_offline_row,
+            late_bar_same_row_prefixes,
+        )
 
         target_asset_class = next(
             (
@@ -2284,7 +2357,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 lookup_date = previous_row_date.get(date_str, "") if lag_to_previous_row else date_str
                 offline_row = rows_by_date_ticker.get((lookup_date, target_symbol)) if dataset_has_ticker_column else None
                 if lag_to_previous_row and offline_row is not None:
-                    offline_row = late_bar_offline_row(offline_row, rows_by_date_ticker.get((date_str, target_symbol)))
+                    same_row_prefixes = late_bar_same_row_prefixes(config)
+                    offline_row = late_bar_offline_row(offline_row, rows_by_date_ticker.get((date_str, target_symbol)), same_row_prefixes)
+                    if target_asset_class == "forex" and date.fromisoformat(date_str[:10]).weekday() == 0:
+                        offline_row = forex_monday_payload_only(offline_row, same_row_prefixes)
                 if offline_row is None:
                     num_missing_offline_rows += 1
                     continue
@@ -2740,7 +2816,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         print("error: phase1.target.ranking.net_performance is not configured.", file=sys.stderr)
         return 1
 
-    dataset_path = ML_DIR / "datasets" / "full_dataset.csv"
+    dataset_path = Path(args.dataset) if getattr(args, "dataset", None) else ML_DIR / "datasets" / "full_dataset.csv"
     if not dataset_path.exists():
         print(f"error: {dataset_path} not found - run `aq train --dataset-only` first.", file=sys.stderr)
         return 1
@@ -4224,6 +4300,18 @@ def build_parser() -> argparse.ArgumentParser:
         "closed trades and realized P&L per class - BT2 spans the backtest split and the holdout and is judged on each.",
     )
     evaluate_parser.add_argument(
+        "--attribute-lean", action="store_true",
+        help="V6.0.0: one finished Lean run's daily P&L rebuilt per ticker from its order events and the data zips' closes, "
+        "split into main book / legacy signal / bond and forex sleeves / crypto core and graduates, fees per route, and "
+        "reconciled with Lean's equity curve (--backtest-dir, --period, --book-history-file) -> "
+        "ml/evaluation/lean_attribution.json. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--book-history-file", default=None,
+        help="V6.0.0: with --attribute-lean, the run's per-run book history (default: the visualization/book_history/*.jsonl "
+        "that started closest to the run folder's timestamp).",
+    )
+    evaluate_parser.add_argument(
         "--audit-fills", action="store_true",
         help="V5.7.0: every fill of one finished Lean backtest against the dataset's open and the Lean zip's own open, per "
         "asset class and order type, plus the dataset-vs-zip gap on the traded dates -> ml/evaluation/fill_price_audit.json. "
@@ -4289,7 +4377,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--dataset", default=None,
-        help="V5.8.0: with --ic-by-class / --audit-gates / --audit-features / --reconcile-features / --reconcile-book-history, a dataset CSV other than ml/datasets/full_dataset.csv.",
+        help="V5.8.0: with --ic-by-class / --audit-gates / --audit-features / --reconcile-features / --reconcile-book-history "
+        "(V6.0.0: also --audit-fills and the rank-book runs), a dataset CSV other than ml/datasets/full_dataset.csv, which "
+        "since V6.0.0 holds the V5.8.0 window with all four splits (train / validation / backtest / holdout).",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")

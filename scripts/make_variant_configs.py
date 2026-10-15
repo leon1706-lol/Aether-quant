@@ -7,6 +7,8 @@ The control is the shipped config. Each variant changes ONE thing under `phase_v
     v2_book_heads   residual/sector-neutral head loss weights = 0 (#112: capacity only for heads that trade or gate)
     v3_listnet      ranking_loss.objective = "listnet"
     v4_stop_rank5d  early_stop_head = "rank_5d"                   (the shipped book trades rank_5d, early stopping watched rank_20d)
+    v8_rank60       a 60-day rank target and head (V6.0.0): phase1 extra_horizon_days [60], label purge 60 days,
+                    horizon_heads.rank_60d enabled (multitask only; its dataset must be built with the same config)
 
     python scripts/make_variant_configs.py <out_dir> [--base config.json] [--model multitask|sequence]
 """
@@ -37,7 +39,21 @@ VARIANTS: dict[str, list[tuple[tuple[str, ...], object]]] = {
     "v5_wd_x4": [(("weight_decay",), 0.04)],
     "v6_dropout_35": [(("dropout",), 0.35)],
     "v7_small_net": [(("hidden_layers",), [32, 16])],
+    "v8_rank60": [],
 }
+
+# Changes outside <model>_training, by absolute path; the leaf may be new (V6.0.0: the 60-day target).
+GLOBAL_CHANGES: dict[str, list[tuple[tuple[str, ...], object]]] = {
+    "v8_rank60": [
+        (("phase1", "target", "ranking", "extra_horizon_days"), [60]),
+        (("phase1", "windows", "purge_label_horizon_days"), 60),
+    ],
+}
+# Keys a variant may ADD under <model>_training (every other change must hit an existing key).
+NEW_MODEL_KEYS: dict[str, list[tuple[tuple[str, ...], object]]] = {
+    "v8_rank60": [(("horizon_heads", "rank_60d"), {"enabled": True, "loss_weight": 1.0})],
+}
+MULTITASK_ONLY = {"v8_rank60"}
 
 # The sequence model has no `hidden_layers`; its capacity knob is the TCN channel list.
 SEQUENCE_OVERRIDES: dict[str, list[tuple[tuple[str, ...], object]]] = {
@@ -46,10 +62,12 @@ SEQUENCE_OVERRIDES: dict[str, list[tuple[tuple[str, ...], object]]] = {
 
 
 def apply_changes(
-    config: dict, changes: list[tuple[tuple[str, ...], object]], model: str = "multitask"
+    config: dict, changes: list[tuple[tuple[str, ...], object]], model: str = "multitask",
+    *, new_keys: list[tuple[tuple[str, ...], object]] = (), global_changes: list[tuple[tuple[str, ...], object]] = (),
 ) -> dict:
     """A deep copy of `config` with each dotted-path change applied under <model>_training; a missing
-    intermediate key raises KeyError (a typo must fail loudly, not silently train the control)."""
+    intermediate key raises KeyError (a typo must fail loudly, not silently train the control). `new_keys` may add a
+    leaf under <model>_training, `global_changes` set a leaf by absolute path (both need existing parents)."""
     result = copy.deepcopy(config)
     root = result
     for key in MODEL_ROOTS[model]:
@@ -61,13 +79,23 @@ def apply_changes(
         if path[-1] not in node:
             raise KeyError(f"{'.'.join(path)} is not a key of {model}_training")
         node[path[-1]] = value
+    for base, edits in ((root, new_keys), (result, global_changes)):
+        for path, value in edits:
+            node = base
+            for key in path[:-1]:
+                node = node[key]
+            node[path[-1]] = copy.deepcopy(value)
     return result
 
 
 def build_variant_configs(base_config: dict, model: str = "multitask") -> dict[str, dict]:
     return {
-        name: apply_changes(base_config, SEQUENCE_OVERRIDES.get(name, changes) if model == "sequence" else changes, model)
+        name: apply_changes(
+            base_config, SEQUENCE_OVERRIDES.get(name, changes) if model == "sequence" else changes, model,
+            new_keys=NEW_MODEL_KEYS.get(name, []), global_changes=GLOBAL_CHANGES.get(name, []),
+        )
         for name, changes in VARIANTS.items()
+        if model == "multitask" or name not in MULTITASK_ONLY
     }
 
 

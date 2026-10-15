@@ -45,6 +45,40 @@ def fee_override_for_security_type(cost_config: dict, security_type: str | None)
     return override if math.isfinite(fee_bps) and fee_bps >= 0.0 else None
 
 
+def expected_fill_fee_bps(is_limit_route: bool, fill_rate: float, maker_bps: float, taker_bps: float) -> float:
+    """Expected exchange fee in bps of one fill (V6.0.0): a limit order pays the maker rate when it fills and the taker
+    rate when it times out into a market order; a market order always pays the taker rate. `fill_rate` is clipped to
+    [0, 1]."""
+    if not is_limit_route:
+        return float(taker_bps)
+    rate = min(1.0, max(0.0, float(fill_rate)))
+    return rate * float(maker_bps) + (1.0 - rate) * float(taker_bps)
+
+
+def route_aware_per_side_fee_bps(route_config: dict) -> float:
+    """Per-side fee of a round trip from `fee_by_type.<class>.route_aware` {maker_bps, taker_bps, entry_limit, exit_limit,
+    fill_rate, exit_fill_rate (default fill_rate)}: the mean of the entry side and the exit side, each priced by its own
+    route."""
+    maker, taker = float(route_config["maker_bps"]), float(route_config["taker_bps"])
+    rate = float(route_config.get("fill_rate", 1.0))
+    exit_rate = float(route_config.get("exit_fill_rate", rate))
+    entry = expected_fill_fee_bps(bool(route_config.get("entry_limit", True)), rate, maker, taker)
+    exit_ = expected_fill_fee_bps(bool(route_config.get("exit_limit", False)), exit_rate, maker, taker)
+    return (entry + exit_) / 2.0
+
+
+def route_aware_fee_bps(override: dict) -> float | None:
+    """The route-aware per-side fee of a `fee_by_type` entry, or None when it carries no enabled `route_aware` block."""
+    block = override.get("route_aware")
+    if not isinstance(block, dict) or not block.get("enabled", False):
+        return None
+    try:
+        value = route_aware_per_side_fee_bps(block)
+    except (KeyError, TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) and value >= 0.0 else None
+
+
 def commission_terms_for_security_type(cost_config: dict, security_type: str | None) -> tuple[float, float]:
     """(commission_bps_per_side, min_commission_usd) for one security type: the per-class override when
     configured (crypto pays a percentage exchange fee with no dollar floor, unlike IB's per-share
@@ -52,7 +86,9 @@ def commission_terms_for_security_type(cost_config: dict, security_type: str | N
     override = fee_override_for_security_type(cost_config, security_type)
     if override is None:
         return float(cost_config.get("commission_bps_per_side", 0.0)), float(cost_config.get("min_commission_usd", 0.0))
-    return float(override["fee_bps"]), float(override.get("min_usd", 0.0) or 0.0)
+    route_aware = route_aware_fee_bps(override)
+    fee_bps = route_aware if route_aware is not None else float(override["fee_bps"])
+    return fee_bps, float(override.get("min_usd", 0.0) or 0.0)
 
 
 def commission_bps_by_ticker(cost_config: dict, security_type_by_ticker: dict[str, str]) -> dict[str, float]:
@@ -61,10 +97,29 @@ def commission_bps_by_ticker(cost_config: dict, security_type_by_ticker: dict[st
     may carry `sim_fee_bps` when a dollar floor (`min_usd`) makes its true cost per fill larger than `fee_bps` at
     realistic order sizes (forex: IB's $2 minimum on ~$2.6k fills is ~7.6 bps) - the simulator has no per-order floor."""
     return {
-        ticker: float(override.get("sim_fee_bps", override["fee_bps"]))
+        ticker: _simulated_fee_bps(override)
         for ticker, security_type in security_type_by_ticker.items()
         if (override := fee_override_for_security_type(cost_config, security_type)) is not None
     }
+
+
+def _simulated_fee_bps(override: dict) -> float:
+    """`sim_fee_bps` when given, else the route-aware per-side fee (V6.0.0, `route_aware.enabled`), else `fee_bps`."""
+    if "sim_fee_bps" in override:
+        return float(override["sim_fee_bps"])
+    route_aware = route_aware_fee_bps(override)
+    return route_aware if route_aware is not None else float(override["fee_bps"])
+
+
+def min_commission_usd_by_ticker(cost_config: dict, security_type_by_ticker: dict[str, str]) -> dict[str, float]:
+    """Per-ticker broker dollar floor per order (IB's $1 equity / $2 forex minimum, none for crypto): the simulator's
+    `min_commission_usd_by_ticker`, so a small order costs what live pays (V6.0.0)."""
+    floors = {}
+    for ticker, security_type in security_type_by_ticker.items():
+        _rate, floor = commission_terms_for_security_type(cost_config, security_type)
+        if floor > 0.0:
+            floors[ticker] = floor
+    return floors
 
 
 def estimate_round_trip_cost_bps(

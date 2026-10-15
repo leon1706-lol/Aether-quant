@@ -22,7 +22,30 @@ def midpoint_bar_from_quote_bar(quote_bar):
         low=(float(quote_bar.Bid.Low) + float(quote_bar.Ask.Low)) / 2.0,
         close=(float(quote_bar.Bid.Close) + float(quote_bar.Ask.Close)) / 2.0,
         volume=0.0,
+        # V6.0.0: Lean's fill-forward bar is a clone of the previous bar (same OHLC) flagged IsFillForward; one second
+        # before its end time is the bar's own date in any time zone (the date the dataset row carries).
+        is_fill_forward=bool(_first_attribute(quote_bar, ("IsFillForward", "is_fill_forward"), False)),
+        end_time=_first_attribute(quote_bar, ("EndTime", "end_time"), None),
     )
+
+
+def _first_attribute(source, names: tuple[str, ...], default):
+    for name in names:
+        try:
+            value = getattr(source, name)
+        except Exception:  # noqa: BLE001 - a Lean proxy may raise on a missing member
+            continue
+        if value is not None and not callable(value):
+            return value
+    return default
+
+
+def flatten_fill_forward_bar(bar: dict, previous_close: float) -> dict:
+    """A fill-forward bar the way the training dataset builds it (`train.fill_forward_forex_frame`): flat at the
+    previous close with no volume. Lean's own fill-forward bar repeats the previous bar's range, so a trailing ATR or
+    high-low spread window that contains one differs from the dataset's (V6.0.0, todo lead 4)."""
+    close = float(previous_close)
+    return {"open": close, "high": close, "low": close, "close": close, "volume": 0.0}
 
 
 def pad_sequence_history(history: list[list[float]], window_size: int) -> list[list[float]]:

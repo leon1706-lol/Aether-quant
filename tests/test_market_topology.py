@@ -998,3 +998,30 @@ def test_embedding_from_a_target_matrix_equals_the_distance_function_path():
     by_matrix = _stress_majorize(symbols, lambda a, b: 99.0, seeds, iterations=25, target_distance_matrix=np.maximum(0.0, 1.0 - corr))
     for symbol in symbols:
         assert by_function[symbol] == by_matrix[symbol]
+
+
+def test_the_cache_only_skips_the_embedding_never_the_model_input_fields():
+    """V6.0.0 (Problems.md #36 residual): correlation_strength, top_peer_returns and the risk label are the fields the models
+    read; with the cache reusing the stable embedding they must equal the always-fresh build's, bar after bar."""
+    import numpy as np
+
+    rng = np.random.default_rng(11)
+    symbols = [f"S{i}" for i in range(12)]
+    shared = rng.normal(0, 0.01, 40)
+    history = {s: list(0.6 * shared + rng.normal(0, 0.01, 40)) for s in symbols}
+    previous_positions = previous_correlations = change_history = None
+    for end in range(25, 40):
+        window = {s: values[end - 24 : end] for s, values in history.items()}
+        fresh = build_market_topology(window, correlation_threshold=0.5, link_threshold=0.3, min_observations=5)
+        cached = build_market_topology(
+            window, correlation_threshold=0.5, link_threshold=0.3, min_observations=5,
+            previous_positions=previous_positions, previous_correlations=previous_correlations,
+            correlation_stability_tolerance=0.5, correlation_stability_tolerance_percentile=None,
+            correlation_change_history=change_history,
+        )
+        for fresh_node, cached_node in zip(fresh.to_dict()["nodes"], cached.to_dict()["nodes"]):
+            for key in ("correlation_strength", "top_peer_returns", "topology_risk", "volatility_pressure", "cluster_id"):
+                assert fresh_node[key] == cached_node[key], (end, key)
+        previous_positions = {node["symbol"]: (node["x"], node["y"]) for node in cached.to_dict()["nodes"]}
+        previous_correlations, change_history = cached.correlations, cached.correlation_change_history
+    assert any("reused" in reason for reason in cached.reasons)  # the cache really did reuse the embedding

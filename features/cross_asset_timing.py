@@ -53,6 +53,33 @@ def fill_forward_open_forex_days(ordinals: Sequence[int], closes: Sequence[float
     return filled_ordinals, filled_closes
 
 
+def is_late_bar_asset(security_type: str | None) -> bool:
+    """Crypto and forex daily bars close at midnight, after the equity session: the equity tick still holds the
+    previous day's bar for them."""
+    return security_type in _MIDNIGHT_SECURITY_TYPES
+
+
+class LateBarCrossAssetCache:
+    """The cross-asset inputs (topology node, momentum map) a crypto/forex symbol had at ITS OWN tick, for re-use on the
+    equity tick that scores the same bar again (V6.0.0, todo lead 5).
+
+    The dataset row of a crypto/forex bar of day D sees the bars that closed before the bar did (key D + 1.0: equity
+    through D, crypto/forex through D - 1). Live builds exactly that payload at the symbol's own midnight tick; the next
+    equity tick (key D + 1.5) holds one more crypto bar, so re-scoring the symbol there with fresh payloads fed the model
+    a correlation window the dataset never has. Re-using the own-tick payloads makes the equity-tick score the dataset's
+    row D exactly (`phase1.features.late_bar_cross_asset: "own_tick"`)."""
+
+    def __init__(self) -> None:
+        self._entries: dict[str, tuple[dict, Mapping[str, float]]] = {}
+
+    def record(self, symbol_key: str, topology_node: dict | None, momentum_by_symbol: Mapping[str, float]) -> None:
+        if topology_node is not None:
+            self._entries[symbol_key] = (topology_node, momentum_by_symbol)
+
+    def lookup(self, symbol_key: str) -> tuple[dict, Mapping[str, float]] | None:
+        return self._entries.get(symbol_key)
+
+
 def bar_available_at(ordinal: int, security_type: str) -> float:
     return ordinal + (_MIDNIGHT_FRACTION if security_type in _MIDNIGHT_SECURITY_TYPES else _EQUITY_CLOSE_FRACTION)
 

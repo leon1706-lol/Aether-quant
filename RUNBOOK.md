@@ -61,7 +61,7 @@ Since V5.6.0 the sync is scripted (`gh codespace cp` upload is broken and `-r` d
 
 The VM reboots about hourly: walk-forward resumes with `--resume-run-id`. See `development/infrastructure.md`.
 
-## Deploy checklist (paper first, V5.8.0)
+## Deploy checklist (paper first, V6.0.0)
 
 Run top to bottom; stop at the first red item. Evidence status at V5.8.0: the models carry a weak, unproven rank edge (`development/Problems.md` #169, #172, #174), so **paper trading only, no live capital**, until a paper period shows otherwise.
 
@@ -69,7 +69,7 @@ Run top to bottom; stop at the first red item. Evidence status at V5.8.0: the mo
 2. **Image:** `aq docker build`, then `aq docker up` and `GET /api/assets-status` returns 200.
 3. **Config:** `aq render-lean-config` from `.env.live` (secrets only in the gitignored `lean.live.json`); `phase_v2.runtime.mode` stays `observation` until step 4.
 4. **Gate:** `aq paper-readiness` (needs the Postgres observation history and the paper broker config) before flipping the mode to `paper`.
-5. **Dashboard (`/api/assets-status`, Operations page):** forex carry sleeve (gross 0.10), bond momentum sleeve (gross 0.10), crypto graduates (1% per name, 5% class), RL range [0.9, 1.1] with its shadow guard, the venue listing guard, and every `sleeve_guards.*` entry reading `sleeve_guard_ok`.
+5. **Dashboard (`/api/assets-status`, Operations page):** the forex sleeve shows OFF (V6.0.0, rule R-FX6: `forex_risk.enabled` false), bond momentum sleeve (gross 0.10), crypto graduates (0.5% per name, 2.5% class), RL range [0.9, 1.1] with its shadow guard, the venue listing guard, and every enabled `sleeve_guards.*` entry reading `sleeve_guard_ok`. Crypto exits rest as limit orders (`limit_orders.exit_asset_classes`); check Lean's benchmark follows SPY (`runtime.benchmark_ticker`) in the first backtest's engine log.
 6. **Kill switch fields to watch:** rolling Sharpe floor, drawdown velocity, slippage divergence (reference = submit price), the rolling-IC gate state and the spread floor.
 7. **First week:** keep `diagnostics.book_history.include_feature_snapshot` on for a few symbols and run `aq evaluate --reconcile-features --symbol X` against a fresh dataset; the regime inputs must match (they are drawdown-free since V5.8.0).
 

@@ -46,17 +46,40 @@ LATE_BAR_ASSET_CLASSES = frozenset({"forex", "crypto"})
 # (measured on BT1 and BT2 snapshots of ETHUSD and EURUSD, Problems.md #172).
 LATE_BAR_SAME_ROW_FEATURE_PREFIXES = (
     "peer_", "alt_", "topology_", "cs_momentum_rank", "bond_yield_curve", "bond_credit_spread", "macro_crypto_risk_appetite",
+    "fx_carry",  # FRED-dated like alt_: live reads the rate as of the tick's date, which is the dataset row D's value
 )
 
 
-def late_bar_offline_row(previous_row: dict | None, same_row: dict | None) -> dict | None:
-    """The dataset row a late-bar symbol's live features at tick D correspond to: the previous row, with the cross-asset
-    features taken from row D. None when the previous row is missing."""
+# V6.0.0 `phase1.features.late_bar_cross_asset: "own_tick"`: the topology / peer / cross-sectional momentum payloads are the
+# symbol's own-tick ones, i.e. the previous dataset row's; only the FRED-dated and bond / macro-proxy blocks stay the tick's.
+OWN_TICK_PAYLOAD_PREFIXES = ("peer_", "topology_", "cs_momentum_rank")
+
+
+def late_bar_same_row_prefixes(config: dict | None) -> tuple[str, ...]:
+    mode = str(((config or {}).get("phase1", {}).get("features", {}) or {}).get("late_bar_cross_asset", "equity_tick"))
+    if mode != "own_tick":
+        return LATE_BAR_SAME_ROW_FEATURE_PREFIXES
+    return tuple(prefix for prefix in LATE_BAR_SAME_ROW_FEATURE_PREFIXES if prefix not in OWN_TICK_PAYLOAD_PREFIXES)
+
+
+def forex_monday_payload_only(offline_row: dict | None, same_row_prefixes: tuple[str, ...]) -> dict | None:
+    """A forex tick on a Monday holds Sunday's fill-forward bar, which has no dataset row (its previous row is Friday), so the
+    own-price block cannot be compared; only the payload / FRED-dated features of the merged row are."""
+    if offline_row is None:
+        return None
+    return {name: value for name, value in offline_row.items() if str(name).startswith(same_row_prefixes)}
+
+
+def late_bar_offline_row(
+    previous_row: dict | None, same_row: dict | None, same_row_prefixes: tuple[str, ...] = LATE_BAR_SAME_ROW_FEATURE_PREFIXES
+) -> dict | None:
+    """The dataset row a late-bar symbol's live features at tick D correspond to: the previous row, with the features
+    under `same_row_prefixes` taken from row D. None when the previous row is missing."""
     if previous_row is None:
         return None
     merged = dict(previous_row)
     for name, value in (same_row or {}).items():
-        if str(name).startswith(LATE_BAR_SAME_ROW_FEATURE_PREFIXES):
+        if str(name).startswith(same_row_prefixes):
             merged[name] = value
     return merged
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -192,7 +215,7 @@ def build_live_member_weight_fn(
     min_cost_multiplier = float(costs.get("min_cost_multiplier", 0.25))
     core = frozenset(core_crypto_tickers or ())
     forex_enabled = bool(phase_v2.get("forex_risk", {}).get("enabled", False))
-    sizing_risk = phase_v2.get("risk", {})
+    sizing_risk = phase_v2.get("dynamic_risk", {})  # main.py reads the topology sizing keys from dynamic_risk
     topology_sizing_enabled = bool(sizing_risk.get("topology_sizing_enabled", True)) and topology_inputs_fn is not None
     min_topology_multiplier = float(sizing_risk.get("min_topology_multiplier", 0.5))
     max_topology_multiplier = float(sizing_risk.get("max_topology_multiplier", 1.0))
@@ -465,6 +488,9 @@ def build_as_live_kwargs(
     rank_group_by_ticker: dict[str, str] | None = None,
     venue_listing_dates: dict[str, dict] | None = None,
     class_weight_caps: dict[str, dict] | None = None,
+    next_open_fills: bool = False,
+    resize_threshold_weight: float = 0.0,
+    trade_cooldown_bars: int = 0,
 ) -> dict:
     """base_kwargs (idealized, from `phase1...net_performance`) + the live
     overrides, read from `phase_v2.portfolio_book` / `phase_v2.exits` - the
@@ -473,8 +499,16 @@ def build_as_live_kwargs(
 
     V5.7.0: `hold_positions_on_veto` now follows `portfolio_book.hold_owned_positions_on_veto` (it was hardcoded True,
     so flipping the config changed live but not this run). The optional live mechanisms (kill switch, member sizing /
-    liquidity / net-edge chain, HRP weights, per-name impact) are passed in already built; None leaves them off."""
+    liquidity / net-edge chain, HRP weights, per-name impact) are passed in already built; None leaves them off.
+
+    V6.0.0: `portfolio_book.per_asset_class_slots` goes to the same book builder live uses; `next_open_fills` makes a
+    decided order earn from the next open (the frame needs `add_next_intraday_return`); the resize threshold
+    (`functionality.position_scaling`), the entry cooldown (`phase6.risk.trade_cooldown_bars`) and the trailing stop
+    (`exits.trailing_stop_pct`) gate trades as live does."""
+    from portfolio.book_construction import normalize_per_asset_class_slots
+
     neutrality = book_config.get("neutrality", {})
+    slots, _skipped = normalize_per_asset_class_slots(book_config.get("per_asset_class_slots"))
     kwargs = dict(base_kwargs)
     kwargs.update(
         top_n=int(book_config.get("top_n", base_kwargs.get("top_n", 6))),
@@ -505,6 +539,15 @@ def build_as_live_kwargs(
         rank_group_by_ticker=rank_group_by_ticker or None,
         venue_listing_dates=venue_listing_dates or None,
         class_weight_caps=class_weight_caps or None,
+        per_asset_class_slots=slots or None,
+        resize_threshold_weight=float(resize_threshold_weight),
+        trade_cooldown_dates=int(trade_cooldown_bars),
+        trailing_stop_pct=(
+            float(exits_config["trailing_stop_pct"])
+            if exits_config.get("enabled", False) and exits_config.get("trailing_stop_pct") is not None
+            else None
+        ),
+        intraday_next_return_column=NEXT_INTRADAY_RETURN_COLUMN if next_open_fills else None,
         max_holding_dates=(
             int(exits_config["max_holding_bars"])
             if exits_config.get("enabled", False) and exits_config.get("max_holding_bars") is not None
@@ -516,6 +559,22 @@ def build_as_live_kwargs(
         ),
     )
     return kwargs
+
+
+NEXT_INTRADAY_RETURN_COLUMN = "next_intraday_return"
+
+
+def add_next_intraday_return(frame, *, ticker_column: str = "ticker", date_column: str = "date"):
+    """Adds `next_intraday_return`: each row's NEXT session close/open - 1 for the same ticker (NaN on its last row), the
+    part of `target_return_1d` an order decided on this row's close earns after filling at the next open."""
+    import numpy as np
+
+    ordered = frame.sort_values([ticker_column, date_column])
+    next_open = ordered.groupby(ticker_column)["open"].shift(-1)
+    next_close = ordered.groupby(ticker_column)["close"].shift(-1)
+    values = (next_close / next_open - 1.0).replace([np.inf, -np.inf], np.nan)
+    frame[NEXT_INTRADAY_RETURN_COLUMN] = values.reindex(frame.index)
+    return frame
 
 
 def build_rank_groups(config: dict, asset_class_by_ticker: dict[str, str]) -> dict[str, str] | None:

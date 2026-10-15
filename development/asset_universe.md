@@ -151,7 +151,7 @@ and AAA (from 2020-09) enough as well (`ml/dataset_manifest.json`). The ten cryp
 trade as capped "graduates" (`phase_v2.crypto_graduates`: 1% per name, 5% for the class, a loss guard, and the venue
 listing guard that blocks orders before a pair's Coinbase listing or during the XRP suspension). Bonds are no longer in
 the main book pool: they run as a momentum-ranked sleeve (`phase_v2.bond_sleeve`, gross 0.10 after BT1,
-`max_bond_exposure` 0.3 stays the hard cap) and forex as a carry-ranked sleeve (`phase_v2.forex_sleeve`, gross 0.10).
+`max_bond_exposure` 0.3 stays the hard cap) and forex as a carry-ranked sleeve (`phase_v2.forex_sleeve`, gross 0.10) until V6.0.0, which dropped it by rule R-FX6 (`forex_risk.enabled` false: the pairs are observation-only, their bars still feed the cross-asset features; Problems.md #181). Crypto graduates trade at 0.5% per name / 2.5% class since V6.0.0 (#180).
 The history below describes the older observation-only state. (Two of the original 7 picks,
 BNBUSD/TRXUSD, were swapped for ETCUSD/ZECUSD after a real `aq backtest` run
 found Coinbase never actually listed Binance Coin or TRON pairs. Lean's local

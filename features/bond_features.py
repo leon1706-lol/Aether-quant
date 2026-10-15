@@ -108,6 +108,60 @@ def credit_spread_level(baa10y_spread: float | None) -> float:
     return float(baa10y_spread)
 
 
+_VECTOR_BETA_MIN_LENGTH = 48
+
+
+def _vector_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observations: int):
+    """numpy version of the OLS slope below for long windows (V6.0.0, latency: 4 sensitivity betas x ~110 symbols x 2.5 ticks a
+    day cost ~50% of `_build_model_input`). Same pairing and the same `variance < 1e-12 -> None` guard; the sums are
+    float64 vector sums, so the value differs from the scalar one only at rounding level (pinned by a test). Returns
+    `_USE_SCALAR` when a value is a real NaN or not finite, so those inputs keep the scalar path's exact behaviour."""
+    import numpy as np
+
+    size = min(len(etf_daily_returns), len(delta_10yr_yield_daily))
+    ys = np.array(etf_daily_returns[:size], dtype=float)  # None becomes nan
+    xs = np.array(delta_10yr_yield_daily[:size], dtype=float)
+    missing_y, missing_x = np.isnan(ys), np.isnan(xs)
+    if int(missing_y.sum()) != etf_daily_returns[:size].count(None) or int(missing_x.sum()) != delta_10yr_yield_daily[:size].count(None):
+        return _USE_SCALAR  # a genuine NaN is in the data
+    valid = ~(missing_y | missing_x)
+    if int(valid.sum()) < min_observations:
+        return None
+    ys, xs = ys[valid], xs[valid]
+    if not (np.isfinite(ys).all() and np.isfinite(xs).all()):
+        return _USE_SCALAR
+    deviation_x = xs - xs.mean()
+    variance_x = float(np.dot(deviation_x, deviation_x))
+    if variance_x < 1e-12:
+        return None
+    return float(np.dot(deviation_x, ys - ys.mean())) / variance_x
+
+
+_USE_SCALAR = object()
+
+
+def duration_beta_from_arrays(ys, xs, min_observations: int):
+    """The OLS slope of `ys` on `xs` for float64 arrays in which NaN stands for a missing value (V6.0.0, latency path of the
+    per-tick sensitivity betas, where the series are built as arrays and never carry a genuine NaN). Positional pairing,
+    the minimum-observation floor and the `variance < 1e-12 -> None` guard are `empirical_duration_beta`'s; the value
+    differs from it only at rounding level."""
+    import numpy as np
+
+    size = min(len(ys), len(xs))
+    ys, xs = ys[:size], xs[:size]
+    valid = ~(np.isnan(ys) | np.isnan(xs))
+    if int(valid.sum()) < min_observations:
+        return None
+    ys, xs = ys[valid], xs[valid]
+    if not (np.isfinite(ys).all() and np.isfinite(xs).all()):
+        return None
+    deviation_x = xs - xs.mean()
+    variance_x = float(np.dot(deviation_x, deviation_x))
+    if variance_x < 1e-12:
+        return None
+    return float(np.dot(deviation_x, ys - ys.mean())) / variance_x
+
+
 def empirical_duration_beta(
     etf_daily_returns: list[float | None],
     delta_10yr_yield_daily: list[float | None],
@@ -124,6 +178,14 @@ def empirical_duration_beta(
     least min_observations valid pairs. Returns None (not 0.0) below that
     floor - a missing/insufficient-history duration estimate must be
     distinguishable from "genuinely zero duration sensitivity"."""
+    if len(etf_daily_returns) >= _VECTOR_BETA_MIN_LENGTH:
+        vector = _vector_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observations)
+        if vector is not _USE_SCALAR:
+            return vector
+    return _scalar_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observations)
+
+
+def _scalar_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observations: int) -> float | None:
     paired = [
         (x, y)
         for x, y in zip(etf_daily_returns, delta_10yr_yield_daily)

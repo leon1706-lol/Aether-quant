@@ -77,3 +77,44 @@ def sensitivity_interaction(sensitivity: float | None, macro_change: float | Non
     if sensitivity is None or macro_change is None:
         return 0.0
     return float(sensitivity) * float(macro_change)
+
+
+def sensitivity_features_vector(
+    closes: list[float],
+    levels_by_driver: dict[str, list[float | None]],
+    *,
+    lookback: int,
+    min_observations: int,
+) -> dict[str, float]:
+    """All 8 sensitivity features of one symbol from its trailing closes and each driver's aligned level history, built as
+    float64 arrays (V6.0.0, latency: the list-and-loop version was ~55% of `main.py::_build_model_input`).
+
+    The same definition as the list path: returns[i] = closes[i] / closes[i-1] - 1 (missing when the previous close is 0),
+    deltas[i] = level[i] - level[i-1] (missing when either level is), the last `lookback` of each paired positionally,
+    beta = OLS slope, interaction = beta x the latest delta, neutral 0.0 where a value is missing. Equal to the list path
+    to rounding level (`tests/test_v600_sensitivity_vector.py`)."""
+    import numpy as np
+
+    from features.bond_features import duration_beta_from_arrays
+
+    tail = lookback + 1 if lookback > 0 else None
+    prices = np.asarray(closes[-tail:] if tail is not None else closes, dtype=float)
+    returns = np.full(len(prices), np.nan)
+    if len(prices) > 1:
+        previous = prices[:-1]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            returns[1:] = np.where(previous != 0.0, prices[1:] / previous - 1.0, np.nan)
+    window_returns = returns[-lookback:] if lookback > 0 else returns
+    result: dict[str, float] = {}
+    for driver_key, levels in levels_by_driver.items():
+        series = np.array(levels[-tail:] if tail is not None else levels, dtype=float)  # None becomes nan
+        deltas = np.full(len(series), np.nan)
+        if len(series) > 1:
+            deltas[1:] = series[1:] - series[:-1]
+        window_deltas = deltas[-lookback:] if lookback > 0 else deltas
+        beta = duration_beta_from_arrays(window_returns, window_deltas, min_observations)
+        latest = float(deltas[-1]) if len(deltas) and not np.isnan(deltas[-1]) else None
+        result[f"sens_{driver_key}_beta"] = beta if beta is not None else 0.0
+        result[f"sens_{driver_key}_interaction"] = sensitivity_interaction(beta, latest)
+    return result
+

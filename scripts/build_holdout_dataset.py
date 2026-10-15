@@ -15,6 +15,12 @@ with - e.g. the pre-V5.8.0 config for the shipped V5.6.0 models), `--windows-con
 written splits (e.g. the V5.8.0 config); that pair builds the baseline dataset that scores the ACTIVE models on the new
 splits (`ml/datasets/v580_active_dataset.csv`).
 
+V6.0.0: `--full-splits` writes ONE dataset with all four splits of `--windows-config` (train / validation / backtest
+from the training windows, `holdout` for the rows from `phase1.windows.holdout.start` on), scaled with the active
+scaler; `--write-split-files` also writes `train_dataset.csv`, `validation_dataset.csv` and `backtest_dataset.csv` next
+to `--output` (the files the trainers read). That is how `ml/datasets/full_dataset.csv` is refreshed without refitting
+the scaler the installed models were trained with (`train.py --dataset-only` would refit it).
+
 Heavy (same cost as a dataset build): run it on the Codespace, never on the dev PC.
 """
 
@@ -31,6 +37,26 @@ sys.path.insert(0, str(ROOT_DIR))
 import train  # noqa: E402
 
 
+SPLIT_FILE_NAMES = {"train": "train_dataset.csv", "validation": "validation_dataset.csv", "backtest": "backtest_dataset.csv"}
+
+
+def label_holdout_rows(dataset, holdout_start: str):
+    """Rows of the extended `backtest` window dated on or after `holdout_start` become split `holdout`."""
+    import pandas as pd
+
+    dates = pd.to_datetime(dataset["date"])
+    in_holdout = (dataset["split"] == "backtest") & (dates >= pd.Timestamp(holdout_start))
+    dataset.loc[in_holdout.to_numpy(), "split"] = "holdout"
+    return dataset
+
+
+def full_split_window(windows: dict) -> tuple[str, str]:
+    """(start, end) of the dataset's extended backtest window: the backtest split through the end of the holdout."""
+    if "holdout" not in windows:
+        raise ValueError("--full-splits needs phase1.windows.holdout")
+    return windows["backtest"]["start"], windows["holdout"]["end"]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", default="data")
@@ -39,6 +65,8 @@ def main() -> int:
     parser.add_argument("--config-path", default=str(ROOT_DIR / "config.json"))
     parser.add_argument("--windows-config", default=str(ROOT_DIR / "config.json"))
     parser.add_argument("--output", default=str(ROOT_DIR / "ml" / "datasets" / "holdout_dataset.csv"))
+    parser.add_argument("--full-splits", action="store_true", help="V6.0.0: train/validation/backtest/holdout in one file")
+    parser.add_argument("--write-split-files", action="store_true", help="V6.0.0: also the per-split files the trainers read")
     args = parser.parse_args()
 
     config = json.loads(Path(args.config_path).read_text(encoding="utf-8"))
@@ -48,6 +76,8 @@ def main() -> int:
         **{key: windows_source[key] for key in ("training", "validation", "backtest") if key in windows_source},
     }
     holdout_window = windows_source.get("holdout") or {}
+    if args.full_splits:
+        args.start, args.end = full_split_window(windows_source)
     args.start = args.start or holdout_window.get("start")
     args.end = args.end or holdout_window.get("end")
     if not args.start or not args.end:
@@ -63,7 +93,10 @@ def main() -> int:
     dataset, _ = train.add_asset_context_features(dataset, [asset["ticker"] for asset in holdout_config["phase1"]["universe"]["assets"]])
     dataset, _ = train.add_asset_class_context_features(dataset, train.asset_class_by_ticker_from_config(holdout_config))
 
-    holdout_rows = dataset[dataset["split"] == "backtest"]
+    if args.full_splits:
+        dataset = label_holdout_rows(dataset, holdout_window["start"])
+        print("rows per split:", dataset["split"].value_counts(dropna=False).to_dict())
+    holdout_rows = dataset[dataset["split"] == ("holdout" if args.full_splits else "backtest")]
     print(
         f"rows: {len(dataset)} total, {len(holdout_rows)} in the holdout window "
         f"({holdout_rows['date'].min()}..{holdout_rows['date'].max()}), {holdout_rows['ticker'].nunique()} tickers"
@@ -71,6 +104,11 @@ def main() -> int:
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     dataset.to_csv(args.output, index=False)
     print(f"written {args.output}; dropped assets: {dropped}")
+    if args.write_split_files:
+        for split, name in SPLIT_FILE_NAMES.items():
+            target = Path(args.output).parent / name
+            dataset[dataset["split"] == split].to_csv(target, index=False)
+            print(f"written {target}")
     return 0
 
 

@@ -351,5 +351,10 @@ def test_member_weight_applies_the_learned_topology_multiplier_only_when_a_provi
         topology_inputs_fn=lambda symbol, date: {"topology_source": "fallback", "topology_confidence": 0.0, "topology_disagreement": 0.0},
     )
     assert _call(fallback) == pytest.approx(unshrunk)  # a fallback node is a strict no-op
-    assert _call(build_live_member_weight_fn(_config(risk={"topology_sizing_enabled": False}), security_type_by_ticker={"AAA": "equity"},
+    # main.py reads the topology sizing keys from phase_v2.dynamic_risk (the offline builder read phase_v2.risk until V6.0.0)
+    off = _config(dynamic_risk={"target_daily_volatility": 0.015, "use_predicted_volatility": False, "topology_sizing_enabled": False})
+    assert _call(build_live_member_weight_fn(off, security_type_by_ticker={"AAA": "equity"},
                                              topology_inputs_fn=lambda symbol, date: inputs)) == pytest.approx(unshrunk)
+    widened = _config(dynamic_risk={"target_daily_volatility": 0.015, "use_predicted_volatility": False, "min_topology_multiplier": 0.9})
+    assert _call(build_live_member_weight_fn(widened, security_type_by_ticker={"AAA": "equity"},
+                                             topology_inputs_fn=lambda symbol, date: inputs)) > shrunk  # the floor moved

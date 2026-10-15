@@ -362,3 +362,50 @@ def test_series_change_asof_respects_publication_lag():
 
 def test_series_change_asof_empty_rows_returns_none():
     assert series_change_asof([], date(2020, 1, 1)) is None
+
+
+# ---------------------------------------------------------------- V6.0.0: the cached sorted index changes no value
+
+
+def _reference_asof(rows, current_date, lag):
+    import bisect
+    from datetime import timedelta
+
+    ordered = sorted(rows, key=lambda row: row["date"])
+    dates = [row["date"] for row in ordered]
+    position = bisect.bisect_right(dates, current_date - timedelta(days=lag))
+    return ordered[position - 1]["value"] if position else None
+
+
+def test_cached_asof_equals_the_uncached_lookup_for_every_lag_and_date():
+    import datetime
+    import random
+
+    from data_pipeline.fred_backfill import series_change_asof, series_value_asof
+
+    rng = random.Random(4)
+    start = datetime.date(2020, 1, 1)
+    days = list(range(0, 400, 1))
+    rng.shuffle(days)  # an unsorted list must give the same answers
+    rows = [{"date": start + datetime.timedelta(days=day), "value": rng.random()} for day in days[:300]]
+    for lag in (0, 1, 7):
+        for offset in range(-5, 410, 7):
+            current = start + datetime.timedelta(days=offset)
+            assert series_value_asof(rows, current, lag) == _reference_asof(rows, current, lag)
+    ordered = sorted(rows, key=lambda row: row["date"])
+    assert series_change_asof(rows, start + datetime.timedelta(days=300), 0, 4) == series_change_asof(ordered, start + datetime.timedelta(days=300), 0, 4)
+    assert series_value_asof([], start, 0) is None
+
+
+def test_the_cache_follows_a_list_that_grows_and_never_confuses_two_lists():
+    import datetime
+
+    from data_pipeline.fred_backfill import series_value_asof
+
+    day = datetime.date(2024, 1, 1)
+    rows = [{"date": day, "value": 1.0}]
+    assert series_value_asof(rows, day + datetime.timedelta(days=5), 0) == 1.0
+    rows.append({"date": day + datetime.timedelta(days=3), "value": 2.0})
+    assert series_value_asof(rows, day + datetime.timedelta(days=5), 0) == 2.0  # the length changed: rebuilt
+    other = [{"date": day, "value": 9.0}]
+    assert series_value_asof(other, day, 0) == 9.0 and series_value_asof(rows, day + datetime.timedelta(days=5), 0) == 2.0

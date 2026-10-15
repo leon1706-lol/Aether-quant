@@ -92,11 +92,23 @@ codebase.
   `ml/evaluation/as_live_levers[_split].json`. V5.7.0: scoring is cached per split and model fingerprint
   (`ml/evaluation/cache/`), the rolling-IC state is computed once per score set (seconds per variant), and the
   `AsLiveHarness` class is reusable.
+- `lean_calibration.py` (V6.0.0, rule R-CAL) — the offline simulator against a Lean run's main-book component, rung by rung
+  (cadence, next-open fills, IB floor, live's resize / cooldown / trailing stop, topology sizing, replayed gate decisions);
+  `--predict` writes the calibrated prediction before a run -> `ml/evaluation/v600/calibration.json`, `bt1_prediction.json`.
+- `book_variant_research.py` (V6.0.0, rule R-BOOK), `crypto_fee_research.py` (R-CRYPTO), `forex_keep_or_drop.py` (R-FX6) —
+  the three pre-registered decisions of V6.0.0 on the calibrated simulator (heavy: run them on the Codespace through
+  `codespace_research_v600.sh`; `codespace_calibration_v600.sh` and `codespace_predict_v600.sh` do the same for R-CAL).
+- `profile_main_tick.py` (V6.0.0) — times the real `main.py` per-tick feature path outside Lean (`--repeat`, `--scalar-beta`
+  A/B switch, `--cprofile`).
+- `refresh_universe_availability.py` (V6.0.0) — sets each asset's `available_from/available_to` from its zip.
+- `lean_teardown_smoke/` (V6.0.0) — the 15-line Lean algorithm of Problems.md #104; `lean backtest scripts/lean_teardown_smoke --image <image>`.
+- `codespace_session_v600.sh` (V6.0.0) — the resumable S1 session: four-split dataset with the active scaler, the 60-day variant, the test suite.
 - `gate_research.py` (V5.7.0) — every gate / lever decision of todo.md findings 1-6 on BOTH splits with the full
   as-live simulator, plus the R-GATE verdict per experiment -> `ml/evaluation/v570_gate_research.json`.
-- `build_holdout_data.py` / `build_holdout_dataset.py` (V5.7.0) — the out-of-window holdout: Yahoo bars for
-  every universe asset 2014-06..2025-06 into `data_holdout/` (never `data/`), then a dataset scaled with the
-  ACTIVE scaler -> `ml/datasets/holdout_dataset.csv`. Evaluation-only; the dataset build runs on the Codespace.
+- `build_holdout_data.py` / `build_holdout_dataset.py` (V5.7.0) — Yahoo bars for every universe asset into a staging
+  root (`--root`, default `data_v6_staging`; audited before it is copied over `data/`), then a dataset scaled with the
+  ACTIVE scaler (never refit). The dataset build runs on the Codespace. `data_holdout/` was deleted in V6.0.0: the
+  holdout is `phase1.windows.holdout` inside `data/` since V5.8.0.
 - `make_variant_configs.py` / `compare_training_variants.py` — write the per-variant configs and pick
   the winner on VALIDATION IC against the control's seed spread (never the backtest split).
 - `overlap_vs_sharpe_analysis.py` — pairs each reconciled book-history run with the Lean Sharpe of the

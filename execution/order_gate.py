@@ -200,6 +200,31 @@ def simulate_fill(
     }
 
 
+# Exits that may rest as a limit order (V6.0.0): the model's own sell, the book's rotation exit and the age exit.
+# The rest are risk exits and always go to the market: a trailing stop, the sleeve loss guard, the kill switch and
+# the disabled-class / venue sweeps (a resting order would let the loss run).
+LIMIT_EXIT_REASONS = frozenset({"model_sell", "rotation", "max_holding_age_exceeded"})
+
+
+def resolve_limit_setting_by_class(asset_class: str | None, by_class: dict | None, default):
+    """A limit-order setting (`offset_multiplier`, `unfilled_timeout_bars`) for one asset class (V6.0.0): the class's entry in
+    `phase_v2.limit_orders.<setting>_by_class` when present, else the global value. Classes absent from the dict (every
+    class by default, the dict being empty) behave exactly as before."""
+    if asset_class and by_class and asset_class in by_class:
+        return type(default)(by_class[asset_class])
+    return default
+
+
+def resolve_exit_order_route(asset_class: str | None, exit_reason: str | None, exit_asset_classes) -> str:
+    """"limit" or "market" for a full exit (V6.0.0, todo lead 3: crypto exits were all market orders at 80 bps against
+    ~60 bps for the maker entries). A limit exit needs the class listed in `phase_v2.limit_orders.exit_asset_classes`
+    (default empty = every exit stays a market order, as before) and a reason from LIMIT_EXIT_REASONS; the timeout
+    fallback to a market order is the entry path's own (`fallback_to_market_on_timeout`)."""
+    if asset_class and asset_class in set(exit_asset_classes or ()) and exit_reason in LIMIT_EXIT_REASONS:
+        return "limit"
+    return "market"
+
+
 def resolve_limit_price(
     reference_price: float,
     spread_fraction: float,
