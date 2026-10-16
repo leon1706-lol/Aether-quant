@@ -57,7 +57,7 @@ matplotlib>=3.8.0
 pybind11>=2.10
 
 # V5.3.9 - CI hardening: coverage gate (pytest --cov-fail-under in ci.yml)
-pytest-cov>=5.0.0
+pytest-cov>=7.1.0
 
 # V5.3.9 - Python lint job in ci.yml + local parity (ruff check .)
 # V5.5.0 - pinned to the SAME version ci.yml's python-lint job installs
