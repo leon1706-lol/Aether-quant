@@ -129,3 +129,28 @@ def write_rendered_config(
         json.dumps(rendered, indent=4) + "\n", encoding="utf-8"
     )
     return filled
+
+
+def validate_live_crypto_route(config: Mapping[str, object], filled_fields: list[str] | tuple[str, ...]) -> list[str]:
+    """Advisory warnings about trading crypto through the configured live brokerage (V6.1.0, Problems.md #192).
+
+    The rendered live config fills Interactive Brokers credentials (`ib-*`). QuantConnect's Interactive Brokers
+    brokerage does not support crypto (QuantConnect forum, "when will the interactivebrokersbrokeragemodel support
+    crypto", staff answer "Interactive Brokers does not support crypto"; LEAN PR #8446 still open), while the book prices
+    Coinbase fees (`CoinbaseFeeModel`, cash account) and the backtest fills on Lean's Coinbase market. So when crypto
+    trading is enabled and the live credentials are IB's, a live or paper deploy would route crypto orders to a venue that
+    cannot fill them. Pure and advisory: it never changes trading. Returns [] when there is nothing to flag."""
+    phase_v2 = dict(config.get("phase_v2", {}) or {})
+    assets = (config.get("phase1", {}) or {}).get("universe", {}).get("assets", []) or []
+    crypto_in_universe = any(str(a.get("asset_class") or a.get("security_type")) == "crypto" for a in assets)
+    crypto_trades = crypto_in_universe and bool(phase_v2.get("crypto_risk", {}).get("enabled", True))
+    if not crypto_trades:
+        return []
+    uses_ib = any(str(field).startswith("ib-") for field in filled_fields)
+    if not uses_ib:
+        return []
+    return [
+        "crypto is in the trading universe but the live credentials are Interactive Brokers': QuantConnect's IB brokerage "
+        "does not support crypto, so crypto orders would not fill there. Trade crypto through a crypto brokerage "
+        "(Coinbase, cash account, the venue the fee model prices) or switch the crypto classes off before a live deploy."
+    ]

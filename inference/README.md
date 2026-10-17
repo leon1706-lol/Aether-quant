@@ -103,3 +103,7 @@ hand-transcribed reference implementations, and batched-vs-individual
 parity tests using both synthetic multi-model fixtures and the real
 `ml/expert_models/*` exports. See `development/architecture.md`'s per-bar
 hot-path table for where this package sits in the latency budget.
+
+## V6.1.0 additions
+
+- `exported_model.py` — `average_head_outputs` (the one seed-ensemble rule: the mean of each head's raw output across members, dropped when any member gives no finite value), `load_ensemble_member_exports`, `resolve_model_ensemble_config` (`phase_v2.model_ensemble`, off by default; members in `ml/multitask_ensemble/`, `ml/sequence_ensemble/`). `main.py` applies it per symbol and in both batched paths; offline scoring uses `evaluation.model_predictions.predict_heads_ensemble`.

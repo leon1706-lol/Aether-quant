@@ -89,6 +89,34 @@ def _iter_backtest_result_jsons(backtests_dir: Path) -> Iterator[Path]:
                 break  # at most one result JSON per backtest folder
 
 
+PIN_PATH = ROOT_DIR / "ml" / "evaluation" / "readme_lean_run.json"
+
+
+def pinned_run_dir(backtests_dir: Path = BACKTESTS_DIR, pin_path: Path | None = None) -> Path | None:
+    """The run folder the README's Lean blocks were pinned to with `--backtest-dir` (V6.1.0): the newest run is not always the
+    shipped configuration's (a rejected-config run can come last), and every block that reads "the Lean run" must read the same
+    one. None when nothing is pinned, the pin names a missing folder, or `backtests_dir` is not the default one."""
+    pin_path = pin_path or PIN_PATH
+    if backtests_dir != BACKTESTS_DIR or not pin_path.exists():
+        return None
+    try:
+        name = json.loads(pin_path.read_text(encoding="utf-8")).get("run")
+    except (OSError, ValueError):
+        return None
+    candidate = backtests_dir / str(name) if name else None
+    return candidate if candidate is not None and candidate.is_dir() else None
+
+
+def set_pinned_run(run_dir: Path | None, pin_path: Path | None = None) -> None:
+    """Pin the README's Lean blocks to `run_dir`, or clear the pin (`None`: a fresh `aq backtest` unpins)."""
+    pin_path = pin_path or PIN_PATH
+    if run_dir is None:
+        pin_path.unlink(missing_ok=True)
+        return
+    pin_path.parent.mkdir(parents=True, exist_ok=True)
+    pin_path.write_text(json.dumps({"run": Path(run_dir).name}), encoding="utf-8")
+
+
 def find_latest_backtest_result_json(backtests_dir: Path = BACKTESTS_DIR) -> Path | None:
     """Returns the newest backtest run's result JSON that actually contains
     both a populated Strategy Equity curve AND a populated statistics
@@ -97,6 +125,11 @@ def find_latest_backtest_result_json(backtests_dir: Path = BACKTESTS_DIR) -> Pat
     equity curve but an empty `statistics` dict if the process didn't reach
     the end of the run), so an incomplete run never clobbers the README
     with a chart but no Sharpe/drawdown/etc. numbers."""
+    pinned = pinned_run_dir(backtests_dir)
+    if pinned is not None:
+        pinned_result = _result_json_in(pinned)
+        if pinned_result is not None:
+            return pinned_result
     for candidate in _iter_backtest_result_jsons(backtests_dir):
         try:
             data = json.loads(candidate.read_text(encoding="utf-8"))
@@ -303,7 +336,7 @@ def _atomic_write(path: Path, text: str) -> None:
 
 HISTORY_MARKER_START = "<!-- AQ:BACKTEST_HISTORY_START -->"
 HISTORY_MARKER_END = "<!-- AQ:BACKTEST_HISTORY_END -->"
-HISTORY_LIMIT = 8
+HISTORY_LIMIT = 10
 
 
 def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HISTORY_LIMIT) -> str:
@@ -385,6 +418,8 @@ def update_readme_from_latest_backtest(
     successful `lean backtest .` run. Callers should still wrap this in a
     try/except - a report-generation bug must never fail the backtest
     command itself."""
+    if backtests_dir == BACKTESTS_DIR and readme_path == README_PATH:
+        set_pinned_run(backtest_dir)  # an explicit run pins every Lean block to it; the default (a fresh run) unpins
     result_json_path = find_latest_backtest_result_json(backtests_dir) if backtest_dir is None else _result_json_in(backtest_dir)
     if result_json_path is None:
         return False

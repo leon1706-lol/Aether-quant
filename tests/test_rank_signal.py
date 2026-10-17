@@ -57,6 +57,15 @@ def test_resolve_rank_signal_policy_all_heads_demoted_leaves_policy_unchanged():
     assert policy["heads"] == {"rank_20d": 1.0}
     assert policy["demoted"] == []
     assert policy["reason"] == "all_heads_would_be_demoted_policy_unchanged"
+    assert policy["demotion_fallback"] is True
+    assert policy["failed_heads"] == ["rank_20d"]
+
+
+def test_resolve_rank_signal_policy_flags_no_fallback_when_a_head_survives():
+    policy = resolve_rank_signal_policy(_metrics({"rank_20d": "promotable"}), _config(heads={"rank_20d": 1.0}))
+
+    assert policy["demotion_fallback"] is False
+    assert policy["failed_heads"] == []
 
 
 def test_resolve_rank_signal_policy_missing_metrics_leaves_heads_unchanged():

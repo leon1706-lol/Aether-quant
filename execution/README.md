@@ -306,3 +306,7 @@ until a human sets, in `config.json`,
 by any automated process — both stay `false` until a human flips them, and
 `aq paper-readiness`/`PaperReadinessScheduler` keep reporting `ready: false`
 (via `blocking_reasons`) until they do.
+
+## V6.1.0 additions
+
+- `lean_config_render.py` — `validate_live_crypto_route`: a warning (never a change) when crypto is in the universe and the rendered credentials are Interactive Brokers', whose QuantConnect brokerage does not support crypto (Problems.md #192).

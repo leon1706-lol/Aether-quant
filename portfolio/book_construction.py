@@ -776,6 +776,7 @@ def build_book_history_record(
     gate_veto_reason: str | None = None,
     feature_snapshot: dict[str, dict] | None = None,
     run_id: str | None = None,
+    rolling_ic_state: dict | None = None,
 ) -> dict:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
@@ -911,6 +912,13 @@ def build_book_history_record(
         }
     if gate_veto_reason is not None:
         record["gate_veto_reason"] = gate_veto_reason
+    if rolling_ic_state is not None:
+        # The gate's reading itself, so an offline replay can compare values, not only veto / no veto (V6.1.0).
+        mean_ic = rolling_ic_state.get("rolling_mean_ic")
+        record["rolling_ic"] = {
+            "rolling_mean_ic": float(mean_ic) if isinstance(mean_ic, (int, float)) and math.isfinite(mean_ic) else None,
+            "num_resolved_dates": rolling_ic_state.get("num_resolved_dates"),
+        }
     if feature_snapshot is not None:
         record["feature_snapshot"] = {
             symbol_key: dict(snapshot) if isinstance(snapshot, Mapping) else snapshot

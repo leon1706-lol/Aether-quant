@@ -365,3 +365,28 @@ def test_leading_zero_benchmark_points_are_dropped_before_rebasing(tmp_path):
     }), encoding="utf-8")
     summary = load_backtest_summary(result)
     assert summary["benchmark_series"] == [(2, 300.0), (3, 303.0)]
+
+
+def test_a_pinned_run_wins_over_the_newest_and_clearing_the_pin_restores_the_newest(tmp_path, monkeypatch):
+    import json as _json
+
+    import generate_backtest_report as report
+
+    backtests = tmp_path / "backtests"
+    for name, sharpe in (("2026-10-15_run", "1.0"), ("2026-10-16_run", "2.0")):
+        run = backtests / name
+        run.mkdir(parents=True)
+        (run / "123.json").write_text(_json.dumps({
+            "charts": {"Strategy Equity": {"series": {"Equity": {"values": [[1, 1, 1, 1, 1]]}}}},
+            "statistics": {"Sharpe Ratio": sharpe},
+        }), encoding="utf-8")
+    pin = tmp_path / "pin.json"
+    monkeypatch.setattr(report, "BACKTESTS_DIR", backtests)
+    monkeypatch.setattr(report, "PIN_PATH", pin)
+    assert report.find_latest_backtest_result_json(backtests).parent.name == "2026-10-16_run"
+    report.set_pinned_run(backtests / "2026-10-15_run")
+    assert report.find_latest_backtest_result_json(backtests).parent.name == "2026-10-15_run"
+    report.set_pinned_run(None)
+    assert report.find_latest_backtest_result_json(backtests).parent.name == "2026-10-16_run"
+    pin.write_text(_json.dumps({"run": "no_such_run"}), encoding="utf-8")  # a stale pin falls back to the newest
+    assert report.find_latest_backtest_result_json(backtests).parent.name == "2026-10-16_run"

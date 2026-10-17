@@ -731,7 +731,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "ml": [
         # V6.0.0 - extra-horizon (rank_60d) targets and heads.
         "test_v600_extra_horizon.py",
-        "test_build_holdout_dataset.py",
+        "test_build_holdout_dataset.py", "test_holdout_report.py", "test_v610_model_ensemble.py",
+        "test_compare_datasets.py", "test_model_candidate_research.py", "test_build_legacy_probability.py",
         "test_as_live_levers.py",
         "test_expert_models.py", "test_expert_datasets.py", "test_gating_network.py", "test_train_gating.py",
         "test_train_multitask.py", "test_train_multitask_architecture.py", "test_train_sequence.py",
@@ -815,12 +816,12 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V6.0.0 - Lean run attribution (evaluation/lean_attribution.py).
         "test_lean_attribution.py",
         # V6.0.0 - simulator execution parity (cadence, next-open fills, resize / cooldown / trailing stop, replay).
-        "test_v600_simulator_parity.py",
-        "test_v600_forex_parity.py",
+        "test_v600_simulator_parity.py", "test_v610_simulator_parity.py", "test_v610_research.py", "test_prepare_v610_candidates.py",
+        "test_v600_forex_parity.py", "test_v610_forex_holidays.py",
         "test_v600_late_bar_cross_asset.py",
         "test_v600_sensitivity_vector.py",
         "test_v600_across_symbols.py",
-        "test_v600_config_decisions.py",
+        "test_v600_config_decisions.py", "test_v610_config_decisions.py",
         "test_lean_calibration.py",
         "test_book_variant_research.py",
         "test_crypto_fee_research.py",
@@ -1146,6 +1147,14 @@ def cmd_render_lean_config(args: argparse.Namespace) -> int:
             f"Rendered {out}, but NO secret fields were populated - check that "
             f"{env_file} exists and its AETHER_* values are set."
         )
+    from execution.lean_config_render import validate_live_crypto_route
+
+    try:
+        route_config = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+    except (OSError, ValueError):
+        route_config = {}
+    for warning in validate_live_crypto_route(route_config, filled):
+        print(f"WARNING: {warning}", file=sys.stderr)
     print(f"Deploy against it with Lean's  --lean-config {out}")
     return 0
 
@@ -1768,6 +1777,10 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
     policy = resolve_rank_signal_policy(training_metrics_by_model, config)
     active_heads = [head_name for head_name, weight in policy["heads"].items() if weight > 0.0]
 
+    from evaluation.model_predictions import predict_heads_ensemble
+    from inference.exported_model import load_ensemble_member_exports, resolve_model_ensemble_config
+
+    ensemble = resolve_model_ensemble_config(config)
     predictions_by_model_head: dict[str, dict[str, object]] = {}
     for model_kind_for_head in policy["model_priority"]:
         model_filename, schema_filename = _EVALUATE_MODEL_ARTIFACTS[model_kind_for_head]
@@ -1775,15 +1788,26 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
         schema_path = ml_dir / schema_filename
         if not model_path.exists() or not schema_path.exists():
             continue  # best-effort - a missing model falls through to the next model_priority entry
-        model_export = json.loads(model_path.read_text(encoding="utf-8"))
         feature_schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        predictions_by_model_head[model_kind_for_head] = predict_heads(
-            dataset, model_export, feature_schema["model_input_names"], list(active_heads),
+        # V6.1.0: a seed ensemble (phase_v2.model_ensemble) replaces the single export, exactly as main.py loads it.
+        members = (
+            load_ensemble_member_exports(ml_dir / ensemble[f"{model_kind_for_head}_dir"]) if ensemble["enabled"] else []
+        )
+        predict_kwargs = dict(
             model_kind=model_kind_for_head,
             sequence_feature_schema=feature_schema if model_kind_for_head == "sequence" else None,
             configured_window_size=int(sequence_window_default),
             batched=True,  # V5.8.0: chunked batched interpreters (same values to ~1e-15, bounded memory, far faster)
         )
+        if members:
+            predictions_by_model_head[model_kind_for_head] = predict_heads_ensemble(
+                dataset, members, feature_schema["model_input_names"], list(active_heads), **predict_kwargs
+            )
+        else:
+            model_export = json.loads(model_path.read_text(encoding="utf-8"))
+            predictions_by_model_head[model_kind_for_head] = predict_heads(
+                dataset, model_export, feature_schema["model_input_names"], list(active_heads), **predict_kwargs
+            )
     return compute_blended_raw_scores(dataset, predictions_by_model_head, policy), policy
 
 
@@ -1913,6 +1937,10 @@ def _print_v580_audit_summary(flag: str, audit: dict) -> None:
             path = " [live path]" if row["in_decision_path"] else ""
             print(f"  {mark} {row['component']}: {row['metric']} = {row['value']}{path}")
         print(f"  failing in the live path: {audit['failing_in_decision_path'] or 'none'}")
+        policy = audit.get("rank_signal_policy") or {}
+        if policy.get("demotion_fallback"):
+            print(f"  WARNING rank signal: every decision head failed its gate {policy.get('failed_heads')}; "
+                  f"live trades the configured blend {policy.get('heads')}")
     else:
         flags = audit["flags"]
         print(f"Feature audit: {len(audit['features'])} features; ticker-ID suspects {flags['ticker_id_suspects']}")
@@ -2043,10 +2071,42 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     f"{period['closed_trades']} closed trades, P&L {period['realized_pnl_by_class']}"
                 )
             print(f"  Wrote {ML_DIR / 'evaluation' / 'backtest_audit.json'}")
+        _refresh_readme_evaluation_sections()  # the Lean-vs-offline block reads this file
         return 0
 
     # V6.0.0 - `aq evaluate --attribute-lean`: one Lean run's daily P&L rebuilt per ticker and component (main book,
     # legacy signal, sleeves, crypto core / graduates), reconciled with Lean's equity curve; no dataset, no model.
+    if getattr(args, "lean_monte_carlo", False):
+        from evaluation.backtest_audit import daily_equity_from_chart, load_backtest_run
+        from evaluation.monte_carlo import run_monte_carlo
+
+        backtests_dir = ROOT_DIR / "backtests"
+        run_dir = Path(args.backtest_dir) if getattr(args, "backtest_dir", None) else None
+        if run_dir is None:
+            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir() and (path / "log.txt").exists())
+            run_dir = run_dirs[-1] if run_dirs else None
+        if run_dir is None or not run_dir.exists():
+            print("error: no backtest folder found - pass --backtest-dir PATH.", file=sys.stderr)
+            return 1
+        equity = daily_equity_from_chart(load_backtest_run(run_dir)["result"])
+        returns = [after / before - 1.0 for (_, before), (_, after) in zip(equity, equity[1:]) if before > 0]
+        mc = run_monte_carlo(
+            returns, n_runs=int(getattr(args, "mc_runs", 1000)), block_size=int(getattr(args, "mc_block_size", 20)),
+            seed=int(getattr(args, "mc_seed", 42)), method=str(getattr(args, "mc_method", "block")),
+        )
+        payload = {key: value for key, value in mc.items() if key != "runs_curves"}
+        payload.update(source="lean", run=run_dir.name, first_date=equity[0][0] if equity else None,
+                       last_date=equity[-1][0] if equity else None, num_daily_returns=len(returns),
+                       observed_total_return_pct=round((equity[-1][1] / equity[0][1] - 1.0) * 100.0, 2) if equity else None)
+        out_path = ML_DIR / "evaluation" / "monte_carlo_lean.json"
+        _write_evaluation_json(out_path, payload)
+        print(f"Lean Monte Carlo ({run_dir.name}, {len(returns)} daily returns): {payload.get('status')}")
+        if payload.get("status") == "OK":
+            print(f"  final return p5/p50/p95 {payload['final_return_pct']['p5']}% / {payload['final_return_pct']['p50']}% / "
+                  f"{payload['final_return_pct']['p95']}%, Sharpe p50 {payload['sharpe']['p50']}, P(negative) {payload['prob_negative_return']}")
+        print(f"  Wrote {out_path}")
+        _refresh_readme_evaluation_sections()
+        return 0
     if getattr(args, "attribute_lean", False):
         from evaluation.backtest_audit import load_backtest_run
         from evaluation.lean_attribution import attribute_run, find_book_history_for_run
@@ -2074,10 +2134,16 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 print(f"error: --period expects START..END (ISO dates), got {period_text!r}", file=sys.stderr)
                 return 1
             periods.append((period_start, period_end))
+        # The run's own config decides its classes and core crypto names (an older run had other caps).
+        from evaluation.lean_attribution import run_config_path
+
+        snapshot = run_config_path(run_dir, ROOT_DIR)
+        run_config = json.loads(snapshot.read_text(encoding="utf-8")) if snapshot else config
+        snapshot = snapshot or ROOT_DIR / "config.json"
         reports = {}
         for period in periods:
             label = "whole_run" if period is None else f"{period[0]}..{period[1]}"
-            reports[label] = attribute_run(run, history, config, ROOT_DIR, period=period)
+            reports[label] = attribute_run(run, history, run_config, ROOT_DIR, period=period)
             reconciliation = reports[label]["reconciliation"]
             print(f"{run_dir.name} {label}: rebuilt net {reconciliation['rebuilt_net_usd']:+.2f} vs Lean "
                   f"{reconciliation['lean_net_usd']:+.2f} USD (daily r {reconciliation['daily_change_correlation']})")
@@ -2085,8 +2151,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 if entry["fills"] or entry["pnl"]:
                     print(f"  {name:16s} gross {entry['pnl']:+9.2f}  fees {entry['fee']:8.2f}  net {entry['net']:+9.2f}  fills {entry['fills']}")
         out_path = ML_DIR / "evaluation" / "lean_attribution.json"
-        _write_evaluation_json(out_path, {"backtest_dir": str(run_dir), "book_history": str(history_path), "reports": reports})
+        _write_evaluation_json(out_path, {"backtest_dir": str(run_dir), "book_history": str(history_path),
+                                          "config": str(snapshot), "reports": reports})
         print(f"  Wrote {out_path}")
+        _refresh_readme_evaluation_sections()
         return 0
 
     # V5.8.0 - the audit flags (evaluation/audit_runners.py): each writes one JSON and returns before any book run.
@@ -2162,6 +2230,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     print(f"    {group}: {stats}")
             print(f"  dataset open vs zip open on traded dates: {audit['dataset_open_vs_zip_open_on_traded_dates']}")
             print(f"  Wrote {ML_DIR / 'evaluation' / 'fill_price_audit.json'}")
+        _refresh_readme_evaluation_sections()
         return 0
 
     # V5.1 Phase 4 (item 4) - `aq evaluate --walk-forward-summary` reads an
@@ -2312,6 +2381,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation.live_parity import (
             LATE_BAR_ASSET_CLASSES,
             forex_monday_payload_only,
+            forex_tick_holds_fill_forward_bar,
             late_bar_offline_row,
             late_bar_same_row_prefixes,
         )
@@ -2325,6 +2395,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             "",
         )
         lag_to_previous_row = target_asset_class in LATE_BAR_ASSET_CLASSES
+        from features.cross_asset_timing import resolve_forex_lean_holidays
+
+        forex_holidays = resolve_forex_lean_holidays(config, ROOT_DIR)
         previous_row_date: dict[str, str] = {}
         if lag_to_previous_row and dataset_has_ticker_column:
             ordered_dates = sorted({str(date) for date, ticker in rows_by_date_ticker if ticker == target_symbol})
@@ -2359,7 +2432,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 if lag_to_previous_row and offline_row is not None:
                     same_row_prefixes = late_bar_same_row_prefixes(config)
                     offline_row = late_bar_offline_row(offline_row, rows_by_date_ticker.get((date_str, target_symbol)), same_row_prefixes)
-                    if target_asset_class == "forex" and date.fromisoformat(date_str[:10]).weekday() == 0:
+                    if target_asset_class == "forex" and forex_tick_holds_fill_forward_bar(
+                        date_str, previous_row_date.get(date_str), forex_holidays
+                    ):
                         offline_row = forex_monday_payload_only(offline_row, same_row_prefixes)
                 if offline_row is None:
                     num_missing_offline_rows += 1
@@ -2394,6 +2469,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             payload["all_runs"] = per_run_payloads
 
         _write_evaluation_json(ML_DIR / "evaluation" / "feature_reconciliation.json", payload)
+        _refresh_readme_evaluation_sections()
 
         if args.json:
             print(json.dumps(payload, indent=2, default=str))
@@ -3066,6 +3142,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             make_rolling_ic_gate_fn(
                 live_frame, raw_score_column="live_rank_score", gate_config=rolling_ic_gate_config,
                 include_tickers=main_group_tickers(rank_groups, live_frame["ticker"].unique()),
+                late_bar_tickers=late_tickers,
             )
             if rolling_ic_gate_config.get("enabled", False)
             else None
@@ -4305,6 +4382,12 @@ def build_parser() -> argparse.ArgumentParser:
         "split into main book / legacy signal / bond and forex sleeves / crypto core and graduates, fees per route, and "
         "reconciled with Lean's equity curve (--backtest-dir, --period, --book-history-file) -> "
         "ml/evaluation/lean_attribution.json. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--lean-monte-carlo", action="store_true",
+        help="V6.1.0: block-bootstrap a finished Lean run's own daily equity returns (--backtest-dir, --mc-runs, "
+        "--mc-block-size, --mc-seed) -> ml/evaluation/monte_carlo_lean.json; the README Monte Carlo block shows it next to "
+        "the offline book. Needs no dataset or model.",
     )
     evaluate_parser.add_argument(
         "--book-history-file", default=None,

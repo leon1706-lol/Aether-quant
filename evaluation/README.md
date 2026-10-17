@@ -223,3 +223,11 @@ compressed dispersion in a way IC is not.
 - `ml_cleanup.py` (`aq clean ml`) — a dry-run disk plan for `ml/versions` and `ml/_backup_*`; nothing is deleted without `--apply`, and the installed models are always protected.
 - `backtest_audit.py` — `class_by_ticker` splits P&L by the config's asset class (bond ETFs are Lean equities), `period_summary` backs `--audit-backtest --period START..END` (BT2 spans the backtest split and the holdout).
 - `live_parity.py` — `topology_inputs_fn` feeds the learned-topology sizing multiplier into the as-live run; `late_bar_offline_row` / `LATE_BAR_SAME_ROW_FEATURE_PREFIXES` say which dataset row a crypto or forex snapshot belongs to (own-price block = previous row, cross-asset block = the tick's row).
+
+## V6.1.0 additions
+
+- `rank_book_simulator.py` — new options, all off by default and replicas of `main.py` mechanisms (rule R-CAL2): `mid_cycle_member_updates` (the daily member pass between rebalances), `accrue_skipped_dates` (weekend crypto), `kill_switch_extra_returns` (P&L outside the simulation that live's whole-portfolio kill switch reads), `legacy_component` (the legacy probability signal on non-members, per-component returns in `per_date_component_returns`) and `max_active_positions`; exit costs of an age / stop / guard exit are now charged on a rebalance date too.
+- `live_parity.py` — `build_live_member_weight_fn(use_live_analyzer=True)` ends in `analyzer.market_analyzer.build_market_analysis_decision` itself and can size a legacy-signal entry; the risk-off override reads `phase_v2.regime_detection` (a key that did not exist was read before).
+- `lean_attribution.py` — a position belongs to the component that **opened** it (`opener_members_by_date`); the per-day view stays as `components_by_membership`.
+- `model_predictions.py` — `predict_heads_ensemble`: the seed-ensemble mean of each head (NaN where any member is NaN).
+- `readme_research.py` — reads the V6 decisions and the shipped config (no settings typed here) and renders the R-CAL2 and rule-chain results.

@@ -14,6 +14,9 @@ Sources (all written by `aq evaluate ...` or the research scripts):
     head_audit.json                             aq evaluate --audit-heads
     holdout_report.json                         scripts/holdout_report.py
     lean_decision_overrides.json                a Lean run that overruled an offline branch (label -> branch, shipped, reason)
+    v600/forex_research.json, v600/crypto_research.json   the V6.0.0 rule decisions (R-FX6, R-CRYPTO); the shipped setting
+                                                is read from config.json, never typed here
+    v610/calibration.json, v610/research.json   V6.1.0: R-CAL2 and the rule chain (model, head, book, legacy, gate)
 """
 
 from __future__ import annotations
@@ -102,6 +105,94 @@ def _sleeve_row(label: str, research: dict | None, minimum_setting: str, overrid
         f"| {label} | {branch} | {shipped} | {_num(((entry or {}).get('validation') or {}).get('net_sharpe'))} | "
         f"{_num(((entry or {}).get('backtest') or {}).get('net_sharpe'))} | {_num((entry or {}).get('combined_backtest_drop'))} |"
     )
+
+
+def _config_for(evaluation_dir: Path) -> dict:
+    config = load_json(evaluation_dir.parent.parent / "config.json")
+    return config if isinstance(config, dict) else {}
+
+
+def _forex_row_v6(evaluation_dir: Path, config: dict) -> str | None:
+    """R-FX6 (V6.0.0): the forex sleeve is dropped when none of the grid is positive on the backtest split."""
+    research = load_json(evaluation_dir / "v600" / "forex_research.json")
+    if not isinstance(research, dict) or not config:
+        return None
+    decision = research.get("decision") or {}
+    best = (research.get("grid") or {}).get(decision.get("best_validation_variant")) or {}
+    enabled = bool((config.get("phase_v2", {}).get("forex_risk") or {}).get("enabled", False))
+    shipped = "sleeve on (see config.json `forex_sleeve`)" if enabled else "off (`forex_risk.enabled` false; forex stays a feature class)"
+    return (
+        f"| Forex sleeve | R-FX6: {decision.get('branch', 'n/a')} | {shipped} | {_num((best.get('validation') or {}).get('net_sharpe'))} | "
+        f"{_num((best.get('backtest') or {}).get('net_sharpe'))} | n/a |"
+    )
+
+
+def _crypto_row_v6(evaluation_dir: Path, config: dict) -> str | None:
+    """R-CRYPTO (V6.0.0): limit exits, a route-aware fee and smaller graduates; the caps shown are the shipped ones."""
+    research = load_json(evaluation_dir / "v600" / "crypto_research.json")
+    if not isinstance(research, dict) or not config:
+        return None
+    decision = research.get("decision") or {}
+    winner = (research.get("results") or {}).get(decision.get("winner")) or {}
+    caps = ((config.get("phase_v2", {}).get("class_weight_caps") or {}).get("crypto")) or {}
+    limits = config.get("phase_v2", {}).get("limit_orders", {})
+    exits = ", ".join(limits.get("exit_asset_classes") or []) or "none"
+    shipped = f"per-name {caps.get('per_name_cap', 'n/a')}, class gross {caps.get('class_gross_cap', 'n/a')}; limit exits for {exits}"
+    return (
+        f"| Crypto graduates and fees | R-CRYPTO: {decision.get('winner', 'n/a')} | {shipped} | "
+        f"{_num((winner.get('validation') or {}).get('total_sharpe'))} | {_num((winner.get('backtest') or {}).get('total_sharpe'))} | n/a |"
+    )
+
+
+def _calibration_line(evaluation_dir: Path) -> str:
+    report = load_json(evaluation_dir / "v610" / "calibration.json")
+    verdict = (report or {}).get("verdict") if isinstance(report, dict) else None
+    if not isinstance(verdict, dict):
+        return "_Not run yet: `python scripts/lean_calibration.py --rcal2` (rule R-CAL2)._"
+    variant = verdict.get("variant", "v610")
+    cells = []
+    for name, window in ((report or {}).get("windows") or {}).items():
+        row = (window.get("variants") or {}).get(variant) or {}
+        cells.append(
+            f"| {name} | {_num(row.get('daily_correlation'), '.2f')} | {_pct(row.get('annual_return_gap'), '+.1f')} | "
+            f"{_pct(row.get('decision_agreement'), '.0f')} | {'pass' if (verdict.get('per_window') or {}).get(name) else 'fail'} |"
+        )
+    thresholds = verdict.get("thresholds") or {}
+    return (
+        f"Rule R-CAL2 (daily correlation >= {_num(thresholds.get('min_correlation'), '.2f')}, annual return gap <= "
+        f"{_pct(thresholds.get('max_annual_gap'), '.0f')}, rebalance-decision agreement >= "
+        f"{_pct(thresholds.get('min_decision_agreement'), '.0f')} on every window): **branch {verdict.get('branch', '?')}** "
+        f"({'calibrated' if verdict.get('calibrated') else 'not calibrated'}).\n\n"
+        "| Window | Daily correlation | Return gap (annual) | Decision agreement | Verdict |\n|---|---|---|---|---|\n"
+        + "\n".join(cells)
+    )
+
+
+def _rule_chain_lines(evaluation_dir: Path) -> list[str]:
+    report = load_json(evaluation_dir / "v610" / "research.json")
+    if not isinstance(report, dict):
+        return ["_Not run yet: `python scripts/v610_research.py` (rules R-MODEL9, R-HEAD2, R-BOOK2, R-LEGACY, R-GATE)._"]
+    rows = []
+    for stage in ("model", "head", "book", "costs", "legacy", "gate"):
+        entry = report.get(stage)
+        if not isinstance(entry, dict):
+            continue
+        if "skipped" in entry:
+            rows.append(f"| {stage} | skipped | {entry['skipped']} |")
+            continue
+        variants = entry.get("variants") or {}
+        adopted = entry.get("adopted")
+        detail = []
+        for name, value in variants.items():
+            if "skipped" in value:
+                detail.append(f"{name} skipped ({value['skipped']})")
+                continue
+            verdict = (value.get("verdict") or {}).get("ungated") or {}
+            detail.append(f"{name} {_num(verdict.get('backtest_gain'), '+.3f')}")
+        rows.append(f"| {stage} | {adopted or 'none (incumbent stays)'} | {', '.join(detail) or 'n/a'} |")
+    if not rows:
+        return ["_Rule chain has no stage results yet._"]
+    return ["| Stage | Adopted | Backtest-Sharpe gain per variant (median over rebalance phases) |", "|---|---|---|", *rows]
 
 
 def _crypto_row(research: dict | None) -> str | None:
@@ -227,10 +318,11 @@ def _holdout_line(evaluation_dir: Path) -> str:
 def build_research_markdown(evaluation_dir: Path) -> str:
     overrides = load_json(evaluation_dir / "lean_decision_overrides.json")
     overrides = overrides if isinstance(overrides, dict) else {}
+    config = _config_for(evaluation_dir)
     sleeve_rows = [
         row
         for row in (
-            _sleeve_row(
+            _forex_row_v6(evaluation_dir, config) or _sleeve_row(
                 "Forex sleeve", load_json(evaluation_dir / "class_sleeve_research_forex.json"), "gross 0.10",
                 overrides.get("Forex sleeve"),
             ),
@@ -238,7 +330,7 @@ def build_research_markdown(evaluation_dir: Path) -> str:
                 "Bond sleeve", load_json(evaluation_dir / "class_sleeve_research_bond.json"), "gross 0.10",
                 overrides.get("Bond sleeve"),
             ),
-            _crypto_row(load_json(evaluation_dir / "crypto_graduation_research.json")),
+            _crypto_row_v6(evaluation_dir, config) or _crypto_row(load_json(evaluation_dir / "crypto_graduation_research.json")),
             _rl_row(load_json(evaluation_dir / "rl_sizing_research.json")),
             _topology_row(load_json(evaluation_dir / "topology_sizing_research.json")),
         )
@@ -260,6 +352,10 @@ def build_research_markdown(evaluation_dir: Path) -> str:
         "the Sharpe gain over the same book without RL. A Lean run can overrule the offline branch "
         "(`lean_decision_overrides.json`); the row then names both.",
         "\n".join(sleeves),
+        "**Offline simulator against Lean** — " + _calibration_line(evaluation_dir),
+        "**V6.1.0 rule chain** (each variant is one change, scored on every rebalance phase of both splits; the holdout is "
+        "never used to select)",
+        "\n".join(_rule_chain_lines(evaluation_dir)),
         "**Where the rank edge sits** (pooled vs between-class vs within-class IC against the 20-day return)",
         "\n".join(_class_ic_lines(evaluation_dir)),
         "**Rolling-IC gate audit** (a false veto is a vetoed date whose realised book return was positive)",

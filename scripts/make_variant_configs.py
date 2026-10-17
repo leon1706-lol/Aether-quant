@@ -9,6 +9,10 @@ The control is the shipped config. Each variant changes ONE thing under `phase_v
     v4_stop_rank5d  early_stop_head = "rank_5d"                   (the shipped book trades rank_5d, early stopping watched rank_20d)
     v8_rank60       a 60-day rank target and head (V6.0.0): phase1 extra_horizon_days [60], label purge 60 days,
                     horizon_heads.rank_60d enabled (multitask only; its dataset must be built with the same config)
+    v9_reg          weight decay x16 AND dropout 0.5 together (V6.1.0: train IC ~0.37 against ~0 on validation; the
+                    single wd / dropout changes stayed inside the seed spread)
+    v11_snr20       early stopping on the sector-neutral 20-day head, its loss weight 1.0 (V6.1.0: the only head that
+                    passes its promotion gate on validation and backtest)
 
     python scripts/make_variant_configs.py <out_dir> [--base config.json] [--model multitask|sequence]
 """
@@ -40,6 +44,8 @@ VARIANTS: dict[str, list[tuple[tuple[str, ...], object]]] = {
     "v6_dropout_35": [(("dropout",), 0.35)],
     "v7_small_net": [(("hidden_layers",), [32, 16])],
     "v8_rank60": [],
+    "v9_reg": [(("weight_decay",), 0.16), (("dropout",), 0.5)],
+    "v11_snr20": [(("early_stop_head",), "sector_neutral_rank_20d"), (("horizon_heads", "sector_neutral_rank_20d", "loss_weight"), 1.0)],
 }
 
 # Changes outside <model>_training, by absolute path; the leaf may be new (V6.0.0: the 60-day target).

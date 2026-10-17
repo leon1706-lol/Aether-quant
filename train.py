@@ -73,7 +73,12 @@ from features import (
 from execution.cost_model import commission_bps_by_ticker
 from json_safety import atomic_write_json, load_json_lenient
 from features.bond_features import resolve_bond_duration_beta_mode, rolling_duration_beta_series
-from features.cross_asset_timing import CrossAssetTimeline, day_ordinal, fill_forward_open_forex_days
+from features.cross_asset_timing import (
+    CrossAssetTimeline,
+    day_ordinal,
+    fill_forward_open_forex_days,
+    resolve_forex_lean_holidays,
+)
 from features.fx_carry import FX_CARRY_FEATURE_NAME, FX_RATE_PUBLICATION_LAG_DAYS, fx_carry_3m
 from data_pipeline.fred_backfill import load_cached_fred_series, series_change_asof, series_value_asof
 from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
@@ -959,13 +964,13 @@ FOREX_CALENDAR_FEATURE_COLUMNS = [
 ]
 
 
-def fill_forward_forex_frame(frame: pd.DataFrame) -> pd.DataFrame:
+def fill_forward_forex_frame(frame: pd.DataFrame, holidays: frozenset[int] = frozenset()) -> pd.DataFrame:
     """The forex bars Lean delivers: every Sunday-Friday day without a row becomes a flat bar (open=high=low=close =
     the previous close, volume 0) - features/cross_asset_timing.py::fill_forward_open_forex_days(), Problems.md #135.
     `frame` needs `date` plus the OHLCV columns; extra columns are carried over from the previous bar."""
     ordered = frame.sort_values("date").reset_index(drop=True)
     ordinals = [day_ordinal(stamp) for stamp in ordered["date"]]
-    filled_ordinals, _ = fill_forward_open_forex_days(ordinals, ordered["close"].tolist())
+    filled_ordinals, _ = fill_forward_open_forex_days(ordinals, ordered["close"].tolist(), holidays)
     missing = sorted(set(filled_ordinals) - set(ordinals))
     if not missing:
         return ordered
@@ -981,8 +986,16 @@ def fill_forward_forex_frame(frame: pd.DataFrame) -> pd.DataFrame:
     return combined.sort_values("date").reset_index(drop=True)
 
 
+def drop_lean_holiday_bars(frame: pd.DataFrame, holidays: frozenset[int]) -> pd.DataFrame:
+    """A zip bar dated on a Lean market holiday never reaches live (Lean drops it), so the dataset drops it too."""
+    if not holidays or frame.empty:
+        return frame
+    keep = [day_ordinal(stamp) not in holidays for stamp in frame["date"]]
+    return frame.loc[keep].reset_index(drop=True)
+
+
 def engineer_forex_features_on_lean_calendar(
-    asset_frame: pd.DataFrame, feature_names: list[str], windows: dict, **engineer_kwargs
+    asset_frame: pd.DataFrame, feature_names: list[str], windows: dict, holidays: frozenset[int] = frozenset(), **engineer_kwargs
 ) -> pd.DataFrame:
     """Forex rows engineered the way live sees them. Live's forex windows contain Lean's fill-forward bars (flat
     Sunday bars, filled gap days), so trailing features (volatility, momentum, RSI, MACD, spread...) are computed on
@@ -992,7 +1005,7 @@ def engineer_forex_features_on_lean_calendar(
         add_liquidity_features(asset_frame, "forex"), feature_names, windows, security_type="forex", **engineer_kwargs
     )
     filled = engineer_features(
-        add_liquidity_features(fill_forward_forex_frame(asset_frame), "forex"),
+        add_liquidity_features(fill_forward_forex_frame(asset_frame, holidays), "forex"),
         feature_names, windows, security_type="forex", **engineer_kwargs,
     )
     if plain.empty or filled.empty:
@@ -2365,6 +2378,13 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
         asset["ticker"]: load_lean_bars(asset, phase1["universe"]["common_window"], apply_factor_files=apply_factor_files)
         for asset in assets
     }
+    forex_holidays = resolve_forex_lean_holidays(config)
+    if forex_holidays:
+        asset_frames = {
+            ticker: drop_lean_holiday_bars(frame, forex_holidays) if asset["security_type"] == "forex" else frame
+            for asset in assets
+            for ticker, frame in [(asset["ticker"], asset_frames[asset["ticker"]])]
+        }
     union_dates = sorted({date_value for frame in asset_frames.values() for date_value in frame["date"].tolist()})
     intersection_dates: set[pd.Timestamp] | None = None
     for frame in asset_frames.values():
@@ -2376,13 +2396,15 @@ def build_feature_dataset(config: dict) -> tuple[pd.DataFrame, dict]:
     raw_frames = {
         asset["ticker"]: asset_frames[asset["ticker"]].sort_values("date").reset_index(drop=True) for asset in assets
     }
-    timeline = CrossAssetTimeline.from_frames(raw_frames, {asset["ticker"]: asset["security_type"] for asset in assets})
+    timeline = CrossAssetTimeline.from_frames(
+        raw_frames, {asset["ticker"]: asset["security_type"] for asset in assets}, forex_holidays=forex_holidays
+    )
     for asset in assets:
         ticker = asset["ticker"]
         asset_frame = raw_frames[ticker]
         if asset["security_type"] == "forex":
             engineered = engineer_forex_features_on_lean_calendar(
-                asset_frame, BASE_FEATURE_NAMES, windows,
+                asset_frame, BASE_FEATURE_NAMES, windows, forex_holidays,
                 max_abs_daily_return=max_abs_daily_return,
                 max_abs_return_5d=max_abs_return_5d,
                 max_abs_return_20d=max_abs_return_20d,
@@ -4356,8 +4378,8 @@ def purged_embargoed_folds(
 
     fold_boundaries = np.array_split(unique_dates, n_folds)
     folds: list[tuple[np.ndarray, np.ndarray]] = []
-    horizon = pd.Timedelta(days=horizon_days)
-    embargo = pd.Timedelta(days=embargo_days)
+    horizon = pd.Timedelta(horizon_days, unit="D")
+    embargo = pd.Timedelta(embargo_days, unit="D")
 
     for fold_dates in fold_boundaries:
         if len(fold_dates) == 0:
@@ -4473,14 +4495,14 @@ def split_into_non_overlapping_eras(dates, era_length_days: int) -> list[tuple]:
     unique_dates = np.unique(dates_array)
     range_start = unique_dates[0]
     range_end = unique_dates[-1]
-    era_length = pd.Timedelta(days=era_length_days)
+    era_length = pd.Timedelta(era_length_days, unit="D")
 
     eras: list[tuple] = []
     era_start = range_start
     while era_start <= range_end:
-        era_end = min(era_start + era_length - pd.Timedelta(days=1), range_end)
+        era_end = min(era_start + era_length - pd.Timedelta(1, unit="D"), range_end)
         eras.append((era_start, era_end))
-        era_start = era_end + pd.Timedelta(days=1)
+        era_start = era_end + pd.Timedelta(1, unit="D")
 
     return eras
 
@@ -5928,15 +5950,15 @@ def generate_walk_forward_windows(
     while True:
         if mode == "expanding":
             train_start = range_start
-            train_end = range_start + pd.Timedelta(days=train_span_days - 1 + step_days * index)
+            train_end = range_start + pd.Timedelta(train_span_days - 1 + step_days * index, unit="D")
         else:
-            train_start = range_start + pd.Timedelta(days=step_days * index)
-            train_end = train_start + pd.Timedelta(days=train_span_days - 1)
+            train_start = range_start + pd.Timedelta(step_days * index, unit="D")
+            train_end = train_start + pd.Timedelta(train_span_days - 1, unit="D")
 
-        validation_start = train_end + pd.Timedelta(days=1)
-        validation_end = validation_start + pd.Timedelta(days=validation_span_days - 1)
-        backtest_start = validation_end + pd.Timedelta(days=1)
-        backtest_end = backtest_start + pd.Timedelta(days=backtest_span_days - 1)
+        validation_start = train_end + pd.Timedelta(1, unit="D")
+        validation_end = validation_start + pd.Timedelta(validation_span_days - 1, unit="D")
+        backtest_start = validation_end + pd.Timedelta(1, unit="D")
+        backtest_end = backtest_start + pd.Timedelta(backtest_span_days - 1, unit="D")
 
         if backtest_end > range_end:
             break

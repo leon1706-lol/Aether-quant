@@ -268,7 +268,10 @@ def check_cross_sectional_and_macro(dataset: pd.DataFrame, scaler_mapping: dict[
         if "security_type" in dataset.columns
         else {}
     )
-    momentum_long = build_momentum_pool(dataset, security_types)
+    from features.cross_asset_timing import resolve_forex_lean_holidays
+
+    config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
+    momentum_long = build_momentum_pool(dataset, security_types, resolve_forex_lean_holidays(config))
     dataset = dataset.assign(date=pd.to_datetime(dataset["date"]))
 
     ranks = compute_cs_momentum_rank_replica(momentum_long, security_types)

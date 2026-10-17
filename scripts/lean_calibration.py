@@ -5,6 +5,11 @@ book plus its crypto members, rebuilt day by day from the order events by `evalu
 offline simulator run over the same dates, as a ladder of increasingly live-like variants:
 
     v580        the V5.8.0 as-live simulator (cadence counted on every date with enough rows)
+    (V6.1.0, --rcal2) v610_member_pass  + live's daily member pass between rebalances
+                      v610_mechanisms   + weekend accrual, the position cap, the live analyzer's verdicts
+                      v610              + the legacy signal (--legacy-probability) and the sleeves' P&L in the kill switch:
+                                        R-CAL2's calibrated variant (the harness's rolling-IC gate is warm with --gate-warmup-days)
+                      v610_replay / v610_ungated   diagnostics as below
     phase       + live's cadence: equity sessions only (no step on an equity holiday), on live's phase
     next_open   + an order decided at the close earns from the next open, not the next close
     min_fee     + the broker's per-order dollar floor at the live NAV
@@ -24,7 +29,8 @@ R-BOOK use the as-live simulator; branch B freezes the gates and judges alpha on
         --window bt2_backtest=backtests/2026-10-14_07-27-32@2023-07-01..2025-06-30:backtest+holdout \
         --window bt2_holdout=backtests/2026-10-14_07-27-32@2025-07-01..2026-09-30:backtest+holdout
     python scripts/lean_calibration.py --predict --dataset ... --window bt=@2023-07-01..2026-09-30:backtest+holdout
-        (no Lean run yet: writes the calibrated simulator's prediction for the window, R-CAL's out-of-sample check)
+        (no Lean run yet: writes the calibrated simulator's prediction for the window, R-CAL's out-of-sample check; since
+        V6.1.0 it also runs the `v610` rung, with --legacy-probability and --gate-warmup-days as for --rcal2)
 """
 
 from __future__ import annotations
@@ -42,6 +48,19 @@ sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(ROOT_DIR / "scripts"))
 
 BOOK_COMPONENTS = ("main_book", "crypto_core", "crypto_graduate")
+# V6.1.0 R-CAL2: the legacy signal is modelled too, so it joins the comparison.
+RCAL2_COMPONENTS = ("main_book", "crypto_core", "crypto_graduate", "legacy", "legacy_crypto")
+# offline component -> the Lean attribution components it models
+COMPONENT_GROUPS = {"main_book": BOOK_COMPONENTS, "legacy": ("legacy", "legacy_crypto")}
+# P&L the simulation does not model but live's whole-portfolio kill switch reads
+UNMODELLED_COMPONENTS = ("bond_sleeve", "forex_sleeve")
+RCAL2_VARIANT = "v610"
+# R-CAL2 windows (plan V6.1.0): the V6 BT2 stretches and the V5.8.0 BT2 backtest stretch (a different config).
+RCAL2_WINDOWS = (
+    "v6bt2_backtest=backtests/2026-10-15_17-29-50@2023-07-01..2025-06-30:backtest+holdout",
+    "v6bt2_holdout=backtests/2026-10-15_17-29-50@2025-07-01..2026-09-30:backtest+holdout",
+    "v580bt2_backtest=backtests/2026-10-14_07-27-32@2023-07-01..2025-06-30:backtest+holdout",
+)
 MIN_CORRELATION = 0.50
 MAX_ANNUAL_GAP = 0.02
 MIN_DECISION_AGREEMENT = 0.80
@@ -59,16 +78,16 @@ def parse_window(text: str) -> dict:
     return {"name": name, "run_dir": run_dir or None, "start": start, "end": end, "splits": tuple(splits.split("+"))}
 
 
-def lean_book_returns(daily_components: dict, daily_equity: list) -> dict[str, float]:
-    """{date: book net P&L / previous NAV} for the main book and its crypto members."""
+def lean_book_returns(daily_components: dict, daily_equity: list, components: tuple[str, ...] = BOOK_COMPONENTS) -> dict[str, float]:
+    """{date: net P&L of `components` / previous NAV} (default: the main book and its crypto members)."""
     nav_dates = [date for date, _ in daily_equity]
     navs = [value for _, value in daily_equity]
     out = {}
-    for date, components in daily_components.items():
+    for date, day in daily_components.items():
         position = bisect.bisect_left(nav_dates, date) - 1
         nav = navs[position] if position >= 0 else (navs[0] if navs else 0.0)
         if nav > 0:
-            out[date] = sum(components.get(name, 0.0) for name in BOOK_COMPONENTS) / nav
+            out[date] = sum(day.get(name, 0.0) for name in components) / nav
     return out
 
 
@@ -106,10 +125,30 @@ def offline_decisions(rebalance_log: list[dict]) -> dict[str, str]:
     }
 
 
+def disagreement_table(live: dict[str, str], rebalance_log: list[dict]) -> dict:
+    """Where live and offline disagree, and why offline decided as it did: {"live_state->offline_state (reason)": n}, plus
+    `missing_offline` (live rebalanced, the simulator did not reach a rebalance that day) as its own count."""
+    offline = {entry["date"]: entry for entry in rebalance_log}
+    states = offline_decisions(rebalance_log)
+    table: dict[str, int] = {}
+    missing: list[str] = []
+    for date, state in sorted(live.items()):
+        if date not in offline:
+            missing.append(date)
+            continue
+        offline_state = states[date]
+        if offline_state == state:
+            continue
+        key = f"{state}->{offline_state} ({offline[date].get('reason') or 'none'})"
+        table[key] = table.get(key, 0) + 1
+    return {"disagreements": dict(sorted(table.items(), key=lambda item: -item[1])), "missing_offline": len(missing),
+            "missing_offline_dates": missing[:20]}
+
+
 def decision_agreement(live: dict[str, str], offline: dict[str, str], *, binary: bool = True) -> float | None:
     """Share of live rebalance dates with the same offline decision. R-CAL's clause is binary - the book traded
     (engaged) or did not (vetoed / locked); `binary=False` compares the three states. A date the offline book did not
-    rebalance on counts as a disagreement."""
+    rebalance on counts as a disagreement (`disagreement_table` reports how many those are)."""
     if not live:
         return None
     if binary:
@@ -245,13 +284,29 @@ def use_topology(harness, topology_fn) -> None:
         harness._mechanisms.clear()
 
 
-def run_window(window: dict, dataset: Path, config: dict) -> dict:
+def window_config(window: dict, default: dict) -> dict:
+    """The config a window is simulated with: the Lean run's own config (`evaluation.lean_attribution.run_config_path`: each
+    run's book, gates and sleeves), or `default` for a prediction window with no run or no kept config."""
+    if window.get("run_dir"):
+        from evaluation.lean_attribution import run_config_path
+
+        snapshot = run_config_path(ROOT_DIR / window["run_dir"], ROOT_DIR)
+        if snapshot is not None:
+            return json.loads(snapshot.read_text(encoding="utf-8"))
+    return default
+
+
+def run_window(window: dict, dataset: Path, config: dict, components: tuple[str, ...] = BOOK_COMPONENTS,
+               extra_ladder: dict | None = None, *, rcal2: bool = False, legacy_probability: str | None = None,
+               gate_warmup_days: int = 0) -> dict:
     from as_live_levers import AsLiveHarness
 
     from evaluation.backtest_audit import load_backtest_run
     from evaluation.lean_attribution import attribute_run, find_book_history_for_run
 
-    harness = AsLiveHarness(window["splits"], dataset_path=dataset)
+    config = window_config(window, config)
+    harness = AsLiveHarness(window["splits"], dataset_path=dataset, config=config, legacy_probability_path=legacy_probability,
+                            gate_warmup_days=gate_warmup_days)
     frame_dates = sorted(harness.session_dates)
     rebalance_every = int(config["phase_v2"]["portfolio_book"].get("rebalance_every_bars", 10))
     report: dict = {"window": window, "variants": {}}
@@ -262,7 +317,12 @@ def run_window(window: dict, dataset: Path, config: dict) -> dict:
         history_path = find_book_history_for_run(run_dir, ROOT_DIR / "visualization" / "book_history")
         history = [json.loads(line) for line in history_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         attribution = attribute_run(load_backtest_run(run_dir), history, config, ROOT_DIR, period=(window["start"], window["end"]))
-        lean = lean_book_returns(attribution["daily_components"], attribution["daily_equity"])
+        lean = lean_book_returns(attribution["daily_components"], attribution["daily_equity"], components)
+        report["lean_component_returns"] = {
+            name: lean_book_returns(attribution["daily_components"], attribution["daily_equity"], group)
+            for name, group in COMPONENT_GROUPS.items()
+        }
+        unmodelled = lean_book_returns(attribution["daily_components"], attribution["daily_equity"], UNMODELLED_COMPONENTS)
         live = live_decisions(history, window["start"], window["end"])
         live_weights = live_book_weights(load_backtest_run(run_dir), history, config)
         report["lean_components"] = {name: round(entry["net"], 2) for name, entry in attribution["components"].items()}
@@ -285,6 +345,19 @@ def run_window(window: dict, dataset: Path, config: dict) -> dict:
     if live:
         ladder["replay"] = dict(ladder["calibrated"], decision_overrides=live)
     ladder["calibrated_ungated"] = dict(ladder["calibrated"], gate="off", min_rank_confidence_spread=0.0)
+    if rcal2:
+        extra = bucket_to_offline_dates(unmodelled, sorted(harness.session_dates)) if window["run_dir"] else None
+        base = dict(ladder["calibrated"])
+        ladder["v610_member_pass"] = dict(base, mid_cycle_member_updates=True)
+        mechanisms = harness.v610_mechanisms(config, legacy=False)
+        ladder["v610_mechanisms"] = dict(base, **mechanisms, include=ANALYZER_INCLUDE)
+        ladder[RCAL2_VARIANT] = dict(base, **harness.v610_mechanisms(config, extra_returns=extra), include=ANALYZER_INCLUDE)
+        if live:
+            ladder["v610_replay"] = dict(ladder[RCAL2_VARIANT], decision_overrides=live)
+        ladder["v610_ungated"] = dict(ladder[RCAL2_VARIANT], gate="off", min_rank_confidence_spread=0.0)
+    for name, overrides in (extra_ladder or {}).items():
+        overrides = dict(overrides)
+        ladder[name] = dict(ladder[overrides.pop("base", "calibrated")], **overrides)
     topology_fn = topology_inputs_fn_for(harness, config)
 
     for name, overrides in ladder.items():
@@ -308,10 +381,23 @@ def run_window(window: dict, dataset: Path, config: dict) -> dict:
             offline_states = offline_decisions(result.rebalance_log)
             row["decision_agreement"] = decision_agreement(live, offline_states)
             row["decision_agreement_three_state"] = decision_agreement(live, offline_states, binary=False)
+            row["disagreement"] = disagreement_table(live, result.rebalance_log)
+            component_returns = getattr(result, "per_date_component_returns", None) or {}
+            if component_returns:
+                row["component_compare"] = {
+                    name: compare(bucket_to_offline_dates(report["lean_component_returns"][name], in_window), dates,
+                                  [component_returns.get(name, {}).get(date, 0.0) for date in dates])
+                    for name in COMPONENT_GROUPS if name in component_returns
+                }
             row.update(compare_weights(live_weights, dates, weights))
         else:
             row.update({"offline_daily_returns": dict(zip(dates, returns)),
                         "offline_sharpe": float(np.mean(returns) / np.std(returns) * np.sqrt(252)) if np.std(returns) > 0 else None})
+            component_returns = getattr(result, "per_date_component_returns", None) or {}
+            if component_returns:
+                row["offline_component_daily_returns"] = {
+                    name: {date: series.get(date, 0.0) for date in dates} for name, series in component_returns.items()
+                }
         report["variants"][name] = row
         print(
             f"  {window['name']:14s} {name:16s} r={row.get('daily_correlation')} gap={row.get('annual_return_gap')} "
@@ -322,25 +408,43 @@ def run_window(window: dict, dataset: Path, config: dict) -> dict:
     return report
 
 
+ANALYZER_INCLUDE = ("kill_switch", "member_sizing", "hrp", "impact", "analyzer")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dataset", default=str(ROOT_DIR / "ml" / "datasets" / "full_dataset.csv"))
-    parser.add_argument("--window", action="append", required=True)
+    parser.add_argument("--window", action="append", default=[])
+    parser.add_argument("--rcal2", action="store_true", help="V6.1.0: the three R-CAL2 windows and components")
+    parser.add_argument("--components", default=None, help="comma list of attribution components to compare")
     parser.add_argument("--predict", action="store_true", help="no Lean comparison: write the prediction only")
+    parser.add_argument("--legacy-probability", default=None, help="scripts/build_legacy_probability.py output (R-CAL2)")
+    parser.add_argument("--gate-warmup-days", type=int, default=0, help="rows before the window that warm the rolling-IC gate")
     parser.add_argument("--out", default=str(ROOT_DIR / "ml" / "evaluation" / "v600" / "calibration.json"))
     args = parser.parse_args()
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
-    windows = [parse_window(text) for text in args.window]
-    reports = {window["name"]: run_window(window, Path(args.dataset), config) for window in windows}
+    texts = list(args.window) + (list(RCAL2_WINDOWS) if args.rcal2 else [])
+    if not texts:
+        parser.error("pass --window or --rcal2")
+    components = tuple(args.components.split(",")) if args.components else (RCAL2_COMPONENTS if args.rcal2 else BOOK_COMPONENTS)
+    windows = [parse_window(text) for text in texts]
+    reports = {
+        window["name"]: run_window(window, Path(args.dataset), config, components, rcal2=args.rcal2 or args.predict,
+                                   legacy_probability=args.legacy_probability, gate_warmup_days=args.gate_warmup_days)
+        for window in windows
+    }
     verdict = None
     if not args.predict:
-        passes = {name: window_passes(report["variants"][CALIBRATED_VARIANT]) for name, report in reports.items()}
-        verdict = {"per_window": passes, "calibrated": all(passes.values()), "branch": "A" if all(passes.values()) else "B",
+        judged = RCAL2_VARIANT if args.rcal2 else CALIBRATED_VARIANT
+        passes = {name: window_passes(report["variants"][judged]) for name, report in reports.items()}
+        verdict = {"variant": judged, "per_window": passes, "calibrated": all(passes.values()),
+                   "branch": "A" if all(passes.values()) else "B",
                    "thresholds": {"min_correlation": MIN_CORRELATION, "max_annual_gap": MAX_ANNUAL_GAP,
                                   "min_decision_agreement": MIN_DECISION_AGREEMENT}}
         print("R-CAL:", json.dumps(verdict))
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps({"windows": reports, "verdict": verdict}, indent=1, default=str), encoding="utf-8")
+    Path(args.out).write_text(json.dumps({"windows": reports, "verdict": verdict, "components": list(components)}, indent=1,
+                                         default=str), encoding="utf-8")
     print(f"written {args.out}")
     return 0
 

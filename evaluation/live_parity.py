@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from analyzer.market_analyzer import build_market_analysis_decision
 from evaluation.rank_book_simulator import DEFAULT_ASSUMED_PORTFOLIO_VALUE_USD
 from evaluation.rolling_ic_gate_calibration import build_event_buffer
 from evaluation.rolling_ic_series import make_rolling_ic_state_fn
@@ -70,6 +71,19 @@ def forex_monday_payload_only(offline_row: dict | None, same_row_prefixes: tuple
     return {name: value for name, value in offline_row.items() if str(name).startswith(same_row_prefixes)}
 
 
+def forex_tick_holds_fill_forward_bar(tick_date: str, previous_row_date: str | None, holidays: frozenset[int] = frozenset()) -> bool:
+    """True when a forex tick on `tick_date` holds a Lean fill-forward bar: the calendar day before the tick (whose bar
+    closes at the tick's midnight) is an open day - not a Saturday, not a Lean market holiday - with no dataset row. That
+    covers Sunday before Monday and a weekday the zip has no bar for (2025-12-25, 2026-01-01); generalises the V6.0.0
+    Monday-only rule (V6.1.0)."""
+    from datetime import date as _date, timedelta
+
+    held = _date.fromisoformat(str(tick_date)[:10]) - timedelta(days=1)
+    if held.weekday() == 5 or held.toordinal() in holidays:
+        return False
+    return str(previous_row_date or "")[:10] != held.isoformat()
+
+
 def late_bar_offline_row(
     previous_row: dict | None, same_row: dict | None, same_row_prefixes: tuple[str, ...] = LATE_BAR_SAME_ROW_FEATURE_PREFIXES
 ) -> dict | None:
@@ -105,6 +119,22 @@ def lag_predictions_for_tickers(
     return lagged.sort_index()
 
 
+def with_live_event_duplicates(
+    frame: pd.DataFrame, late_bar_tickers: set[str] | frozenset[str] | None, *, ticker_column: str = "ticker"
+) -> pd.DataFrame:
+    """The rolling-IC event rows as live records them (V6.1.0, Problems.md #196). Pass 1c appends an event for every pending
+    symbol on every tick, and a crypto pair is pending on BOTH its own midnight tick and the next equity tick (which re-scores
+    the same bar), both stamped with that day's `Time.date()` and the same close: a late-bar symbol therefore enters the event
+    buffer twice per date. Counting each once made the offline gate read +0.012 above the logged live value (same side of the
+    floor on 73% of dates); the doubled events bring it to correlation 0.98, offset -0.0003 and 92% on the same side."""
+    if not late_bar_tickers:
+        return frame
+    duplicated = frame[frame[ticker_column].astype(str).isin({str(t) for t in late_bar_tickers})]
+    if duplicated.empty:
+        return frame
+    return pd.concat([frame, duplicated], ignore_index=True)
+
+
 def make_rolling_ic_gate_fn(
     frame: pd.DataFrame,
     *,
@@ -115,17 +145,21 @@ def make_rolling_ic_gate_fn(
     close_column: str = "close",
     state_fn=None,
     include_tickers: set[str] | frozenset[str] | None = None,
+    late_bar_tickers: set[str] | frozenset[str] | None = None,
 ):
     """A date -> gate-result callable for `rolling_ic_gate_fn`: the rolling-IC state as of that date (no lookahead)
     run through main.py's own `evaluate_rolling_ic_gate()`. The state comes from `make_rolling_ic_state_fn`, which
     equals `compute_rolling_ic_state()` on the events dated <= that date; it does not depend on the floor, so pass one
     shared `state_fn` to build several floor variants without re-resolving anything. `include_tickers` (V5.8.0) keeps
-    only those tickers' events - main.py feeds the buffer from the main rank group only when ranking is grouped."""
+    only those tickers' events - main.py feeds the buffer from the main rank group only when ranking is grouped.
+    `late_bar_tickers` (V6.1.0) counts those tickers' events twice per date, as live records them
+    (`with_live_event_duplicates`)."""
     config = dict(gate_config)
     config["enabled"] = True
     if state_fn is None:
         if include_tickers is not None:
             frame = frame[frame[ticker_column].astype(str).isin(set(map(str, include_tickers)))]
+        frame = with_live_event_duplicates(frame, late_bar_tickers, ticker_column=ticker_column)
         state_fn = make_rolling_ic_state_fn(
             build_event_buffer(
                 frame,
@@ -167,6 +201,7 @@ def build_live_member_weight_fn(
     rl_model: dict | None = None,
     daily_returns_by_date: dict[str, dict[str, float]] | None = None,
     topology_inputs_fn=None,
+    use_live_analyzer: bool = False,
 ):
     """`member_weight_fn` for `simulate_rank_book`: the live per-member decision chain of `main.py`'s Pass 2 built
     from the SAME pure functions (nothing re-derived here): dynamic sizing (`build_dynamic_position_sizing`), the
@@ -184,7 +219,14 @@ def build_live_member_weight_fn(
     `rl_model` / `rl_state` / multiplier range main.py passes to `build_dynamic_position_sizing` (state from the row's
     raw feature columns, as train_rl_sizing.py builds it). With `dynamic_risk.rl_shadow_guard.enabled` the RL-vs-constant
     excess return of the positions this function sized is accumulated per date from `daily_returns_by_date`
-    ({date: {ticker: target_return_1d}}) and `risk.rl_sizing.rl_shadow_guard_allows` switches RL off exactly as live."""
+    ({date: {ticker: target_return_1d}}) and `risk.rl_sizing.rl_shadow_guard_allows` switches RL off exactly as live.
+
+    V6.1.0 - `use_live_analyzer`: the verdict comes from `analyzer.market_analyzer.build_market_analysis_decision` itself
+    (the composite signal-quality score, topology isolation / elevation, the risk-off override at its configured
+    severity, liquidity and the net-edge gate, in live's priority order) with the regime / topology inputs rebuilt from
+    the dataset row; any action other than "trade" holds. The returned function also sizes a legacy-signal entry
+    (`confidence=` the probability signal's confidence, `is_book_selected=False`); without a predicted rank the net-edge
+    gate is skipped (fail-open, as `build_net_edge_decision` does for a missing rank)."""
     phase_v2 = config.get("phase_v2", {})
     risk = phase_v2.get("dynamic_risk", {})
     book = phase_v2.get("portfolio_book", {})
@@ -220,6 +262,19 @@ def build_live_member_weight_fn(
     min_topology_multiplier = float(sizing_risk.get("min_topology_multiplier", 0.5))
     max_topology_multiplier = float(sizing_risk.get("max_topology_multiplier", 1.0))
     rl_enabled = bool(risk.get("rl_sizing_enabled", False)) and rl_model is not None
+    analyzer_config = phase_v2.get("market_analyzer", {})
+    regime_config = phase_v2.get("regime_detection", {})  # main.py's key (phase_v2.regime does not exist)
+    severity = regime_config.get("risk_off_override_min_severity")
+    book_floor = phase6.get("min_confidence_to_trade_book_selected")
+    analyzer_settings = {
+        "min_confidence_to_trade": float(phase6.get("min_confidence_to_trade", 0.12)),
+        "min_confidence_to_trade_book_selected": float(book_floor) if book_floor is not None else None,
+        "retrain_min_regime_confidence": float(analyzer_config.get("retrain_min_regime_confidence", 0.20)),
+        "low_regime_confidence_threshold": float(analyzer_config.get("low_regime_confidence_threshold", 0.35)),
+        "use_composite_signal_score": bool(analyzer_config.get("use_composite_signal_score", False)),
+        "risk_off_override_min_severity": float(severity) if severity is not None else None,
+        "topology_veto_applies_to_book_members": bool(phase_v2.get("topology", {}).get("elevated_veto_applies_to_book_members", True)),
+    }
     rl_guard = resolve_rl_shadow_guard(risk.get("rl_shadow_guard"))
     rl_state_holder: dict = {"history": [], "positions": {}, "last_date": None, "allows": True}
     sorted_return_dates = sorted(daily_returns_by_date or {})
@@ -238,15 +293,18 @@ def build_live_member_weight_fn(
             rl_state_holder["allows"] = rl_shadow_guard_allows(rl_state_holder["history"], rl_guard)
         rl_state_holder["last_date"] = date
 
-    def member_weight_fn(*, symbol, date, base_weight, held_weight, predicted_rank, row, **_unused):
+    def member_weight_fn(*, symbol, date, base_weight, held_weight, predicted_rank=None, row, confidence=None,
+                         is_book_selected=True, **_unused):
         if rl_enabled:
             _advance_rl_guard(str(date)[:10])
-        if predicted_rank is None or not math.isfinite(float(predicted_rank)):
+        rank_known = predicted_rank is not None and math.isfinite(float(predicted_rank))
+        if not rank_known and confidence is None:
             return held_weight
         security_type = str(security_type_by_ticker.get(symbol, "equity"))
         if security_type == "forex" and not forex_enabled:
             return held_weight
-        confidence = min(1.0, abs(float(predicted_rank) - 0.5) * 2.0)
+        if confidence is None:
+            confidence = min(1.0, abs(float(predicted_rank) - 0.5) * 2.0)
         predicted_volatility = (predicted_volatility_by_key or {}).get((date, symbol))
         rolling_volatility = _finite(row.get("rolling_volatility_20d"))
         topology_inputs = (topology_inputs_fn(symbol, date) if topology_sizing_enabled else None) or {}
@@ -264,7 +322,7 @@ def build_live_member_weight_fn(
             max_leverage=float(risk.get("max_leverage", 1.0)),
             predicted_volatility=predicted_volatility,
             use_predicted_volatility=bool(risk.get("use_predicted_volatility", False)),
-            predicted_rank_20d=float(predicted_rank),
+            predicted_rank_20d=float(predicted_rank) if rank_known else None,
             rank_sizing_enabled=bool(risk.get("rank_sizing_enabled", False)) and rank_sizing_applies,
             min_rank_multiplier=float(risk.get("min_rank_multiplier", 0.75)),
             max_rank_multiplier=float(risk.get("max_rank_multiplier", 1.25)),
@@ -301,7 +359,7 @@ def build_live_member_weight_fn(
         if action == "reduce_size":
             target = float(liquidity_decision.adjusted_target_weight)
         net_edge = build_net_edge_decision(
-            float(predicted_rank),
+            float(predicted_rank) if rank_known else None,
             liquidity_decision.to_dict(),
             abs(target - held_weight) * nav,
             costs,
@@ -315,13 +373,37 @@ def build_live_member_weight_fn(
         if floor_fraction > 0.0 and security_type not in ("future", "option", "forex"):
             target = apply_book_weight_floor(target, base_weight, floor_fraction, skip_floor=(action == "reduce_size"))
         invested = held_weight != 0.0
+        if use_live_analyzer:
+            decision = build_market_analysis_decision(
+                signal_name="buy" if target >= 0.0 else "short", confidence=float(confidence), probability_up=0.5,
+                target_weight=target, regime=_row_regime(row), gating={"decision_source": "blend"}, trading_eligible=True,
+                trade_lock_active=False, topology=_row_topology(row), liquidity=liquidity_decision.to_dict(),
+                min_confidence_to_trade=analyzer_settings["min_confidence_to_trade"],
+                retrain_min_regime_confidence=analyzer_settings["retrain_min_regime_confidence"],
+                low_regime_confidence_threshold=analyzer_settings["low_regime_confidence_threshold"],
+                use_composite_signal_score=analyzer_settings["use_composite_signal_score"],
+                is_currently_invested=invested, net_edge=net_edge.to_dict(), is_book_selected=bool(is_book_selected),
+                min_confidence_to_trade_book_selected=analyzer_settings["min_confidence_to_trade_book_selected"],
+                risk_off_override_min_severity=analyzer_settings["risk_off_override_min_severity"],
+                topology_veto_applies_to_book_members=analyzer_settings["topology_veto_applies_to_book_members"],
+            )
+            if decision.action != "trade":
+                return held_weight
+            if rl_enabled:
+                if target != 0.0:
+                    rl_state_holder["positions"][symbol] = (target, rl_multiplier)
+                else:
+                    rl_state_holder["positions"].pop(symbol, None)
+            return target
         if confidence < min_confidence or action in ("block", "simulate_instead"):
             return held_weight
         if not invested and not net_edge.passes:
             return 0.0
-        if float(row.get("regime_risk_off", 0.0) or 0.0) > 0.5 and phase_v2.get("regime", {}).get(
-            "risk_off_override_min_severity"
-        ) is None:
+        # analyzer Priority 2: risk_off overrides a directional trade only at the configured severity
+        if float(row.get("regime_risk_off", 0.0) or 0.0) > 0.5 and (
+            analyzer_settings["risk_off_override_min_severity"] is None
+            or _finite(row.get("regime_signal_risk_score")) <= -analyzer_settings["risk_off_override_min_severity"]
+        ):
             return held_weight
         if rl_enabled:
             if target != 0.0:
@@ -332,6 +414,31 @@ def build_live_member_weight_fn(
 
     member_weight_fn.rl_state = rl_state_holder
     return member_weight_fn
+
+
+def _row_regime(row: dict) -> dict:
+    """The analyzer's regime payload from a dataset row (the model-input regime vector, drawdown 0.0; live's risk
+    regime also reads the account drawdown, which an offline row cannot know)."""
+    risk_regime = "risk_neutral"
+    if float(row.get("regime_risk_off", 0.0) or 0.0) > 0.5:
+        risk_regime = "risk_off"
+    elif float(row.get("regime_risk_on", 0.0) or 0.0) > 0.5:
+        risk_regime = "risk_on"
+    return {
+        "risk_regime": risk_regime,
+        "risk_score": _finite(row.get("regime_signal_risk_score")),
+        "confidence": _finite(row.get("regime_signal_confidence")),
+    }
+
+
+def _row_topology(row: dict) -> dict:
+    """The analyzer's topology payload from a dataset row (its risk one-hots and correlation strength)."""
+    risk = "normal"
+    if float(row.get("topology_risk_isolated", 0.0) or 0.0) > 0.5:
+        risk = "isolated"
+    elif float(row.get("topology_risk_elevated", 0.0) or 0.0) > 0.5:
+        risk = "elevated"
+    return {"topology_risk": risk, "correlation_strength": _finite(row.get("topology_correlation_strength"))}
 
 
 def build_hrp_raw_weights_fn(
@@ -440,6 +547,7 @@ def build_live_mechanisms(
             rl_model=rl_model,
             daily_returns_by_date=daily_returns_by_date,
             topology_inputs_fn=topology_inputs_fn,
+            use_live_analyzer="analyzer" in include,
         )
     if "hrp" in include and str(book.get("allocation_method", "rank")) == "hrp":
         mechanisms["raw_weights_fn"] = build_hrp_raw_weights_fn(

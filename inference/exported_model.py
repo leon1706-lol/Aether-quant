@@ -20,6 +20,9 @@ purpose (layer/node/edge counts vs. an actual forward pass here).
 
 from __future__ import annotations
 
+import math
+from pathlib import Path
+
 import numpy as np
 
 # Optional C++/pybind11 accelerator for _linear_batched() below (see
@@ -1068,3 +1071,41 @@ def resolve_sequence_window_size(sequence_feature_schema: dict | None, configure
     graceful-fallback contract). Lives here (not main.py) so it's
     unit-testable without a Lean QCAlgorithm environment."""
     return int((sequence_feature_schema or {}).get("window_size", configured_window_size))
+
+
+def average_head_outputs(outputs: list[dict | None]) -> dict | None:
+    """Seed-ensemble prediction (V6.1.0): the plain mean of each head's raw output across members, taken before any
+    cross-sectional normalisation (train.average_ensemble_predictions averages the same way). A head is kept only when
+    every member returned a finite value for it, so a member that failed cannot silently reweight the others; None when
+    no member returned anything."""
+    members = [output for output in outputs if output]
+    if not members:
+        return None
+    averaged: dict = {}
+    for head in members[0]:
+        values = [member.get(head) for member in members]
+        if all(isinstance(value, (int, float)) and math.isfinite(value) for value in values):
+            averaged[head] = float(sum(values) / len(values))
+        else:
+            averaged[head] = None
+    return averaged
+
+
+def load_ensemble_member_exports(ensemble_dir: Path) -> list[dict]:
+    """Every member export (`*.json`, sorted by name) of an ensemble directory; [] when the directory is missing."""
+    import json
+
+    directory = Path(ensemble_dir)
+    if not directory.is_dir():
+        return []
+    return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(directory.glob("*.json"))]
+
+
+def resolve_model_ensemble_config(config: dict) -> dict:
+    """`phase_v2.model_ensemble` with defaults: off, members under ml/multitask_ensemble and ml/sequence_ensemble."""
+    raw = (config or {}).get("phase_v2", {}).get("model_ensemble", {}) or {}
+    return {
+        "enabled": bool(raw.get("enabled", False)),
+        "multitask_dir": str(raw.get("multitask_dir", "multitask_ensemble")),
+        "sequence_dir": str(raw.get("sequence_dir", "sequence_ensemble")),
+    }

@@ -51,7 +51,7 @@ def test_fill_forward_adds_flat_sunday_bars_between_friday_and_monday():
     assert len(filled) == len(frame) + 2  # Sundays between the three weeks
     assert (filled["date"].dt.dayofweek != 5).all()
     for _, row in sundays.iterrows():
-        friday = frame[frame["date"] == row["date"] - pd.Timedelta(days=2)].iloc[0]
+        friday = frame[frame["date"] == row["date"] - pd.Timedelta(2, unit="D")].iloc[0]
         assert row["close"] == friday["close"] and row["open"] == row["high"] == row["low"] == friday["close"]
         assert row["volume"] == 0.0 and row["ticker"] == "EURUSD"
     assert filled["date"].is_monotonic_increasing

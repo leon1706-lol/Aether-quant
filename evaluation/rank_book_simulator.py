@@ -68,6 +68,8 @@ class RankBookSimulationResult:
     rebalance_log: list = field(default_factory=list)
     # V6.0.0, with log_weights=True: the weights held after each date's rebalance, aligned with per_date.
     weights_log: list = field(default_factory=list)
+    # V6.1.0: per-component net returns ({"main_book": {date: r}, "legacy": {date: r}}) when the legacy signal is modelled.
+    per_date_component_returns: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -102,6 +104,169 @@ def _empty_result(trading_days_per_year: int) -> RankBookSimulationResult:
         per_date_net_return=[],
         per_date=[],
     )
+
+
+def _cap_new_entries(
+    new_weights: dict[str, float], held_weights: dict[str, float], ranks: dict[str, float | None], max_positions: int
+) -> dict[str, float]:
+    """live's _apply_signal: a NEW entry is skipped once `max_positions` positions are open; held members always stay.
+    Members are processed in conviction order (|rank - 0.5|, main.py's Pass 2 sort)."""
+    kept = {symbol: weight for symbol, weight in new_weights.items() if symbol in held_weights}
+    entries = sorted(
+        (symbol for symbol in new_weights if symbol not in held_weights),
+        key=lambda symbol: -abs(float(ranks.get(symbol) if ranks.get(symbol) is not None else 0.5) - 0.5),
+    )
+    room = max(0, max_positions - len(kept))
+    for symbol in entries[:room]:
+        kept[symbol] = new_weights[symbol]
+    return kept
+
+
+def _new_legacy_state() -> dict:
+    return {"weights": {}, "history": [], "entry_index": {}, "peak": {}, "last_trade": {}, "band": {}, "previous": {}}
+
+
+def _legacy_mark(state: dict, returns_today: dict[str, float]) -> float:
+    """Return of the held legacy positions on a date that is not traded (a skipped weekend date)."""
+    weights = state["history"][-1] if state["history"] else {}
+    return sum(weight * float(returns_today.get(symbol, 0.0)) for symbol, weight in weights.items())
+
+
+def _legacy_lagged_return(state: dict, date_returns: dict, entry_lag_bars: int, *, record: bool = False) -> float:
+    """The legacy positions' return for this date: with an entry lag the weights held `entry_lag_bars` dates ago earn
+    it (the order filled at the next open), exactly as the book. `record` appends today's weights to the history."""
+    history = state["history"]
+    if entry_lag_bars > 0:
+        index = len(history) - entry_lag_bars
+        weights = history[index] if index >= 0 else {}
+    else:
+        weights = state["weights"]
+    value = sum(weight * float(date_returns.get(symbol, 0.0)) for symbol, weight in weights.items())
+    if record:
+        state["previous"] = weights
+        history.append(dict(state["weights"]))
+    return value
+
+
+def _legacy_intraday(state: dict, eligible: pd.DataFrame, ticker_column: str, column: str) -> float:
+    """The next session's open-to-close move earned by the legacy weights that changed today (next-open fill)."""
+    current, previous = state["weights"], state["previous"]
+    intraday = dict(zip(eligible[ticker_column].astype(str), eligible[column]))
+    total = 0.0
+    for symbol in set(current) | set(previous):
+        delta = current.get(symbol, 0.0) - previous.get(symbol, 0.0)
+        value = intraday.get(symbol)
+        if delta != 0.0 and value == value and value is not None:
+            total += delta * float(value)
+    return total
+
+
+def _legacy_step(state: dict, component: dict, *, eligible: pd.DataFrame, date: str, date_index: int, is_session: bool,
+                 ticker_column: str, close_column: str, book_members: set[str], book_held: dict[str, float],
+                 book_active: bool, kill_switch_locked: bool, candidate_metadata_by_ticker: dict,
+                 cost_bps: float, commission_override, min_commission_usd_by_ticker: dict | None, pv_for_costs: float,
+                 max_active_positions: int | None, cooldown_dates: int, resize_threshold_weight: float) -> tuple[float, float]:
+    """One date of the legacy probability signal on non-members (main.py Pass 1c `_derive_signal` + Pass 2's non-member
+    branch). Shared pure pieces: `data_pipeline.bar_synthesis.derive_signal` / `adaptive_sell_threshold` (the signal and
+    its adaptive sell band, recorded for every symbol every date as Pass 1c does), `portfolio.legacy_sleeve.
+    apply_legacy_sleeve_policy` (budget, per-name cap, no new entry while the book is vetoed), the member chain
+    `component["weight_fn"]` (sizing, liquidity, net edge and the analyzer's verdict), `risk_controls.
+    evaluate_non_model_exit` (age / trailing stop) and the live cooldown / position cap. A legacy "sell" closes a held
+    position (analyzer Priority 0); the legacy signal never shorts (main.py's `already_flat`). Returns (cost, turnover)
+    as NAV fractions."""
+    from data_pipeline.bar_synthesis import adaptive_sell_threshold, derive_signal
+    from portfolio.legacy_sleeve import apply_legacy_sleeve_policy
+
+    signal = component["signal"]
+    sleeve_config = component["sleeve_config"]
+    probability_column = component["probability_column"]
+    classes = set(component.get("asset_classes", ("equity", "crypto")))
+    weight_fn = component.get("weight_fn")
+    max_holding = component.get("max_holding_dates")
+    stop_pct = component.get("trailing_stop_pct")
+    weights = state["weights"]
+    new_weights = dict(weights)
+    if probability_column not in eligible.columns:
+        return 0.0, 0.0
+    rows = eligible.set_index(eligible[ticker_column].astype(str)).to_dict("index")
+    for symbol in list(new_weights):  # backstop exits first, as Pass 2 checks them before the signal
+        row = rows.get(symbol)
+        close = float(row.get(close_column)) if row and row.get(close_column) == row.get(close_column) else None
+        if close is None or close <= 0.0:
+            continue
+        reason = evaluate_non_model_exit(
+            date_index, max_holding is not None, int(max_holding or 10**9), float(stop_pct) if stop_pct else 0.0,
+            state["entry_index"].get(symbol, date_index), state["peak"].get(symbol), "long", close,
+        ) if (max_holding is not None or stop_pct) else None
+        if reason in ("max_holding_bars_reached", "trailing_stop_triggered"):
+            new_weights.pop(symbol)
+        elif state["peak"].get(symbol) is None or close > state["peak"][symbol]:
+            state["peak"][symbol] = close
+    gross_used = sum(abs(weight) for symbol, weight in new_weights.items() if symbol not in book_members)
+    for symbol, row in rows.items():
+        probability = row.get(probability_column)
+        if probability is None or probability != probability:
+            continue
+        history = state["band"].setdefault(symbol, [])
+        effective_sell = adaptive_sell_threshold(
+            sell_threshold=signal["sell_threshold"], history=history, band_enabled=signal["band_enabled"],
+            min_observations=signal["band_min_observations"], band_percentile=signal["band_percentile"],
+        )
+        name, confidence, target = derive_signal(
+            float(probability), decision_threshold=signal["decision_threshold"], buy_threshold=signal["buy_threshold"],
+            effective_sell_threshold=effective_sell, max_position_weight=signal["max_position_weight"],
+        )
+        history.append(float(probability))
+        if len(history) > signal["band_window"]:
+            del history[0]
+        if not is_session or symbol in book_members or symbol in book_held:
+            continue
+        meta = candidate_metadata_by_ticker.get(symbol, {})
+        if meta.get("asset_class") not in classes or not bool(meta.get("trading_eligible", True)):
+            continue
+        held = new_weights.get(symbol, 0.0)
+        if name == "sell":
+            if held:
+                new_weights.pop(symbol)
+            continue
+        if name != "buy" or kill_switch_locked:
+            continue  # analyzer Priority 1 blocks entries and resizes under the lock
+        sized = float(weight_fn(symbol=symbol, date=date, base_weight=target, held_weight=held, confidence=confidence,
+                                row=row)) if weight_fn else target
+        if sized == held:
+            continue
+        policy = apply_legacy_sleeve_policy("buy", sized, False, held != 0.0, book_active, gross_used, sleeve_config)
+        if policy["signal"] != "buy":
+            continue
+        wanted = float(policy["target_weight"])
+        last = state["last_trade"].get(symbol)
+        if held == 0.0:
+            if cooldown_dates > 0 and last is not None and date_index - last < cooldown_dates:
+                continue
+            if max_active_positions is not None and len(new_weights) + len(book_held) >= int(max_active_positions):
+                continue
+            new_weights[symbol] = wanted
+            gross_used = float(policy["sleeve_gross_used"])
+        elif resize_threshold_weight <= 0.0 or should_scale_position(held, wanted, resize_threshold_weight):
+            new_weights[symbol] = wanted
+    cost, turnover = 0.0, 0.0
+    for symbol in set(new_weights) | set(weights):
+        delta = new_weights.get(symbol, 0.0) - weights.get(symbol, 0.0)
+        if delta == 0.0:
+            continue
+        turnover += abs(delta)
+        cost += abs(delta) * (cost_bps + commission_override(symbol)) / 1e4
+        floor_usd = float((min_commission_usd_by_ticker or {}).get(symbol, 0.0))
+        if floor_usd > 0.0:
+            cost += max(0.0, floor_usd - abs(delta) * pv_for_costs * cost_bps / 1e4) / pv_for_costs
+        state["last_trade"][symbol] = date_index
+        if symbol not in new_weights:
+            state["entry_index"].pop(symbol, None)
+            state["peak"].pop(symbol, None)
+        elif symbol not in weights:
+            state["entry_index"][symbol] = date_index
+    state["weights"] = new_weights
+    return cost, turnover
 
 
 def _simulate_rank_book_core(
@@ -161,6 +326,11 @@ def _simulate_rank_book_core(
     trade_cooldown_dates: int = 0,
     trailing_stop_pct: float | None = None,
     close_column: str = "close",
+    mid_cycle_member_updates: bool = False,
+    accrue_skipped_dates: bool = False,
+    kill_switch_extra_returns: dict[str, float] | None = None,
+    legacy_component: dict | None = None,
+    max_active_positions: int | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -282,6 +452,22 @@ def _simulate_rank_book_core(
       are exempt, as live's `is_cooldown_exempt` (`trade_cooldown_bars`).
     - `trailing_stop_pct`: live's trailing stop on daily closes (`risk_controls.evaluate_non_model_exit`), from the best
       close since entry, direction-aware.
+
+    V6.1.0, all off by default (rule R-CAL2: each one replicates a main.py mechanism):
+    - `mid_cycle_member_updates`: between rebalances live re-runs every member of the last ENGAGED book through the
+      member chain on every session (`book_allocations = self._last_book_allocations`), so a member blocked on the
+      rebalance day (kill-switch lock, net edge, cooldown) or closed by the age exit / trailing stop is entered as soon as
+      it passes, and a held member is resized when its target moves past the threshold. After a veto there is no book
+      (live's `_last_book_allocations` is empty) and nothing happens until the next engaged rebalance.
+    - `accrue_skipped_dates`: a date with too few rows to rank (weekends: crypto only) still earns the held positions'
+      return, folded into the previous date's return (live marks crypto every calendar day).
+    - `kill_switch_extra_returns` ({date: NAV return}): P&L outside this simulation (sleeves, crypto outside the book)
+      that live's kill switch reads, because it watches the whole portfolio value.
+    - `legacy_component`: the legacy probability signal on non-members (main.py Pass 2 non-member branch), see
+      `_legacy_step`; its P&L joins the returns and the kill switch and is reported per component.
+    - `max_active_positions`: live's position count limit (`phase9.portfolio.max_active_positions`): a new entry is not
+      taken while that many positions (book + legacy) are open; members are filled in conviction order.
+    Exit costs (age exit, trailing stop, sleeve guard) are now part of the date's cost on a rebalance date too.
     """
     sector_by_ticker = sector_by_ticker or {}
     candidate_metadata_by_ticker = candidate_metadata_by_ticker or {}
@@ -315,6 +501,16 @@ def _simulate_rank_book_core(
     held_weights: dict[str, float] = {}
     held_allocations: dict[str, BookAllocation] = {}
     held_days_by_ticker: dict[str, int] = {}
+    # V6.1.0 - live's book between rebalances: the last rebalance's allocations (empty after a veto), their weights before
+    # the member chain (main.py's _book_target_weights) and the ranks the book was formed on.
+    active_allocations: dict[str, BookAllocation] = {}
+    active_base_weights: dict[str, float] = {}
+    active_ranks: dict[str, float] = {}
+    legacy_state = _new_legacy_state() if legacy_component else None
+    book_component_returns: list[float] = []
+    legacy_component_returns: list[float] = []
+    kill_switch_cumprod = 1.0
+    kill_switch_peak = 1.0
 
     gross_returns: list[float] = []
     net_returns: list[float] = []
@@ -347,6 +543,27 @@ def _simulate_rank_book_core(
         date_frame = working[working[date_column] == date]
         eligible = date_frame.dropna(subset=[forward_return_column])
         if len(eligible) < min_universe_size:
+            if accrue_skipped_dates and net_returns:
+                returns_today = dict(zip(eligible[ticker_column].astype(str), eligible[forward_return_column]))
+                book_extra = sum(weight * float(returns_today.get(symbol, 0.0)) for symbol, weight in (weights_history[-1] if weights_history else {}).items())
+                legacy_extra = _legacy_mark(legacy_state, returns_today) if legacy_state is not None else 0.0
+                extra = book_extra + legacy_extra
+                if extra:
+                    previous = net_returns[-1]
+                    net_cumprod = net_cumprod / (1.0 + previous) * (1.0 + previous + extra)
+                    gross_cumprod = gross_cumprod / (1.0 + gross_returns[-1]) * (1.0 + gross_returns[-1] + extra)
+                    net_returns[-1] = previous + extra
+                    gross_returns[-1] += extra
+                    book_component_returns[-1] += book_extra
+                    legacy_component_returns[-1] += legacy_extra
+                    net_running_peak = max(net_running_peak, net_cumprod)
+                    net_max_drawdown = min(net_max_drawdown, net_cumprod / net_running_peak - 1.0)
+                    if kill_switch_active and kill_switch_returns:
+                        previous_portfolio = kill_switch_returns[-1]
+                        kill_switch_cumprod = kill_switch_cumprod / (1.0 + previous_portfolio) * (1.0 + previous_portfolio + extra)
+                        kill_switch_peak = max(kill_switch_peak, kill_switch_cumprod)
+                        kill_switch_previous_drawdown = kill_switch_cumprod / kill_switch_peak - 1.0
+                        kill_switch_returns[-1] = previous_portfolio + extra
             continue
 
         is_session = rebalance_session_dates is None or str(date) in rebalance_session_dates
@@ -370,11 +587,14 @@ def _simulate_rank_book_core(
                 lag_index = len(weights_history) - entry_lag_bars
                 lagged_weights = weights_history[lag_index] if lag_index >= 0 else {}
                 today_return = sum(weight * float(date_returns.get(symbol, 0.0)) for symbol, weight in lagged_weights.items())
+                if legacy_state is not None:
+                    today_return += _legacy_lagged_return(legacy_state, date_returns, entry_lag_bars)
+                today_return += float((kill_switch_extra_returns or {}).get(str(date), 0.0))
                 window.append(today_return)
             drawdown_velocity = None
             if kill_switch_previous_drawdown is not None:
-                value_now = net_cumprod * (1.0 + (today_return or 0.0))
-                drawdown_now = value_now / max(net_running_peak, value_now) - 1.0
+                value_now = kill_switch_cumprod * (1.0 + (today_return or 0.0))
+                drawdown_now = value_now / max(kill_switch_peak, value_now) - 1.0
                 drawdown_velocity = abs(drawdown_now) - abs(kill_switch_previous_drawdown)
             decision = evaluate_kill_switch(
                 {
@@ -404,10 +624,12 @@ def _simulate_rank_book_core(
                 if date_index - entry_date_index_by_ticker.get(symbol, date_index) >= max_holding_dates
             ]
             if expired:
-                cost_this_date += (
+                exit_cost = (
                     sum(abs(held_weights[symbol]) for symbol in expired) * (cost_bps_per_side + commission_bps) / 1e4
                     + sum(abs(held_weights[symbol]) * _commission_override_delta(symbol) for symbol in expired) / 1e4
                 )
+                cost_this_date += exit_cost
+                total_cost_return += exit_cost
                 total_turnover += sum(abs(held_weights[symbol]) for symbol in expired)
                 held_weights = {symbol: weight for symbol, weight in held_weights.items() if symbol not in expired}
                 held_allocations = {
@@ -436,10 +658,12 @@ def _simulate_rank_book_core(
                 elif peak is None or (weight > 0 and close > peak) or (weight < 0 and close < peak):
                     peak_close_by_ticker[symbol] = float(close)
             if stopped:
-                cost_this_date += (
+                exit_cost = (
                     sum(abs(held_weights[symbol]) for symbol in stopped) * (cost_bps_per_side + commission_bps) / 1e4
                     + sum(abs(held_weights[symbol]) * _commission_override_delta(symbol) for symbol in stopped) / 1e4
                 )
+                cost_this_date += exit_cost
+                total_cost_return += exit_cost
                 total_turnover += sum(abs(held_weights[symbol]) for symbol in stopped)
                 held_weights = {symbol: weight for symbol, weight in held_weights.items() if symbol not in stopped}
                 held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol not in stopped}
@@ -457,131 +681,145 @@ def _simulate_rank_book_core(
                 num_sleeve_guard_suspended_dates += 1
                 if held_weights:
                     flattened = sum(abs(weight) for weight in held_weights.values())
-                    cost_this_date += flattened * (cost_bps_per_side + commission_bps) / 1e4 + sum(
+                    exit_cost = flattened * (cost_bps_per_side + commission_bps) / 1e4 + sum(
                         abs(weight) * _commission_override_delta(symbol) for symbol, weight in held_weights.items()
                     ) / 1e4
+                    cost_this_date += exit_cost
+                    total_cost_return += exit_cost
                     total_turnover += flattened
                     held_weights = {}
                     held_allocations = {}
                     entry_date_index_by_ticker.clear()
                 is_rebalance = False
+                active_allocations, active_base_weights, active_ranks = {}, {}, {}
                 guard_resume_pending = True
             elif guard_resume_pending:
                 is_rebalance = True  # re-form the book on the first date the guard lets it trade again
                 guard_resume_pending = False
 
-        if is_rebalance:
-            raw_scores_by_ticker = {
-                str(ticker): float(rank) for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
-            }
-            candidate_ranks = (
-                grouped_cross_sectional_rank_scores(raw_scores_by_ticker, rank_group_by_ticker)
-                if normalize_to_percentile
-                else raw_scores_by_ticker
-            )
-            spread_scores = raw_scores_by_ticker
-            if rank_group_by_ticker:
-                spread_scores = {
-                    ticker: score
-                    for ticker, score in raw_scores_by_ticker.items()
-                    if rank_group_by_ticker.get(ticker, MAIN_RANK_GROUP) == MAIN_RANK_GROUP
+        mid_cycle = bool(mid_cycle_member_updates and not is_rebalance and is_session and active_allocations)
+        if is_rebalance or mid_cycle:
+            if is_rebalance:
+                raw_scores_by_ticker = {
+                    str(ticker): float(rank) for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
                 }
-            book_candidates = {
-                ticker: {
-                    "predicted_rank_20d": float(rank),
-                    "trading_eligible": bool(candidate_metadata_by_ticker.get(ticker, {}).get("trading_eligible", True))
-                    and asset_listed_on_venue(ticker, str(date), venue_listing_dates),
-                    "asset_class": candidate_metadata_by_ticker.get(ticker, {}).get("asset_class"),
-                }
-                for ticker, rank in candidate_ranks.items()
-            }
-            gate_result = rolling_ic_gate_fn(str(date)) if rolling_ic_gate_fn is not None else None
-            override = (decision_overrides or {}).get(str(date))
-            if override is not None:
-                # a locked date still forms the book; the kill switch then freezes its entries and resizes
-                engaged = override in ("engaged", "locked")
-                gate_result = {"engaged": True, "reason": None} if engaged else {"engaged": False, "reason": "replayed_veto"}
-                kill_switch_locked = override == "locked"
-            veto_reason_out: dict[str, str] = {}
-            # min_rank_confidence_spread defaults to 0.0 DELIBERATELY (as-live
-            # mode passes the live gate value instead), not an
-            # oversight: this simulator measures book QUALITY (what would
-            # this rank prediction have earned, net of costs) uncapped by
-            # the live entry gate's conviction filter - those are two
-            # different questions. Do not "fix" this into reading
-            # phase_v2.portfolio_book.min_rank_confidence_spread to try to
-            # mirror live engagement; that number is calibrated
-            # specifically for the RAW pre-normalization score scale
-            # (aq evaluate --calibrate-book-spread, portfolio/rank_signal.py),
-            # which this function's `prediction_column` is not guaranteed
-            # to be (callers may pass an already-normalized column). A
-            # healthy net_sharpe here is evidence the RANKING has value,
-            # never evidence the live gate will engage on any given day.
-            allocations = build_rank_based_book(
-                book_candidates,
-                top_n=top_n,
-                bottom_n=bottom_n,
-                min_rank_confidence_spread=0.0 if override in ("engaged", "locked") else min_rank_confidence_spread,
-                per_asset_class_slots=per_asset_class_slots or None,
-                previous_allocations=(formed_book if anchor_on_formed_book else held_allocations) or None,
-                hysteresis_rank_margin=hysteresis_rank_margin,
-                spread_check_ranks=spread_scores if normalize_to_percentile else None,
-                rolling_ic_gate_result=gate_result,
-                veto_reason_out=veto_reason_out,
-            )
-            last_rebalance_vetoed = not allocations
-            if not allocations:
-                num_vetoed_rebalances += 1
-                veto_key = veto_reason_out.get("reason", "empty_book")
-                veto_reasons[veto_key] = veto_reasons.get(veto_key, 0) + 1
-            formed_book = remember_formed_book(formed_book, allocations)
-            rebalance_log.append(
-                {"date": str(date), "engaged": bool(allocations), "reason": None if allocations else veto_reason_out.get("reason", "empty_book"),
-                 "locked": bool(kill_switch_locked)}
-            )
-
-            if not allocations and hold_positions_on_veto:
-                # Live parity: a vetoed rebalance leaves the existing book
-                # untouched (no turnover, no cost, no new positions).
-                new_weights = dict(held_weights)
-            elif allocations:
-                long_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "long"]
-                short_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "short"]
-                raw_weights: dict[str, float] = {}
-                if raw_weights_fn is not None:
-                    raw_weights = raw_weights_fn(allocations, str(date))
-                elif live_weighting:
-                    raw_weights = build_book_raw_weights(allocations, max_position_weight)
-                else:
-                    if long_symbols:
-                        per_name = (gross_exposure / 2.0) / len(long_symbols)
-                        raw_weights.update({symbol: per_name for symbol in long_symbols})
-                    if short_symbols:
-                        per_name = (gross_exposure / 2.0) / len(short_symbols)
-                        raw_weights.update({symbol: -per_name for symbol in short_symbols})
-
-                new_weights, _diagnostics = apply_book_neutrality(
-                    raw_weights,
-                    sector_by_symbol=sector_by_ticker,
-                    dollar_neutral=dollar_neutral,
-                    sector_neutral=sector_neutral,
-                    gross_exposure_cap=gross_exposure,
-                    max_weight_per_name=max_weight_per_name,
-                    sector_max_net_weight=sector_max_net_weight,
+                candidate_ranks = (
+                    grouped_cross_sectional_rank_scores(raw_scores_by_ticker, rank_group_by_ticker)
+                    if normalize_to_percentile
+                    else raw_scores_by_ticker
                 )
-                if class_weight_caps:
-                    new_weights = apply_class_weight_caps(
-                        new_weights,
-                        {ticker: meta.get("asset_class") for ticker, meta in candidate_metadata_by_ticker.items()},
-                        class_weight_caps,
-                    )
-                held_allocations = {
-                    symbol: replace(allocation, target_weight=new_weights.get(symbol, 0.0))
-                    for symbol, allocation in allocations.items()
+                spread_scores = raw_scores_by_ticker
+                if rank_group_by_ticker:
+                    spread_scores = {
+                        ticker: score
+                        for ticker, score in raw_scores_by_ticker.items()
+                        if rank_group_by_ticker.get(ticker, MAIN_RANK_GROUP) == MAIN_RANK_GROUP
+                    }
+                book_candidates = {
+                    ticker: {
+                        "predicted_rank_20d": float(rank),
+                        "trading_eligible": bool(candidate_metadata_by_ticker.get(ticker, {}).get("trading_eligible", True))
+                        and asset_listed_on_venue(ticker, str(date), venue_listing_dates),
+                        "asset_class": candidate_metadata_by_ticker.get(ticker, {}).get("asset_class"),
+                    }
+                    for ticker, rank in candidate_ranks.items()
                 }
+                gate_result = rolling_ic_gate_fn(str(date)) if rolling_ic_gate_fn is not None else None
+                override = (decision_overrides or {}).get(str(date))
+                if override is not None:
+                    # a locked date still forms the book; the kill switch then freezes its entries and resizes
+                    engaged = override in ("engaged", "locked")
+                    gate_result = {"engaged": True, "reason": None} if engaged else {"engaged": False, "reason": "replayed_veto"}
+                    kill_switch_locked = override == "locked"
+                veto_reason_out: dict[str, str] = {}
+                # min_rank_confidence_spread defaults to 0.0 DELIBERATELY (as-live
+                # mode passes the live gate value instead), not an
+                # oversight: this simulator measures book QUALITY (what would
+                # this rank prediction have earned, net of costs) uncapped by
+                # the live entry gate's conviction filter - those are two
+                # different questions. Do not "fix" this into reading
+                # phase_v2.portfolio_book.min_rank_confidence_spread to try to
+                # mirror live engagement; that number is calibrated
+                # specifically for the RAW pre-normalization score scale
+                # (aq evaluate --calibrate-book-spread, portfolio/rank_signal.py),
+                # which this function's `prediction_column` is not guaranteed
+                # to be (callers may pass an already-normalized column). A
+                # healthy net_sharpe here is evidence the RANKING has value,
+                # never evidence the live gate will engage on any given day.
+                allocations = build_rank_based_book(
+                    book_candidates,
+                    top_n=top_n,
+                    bottom_n=bottom_n,
+                    min_rank_confidence_spread=0.0 if override in ("engaged", "locked") else min_rank_confidence_spread,
+                    per_asset_class_slots=per_asset_class_slots or None,
+                    previous_allocations=(formed_book if anchor_on_formed_book else held_allocations) or None,
+                    hysteresis_rank_margin=hysteresis_rank_margin,
+                    spread_check_ranks=spread_scores if normalize_to_percentile else None,
+                    rolling_ic_gate_result=gate_result,
+                    veto_reason_out=veto_reason_out,
+                )
+                last_rebalance_vetoed = not allocations
+                if not allocations:
+                    num_vetoed_rebalances += 1
+                    veto_key = veto_reason_out.get("reason", "empty_book")
+                    veto_reasons[veto_key] = veto_reasons.get(veto_key, 0) + 1
+                formed_book = remember_formed_book(formed_book, allocations)
+                rebalance_log.append(
+                    {"date": str(date), "engaged": bool(allocations), "reason": None if allocations else veto_reason_out.get("reason", "empty_book"),
+                     "locked": bool(kill_switch_locked)}
+                )
+
+                if not allocations and hold_positions_on_veto:
+                    # Live parity: a vetoed rebalance leaves the existing book
+                    # untouched (no turnover, no cost, no new positions).
+                    new_weights = dict(held_weights)
+                elif allocations:
+                    long_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "long"]
+                    short_symbols = [symbol for symbol, allocation in allocations.items() if allocation.role == "short"]
+                    raw_weights: dict[str, float] = {}
+                    if raw_weights_fn is not None:
+                        raw_weights = raw_weights_fn(allocations, str(date))
+                    elif live_weighting:
+                        raw_weights = build_book_raw_weights(allocations, max_position_weight)
+                    else:
+                        if long_symbols:
+                            per_name = (gross_exposure / 2.0) / len(long_symbols)
+                            raw_weights.update({symbol: per_name for symbol in long_symbols})
+                        if short_symbols:
+                            per_name = (gross_exposure / 2.0) / len(short_symbols)
+                            raw_weights.update({symbol: -per_name for symbol in short_symbols})
+
+                    new_weights, _diagnostics = apply_book_neutrality(
+                        raw_weights,
+                        sector_by_symbol=sector_by_ticker,
+                        dollar_neutral=dollar_neutral,
+                        sector_neutral=sector_neutral,
+                        gross_exposure_cap=gross_exposure,
+                        max_weight_per_name=max_weight_per_name,
+                        sector_max_net_weight=sector_max_net_weight,
+                    )
+                    if class_weight_caps:
+                        new_weights = apply_class_weight_caps(
+                            new_weights,
+                            {ticker: meta.get("asset_class") for ticker, meta in candidate_metadata_by_ticker.items()},
+                            class_weight_caps,
+                        )
+                    held_allocations = {
+                        symbol: replace(allocation, target_weight=new_weights.get(symbol, 0.0))
+                        for symbol, allocation in allocations.items()
+                    }
+                else:
+                    new_weights = {}
+                    held_allocations = {}
+                active_allocations = dict(allocations) if allocations else {}
+                active_base_weights = dict(new_weights) if allocations else {}
+                active_ranks = {symbol: candidate_ranks.get(symbol) for symbol in allocations} if allocations else {}
             else:
-                new_weights = {}
-                held_allocations = {}
+                # live between rebalances: the same members, the same pre-chain weights, today's rows
+                allocations = active_allocations
+                candidate_ranks = active_ranks
+                new_weights = dict(active_base_weights)
+                override = None
 
             if member_weight_fn is not None and new_weights and allocations:
                 rows_by_ticker = eligible.set_index(ticker_column).to_dict("index")
@@ -620,7 +858,7 @@ def _simulate_rank_book_core(
                 # analyzer Priority 1: with the lock on, a member's entry or resize becomes reduce_risk (no trade);
                 # only the exits (names the book dropped, handled by the missing keys) go through.
                 frozen = {symbol: held_weights[symbol] for symbol in new_weights if symbol in held_weights}
-                if allocations:
+                if allocations and is_rebalance:
                     num_kill_switch_frozen_decisions += len(new_weights)
                 new_weights = frozen
                 held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
@@ -642,6 +880,13 @@ def _simulate_rank_book_core(
                 new_weights = {symbol: weight for symbol, weight in adjusted.items() if weight != 0.0}
                 held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
 
+            if max_active_positions is not None and new_weights:
+                new_weights = _cap_new_entries(
+                    new_weights, held_weights, candidate_ranks,
+                    int(max_active_positions) - (len(legacy_state["weights"]) if legacy_state is not None else 0),
+                )
+                held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
+
             for symbol in set(new_weights) | set(held_weights):
                 if new_weights.get(symbol, 0.0) != held_weights.get(symbol, 0.0):
                     last_trade_index_by_ticker[symbol] = rebalance_counter - 1
@@ -660,15 +905,16 @@ def _simulate_rank_book_core(
             }
             turnover_this_rebalance = sum(abs(delta) for delta in deltas_by_symbol.values())
             total_turnover += turnover_this_rebalance
-            cost_this_date = turnover_this_rebalance * (cost_bps_per_side + commission_bps) / 1e4
-            cost_this_date += sum(abs(delta) * _commission_override_delta(symbol) for symbol, delta in deltas_by_symbol.items()) / 1e4
+            turnover_cost = turnover_this_rebalance * (cost_bps_per_side + commission_bps) / 1e4
+            turnover_cost += sum(abs(delta) * _commission_override_delta(symbol) for symbol, delta in deltas_by_symbol.items()) / 1e4
             # V5.2.1 (development/Problems.md) - honestly-approximate
             # per-order minimum-commission floor, see this function's own
             # docstring. No-op (0.0) unless both inputs are configured.
             if min_commission_usd > 0.0 and assumed_portfolio_value_usd > 0.0:
                 names_traded = sum(1 for delta in deltas_by_symbol.values() if delta != 0.0)
-                cost_this_date += names_traded * min_commission_usd / assumed_portfolio_value_usd
-            total_cost_return += cost_this_date
+                turnover_cost += names_traded * min_commission_usd / assumed_portfolio_value_usd
+            cost_this_date += turnover_cost
+            total_cost_return += turnover_cost
             if min_commission_usd_by_ticker:
                 # Top each traded name up to the broker's dollar floor: the rate leg is already in commission_bps*.
                 floor_topup = 0.0
@@ -715,8 +961,28 @@ def _simulate_rank_book_core(
                 cost_this_date += impact_cost
                 total_cost_return += impact_cost
 
-            num_rebalances += 1
+            if is_rebalance:
+                num_rebalances += 1
             held_weights = new_weights
+
+        legacy_net_return = 0.0
+        if legacy_state is not None:
+            legacy_cost, legacy_turnover = _legacy_step(
+                legacy_state, legacy_component, eligible=eligible, date=str(date), date_index=rebalance_counter - 1,
+                is_session=is_session, ticker_column=ticker_column, close_column=close_column,
+                book_members=set(active_allocations) | set(formed_book), book_held=held_weights,
+                book_active=bool(active_allocations), kill_switch_locked=kill_switch_locked,
+                candidate_metadata_by_ticker=candidate_metadata_by_ticker,
+                cost_bps=cost_bps_per_side + commission_bps, commission_override=_commission_override_delta,
+                min_commission_usd_by_ticker=min_commission_usd_by_ticker, pv_for_costs=pv_for_costs,
+                max_active_positions=max_active_positions, cooldown_dates=trade_cooldown_dates,
+                resize_threshold_weight=resize_threshold_weight,
+            )
+            total_turnover += legacy_turnover
+            total_cost_return += legacy_cost
+            legacy_net_return = _legacy_lagged_return(legacy_state, date_returns, entry_lag_bars, record=True) - legacy_cost
+            if intraday_next_return_column and entry_lag_bars == 1 and intraday_next_return_column in eligible.columns:
+                legacy_net_return += _legacy_intraday(legacy_state, eligible, ticker_column, intraday_next_return_column)
 
         for symbol in held_weights:
             held_days_by_ticker[symbol] = held_days_by_ticker.get(symbol, 0) + 1
@@ -747,6 +1013,11 @@ def _simulate_rank_book_core(
                 if delta != 0.0 and intraday.get(symbol) == intraday.get(symbol)
             )
         net_return = bar_return - cost_this_date
+        book_component_returns.append(net_return)
+        legacy_component_returns.append(legacy_net_return)
+        if legacy_state is not None:
+            net_return += legacy_net_return
+            bar_return += legacy_net_return
         gross_exposure_series.append(sum(abs(weight) for weight in effective_weights.values()))
         net_exposure_series.append(sum(effective_weights.values()))
 
@@ -761,9 +1032,13 @@ def _simulate_rank_book_core(
         net_running_peak = max(net_running_peak, net_cumprod)
         net_max_drawdown = min(net_max_drawdown, net_cumprod / net_running_peak - 1.0)
         if kill_switch_active:
-            kill_switch_returns.append(net_return)
-            kill_switch_previous_drawdown = net_cumprod / net_running_peak - 1.0
-            kill_switch_consecutive_losses = kill_switch_consecutive_losses + 1 if net_return < 0.0 else 0
+            # live's kill switch watches the whole portfolio: this simulation plus anything modelled outside it
+            portfolio_return = net_return + float((kill_switch_extra_returns or {}).get(str(date), 0.0))
+            kill_switch_returns.append(portfolio_return)
+            kill_switch_cumprod *= 1.0 + portfolio_return
+            kill_switch_peak = max(kill_switch_peak, kill_switch_cumprod)
+            kill_switch_previous_drawdown = kill_switch_cumprod / kill_switch_peak - 1.0
+            kill_switch_consecutive_losses = kill_switch_consecutive_losses + 1 if portfolio_return < 0.0 else 0
 
     if not per_date_used:
         return _empty_result(trading_days_per_year), held_days_by_ticker
@@ -797,6 +1072,10 @@ def _simulate_rank_book_core(
         mean_net_exposure=float(np.mean(net_exposure_series)) if net_exposure_series else 0.0,
         rebalance_log=rebalance_log,
         weights_log=weights_log,
+        per_date_component_returns=(
+            {"main_book": dict(zip(per_date_used, book_component_returns)), "legacy": dict(zip(per_date_used, legacy_component_returns))}
+            if legacy_state is not None else {}
+        ),
     )
     return result, held_days_by_ticker
 

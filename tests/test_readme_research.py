@@ -141,3 +141,53 @@ def test_topology_row_reports_the_branch_and_the_on_minus_off_sharpe(tmp_path):
     })
     text = rr.build_research_markdown(tmp_path)
     assert "| Learned topology | keep_on | learned topology ON (shrink-only 0.5..1.0) | +0.050 (ON mid vs OFF) | -0.100 (ON mid vs OFF) |" in text
+
+
+def _write_json(path, payload):
+    import json
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_v6_rows_show_the_shipped_config_not_text_typed_in_the_builder(tmp_path):
+    from evaluation.readme_research import build_research_markdown
+
+    evaluation = tmp_path / "ml" / "evaluation"
+    _write_json(tmp_path / "config.json", {"phase_v2": {
+        "forex_risk": {"enabled": False},
+        "class_weight_caps": {"crypto": {"per_name_cap": 0.004, "class_gross_cap": 0.02}},
+        "limit_orders": {"exit_asset_classes": ["crypto"]},
+    }})
+    _write_json(evaluation / "v600" / "forex_research.json", {
+        "grid": {"carry k=2": {"validation": {"net_sharpe": 0.45}, "backtest": {"net_sharpe": -0.17}}},
+        "decision": {"branch": "drop", "best_validation_variant": "carry k=2"},
+    })
+    _write_json(evaluation / "v600" / "crypto_research.json", {
+        "results": {"C5": {"validation": {"total_sharpe": -0.7}, "backtest": {"total_sharpe": -0.36}}},
+        "decision": {"winner": "C5"},
+    })
+    markdown = build_research_markdown(evaluation)
+    assert "| Forex sleeve | R-FX6: drop | off (`forex_risk.enabled` false" in markdown
+    assert "per-name 0.004, class gross 0.02; limit exits for crypto" in markdown
+    assert "0.10" not in markdown.split("Forex sleeve")[1].split("\n")[0]
+
+
+def test_the_calibration_and_rule_chain_blocks_render_what_the_scripts_wrote(tmp_path):
+    from evaluation.readme_research import build_research_markdown
+
+    evaluation = tmp_path / "ml" / "evaluation"
+    assert "Not run yet" in build_research_markdown(evaluation)
+    _write_json(evaluation / "v610" / "calibration.json", {
+        "verdict": {"variant": "v610", "branch": "B", "calibrated": False, "per_window": {"w1": False},
+                    "thresholds": {"min_correlation": 0.5, "max_annual_gap": 0.02, "min_decision_agreement": 0.8}},
+        "windows": {"w1": {"variants": {"v610": {"daily_correlation": 0.61, "annual_return_gap": -0.012, "decision_agreement": 0.7}}}},
+    })
+    _write_json(evaluation / "v610" / "research.json", {
+        "book": {"variants": {"K1": {"verdict": {"ungated": {"backtest_gain": -0.2}}}}, "adopted": None},
+        "gate": {"skipped": "R-CAL2 branch B: the gates stay frozen as safety controls"},
+    })
+    markdown = build_research_markdown(evaluation)
+    assert "**branch B**" in markdown and "| w1 | 0.61 | -1.2% | 70% | fail |" in markdown
+    assert "| book | none (incumbent stays) | K1 -0.200 |" in markdown
+    assert "| gate | skipped | R-CAL2 branch B" in markdown

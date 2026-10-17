@@ -42,7 +42,7 @@ def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None]
         equally rather than dividing by the now-zero surviving total.
 
     Returns {"heads": {...}, "model_priority": [...], "normalization": ...,
-    "demoted": [...], "reason": "..."}.
+    "demoted": [...], "reason": "...", "demotion_fallback": bool, "failed_heads": [...]}.
 
     FAIL-OPEN, always: never raises. Missing/unreadable metrics for a head
     leave that head's configured weight untouched (a promotion verdict
@@ -64,6 +64,7 @@ def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None]
         return {
             "heads": heads, "model_priority": model_priority, "normalization": normalization,
             "demoted": [], "reason": "demotion_disabled_or_no_heads_configured",
+            "demotion_fallback": False, "failed_heads": [],
         }
 
     demoted: list[str] = []
@@ -82,9 +83,11 @@ def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None]
         # Demoting every head would silently stop the book from ever
         # engaging - a far bigger behavior change than "prefer a
         # different head" implies. Leave the configured policy untouched.
+        # demotion_fallback / failed_heads make the fail-open visible: the book then trades heads that failed their gate.
         return {
             "heads": heads, "model_priority": model_priority, "normalization": normalization,
             "demoted": [], "reason": "all_heads_would_be_demoted_policy_unchanged",
+            "demotion_fallback": True, "failed_heads": demoted,
         }
 
     total_weight = sum(surviving_heads.values())
@@ -106,7 +109,7 @@ def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None]
     reason = "no_demotion_needed" if not demoted else f"demoted:{','.join(demoted)}"
     return {
         "heads": redistributed, "model_priority": model_priority, "normalization": normalization,
-        "demoted": demoted, "reason": reason,
+        "demoted": demoted, "reason": reason, "demotion_fallback": False, "failed_heads": demoted,
     }
 
 

@@ -483,3 +483,9 @@ keeps a resize worth less than IB's minimum commission from trading. Shared by `
 - `class_sleeve.py` — `resolve_class_sleeve_config` and `build_class_sleeve_weights`: a small, separately budgeted long/short book over one asset class ranked among itself (forex via `phase_v2.forex_sleeve`, bonds via `phase_v2.bond_sleeve`, `signal` = `model_rank` or `ts_momentum`). Sleeve allocations never enter `book_allocations`, and the class takes no main-book slot.
 - `sleeve_guard.py` — `evaluate_sleeve_guard`: a per-sleeve loss guard (drawdown from the trailing peak over `lookback_bars` against `max_loss_fraction_nav`, then a cooldown). `main.py::_update_sleeve_guards` and the simulator call the same function; the state is in `state.json` under `sleeve_guards`.
 - `book_construction.py` — `resolve_class_weight_caps` / `apply_class_weight_caps` bound the crypto graduates (1% per name, 5% for the class).
+
+## V6.1.0 additions
+
+- `legacy_sleeve.py` — `resolve_legacy_signal_params`: the legacy probability signal's thresholds, adaptive sell band and position cap read once, shared by `main.py` and the offline replay.
+- `book_construction.py` — `build_book_history_record(rolling_ic_state=)` stores the rolling-IC gate's reading (`rolling_ic`) next to the veto reason.
+- `rank_signal.py` — the policy reports `demotion_fallback` / `failed_heads` when every decision head fails its gate and the configured blend is kept (fail-open).

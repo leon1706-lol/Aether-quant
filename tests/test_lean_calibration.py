@@ -70,3 +70,31 @@ def test_comparison_and_the_rule():
     assert not calibration.window_passes(dict(passing, decision_agreement=0.79))
     assert not calibration.window_passes(dict(passing, annual_return_gap=0.021))
     assert not calibration.window_passes(dict(passing, daily_correlation=None))
+
+
+def test_disagreements_carry_the_offline_reason_and_missing_dates_are_counted_apart():
+    live = {"d1": "engaged", "d2": "vetoed", "d3": "engaged", "d4": "engaged"}
+    log = [
+        {"date": "d1", "engaged": True, "reason": None, "locked": False},
+        {"date": "d2", "engaged": True, "reason": None, "locked": False},
+        {"date": "d3", "engaged": False, "reason": "rolling_ic_below_floor", "locked": False},
+    ]
+    table = calibration.disagreement_table(live, log)
+    assert table["disagreements"] == {"vetoed->engaged (none)": 1, "engaged->vetoed (rolling_ic_below_floor)": 1}
+    assert table["missing_offline"] == 1 and table["missing_offline_dates"] == ["d4"]
+
+
+def test_a_window_is_simulated_with_its_own_run_config(tmp_path, monkeypatch):
+    run = tmp_path / "backtests" / "run" / "code"
+    run.mkdir(parents=True)
+    (run / "config.json").write_text('{"snapshot": true}', encoding="utf-8")
+    monkeypatch.setattr(calibration, "ROOT_DIR", tmp_path)
+    assert calibration.window_config({"run_dir": "backtests/run"}, {"current": True}) == {"snapshot": True}
+    assert calibration.window_config({"run_dir": None}, {"current": True}) == {"current": True}
+
+
+def test_component_returns_follow_the_requested_components():
+    components = {"2024-01-02": {"main_book": 10.0, "legacy": 5.0, "bond_sleeve": 100.0}}
+    equity = [("2024-01-01", 1000.0), ("2024-01-02", 1015.0)]
+    assert calibration.lean_book_returns(components, equity) == {"2024-01-02": pytest.approx(0.01)}
+    assert calibration.lean_book_returns(components, equity, calibration.RCAL2_COMPONENTS) == {"2024-01-02": pytest.approx(0.015)}

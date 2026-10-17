@@ -15,6 +15,7 @@ from evaluation.lean_attribution import (
     fills_from_order_events,
     formed_book_by_date,
     lean_period_net,
+    opener_members_by_date,
     quote_to_usd_rate,
     read_daily_closes,
     reconcile_with_equity_curve,
@@ -115,3 +116,41 @@ def test_read_daily_closes_scales_equity_prices(tmp_path):
         archive.writestr("x.csv", "20240102 00:00,1000000,1010000,990000,1005000,5\n")
     assert read_daily_closes(path, 1 / 10_000) == {"2024-01-02": pytest.approx(100.5)}
     assert read_daily_closes(tmp_path / "missing.zip") == {}
+
+
+def _entry(position, pnl=1.0):
+    return {"pnl": pnl, "fee": 0.0, "position": position, "fills": 0, "limit_fills": 0, "notional": 0.0}
+
+
+def test_a_position_belongs_to_the_component_that_opened_it():
+    members = {"d1": frozenset({"AAA"}), "d2": frozenset(), "d3": frozenset(), "d4": frozenset({"BBB"})}
+    ticker_pnl = {
+        "d1": {"AAA": _entry(10)},                      # opened as a member
+        "d2": {"AAA": _entry(10), "BBB": _entry(5)},    # AAA left the book but is still held; BBB opened outside it
+        "d3": {"AAA": _entry(0), "BBB": _entry(5)},     # AAA closed
+        "d4": {"BBB": _entry(5), "AAA": _entry(-3)},    # BBB adopted by the book; AAA re-opened short outside it
+    }
+    owned = opener_members_by_date(ticker_pnl, members)
+    assert owned["d2"] == {"AAA"}
+    assert owned["d3"] == frozenset()
+    assert owned["d4"] == {"BBB"}
+    opener = component_daily_pnl(ticker_pnl, {}, members, set())
+    membership = component_daily_pnl(ticker_pnl, {}, members, set(), by_opener=False)
+    assert opener["d2"]["main_book"]["pnl"] == 1.0 and opener["d2"]["legacy"]["pnl"] == 1.0
+    assert membership["d2"]["legacy"]["pnl"] == 2.0 and "main_book" not in membership["d2"]
+    assert opener["d4"]["legacy"]["pnl"] == 1.0 and opener["d4"]["main_book"]["pnl"] == 1.0
+
+
+def test_a_runs_config_is_its_code_snapshot_or_the_frozen_copy(tmp_path):
+    from evaluation.lean_attribution import run_config_path
+
+    run = tmp_path / "backtests" / "2026-10-15_17-29-50"
+    run.mkdir(parents=True)
+    assert run_config_path(run, tmp_path) is None
+    frozen = tmp_path / "ml" / "evaluation" / "run_configs" / "2026-10-15_17-29-50.json"
+    frozen.parent.mkdir(parents=True)
+    frozen.write_text("{}", encoding="utf-8")
+    assert run_config_path(run, tmp_path) == frozen
+    (run / "code").mkdir()
+    (run / "code" / "config.json").write_text("{}", encoding="utf-8")
+    assert run_config_path(run, tmp_path) == run / "code" / "config.json"

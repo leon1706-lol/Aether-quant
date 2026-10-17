@@ -108,7 +108,12 @@ from portfolio.rank_signal import MAIN_RANK_GROUP, grouped_cross_sectional_rank_
 # V5.5.0 (Problems.md #128) - light direct submodule import, same rule as
 # rolling_ic_gate below (never route main.py's startup through a heavier
 # package __init__).
-from portfolio.legacy_sleeve import apply_legacy_sleeve_policy, compute_sleeve_gross_used, resolve_legacy_sleeve_config
+from portfolio.legacy_sleeve import (
+    apply_legacy_sleeve_policy,
+    compute_sleeve_gross_used,
+    resolve_legacy_signal_params,
+    resolve_legacy_sleeve_config,
+)
 from performance_probe import (
     TimingProbe,
     collect_teardown_diagnostics,
@@ -230,6 +235,9 @@ from inference import (
     run_exported_sequence_multitask_model,
     run_exported_sequence_multitask_model_batched,
     run_symbol_inference,
+    average_head_outputs,
+    load_ensemble_member_exports,
+    resolve_model_ensemble_config,
     score_strategies,
     windows_parallelism_slowdown_warning,
 )
@@ -275,7 +283,13 @@ from data_pipeline.fred_backfill import (
     series_change_asof,
     series_value_asof,
 )
-from data_pipeline.bar_synthesis import flatten_fill_forward_bar, midpoint_bar_from_quote_bar, pad_sequence_history
+from data_pipeline.bar_synthesis import (
+    adaptive_sell_threshold,
+    derive_signal,
+    flatten_fill_forward_bar,
+    midpoint_bar_from_quote_bar,
+    pad_sequence_history,
+)
 from data_pipeline.dividend_backfill import load_cached_dividend_schedule
 
 # volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/
@@ -775,9 +789,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # portfolio/book_construction.py::build_rank_based_book()'s
         # bottom_n==0 long-only mode.
         self.strategy_mode = str(phase5_backtest.get("strategy_mode", "long_flat"))
-        self.decision_threshold = float(self.model_export["training"]["decision_threshold"])
-        self.buy_threshold = min(0.75, self.decision_threshold + float(phase5_backtest.get("buy_threshold_offset", 0.08)))
-        self.sell_threshold = max(0.25, self.decision_threshold - float(phase5_backtest.get("sell_threshold_offset", 0.08)))
+        # portfolio.legacy_sleeve.resolve_legacy_signal_params: the offline legacy replay reads the same settings.
+        _signal_params = resolve_legacy_signal_params(self.config, float(self.model_export["training"]["decision_threshold"]))
+        self.decision_threshold = _signal_params["decision_threshold"]
+        self.buy_threshold = _signal_params["buy_threshold"]
+        self.sell_threshold = _signal_params["sell_threshold"]
         self.max_position_weight = float(phase6_risk.get("max_position_weight", 0.25))
         self.min_confidence_to_trade = float(phase6_risk.get("min_confidence_to_trade", 0.12))
         # V5.2.6 (development/Problems.md) - None (absent from config, the
@@ -955,6 +971,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._crypto_bar_probe_counts: dict[str, int] = {}
         # V5.6.0 - the same probe can also watch forex (Problems.md #135: which forex bars live actually receives).
         self.crypto_bar_probe_classes = set(_crypto_bar_probe.get("asset_classes", ["crypto"]))
+        # V6.1.0 - also every bar inside these [start, end] ISO date ranges (Lean's holiday calendar check); [] = count only.
+        self.crypto_bar_probe_date_ranges = [
+            (str(item[0])[:10], str(item[1])[:10]) for item in _crypto_bar_probe.get("date_ranges", []) or [] if len(item) == 2
+        ]
         # V5.1 Phase 1 (development/Problems.md, item 6) - apply_book_neutrality()'s
         # diagnostics from the last rebalance bar (empty {} pre-first-
         # rebalance or whenever the book/neutrality overlay is disabled) -
@@ -1027,6 +1047,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._rank_group_by_symbol = rank_group_by_symbol(
                 {key: asset.get("asset_class") or asset.get("security_type") for key, asset in self.asset_lookup.items()},
                 self.phase1.get("target", {}).get("ranking", {}).get("separate_rank_groups"),
+            )
+        if self._rank_signal_policy.get("demotion_fallback"):
+            self.Debug(
+                f"rank_signal: WARNING every decision head failed its promotion gate "
+                f"{self._rank_signal_policy.get('failed_heads')} - trading the configured blend {self._rank_signal_policy['heads']}"
             )
         if self._rank_signal_policy["demoted"]:
             self.Debug(
@@ -1145,10 +1170,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # back to the static self.sell_threshold until enough history has
         # accumulated (adaptive_band_min_observations) - never blocks
         # trading during warmup.
-        self.adaptive_sell_band_enabled = bool(phase_v2_exits.get("adaptive_band_enabled", True))
-        self.adaptive_sell_band_window_bars = int(phase_v2_exits.get("adaptive_band_window_bars", 60))
-        self.adaptive_sell_band_min_observations = int(phase_v2_exits.get("adaptive_band_min_observations", 20))
-        self.adaptive_sell_band_percentile = float(phase_v2_exits.get("adaptive_band_percentile", 0.25))
+        _band = resolve_legacy_signal_params(self.config, self.decision_threshold)
+        self.adaptive_sell_band_enabled = _band["band_enabled"]
+        self.adaptive_sell_band_window_bars = _band["band_window"]
+        self.adaptive_sell_band_min_observations = _band["band_min_observations"]
+        self.adaptive_sell_band_percentile = _band["band_percentile"]
         self._probability_up_history_by_symbol: dict[str, deque] = {}
         self._fx_rate_publication_lag_days = {
             **FX_RATE_PUBLICATION_LAG_DAYS,
@@ -1568,6 +1594,24 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase_v2_sequence = self.phase_v2.get("sequence_model", {})
         self.sequence_model_enabled = bool(phase_v2_sequence.get("enabled", True))
         self.sequence_model, self.sequence_feature_schema = self._load_sequence_model()
+        # V6.1.0 seed ensembles (phase_v2.model_ensemble, off by default): the members' raw head outputs are averaged
+        # before any cross-sectional normalisation (inference.exported_model.average_head_outputs, the rule the offline
+        # scorer applies). Empty lists = today's single exports.
+        self.multitask_ensemble: list[dict] = []
+        self.sequence_ensemble: list[dict] = []
+        _ensemble = resolve_model_ensemble_config(self.config)
+        if _ensemble["enabled"]:
+            for _kind, _enabled in (("multitask", self.multitask_model_enabled), ("sequence", self.sequence_model_enabled)):
+                if not _enabled:
+                    continue
+                try:
+                    _members = load_ensemble_member_exports(self.root_path / "ml" / _ensemble[f"{_kind}_dir"])
+                    for _member in _members:
+                        convert_state_dict_arrays(_member)
+                    setattr(self, f"{_kind}_ensemble", _members)
+                except Exception as error:
+                    self.Debug(f"{_kind} ensemble load failed ({error}) - using the single model")
+
         self.sequence_window_size = resolve_sequence_window_size(
             self.sequence_feature_schema, int(phase_v2_sequence.get("window_size", 30))
         )
@@ -1961,6 +2005,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._write_state(mode="initialize", insight="Phase 4 inference engine initialized")
 
     def on_data(self, slice: Slice) -> None:
+        # Whole-tick wall and CPU time (the probe is off by default): a tick whose wall time is far above its CPU time
+        # waited for the host, which separates a slow run from a slow algorithm (V6.1.0, Problems.md #191).
+        if not self._ready:
+            self._ensure_ready()  # creates self._timing_probe (and every config read), so it must precede the probe
+        _tick_started = self._timing_probe.start()
+        try:
+            self._on_data_impl(slice)
+        finally:
+            self._timing_probe.stop("on_data_total", _tick_started)
+
+    def _on_data_impl(self, slice: Slice) -> None:
         if not self._ready:
             self._ensure_ready()
 
@@ -2153,7 +2208,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     or self.asset_lookup.get(symbol_key, {}).get("security_type")
                 ) in self.crypto_bar_probe_classes:
                     probe_count = self._crypto_bar_probe_counts.get(symbol_key, 0)
-                    if probe_count < self.crypto_bar_probe_max_bars:
+                    probe_day = str(self.Time.date()) if self.crypto_bar_probe_date_ranges else ""
+                    if probe_count < self.crypto_bar_probe_max_bars or any(
+                        start <= probe_day <= end for start, end in self.crypto_bar_probe_date_ranges
+                    ):
                         self._crypto_bar_probe_counts[symbol_key] = probe_count + 1
                         self.Debug(
                             f"crypto-bar-probe: {symbol_key} {self.Time} type={type(bar).__name__} "
@@ -2325,9 +2383,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         for item in pending
                         if item["sequence_history"]
                     ]
-                    batched_results = run_exported_sequence_multitask_model_batched(
-                        self.sequence_model, batch_sequences
-                    )
+                    if self.sequence_ensemble:
+                        per_member = [
+                            run_exported_sequence_multitask_model_batched(member, batch_sequences) for member in self.sequence_ensemble
+                        ]
+                        batched_results = [average_head_outputs(list(row)) for row in zip(*per_member)]
+                    else:
+                        batched_results = run_exported_sequence_multitask_model_batched(
+                            self.sequence_model, batch_sequences
+                        )
                     precomputed_sequence_results = dict(zip(batch_symbol_keys, batched_results))
 
             baseline_rows: dict[str, float] = {}
@@ -2341,7 +2405,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.Debug(f"Batched baseline inference failed ({error}) - using the per-symbol path this tick")
                 if self.multitask_model:
                     try:
-                        multitask_rows = dict(zip(flat_keys, run_exported_multitask_model_rows(self.multitask_model, flat_inputs)))
+                        if self.multitask_ensemble:
+                            member_rows = [run_exported_multitask_model_rows(member, flat_inputs) for member in self.multitask_ensemble]
+                            multitask_rows = dict(zip(flat_keys, (average_head_outputs(list(row)) for row in zip(*member_rows))))
+                        else:
+                            multitask_rows = dict(zip(flat_keys, run_exported_multitask_model_rows(self.multitask_model, flat_inputs)))
                     except Exception as error:
                         self.Debug(f"Batched multitask inference failed ({error}) - using the per-symbol path this tick")
 
@@ -2610,6 +2678,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # behavior, byte-identical, same convention as every other
                 # optional parameter added this round.
                 rolling_ic_gate_result = None
+                rolling_ic_state = None
                 if self.rolling_ic_gate_enabled:
                     rolling_ic_state = compute_rolling_ic_state(
                         list(self._rolling_ic_event_buffer),
@@ -3499,6 +3568,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     full_universe_signals=full_universe_signals,
                     book_member_decisions=(book_member_decisions if self.book_history_include_decisions else None),
                     gate_veto_reason=book_gate_veto_reason.get("reason"),
+                    rolling_ic_state=rolling_ic_state,
                     feature_snapshot=feature_snapshot,
                     run_id=self.book_history_run_id,
                 )
@@ -4292,6 +4362,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if not self.multitask_model:
             return None
         try:
+            if self.multitask_ensemble:
+                return average_head_outputs([run_exported_multitask_model(member, inputs) for member in self.multitask_ensemble])
             return run_exported_multitask_model(self.multitask_model, inputs)
         except Exception as error:
             self.Debug(f"Multitask inference failed: {error}")
@@ -4346,6 +4418,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return None
         try:
             sequence = self._pad_sequence_history(history)
+            if self.sequence_ensemble:
+                return average_head_outputs(
+                    [run_exported_sequence_multitask_model(member, sequence) for member in self.sequence_ensemble]
+                )
             return run_exported_sequence_multitask_model(self.sequence_model, sequence)
         except Exception as error:
             self.Debug(f"Sequence model inference failed for {symbol}: {error}")
@@ -4414,45 +4490,30 @@ class AetherQuantAlgorithm(QCAlgorithm):
         history.append(float(probability_up))
 
     def _effective_sell_threshold(self, symbol_key: str) -> float:
-        """See adaptive_sell_band_enabled's own comment in __init__ for why
-        this exists. Pure lookup + percentile over already-accumulated
-        history - _derive_signal() is responsible for appending this bar's
-        probability_up AFTER calling this, so the band never includes the
-        very observation it's about to gate."""
-        if not self.adaptive_sell_band_enabled:
-            return self.sell_threshold
-        history = self._probability_up_history_by_symbol.get(symbol_key)
-        if history is None or len(history) < self.adaptive_sell_band_min_observations:
-            return self.sell_threshold
-        sorted_history = sorted(history)
-        index = max(0, min(len(sorted_history) - 1, int(self.adaptive_sell_band_percentile * len(sorted_history))))
-        # Never adapt ABOVE the static config threshold - the adaptive band
-        # only ever makes selling easier (reachable), never harder than the
-        # deliberately-configured buy/sell_threshold_offset calibration.
-        return min(self.sell_threshold, sorted_history[index])
+        """See adaptive_sell_band_enabled's own comment in __init__ for why this exists. The band never includes the
+        bar's own observation: _derive_signal() records it after the lookup. Shared with the offline legacy replay
+        (data_pipeline.bar_synthesis.adaptive_sell_threshold)."""
+        return adaptive_sell_threshold(
+            sell_threshold=self.sell_threshold,
+            history=self._probability_up_history_by_symbol.get(symbol_key),
+            band_enabled=self.adaptive_sell_band_enabled,
+            min_observations=self.adaptive_sell_band_min_observations,
+            band_percentile=self.adaptive_sell_band_percentile,
+        )
 
     def _derive_signal(self, probability_up: float, symbol_key: str | None = None) -> tuple[str, float, float]:
-        confidence = abs(probability_up - self.decision_threshold) / max(1.0 - self.decision_threshold, self.decision_threshold)
-        confidence = max(0.0, min(confidence, 1.0))
-
-        if probability_up >= self.buy_threshold:
-            target_weight = min(self.max_position_weight, 0.10 + 0.15 * confidence)
-            if symbol_key is not None:
-                self._record_probability_up_observation(symbol_key, probability_up)
-            return "buy", confidence, target_weight
-
-        effective_sell_threshold = (
-            self._effective_sell_threshold(symbol_key) if symbol_key is not None else self.sell_threshold
+        # data_pipeline.bar_synthesis.derive_signal is the one definition (the offline legacy replay calls it too).
+        return derive_signal(
+            probability_up,
+            decision_threshold=self.decision_threshold,
+            buy_threshold=self.buy_threshold,
+            effective_sell_threshold=(
+                self._effective_sell_threshold(symbol_key) if symbol_key is not None else self.sell_threshold
+            ),
+            max_position_weight=self.max_position_weight,
+            record_observation=self._record_probability_up_observation,
+            symbol_key=symbol_key,
         )
-        if probability_up <= effective_sell_threshold:
-            target_weight = -min(self.max_position_weight, 0.10 + 0.15 * confidence)
-            if symbol_key is not None:
-                self._record_probability_up_observation(symbol_key, probability_up)
-            return "sell", confidence, target_weight
-
-        if symbol_key is not None:
-            self._record_probability_up_observation(symbol_key, probability_up)
-        return "hold", confidence, 0.0
 
     def _build_dynamic_sizing_payload(
         self,

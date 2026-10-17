@@ -44,3 +44,17 @@ def test_loader_reads_what_exists(tmp_path):
     (tmp_path / "gating_training_metrics.json").write_text("{not json")
     loaded = load_head_metrics(tmp_path)
     assert set(loaded) == {"multitask", "gating"} and loaded["gating"] == {"_unreadable": True}
+
+
+def test_the_audit_runner_reports_the_rank_signal_fallback(tmp_path):
+    from evaluation.audit_runners import run_audit_heads
+
+    rank = {"quality_status": "not_promotable", "failures": ["t"]}
+    metrics = {"backtest": {"rank_5d_ranking_quality": rank, "rank_20d_ranking_quality": rank}}
+    (tmp_path / "sequence_training_metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
+    config = {"phase_v2": {"rank_signal": {"heads": {"rank_20d": 0.5, "rank_5d": 0.5}, "model_priority": ["sequence", "multitask"]}}}
+
+    policy = run_audit_heads(config, ml_dir=tmp_path)["rank_signal_policy"]
+
+    assert policy["demotion_fallback"] is True
+    assert sorted(policy["failed_heads"]) == ["rank_20d", "rank_5d"]

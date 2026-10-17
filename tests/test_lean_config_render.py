@@ -107,3 +107,15 @@ def test_write_rendered_config_writes_secrets_and_keeps_template_empty(tmp_path)
 def test_write_rendered_config_raises_on_missing_template(tmp_path):
     with pytest.raises(FileNotFoundError):
         write_rendered_config(tmp_path / "nope.json", tmp_path / "out.json", {})
+
+
+def test_a_crypto_universe_with_interactive_brokers_credentials_is_flagged():
+    from execution.lean_config_render import validate_live_crypto_route
+
+    config = {"phase1": {"universe": {"assets": [{"ticker": "BTCUSD", "security_type": "crypto"}]}}}
+    assert validate_live_crypto_route(config, ["ib-account", "ib-password"])
+    assert validate_live_crypto_route(config, ["polygon-api-key"]) == []
+    equity_only = {"phase1": {"universe": {"assets": [{"ticker": "SPY", "security_type": "equity"}]}}}
+    assert validate_live_crypto_route(equity_only, ["ib-account"]) == []
+    disabled = dict(config, phase_v2={"crypto_risk": {"enabled": False}})
+    assert validate_live_crypto_route(disabled, ["ib-account"]) == []

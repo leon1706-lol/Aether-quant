@@ -109,3 +109,39 @@ def test_the_benchmark_follows_the_daily_spy_subscription(algorithm):
     assert callable(benchmark)
     algorithm.securities[algorithm.ticker_to_symbol["SPY"]].price = 123.5
     assert benchmark(datetime.datetime(2024, 1, 2)) == 123.5
+
+
+def test_v610_first_bar_reads_the_probe_ranges_and_the_rank_signal_fallback_flag(algorithm):
+    assert algorithm.crypto_bar_probe_date_ranges == []  # shipped config: count-only probe
+    assert "demotion_fallback" in algorithm._rank_signal_policy
+
+
+def test_on_data_runs_setup_before_its_timing_probe_exists_and_records_the_whole_tick(algorithm):
+    algorithm.__dict__["_ready"] = False
+    algorithm.__dict__.pop("_timing_probe", None)
+    slice_stub = types.SimpleNamespace(Bars={})  # no bars: the tick returns right after setup
+
+    algorithm.on_data(slice_stub)
+
+    assert algorithm.__dict__["_ready"] is True
+    assert "on_data_total" not in algorithm._timing_probe.summary()["sections"]  # probe off in the shipped config
+    algorithm._timing_probe.enabled = True
+    algorithm.on_data(slice_stub)
+    assert algorithm._timing_probe.summary()["sections"]["on_data_total"]["calls"] == 1
+    algorithm._timing_probe.enabled = False
+
+
+def test_a_live_seed_ensemble_matches_the_single_model_when_its_members_are_identical(algorithm):
+    import copy
+
+    inputs = [0.1] * len(algorithm.multitask_feature_schema["model_input_names"])
+    single = algorithm._run_multitask_model(inputs)
+    assert single is not None
+    algorithm.multitask_ensemble = [copy.deepcopy(algorithm.multitask_model) for _ in range(3)]
+    try:
+        ensembled = algorithm._run_multitask_model(inputs)
+    finally:
+        algorithm.multitask_ensemble = []
+    assert set(ensembled) == set(single)
+    for head, value in single.items():
+        assert ensembled[head] == pytest.approx(value, abs=1e-12)

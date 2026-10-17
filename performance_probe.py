@@ -28,21 +28,33 @@ from collections import defaultdict
 
 
 class TimingProbe:
-    """Accumulates call counts and wall time per named section."""
+    """Accumulates call counts, wall time and process CPU time per named section.
+
+    CPU time (V6.1.0) separates a slow section from a busy host: a section whose wall time is far above its CPU time
+    waited for the machine (another process, memory pressure), not for its own code."""
 
     def __init__(self, enabled: bool = False) -> None:
         self.enabled = bool(enabled)
         self._total_seconds: dict[str, float] = defaultdict(float)
+        self._cpu_seconds: dict[str, float] = defaultdict(float)
         self._calls: dict[str, int] = defaultdict(int)
         self._counters: dict[str, int] = defaultdict(int)
+        self._cpu_marks: dict[float, float] = {}
 
     def start(self) -> float:
-        return time.perf_counter() if self.enabled else 0.0
+        if not self.enabled:
+            return 0.0
+        started = time.perf_counter()
+        self._cpu_marks[started] = time.process_time()
+        return started
 
     def stop(self, name: str, started: float) -> None:
         if not self.enabled:
             return
         self._total_seconds[name] += time.perf_counter() - started
+        cpu_mark = self._cpu_marks.pop(started, None)
+        if cpu_mark is not None:
+            self._cpu_seconds[name] += time.process_time() - cpu_mark
         self._calls[name] += 1
 
     def count(self, name: str, amount: int = 1) -> None:
@@ -55,6 +67,7 @@ class TimingProbe:
                 "calls": self._calls[name],
                 "total_ms": round(self._total_seconds[name] * 1000.0, 3),
                 "mean_ms": round(self._total_seconds[name] * 1000.0 / max(self._calls[name], 1), 4),
+                "cpu_total_ms": round(self._cpu_seconds[name] * 1000.0, 3),
             }
             for name in sorted(self._total_seconds)
         }
@@ -63,7 +76,7 @@ class TimingProbe:
     def format_line(self) -> str:
         data = self.summary()
         parts = [
-            f"{name}=calls:{stats['calls']}/total_ms:{stats['total_ms']}/mean_ms:{stats['mean_ms']}"
+            f"{name}=calls:{stats['calls']}/total_ms:{stats['total_ms']}/mean_ms:{stats['mean_ms']}/cpu_ms:{stats['cpu_total_ms']}"
             for name, stats in data["sections"].items()
         ]
         parts.extend(f"{name}={value}" for name, value in data["counters"].items())

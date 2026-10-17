@@ -293,3 +293,13 @@ def predict_head(
             row_mask=row_mask,
         )
     raise ValueError(f"unknown model_kind {model_kind!r} - expected 'multitask' or 'sequence'")
+
+
+def predict_heads_ensemble(dataset: pd.DataFrame, model_exports: list[dict], feature_names: list[str], heads: list[str],
+                           **kwargs) -> dict[str, np.ndarray]:
+    """predict_heads() averaged over the members of a seed ensemble (V6.1.0): the elementwise mean of each head's raw
+    output, NaN where any member is NaN - the array form of inference.exported_model.average_head_outputs."""
+    if not model_exports:
+        raise ValueError("predict_heads_ensemble needs at least one member export")
+    per_member = [predict_heads(dataset, export, feature_names, heads, **kwargs) for export in model_exports]
+    return {head: np.mean(np.stack([member[head] for member in per_member]), axis=0) for head in heads}

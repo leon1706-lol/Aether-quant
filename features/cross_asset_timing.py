@@ -12,10 +12,13 @@ crypto/forex bars on the equity tick (but Sunday's crypto bar on Monday).
 
 from __future__ import annotations
 
+import json
 import math
 from bisect import bisect_left
 from datetime import date as _date
 from collections.abc import Mapping, Sequence
+from functools import lru_cache
+from pathlib import Path
 
 WINDOW_BARS = 25  # main.py: deque(maxlen=bar_history_size); up to 24 returns
 MOMENTUM_LOOKBACK_BARS = 20
@@ -32,13 +35,41 @@ def day_ordinal(stamp) -> int:
     return _date.fromisoformat(str(stamp)[:10]).toordinal()
 
 
-def fill_forward_open_forex_days(ordinals: Sequence[int], closes: Sequence[float]) -> tuple[list[int], list[float]]:
+@lru_cache(maxsize=8)
+def lean_market_holidays(market_hours_path: str, entry: str = "Forex-oanda-[*]") -> frozenset[int]:
+    """Day ordinals of the full-day holidays Lean's market-hours database lists for `entry`. On such a day Lean delivers
+    no bar for the market: the zip's own bar is dropped and the day is not filled forward (V6.1.0: GBPJPY's live
+    momentum on 2024-01-22 equals the calendar without the 2023-12-24 / 12-31 Sunday fills). A missing file or entry
+    returns an empty set (the pre-V6.1.0 calendar)."""
+    path = Path(market_hours_path)
+    if not path.exists():
+        return frozenset()
+    entries = json.loads(path.read_text(encoding="utf-8")).get("entries", {})
+    out = set()
+    for text in (entries.get(entry) or {}).get("holidays", []):
+        month, day, year = (int(part) for part in str(text).split("/"))
+        out.add(_date(year, month, day).toordinal())
+    return frozenset(out)
+
+
+def resolve_forex_lean_holidays(config: dict, root: Path | None = None) -> frozenset[int]:
+    """Lean's forex market holidays when `phase1.features.forex_lean_holidays` is on (V6.1.0), else an empty set (the
+    V6.0.0 calendar: every Sunday-Friday gap filled, every zip bar kept)."""
+    if not bool(((config or {}).get("phase1", {}).get("features", {}) or {}).get("forex_lean_holidays", False)):
+        return frozenset()
+    base = root if root is not None else Path(__file__).resolve().parents[1]
+    return lean_market_holidays(str(base / "data" / "market-hours" / "market-hours-database.json"))
+
+
+def fill_forward_open_forex_days(
+    ordinals: Sequence[int], closes: Sequence[float], holidays: frozenset[int] | set[int] = frozenset()
+) -> tuple[list[int], list[float]]:
     """Lean fills forward a forex daily bar on every day the market is open without data. The forex market is open
     Sunday evening through Friday, so any Sunday-Friday day that falls between two bars becomes a flat bar at the
     previous close (BT1 probe, Problems.md #135: every pair delivered a Sunday bar live equal to the preceding Friday
     close where the local zip has no Sunday row; the 2019-05-22 weekday missing from the zips moved the live
-    correlations for the next 24 bars). Saturdays stay closed; only gaps strictly between two bars are filled;
-    ordinals must be ascending."""
+    correlations for the next 24 bars). Saturdays and Lean's market holidays (`holidays`, lean_market_holidays) stay
+    closed; only gaps strictly between two bars are filled; ordinals must be ascending."""
     filled_ordinals: list[int] = []
     filled_closes: list[float] = []
     for index, (ordinal, close) in enumerate(zip(ordinals, closes)):
@@ -47,7 +78,7 @@ def fill_forward_open_forex_days(ordinals: Sequence[int], closes: Sequence[float
         if index + 1 == len(ordinals):
             continue
         for day in range(ordinal + 1, ordinals[index + 1]):
-            if _date.fromordinal(day).weekday() != _SATURDAY:
+            if _date.fromordinal(day).weekday() != _SATURDAY and day not in holidays:
                 filled_ordinals.append(day)
                 filled_closes.append(close)
     return filled_ordinals, filled_closes
@@ -139,7 +170,9 @@ class CrossAssetTimeline:
         }
 
     @classmethod
-    def from_frames(cls, frames: Mapping, security_types: Mapping[str, str] | None = None) -> CrossAssetTimeline:
+    def from_frames(
+        cls, frames: Mapping, security_types: Mapping[str, str] | None = None, forex_holidays: frozenset[int] = frozenset()
+    ) -> CrossAssetTimeline:
         """`frames`: ticker -> DataFrame with `date` (Timestamp) and `close`, sorted by date. Forex history gets
         Lean's fill-forward bars (see fill_forward_open_forex_days), so its windows are what live holds."""
         security_types = security_types or {}
@@ -149,7 +182,7 @@ class CrossAssetTimeline:
             ordinals = [day_ordinal(stamp) for stamp in frame["date"]]
             closes = frame["close"].tolist()
             if security_types.get(ticker) == "forex":
-                ordinals, closes = fill_forward_open_forex_days(ordinals, closes)
+                ordinals, closes = fill_forward_open_forex_days(ordinals, closes, forex_holidays)
             ordinals_by_ticker[ticker] = ordinals
             closes_by_ticker[ticker] = closes
         return cls(closes_by_ticker, ordinals_by_ticker, security_types)

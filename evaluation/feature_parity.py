@@ -221,21 +221,25 @@ def compute_liquidity_replica(
 _MIDNIGHT_SECURITY_TYPES = ("crypto", "forex")
 
 
-def forex_calendar_momentum_rows(frame: pd.DataFrame, ticker: str) -> pd.DataFrame:
+def forex_calendar_momentum_rows(frame: pd.DataFrame, ticker: str, holidays: frozenset[int] = frozenset()) -> pd.DataFrame:
     """(date, ticker, momentum_20d) for one forex pair on Lean's fill-forward calendar (flat bars on open days without
     a row, features/cross_asset_timing.py), INCLUDING the filler rows: live's forex pool holds Sunday's flat-bar
     momentum at Monday's equity tick, which no dataset row carries. `frame` needs `date` and `close`."""
     from features.cross_asset_timing import day_ordinal, fill_forward_open_forex_days
 
     ordered = frame.sort_values("date")
-    ordinals, closes = fill_forward_open_forex_days([day_ordinal(stamp) for stamp in ordered["date"]], ordered["close"].tolist())
+    ordinals, closes = fill_forward_open_forex_days(
+        [day_ordinal(stamp) for stamp in ordered["date"]], ordered["close"].tolist(), holidays
+    )
     momentum = [float("nan")] + [
         closes[i] / closes[max(0, i - 20)] - 1.0 if closes[max(0, i - 20)] else float("nan") for i in range(1, len(closes))
     ]
     return pd.DataFrame({"date": [pd.Timestamp.fromordinal(o) for o in ordinals], "ticker": ticker, "momentum_20d": momentum})
 
 
-def build_momentum_pool(dataset: pd.DataFrame, security_types: dict[str, str] | None) -> pd.DataFrame:
+def build_momentum_pool(
+    dataset: pd.DataFrame, security_types: dict[str, str] | None, forex_holidays: frozenset[int] = frozenset()
+) -> pd.DataFrame:
     """(date, ticker, momentum_20d) for the cross-asset replicas: each ticker's stored momentum_20d, except forex pairs,
     whose momentum is re-derived on Lean's fill-forward calendar WITH the filler rows (forex_calendar_momentum_rows)."""
     security_types = security_types or {}
@@ -245,7 +249,7 @@ def build_momentum_pool(dataset: pd.DataFrame, security_types: dict[str, str] | 
     for ticker in forex_tickers:
         rows = dataset[dataset["ticker"] == ticker]
         if not rows.empty:
-            parts.append(forex_calendar_momentum_rows(rows.assign(date=pd.to_datetime(rows["date"])), ticker))
+            parts.append(forex_calendar_momentum_rows(rows.assign(date=pd.to_datetime(rows["date"])), ticker, forex_holidays))
     result = pd.concat(parts, ignore_index=True)
     result["date"] = pd.to_datetime(result["date"])
     return result

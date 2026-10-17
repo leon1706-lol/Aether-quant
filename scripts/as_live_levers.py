@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 ML_DIR = ROOT_DIR / "ml"
 CACHE_DIR = ML_DIR / "evaluation" / "cache"
+LEGACY_PROBABILITY_COLUMN = "legacy_probability_up"
 MODEL_FINGERPRINT_FILES = (
     "multitask_model.json", "multitask_feature_schema.json", "sequence_model.json", "sequence_feature_schema.json",
     "multitask_training_metrics.json", "sequence_training_metrics.json",
@@ -52,6 +53,7 @@ class AsLiveHarness:
     def __init__(
         self, split: str, *, use_cache: bool = True, dataset_path: str | Path | None = None, rl_model_path: str | Path | None = None,
         topology_inputs_fn=None, ml_dir: str | Path | None = None, config: dict | None = None,
+        legacy_probability_path: str | Path | None = None, gate_warmup_days: int = 0,
     ):
         from aq_cli import _blend_raw_scores_for_dataset, _core_quality_tickers, _universe_asset_metadata
         from evaluation.live_parity import LATE_BAR_ASSET_CLASSES, build_candidate_metadata, lag_predictions_for_tickers
@@ -69,23 +71,37 @@ class AsLiveHarness:
         # Every row, observation-only names included: main.py's percentile normalisation (hysteresis margins, the
         # confidence the sizing chain reads) runs over every symbol with features, eligible or not. Read in chunks
         # and keep only this split's rows: the whole 250-column file is ~0.5 GB resident on the 4 GB dev PC (V5.8.0).
-        parts = [
-            chunk[chunk["split"].isin(splits)]
-            for chunk in pd.read_csv(dataset_path, chunksize=40_000)
-        ]
+        # V6.1.0: `gate_warmup_days` also keeps the rows that far before the first split's start, so the rolling-IC gate is
+        # warm on day one as live's is (main.py fills its event buffer through the warm-up); they never enter the book.
+        warmup_start = None
+        if gate_warmup_days > 0:
+            window_name = {"train": "training"}.get(splits[0], splits[0])
+            first_start = self.config["phase1"]["windows"].get(window_name, {}).get("start")
+            if first_start:
+                warmup_start = (pd.Timestamp(first_start) - pd.Timedelta(int(gate_warmup_days), unit="D")).strftime("%Y-%m-%d")
+        parts, context_parts = [], []
+        for chunk in pd.read_csv(dataset_path, chunksize=40_000):
+            parts.append(chunk[chunk["split"].isin(splits)])
+            if warmup_start is not None:
+                dates = chunk["date"].astype(str)
+                context_parts.append(chunk[~chunk["split"].isin(splits) & (dates >= warmup_start) & (dates < str(first_start))])
         dataset = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
-        del parts
+        context = pd.concat(context_parts, ignore_index=True) if context_parts else pd.DataFrame()
+        del parts, context_parts
         window = int(self.config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30))
 
         self.ml_dir = Path(ml_dir) if ml_dir else ML_DIR
-        cache_path = CACHE_DIR / f"live_rank_score_allrows_{'+'.join(splits)}_{_fingerprint(self.config, dataset_path, self.ml_dir)}.npy"
+        warm_tag = f"_warm{int(gate_warmup_days)}" if warmup_start is not None else ""
+        cache_path = CACHE_DIR / f"live_rank_score_allrows_{'+'.join(splits)}{warm_tag}_{_fingerprint(self.config, dataset_path, self.ml_dir)}.npy"
+        scored = pd.concat([context, dataset], ignore_index=True) if len(context) else dataset
         if use_cache and cache_path.exists():
             raw_scores = np.load(cache_path)
         else:
-            raw_scores, _policy = _blend_raw_scores_for_dataset(dataset, self.config, window, ml_dir=self.ml_dir)
+            raw_scores, _policy = _blend_raw_scores_for_dataset(scored, self.config, window, ml_dir=self.ml_dir)
             raw_scores = np.asarray(raw_scores, dtype=float)
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             np.save(cache_path, raw_scores)
+        context_scores, raw_scores = raw_scores[: len(context)], raw_scores[len(context):]
 
         self.asset_class_by_ticker, eligible_by_ticker = _universe_asset_metadata(self.config)
         self.metadata = build_candidate_metadata(self.asset_class_by_ticker, eligible_by_ticker)
@@ -98,11 +114,23 @@ class AsLiveHarness:
         self.core_crypto = _core_quality_tickers()
         self.frame = dataset
         self.frame["live_rank_score"] = raw_scores
+        self.context_frame = context.assign(live_rank_score=context_scores) if len(context) else None
+        if legacy_probability_path:
+            # V6.1.0: final_probability_up per (date, ticker) from scripts/build_legacy_probability.py (the legacy signal)
+            probability = pd.read_parquet(legacy_probability_path) if str(legacy_probability_path).endswith(".parquet") \
+                else pd.read_csv(legacy_probability_path)
+            probability = probability.assign(date=probability["date"].astype(str).str[:10])[["date", "ticker", "final_probability_up"]]
+            self.frame = self.frame.assign(date=self.frame["date"].astype(str).str[:10]).merge(
+                probability.rename(columns={"final_probability_up": LEGACY_PROBABILITY_COLUMN}), on=["date", "ticker"], how="left"
+            )
         from evaluation.live_parity import add_next_intraday_return
 
         add_next_intraday_return(self.frame)
         late = {t for t, kind in self.asset_class_by_ticker.items() if kind in LATE_BAR_ASSET_CLASSES}
+        self.late_bar_tickers = frozenset(late)
         self.lagged_frame = lag_predictions_for_tickers(self.frame, prediction_column="live_rank_score", tickers=late)
+        if self.context_frame is not None:
+            self.context_frame = lag_predictions_for_tickers(self.context_frame, prediction_column="live_rank_score", tickers=late)
         security_types = {str(a["ticker"]): str(a["security_type"]) for a in self.config["phase1"]["universe"]["assets"]}
         self.base = dict(
             prediction_column="live_rank_score", forward_return_column="target_return_1d", ticker_column="ticker", date_column="date",
@@ -146,7 +174,15 @@ class AsLiveHarness:
             from evaluation.live_parity import main_group_tickers
 
             main_tickers = main_group_tickers(self.rank_groups, frame["ticker"].unique())
-            event_frame = frame if main_tickers is None else frame[frame["ticker"].astype(str).isin(main_tickers)]
+            event_frame = frame
+            if self.context_frame is not None:
+                event_frame = pd.concat([self.context_frame[frame.columns.intersection(self.context_frame.columns)], frame],
+                                        ignore_index=True)
+            event_frame = event_frame if main_tickers is None else event_frame[event_frame["ticker"].astype(str).isin(main_tickers)]
+            # live records a crypto event on its own tick and again on the equity tick (evaluation.live_parity.with_live_event_duplicates)
+            from evaluation.live_parity import with_live_event_duplicates
+
+            event_frame = with_live_event_duplicates(event_frame, self.late_bar_tickers)
             self._states[state_key] = make_rolling_ic_state_fn(
                 build_event_buffer(event_frame, raw_score_column="live_rank_score"),
                 horizon_days=horizon, rolling_window_days=window, min_names_per_date=names,
@@ -171,6 +207,41 @@ class AsLiveHarness:
                 topology_inputs_fn=self.topology_inputs_fn,
             )
         return self._mechanisms[key]
+
+    def v610_mechanisms(self, config: dict | None = None, *, legacy: bool = True, extra_returns: dict | None = None) -> dict:
+        """The V6.1.0 simulator options (rule R-CAL2), all replicas of live mechanisms: the daily member pass between
+        rebalances, weekend accrual, the position cap, the legacy probability signal (when the harness has its column)
+        and P&L outside the simulation that the kill switch reads."""
+        from evaluation.live_parity import build_live_member_weight_fn
+        from portfolio.legacy_sleeve import resolve_legacy_signal_params, resolve_legacy_sleeve_config
+
+        config = config or self.config
+        phase_v2 = config["phase_v2"]
+        options = {
+            "mid_cycle_member_updates": True,
+            "accrue_skipped_dates": True,
+            "max_active_positions": int(config.get("phase9", {}).get("portfolio", {}).get("max_active_positions", 12)),
+            "kill_switch_extra_returns": extra_returns,
+        }
+        sleeve = resolve_legacy_sleeve_config(phase_v2.get("legacy_sleeve"))
+        if legacy and sleeve["enabled"] and LEGACY_PROBABILITY_COLUMN in self.frame.columns:
+            weights = json.loads((self.ml_dir / "model_weights.json").read_text(encoding="utf-8"))
+            exits = phase_v2.get("exits", {})
+            assets = config["phase1"]["universe"]["assets"]
+            options["legacy_component"] = {
+                "probability_column": LEGACY_PROBABILITY_COLUMN,
+                "sleeve_config": sleeve,
+                "signal": resolve_legacy_signal_params(config, float(weights["training"]["decision_threshold"])),
+                "asset_classes": ("equity", "crypto"),
+                "weight_fn": build_live_member_weight_fn(
+                    config, security_type_by_ticker={str(a["ticker"]): str(a.get("security_type", "equity")) for a in assets},
+                    nav=self.initial_cash, core_crypto_tickers=self.core_crypto, topology_inputs_fn=self.topology_inputs_fn,
+                    use_live_analyzer=True,
+                ),
+                "max_holding_dates": int(exits["max_holding_bars"]) if exits.get("enabled") and exits.get("max_holding_bars") else None,
+                "trailing_stop_pct": float(exits["trailing_stop_pct"]) if exits.get("enabled") and exits.get("trailing_stop_pct") else None,
+            }
+        return options
 
     # -- runs ----------------------------------------------------------------------------------------------------
     def idealized(self):
@@ -226,7 +297,19 @@ class AsLiveHarness:
         )
         kwargs["rebalance_session_dates"] = self.session_dates
         kwargs.update(overrides)
+        reset_member_state(kwargs)
         return simulate_rank_book(frame, **kwargs)
+
+
+def reset_member_state(kwargs: dict) -> None:
+    """The member chain keeps the RL shadow guard's history between calls (`member_weight_fn.rl_state`); a closure reused by
+    the next run (the harness caches it, a rule chain reuses one per split) would start that run with the previous run's
+    guard verdict, so two identical runs could differ. Each run starts from a clean guard."""
+    functions = [kwargs.get("member_weight_fn"), (kwargs.get("legacy_component") or {}).get("weight_fn")]
+    for function in functions:
+        holder = getattr(function, "rl_state", None)
+        if isinstance(holder, dict):
+            holder.update(history=[], positions={}, last_date=None, allows=True)
 
 
 def _resize_threshold(phase_v2: dict) -> float:

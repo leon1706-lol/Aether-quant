@@ -1103,3 +1103,15 @@ def test_pct_returns_from_closes_skips_non_finite_closes():
     closes = [float("nan"), 10.0, 11.0, 0.0, 12.0]
     returns = pct_returns_from_closes(closes)
     assert returns == pytest.approx([0.1])
+
+
+def test_build_book_history_record_carries_the_rolling_ic_reading():
+    common = dict(raw_scores_by_symbol={}, target_weights_by_symbol={}, sector_by_symbol={}, rank_signal_policy=_SAMPLE_POLICY)
+    record = build_book_history_record(
+        "2024-01-02", {}, gate_veto_reason="rolling_ic_below_floor",
+        rolling_ic_state={"rolling_mean_ic": -0.012, "num_resolved_dates": 84, "num_resolved_observations": 900}, **common,
+    )
+    assert record["rolling_ic"] == {"rolling_mean_ic": -0.012, "num_resolved_dates": 84}
+    nan = build_book_history_record("2024-01-02", {}, rolling_ic_state={"rolling_mean_ic": float("nan")}, **common)
+    assert nan["rolling_ic"]["rolling_mean_ic"] is None
+    assert "rolling_ic" not in build_book_history_record("2024-01-02", {}, **common)

@@ -142,3 +142,24 @@ def apply_legacy_sleeve_policy(
         "reason": "legacy_sleeve_capped" if capped < requested else "legacy_sleeve_within_budget",
         "sleeve_gross_used": sleeve_gross_used + capped,
     }
+
+
+def resolve_legacy_signal_params(config: dict, decision_threshold: float) -> dict:
+    """The probability signal's settings, read the way main.py reads them (V6.1.0: one definition for main.py and the
+    offline legacy replay): buy / sell thresholds around the baseline model's `decision_threshold`
+    (`phase5.backtest.*_threshold_offset`, clamped to [0.25, 0.75]), the adaptive sell band (`phase_v2.exits.adaptive_band_*`)
+    and the position cap the signal sizes against (`phase6.risk.max_position_weight`)."""
+    backtest = (config or {}).get("phase5", {}).get("backtest", {}) or {}
+    exits = (config or {}).get("phase_v2", {}).get("exits", {}) or {}
+    risk = (config or {}).get("phase6", {}).get("risk", {}) or {}
+    threshold = float(decision_threshold)
+    return {
+        "decision_threshold": threshold,
+        "buy_threshold": min(0.75, threshold + float(backtest.get("buy_threshold_offset", 0.08))),
+        "sell_threshold": max(0.25, threshold - float(backtest.get("sell_threshold_offset", 0.08))),
+        "band_enabled": bool(exits.get("adaptive_band_enabled", True)),
+        "band_window": int(exits.get("adaptive_band_window_bars", 60)),
+        "band_min_observations": int(exits.get("adaptive_band_min_observations", 20)),
+        "band_percentile": float(exits.get("adaptive_band_percentile", 0.25)),
+        "max_position_weight": float(risk.get("max_position_weight", 0.25)),
+    }

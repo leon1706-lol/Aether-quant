@@ -95,3 +95,7 @@ from the FRED OECD interbank series (`aq backfill fred --group fx`) and the dail
 
 - `fx_signals.py` — `fx_sleeve_scores(signal, ...)`: the forex (and bond) sleeve can rank by `model_rank`, `carry` (3-month rate differential, point-in-time), `ts_momentum` (vol-scaled 60/120-day return) or `carry_momentum`; `main.py` and the research scripts call the same function.
 - `bond_features.py` — `rolling_duration_beta` / `rolling_duration_beta_series` replace the full-history OLS slope (a future-data leak that also acted as a ticker ID) with a trailing window; `train.py` and the live path compute it from the same function, mode via `resolve_bond_duration_beta_mode`.
+
+## V6.1.0 additions
+
+- `cross_asset_timing.py` — `lean_market_holidays` (Lean's market-hours database), `resolve_forex_lean_holidays` (`phase1.features.forex_lean_holidays`): on a Lean forex holiday no bar is delivered and none is filled forward, so `fill_forward_open_forex_days(..., holidays)`, `CrossAssetTimeline.from_frames(..., forex_holidays=)` and the dataset builder skip those days and drop the zip's own bar there.

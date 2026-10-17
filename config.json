@@ -1400,7 +1400,8 @@
                 "lookback": 252
             },
             "forex_fill_forward_bars": "flat",
-            "late_bar_cross_asset": "own_tick"
+            "late_bar_cross_asset": "own_tick",
+            "forex_lean_holidays": true
         },
         "target": {
             "type": "directional_return",
@@ -1454,7 +1455,7 @@
                     "enabled": true,
                     "top_n": 6,
                     "bottom_n": 6,
-                    "rebalance_every_bars": 10,
+                    "rebalance_every_bars": 20,
                     "cost_bps_per_side": 5.0,
                     "commission_bps": 1.0,
                     "gross_exposure": 1.0,
@@ -1917,7 +1918,8 @@
                 "asset_classes": [
                     "crypto",
                     "forex"
-                ]
+                ],
+                "date_ranges": []
             },
             "forex_order_sizing": {
                 "enabled": true,
@@ -2377,6 +2379,11 @@
                 "avg_daily_dollar_volume": 50000000
             }
         },
+        "model_ensemble": {
+            "enabled": false,
+            "multitask_dir": "multitask_ensemble",
+            "sequence_dir": "sequence_ensemble"
+        },
         "rank_signal": {
             "normalization": "cross_sectional",
             "heads": {
@@ -2403,7 +2410,7 @@
                 "phase_v2.portfolio_book.top_n": 8,
                 "phase_v2.portfolio_book.bottom_n": 8,
                 "phase_v2.portfolio_book.rebalance_every_bars": 10,
-                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.184,
+                "phase_v2.portfolio_book.min_rank_confidence_spread": 0.1,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.04,
                 "phase9.portfolio.max_active_positions": 16,
                 "phase6.risk.max_position_weight": 0.15,

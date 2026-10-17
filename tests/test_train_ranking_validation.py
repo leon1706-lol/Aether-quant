@@ -129,7 +129,7 @@ def test_purged_embargoed_folds_purges_rows_whose_forward_window_overlaps_valida
     # training (their own forward-return label would reach into it).
     _, validation_indices = folds[1]
     validation_start = dates[validation_indices[0]]
-    purge_start = validation_start - pd.Timedelta(days=horizon_days)
+    purge_start = validation_start - pd.Timedelta(horizon_days, unit="D")
     purged_dates = {d for d in dates if purge_start <= d < validation_start}
     train_indices, _ = folds[1]
     train_dates = set(dates[train_indices].tolist())
@@ -144,7 +144,7 @@ def test_purged_embargoed_folds_embargoes_rows_immediately_after_validation():
     folds = purged_embargoed_folds(dates, n_folds=3, horizon_days=1, embargo_days=embargo_days)
     train_indices, validation_indices = folds[0]
     validation_end = dates[validation_indices[-1]]
-    embargo_end = validation_end + pd.Timedelta(days=embargo_days)
+    embargo_end = validation_end + pd.Timedelta(embargo_days, unit="D")
     embargoed_dates = {d for d in dates if validation_end < d <= embargo_end}
     train_dates = set(dates[train_indices].tolist())
 
@@ -180,7 +180,7 @@ def test_split_into_non_overlapping_eras_covers_full_range_without_gaps():
     assert eras[-1][1] == dates.max()
     # Each era must start exactly one day after the previous one ends.
     for (_, prev_end), (next_start, _) in zip(eras, eras[1:]):
-        assert next_start == prev_end + pd.Timedelta(days=1)
+        assert next_start == prev_end + pd.Timedelta(1, unit="D")
 
 
 def test_split_into_non_overlapping_eras_last_era_may_be_shorter():

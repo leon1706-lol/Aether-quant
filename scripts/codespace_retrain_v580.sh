@@ -69,7 +69,10 @@ if [ "${STAGE}" = "a" ]; then
 fi
 
 WINNER="${3:?winner group, e.g. control or v5_wd_x4}"
-if [ "${WINNER}" = "control" ]; then WINNER_DIR="${TAG}_mt_v0_s1"; else WINNER_DIR="${TAG}_mt_${WINNER}_s1"; fi
+# LEGACY (V5.8.0): installs seed 1 of the winning group whatever its seeds scored; seed 1 of the V5.8.0 control was its
+# weakest (validation IC 0.005 against 0.047 / 0.017). V6.1.0 selects by validation IC (scripts/model_candidate_research.py).
+SEED="${WINNER_SEED:-1}"
+if [ "${WINNER}" = "control" ]; then WINNER_DIR="${TAG}_mt_v0_s${SEED}"; else WINNER_DIR="${TAG}_mt_${WINNER}_s${SEED}"; fi
 done_marker() { [ "${RESUME:-0}" = "1" ] && [ -f "$1" ]; }
 
 step "install multitask winner ${WINNER_DIR}"

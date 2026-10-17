@@ -36,11 +36,11 @@ python train_sequence.py          # causal TCN sequence encoder
 ## Offline evaluation
 
 ```powershell
-aq evaluate --rank-book --model multitask   # net Sharpe ~1.68
-aq evaluate --rank-book --model sequence    # net Sharpe ~1.00
+aq evaluate --rank-book --model multitask   # net Sharpe -0.25 on the backtest split (V6.1.0)
+aq evaluate --rank-book --model sequence    # net Sharpe -0.87 on the backtest split (V6.1.0)
 aq evaluate --rank-book --monte-carlo       # 1000-run bootstrap
 aq evaluate --benchmarks                    # strategy + SPY/60-40 baselines
-aq evaluate --all                           # capacity/stress/calibrate-edge/benchmarks
+aq evaluate --all                           # rank book, Monte Carlo, benchmarks, capacity, stress, calibrate-edge
 ```
 
 ## Lean backtest
@@ -51,15 +51,18 @@ aq backtest    # requires Docker Desktop + local Lean data folder
 
 ---
 
-## Claimed numbers (as of V5.4.4)
+## Claimed numbers (as of V6.1.0, 2026-10-16)
 
-| Source | Metric | Value | Commit |
+| Source | Metric | Value | Where it is written |
 |---|---|---|---|
-| Offline rank-book (multitask) | Net Sharpe | **1.681** | `6e89379` (V5.4.4) |
-| Offline rank-book (sequence) | Net Sharpe | 0.997 | same |
-| Monte Carlo bootstrap | p5/p95 total return | −2.00% / +21.45% | same |
-| Benchmark: SPY buy-and-hold | Net Sharpe | 1.214 | same |
-| Benchmark: 60/40 SPY-TLT | Net Sharpe | 1.624 | same |
-| Walk-forward (out-of-sample) | Mean per-window net Sharpe | ~0.65 | V5.2.9 retrain |
+| Offline rank-book, ungated (multitask) | Net Sharpe, backtest split | −0.252 | `ml/evaluation/rank_book_simulation_multitask.json` |
+| Offline rank-book, ungated (sequence) | Net Sharpe, backtest split | −0.866 | `ml/evaluation/rank_book_simulation_sequence.json` |
+| Offline rank-book, as live (validation / backtest) | Net Sharpe | +1.171 / +1.004 | `rank_book_simulation_as_live_*.json` |
+| One-look holdout (2025-07..2026-09) | as-live / idealized net Sharpe | −0.071 / −0.226 | `holdout_report.json` |
+| Monte Carlo of the offline idealized book (sequence) | p5 / p50 / p95 total return | −17.97% / −7.66% / +2.61% | `monte_carlo.json` |
+| Monte Carlo of the Lean run's own equity curve | p5 / p50 / p95 total return | −5.59% / +5.43% / +17.37% | `monte_carlo_lean.json` |
+| Benchmark: SPY buy-and-hold / 60/40 SPY-TLT | Net Sharpe, backtest split | 0.882 / 0.895 | `benchmark_comparison.json` |
+| Walk-forward (out-of-sample) | Mean per-window net Sharpe | −0.158 (4 of 12 windows positive) | `ml/versions/walk-forward-633816f4-*/` |
+| Lean backtest 2023-07..2026-09 (V6.1.0 BT1 = V6 BT2) | Net profit / Sharpe (risk-free) / drawdown | +5.277% / −1.673 / 5.50% | `backtests/2026-10-16_18-23-01/` |
 
 These are **offline** numbers using the torch-free simulator — not a substitute for a real Lean backtest, which includes slippage, entry lag, and execution realism the offline model approximates but does not replicate exactly. The README's evaluation sections are regenerated from `ml/evaluation/*.json` on every `aq evaluate` run, so they always reflect the latest local run rather than this table.

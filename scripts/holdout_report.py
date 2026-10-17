@@ -1,7 +1,8 @@
 """The ONE-LOOK out-of-window report (V5.7.0): how a model set performs on the holdout dataset it never saw.
 
 Run exactly once per candidate decision, AFTER the model has been chosen on validation (R-MODEL): the holdout is evidence,
-not a selection set. Reads `ml/datasets/holdout_dataset.csv` (scripts/build_holdout_dataset.py), scores every model head
+not a selection set. Reads the holdout rows of `ml/datasets/full_dataset.csv` (`build_holdout_dataset.py --full-splits`
+labels them `holdout`; an older standalone holdout file labels them `backtest`), scores every model head
 on the holdout window, and reports per head and per asset class: daily rank IC (mean, HAC t, non-overlapping t) against the
 dataset's own rank targets, plus the as-live book (blended head, every live mechanism) when `--book` is given.
 
@@ -29,6 +30,21 @@ MODEL_FILES = {"multitask": ("multitask_model.json", "multitask_feature_schema.j
 HEAD_TARGETS = {"rank_5d": ("target_rank_5d", 5), "rank_20d": ("target_rank_20d", 20)}
 
 
+def select_holdout_rows(dataset: pd.DataFrame, holdout_window: dict) -> tuple[pd.DataFrame, str]:
+    """Training-eligible rows of the holdout window and the split label they carry.
+
+    A four-split dataset labels them `holdout`; the V5.7.0 standalone holdout file labelled the whole file `backtest`.
+    Rows outside `phase1.windows.holdout` are never returned, so a four-split file can not be scored as its backtest."""
+    start, end = str(holdout_window["start"]), str(holdout_window["end"])
+    dates = dataset["date"].astype(str).str[:10]
+    in_window = (dates >= start) & (dates <= end) & dataset["training_eligible"].astype(bool)
+    split = "holdout" if (dataset["split"] == "holdout").any() else "backtest"
+    selected = dataset[in_window & (dataset["split"] == split)].reset_index(drop=True)
+    if selected.empty:
+        raise ValueError(f"no training-eligible holdout rows between {start} and {end}")
+    return selected, split
+
+
 def ic_summary(frame: pd.DataFrame, prediction: str, target: str, horizon: int) -> dict:
     """Daily rank IC of `prediction` against `target` over `frame` (one row per ticker-date)."""
     result = rank_ic_from_arrays(
@@ -48,19 +64,20 @@ def ic_summary(frame: pd.DataFrame, prediction: str, target: str, horizon: int) 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--models", nargs="*", default=["multitask", "sequence"])
-    parser.add_argument("--dataset", default=str(ML_DIR / "datasets" / "holdout_dataset.csv"))
+    parser.add_argument("--dataset", default=str(ML_DIR / "datasets" / "full_dataset.csv"))
     parser.add_argument("--book", action="store_true", help="also run the as-live book on the holdout window")
     parser.add_argument("--output", default=str(ML_DIR / "evaluation" / "holdout_report.json"))
     args = parser.parse_args()
 
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
-    dataset = pd.read_csv(args.dataset)
-    dataset = dataset[dataset["training_eligible"] & (dataset["split"] == "backtest")].reset_index(drop=True)
+    holdout_window = config["phase1"]["windows"]["holdout"]
+    parts = [chunk[chunk["date"].astype(str).str[:10] >= str(holdout_window["start"])] for chunk in pd.read_csv(args.dataset, chunksize=40_000)]
+    dataset, holdout_split = select_holdout_rows(pd.concat(parts, ignore_index=True), holdout_window)
     asset_class = {a["ticker"]: a.get("asset_class") or a.get("security_type") for a in config["phase1"]["universe"]["assets"]}
     dataset["asset_class"] = dataset["ticker"].map(asset_class)
     window = int(config.get("phase_v2", {}).get("sequence_model", {}).get("window_size", 30))
     report: dict = {
-        "dataset": args.dataset, "rows": int(len(dataset)), "tickers": int(dataset["ticker"].nunique()),
+        "dataset": args.dataset, "split_label": holdout_split, "rows": int(len(dataset)), "tickers": int(dataset["ticker"].nunique()),
         "first_date": str(dataset["date"].min()), "last_date": str(dataset["date"].max()), "models": {},
     }
     for model_kind in args.models:
@@ -88,7 +105,7 @@ def main() -> int:
     if args.book:
         from as_live_levers import AsLiveHarness, summarize
 
-        harness = AsLiveHarness("backtest", dataset_path=args.dataset, use_cache=False)
+        harness = AsLiveHarness(holdout_split, dataset_path=args.dataset, use_cache=False)
         report["as_live_book"] = summarize(harness.as_live())
         report["idealized_book"] = summarize(harness.idealized())
         print("as-live book:", json.dumps(report["as_live_book"]))

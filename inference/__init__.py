@@ -1,9 +1,12 @@
 from .exported_model import (
     BatchedLayerStackCache,
     BatchedMultitaskLayerStackCache,
+    average_head_outputs,
     build_models_batched_cache,
     build_multitask_models_batched_cache,
     convert_state_dict_arrays,
+    load_ensemble_member_exports,
+    resolve_model_ensemble_config,
     resolve_sequence_window_size,
     run_exported_model,
     run_exported_model_rows,
@@ -22,6 +25,9 @@ from .strategy_selector_inference import build_strategy_selector_features, score
 __all__ = [
     "BatchedLayerStackCache",
     "BatchedMultitaskLayerStackCache",
+    "average_head_outputs",
+    "load_ensemble_member_exports",
+    "resolve_model_ensemble_config",
     "build_models_batched_cache",
     "build_multitask_models_batched_cache",
     "build_strategy_selector_features",

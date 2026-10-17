@@ -121,3 +121,18 @@ def test_sigterm_witness_reports_the_sender_and_exits_143():
     assert child.returncode == 143
     assert "SIGTERM received from pid" in output and "MemAvailable=" in output
     time.sleep(0)
+
+
+def test_cpu_time_is_recorded_next_to_wall_time_so_a_busy_host_is_visible(monkeypatch):
+    import performance_probe
+
+    wall = iter([100.0, 100.5, 200.0, 201.0])
+    cpu = iter([10.0, 10.2, 20.0, 20.1])
+    monkeypatch.setattr(performance_probe.time, "perf_counter", lambda: next(wall))
+    monkeypatch.setattr(performance_probe.time, "process_time", lambda: next(cpu))
+    probe = TimingProbe(enabled=True)
+    probe.stop("section", probe.start())
+    probe.stop("section", probe.start())
+    stats = probe.summary()["sections"]["section"]
+    assert stats["total_ms"] == 1500.0 and abs(stats["cpu_total_ms"] - 300.0) < 1e-6  # waited, not computed
+    assert "cpu_ms:300.0" in probe.format_line()

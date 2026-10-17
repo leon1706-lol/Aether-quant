@@ -194,12 +194,39 @@ def component_of(ticker: str, asset_class: str, members: frozenset[str], core_cr
     return "main_book" if ticker in members else "legacy"
 
 
+def opener_members_by_date(
+    ticker_pnl: dict[str, dict[str, dict]], members_by_date: dict[str, frozenset[str]]
+) -> dict[str, frozenset[str]]:
+    """Per date, the tickers the BOOK owns: members of the book in force that day plus held positions that were opened
+    while their ticker was a member. A member that leaves the book stays the book's until the position is closed (live
+    exits it by rotation / age / stop, not as a legacy trade); a position opened outside the book stays legacy until the
+    book adopts the ticker. Opening = flat (or the opposite sign) at the previous day's end, non-zero at this day's end."""
+    owned: dict[str, frozenset[str]] = {}
+    opened_as_member: dict[str, bool] = {}
+    previous_position: dict[str, float] = {}
+    for date in sorted(ticker_pnl):
+        members = members_by_date.get(date, frozenset())
+        for ticker, entry in ticker_pnl[date].items():
+            before = previous_position.get(ticker, 0.0)
+            after = float(entry.get("position", 0.0))
+            if after == 0.0:
+                opened_as_member.pop(ticker, None)
+            elif before == 0.0 or (before > 0.0) != (after > 0.0):
+                opened_as_member[ticker] = ticker in members
+            previous_position[ticker] = after
+        owned[date] = members | frozenset(ticker for ticker, flag in opened_as_member.items() if flag)
+    return owned
+
+
 def component_daily_pnl(
     ticker_pnl: dict[str, dict[str, dict]], class_by_ticker: dict[str, str], members_by_date: dict[str, frozenset[str]],
-    core_crypto: set[str],
+    core_crypto: set[str], *, by_opener: bool = True,
 ) -> dict[str, dict[str, dict]]:
-    """{date: {component: {"pnl", "fee", "fills", "limit_fills", "notional"}}}. A position is assigned on each day by the
-    book in force that day, so a member that leaves the book becomes legacy only if it is still held."""
+    """{date: {component: {"pnl", "fee", "fills", "limit_fills", "notional"}}}. By default a position belongs to the
+    component that opened it (opener_members_by_date); `by_opener=False` assigns it by the book in force each day, so a
+    former member still held counts as legacy (the V6.0.0 view)."""
+    if by_opener:
+        members_by_date = opener_members_by_date(ticker_pnl, members_by_date)
     out: dict[str, dict[str, dict]] = {}
     for date, day in ticker_pnl.items():
         members = members_by_date.get(date, frozenset())
@@ -305,20 +332,18 @@ def attribute_run(
     tickers = {fill.ticker for fill in fills}
     closes = closes_for_universe(config, root, tickers)
     forex = {ticker for ticker, kind in class_by_ticker.items() if kind == "forex"}
-    ticker_pnl = daily_ticker_pnl(fills, closes, dates, forex)
+    ticker_pnl = full_ticker_pnl = daily_ticker_pnl(fills, closes, dates, forex)
     if period:
         ticker_pnl = {date: day for date, day in ticker_pnl.items() if period[0] <= date <= period[1]}
         before = [(date, value) for date, value in daily_equity if date < period[0]][-1:]  # the period's opening value
         daily_equity = before + [(date, value) for date, value in daily_equity if period[0] <= date <= period[1]]
-    members = formed_book_by_date(book_history, sorted(ticker_pnl))
-    components = component_daily_pnl(ticker_pnl, class_by_ticker, members, core_crypto)
-    totals = {name: {"pnl": 0.0, "fee": 0.0, "fills": 0, "limit_fills": 0, "notional": 0.0} for name in COMPONENTS}
-    for day in components.values():
-        for name, entry in day.items():
-            for key in totals[name]:
-                totals[name][key] += entry[key]
-    for entry in totals.values():
-        entry["net"] = entry["pnl"] - entry["fee"]
+    members = formed_book_by_date(book_history, sorted(full_ticker_pnl))
+    # Ownership needs every position's opening day, so it is derived over the whole run and then cut to the period.
+    components = component_daily_pnl(full_ticker_pnl, class_by_ticker, members, core_crypto)
+    by_membership = component_daily_pnl(full_ticker_pnl, class_by_ticker, members, core_crypto, by_opener=False)
+    components = {date: day for date, day in components.items() if date in ticker_pnl}
+    by_membership = {date: day for date, day in by_membership.items() if date in ticker_pnl}
+    totals = _component_totals(components)
     sorted_closes = {ticker: sorted(series) for ticker, series in closes.items()}
     in_period = [fill for fill in fills if not period or period[0] <= fill.date <= period[1]]
     routes = fee_bps_by_route(
@@ -328,6 +353,8 @@ def attribute_run(
     return {
         "period": list(period) if period else None,
         "components": totals,
+        "components_by_membership": _component_totals(by_membership),
+        "attribution": "opener",
         "fees_by_route": routes,
         "reconciliation": _reconciliation(components, daily_equity, run["result"], period),
         "rebalances": rebalance_decisions(book_history, *(period or (None, None))),
@@ -335,6 +362,17 @@ def attribute_run(
                              for date, day in sorted(components.items())},
         "daily_equity": daily_equity,
     }
+
+
+def _component_totals(components: dict[str, dict[str, dict]]) -> dict[str, dict]:
+    totals = {name: {"pnl": 0.0, "fee": 0.0, "fills": 0, "limit_fills": 0, "notional": 0.0} for name in COMPONENTS}
+    for day in components.values():
+        for name, entry in day.items():
+            for key in totals[name]:
+                totals[name][key] += entry[key]
+    for entry in totals.values():
+        entry["net"] = entry["pnl"] - entry["fee"]
+    return totals
 
 
 def _reconciliation(components: dict, daily_equity: list, result: dict, period: tuple[str, str] | None) -> dict:
@@ -345,6 +383,16 @@ def _reconciliation(components: dict, daily_equity: list, result: dict, period: 
             report["lean_net_usd"] = lean_net
             report["difference_usd"] = report["rebuilt_net_usd"] - lean_net
     return report
+
+
+def run_config_path(run_dir: Path, root: Path) -> Path | None:
+    """The config a Lean run ran with: a snapshot in the run folder (`code/config.json`, when Lean copied it) or the frozen
+    copy `ml/evaluation/run_configs/<run folder name>.json` (V6.1.0: Lean's `code/` folder holds no config.json, so each run's
+    config is kept next to the evaluation artifacts). None when neither exists (callers fall back to the current config)."""
+    for candidate in (run_dir / "code" / "config.json", root / "ml" / "evaluation" / "run_configs" / f"{run_dir.name}.json"):
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def find_book_history_for_run(run_dir: Path, book_history_dir: Path) -> Path | None:

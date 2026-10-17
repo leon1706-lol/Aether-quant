@@ -123,7 +123,7 @@ def _live_replay(frames, types):
             if types[ticker] == "forex" and previous_stamp is not None:
                 # Lean's FillForward: the forex market is open Sunday-Friday, so a gap day without a row is a flat bar
                 for offset in range(1, (stamp - previous_stamp).days):
-                    gap_day = previous_stamp + pd.Timedelta(days=offset)
+                    gap_day = previous_stamp + pd.Timedelta(offset, unit="D")
                     if gap_day.dayofweek != 5:
                         bars.append((bar_available_at(gap_day.toordinal(), "forex"), ticker, gap_day, float(previous_close)))
             bars.append((bar_available_at(stamp.toordinal(), types[ticker]), ticker, stamp, float(close)))

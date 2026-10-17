@@ -89,7 +89,7 @@ def test_generate_walk_forward_windows_sub_ranges_are_contiguous_within_a_window
     )
 
     window = windows[0]
-    one_day = pd.Timedelta(days=1)
+    one_day = pd.Timedelta(1, unit="D")
     assert _to_date(window["validation"]["start"]) == _to_date(window["training"]["end"]) + one_day
     assert _to_date(window["backtest"]["start"]) == _to_date(window["validation"]["end"]) + one_day
 

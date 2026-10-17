@@ -802,6 +802,7 @@ walk-forward runs; `--apply` deletes. Each Lean run keeps a code snapshot in `ba
 ### V6.0.0 Codespace and Lean lessons
 
 - **Heavy offline jobs run on the Codespace.** Scoring the 90k-row backtest + holdout frame for the simulator takes ~1.4 GB, which the 4 GB dev PC cannot give next to its own processes (Claude's memory reaper killed the first local R-CAL run). `scripts/codespace_calibration_v600.sh`, `codespace_research_v600.sh` and `codespace_predict_v600.sh` run R-CAL, the three rule decisions and the BT1 prediction there; ship code with `-Mode push -CodeOnly`, the two Lean run folders (without `code/`) and their book-history files with one `scp`, and pull back only the JSONs.
+- **A Codespace job dies with the Codespace (V6.1.0).** S1 stopped silently after ~40 minutes (idle timeout, nobody connected) and `gh codespace list` then showed Shutdown while the job log simply ended. Keep one `gh codespace ssh ... 'while pgrep -f <script>; do sleep 60; done'` open for the whole run and resume with `RESUME=1`.
 - **Inline ssh commands**: Windows OpenSSH strips double quotes, so `grep -E "a|b"` splits and `grep` then waits on stdin (the session hangs). Use `grep -e a -e b` without quotes, or an uploaded `.sh`. Never `pkill -f <script>` through ssh: the pattern matches the ssh shell itself.
 - **`data_holdout/` is gone** (local and Codespace); the holdout is `phase1.windows.holdout` inside `data/`. `build_holdout_data.py` writes to `--root` (default `data_v6_staging`); `build_holdout_dataset.py --full-splits --write-split-files` builds train / validation / backtest / holdout with the active scaler.
 - **Lean over the whole span.** `runtime.lean_window_override` {2023-07-01, 2026-09-30} is BT1's and BT2's window; reset it to null afterwards. The diagnostics that make a run verifiable (`timing_probe`, `crypto_bar_probe` for crypto and forex, feature snapshots for XOM, NVDA, TLT, ETHUSD, BTCUSD, EURUSD, GBPJPY) are on for BT1 only where noted in the Changelog.
@@ -928,3 +929,13 @@ aq evaluate --rank-book --as-live --factor-exposure       # the offline side, fo
 Teardown must be judged from the **engine** `log.txt`
 (`PythonInitializer.Shutdown(): ended` vs `Operation timed out`), which the
 audit parses; the algorithm log never records it.
+
+### V6.1.0 tools
+
+- **Seed ensembles:** `phase_v2.model_ensemble` (off) makes `main.py` and every offline scorer average the raw head outputs of the members in `ml/multitask_ensemble/` and `ml/sequence_ensemble/` (`inference.exported_model.average_head_outputs`); install a winning ensemble by copying the member exports there and flipping the flag, after backing up `ml/` and checking `python scripts/ml_manifest.py`.
+- **Timing probe:** `phase_v2.diagnostics.timing_probe` now reports CPU time next to wall time (`cpu_ms`) and an `on_data_total` section: wall >> CPU means the host was busy.
+- **Lean Monte Carlo:** `aq evaluate --lean-monte-carlo --backtest-dir <run>` -> `ml/evaluation/monte_carlo_lean.json`, rendered in the README's Monte Carlo block.
+- **Bar probe dates:** `phase_v2.diagnostics.crypto_bar_probe.date_ranges` ([[start, end], ...]) logs every bar of the listed forex / crypto symbols inside those dates (Lean's holiday calendar check).
+- **Crypto route check:** `aq render-lean-config` warns when crypto is in the universe and the credentials are Interactive Brokers' (Problems.md #192).
+- **README Lean run pin:** `python generate_backtest_report.py --backtest-dir backtests/<run>` pins every Lean-reading README block (the run table, the Lean-vs-offline block, the Sharpe comparison) to that run through `ml/evaluation/readme_lean_run.json`; the next plain `aq backtest` clears the pin. Use it when the newest run is not the shipped configuration's (V6.1.0: the rejected cap-0.80 run).
+- **Docker cold start:** wait about 10 minutes after `docker info` answers before `aq backtest` on this host; a run started right after Docker Desktop hit Lean's 90 s `Initialize()` limit (`backtests_invalid/2026-10-16_21-09-57_bt2_init_timeout`).

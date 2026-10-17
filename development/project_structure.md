@@ -23,7 +23,7 @@ aether-quant/
 ├── moe/                         # Mixture-of-Experts gating network
 ├── experts/                     # Bullish / bearish / sideways / volatility expert models
 ├── features/                    # Shared feature-computation functions (train.py + main.py parity)
-├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation) + V5.5.0 as-live parity, backtest audit, volatility calibration + V5.8.0 audits (class IC, gates, heads, features), `aq clean ml` plan, README research blocks
+├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation) + V5.5.0 as-live parity, backtest audit, volatility calibration + V5.8.0 audits (class IC, gates, heads, features), `aq clean ml` plan, README research blocks + V6.1.0 simulator replicas of the live mechanisms (daily member pass, whole-portfolio kill switch, legacy signal) and Lean attribution by opener
 ├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing + V5.5.0 legacy-signal sleeve + V5.8.0 class sleeves (forex, bonds) and their loss guard
 ├── regime/                      # Market regime detection (+ V5.8.0 drawdown-free vector the models read)
 ├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
@@ -42,7 +42,7 @@ aether-quant/
 ├── webui/                       # React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing)
 ├── ml/                          # Model weights, datasets, versioned retraining candidates
 ├── storage/                     # Reserved for future persistent artifact storage
-├── scripts/                     # Standalone dev tooling (profile_inference.py, wheel_smoke.py, check_test_count_drift.py, feature_parity_audit.py) + V5.8.0 research scripts, ml_manifest.py and the Codespace helpers
+├── scripts/                     # Standalone dev tooling (profile_inference.py, wheel_smoke.py, check_test_count_drift.py, feature_parity_audit.py) + V5.8.0 research scripts, ml_manifest.py and the Codespace helpers + V6.1.0 rule chain (`v610_research.py`), R-CAL2 calibration, legacy-probability replay, candidate scoring and the S1-S3 Codespace sessions
 ├── requirements/                # All requirements*.txt variants
 ├── tests/                       # Full pytest suite (one file per source module)
 ├── backtests/                   # Lean backtest run outputs (gitignored)

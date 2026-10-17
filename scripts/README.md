@@ -98,6 +98,17 @@ codebase.
 - `book_variant_research.py` (V6.0.0, rule R-BOOK), `crypto_fee_research.py` (R-CRYPTO), `forex_keep_or_drop.py` (R-FX6) —
   the three pre-registered decisions of V6.0.0 on the calibrated simulator (heavy: run them on the Codespace through
   `codespace_research_v600.sh`; `codespace_calibration_v600.sh` and `codespace_predict_v600.sh` do the same for R-CAL).
+- `v610_research.py` (V6.1.0) — the pre-registered rule chain R-MODEL9 -> R-HEAD2 -> R-BOOK2 -> R-LEGACY -> R-GATE on the V6.1.0
+  simulator: every variant is one change, scored on **every rebalance phase** (median Sharpe, share of phases that beat the
+  incumbent) over both splits, then reported once on the holdout; resumable -> `ml/evaluation/v610/research.json`.
+  `lean_calibration.py --rcal2` (R-CAL2) scores the `v610` rung against the V6 BT2 stretches and the V5.8.0 BT2 stretch;
+  `build_legacy_probability.py` writes the legacy signal's `final_probability_up` per row; `model_candidate_research.py` scores
+  every retrained candidate, seed ensembles included (rank IC, HAC t, per-head); `prepare_v610_candidates.py` turns that into
+  scoreable candidate dirs, R-HEAD per candidate and the inference-latency ratio; `compare_datasets.py` diffs two dataset builds.
+- `codespace_session_v610.sh` (S1: datasets with Lean's forex holidays, multitask x5 / sequence x3 for the control and three
+  variants, candidate IC, the suite), `codespace_research_v610.sh` (S2: legacy probability, R-CAL2, candidates, the rule chain)
+  and `codespace_readme_v610.sh` (S3: the offline blocks of the README performance section): resumable (`RESUME=1`).
+  The Codespace stops on its idle timeout while a job runs: keep one `gh codespace ssh` session open for the whole job.
 - `profile_main_tick.py` (V6.0.0) — times the real `main.py` per-tick feature path outside Lean (`--repeat`, `--scalar-beta`
   A/B switch, `--cprofile`).
 - `refresh_universe_availability.py` (V6.0.0) — sets each asset's `available_from/available_to` from its zip.

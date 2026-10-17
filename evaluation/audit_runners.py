@@ -109,8 +109,19 @@ def live_consumers(config: dict) -> set[str]:
 def run_audit_heads(config: dict, *, ml_dir: Path = ML_DIR) -> dict:
     from evaluation.head_audit import audit_heads, load_head_metrics
 
+    from portfolio.rank_signal import resolve_rank_signal_policy
+
     report = audit_heads(load_head_metrics(ml_dir), consumers=live_consumers(config))
     report["consumers"] = sorted(live_consumers(config))
+    metrics_by_model = {}
+    for model_name in ("sequence", "multitask"):
+        path = ml_dir / f"{model_name}_training_metrics.json"
+        try:
+            metrics_by_model[model_name] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        except (OSError, ValueError):
+            metrics_by_model[model_name] = None
+    # The policy main.py resolves at Initialize(): shows when every decision head failed and live fell back to the blend.
+    report["rank_signal_policy"] = resolve_rank_signal_policy(metrics_by_model, config)
     return report
 
 
