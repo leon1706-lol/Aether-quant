@@ -45,6 +45,8 @@ without pulling in the training stack, the same torch-free-core convention
   `candidate_metadata_by_ticker`; the result gains `num_vetoed_rebalances`/`veto_reasons`.
   Exposed as `aq evaluate --rank-book --as-live`.
 - `lean_attribution.py` (V6.0.0, `aq evaluate --attribute-lean`) — a Lean run's daily P&L per ticker and component from its order events and the data zips, reconciled with the equity curve; fee per fill by route.
+- `lean_statistics.py` (V6.2.0, `aq evaluate --lean-stats`) — Lean's Sharpe / Sortino / PSR reproduced exactly from a result JSON (compounded mean daily return, sample variance x days a year, the risk-free file averaged over every equity sample), on any rate file and day count, plus counterfactual daily returns (`with_extra_daily_returns`).
+- `tranche_book.py` (V6.2.0, rule R-STAGGER) — the staggered tranche book offline: the sum of K phase-shifted runs of `simulate_rank_book`, each tranche's kill switch fed the others' returns; `simulate_rank_book(cash_sweep=)` models the T-bill sweep as its own component outside the kill switch.
 - `backtest_audit.py` (V5.5.0, #127) — order-level audit of one finished Lean
   run (`aq evaluate --audit-backtest`): exposure per asset class, book-member vs
   non-member entries (`classify_entries`, against the run's own

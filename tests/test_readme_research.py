@@ -191,3 +191,19 @@ def test_the_calibration_and_rule_chain_blocks_render_what_the_scripts_wrote(tmp
     assert "**branch B**" in markdown and "| w1 | 0.61 | -1.2% | 70% | fail |" in markdown
     assert "| book | none (incumbent stays) | K1 -0.200 |" in markdown
     assert "| gate | skipped | R-CAL2 branch B" in markdown
+
+
+def test_the_v620_rule_chain_lists_each_rule_and_why_a_variant_failed(tmp_path):
+    assert "Not run yet" in rr._rule_chain_v620_lines(tmp_path)[0]
+    (tmp_path / "v620").mkdir()
+    (tmp_path / "v620" / "research.json").write_text(json.dumps({
+        "dedupe": {"adopted": False, "verdict": {"backtest_gain": -0.09, "validation_change": 0.575}},
+        "stagger": {"adopted": None, "variants": {"S2": {"verdict": {
+            "backtest_gain": 0.516, "validation_change": 0.259, "checks": {"backtest_gain_ge_0.10": True},
+            "extra_checks": {"validation_phase_range_cut_ge_25pct": False}}}}},
+        "model": {"adopted": None, "variants": {"v9_reg": {"skipped": "IC clauses failed"}}},
+    }), encoding="utf-8")
+    lines = "\n".join(rr._rule_chain_v620_lines(tmp_path))
+    assert "none (double count stays)" in lines and "-0.090" in lines
+    assert "S2: backtest +0.516" in lines and "fails validation_phase_range_cut_ge_25pct" in lines
+    assert "1 candidates fail the IC clauses" in lines

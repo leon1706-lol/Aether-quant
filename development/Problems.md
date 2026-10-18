@@ -2341,3 +2341,84 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Verification:** `ml/evaluation/v610/attribution_bt2_v610.json`, `config_bt2.json`; `backtest_audit.json`; the engine log.
 
+### 198. CI red on the V6.1.0 commit: a test read the gitignored `ml/model_weights.json`; ubuntu-latest moves to 26.04 (V6.2.0)
+
+**Severity:** 5/10 · **Status:** 🟡 `partial` (fixed and verified on a clean checkout; the owner's push confirms it on GitHub)
+
+**Problem:** run 39036302436 failed python-tests (ubuntu, windows) and subsystem-matrix (ml) on one test: `test_v610_harness_warms_the_gate_on_earlier_rows_and_models_the_legacy_signal` reached `AsLiveHarness.v610_mechanisms()`, which reads `ml/model_weights.json`, present locally and on the Codespace but gitignored. CI also warned that `ubuntu-latest` moves to Ubuntu 26.04 from 2026-10-19 and that the Node 20 actions are forced onto Node 24.
+
+**Fix:** the test brings its own `ml_dir` (a stub `model_weights.json`) and score cache in `tmp_path`; `scripts/clean_checkout_test.ps1` runs CI's pytest command in a detached worktree of HEAD plus the working-tree changes, with no gitignored file (an AGENTS.md wrap-up step, `tests/README.md`); the Linux jobs pin `ubuntu-24.04` and the actions move to checkout / setup-python / setup-node / upload-artifact v7 (release notes read: nothing this repo uses changed); `codespace_stop_jobs.sh` matches the V6.1+ job names. A flaky test found on the way: two run folders created in one filesystem tick sorted either way (`_iter_backtest_result_jsons` now breaks mtime ties by name).
+
+**Verification:** clean-checkout run 3,571 passed / 0 failed; actionlint 1.7.7 clean; `tests/test_ci_workflows.py`, `test_generate_backtest_report.py`.
+
+### 199. Lean's Sharpe charged a stale 5.5% risk-free rate and annualised a 7-day equity curve at 252 days (V6.2.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (reproduced exactly, data refreshed, the 365 basis confirmed in Lean)
+
+**Problem:** `data/alternative/interest-rate/usa/interest-rate.csv` (Lean's sample data) ended at 2023-07-27, 5.5%, which Lean fills forward, so every run since was charged 5.5% through 2026 although the primary credit rate fell to 3.75-4.0%; and with crypto trading on weekends the equity curve holds ~365 daily returns a year that Lean annualised at 252, understating return and volatility alike (a weekday-only T-bill carry shows at 69% of its size against a full-size rate).
+
+**Fix:** `evaluation/lean_statistics.py` reproduces Lean's statistics from a result JSON (compounded mean daily return, sample variance x days, the rate averaged over every equity sample, Sortino, PSR) and matches the printed Sharpe / Sortino / PSR / std of eight past runs exactly; `aq evaluate --lean-stats` prints them on the shipped and pre-V6.2 rate files at 252 and 365; `scripts/refresh_lean_interest_rate.py` appends FRED DPCREDIT's change points (2024-09-19 5.00 ... 2025-12-11 3.75, 2026-09-17 4.00) after checking the shared history from 2009 (the pre-2009 rows are dated a day after FRED's, the old source's convention); `runtime.trading_days_per_year` (default null = Lean's 252) is 365 by the owner's decision. Average rate over 2023-07..2026-09: 5.49% -> 4.69%. V6.1 BT1 on the new bases: -1.673 -> -1.365 (rate) -> -0.971 (rate and 365).
+
+**Verification:** `tests/test_lean_statistics.py`, `test_refresh_lean_interest_rate.py`, `test_risk_controls.py`; the BT1 / BT3 result JSON reads `tradingDaysPerYear: 365`; `ml/evaluation/lean_stats_<run>.json`.
+
+### 200. Idle cash earned nothing in Lean: a T-bill sweep (BIL), outside the strategy and its risk controls (V6.2.0)
+
+**Severity:** 7/10 · **Status:** 🟡 `partial` (shipped and measured in Lean BT1 / BT3; the kill-switch lock-date clause did not hold, see Result)
+
+**Problem:** the market-neutral book is mostly vetoed, so 70-95% of the NAV sat as cash Lean pays no interest on while its Sharpe subtracts the full risk-free rate.
+
+**Fix:** `portfolio/cash_sweep.py` sizes a BIL holding (outside the universe: never scored, ranked, capped, reconciled or counted as a position) under a no-borrow limit (cash after the sweep and the next session's possible orders stays >= 2%; unfilled short proceeds count only up to the longs they pair with) and Lean's default margin (equity 2x, crypto 1x), leaving room the session before every rebalance attempt because Lean's buying-power check does not net pending sells. `main.py` trades it after Pass 2 (exempt from the strategy's locks, kept by the drawdown liquidation) and the risk controls read `advance_strategy_value`, an index of the strategy's own P&L over the total NAV it is sized on. The simulator (`cash_sweep=`), `--attribute-lean` (component `cash_sweep`) and the harness model it; `scripts/predict_sweep_bt1.py` priced it on V6.1 BT1's holdings before the Lean run.
+
+**Result (Lean, 2023-07..2026-09, the V6.1 config + sweep + 365 + the refreshed rate):** BT1 / BT3 net +16.85% (V6.1 +5.28%), **Lean Sharpe +0.082** (-1.673), drawdown 4.30% (5.50%), sweep +$10,699 (prediction +$10,062, +6%), 170 BIL fills; engine log clean, 0 buying-power rejections, rebalance decisions 170 / 170 and member sets identical to V6.1, non-BIL fills 571 against 568. **R-LEAN11-BT1 clause (b) fails on the kill-switch lock dates** (14 in V6.1, 46-47 here, 28% overlap). BT1 divided the strategy's dollar P&L by NAV minus the carry (~8% inflated returns by mid-2024; fixed, re-run as BT3), and BT3 still split from V6.1 on 2024-01-03 with the strategy's returns matching V6.1 to 0.13 bps a day until then: Lean's `UnrealizedProfit` deducts an estimated closing fee, so the index moved by cents on a flat day (fixed afterwards: the sweep is marked quantity x (price - average price); not re-run in Lean), and the kill switch sits at its -1.0 floor where a few dollars of share rounding flip it (#197). On V6.1's own basis (5.5% rate, 252 days) BT3 is -0.776; ex-sweep the strategy earned $6,147 against V6.1's $5,277 on a different lock path: path, not evidence of edge.
+
+**Verification:** `tests/test_cash_sweep.py`, `test_v620_cash_sweep_parity.py`, `test_main_ensure_ready_smoke.py`, `test_order_gate.py`, `test_lean_attribution.py`; `ml/evaluation/v620/bt1_prediction.json`, `attribution_bt1_v620.json`, `attribution_bt3_v620.json`; the engine logs of `backtests/2026-10-17_19-10-42` and `2026-10-17_19-45-55`.
+
+### 201. Crypto counted twice in the rolling-IC gate: a switch decided by rule R-DEDUPE - not adopted (V6.2.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by rule; the V6.1 double count stays)
+
+**Problem:** live appends a late-bar symbol's rank event on its own tick and again on the next equity tick (#196); deduplicating changes the gate's reading and the Lean results, an owner decision delegated to a pre-registered rule.
+
+**Fix:** `rolling_ic_gate.late_bar_event_count` ("per_tick" default, "once") is read by one predicate, `portfolio.rolling_ic_gate.should_record_ic_event`, in `main.py`'s buffer and in the offline replica (`make_rolling_ic_gate_fn`, the harness's gate cache key). **R-DEDUPE** (gated as-live book, every phase, both splits, `rule_verdict` margins): "once" lifts the gated book's validation median Sharpe from -0.448 to +0.127 (worst phase -2.04 -> -0.43, every phase better) but lowers the backtest median from 0.889 to 0.799 (40% of phases ahead) against the +0.10 gain required: not adopted. The validation robustness is real and is the case for revisiting it with more out-of-sample data.
+
+**Verification:** `tests/test_v620_dedupe.py`; `ml/evaluation/v620/research.json` (`dedupe`).
+
+### 202. Phase luck: a staggered tranche book, decided by rule R-STAGGER - not adopted, S2 the strongest open lead (V6.2.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (built offline and decided by rule; one tranche stays, nothing to build live)
+
+**Problem:** lead 3: the shipped book's ungated validation Sharpe spans -1.02..+0.57 across its rebalance phases (#195); several tranches rebalancing at offsets should average the timing luck out.
+
+**Fix:** `portfolio.book_construction` gains `tranche_offsets`, `tranche_book_params` (ceil(top/K) / ceil(bottom/K) names, gross cap / K, position cap / K), `combine_tranche_weights` and a `phase_offset` on `should_rebalance_this_bar` (0 = unchanged); `evaluation/tranche_book.py` scores the tranche book as the sum of K phase-shifted runs of the calibrated simulator, each tranche's kill switch fed the others' returns from a first pass, the legacy signal in tranche 0 only (trades the tranches would net are each charged: conservative). **R-STAGGER** (ungated, 10 phases, both splits): one tranche validation / backtest median +0.046 / +0.740 (validation range 1.59); **S2** (2 tranches) +0.305 / +1.256, 80% / 70% of phases ahead, positive on both splits, drawdown and cost within bounds - every `rule_verdict` margin passes - but its validation phase range widens to 2.08 instead of shrinking by 25%, the clause the lead exists for: not adopted; S4 (4 tranches) -0.136 / +1.292, fails. Since nothing passed, the live tranche path is not built (the plan's "build live only on adoption"). S2's gain on both splits with a wider spread is the strongest offline result of the phase and the first candidate for an out-of-sample (paper) check.
+
+**Verification:** `tests/test_v620_tranche_book.py`; `ml/evaluation/v620/research.json` (`stagger`).
+
+### 203. Regularised retrain (more seeds, label noise, a train-chosen feature subset): rule R-MODEL10 installs nothing (V6.2.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by rule; the installed models stay)
+
+**Problem:** lead 2: V6.1's best direction (`v9_reg`) halved the train IC; push it further and judge an ensemble against the noise of an ensemble, not of one member.
+
+**Fix:** `label_noise_std` (rank-target noise, default 0) in both trainers; a model's own `model_input_features` select its inputs live (`inference.exported_model.model_input_index`) and offline (`predict_heads`), so a feature-subset model can ship; `scripts/select_feature_subset.py` picked 17 of 68 inputs on the train split only (permutation drop > 0 on 2019-2021, univariate IC of the same sign in both train halves, no ticker-ID suspect - stricter than the plan's drop-only criterion, which keeps nearly every input of an overfit model); `model_candidate_research.py --bootstrap` sets the yardstick at 2 x the spread of 200 resampled control ensembles (0.020 live / 0.034 swapped priority). Candidates (5 multitask + 3 sequence seeds), validation decision IC on the swapped priority: installed +0.008, control -0.002, v9_reg +0.027, v12 label noise -0.007, v13 subset +0.002, v14 noise + subset -0.004; the subset variants lose the backtest IC (+0.010, t 0.3, against +0.076, t 2.7). **R-MODEL10 clause 1 fails for every candidate** and no candidate's decision heads pass R-HEAD: nothing is installed, `phase_v2.model_ensemble` stays off.
+
+**Verification:** `tests/test_v620_model_inputs.py`, `test_feature_quality_audit.py`, `test_model_candidate_research.py`, `test_v620_research.py`; `ml/evaluation/v620/model_ic.json`, `candidates.json`, `feature_subset.json`.
+
+### 204. Latency and the #104 teardown measured on a faster host: both are the dev PC (leads 4 and 6, V6.2.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (measured; nothing in the code to change)
+
+**Problem:** #191 found `_build_model_input` at 1.9 ms native, 5.3 ms in the Lean container and 8.9 ms in the engine on the 2011 dev PC and left "a faster host" as the only lever; #104 / #184 (Lean's embedded-Python teardown timing out) stayed environmental, unproven.
+
+**Result** (a temporary 4-core / 16 GB Docker-in-Docker Codespace, `.devcontainer/dind-v1-test`, the same `aether-quant-lean:17900` image and `data/` file for file): `scripts/profile_main_tick.py` 0.60 / 0.64 / 0.61 ms per call inside the Lean image and 0.65 / 0.63 ms natively - the container costs nothing on this host (2.8x on the PC's Docker Desktop VM) and the CPU is ~3x faster; a 3.25-year Lean run takes ~10 minutes (~2 hours on the PC). All three V6.2 strategy runs on that host ended with `PythonInitializer.Shutdown(): ended`, no timeout (`--audit-backtest`: `timed_out: False`), so #104 is the PC's environment. The Docker Desktop VM on the PC could no longer start at all this phase (`Wsl/Service/CreateInstance/CreateVm/ERROR_TIMEOUT` with ~400 MB free); running Lean on such a Codespace is documented in `development/infrastructure.md`.
+
+**Verification:** `ml/evaluation/v620/profile_codespace_{container_1..3,native_1..2}.json`; engine logs of `backtests/2026-10-17_19-10-42`, `2026-10-17_19-45-55`, `2026-10-17_21-39-55`.
+
+### 205. BT2 (Lean, the shipped V6.2.0 code and config): identical to BT3; run tooling defects found on the way (V6.2.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (measured and written up)
+
+**Result** (`backtests/2026-10-17_21-39-55`, config = `ml/evaluation/v620/config_bt2.json` = BT1's: the shipped config with the sweep, 365 days and the window override; the code with the mark-based sweep profit, #200): **+16.848% net, Lean Sharpe +0.082** (-0.776 on the pre-V6.2 basis), Sortino +0.086, PSR 4.3%, drawdown 4.30%, 779 orders, fees $1,211, the same 46 kill-switch lock dates as BT3 (so the fee-estimate fix did not move the path: the strategy runs on the carry-enlarged NAV, so a borderline order - AAPL on 2024-01-03 - passes where V6.1's did not, and the kill switch at its floor follows; it is more capital, not a measurement error). Backtest stretch +4.98% (V6.1 -1.63%), holdout stretch (seen) +11.31% (+7.02%). By component, net: cash sweep +$10,699, crypto core +$3,889, legacy +$1,450, main book +$1,039, graduates +$85, legacy crypto -$115, bonds -$200; ex-sweep the strategy earned $6,148 (Sharpe without the risk-free rate +0.54, 365 days). Lean Monte Carlo of the run's own returns: final return p5 / p50 / p95 +3.7% / +16.8% / +30.8%. **R-LEAN11-BT2:** engine log clean, rebalance decisions 170 / 170 against V6.1 (no model or feature change, so no feature reconciliation was due), the confirmation clause holds (ex-sweep Sharpe and drawdown not worse than BT1's) - the sweep and the 365 basis ship (owner decision D1 / D2); the kill-switch lock-date clause is reported as failed (#200).
+
+**Tooling fixed on the way:** `find_book_history_for_run` matched a run folder's LOCAL-time name against UTC file names and gave V6.1 BT1 the next run's history (it now reads the engine log's UTC start; V6.1's attribution was unaffected because both runs had identical books); `codespace_sync.ps1` joined two Codespace names under Windows PowerShell 5.1's `ConvertFrom-Json`; `_iter_backtest_result_jsons` ordered two folders with equal mtimes at random (a flaky test on the Codespace).
+
+**Verification:** `ml/evaluation/v620/attribution_bt2_v620.json`, `lean_stats_2026-10-17_21-39-55.json`, `backtest_audit.json`, `monte_carlo_lean.json`; `tests/test_lean_attribution.py`, `test_generate_backtest_report.py`, `test_v620_config_decisions.py`.

@@ -62,4 +62,10 @@ pytest's default import mode then collides on duplicate module names once
 enough backtests have accumulated locally. This only bites locally
 (`backtests/` is gitignored), never on a fresh clone or CI.
 
+**Clean checkout before a commit (V6.2.0):** `powershell -File scripts/clean_checkout_test.ps1`
+runs CI's pytest command in a detached worktree of HEAD plus the working-tree changes, with no
+gitignored file present. A test that reads `ml/model_weights.json`, a dataset or a backtest
+folder passes locally and on the Codespace (both hold them) and fails only on CI; V6.1.0's red
+CI was exactly that. Tests bring their own artifacts in `tmp_path` instead.
+
 **V6.1.0 round files:** `test_v610_simulator_parity.py` (the simulator's daily member pass, whole-portfolio kill switch, weekend accrual, legacy signal, position cap, live analyzer, and the exit-cost / risk-off-severity fixes), `test_v610_forex_holidays.py` (Lean's forex calendar, reproducing a live GBPJPY momentum value from the real zip), `test_v610_model_ensemble.py` (live and offline seed-ensemble averaging agree to 1e-12), `test_v610_research.py` (the rule chain's pure pieces), `test_v610_config_decisions.py` (config pins with the rule that made them). `test_main_ensure_ready_smoke.py` also pins `on_data`'s setup order and the live ensemble path.

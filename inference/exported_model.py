@@ -1091,6 +1091,37 @@ def average_head_outputs(outputs: list[dict | None]) -> dict | None:
     return averaged
 
 
+def export_input_names(model_export: dict | None, default_names: list[str]) -> list[str]:
+    """The input features a model was trained on (`model.model_input_features` of its export); `default_names` when the
+    export does not record them (an older export trained on the full schema)."""
+    names = ((model_export or {}).get("model") or {}).get("model_input_features")
+    return list(names) if names else list(default_names)
+
+
+def model_input_index(model_export: dict | None, full_names: list[str]) -> list[int] | None:
+    """V6.2.0: positions of a model's own inputs inside the full live vector (`ml/feature_schema.json` order), so a model
+    trained on a feature subset gets exactly its inputs. None when they are the full vector in the same order (the
+    caller passes the vector through untouched); ValueError when the model needs a feature live never builds."""
+    names = export_input_names(model_export, full_names)
+    if names == list(full_names):
+        return None
+    position = {name: slot for slot, name in enumerate(full_names)}
+    missing = [name for name in names if name not in position]
+    if missing:
+        raise ValueError(f"model inputs not in the live feature vector: {missing[:5]}")
+    return [position[name] for name in names]
+
+
+def select_model_inputs(inputs: list[float], index: list[int] | None) -> list[float]:
+    """`inputs` itself when `index` is None (no copy), else the model's own subset in its own order."""
+    return inputs if index is None else [inputs[slot] for slot in index]
+
+
+def select_sequence_inputs(sequence: list[list[float]], index: list[int] | None) -> list[list[float]]:
+    """select_model_inputs on every bar of a (window, features) sequence."""
+    return sequence if index is None else [[row[slot] for slot in index] for row in sequence]
+
+
 def load_ensemble_member_exports(ensemble_dir: Path) -> list[dict]:
     """Every member export (`*.json`, sorted by name) of an ensemble directory; [] when the directory is missing."""
     import json

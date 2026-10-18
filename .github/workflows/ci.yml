@@ -6,6 +6,8 @@ name: CI
 # V5.5.0 - guard jobs for the offline/live-parity round: fast-guards,
 # subsystem-matrix, wheel-smoke, python-compat, docker-checks, parity-smoke,
 # secret-scan and test-count-drift. tests/test_ci_workflows.py pins them all.
+# V6.2.0 - Linux jobs pin ubuntu-24.04: ubuntu-latest moves to 26.04 from 2026-10-19
+# and setup-python's 3.11 builds for a new image can lag; the actions run on Node 24.
 on:
   push:
     branches: [main]
@@ -23,11 +25,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -51,18 +53,18 @@ jobs:
           --cov-fail-under=80
 
       - name: Upload coverage artifact
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-24.04'
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
           path: coverage.xml
 
   python-lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -84,12 +86,12 @@ jobs:
         run: python -m py_compile main.py
 
   dependency-audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -108,15 +110,15 @@ jobs:
           pip-audit --requirement requirements/requirements-dev.txt --desc
 
   webui-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
         working-directory: webui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: "npm"
@@ -135,12 +137,12 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
   cli-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -165,10 +167,10 @@ jobs:
           aq secrets-check
 
   workflows-lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # V5.3.10 - single-step pinned install + validate: the previous two-step
       # pattern (PATH append, then bare `actionlint`) failed with
@@ -186,12 +188,12 @@ jobs:
   # a docs link or a parity fix fails in minutes instead of after the whole
   # coverage matrix. They also run inside python-tests; this is the fast copy.
   fast-guards:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -223,16 +225,16 @@ jobs:
   # aq_cli.py::_SUBSYSTEM_TEST_FILES works, which the single full-tree run
   # never exercises. The full run above stays the coverage source of truth.
   subsystem-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         subsystem: [cli, audit, risk, portfolio, features, data-pipeline, webui, ml, retraining, notifications, storage, live, evaluation, meta]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -257,14 +259,14 @@ jobs:
   # every pyproject.toml packaging gap; this job found four missing packages
   # and a missing root module the first time it ran.
   wheel-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # setuptools-scm needs tags to version the wheel
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -290,12 +292,12 @@ jobs:
   # 3.11-only construct would ship unnoticed. Byte-compiling is syntax-only
   # (cheap, no dependencies); it still catches except*, 3.12 f-strings, etc.
   python-compat:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.10"
 
@@ -308,10 +310,10 @@ jobs:
   # V5.5.0 - Docker is never built with Lean in CI (the 40 GB base image does
   # not fit a hosted runner), but everything checkable without it is checked.
   docker-checks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Lint Dockerfiles (hadolint v2.12.0, errors only)
         run: |
@@ -331,12 +333,12 @@ jobs:
   # V5.5.0 - the new parity tooling, run in isolation so a regression in
   # the offline/live-parity measurements is named by the job that failed.
   parity-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -368,11 +370,11 @@ jobs:
   # V5.5.0 - ADVISORY until it has run once against the real history: a
   # first scan may flag historic dev defaults that need an allowlist entry.
   secret-scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Scan the working tree for secrets (gitleaks v8.18.4)
         run: |
@@ -385,13 +387,13 @@ jobs:
   # so it lags whenever a test is added in a commit that skipped it. This
   # surfaces the drift without blocking anyone.
   test-count-drift:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"

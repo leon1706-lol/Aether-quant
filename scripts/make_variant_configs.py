@@ -46,6 +46,11 @@ VARIANTS: dict[str, list[tuple[tuple[str, ...], object]]] = {
     "v8_rank60": [],
     "v9_reg": [(("weight_decay",), 0.16), (("dropout",), 0.5)],
     "v11_snr20": [(("early_stop_head",), "sector_neutral_rank_20d"), (("horizon_heads", "sector_neutral_rank_20d", "loss_weight"), 1.0)],
+    # V6.2.0 (lead 2): v9_reg pushed further - rank-label noise, and/or the train-chosen feature subset, which the
+    # session script passes as --feature-schema-path (ml/evaluation/v620/feature_schema_subset.json).
+    "v12_reg_noise": [(("weight_decay",), 0.16), (("dropout",), 0.5), (("label_noise_std",), 0.10)],
+    "v13_reg_subset": [(("weight_decay",), 0.16), (("dropout",), 0.5)],
+    "v14_reg_noise_subset": [(("weight_decay",), 0.16), (("dropout",), 0.5), (("label_noise_std",), 0.10)],
 }
 
 # Changes outside <model>_training, by absolute path; the leaf may be new (V6.0.0: the 60-day target).

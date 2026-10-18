@@ -13,6 +13,9 @@ and the non-overlapping mean / t at the head's horizon. The holdout is reported,
         [--each-member] [--out ml/evaluation/v610/model_ic.json]
 
 `--each-member` also scores every member alone (the seed spread R-MODEL9 clause 1 needs).
+`--bootstrap NAME` (V6.2.0, R-MODEL10) resamples that candidate's members with replacement (`--bootstrap-n` times, the
+same ensemble size per kind) and reports the spread of the resampled ensembles' validation decision IC: the noise of a
+seed ENSEMBLE, which is what an ensemble candidate has to beat (a single member's range overstates it).
 """
 
 from __future__ import annotations
@@ -123,11 +126,41 @@ def score(frame: pd.DataFrame, predictions: dict[str, dict[str, np.ndarray]], co
     return out
 
 
+def bootstrap_decision_ic(frame: pd.DataFrame, member_predictions: dict[str, list[dict[str, np.ndarray]]], config: dict,
+                          *, runs: int = 200, seed: int = 7) -> dict:
+    """Validation decision IC (both priorities) of `runs` ensembles drawn with replacement from each kind's members, and
+    the R-MODEL10 yardstick per key: max(0.02, 2 x their standard deviation)."""
+    rank_signal = config["phase_v2"]["rank_signal"]
+    rows = (frame["split"] == "validation").to_numpy() & frame["in_main_group"].to_numpy() & frame["training_eligible"].astype(bool).to_numpy()
+    part = frame.loc[rows]
+    rng = np.random.default_rng(seed)
+    values: dict[str, list[float]] = {"decision_rank_20d": [], "decision_rank_20d_swapped_priority": []}
+    for _ in range(int(runs)):
+        drawn = {}
+        for kind, members in member_predictions.items():
+            picks = rng.integers(0, len(members), size=len(members))
+            drawn[kind] = {head: np.mean(np.stack([members[i][head] for i in picks]), axis=0) for head in members[0]}
+        for key, priority in (("decision_rank_20d", list(rank_signal["model_priority"])),
+                              ("decision_rank_20d_swapped_priority", list(reversed(rank_signal["model_priority"])))):
+            decision = blend_decision_score(drawn, rank_signal["heads"], priority)
+            ic = ic_stats(part, decision[rows], "target_rank_20d", 20)["non_overlapping_mean_ic"]
+            if ic is not None:
+                values[key].append(float(ic))
+    out = {}
+    for key, series in values.items():
+        std = float(np.std(series, ddof=1)) if len(series) > 1 else 0.0
+        out[key] = {"runs": len(series), "mean": float(np.mean(series)) if series else None, "std": std,
+                    "yardstick": max(0.02, 2.0 * std)}
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dataset", default=str(ROOT_DIR / "ml" / "datasets" / "full_dataset.csv"))
     parser.add_argument("--candidate", action="append", required=True)
     parser.add_argument("--each-member", action="store_true")
+    parser.add_argument("--bootstrap", default=None, help="V6.2.0: candidate whose members are resampled (R-MODEL10 noise)")
+    parser.add_argument("--bootstrap-n", type=int, default=200)
     parser.add_argument("--out", default=str(ROOT_DIR / "ml" / "evaluation" / "v610" / "model_ic.json"))
     args = parser.parse_args()
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
@@ -154,6 +187,10 @@ def main() -> int:
                             single[other] = predictions[other]
                     singles[directory] = score(frame, single, config)
             report["candidates"][name]["members_scored"] = singles
+        if args.bootstrap == name:
+            per_member = {kind: [predict_kind(frame, [directory], kind, window) for directory in dirs] for kind, dirs in members.items()}
+            report["bootstrap"] = {"candidate": name, **bootstrap_decision_ic(frame, per_member, config, runs=args.bootstrap_n)}
+            print("bootstrap", json.dumps(report["bootstrap"]), flush=True)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(report, indent=1, default=float), encoding="utf-8")
     print(f"written {args.out}")

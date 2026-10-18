@@ -489,3 +489,17 @@ def resolve_benchmark_ticker(runtime: dict | None, universe_tickers) -> str | No
         return None
     wanted = str(ticker).upper()
     return next((str(t) for t in universe_tickers if str(t).upper() == wanted), None)
+
+
+def resolve_trading_days_per_year(runtime: dict | None) -> int | None:
+    """`runtime.trading_days_per_year` for Lean's statistics (V6.2.0), or None to keep Lean's default (252 under the
+    default brokerage model). The equity curve holds a point for every calendar day once crypto trades on weekends, so
+    365 annualises it the way Lean itself does for a crypto brokerage. Only Lean's reported statistics change."""
+    value = (runtime or {}).get("trading_days_per_year")
+    if value is None:
+        return None
+    try:
+        days = int(value)
+    except (TypeError, ValueError):
+        return None
+    return days if 200 <= days <= 366 else None

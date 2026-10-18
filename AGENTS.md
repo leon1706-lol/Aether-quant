@@ -127,7 +127,8 @@ Docker rebuild is required before any paper/live deploy once material code chang
 ## Wrap-up checklist
 
 After every code change: tests added → `aq test` + ruff green → docs updated (see
-Conventions) → vault regenerated:
+Conventions) → vault regenerated. Before handing over a commit, also run
+`scripts/clean_checkout_test.ps1` (CI's checkout has no gitignored files):
 
 ```powershell
 cd Aether-quant-Obsidian-Vault

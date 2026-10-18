@@ -567,6 +567,7 @@ def should_rebalance_this_bar(
     rebalance_every_bars: int,
     has_previous_allocation: bool,
     is_trading_day_bar: bool = True,
+    phase_offset: int = 0,
 ) -> bool:
     """Stage 2 of the rank-pivot roadmap (development/Problems.md#43): the
     book previously re-ranked and re-formed on EVERY bar, churning positions
@@ -598,12 +599,45 @@ def should_rebalance_this_bar(
 
     Returns True on bar_index 1, 1+N, 1+2N, ... (i.e. 0, N, 2N, ... in
     0-indexed bar terms) - False on every bar in between, where the caller
-    should reuse its previously cached allocation and simply hold."""
+    should reuse its previously cached allocation and simply hold.
+
+    `phase_offset` (V6.2.0, staggered tranches): shifts the cadence by that many bars (0 = the cadence above)."""
     if not is_trading_day_bar:
         return False
     if not has_previous_allocation:
         return True
-    return (bar_index - 1) % max(1, rebalance_every_bars) == 0
+    return (bar_index - 1 - int(phase_offset)) % max(1, rebalance_every_bars) == 0
+
+
+def tranche_offsets(rebalance_every_bars: int, tranches: int) -> list[int]:
+    """V6.2.0 staggered book: the phase offset of each of `tranches` sub-books, spread evenly over one cadence
+    (20 bars, 2 tranches -> [0, 10]). One tranche -> [0], the single book."""
+    count = max(1, int(tranches))
+    every = max(1, int(rebalance_every_bars))
+    return [int(round(index * every / count)) % every for index in range(count)]
+
+
+def tranche_book_params(top_n: int, bottom_n: int, gross_exposure_cap: float, tranches: int,
+                        max_active_positions: int | None = None) -> dict:
+    """One tranche's share of the book: ceil(top_n / K) longs and ceil(bottom_n / K) shorts (a side with 0 names stays 0),
+    gross cap / K and, when given, ceil(position cap / K) positions. K = 1 returns the book's own values."""
+    count = max(1, int(tranches))
+    return {
+        "top_n": -(-int(top_n) // count) if top_n else 0,
+        "bottom_n": -(-int(bottom_n) // count) if bottom_n else 0,
+        "gross_exposure_cap": float(gross_exposure_cap) / count,
+        "max_active_positions": (-(-int(max_active_positions) // count)) if max_active_positions else max_active_positions,
+    }
+
+
+def combine_tranche_weights(tranche_weights: list[dict[str, float]]) -> dict[str, float]:
+    """The live book target: the sum of the tranches' signed weights per name (a name held by two tranches nets); names
+    that net to zero are dropped."""
+    combined: dict[str, float] = {}
+    for weights in tranche_weights:
+        for symbol, weight in weights.items():
+            combined[symbol] = combined.get(symbol, 0.0) + float(weight)
+    return {symbol: weight for symbol, weight in combined.items() if weight != 0.0}
 
 
 def should_exit_non_selected_book_symbol(

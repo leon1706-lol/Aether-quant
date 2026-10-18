@@ -60,9 +60,14 @@ def test_v610_harness_warms_the_gate_on_earlier_rows_and_models_the_legacy_signa
     probability.to_csv(tmp_path / "p.csv", index=False)
     monkeypatch.setattr(aq_cli, "_blend_raw_scores_for_dataset",
                         lambda frame, *a, **k: (np.asarray([hash(t) % 1000 / 1000 for t in frame["ticker"]], dtype=float), {}))
+    # ml/model_weights.json is gitignored: a clean checkout (CI) has none, so the test brings its own.
+    ml_stub = tmp_path / "ml"
+    ml_stub.mkdir()
+    (ml_stub / "model_weights.json").write_text(json.dumps({"training": {"decision_threshold": 0.5}}), encoding="utf-8")
+    monkeypatch.setattr(levers, "CACHE_DIR", tmp_path / "cache")
 
     harness = levers.AsLiveHarness("validation", dataset_path=tmp_path / "d.csv", use_cache=False, gate_warmup_days=45,
-                                   legacy_probability_path=tmp_path / "p.csv")
+                                   legacy_probability_path=tmp_path / "p.csv", ml_dir=ml_stub)
     assert harness.context_frame is not None and harness.context_frame["date"].max() < "2022-01-01"
     assert harness.frame["date"].min() >= "2022-01-01"
     assert levers.LEGACY_PROBABILITY_COLUMN in harness.frame.columns

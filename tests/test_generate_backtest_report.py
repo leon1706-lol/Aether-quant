@@ -380,6 +380,10 @@ def test_a_pinned_run_wins_over_the_newest_and_clearing_the_pin_restores_the_new
             "charts": {"Strategy Equity": {"series": {"Equity": {"values": [[1, 1, 1, 1, 1]]}}}},
             "statistics": {"Sharpe Ratio": sharpe},
         }), encoding="utf-8")
+    import os
+
+    os.utime(backtests / "2026-10-15_run", (1_000_000, 1_000_000))  # explicit order: the 16th is the newer folder
+    os.utime(backtests / "2026-10-16_run", (2_000_000, 2_000_000))
     pin = tmp_path / "pin.json"
     monkeypatch.setattr(report, "BACKTESTS_DIR", backtests)
     monkeypatch.setattr(report, "PIN_PATH", pin)
@@ -390,3 +394,15 @@ def test_a_pinned_run_wins_over_the_newest_and_clearing_the_pin_restores_the_new
     assert report.find_latest_backtest_result_json(backtests).parent.name == "2026-10-16_run"
     pin.write_text(_json.dumps({"run": "no_such_run"}), encoding="utf-8")  # a stale pin falls back to the newest
     assert report.find_latest_backtest_result_json(backtests).parent.name == "2026-10-16_run"
+
+
+def test_folders_with_equal_mtimes_are_ordered_by_name(tmp_path):
+    import os
+
+    import generate_backtest_report as report
+
+    for name in ("2026-10-15_run", "2026-10-16_run"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "1.json").write_text("{}", encoding="utf-8")
+        os.utime(tmp_path / name, (5_000_000, 5_000_000))
+    assert [path.parent.name for path in report._iter_backtest_result_jsons(tmp_path)] == ["2026-10-16_run", "2026-10-15_run"]

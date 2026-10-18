@@ -54,6 +54,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from train import (
+    add_rank_label_noise,
     HORIZON_HEAD_SPECS,
     AetherNetMultiTaskHorizons,
     assess_net_performance_quality,
@@ -332,6 +333,7 @@ def main() -> int:
         swa_start_epoch_fraction = float(swa_config.get("start_epoch_fraction", 0.7))
         early_stop_head = str(training_config.get("early_stop_head", "rank_20d"))
         early_stop_smoothing_epochs = int(training_config.get("early_stop_smoothing_epochs", 1))
+        label_noise_std = float(training_config.get("label_noise_std", 0.0))
 
         feature_schema_path = Path(args.feature_schema_path)
         if not feature_schema_path.exists():
@@ -394,6 +396,7 @@ def main() -> int:
             return 0
 
         set_seed(seed)
+        label_noise_generator = torch.Generator().manual_seed(seed + 7919) if label_noise_std > 0.0 else None
         device = torch.device("cpu")
 
         train_features, train_targets = frame_to_multitask_tensors(train_frame, feature_names, head_specs)
@@ -549,6 +552,7 @@ def main() -> int:
 
             for batch_features, batch_targets, batch_group_ids, batch_date_weights in batch_source:
                 optimizer.zero_grad()
+                batch_targets = add_rank_label_noise(batch_targets, head_specs, label_noise_std, label_noise_generator)
                 outputs = model(batch_features)
                 loss = compute_combined_multitask_loss(
                     outputs,

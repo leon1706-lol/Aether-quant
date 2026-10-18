@@ -1,14 +1,14 @@
 {
     "name": "Aether Quant DinD v1 Test",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
     "features": {
         "ghcr.io/devcontainers/features/sshd:1": {
             "version": "latest"
         },
-        "ghcr.io/devcontainers/features/docker-in-docker:1": {}
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
     },
     "hostRequirements": {
-        "cpus": 2,
-        "memory": "8gb"
+        "cpus": 4,
+        "memory": "16gb"
     }
 }

@@ -181,3 +181,21 @@ def evaluate_rolling_ic_gate(rolling_ic_state: dict, config: dict) -> dict:
         "min_rolling_mean_ic": min_rolling_mean_ic,
         "num_resolved_dates": num_resolved_dates,
     }
+
+
+LATE_BAR_SECURITY_TYPES = frozenset({"forex", "crypto"})
+LATE_BAR_EVENT_COUNTS = ("per_tick", "once")
+
+
+def resolve_late_bar_event_count(gate_config: dict | None) -> str:
+    """`rolling_ic_gate.late_bar_event_count` (V6.2.0): "per_tick" (default, the behaviour up to V6.1.0) records a
+    crypto / forex symbol's event on its own midnight tick AND again on the next equity tick, where its last bar is
+    re-scored, so it weighs twice per date in the gate's IC; "once" records it on its own tick only."""
+    value = str((gate_config or {}).get("late_bar_event_count", "per_tick")).lower()
+    return value if value in LATE_BAR_EVENT_COUNTS else "per_tick"
+
+
+def should_record_ic_event(security_type: str, fresh_bar: bool, mode: str) -> bool:
+    """Whether this tick's rank event for one symbol enters the rolling-IC buffer: always, except a late-bar symbol
+    re-scored without a fresh bar under "once". Shared by main.py and the offline replica (evaluation.live_parity)."""
+    return not (mode == "once" and str(security_type).lower() in LATE_BAR_SECURITY_TYPES and not fresh_bar)

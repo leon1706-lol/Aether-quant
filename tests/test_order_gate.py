@@ -10,6 +10,7 @@ from execution import (
     resolve_fill_slippage,
     resolve_fill_slippage_source,
     resolve_limit_order_timeout_action,
+    resolve_cash_sweep_order_permission,
     resolve_limit_price,
     resolve_order_permission,
     resolve_runtime_mode,
@@ -586,3 +587,11 @@ def test_a_per_class_limit_setting_falls_back_to_the_global_value():
     assert resolve_limit_setting_by_class("crypto", {"crypto": 5}, 3) == 5 and isinstance(resolve_limit_setting_by_class("crypto", {"crypto": 5.0}, 3), int)
     assert resolve_limit_setting_by_class("equity", {"crypto": 5}, 3) == 3
     assert resolve_limit_setting_by_class("crypto", {}, 3) == 3 and resolve_limit_setting_by_class(None, {"crypto": 5}, 3) == 3
+
+
+def test_the_cash_sweep_ignores_strategy_locks_but_not_the_mode_gates():
+    assert resolve_cash_sweep_order_permission("backtest", False, False)[0] is True
+    assert resolve_cash_sweep_order_permission("observation", True, True)[0] is False
+    assert resolve_cash_sweep_order_permission("paper", True, True) == (True, "paper_orders_enabled")
+    assert resolve_cash_sweep_order_permission("live", True, False)[0] is False
+    assert resolve_order_permission("paper", True, True, risk_locks_healthy=False)[0] is False  # the strategy stays locked

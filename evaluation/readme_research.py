@@ -195,6 +195,36 @@ def _rule_chain_lines(evaluation_dir: Path) -> list[str]:
     return ["| Stage | Adopted | Backtest-Sharpe gain per variant (median over rebalance phases) |", "|---|---|---|", *rows]
 
 
+def _rule_chain_v620_lines(evaluation_dir: Path) -> list[str]:
+    """V6.2.0's chain (v620/research.json): R-DEDUPE on the gated book, R-STAGGER and R-MODEL10 on the ungated one."""
+    report = load_json(evaluation_dir / "v620" / "research.json")
+    if not isinstance(report, dict):
+        return ["_Not run yet: `python scripts/v620_research.py` (rules R-DEDUPE, R-STAGGER, R-MODEL10)._"]
+    rows = []
+    dedupe = report.get("dedupe")
+    if isinstance(dedupe, dict):
+        verdict = dedupe.get("verdict") or {}
+        rows.append(f"| R-DEDUPE (crypto counted once in the gate) | {'adopted' if dedupe.get('adopted') else 'none (double count stays)'} "
+                    f"| once: backtest {_num(verdict.get('backtest_gain'))}, validation {_num(verdict.get('validation_change'))} (gated) |")
+    stagger = report.get("stagger")
+    if isinstance(stagger, dict):
+        detail = []
+        for name, value in (stagger.get("variants") or {}).items():
+            verdict = value.get("verdict") or {}
+            failed = [key for key, ok in {**verdict.get("checks", {}), **verdict.get("extra_checks", {})}.items() if not ok]
+            detail.append(f"{name}: backtest {_num(verdict.get('backtest_gain'))}, validation {_num(verdict.get('validation_change'))}"
+                          + (f" (fails {', '.join(failed)})" if failed else ""))
+        rows.append(f"| R-STAGGER (tranche book) | {stagger.get('adopted') or 'none (one book stays)'} | {'; '.join(detail) or 'n/a'} |")
+    model = report.get("model")
+    if isinstance(model, dict):
+        skipped = [name for name, value in (model.get("variants") or {}).items() if "skipped" in value]
+        rows.append(f"| R-MODEL10 (regularised ensembles) | {model.get('adopted') or 'none (installed models stay)'} "
+                    f"| {len(skipped)} candidates fail the IC clauses (yardstick: resampled control ensembles) |")
+    if not rows:
+        return ["_V6.2.0 rule chain has no stage results yet._"]
+    return ["| Rule | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]
+
+
 def _crypto_row(research: dict | None) -> str | None:
     if not research:
         return None
@@ -356,6 +386,8 @@ def build_research_markdown(evaluation_dir: Path) -> str:
         "**V6.1.0 rule chain** (each variant is one change, scored on every rebalance phase of both splits; the holdout is "
         "never used to select)",
         "\n".join(_rule_chain_lines(evaluation_dir)),
+        "**V6.2.0 rule chain** (pre-registered, the T-bill sweep off in every score so alpha is judged ex-carry)",
+        "\n".join(_rule_chain_v620_lines(evaluation_dir)),
         "**Where the rank edge sits** (pooled vs between-class vs within-class IC against the 20-day return)",
         "\n".join(_class_ic_lines(evaluation_dir)),
         "**Rolling-IC gate audit** (a false veto is a vetoed date whose realised book return was positive)",

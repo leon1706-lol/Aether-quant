@@ -82,6 +82,13 @@ def resolve_order_permission(
     return False, "unknown_mode_defaults_to_no_orders"
 
 
+def resolve_cash_sweep_order_permission(mode: str, allow_live_orders: bool, broker_config_present: bool) -> tuple[bool, str]:
+    """V6.2.0: whether the T-bill cash sweep may trade. The strategy's risk locks (kill switch, drawdown lock, manual
+    lock) stop the strategy, not cash management, so they are not consulted; every other gate of
+    resolve_order_permission (observation never trades, paper / live need the flag and the broker config) applies."""
+    return resolve_order_permission(mode, allow_live_orders, broker_config_present, risk_locks_healthy=True)
+
+
 def slippage_amount(reference_price: float, slippage_bps: float) -> float:
     """Absolute per-unit price slippage for a given bps estimate.
 

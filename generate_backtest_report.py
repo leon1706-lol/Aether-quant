@@ -79,7 +79,8 @@ def _iter_backtest_result_jsons(backtests_dir: Path) -> Iterator[Path]:
         return
     run_dirs = sorted(
         (d for d in backtests_dir.iterdir() if d.is_dir()),
-        key=lambda d: d.stat().st_mtime,
+        # equal mtimes (folders created within one filesystem tick) fall back to the name, chronological for Lean's folders
+        key=lambda d: (d.stat().st_mtime, d.name),
         reverse=True,
     )
     for run_dir in run_dirs:

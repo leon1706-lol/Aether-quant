@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 LEAN_EQUITY_PRICE_SCALE = 1.0 / 10_000.0
-COMPONENTS = ("main_book", "legacy", "legacy_crypto", "bond_sleeve", "forex_sleeve", "crypto_core", "crypto_graduate")
+COMPONENTS = ("main_book", "legacy", "legacy_crypto", "bond_sleeve", "forex_sleeve", "crypto_core", "crypto_graduate", "cash_sweep")
 
 
 @dataclass(frozen=True)
@@ -88,6 +88,9 @@ def read_daily_closes(zip_path: Path, price_scale: float = 1.0) -> dict[str, flo
 def closes_for_universe(config: dict, root: Path, tickers: set[str]) -> dict[str, dict[str, float]]:
     """Daily closes of `tickers` (plus the forex rates needed to convert quote currencies) from their config zips."""
     assets = {str(asset["ticker"]).upper(): asset for asset in config["phase1"]["universe"]["assets"]}
+    sweep = (config.get("phase_v2", {}) or {}).get("cash_sweep") or {}
+    if sweep.get("ticker") and sweep.get("data_path"):  # V6.2.0: the T-bill sweep is outside the universe
+        assets.setdefault(str(sweep["ticker"]).upper(), {"security_type": "equity", "data_path": sweep["data_path"]})
     wanted = set(tickers)
     for ticker in tickers:
         if assets.get(ticker, {}).get("security_type") == "forex":
@@ -183,6 +186,8 @@ def formed_book_by_date(book_history: list[dict], dates: list[str]) -> dict[str,
 
 
 def component_of(ticker: str, asset_class: str, members: frozenset[str], core_crypto: set[str]) -> str:
+    if asset_class == "cash_sweep":
+        return "cash_sweep"
     if asset_class == "bond":
         return "bond_sleeve"
     if asset_class == "forex":
@@ -323,6 +328,9 @@ def attribute_run(
         str(asset["ticker"]).upper(): str(asset.get("asset_class") or asset.get("security_type"))
         for asset in config["phase1"]["universe"]["assets"]
     }
+    sweep_ticker = ((config.get("phase_v2", {}) or {}).get("cash_sweep") or {}).get("ticker")
+    if sweep_ticker:
+        class_by_ticker.setdefault(str(sweep_ticker).upper(), "cash_sweep")
     if core_crypto is None:
         caps = (config.get("phase_v2", {}).get("class_weight_caps", {}) or {}).get("crypto", {}) or {}
         core_crypto = {str(ticker).upper() for ticker in caps.get("exempt", [])}
@@ -395,13 +403,26 @@ def run_config_path(run_dir: Path, root: Path) -> Path | None:
     return None
 
 
-def find_book_history_for_run(run_dir: Path, book_history_dir: Path) -> Path | None:
-    """The per-run book-history file (`<UTC start>.jsonl`) that started closest to the run folder's own timestamp
-    (`YYYY-MM-DD_HH-MM-SS`, local time): runs are hours apart, the time-zone offset is not."""
+def _engine_log_start_utc(log_path: Path) -> datetime | None:
+    """The first line's timestamp of a Lean engine log (`2026-10-16T16:27:41.28Z TRACE:: ...`), naive UTC; None if absent."""
     try:
-        started = datetime.strptime(Path(run_dir).name[:19], "%Y-%m-%d_%H-%M-%S")
-    except ValueError:
+        with open(log_path, encoding="utf-8", errors="replace") as handle:
+            first = handle.readline()
+        return datetime.strptime(first[:19], "%Y-%m-%dT%H:%M:%S")
+    except (OSError, ValueError):
         return None
+
+
+def find_book_history_for_run(run_dir: Path, book_history_dir: Path) -> Path | None:
+    """The per-run book-history file (`<UTC start>.jsonl`) that started closest to the run's start: the engine log's
+    first UTC timestamp when the run has one (V6.2.0: the folder name is LOCAL time, and two runs three hours apart on
+    a UTC+2 host matched each other's file), else the folder's own `YYYY-MM-DD_HH-MM-SS`."""
+    started = _engine_log_start_utc(Path(run_dir) / "log.txt")
+    if started is None:
+        try:
+            started = datetime.strptime(Path(run_dir).name[:19], "%Y-%m-%d_%H-%M-%S")
+        except ValueError:
+            return None
     best, best_gap = None, None
     for path in Path(book_history_dir).glob("*.jsonl"):
         try:

@@ -92,6 +92,7 @@ def test_book_membership_survives_a_veto_and_components_follow_it():
     assert component_of("ADAUSD", "crypto", members["2024-02-01"], core) == "legacy_crypto"
     assert component_of("TLT", "bond", frozenset({"TLT"}), core) == "bond_sleeve"
     assert component_of("EURUSD", "forex", frozenset(), core) == "forex_sleeve"
+    assert component_of("BIL", "cash_sweep", frozenset({"BIL"}), core) == "cash_sweep"  # V6.2.0, never a book name
     daily = component_daily_pnl(
         {"2024-01-20": {"AAA": {"pnl": 5.0, "fee": 1.0, "position": 1, "fills": 1, "limit_fills": 0, "notional": 10.0}}},
         {"AAA": "equity"}, members, core,
@@ -154,3 +155,30 @@ def test_a_runs_config_is_its_code_snapshot_or_the_frozen_copy(tmp_path):
     (run / "code").mkdir()
     (run / "code" / "config.json").write_text("{}", encoding="utf-8")
     assert run_config_path(run, tmp_path) == run / "code" / "config.json"
+
+
+def test_the_cash_sweep_ticker_gets_its_closes_from_its_own_data_path(tmp_path):
+    from evaluation.lean_attribution import closes_for_universe
+
+    path = tmp_path / "data" / "equity" / "usa" / "daily" / "bil.zip"
+    path.parent.mkdir(parents=True)
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("bil.csv", "20240102 00:00,913000,913100,913000,913100,1000\n")
+    config = {"phase1": {"universe": {"assets": []}},
+              "phase_v2": {"cash_sweep": {"ticker": "BIL", "data_path": "data/equity/usa/daily/bil.zip"}}}
+    closes = closes_for_universe(config, tmp_path, {"BIL"})
+    assert closes["BIL"] == {"2024-01-02": pytest.approx(91.31)}
+
+
+def test_the_book_history_lookup_uses_the_engine_logs_utc_start(tmp_path):
+    from evaluation.lean_attribution import find_book_history_for_run
+
+    history = tmp_path / "book_history"
+    history.mkdir()
+    for stem in ("20261016T163100Z", "20261016T193428Z"):
+        (history / f"{stem}.jsonl").write_text("", encoding="utf-8")
+    run = tmp_path / "2026-10-16_18-23-01"  # local time (UTC+2): by name alone 19:34Z is closer
+    run.mkdir()
+    assert find_book_history_for_run(run, history).name == "20261016T193428Z.jsonl"
+    (run / "log.txt").write_text("2026-10-16T16:27:41.2877911Z TRACE:: Engine.Main(): LEAN\n", encoding="utf-8")
+    assert find_book_history_for_run(run, history).name == "20261016T163100Z.jsonl"

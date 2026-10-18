@@ -16,6 +16,9 @@ from .book_construction import (
     should_exit_non_selected_book_symbol,
     should_hold_owned_position_on_veto,
     should_rebalance_this_bar,
+    combine_tranche_weights,
+    tranche_book_params,
+    tranche_offsets,
     update_book_owned_symbols,
 )
 from .book_neutrality import apply_book_neutrality
@@ -53,5 +56,8 @@ __all__ = [
     "should_exit_non_selected_book_symbol",
     "should_hold_owned_position_on_veto",
     "should_rebalance_this_bar",
+    "combine_tranche_weights",
+    "tranche_book_params",
+    "tranche_offsets",
     "update_book_owned_symbols",
 ]

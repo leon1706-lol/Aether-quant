@@ -4903,6 +4903,29 @@ def resolve_horizon_head_config(training_config: dict) -> dict:
     return resolved
 
 
+def add_rank_label_noise(
+    batch_targets: dict, head_specs: dict, noise_std: float, generator: torch.Generator | None
+) -> dict:
+    """V6.2.0 regulariser: Gaussian noise of `noise_std` x the batch's own target std on every "rank"-kind head's
+    targets, clipped to the batch's observed range so a percentile target stays a percentile. NaN (masked) targets
+    stay NaN and binary / regression heads are untouched. `noise_std <= 0` returns the input dict itself, so a run
+    without the knob is bit-identical."""
+    if noise_std <= 0.0:
+        return batch_targets
+    noisy = dict(batch_targets)
+    for name, (_column, kind, _stride) in head_specs.items():
+        target = batch_targets.get(name)
+        if kind != "rank" or target is None:
+            continue
+        finite = torch.isfinite(target)
+        if int(finite.sum()) < 2:
+            continue
+        values = target[finite]
+        noise = torch.randn(target.shape, generator=generator, dtype=target.dtype) * (float(values.std()) * noise_std)
+        noisy[name] = torch.where(finite, (target + noise).clamp(float(values.min()), float(values.max())), target)
+    return noisy
+
+
 def _pairwise_consistency_penalty(values_a: torch.Tensor, values_b: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     """Core of compute_horizon_consistency_loss() below - shared between the
     rank pair (rank_5d/rank_20d, already ~[0,1]-scaled by their own MSE

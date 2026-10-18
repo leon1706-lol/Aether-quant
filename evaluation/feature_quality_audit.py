@@ -115,3 +115,31 @@ def permutation_ic_drop(
         value = _daily_ic(scored, "_score", target, date_column, min_names)
         drops[feature] = None if value is None else float(base - value)
     return drops
+
+
+def select_feature_subset(
+    features: list[str],
+    *,
+    permutation_drop: dict[str, float | None],
+    early_ic: dict[str, float | None],
+    late_ic: dict[str, float | None],
+    ticker_id_suspects: list[str],
+    min_abs_ic: float = 0.002,
+) -> dict:
+    """V6.2.0 smaller input set, chosen on the TRAIN split only (validation stays the judge). A feature is kept when the
+    installed model uses it (permutation drop > 0 on the late train window), its own daily IC has the same sign and at
+    least `min_abs_ic` size in both train halves (an in-sample drop alone keeps almost everything an overfit model
+    touches), and it is not a ticker-ID suspect. Order follows `features` (the live vector's)."""
+    kept, reasons = [], {}
+    suspects = set(ticker_id_suspects)
+    for feature in features:
+        drop, early, late = permutation_drop.get(feature), early_ic.get(feature), late_ic.get(feature)
+        if feature in suspects:
+            reasons[feature] = "ticker_id_suspect"
+        elif drop is None or drop <= 0.0:
+            reasons[feature] = "unused_by_model"
+        elif early is None or late is None or abs(early) < min_abs_ic or abs(late) < min_abs_ic or np.sign(early) != np.sign(late):
+            reasons[feature] = "unstable_train_ic"
+        else:
+            kept.append(feature)
+    return {"kept": kept, "dropped": reasons}

@@ -1626,6 +1626,27 @@ limit fill is skipped, because its gap to the bar open is intraday drift bounded
 by the limit price, not a cost (Problems #148/#153; BT7 halved the locked
 dates). A residual non-limit contributor is documented in #153.
 
+### V6.2.0 contracts (Problems #199-#203)
+
+- **T-bill cash sweep** (`phase_v2.cash_sweep`): `portfolio/cash_sweep.py` sizes it in `main.py`
+  (after Pass 2, from holdings plus open orders and the next session's possible orders) and in
+  the simulator (`simulate_rank_book(cash_sweep=)`, from the weights just decided) with the
+  same functions; parity test `tests/test_v620_cash_sweep_parity.py`. The risk controls read
+  the strategy's own value (`advance_strategy_value`: strategy P&L over the total NAV), which
+  is the simulator kill switch's input (book + legacy return as a fraction of NAV). Live-only:
+  the buying-power reserve before a rebalance attempt exists because Lean checks buying power at
+  submission; the simulator has no buying-power model and applies the same reserve.
+- **Rolling-IC event count** (`rolling_ic_gate.late_bar_event_count`): one predicate,
+  `portfolio.rolling_ic_gate.should_record_ic_event`, decides live's buffer and the offline replica.
+- **Tranche book**: offline only (`evaluation/tranche_book.py`, the sum of K phase-shifted runs);
+  R-STAGGER adopted nothing, so live keeps one book and `should_rebalance_this_bar(phase_offset=0)`.
+- **Per-model inputs**: a model's own `model_input_features` select its inputs in `main.py`
+  (`model_input_index`) and in `evaluation.model_predictions.predict_heads`; identical lists are
+  passed through untouched (every installed model).
+- **Lean statistics basis**: `runtime.trading_days_per_year` is live-only measurement (Lean's
+  reported statistics); the simulator annualises its trading-date series at 252, which is
+  correct for that series. `evaluation/lean_statistics.py` reproduces Lean's numbers exactly.
+
 ### Diagnostics contract (all default off in code)
 
 `phase_v2.diagnostics.timing_probe` (one `timing-probe:` line at shutdown, no

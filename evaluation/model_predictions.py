@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from inference.exported_model import (
+    export_input_names,
     resolve_sequence_window_size,
     run_exported_multitask_model,
     run_exported_multitask_model_rows,
@@ -209,6 +210,8 @@ def predict_heads(
     bit-identical values. Same conventions: unknown head -> NaN, `row_mask` rows only (rest NaN)."""
     if model_kind not in {"multitask", "sequence"}:
         raise ValueError(f"unknown model_kind {model_kind!r} - expected 'multitask' or 'sequence'")
+    # V6.2.0: the export's own input list wins (a feature-subset model), as main.py's model_input_index does live
+    feature_names = export_input_names(model_export, feature_names)
     predictions = {head: np.full(len(dataset), np.nan, dtype=np.float64) for head in heads}
     if batched:
         return _predict_heads_batched(

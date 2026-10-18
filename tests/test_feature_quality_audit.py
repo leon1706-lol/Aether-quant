@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from evaluation.feature_quality_audit import feature_quality, permutation_ic_drop
+from evaluation.feature_quality_audit import feature_quality, permutation_ic_drop, select_feature_subset
 
 
 def _frame(seed: int = 5) -> pd.DataFrame:
@@ -37,3 +37,17 @@ def test_permutation_drop_is_positive_for_a_used_feature_only():
     frame = _frame()
     drops = permutation_ic_drop(frame, ["good", "volume_z"], lambda f: f["good"].to_numpy(), min_names=5)
     assert drops["good"] > 0.5 and abs(drops["volume_z"]) < 1e-12
+
+
+def test_the_v620_subset_keeps_used_stable_non_id_features_in_the_live_order():
+    features = ["a", "b", "c", "d", "e"]
+    subset = select_feature_subset(
+        features,
+        permutation_drop={"a": 0.01, "b": 0.0, "c": 0.02, "d": 0.03, "e": 0.01},
+        early_ic={"a": 0.01, "b": 0.01, "c": 0.01, "d": -0.01, "e": 0.01},
+        late_ic={"a": 0.02, "b": 0.02, "c": -0.01, "d": -0.02, "e": 0.0005},
+        ticker_id_suspects=["a"],
+    )
+    assert subset["kept"] == ["d"]
+    assert subset["dropped"] == {"a": "ticker_id_suspect", "b": "unused_by_model", "c": "unstable_train_ic",
+                                 "e": "unstable_train_ic"}

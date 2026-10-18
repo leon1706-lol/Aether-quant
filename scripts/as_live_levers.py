@@ -159,9 +159,12 @@ class AsLiveHarness:
         self._mechanisms: dict = {}
 
     # -- gates ---------------------------------------------------------------------------------------------------
-    def gate_for(self, frame, *, ic_floor=None, horizon_days=None, rolling_window_days=None, min_names=None):
-        """Rolling-IC gate for `frame`'s scores. The state depends on (horizon, window, min names) only, so every floor
-        variant shares it; the floor is applied afterwards."""
+    def gate_for(self, frame, *, ic_floor=None, horizon_days=None, rolling_window_days=None, min_names=None,
+                 late_bar_event_count=None):
+        """Rolling-IC gate for `frame`'s scores. The state depends on (horizon, window, min names, how late-bar events
+        are counted) only, so every floor variant shares it; the floor is applied afterwards."""
+        from portfolio.rolling_ic_gate import resolve_late_bar_event_count
+
         from evaluation.live_parity import make_rolling_ic_gate_fn
         from evaluation.rolling_ic_gate_calibration import build_event_buffer
         from evaluation.rolling_ic_series import make_rolling_ic_state_fn
@@ -169,7 +172,10 @@ class AsLiveHarness:
         horizon = int(horizon_days if horizon_days is not None else self.ic_config.get("horizon_days", 20))
         window = int(rolling_window_days if rolling_window_days is not None else self.ic_config.get("rolling_window_days", 40))
         names = int(min_names if min_names is not None else self.ic_config.get("min_names_per_date", 10))
-        state_key = (id(frame), horizon, window, names)
+        event_count = resolve_late_bar_event_count(
+            {"late_bar_event_count": late_bar_event_count} if late_bar_event_count else self.ic_config
+        )
+        state_key = (id(frame), horizon, window, names, event_count)
         if state_key not in self._states:
             from evaluation.live_parity import main_group_tickers
 
@@ -182,7 +188,8 @@ class AsLiveHarness:
             # live records a crypto event on its own tick and again on the equity tick (evaluation.live_parity.with_live_event_duplicates)
             from evaluation.live_parity import with_live_event_duplicates
 
-            event_frame = with_live_event_duplicates(event_frame, self.late_bar_tickers)
+            if event_count == "per_tick":
+                event_frame = with_live_event_duplicates(event_frame, self.late_bar_tickers)
             self._states[state_key] = make_rolling_ic_state_fn(
                 build_event_buffer(event_frame, raw_score_column="live_rank_score"),
                 horizon_days=horizon, rolling_window_days=window, min_names_per_date=names,
@@ -250,9 +257,12 @@ class AsLiveHarness:
         return simulate_rank_book(self.frame, **dict(self.base))
 
     def as_live(self, *, lagged=True, ic_floor=None, gate="on", include=("kill_switch", "member_sizing", "hrp", "impact"),
-                gate_window=None, gate_horizon=None, gate_min_names=None, config_overrides=None, **overrides):
+                gate_window=None, gate_horizon=None, gate_min_names=None, config_overrides=None, cash_sweep=False,
+                gate_event_count=None, tranches=1, **overrides):
         """One as-live run. `include` selects the optional mechanisms (kill switch, member sizing chain, HRP, impact);
-        `config_overrides` ({dotted.phase_v2.key: value}) changes the live config for this run only."""
+        `config_overrides` ({dotted.phase_v2.key: value}) changes the live config for this run only; `cash_sweep` adds
+        the V6.2.0 T-bill sweep (its own component, outside the kill switch) whatever the config says; `tranches` > 1 the
+        staggered book (evaluation.tranche_book)."""
         from evaluation import simulate_rank_book
         from evaluation.live_parity import build_as_live_kwargs
         from portfolio.book_construction import resolve_class_weight_caps
@@ -275,6 +285,8 @@ class AsLiveHarness:
             gate_fn = self.gate_for(
                 frame, ic_floor=ic_floor if ic_floor is not None else phase_v2.get("rolling_ic_gate", {}).get("min_rolling_mean_ic"),
                 horizon_days=gate_horizon, rolling_window_days=gate_window, min_names=gate_min_names,
+                late_bar_event_count=gate_event_count
+                or (phase_v2.get("rolling_ic_gate", {}) or {}).get("late_bar_event_count"),
             )
         if config is self.config:
             mechanisms = self.mechanisms(frame, include)
@@ -296,8 +308,20 @@ class AsLiveHarness:
             **mechanisms,
         )
         kwargs["rebalance_session_dates"] = self.session_dates
+        if cash_sweep:
+            from evaluation.live_parity import build_cash_sweep_kwarg
+
+            kwargs["cash_sweep"] = build_cash_sweep_kwarg(config, ROOT_DIR, force_enabled=True)
         kwargs.update(overrides)
         reset_member_state(kwargs)
+        if int(tranches) > 1:
+            from evaluation.tranche_book import simulate_tranche_book
+
+            def fresh_run(data, **sub):  # every tranche run starts with a clean RL guard, as one whole run does
+                reset_member_state(sub)
+                return simulate_rank_book(data, **sub)
+
+            return simulate_tranche_book(frame, tranches=int(tranches), simulate=fresh_run, **kwargs)
         return simulate_rank_book(frame, **kwargs)
 
 

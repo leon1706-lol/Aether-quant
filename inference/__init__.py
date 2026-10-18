@@ -5,7 +5,9 @@ from .exported_model import (
     build_models_batched_cache,
     build_multitask_models_batched_cache,
     convert_state_dict_arrays,
+    export_input_names,
     load_ensemble_member_exports,
+    model_input_index,
     resolve_model_ensemble_config,
     resolve_sequence_window_size,
     run_exported_model,
@@ -18,6 +20,8 @@ from .exported_model import (
     run_exported_multitask_models_across_symbols,
     run_exported_sequence_multitask_model,
     run_exported_sequence_multitask_model_batched,
+    select_model_inputs,
+    select_sequence_inputs,
 )
 from .parallel_inference import init_worker, run_symbol_inference, windows_parallelism_slowdown_warning
 from .strategy_selector_inference import build_strategy_selector_features, score_strategies
@@ -27,6 +31,10 @@ __all__ = [
     "BatchedMultitaskLayerStackCache",
     "average_head_outputs",
     "load_ensemble_member_exports",
+    "export_input_names",
+    "model_input_index",
+    "select_model_inputs",
+    "select_sequence_inputs",
     "resolve_model_ensemble_config",
     "build_models_batched_cache",
     "build_multitask_models_batched_cache",

@@ -153,13 +153,16 @@ def make_rolling_ic_gate_fn(
     shared `state_fn` to build several floor variants without re-resolving anything. `include_tickers` (V5.8.0) keeps
     only those tickers' events - main.py feeds the buffer from the main rank group only when ranking is grouped.
     `late_bar_tickers` (V6.1.0) counts those tickers' events twice per date, as live records them
-    (`with_live_event_duplicates`)."""
+    (`with_live_event_duplicates`), unless the config's `late_bar_event_count` is "once" (V6.2.0)."""
+    from portfolio.rolling_ic_gate import resolve_late_bar_event_count
+
     config = dict(gate_config)
     config["enabled"] = True
     if state_fn is None:
         if include_tickers is not None:
             frame = frame[frame[ticker_column].astype(str).isin(set(map(str, include_tickers)))]
-        frame = with_live_event_duplicates(frame, late_bar_tickers, ticker_column=ticker_column)
+        if resolve_late_bar_event_count(config) == "per_tick":
+            frame = with_live_event_duplicates(frame, late_bar_tickers, ticker_column=ticker_column)
         state_fn = make_rolling_ic_state_fn(
             build_event_buffer(
                 frame,
@@ -715,3 +718,37 @@ def load_live_venue_listing_dates(config: dict, root_dir) -> dict[str, dict] | N
     if not guard.get("enabled", False):
         return None
     return load_venue_listing_dates(Path(root_dir) / guard.get("path", "data/reference/crypto_listing_dates.json")) or None
+
+
+def build_cash_sweep_kwarg(config: dict, root_dir, *, force_enabled: bool = False) -> dict | None:
+    """V6.2.0: `simulate_rank_book(cash_sweep=...)` from the live config, as main.py sizes the T-bill sweep: the ETF's
+    forward close-to-close return per date (the dataset's target_return_1d convention), Lean's security types, the
+    book's gross cap, live's short-exposure cap and the legacy / sleeve budgets at full size. None when the sweep is off
+    (unless `force_enabled`, for a what-if) or its data zip is missing."""
+    from evaluation.lean_attribution import LEAN_EQUITY_PRICE_SCALE, read_daily_closes
+    from portfolio.cash_sweep import resolve_cash_sweep_config
+
+    phase_v2 = config.get("phase_v2", {})
+    sweep = resolve_cash_sweep_config(phase_v2.get("cash_sweep"))
+    if not (sweep["enabled"] or force_enabled):
+        return None
+    closes = read_daily_closes(Path(root_dir) / sweep["data_path"], LEAN_EQUITY_PRICE_SCALE)
+    if not closes:
+        return None
+    dates = sorted(closes)
+    forward = {day: closes[after] / closes[day] - 1.0 for day, after in zip(dates, dates[1:]) if closes[day] > 0}
+    legacy, bond, forex = phase_v2.get("legacy_sleeve", {}), phase_v2.get("bond_sleeve", {}), phase_v2.get("forex_risk", {})
+    other = float(legacy.get("max_gross_exposure", 0.0)) if legacy.get("enabled") else 0.0
+    neutral = (float(bond.get("gross_budget", 0.0)) if bond.get("enabled") else 0.0) + (
+        float(forex.get("gross_budget", 0.0)) if forex.get("enabled") else 0.0)
+    neutrality = (phase_v2.get("portfolio_book", {}) or {}).get("neutrality", {}) or {}
+    return {
+        "returns_by_date": forward,
+        "config": dict(sweep, enabled=True),
+        "security_type_by_ticker": {str(a["ticker"]): str(a.get("security_type", "equity")) for a in config["phase1"]["universe"]["assets"]},
+        "book_gross_cap": float(neutrality.get("gross_exposure_cap", 1.0)),
+        "max_short_exposure": float(config.get("phase9", {}).get("portfolio", {}).get("max_short_exposure", 0.30)),
+        "other_budget": other,
+        "neutral_budget": neutral,
+        "min_commission_usd": 1.0,
+    }

@@ -13,7 +13,10 @@ From scripts/model_candidate_research.py's `model_ic.json` this writes, for ever
 - whether R-MODEL9's IC clauses pass (only those candidates get book scores and a legacy-probability file).
 
     python scripts/prepare_v610_candidates.py --model-ic ml/evaluation/v610/model_ic.json --dataset ml/datasets/validation_dataset.csv
-        [--out ml/evaluation/v610/candidates.json]
+        [--out ml/evaluation/v610/candidates.json] [--rule r-model10 --prefix v620_cand_]
+
+V6.2.0: `--rule r-model10` applies R-MODEL10's IC clauses (scripts/v620_research.model10_checks: the resampled-ensemble
+yardstick from model_candidate_research --bootstrap) instead of R-MODEL9's; `--prefix` names the candidate directories.
 """
 
 from __future__ import annotations
@@ -48,8 +51,8 @@ def head_status(member_dirs: list[Path], kind: str, head: str) -> bool:
     return bool(statuses) and sum(statuses) * 2 >= len(statuses)
 
 
-def build_candidate_dir(name: str, members: dict[str, list[str]]) -> Path:
-    target = ROOT_DIR / "ml" / "versions" / f"v610_cand_{name}"
+def build_candidate_dir(name: str, members: dict[str, list[str]], prefix: str = "v610_cand_") -> Path:
+    target = ROOT_DIR / "ml" / "versions" / f"{prefix}{name}"
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
@@ -93,6 +96,8 @@ def main() -> int:
     parser.add_argument("--model-ic", default=str(ROOT_DIR / "ml" / "evaluation" / "v610" / "model_ic.json"))
     parser.add_argument("--dataset", default=str(ROOT_DIR / "ml" / "datasets" / "validation_dataset.csv"))
     parser.add_argument("--out", default=str(ROOT_DIR / "ml" / "evaluation" / "v610" / "candidates.json"))
+    parser.add_argument("--rule", choices=("r-model9", "r-model10"), default="r-model9")
+    parser.add_argument("--prefix", default="v610_cand_")
     args = parser.parse_args()
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
     model_ic = json.loads(Path(args.model_ic).read_text(encoding="utf-8"))
@@ -110,14 +115,19 @@ def main() -> int:
         passing = sorted({
             head for head in RANK_HEADS if any(head_status(dirs, kind, head) for kind, dirs in member_dirs.items())
         })
-        ic = model_ic_checks(model_ic, name)  # every retrained candidate, the control's seed ensemble included, vs installed
+        if args.rule == "r-model10":
+            from v620_research import model10_checks
+
+            ic = model10_checks(model_ic, name)
+        else:
+            ic = model_ic_checks(model_ic, name)  # every retrained candidate, the control's seed ensemble included, vs installed
         spec = {
             "members": members, "passing_heads": passing,
             "decision_heads_pass_r_head": all(head in passing for head in decision_heads),
-            "ic_checks": ic, "ic_pass": bool(ic) and all(ic.values()),
+            "ic_checks": ic, "ic_pass": bool(ic) and all(value for key, value in ic.items() if key != "yardstick"),
         }
         if spec["ic_pass"]:
-            spec["ml_dir"] = str(build_candidate_dir(name, members).relative_to(ROOT_DIR)).replace("\\", "/")
+            spec["ml_dir"] = str(build_candidate_dir(name, members, args.prefix).relative_to(ROOT_DIR)).replace("\\", "/")
             spec["ensemble"] = any(len(dirs) > 1 for dirs in members.values())
             spec["latency_ratio"] = latency_ratio(members, sample, window)
         out[name] = spec

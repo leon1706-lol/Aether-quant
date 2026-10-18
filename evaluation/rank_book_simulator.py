@@ -331,6 +331,7 @@ def _simulate_rank_book_core(
     kill_switch_extra_returns: dict[str, float] | None = None,
     legacy_component: dict | None = None,
     max_active_positions: int | None = None,
+    cash_sweep: dict | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -468,6 +469,13 @@ def _simulate_rank_book_core(
     - `max_active_positions`: live's position count limit (`phase9.portfolio.max_active_positions`): a new entry is not
       taken while that many positions (book + legacy) are open; members are filled in conviction order.
     Exit costs (age exit, trailing stop, sleeve guard) are now part of the date's cost on a rebalance date too.
+
+    V6.2.0, off by default: `cash_sweep` ({"returns_by_date": {date: T-bill ETF return}, "config":
+    `portfolio.cash_sweep.resolve_cash_sweep_config`, "security_type_by_ticker", "book_gross_cap", "max_short_exposure",
+    "other_budget", "neutral_budget", "min_commission_usd"}) holds idle NAV in the T-bill ETF as main.py does: sized at the end of each date
+    from the book and legacy weights just decided and the next date's possible orders (`portfolio.cash_sweep`), filled a
+    date later, earning the ETF's return as a third component (`per_date_component_returns["cash_sweep"]`). The kill
+    switch reads the returns without it when `config["exclude_from_risk_controls"]` (live's strategy value ex-sweep).
     """
     sector_by_ticker = sector_by_ticker or {}
     candidate_metadata_by_ticker = candidate_metadata_by_ticker or {}
@@ -511,6 +519,9 @@ def _simulate_rank_book_core(
     legacy_component_returns: list[float] = []
     kill_switch_cumprod = 1.0
     kill_switch_peak = 1.0
+    sweep = cash_sweep or None
+    sweep_weight = 0.0
+    sweep_component_returns: list[float] = []
 
     gross_returns: list[float] = []
     net_returns: list[float] = []
@@ -1018,6 +1029,20 @@ def _simulate_rank_book_core(
         if legacy_state is not None:
             net_return += legacy_net_return
             bar_return += legacy_net_return
+        strategy_net_return = net_return
+        if sweep is not None:
+            sweep_net, sweep_weight = _cash_sweep_step(
+                sweep, sweep_weight, date=str(date), is_session=is_session, book_weights=held_weights,
+                legacy_weights=legacy_state["weights"] if legacy_state is not None else {},
+                rebalance_next=(not active_allocations) or (rebalance_counter % max(1, rebalance_every_bars)) == 0,
+                formed_weights=active_base_weights, pv_for_costs=pv_for_costs,
+            )
+            sweep_component_returns.append(sweep_net)
+            net_return += sweep_net
+            bar_return += sweep_net
+            total_cost_return += sweep.get("_last_cost", 0.0)
+            if not sweep["config"]["exclude_from_risk_controls"]:
+                strategy_net_return = net_return
         gross_exposure_series.append(sum(abs(weight) for weight in effective_weights.values()))
         net_exposure_series.append(sum(effective_weights.values()))
 
@@ -1033,7 +1058,7 @@ def _simulate_rank_book_core(
         net_max_drawdown = min(net_max_drawdown, net_cumprod / net_running_peak - 1.0)
         if kill_switch_active:
             # live's kill switch watches the whole portfolio: this simulation plus anything modelled outside it
-            portfolio_return = net_return + float((kill_switch_extra_returns or {}).get(str(date), 0.0))
+            portfolio_return = strategy_net_return + float((kill_switch_extra_returns or {}).get(str(date), 0.0))
             kill_switch_returns.append(portfolio_return)
             kill_switch_cumprod *= 1.0 + portfolio_return
             kill_switch_peak = max(kill_switch_peak, kill_switch_cumprod)
@@ -1073,11 +1098,60 @@ def _simulate_rank_book_core(
         rebalance_log=rebalance_log,
         weights_log=weights_log,
         per_date_component_returns=(
-            {"main_book": dict(zip(per_date_used, book_component_returns)), "legacy": dict(zip(per_date_used, legacy_component_returns))}
-            if legacy_state is not None else {}
+            ({"main_book": dict(zip(per_date_used, book_component_returns)), "legacy": dict(zip(per_date_used, legacy_component_returns))}
+             if legacy_state is not None else {})
+            | ({"cash_sweep": dict(zip(per_date_used, sweep_component_returns))} if sweep is not None else {})
         ),
     )
     return result, held_days_by_ticker
+
+
+def _cash_sweep_step(
+    sweep: dict, weight: float, *, date: str, is_session: bool, book_weights: dict[str, float],
+    legacy_weights: dict[str, float], rebalance_next: bool, formed_weights: dict[str, float], pv_for_costs: float,
+) -> tuple[float, float]:
+    """One date of the T-bill sweep: yesterday's sweep weight earns today's ETF return (it filled at today's open), then
+    the new target is sized from the weights just decided (main.py sizes it after Pass 2 from holdings plus open
+    orders) and traded when it moved by `min_trade_weight`. Returns (net return, new weight); the cost is left in
+    `sweep["_last_cost"]` for the run's cost total."""
+    from portfolio.cash_sweep import cash_sweep_target_weight, margin_fraction, strategy_reserve, sweep_order_needed
+
+    config = sweep["config"]
+    earned = weight * float(sweep["returns_by_date"].get(date, 0.0) or 0.0)
+    sweep["_last_cost"] = 0.0
+    if not is_session:
+        return earned, weight
+    types = sweep.get("security_type_by_ticker") or {}
+    long_weight = short_weight = 0.0
+    margin_inputs = []
+    for symbol, value in list(book_weights.items()) + list(legacy_weights.items()):
+        if value > 0.0:
+            long_weight += value
+        else:
+            short_weight -= value
+        margin_inputs.append((types.get(symbol, "equity"), value))
+    book_long = sum(value for value in book_weights.values() if value > 0.0)
+    book_short = -sum(value for value in book_weights.values() if value < 0.0)
+    reserve = strategy_reserve(
+        rebalance_next=rebalance_next, book_gross_cap=float(sweep.get("book_gross_cap", 1.0)),
+        max_short_exposure=float(sweep.get("max_short_exposure", 0.3)),
+        formed_long=sum(value for value in formed_weights.values() if value > 0.0),
+        formed_short=-sum(value for value in formed_weights.values() if value < 0.0),
+        book_long=book_long, book_short=book_short, other_budget_remaining=float(sweep.get("other_budget", 0.0)),
+        neutral_budget=float(sweep.get("neutral_budget", 0.0)),
+    )
+    target = cash_sweep_target_weight(
+        long_weight=long_weight, short_weight=short_weight, margin_used=margin_fraction(margin_inputs), reserve=reserve,
+        config=config,
+    )
+    if not sweep_order_needed(weight, target, config["min_trade_weight"]):
+        return earned, weight
+    traded = abs(target - weight)
+    cost = traded * config["cost_bps_per_side"] / 1e4
+    if traded > 0.0 and pv_for_costs > 0.0:
+        cost = max(cost, float(sweep.get("min_commission_usd", 1.0)) / pv_for_costs)
+    sweep["_last_cost"] = cost
+    return earned - cost, target
 
 
 def simulate_rank_book(frame: pd.DataFrame, **kwargs) -> RankBookSimulationResult:

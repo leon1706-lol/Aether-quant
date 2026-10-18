@@ -51,6 +51,7 @@ from risk_controls import (
     projected_signed_quantity,
     resolve_benchmark_ticker,
     resolve_lean_window,
+    resolve_trading_days_per_year,
     should_lock_in_duration_beta,
     should_scale_position,
 )
@@ -79,6 +80,14 @@ from risk.rl_sizing import (
     rl_excess_return,
     rl_shadow_guard_allows,
     rl_sizing_multiplier,
+)
+from portfolio.cash_sweep import (
+    cash_sweep_target_weight,
+    margin_fraction,
+    resolve_cash_sweep_config,
+    strategy_reserve,
+    advance_strategy_value,
+    sweep_order_needed,
 )
 from portfolio.class_sleeve import build_class_sleeve_weights, resolve_class_sleeve_config
 from portfolio.forex_sleeve import build_forex_sleeve_weights, forex_resize_below_minimum
@@ -125,6 +134,7 @@ from performance_probe import (
 # `from AlgorithmImports import *` above exports Lean's `time` (datetime.time), which silently replaces the
 # stdlib module of that name in this namespace; `time.perf_counter()` crashed V5.5.0's first backtest on
 # bar 1. Import the function under a private alias AFTER the star import - never `import time` here.
+from itertools import zip_longest as _zip_longest
 from time import perf_counter as _perf_counter
 # V5.3.5 (development/Problems.md #102) - a genuinely light, direct
 # submodule import (not routed through portfolio/__init__.py, though that
@@ -133,7 +143,12 @@ from time import perf_counter as _perf_counter
 # evaluation/rank_ic_core.py's own module docstring (imported
 # transitively below) for the isolator-timeout class of failure this is
 # written to avoid.
-from portfolio.rolling_ic_gate import compute_rolling_ic_state, evaluate_rolling_ic_gate
+from portfolio.rolling_ic_gate import (
+    compute_rolling_ic_state,
+    evaluate_rolling_ic_gate,
+    resolve_late_bar_event_count,
+    should_record_ic_event,
+)
 # V4.4 - held-contract/held-legs sizing (development/Problems.md): sizes an
 # ALREADY-HELD contract/spread on its own current greeks. Imported directly
 # (not routed through risk/asset_class_router.py::route_position_sizing(),
@@ -208,6 +223,7 @@ from execution import (
     resolve_exit_order_route,
     resolve_limit_price,
     resolve_limit_setting_by_class,
+    resolve_cash_sweep_order_permission,
     resolve_order_permission,
     resolve_pending_order_action,
     resolve_runtime_mode,
@@ -237,7 +253,10 @@ from inference import (
     run_symbol_inference,
     average_head_outputs,
     load_ensemble_member_exports,
+    model_input_index,
     resolve_model_ensemble_config,
+    select_model_inputs,
+    select_sequence_inputs,
     score_strategies,
     windows_parallelism_slowdown_warning,
 )
@@ -510,6 +529,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.set_start_date(start_year, start_month, start_day)
         self.set_end_date(end_year, end_month, end_day)
         self.set_cash(float(self.runtime["initial_cash"]))
+        trading_days_per_year = resolve_trading_days_per_year(self.runtime)
+        if trading_days_per_year is not None:
+            self.settings.trading_days_per_year = trading_days_per_year
 
         self.symbols = []
         self.asset_lookup = {}
@@ -706,6 +728,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._equity_symbols = [
             symbol for symbol in self.symbols if self.asset_lookup[str(symbol)]["security_type"] == "equity"
         ]
+        self._setup_cash_sweep()
 
         # V5.3.1 (development/Problems.md #91/#97) - floor raised from 21
         # to self.long_bar_history_size (260, already assigned above at
@@ -1133,6 +1156,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.rolling_ic_gate_horizon_days = int(phase_v2_rolling_ic_gate.get("horizon_days", 20))
         self.rolling_ic_gate_rolling_window_days = int(phase_v2_rolling_ic_gate.get("rolling_window_days", 40))
         self._rolling_ic_gate_config = dict(phase_v2_rolling_ic_gate)
+        self._rolling_ic_late_bar_event_count = resolve_late_bar_event_count(phase_v2_rolling_ic_gate)
         self._rolling_ic_event_buffer: deque = deque(
             maxlen=max(
                 1,
@@ -1611,6 +1635,20 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     setattr(self, f"{_kind}_ensemble", _members)
                 except Exception as error:
                     self.Debug(f"{_kind} ensemble load failed ({error}) - using the single model")
+        # V6.2.0: a model trained on a feature subset reads its own inputs out of the full vector; None = the full vector
+        # unchanged (every model up to V6.1.0). A model needing a feature live never builds is switched off, not fed zeros.
+        self._multitask_input_index = self._resolve_input_index("multitask model", self.multitask_model)
+        if self._multitask_input_index is False:
+            self.multitask_model, self._multitask_input_index = None, None
+        self._sequence_input_index = self._resolve_input_index("sequence model", self.sequence_model)
+        if self._sequence_input_index is False:
+            self.sequence_model, self._sequence_input_index = None, None
+        self._multitask_member_indexes = [self._resolve_input_index("multitask member", m) for m in self.multitask_ensemble]
+        if False in self._multitask_member_indexes:
+            self.multitask_ensemble, self._multitask_member_indexes = [], []
+        self._sequence_member_indexes = [self._resolve_input_index("sequence member", m) for m in self.sequence_ensemble]
+        if False in self._sequence_member_indexes:
+            self.sequence_ensemble, self._sequence_member_indexes = [], []
 
         self.sequence_window_size = resolve_sequence_window_size(
             self.sequence_feature_schema, int(phase_v2_sequence.get("window_size", 30))
@@ -1671,6 +1709,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # a crash that takes the whole algorithm down.
         phase_v2_inference_parallelism = self.phase_v2.get("inference_parallelism", {})
         self.inference_parallelism_enabled = bool(phase_v2_inference_parallelism.get("enabled", False))
+        if self.inference_parallelism_enabled and (
+            self._multitask_input_index is not None or self._sequence_input_index is not None
+        ):
+            # the pool's workers run the full vector; subset models stay on the sequential path
+            self.Debug("Inference parallelism off: a model reads a feature subset")
+            self.inference_parallelism_enabled = False
         self._inference_pool: ProcessPoolExecutor | None = None
         if self.inference_parallelism_enabled:
             worker_count = int(phase_v2_inference_parallelism.get("worker_count", min(4, os.cpu_count() or 1)))
@@ -2293,6 +2337,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     {
                         "symbol": symbol,
                         "bar": bar,
+                        "fresh_bar": has_fresh_bar_this_tick,
                         "feature_payload": feature_payload,
                         "topology_payload": topology_payload,
                         "regime_payload": regime_payload,
@@ -2385,12 +2430,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     ]
                     if self.sequence_ensemble:
                         per_member = [
-                            run_exported_sequence_multitask_model_batched(member, batch_sequences) for member in self.sequence_ensemble
+                            run_exported_sequence_multitask_model_batched(
+                                member, [select_sequence_inputs(sequence, index) for sequence in batch_sequences]
+                                if index is not None else batch_sequences,
+                            )
+                            for member, index in _zip_longest(self.sequence_ensemble, self._sequence_member_indexes)
                         ]
                         batched_results = [average_head_outputs(list(row)) for row in zip(*per_member)]
                     else:
                         batched_results = run_exported_sequence_multitask_model_batched(
-                            self.sequence_model, batch_sequences
+                            self.sequence_model,
+                            [select_sequence_inputs(sequence, self._sequence_input_index) for sequence in batch_sequences]
+                            if self._sequence_input_index is not None else batch_sequences,
                         )
                     precomputed_sequence_results = dict(zip(batch_symbol_keys, batched_results))
 
@@ -2406,10 +2457,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if self.multitask_model:
                     try:
                         if self.multitask_ensemble:
-                            member_rows = [run_exported_multitask_model_rows(member, flat_inputs) for member in self.multitask_ensemble]
+                            member_rows = [
+                                run_exported_multitask_model_rows(
+                                    member, [select_model_inputs(row, index) for row in flat_inputs] if index is not None else flat_inputs
+                                )
+                                for member, index in _zip_longest(self.multitask_ensemble, self._multitask_member_indexes)
+                            ]
                             multitask_rows = dict(zip(flat_keys, (average_head_outputs(list(row)) for row in zip(*member_rows))))
                         else:
-                            multitask_rows = dict(zip(flat_keys, run_exported_multitask_model_rows(self.multitask_model, flat_inputs)))
+                            multitask_inputs = flat_inputs if self._multitask_input_index is None else [
+                                select_model_inputs(row, self._multitask_input_index) for row in flat_inputs
+                            ]
+                            multitask_rows = dict(zip(flat_keys, run_exported_multitask_model_rows(self.multitask_model, multitask_inputs)))
                     except Exception as error:
                         self.Debug(f"Batched multitask inference failed ({error}) - using the per-symbol path this tick")
 
@@ -2548,6 +2607,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.rolling_ic_gate_enabled
                 and raw_rank_score is not None
                 and self._rank_group_by_symbol.get(symbol_key, MAIN_RANK_GROUP) == MAIN_RANK_GROUP
+                and should_record_ic_event(
+                    self.asset_lookup[symbol_key]["security_type"], item["fresh_bar"], self._rolling_ic_late_bar_event_count
+                )
             ):
                 self._rolling_ic_event_buffer.append(
                     {
@@ -2874,7 +2936,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     {
                         str(holding.Symbol): float(holding.HoldingsValue) / sleeve_total_value
                         for holding in self.Portfolio.Values
-                        if holding.Invested
+                        if holding.Invested and str(holding.Symbol) != self._cash_sweep_key
                     },
                     set(book_allocations) | set(self._last_formed_book_allocations),
                 )
@@ -3480,6 +3542,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # forever.
         #
         self._timing_probe.stop("pass2", _pass2_probe_started)
+        self._update_cash_sweep()
         # V5.2.6 (development/Problems.md) - deferred from immediately
         # after book_allocations was computed (pre-Pass-2) to HERE, after
         # Pass 2's loop has finished for this bar - book_member_decisions
@@ -3577,6 +3640,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         "mean_bps": sum(self._slippage_divergence_history) / len(self._slippage_divergence_history),
                         "fills": list(self._slippage_trace),
                     }
+                if self._cash_sweep_symbol is not None:
+                    record["cash_sweep"] = dict(self._cash_sweep_state)
                 self.book_history_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.book_history_path, "a", encoding="utf-8") as book_history_file:
                     book_history_file.write(json.dumps(record) + "\n")
@@ -3870,6 +3935,122 @@ class AetherQuantAlgorithm(QCAlgorithm):
     def _midpoint_bar_from_quote_bar(self, quote_bar):
         """V5.3.10 - thin delegation to data_pipeline.bar_synthesis."""
         return midpoint_bar_from_quote_bar(quote_bar)
+    def _setup_cash_sweep(self) -> None:
+        """V6.2.0 (phase_v2.cash_sweep): subscribe the T-bill ETF outside the universe. It is kept out of self.symbols and
+        asset_lookup, so nothing scores, ranks, caps, reconciles or counts it as a position."""
+        self.cash_sweep_config = resolve_cash_sweep_config(self.config.get("phase_v2", {}).get("cash_sweep"))
+        self._cash_sweep_symbol = None
+        self._cash_sweep_key = None
+        self._cash_sweep_state = {"weight": 0.0, "target": 0.0, "net_profit": 0.0}
+        self._risk_value_state = None
+        if not self.cash_sweep_config["enabled"]:
+            return
+        phase_v2 = self.config.get("phase_v2", {})
+        legacy = phase_v2.get("legacy_sleeve", {})
+        bond = phase_v2.get("bond_sleeve", {})
+        forex = phase_v2.get("forex_risk", {})
+        # gross the legacy signal (long, the worst case) and the dollar-neutral class sleeves may add on any session,
+        # at their full budgets (conservative)
+        self._cash_sweep_other_budget = float(legacy.get("max_gross_exposure", 0.0) if legacy.get("enabled") else 0.0)
+        self._cash_sweep_neutral_budget = float(bond.get("gross_budget", 0.0) if bond.get("enabled") else 0.0) + float(
+            forex.get("gross_budget", 0.0) if forex.get("enabled") else 0.0
+        )
+        ticker = self.cash_sweep_config["ticker"]
+        if ticker in self.ticker_to_symbol:
+            self.Debug(f"cash sweep off: {ticker} is a universe asset")
+            return
+        try:
+            security = self.add_equity(ticker, self.resolution)
+            security.fee_model = InteractiveBrokersFeeModel()
+            try:
+                security.set_slippage_model(ConstantSlippageModel(self.cash_sweep_config["cost_bps_per_side"] / 1e4))
+            except Exception as error:
+                self.Debug(f"cash sweep slippage model not set ({error}); Lean's default applies")
+            self._cash_sweep_symbol = security.symbol
+            self._cash_sweep_key = str(security.symbol)
+        except Exception as error:
+            self.Debug(f"cash sweep off: {ticker} subscription failed ({error})")
+
+    def _cash_sweep_holding_profit(self) -> tuple[float, float]:
+        """(net realized profit after fees, mark-to-market profit) of the sweep holding; zeros without a sweep. The mark is
+        quantity x (price - average price), as the portfolio value counts it: Lean's UnrealizedProfit also deducts an
+        estimated closing fee, which moved the strategy index by cents on days the strategy was flat."""
+        if self._cash_sweep_symbol is None:
+            return 0.0, 0.0
+        holding = self.Portfolio[self._cash_sweep_symbol]
+        price = float(self.Securities[self._cash_sweep_symbol].Price)
+        return float(holding.NetProfit), float(holding.Quantity) * (price - float(holding.AveragePrice))
+
+    def _update_cash_sweep(self) -> None:
+        """Once per equity session after Pass 2: size the sweep for the holdings plus this tick's open orders and the
+        next session's possible orders (portfolio/cash_sweep.py), and trade it when it moved by min_trade_weight."""
+        if self._cash_sweep_symbol is None or not self.is_equity_session_bar or self.is_warming_up:
+            return
+        allowed, _ = resolve_cash_sweep_order_permission(
+            mode=self.runtime_mode, allow_live_orders=self.allow_live_orders, broker_config_present=self._broker_config_present,
+        )
+        if not allowed:
+            return
+        total_value = float(self.Portfolio.TotalPortfolioValue)
+        price = float(self.Securities[self._cash_sweep_symbol].Price)
+        if total_value <= 0.0 or not math.isfinite(price) or price <= 0.0:
+            return
+        long_weight = short_weight = book_long = book_short = 0.0
+        margin_inputs = []
+        book_keys = self._book_target_weights
+        for symbol in self.symbols:
+            quantity = float(self.Portfolio[symbol].Quantity) + self._open_order_quantity(symbol)
+            if quantity == 0.0:
+                continue
+            weight = quantity * float(self.Securities[symbol].Price) / total_value
+            if not math.isfinite(weight):
+                continue
+            key = str(symbol)
+            margin_inputs.append((self.asset_lookup.get(key, {}).get("security_type", "equity"), weight))
+            if weight > 0.0:
+                long_weight += weight
+                book_long += weight if key in book_keys else 0.0
+            else:
+                short_weight -= weight
+                book_short -= weight if key in book_keys else 0.0
+        formed = self._book_target_weights or {}
+        rebalance_next = bool(self.portfolio_book_enabled) and should_rebalance_this_bar(
+            self.bar_index + 1, self.portfolio_book_rebalance_every_bars, bool(self._last_book_allocations),
+            is_trading_day_bar=True,
+        )
+        reserve = strategy_reserve(
+            rebalance_next=rebalance_next,
+            book_gross_cap=self.book_gross_exposure_cap if self.portfolio_book_enabled else 0.0,
+            max_short_exposure=self.max_short_exposure,
+            formed_long=sum(w for w in formed.values() if w > 0.0),
+            formed_short=-sum(w for w in formed.values() if w < 0.0),
+            book_long=book_long, book_short=book_short,
+            other_budget_remaining=self._cash_sweep_other_budget, neutral_budget=self._cash_sweep_neutral_budget,
+        )
+        target = cash_sweep_target_weight(
+            long_weight=long_weight, short_weight=short_weight, margin_used=margin_fraction(margin_inputs),
+            reserve=reserve, config=self.cash_sweep_config,
+        )
+        held = float(self.Portfolio[self._cash_sweep_symbol].Quantity) + self._open_order_quantity(self._cash_sweep_symbol)
+        current = held * price / total_value
+        self._cash_sweep_state = {"weight": current, "target": target, "net_profit": self._cash_sweep_holding_profit()[0]}
+        if not sweep_order_needed(current, target, self.cash_sweep_config["min_trade_weight"]):
+            return
+        quantity = int((target - current) * total_value / price)
+        if target <= 0.0:
+            quantity = -int(held)
+        if quantity != 0:
+            self.MarketOrder(self._cash_sweep_symbol, quantity, tag="cash_sweep")
+
+    def _liquidate_strategy_positions(self) -> None:
+        """The drawdown lock's liquidation: every position except the T-bill sweep (cash, not risk)."""
+        if self._cash_sweep_symbol is None:
+            self.Liquidate()
+            return
+        for holding in self.Portfolio.Values:
+            if holding.Invested and holding.Symbol != self._cash_sweep_symbol:
+                self.Liquidate(holding.Symbol)
+
     def _add_asset(self, asset: dict):
         ticker = asset["ticker"]
         security_type = asset["security_type"]
@@ -4307,6 +4488,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "liquidity_spread_proxy": float(dynamic_spread),
         }
 
+    def _resolve_input_index(self, label: str, model_export: dict | None):
+        """model_input_index for one loaded export: None = full vector, a list = its subset, False = unusable here."""
+        if not model_export:
+            return None
+        try:
+            return model_input_index(model_export, self.model_input_names)
+        except ValueError as error:
+            self.Debug(f"{label} disabled: {error}")
+            return False
+
     def _run_model(self, inputs: list[float]) -> float:
         return run_exported_model(self.model_export, inputs)
 
@@ -4363,8 +4554,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return None
         try:
             if self.multitask_ensemble:
-                return average_head_outputs([run_exported_multitask_model(member, inputs) for member in self.multitask_ensemble])
-            return run_exported_multitask_model(self.multitask_model, inputs)
+                return average_head_outputs([
+                    run_exported_multitask_model(member, select_model_inputs(inputs, index))
+                    for member, index in _zip_longest(self.multitask_ensemble, self._multitask_member_indexes)
+                ])
+            return run_exported_multitask_model(self.multitask_model, select_model_inputs(inputs, self._multitask_input_index))
         except Exception as error:
             self.Debug(f"Multitask inference failed: {error}")
             return None
@@ -4419,10 +4613,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
         try:
             sequence = self._pad_sequence_history(history)
             if self.sequence_ensemble:
-                return average_head_outputs(
-                    [run_exported_sequence_multitask_model(member, sequence) for member in self.sequence_ensemble]
-                )
-            return run_exported_sequence_multitask_model(self.sequence_model, sequence)
+                return average_head_outputs([
+                    run_exported_sequence_multitask_model(member, select_sequence_inputs(sequence, index))
+                    for member, index in _zip_longest(self.sequence_ensemble, self._sequence_member_indexes)
+                ])
+            return run_exported_sequence_multitask_model(self.sequence_model, select_sequence_inputs(sequence, self._sequence_input_index))
         except Exception as error:
             self.Debug(f"Sequence model inference failed for {symbol}: {error}")
             return None
@@ -7161,7 +7356,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         pending_count = sum(1 for symbol_key in self._pending_entries_this_bar if symbol_key != exclude_key)
 
         if orders_allowed:
-            invested_symbol_strs = [str(holding.Symbol) for holding in self.Portfolio.Values if holding.Invested]
+            invested_symbol_strs = [
+                str(holding.Symbol) for holding in self.Portfolio.Values
+                if holding.Invested and str(holding.Symbol) != self._cash_sweep_key
+            ]
             distinct_identities = _distinct_position_identities(
                 invested_symbol_strs, self.symbol_key_by_option_contract_symbol, exclude_key,
             )
@@ -7428,6 +7626,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if orders_allowed
             else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
         )
+        if orders_allowed and self._cash_sweep_symbol is not None and self.cash_sweep_config["exclude_from_risk_controls"]:
+            # V6.2.0: the session equity, drawdowns and kill-switch returns read the strategy without the T-bill carry
+            self._risk_value_state, portfolio_value = advance_strategy_value(
+                self._risk_value_state, portfolio_value, sum(self._cash_sweep_holding_profit())
+            )
         current_date = self.Time.date()
 
         if self.current_session_date != current_date:
@@ -7596,7 +7799,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self.trade_lock_reason = breach_reason
             if self.liquidate_on_risk_breach:
                 if orders_allowed:
-                    self.Liquidate()
+                    self._liquidate_strategy_positions()
                 else:
                     self._simulated_portfolio.liquidate_all(self.bar_index)
 

@@ -9,42 +9,42 @@ are for — see `AGENTS.md`).
 
 -----
 
-# Current objective: next phase (V6.2.0)
+# Current objective: next phase (V6.3.0)
 
 _(write the objective here)_
 
-## What V6.1.0 decided (nothing was committed; see `development/Changelog.md` "V6.1.0")
-- **Decisions by pre-registered rule** (every variant scored on every rebalance phase, Problems #194, #195): the installed models and the head blend stay (best retrained candidate +0.019 validation IC against a seed spread of 0.071); the 20/40 book stays (the 10/20 book is a near miss, +0.099 against +0.10); net-edge holding period, gates (branch B) and the other legacy budgets change nothing.
-- **Gross cap stays 1.0.** BT1 reproduced V6 BT2 order for order (+5.28%, drawdown 5.50% against the 5% limit); R-POSTURE2 then asked for a cap of 0.80, and BT2 with it was worse (+3.80%, drawdown 7.80%, Problems #197), so it was not kept. The 5% drawdown clause is still open.
-- **Simulator:** it now replays the daily member pass, the whole-portfolio kill switch, weekend crypto, the position cap, the live analyzer, the legacy signal and the way live counts crypto twice in the rolling-IC gate. R-CAL2 is still branch B but close (daily correlation 0.71 / 0.67 / 0.68, annual gaps +1.2 / -2.5 / -0.5 pp, decision agreement 77 / 94 / 76%); out of sample over the whole span it correlates 0.62 with Lean (Problems #190, #196).
-- **Parity:** the forex holiday calendar is fixed (the dataset now matches Lean's), EURUSD / GBPJPY / ETHUSD / BTCUSD / XOM / NVDA / TLT diverge on 0 of 170 dates in BT1.
-- **Latency:** environmental (a 2011 two-core laptop, 4 GB, a 1.9 GB Docker VM): the same function costs 1.9 ms native, 5.3 ms in a bare container, 8.9 ms in the engine (Problems #191).
-- **Crypto live venue:** QuantConnect's Interactive Brokers brokerage does not support crypto; `aq render-lean-config` warns (Problems #192).
+## What V6.2.0 decided (nothing committed yet; see `development/Changelog.md` "V6.2.0")
+- **Lean Sharpe -1.673 -> +0.082** on the shipped code (BT2 = BT3, +16.85%, drawdown 4.30%): Lean's risk-free file is refreshed from FRED (5.49% -> 4.69% average), Lean annualises at 365 days (`runtime.trading_days_per_year`), and idle cash sits in BIL (`phase_v2.cash_sweep`, +$10.7k carry). On V6.1's basis the same run is -0.776. The carry is not alpha: ex-sweep the strategy made $6.1k (Sharpe +0.54 without the risk-free rate), V6.1 $5.3k.
+- **Rules adopted nothing:** R-DEDUPE (crypto counted once: validation +0.58, backtest -0.09), R-STAGGER (S2 two tranches: +0.26 / +0.52 and every margin passed, but the phase range widened), R-MODEL10 (label noise and the 17-feature subset lose; nothing beats the resampled-ensemble yardstick 0.034). Legacy L2 declined.
+- **CI:** the red test is fixed and a clean-checkout run is part of the wrap-up (`scripts/clean_checkout_test.ps1`); the Linux jobs pin ubuntu-24.04.
+- **Hosts:** Docker Desktop could not start on the dev PC (WSL VM timeout at ~400 MB free); the three Lean runs ran on a temporary Docker-in-Docker Codespace (~10 min a run, clean teardown: #104 is the PC). `development/infrastructure.md` "V6.2.0" has the recipe.
 
 ## Starting point
-- Shipped `config.json` (sha256 `19d72bc99cffb5766eae918fa0c811253adc6862c70e8e3880edb7d85531fa2f`; `runtime.lean_window_override` is `null`, probes off); installed models unchanged since V5.8.0 (47 files, `ml/evaluation/v610/manifest_start.txt`). Lean over 2023-07..2026-09: V6 BT2 and V6.1 BT1 are the same run (+5.28%, drawdown 5.50%, 1,268 identical order events); V6.1 BT2 with a 0.80 cap +3.80%, drawdown 7.80% (Problems #196, #197).
-- `ml/datasets/full_dataset.csv` and the split files are the V6.1 build (Lean's forex holidays, four splits, active scaler). Still on disk and not approved for deletion: `data_v580_staging/` (kept on your answer), `ml/datasets/v580_active_dataset.csv` (755 MB), `ml/datasets/v600_rank60_dataset.csv` (880 MB), the 29 candidate version dirs `ml/versions/v610_*`, and `ml/versions/v600cs20261015_*`.
-- Docker Desktop is off (start it, wait ~10 minutes before a Lean run: a cold start made BT2's first attempt hit the 90 s `Initialize()` limit); the Codespace is Shutdown.
+- Shipped `config.json` sha256 `58a0fd40bb48e720151932e9d571f4aa710ae9d2c454a96f22b903837a3fb77d` (window override null, sweep on, 365 days); installed models unchanged since V5.8.0 (`ml/evaluation/v620/manifest_bt1.txt`). Lean runs: `backtests/2026-10-17_19-10-42` (BT1), `_19-45-55` (BT3), `_21-39-55` (BT2, the README's pinned run).
+- Not approved for deletion and still on disk: `data_v580_staging/`, `ml/datasets/v580_active_dataset.csv`, `ml/datasets/v600_rank60_dataset.csv`, `ml/versions/v600cs20261015_*`; on the Codespace `ml/versions/v610_*`, `v620_*`, `v620_cand_*`.
+- Docker Desktop is off; the training Codespace is Shutdown; the DinD Codespace was deleted.
+
+## Open from V6.2.0 (not done yet)
+- **Rebuild the engine image locally:** the live path changed (BIL sweep, strategy-only risk value, per-model inputs, `trading_days_per_year`), so `aether-quant-engine:latest` is stale for any paper/live deploy. Docker Desktop could not start on the dev PC on 2026-10-17/18 (WSL `CreateVm/ERROR_TIMEOUT` at ~350-450 MB free): reboot (or free memory), start Docker Desktop, then `aq docker build`, `aq docker up` and check `GET /api/assets-status` returns 200 with the `cash_sweep` settings.
+- **Extra Lean run BT4 (owner request) not run:** the shipped config with only the window override (`ml/evaluation/v620/config_bt4.json`, byte-identical to BT2's) on a Docker-in-Docker Codespace; the project push to `aq-lean-dind2-9749jgpxrgw537544` was stopped by the PC's memory pressure. That Codespace still exists (idle-stops after 60 minutes): finish the push, build the Lean image there (`development/infrastructure.md` "V6.2.0"), run, pull, write up (expected = BT2), then delete it.
 
 ## Leads for the next objective
-0. **Owner choice, legacy budget L2:** `legacy_sleeve.max_gross_exposure` 0.15 and `max_weight_per_name` 0.03 pay on the backtest (Sharpe 0.89 against 0.74, better on 60-70% of phases) and pass the book margins, but fail R-LEGACY's clause that the legacy component earns on both splits (validation -0.92%, the 2022 bear year; the shipped budget loses -0.43% there too). Config only.
-1. **Live counts crypto twice in the rolling-IC gate (owner choice):** `main.py` appends an IC event on a crypto pair's own midnight tick and again on the next equity tick, so crypto weighs double; replicating that offline made the gate value match (correlation 0.977, 92% on the same side of the floor, Problems #196). Deduplicating live is a one-line behaviour change that would make the gate read about +0.012 higher and engage more often; it was not done (it changes Lean results and the Lean budget was spent). What keeps R-CAL2 on branch B now is the kill switch's lock timing (it reads a rolling Sharpe near its -1.0 floor from a return series that tracks Lean's at r 0.7-0.8) and a 0.5 pp gap on the holdout stretch.
-2. **Alpha is still unproven out of sample:** every retrained candidate stays inside seed noise; the most regularised one (`v9_reg`, weight decay x16 and dropout 0.5) has the best validation decision IC (+0.027 swapped priority, +0.058 daily t 1.67) and halves the train IC, which is the direction to push (more seeds, label noise, a smaller feature set). The honest test is a paper period.
-3. **Phase luck:** the shipped book's ungated validation Sharpe spans -1.02 to +0.57 across rebalance phases; a staggered book (several tranches rebalancing at offsets, or partial adjustment toward the target) would average the timing luck out. Not built.
-4. **Latency:** only a faster host moves it (run Lean on a bigger machine); `scripts/profile_main_tick.py` runs inside the Lean image for a reading.
-5. **Crypto live venue:** decide the live brokerage for crypto (Coinbase through QuantConnect, a cash account) or switch the crypto classes off before any live deploy; belongs with the IB items.
-6. **#104 teardown timeout** is environmental and unchanged (Problems #184).
+1. **Staggered book S2** passed every R-STAGGER margin (+0.26 validation, +0.52 backtest median Sharpe, 80% / 70% of phases) and failed only the phase-range clause; the live tranche path is not built. The honest next test is out of sample (paper), or a pre-registered re-look with a range measure that does not reward a single lucky phase.
+2. **Crypto IC dedupe** is far more robust on validation (worst phase -2.04 -> -0.43, every phase better) at -0.09 on backtest; revisit with more data, not by loosening the rule.
+3. **Kill switch at its floor:** one borderline order moves the whole lock path (46 against 14 lock dates on identical rebalance decisions, #200, #205). The kill switch's input window and floor are a design question, not a tuning one.
+4. **Alpha is still unproven out of sample;** the retrained candidates stay inside seed noise. A paper period is the test.
+5. **Lean host:** the dev PC can no longer run Docker reliably; decide whether Lean runs move to a Codespace permanently (the DinD recipe works, ~10 min a run) or the PC gets more memory.
+6. **Crypto live venue:** unchanged (Coinbase or switch crypto off before live; with the IB items).
 
 ## Deferred (IB-only, do not touch)
 #35, #38, #58, #59, #60, #61, #67 and the IB part of #116 need a live/paper IB connection; `aq paper-readiness` needs the deployed Postgres and the paper broker config, so it belongs here too.
 
 ## Resume checklist
-- Never push to the Codespace without `-CodeOnly` after a retrain (a full push overwrites the remote `ml/`).
-- A Codespace job stops when the Codespace idles out (no ssh session for ~30 minutes): keep a `gh codespace ssh ... 'while pgrep ...'` open for the whole run and resume with `RESUME=1`.
-- Files written from Python on Windows get CRLF: a `.sh` with CRLF fails on the Codespace (`set: -: invalid option`); `sed -i 's/\r$//'` before uploading.
+- Never push to the Codespace without `-CodeOnly` after a retrain (a full push overwrites the remote `ml/`); a `-CodeOnly` push also overwrites `config.json` - put a frozen run config back afterwards.
+- A Codespace job stops when the Codespace idles out (~30 minutes without ssh): hold `scripts/codespace_keepalive.sh` open, or check by ssh every <= 15 minutes, and resume with `RESUME=1`. `pgrep -f` through ssh matches its own command line.
+- Files written from Python on Windows get CRLF: `sed -i 's/\r$//'` a `.sh` before running it on the Codespace.
 - `tests/` is not a package on CI or the Codespace: never `from tests.x import ...`.
-- Lean's `code/` folder holds no config.json: a run's config is kept at `ml/evaluation/run_configs/<run folder>.json` (freeze it right after the run).
-- Never `git checkout -- <file>` a file with uncommitted work (a README refresh from a failed run cost a re-application of the manual edits).
-- Keep the PC light during a Lean run (`Initialize()` has a 90 s limit; ~250 MB free is what a run starts with). Quit Docker Desktop and run `wsl --shutdown` for any heavy offline job; a stuck `WslService` needs an elevated `taskkill /F /PID <its pid>`.
-- Git Bash rewrites `/app/...` in `docker run -v`: set `MSYS_NO_PATHCONV=1` and use `pwd -W` paths; the Lean image's entrypoint launches Lean, use `--entrypoint python` for anything else.
-- Inline `ssh` commands lose double quotes on Windows: use `grep -e a -e b`, never `grep -E "a|b"`, and never `pkill -f` through ssh.
+- Lean's `code/` folder holds no config.json: freeze a run's config at `ml/evaluation/run_configs/<run folder>.json`.
+- Never `git checkout -- <file>` a file with uncommitted work.
+- Lean on the DinD Codespace: Docker's data root on `/tmp` before building the ~20 GB image; `lean backtest . --image aether-quant-lean:17900` needs no login.
+- Long bash heredocs with `\n` escapes or quotes break through the tool shell: write the text to a file first.

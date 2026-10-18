@@ -939,3 +939,31 @@ audit parses; the algorithm log never records it.
 - **Crypto route check:** `aq render-lean-config` warns when crypto is in the universe and the credentials are Interactive Brokers' (Problems.md #192).
 - **README Lean run pin:** `python generate_backtest_report.py --backtest-dir backtests/<run>` pins every Lean-reading README block (the run table, the Lean-vs-offline block, the Sharpe comparison) to that run through `ml/evaluation/readme_lean_run.json`; the next plain `aq backtest` clears the pin. Use it when the newest run is not the shipped configuration's (V6.1.0: the rejected cap-0.80 run).
 - **Docker cold start:** wait about 10 minutes after `docker info` answers before `aq backtest` on this host; a run started right after Docker Desktop hit Lean's 90 s `Initialize()` limit (`backtests_invalid/2026-10-16_21-09-57_bt2_init_timeout`).
+
+### V6.2.0: Lean on a Docker-in-Docker Codespace, and Codespace lessons
+
+- **Lean host:** Docker Desktop on the 4 GB dev PC could no longer boot its WSL VM inside Docker's time limit
+  (`Wsl/Service/CreateInstance/CreateVm/ERROR_TIMEOUT`, ~400 MB free), so V6.2.0's Lean runs ran on a temporary
+  4-core / 16 GB Codespace from `.devcontainer/dind-v1-test/` (`python:3.11-bookworm` + `docker-in-docker:2`):
+  `gh codespace create -R leon1706-lol/Aether-quant -b main --devcontainer-path .devcontainer/dind-v1-test/devcontainer.json -m standardLinux32gb`.
+  Before building the Lean image, move Docker's data root to the local disk (`/tmp`, 118 GB; the workspace
+  disk is 32 GB and the image ~20 GB): write `/etc/docker/daemon.json`
+  `{"data-root": "/tmp/docker-data", "dns": ["168.63.129.16"]}` (the DNS the feature's daemon uses), kill
+  `dockerd`, start `sudo setsid nohup dockerd &`, then `docker build -f Dockerfile.lean -t aether-quant-lean:17900 .`
+  and `pip install lean==1.0.227`. `lean backtest . --image aether-quant-lean:17900` needs no login. Push the
+  project with `codespace_sync.ps1 -Mode push -Codespace <name>` (full: `data/` and `ml/`) and confirm
+  `-Mode status` shows both trees matching (AGENTS.md #12); a `-CodeOnly` push overwrites `config.json`, so copy
+  the frozen run config back afterwards. A 3.25-year run takes ~10 minutes there (~2 hours on the dev PC), and the
+  engine shut down cleanly in all three runs (no #104 timeout).
+- **Idle timeout:** a Codespace stops ~30 minutes after its last ssh session (60 for one created with
+  `--idle-timeout 60m`) and takes detached jobs with it. When long-running local shells are not available
+  (Claude Code's memory-pressure reaper stopped them on the dev PC), an ssh check every <= 15 minutes keeps it up;
+  `scripts/codespace_keepalive.sh` is the one-command holder (`pgrep` patterns through Windows ssh lose their
+  quoting). Session scripts resume with `RESUME=1`. `pgrep -f <name>` run through ssh matches its own command line.
+- **Two Codespaces:** `codespace_sync.ps1` resolves `-Codespace` by name or display name (fixed for Windows
+  PowerShell 5.1's `ConvertFrom-Json` array behaviour, which joined two names).
+- **Risk-free file:** `python scripts/refresh_lean_interest_rate.py --apply` keeps Lean's
+  `data/alternative/interest-rate/usa/interest-rate.csv` current (FRED DPCREDIT); copy it to every Codespace
+  with `gh codespace cp` (a `-CodeOnly` push skips `data/`).
+- **CI checkout locally:** `powershell -File scripts/clean_checkout_test.ps1` before handing over a commit.
+

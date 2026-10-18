@@ -157,7 +157,10 @@ function Show-HashComparison([hashtable]$Local, [hashtable]$Remote, [string]$Pre
 }
 
 # `gh codespace ... -c` wants the generated NAME; the one this project trains on is known by its display name.
-$resolved = gh codespace list --json name,displayName | ConvertFrom-Json | Where-Object { $_.name -eq $Codespace -or $_.displayName -eq $Codespace } | Select-Object -First 1
+# Windows PowerShell 5.1's ConvertFrom-Json passes a JSON array down the pipeline as ONE object; assigning it first
+# enumerates it, else Where-Object matches the whole list as soon as two Codespaces exist.
+$codespaces = gh codespace list --json name,displayName | ConvertFrom-Json
+$resolved = @($codespaces) | Where-Object { $_.name -eq $Codespace -or $_.displayName -eq $Codespace } | Select-Object -First 1
 if (-not $resolved) { throw "no Codespace named or titled '$Codespace' (gh codespace list)" }
 $Codespace = $resolved.name
 

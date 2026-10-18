@@ -145,3 +145,111 @@ def test_a_live_seed_ensemble_matches_the_single_model_when_its_members_are_iden
     assert set(ensembled) == set(single)
     for head, value in single.items():
         assert ensembled[head] == pytest.approx(value, abs=1e-12)
+
+
+def test_the_installed_models_read_the_full_input_vector_and_a_subset_member_reads_its_own(algorithm):
+    import copy
+
+    assert algorithm._multitask_input_index is None and algorithm._sequence_input_index is None  # V6.2.0: unchanged
+    names = list(algorithm.model_input_names)
+    member = copy.deepcopy(algorithm.multitask_model)
+    assert algorithm._resolve_input_index("member", member) is None
+    member["model"] = dict(member.get("model", {}), model_input_features=names[:3] + ["not_a_live_feature"])
+    assert algorithm._resolve_input_index("member", member) is False
+
+
+class _Holding:
+    def __init__(self, symbol, quantity=0.0, price=100.0, net_profit=0.0, unrealized=0.0):
+        self.Symbol, self.Quantity, self.NetProfit, self.UnrealizedProfit = symbol, quantity, net_profit, unrealized
+        self.AveragePrice = price - 0.5  # bought half a dollar below today's price
+        self.HoldingsValue = quantity * price
+        self.Invested = quantity != 0.0
+
+
+class _Portfolio:
+    def __init__(self, holdings, total):
+        self._holdings, self.TotalPortfolioValue = holdings, total
+
+    def __getitem__(self, symbol):
+        return self._holdings.setdefault(symbol, _Holding(symbol))
+
+    @property
+    def Values(self):
+        return list(self._holdings.values())
+
+
+def _sweep_world(algorithm, monkeypatch, *, held_long=0.2, sweep_quantity=0.0):
+    """One long equity of `held_long` x NAV, the T-bill sweep at `sweep_quantity` shares, prices 100, NAV 100k."""
+    config = dict(algorithm.config)
+    config["phase_v2"] = dict(config["phase_v2"], cash_sweep=dict(config["phase_v2"]["cash_sweep"], enabled=True))
+    monkeypatch.setattr(algorithm, "config", config)
+    monkeypatch.setattr(algorithm, "ticker_to_symbol", {"AAA": "AAA"})
+    sweep_security = types.SimpleNamespace(symbol="BIL", fee_model=None, set_slippage_model=lambda model: None)
+    monkeypatch.setattr(algorithm, "add_equity", lambda ticker, resolution: sweep_security)
+    for name in ("cash_sweep_config", "_cash_sweep_symbol", "_cash_sweep_key", "_cash_sweep_state", "_cash_sweep_other_budget",
+                 "_cash_sweep_neutral_budget", "_risk_value_state"):
+        monkeypatch.setattr(algorithm, name, getattr(algorithm, name, None), raising=False)  # restored after the test
+    algorithm._setup_cash_sweep()
+    holdings = {"AAA": _Holding("AAA", quantity=held_long * 1000), "BIL": _Holding("BIL", quantity=sweep_quantity, net_profit=40.0,
+                                                                                unrealized=10.0)}
+    monkeypatch.setattr(algorithm, "Portfolio", _Portfolio(holdings, 100_000.0))
+    monkeypatch.setattr(algorithm, "Securities", {"AAA": types.SimpleNamespace(Price=100.0), "BIL": types.SimpleNamespace(Price=100.0)})
+    monkeypatch.setattr(algorithm, "symbols", ["AAA"])
+    monkeypatch.setattr(algorithm, "asset_lookup", {"AAA": {"security_type": "equity", "ticker": "AAA"}})
+    monkeypatch.setattr(algorithm, "Transactions", types.SimpleNamespace(GetOpenOrderTickets=lambda symbol: []))
+    monkeypatch.setattr(algorithm, "is_equity_session_bar", True)
+    monkeypatch.setattr(algorithm, "is_warming_up", False)
+    monkeypatch.setattr(algorithm, "runtime_mode", "backtest")
+    monkeypatch.setattr(algorithm, "_book_target_weights", {})
+    monkeypatch.setattr(algorithm, "_last_book_allocations", {})
+    orders = []
+    monkeypatch.setattr(algorithm, "MarketOrder", lambda symbol, quantity, tag="": orders.append((symbol, quantity, tag)))
+    return orders
+
+
+def test_the_cash_sweep_buys_up_to_both_limits_and_stays_out_of_the_strategy(algorithm, monkeypatch):
+    from portfolio.cash_sweep import cash_sweep_target_weight, margin_fraction, strategy_reserve
+
+    orders = _sweep_world(algorithm, monkeypatch)
+    assert algorithm._cash_sweep_key == "BIL" and "BIL" not in algorithm.asset_lookup
+    algorithm._update_cash_sweep()
+    reserve = strategy_reserve(  # the book is empty, so the next session is a rebalance attempt
+        rebalance_next=True, book_gross_cap=algorithm.book_gross_exposure_cap, max_short_exposure=algorithm.max_short_exposure,
+        formed_long=0.0, formed_short=0.0, book_long=0.0, book_short=0.0,
+        other_budget_remaining=algorithm._cash_sweep_other_budget, neutral_budget=algorithm._cash_sweep_neutral_budget,
+    )
+    expected = cash_sweep_target_weight(long_weight=0.2, short_weight=0.0, margin_used=margin_fraction([("equity", 0.2)]),
+                                        reserve=reserve, config=algorithm.cash_sweep_config)
+    assert 0.0 < expected < algorithm.cash_sweep_config["max_weight"]
+    assert orders == [("BIL", int(expected * 100_000 / 100.0), "cash_sweep")]
+    # the risk controls read the strategy without the sweep's carry, and the position count ignores it
+    # realized 40 net of fees; the mark is quantity x (price - average price), never Lean's fee-adjusted UnrealizedProfit
+    assert algorithm._cash_sweep_holding_profit() == (40.0, 0.0)
+    algorithm.Portfolio._holdings["BIL"] = _Holding("BIL", quantity=200.0, net_profit=40.0, unrealized=-999.0)
+    assert algorithm._cash_sweep_holding_profit() == (40.0, 100.0)
+    algorithm.Portfolio._holdings["BIL"] = _Holding("BIL", quantity=0.0, net_profit=40.0)
+    monkeypatch.setattr(algorithm, "_pending_entries_this_bar", set())
+    algorithm.Portfolio._holdings["BIL"] = _Holding("BIL", quantity=500.0)
+    assert algorithm._active_position_count(orders_allowed=True) == 1
+
+
+def test_a_sweep_already_near_target_is_left_alone_and_the_drawdown_liquidation_keeps_it(algorithm, monkeypatch):
+    orders = _sweep_world(algorithm, monkeypatch, sweep_quantity=0.0)
+    algorithm._update_cash_sweep()
+    first = orders[0][1]
+    orders.clear()
+    _sweep_world(algorithm, monkeypatch, sweep_quantity=first)
+    algorithm._update_cash_sweep()
+    assert orders == []
+    liquidated = []
+    monkeypatch.setattr(algorithm, "Liquidate", lambda symbol=None: liquidated.append(symbol))
+    algorithm._liquidate_strategy_positions()
+    assert liquidated == ["AAA"]
+
+
+def test_the_sweep_is_subscribed_exactly_when_the_config_enables_it(algorithm):
+    enabled = bool(algorithm.config["phase_v2"].get("cash_sweep", {}).get("enabled"))
+    assert (algorithm._cash_sweep_symbol is not None) is enabled
+    assert algorithm.cash_sweep_config["ticker"] not in algorithm.ticker_to_symbol  # never a universe asset
+    if not enabled:
+        assert algorithm._cash_sweep_holding_profit() == (0.0, 0.0)

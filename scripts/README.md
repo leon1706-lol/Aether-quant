@@ -99,6 +99,7 @@ codebase.
   the three pre-registered decisions of V6.0.0 on the calibrated simulator (heavy: run them on the Codespace through
   `codespace_research_v600.sh`; `codespace_calibration_v600.sh` and `codespace_predict_v600.sh` do the same for R-CAL).
 - `v610_research.py` (V6.1.0) — the pre-registered rule chain R-MODEL9 -> R-HEAD2 -> R-BOOK2 -> R-LEGACY -> R-GATE on the V6.1.0
+- `v620_research.py` (V6.2.0) — the rule chain R-DEDUPE -> R-STAGGER -> R-MODEL10 on the V6.1 scoring (every phase, both splits), with an informational with / without T-bill sweep report; `codespace_session_v620.sh` (retrain: label noise, the train-chosen feature subset) and `codespace_research_v620.sh` (yardstick, candidates, chain) run it on the Codespace. Also V6.2.0: `select_feature_subset.py` (train split only), `fetch_cash_sweep_data.py` (BIL zip), `refresh_lean_interest_rate.py` (Lean's risk-free file from FRED DPCREDIT), `predict_sweep_bt1.py` (a run with the sweep predicted from a run without it), `clean_checkout_test.ps1` (CI's checkout locally), `codespace_keepalive.sh`.
   simulator: every variant is one change, scored on **every rebalance phase** (median Sharpe, share of phases that beat the
   incumbent) over both splits, then reported once on the holdout; resumable -> `ml/evaluation/v610/research.json`.
   `lean_calibration.py --rcal2` (R-CAL2) scores the `v610` rung against the V6 BT2 stretches and the V5.8.0 BT2 stretch;

@@ -11,7 +11,8 @@
         "initial_cash": 100000,
         "warmup_bars": 30,
         "lean_window_override": null,
-        "benchmark_ticker": "SPY"
+        "benchmark_ticker": "SPY",
+        "trading_days_per_year": 365
     },
     "phase1": {
         "status": "defined",
@@ -1810,6 +1811,7 @@
         },
         "rolling_ic_gate": {
             "enabled": true,
+            "late_bar_event_count": "per_tick",
             "horizon_days": 20,
             "rolling_window_days": 120,
             "min_resolved_dates_required": 20,
@@ -2225,7 +2227,8 @@
                     "enabled": true
                 },
                 "early_stop_head": "rank_20d",
-                "early_stop_smoothing_epochs": 3
+                "early_stop_smoothing_epochs": 3,
+                "label_noise_std": 0.0
             },
             "sequence_training": {
                 "enabled": true,
@@ -2311,7 +2314,8 @@
                 },
                 "early_stop_head": "rank_20d",
                 "early_stop_smoothing_epochs": 3,
-                "normalization": "layernorm"
+                "normalization": "layernorm",
+                "label_noise_std": 0.0
             },
             "strategy_selector_training": {
                 "enabled": true,
@@ -2472,6 +2476,18 @@
             "min_rank_confidence_spread": 0.0,
             "hysteresis_rank_margin": 0.0,
             "signal": "ts_momentum"
+        },
+        "cash_sweep": {
+            "enabled": true,
+            "ticker": "BIL",
+            "data_path": "data/equity/usa/daily/bil.zip",
+            "max_weight": 0.9,
+            "margin_leverage": 2.0,
+            "margin_buffer": 0.1,
+            "cash_buffer": 0.02,
+            "min_trade_weight": 0.05,
+            "cost_bps_per_side": 1.0,
+            "exclude_from_risk_controls": true
         },
         "sleeve_guards": {
             "forex": {

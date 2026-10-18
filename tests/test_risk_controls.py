@@ -651,3 +651,14 @@ def test_benchmark_ticker_must_be_in_the_universe():
     assert resolve_benchmark_ticker({"benchmark_ticker": None}, universe) is None
     assert resolve_benchmark_ticker({"benchmark_ticker": "spy"}, universe) == "SPY"
     assert resolve_benchmark_ticker({"benchmark_ticker": "QQQ"}, universe) is None
+
+
+def test_trading_days_per_year_defaults_to_lean_and_rejects_nonsense():
+    from risk_controls import resolve_trading_days_per_year
+
+    assert resolve_trading_days_per_year({}) is None
+    assert resolve_trading_days_per_year({"trading_days_per_year": None}) is None
+    assert resolve_trading_days_per_year({"trading_days_per_year": 365}) == 365
+    assert resolve_trading_days_per_year({"trading_days_per_year": "252"}) == 252
+    assert resolve_trading_days_per_year({"trading_days_per_year": 12}) is None
+    assert resolve_trading_days_per_year({"trading_days_per_year": "x"}) is None

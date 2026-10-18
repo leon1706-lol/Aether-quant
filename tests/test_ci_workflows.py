@@ -41,7 +41,7 @@ def test_ci_python_tests_matrix_includes_windows_and_coverage_gate():
     ci = _load(CI)
     job = ci["jobs"]["python-tests"]
     matrix = job["strategy"]["matrix"]["os"]
-    assert "ubuntu-latest" in matrix and "windows-latest" in matrix
+    assert "ubuntu-24.04" in matrix and "windows-latest" in matrix
 
     run_step = next(s for s in job["steps"] if s.get("name", "").startswith("Run full test suite"))
     script = run_step["run"]

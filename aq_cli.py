@@ -687,7 +687,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_kill_switch.py", "test_reconciliation.py",
     ],
     "portfolio": [
-        "test_portfolio_book_construction.py", "test_options_strategy.py",
+        "test_portfolio_book_construction.py", "test_options_strategy.py", "test_cash_sweep.py",
         "test_options_strategy_multileg.py", "test_options_arbitrage_detector.py",
         "test_options_margin_sizing.py",
         "test_options_greeks.py", "test_simulated_portfolio.py", "test_options_assignment_risk.py",
@@ -718,6 +718,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "data-pipeline": [
         "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
         "test_dividend_backfill.py", "test_factor_file_backfill.py",
+        "test_refresh_lean_interest_rate.py",
         # V5.8.0 - data_pipeline/data_audit.py.
         "test_data_audit.py",
         # V6.0.0 - scripts/refresh_universe_availability.py.
@@ -732,6 +733,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V6.0.0 - extra-horizon (rank_60d) targets and heads.
         "test_v600_extra_horizon.py",
         "test_build_holdout_dataset.py", "test_holdout_report.py", "test_v610_model_ensemble.py",
+        "test_v620_model_inputs.py",
         "test_compare_datasets.py", "test_model_candidate_research.py", "test_build_legacy_probability.py",
         "test_as_live_levers.py",
         "test_expert_models.py", "test_expert_datasets.py", "test_gating_network.py", "test_train_gating.py",
@@ -821,8 +823,12 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_v600_late_bar_cross_asset.py",
         "test_v600_sensitivity_vector.py",
         "test_v600_across_symbols.py",
-        "test_v600_config_decisions.py", "test_v610_config_decisions.py",
+        "test_v600_config_decisions.py", "test_v610_config_decisions.py", "test_v620_config_decisions.py",
         "test_lean_calibration.py",
+        # V6.2.0 - Lean's statistics reproduced exactly (risk-free file, day count, counterfactual returns).
+        "test_lean_statistics.py",
+        "test_v620_cash_sweep_parity.py",
+        "test_v620_dedupe.py", "test_v620_tranche_book.py", "test_v620_research.py",
         "test_book_variant_research.py",
         "test_crypto_fee_research.py",
         "test_forex_keep_or_drop.py",
@@ -2076,6 +2082,38 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
     # V6.0.0 - `aq evaluate --attribute-lean`: one Lean run's daily P&L rebuilt per ticker and component (main book,
     # legacy signal, sleeves, crypto core / graduates), reconciled with Lean's equity curve; no dataset, no model.
+    # V6.2.0 - `aq evaluate --lean-stats`: Lean's printed Sharpe / Sortino / PSR next to the exact replica
+    # (evaluation/lean_statistics.py) on the shipped and the pre-V6.2 risk-free file, at 252 and 365 days a year.
+    if getattr(args, "lean_stats", False):
+        from evaluation.lean_statistics import statistics_table
+
+        backtests_dir = ROOT_DIR / "backtests"
+        run_dir = Path(args.backtest_dir) if getattr(args, "backtest_dir", None) else None
+        if run_dir is None:
+            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir() and (path / "log.txt").exists())
+            run_dir = run_dirs[-1] if run_dirs else None
+        results = [path for path in run_dir.glob("*.json") if path.stem.isdigit()] if run_dir and run_dir.exists() else []
+        if not results:
+            print("error: no Lean result JSON found - pass --backtest-dir PATH.", file=sys.stderr)
+            return 1
+        rate_files = {"shipped rate file": ROOT_DIR / "data" / "alternative" / "interest-rate" / "usa" / "interest-rate.csv"}
+        pre_v620 = ML_DIR / "evaluation" / "v620" / "interest-rate_pre_v620.csv"
+        if pre_v620.exists():
+            rate_files["pre-V6.2 rate file"] = pre_v620
+        if getattr(args, "interest_rate_file", None):
+            rate_files = {"--interest-rate-file": Path(args.interest_rate_file)}
+        day_counts = (int(args.trading_days),) if getattr(args, "trading_days", None) else (252, 365)
+        table = statistics_table(results[0], rate_files, day_counts)
+        print(f"Lean statistics, {run_dir.name} (run used {table['run_trading_days_per_year']} days a year)")
+        print(f"  Lean printed: {table['lean_printed']}")
+        for label, row in table["replica"].items():
+            print(f"  {label:28s} Sharpe {row['sharpe_ratio']:+.3f}  Sortino {row['sortino_ratio']:+.3f}  "
+                  f"PSR {row['probabilistic_sharpe_ratio']:.3%}  annual {row['annual_return']:+.2%}  "
+                  f"std {row['annual_standard_deviation']:.4f}  rf {row['risk_free_rate']:.4%}")
+        out_path = ML_DIR / "evaluation" / f"lean_stats_{run_dir.name}.json"
+        _write_evaluation_json(out_path, dict(table, run=run_dir.name))
+        print(f"  Wrote {out_path}")
+        return 0
     if getattr(args, "lean_monte_carlo", False):
         from evaluation.backtest_audit import daily_equity_from_chart, load_backtest_run
         from evaluation.monte_carlo import run_monte_carlo
@@ -4388,6 +4426,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="V6.1.0: block-bootstrap a finished Lean run's own daily equity returns (--backtest-dir, --mc-runs, "
         "--mc-block-size, --mc-seed) -> ml/evaluation/monte_carlo_lean.json; the README Monte Carlo block shows it next to "
         "the offline book. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--lean-stats", action="store_true",
+        help="V6.2.0: a finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas on the "
+        "shipped and the pre-V6.2 risk-free file, at 252 and 365 days a year (--backtest-dir, --interest-rate-file, "
+        "--trading-days) -> ml/evaluation/lean_stats_<run>.json. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--interest-rate-file", default=None,
+        help="V6.2.0: with --lean-stats, price the run on this risk-free file only (Lean's interest-rate.csv format).",
+    )
+    evaluate_parser.add_argument(
+        "--trading-days", type=int, default=None,
+        help="V6.2.0: with --lean-stats, annualise with this many days a year only (default: both 252 and 365).",
     )
     evaluate_parser.add_argument(
         "--book-history-file", default=None,
