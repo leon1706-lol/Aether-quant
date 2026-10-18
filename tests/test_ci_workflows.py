@@ -100,7 +100,7 @@ def test_release_publishes_all_three_targets():
 def test_readme_documents_the_monte_carlo_cli_surface():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "--monte-carlo" in readme
-    assert "### Monte Carlo Simulation" in readme
+    assert "#### Monte Carlo Simulation" in readme
 
 
 def test_every_requirements_line_parses_as_a_valid_requirement():

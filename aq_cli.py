@@ -827,8 +827,12 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_lean_calibration.py",
         # V6.2.0 - Lean's statistics reproduced exactly (risk-free file, day count, counterfactual returns).
         "test_lean_statistics.py",
+        # V6.3.0 - the README's Backtest Statistics (evaluation/backtest_statistics.py, evaluation/lean_report.py).
+        "test_backtest_statistics.py", "test_lean_report.py", "test_readme_statistics.py", "test_build_trial_registry.py",
         "test_v620_cash_sweep_parity.py",
         "test_v620_dedupe.py", "test_v620_tranche_book.py", "test_v620_research.py",
+        # V6.3.0 - the R-KILL / R-STAGGER2 clauses and the release-band parity round.
+        "test_v630_research.py", "test_v630_round.py",
         "test_book_variant_research.py",
         "test_crypto_fee_research.py",
         "test_forex_keep_or_drop.py",
@@ -853,7 +857,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     # failure in one of them names its own bucket in CI's subsystem matrix.
     "meta": [
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py",
-        "test_ci_scripts.py",
+        "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_readme_freshness.py",
     ],
 }
 
@@ -968,13 +972,21 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         from generate_backtest_report import update_readme_from_latest_backtest
 
         if update_readme_from_latest_backtest():
-            print("Updated README.md's Backtest Results section.")
+            print("Updated README.md's Backtest Statistics overview.")
     except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
         print(f"warning: failed to update README.md's backtest results ({error})", file=sys.stderr)
     # Also refreshes Other Metrics (Lean-vs-offline comparison) with this
     # backtest's fresh Sharpe, rather than leaving it stale until the next
     # `aq evaluate` run - same self-guarding, never-fail contract as above.
     _refresh_readme_evaluation_sections()
+    # V6.3.0 - every run-folder tool and the Backtest Statistics for the new run (`aq evaluate --lean-report`).
+    try:
+        run_dir = _resolve_lean_run_dir(argparse.Namespace(backtest_dir=None))
+        if run_dir is not None:
+            report_args = build_parser().parse_args(["evaluate", "--lean-report"])
+            _run_lean_report(report_args, json.loads(CONFIG_PATH.read_text(encoding="utf-8")), run_dir, pin=False)
+    except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
+        print(f"warning: the Lean report failed ({error})", file=sys.stderr)
     if exit_code != 0:
         print(
             "note: `lean backtest` returned a non-zero exit code. If the run reached the end date and "
@@ -1757,6 +1769,43 @@ def _refresh_readme_evaluation_sections() -> None:
         print(f"warning: README evaluation-section refresh failed: {exc}", file=sys.stderr)
 
 
+def _run_lean_report(args: argparse.Namespace, config: dict, run_dir: Path, *, pin: bool) -> int:
+    """`aq evaluate --lean-report`: evaluation/lean_report.py's steps against one run, each through cmd_evaluate on a copy
+    of `args`; a failing step is reported and the rest still run. Returns 1 when any step failed."""
+    from evaluation.lean_report import lean_report_steps
+
+    if pin:
+        try:
+            from generate_backtest_report import update_readme_from_latest_backtest
+
+            update_readme_from_latest_backtest(backtest_dir=run_dir)
+        except Exception as exc:  # noqa: BLE001 - one README block must not stop the report
+            print(f"warning: Lean headline refresh failed: {exc}", file=sys.stderr)
+    failed = []
+    for label, overrides in lean_report_steps(config):
+        step_args = argparse.Namespace(**vars(args))
+        for key, value in overrides.items():
+            setattr(step_args, key, value)
+        step_args.backtest_dir = str(run_dir)
+        print(f"--- {label} ({run_dir.name})")
+        try:
+            exit_code = cmd_evaluate(step_args)
+        except Exception as exc:  # noqa: BLE001 - every other step still runs
+            print(f"warning: {label} failed: {exc}", file=sys.stderr)
+            exit_code = 1
+        if exit_code:
+            failed.append(label)
+    print(f"Lean report for {run_dir.name}: {len(failed)} step(s) failed{': ' + ', '.join(failed) if failed else ''}")
+    return 1 if failed else 0
+
+
+def _resolve_lean_run_dir(args: argparse.Namespace) -> Path | None:
+    """`--backtest-dir`, else the README pin, else the newest finished Lean run: the same run for every Lean-reading flag."""
+    from generate_backtest_report import resolve_lean_run_dir
+
+    return resolve_lean_run_dir(getattr(args, "backtest_dir", None), ROOT_DIR / "backtests")
+
+
 def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default: int, ml_dir: Path | None = None):
     """The live path's rank score for every dataset row: the config-driven,
     promotion-gate-aware head blend (portfolio/rank_signal.py), NOT the
@@ -1993,6 +2042,44 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             return 1
         config = _apply_preset_in_memory(config, preset)
 
+    # V6.3.0 - `aq evaluate --lean-report`: every run-folder tool for one Lean run, then the README (`aq backtest` runs it).
+    if getattr(args, "lean_report", False):
+        run_dir = _resolve_lean_run_dir(args)
+        if run_dir is None or not run_dir.exists():
+            print("error: no backtest folder found - pass --backtest-dir PATH.", file=sys.stderr)
+            return 1
+        return _run_lean_report(args, config, run_dir, pin=bool(getattr(args, "backtest_dir", None)))
+
+    # V6.3.0 - `aq evaluate --backtest-stats`: the README's Backtest Statistics for one Lean run; no dataset, no model.
+    if getattr(args, "backtest_stats", False):
+        from evaluation.backtest_statistics import compute_for_run_dir
+
+        run_dir = _resolve_lean_run_dir(args)
+        if run_dir is None or not run_dir.exists():
+            print("error: no backtest folder found - pass --backtest-dir PATH or run `aq backtest` first.", file=sys.stderr)
+            return 1
+        try:
+            stats = compute_for_run_dir(run_dir, config, ROOT_DIR)
+        except FileNotFoundError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        from datetime import datetime, timezone
+
+        stats["computed_at"] = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        out_path = ML_DIR / "evaluation" / "backtest_statistics.json"
+        _write_evaluation_json(out_path, stats)
+        if args.json:
+            print(json.dumps(stats, indent=2, default=str))
+        else:
+            print(f"Backtest statistics: {run_dir.name} ({stats.get('status')})")
+            for section, rows in (stats.get("sections") or {}).items():
+                if isinstance(rows, list) and rows and "metric" in rows[0]:
+                    first = rows[0]
+                    print(f"  {section}: {len(rows)} rows (e.g. {first['metric']}: {first.get('portfolio')})")
+            print(f"  Wrote {out_path}")
+        _refresh_readme_evaluation_sections()
+        return 0
+
     # V5.5.0 (Problems.md #127/#128) - `aq evaluate --audit-backtest` audits
     # ONE finished Lean run folder at order level (exposure per asset class,
     # book-member vs non-member entries, duplicate/overlapping limit orders,
@@ -2002,13 +2089,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     if getattr(args, "audit_backtest", False):
         from evaluation.backtest_audit import audit_backtest_run, load_backtest_run, load_book_history
 
-        backtests_dir = ROOT_DIR / "backtests"
-        run_dir_arg = getattr(args, "backtest_dir", None)
-        if run_dir_arg:
-            run_dir = Path(run_dir_arg)
-        else:
-            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir()) if backtests_dir.exists() else []
-            run_dir = run_dirs[-1] if run_dirs else None
+        run_dir = _resolve_lean_run_dir(args)
         if run_dir is None or not run_dir.exists():
             print("error: no backtest folder found - pass --backtest-dir PATH or run `aq backtest` first.", file=sys.stderr)
             return 1
@@ -2030,11 +2111,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 print(f"error: --period expects START..END (ISO dates), got {period_text!r}", file=sys.stderr)
                 return 1
             periods.append((period_start, period_end))
-        class_by_ticker = {
-            str(asset["ticker"]).upper(): str(asset["asset_class"])
-            for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
-            if asset.get("ticker") and asset.get("asset_class")
-        }
+        from evaluation.backtest_audit import class_by_ticker_from_config
+
+        class_by_ticker = class_by_ticker_from_config(config)
         audit = audit_backtest_run(
             run, load_book_history(book_history_path), book_run_index=getattr(args, "book_run_index", -1),
             max_open_sessions=max_open_sessions, class_by_ticker=class_by_ticker,
@@ -2087,11 +2166,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     if getattr(args, "lean_stats", False):
         from evaluation.lean_statistics import statistics_table
 
-        backtests_dir = ROOT_DIR / "backtests"
-        run_dir = Path(args.backtest_dir) if getattr(args, "backtest_dir", None) else None
-        if run_dir is None:
-            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir() and (path / "log.txt").exists())
-            run_dir = run_dirs[-1] if run_dirs else None
+        run_dir = _resolve_lean_run_dir(args)
         results = [path for path in run_dir.glob("*.json") if path.stem.isdigit()] if run_dir and run_dir.exists() else []
         if not results:
             print("error: no Lean result JSON found - pass --backtest-dir PATH.", file=sys.stderr)
@@ -2118,11 +2193,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation.backtest_audit import daily_equity_from_chart, load_backtest_run
         from evaluation.monte_carlo import run_monte_carlo
 
-        backtests_dir = ROOT_DIR / "backtests"
-        run_dir = Path(args.backtest_dir) if getattr(args, "backtest_dir", None) else None
-        if run_dir is None:
-            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir() and (path / "log.txt").exists())
-            run_dir = run_dirs[-1] if run_dirs else None
+        run_dir = _resolve_lean_run_dir(args)
         if run_dir is None or not run_dir.exists():
             print("error: no backtest folder found - pass --backtest-dir PATH.", file=sys.stderr)
             return 1
@@ -2149,11 +2220,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation.backtest_audit import load_backtest_run
         from evaluation.lean_attribution import attribute_run, find_book_history_for_run
 
-        backtests_dir = ROOT_DIR / "backtests"
-        run_dir = Path(args.backtest_dir) if getattr(args, "backtest_dir", None) else None
-        if run_dir is None:
-            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir()) if backtests_dir.exists() else []
-            run_dir = run_dirs[-1] if run_dirs else None
+        run_dir = _resolve_lean_run_dir(args)
         if run_dir is None or not run_dir.exists():
             print("error: no backtest folder found - pass --backtest-dir PATH.", file=sys.stderr)
             return 1
@@ -2234,13 +2301,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         from evaluation.backtest_audit import load_backtest_run
         from evaluation.fill_price_audit import audit_fills
 
-        backtests_dir = ROOT_DIR / "backtests"
-        run_dir_arg = getattr(args, "backtest_dir", None)
-        if run_dir_arg:
-            run_dir = Path(run_dir_arg)
-        else:
-            run_dirs = sorted(path for path in backtests_dir.glob("*") if path.is_dir()) if backtests_dir.exists() else []
-            run_dir = run_dirs[-1] if run_dirs else None
+        run_dir = _resolve_lean_run_dir(args)
         if run_dir is None or not run_dir.exists():
             print("error: no backtest folder found - pass --backtest-dir PATH or run `aq backtest` first.", file=sys.stderr)
             return 1
@@ -2974,6 +3035,30 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     dataset = dataset.copy()
     dataset["predicted_head"] = predictions
 
+    # V6.3.0 - the Backtest Statistics' offline classification rows: the direction_20d head (a sigmoid probability)
+    # against target_direction_20d at a 0.5 threshold, with the plain (unweighted) log-loss.
+    if getattr(args, "classification", False) or args.all:
+        import numpy as np
+
+        from evaluation.backtest_statistics import classification_scores
+
+        if "target_direction_20d" in dataset.columns:
+            probability = predict_head(
+                dataset, model_export, feature_names, "direction_20d", model_kind=model_kind,
+                sequence_feature_schema=feature_schema if model_kind == "sequence" else None,
+                configured_window_size=int(sequence_window_default),
+            )
+            labels = dataset["target_direction_20d"].to_numpy(dtype=float)
+            usable = np.isfinite(probability) & np.isfinite(labels)
+            scores = classification_scores(labels[usable].astype(int), (probability[usable] >= 0.5).astype(int), probability[usable])
+            scores.update(model=model_kind, split=split, threshold=0.5, head="direction_20d")
+            out_path = ML_DIR / "evaluation" / f"classification_scores_{model_kind}.json"
+            _write_evaluation_json(out_path, scores)
+            print(f"Classification ({model_kind} direction_20d, split={split}): n={scores['n']} accuracy={scores['accuracy']:.4f} "
+                  f"F1={scores['f1']} neg log-loss={scores['neg_log_loss']}; wrote {out_path}")
+        else:
+            print("warning: the dataset has no target_direction_20d column - classification scores skipped.", file=sys.stderr)
+
     sector_by_ticker = load_sector_mapping(config)
     base_kwargs = dict(
         prediction_column="predicted_head",
@@ -3062,6 +3147,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         or run_monte_carlo or run_benchmarks
         or getattr(args, "as_live", False) or getattr(args, "factor_exposure", False)
         or getattr(args, "calibrate_volatility_threshold", False)
+        or getattr(args, "classification", False)
     ):
         run_rank_book = True
 
@@ -4229,7 +4315,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--calibrate-edge", action="store_true",
         help="Print an edge_bps_per_rank_unit calibrated from this split's realized rank-vs-return relationship",
     )
-    evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress, --calibrate-edge, --benchmarks and --monte-carlo together")
+    evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress, --calibrate-edge, --benchmarks, --monte-carlo and --classification together")
     evaluate_parser.add_argument(
         "--walk-forward-summary", action="store_true",
         help="Print an already-written ml/versions/walk-forward-*/walk_forward_summary.json (V5.1 Phase 4) - "
@@ -4432,6 +4518,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="V6.2.0: a finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas on the "
         "shipped and the pre-V6.2 risk-free file, at 252 and 365 days a year (--backtest-dir, --interest-rate-file, "
         "--trading-days) -> ml/evaluation/lean_stats_<run>.json. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--backtest-stats", action="store_true",
+        help="V6.3.0: the README's Backtest Statistics for one finished Lean run (--backtest-dir, default the README pin or "
+        "the newest run): general characteristics, performance, runs and drawdowns, implementation shortfall, efficiency "
+        "(PSR, deflated Sharpe), classification scores and per-class attribution, for the portfolio and the strategy without "
+        "its T-bill sweep -> ml/evaluation/backtest_statistics.json. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--lean-report", action="store_true",
+        help="V6.3.0: every run-folder tool for one finished Lean run in order (--lean-stats, --lean-monte-carlo, "
+        "--audit-backtest with the config's backtest and holdout periods, --attribute-lean, --audit-fills, --backtest-stats), "
+        "then the README. With --backtest-dir it also pins the README to that run. `aq backtest` runs it automatically.",
+    )
+    evaluate_parser.add_argument(
+        "--classification", action="store_true",
+        help="V6.3.0: accuracy / precision / recall / F1 / negative log-loss of the --model's direction_20d head on --split "
+        "-> ml/evaluation/classification_scores_<model>.json (the Backtest Statistics' offline rows). Included in --all.",
     )
     evaluate_parser.add_argument(
         "--interest-rate-file", default=None,

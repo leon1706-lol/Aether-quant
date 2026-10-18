@@ -1621,6 +1621,7 @@
                 "enabled": true,
                 "evaluation_bars": 60,
                 "min_rolling_sharpe": -1.0,
+                "release_rolling_sharpe": null,
                 "max_drawdown_velocity_pct_per_bar": 0.01,
                 "min_live_rank_ic": -0.02,
                 "max_consecutive_losses": 12,

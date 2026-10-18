@@ -404,3 +404,40 @@ def test_rolling_sharpe_window_with_any_nan_returns_none_and_does_not_trip():
     decision = evaluate_kill_switch(metrics, _config(min_rolling_sharpe=100.0))
     assert decision.observed["rolling_sharpe"] is None
     assert decision.tripped is False
+
+# ---------------------------------------------------------------------------
+# V6.3.0 (rule R-KILL) - release_rolling_sharpe: a rolling-Sharpe trip stays latched until the Sharpe recovers
+# ---------------------------------------------------------------------------
+
+
+def _returns_with_sharpe(target: float, bars: int = 60, std: float = 0.01) -> list[float]:
+    """Alternating returns whose rolling Sharpe (252-day annualisation) is ~`target`."""
+    mean = target * std / (252**0.5)
+    return [mean + std, mean - std] * (bars // 2)
+
+
+def test_release_band_holds_a_trip_between_floor_and_release():
+    returns = _returns_with_sharpe(-0.75)  # above the -1.0 floor, below the -0.5 release level
+    config = _config(release_rolling_sharpe=-0.5)
+    held = evaluate_kill_switch({"recent_bar_returns": returns, "rolling_sharpe_tripped_last_bar": True}, config)
+    fresh = evaluate_kill_switch({"recent_bar_returns": returns, "rolling_sharpe_tripped_last_bar": False}, config)
+    assert held.tripped and held.rolling_sharpe_tripped
+    assert not fresh.tripped and not fresh.rolling_sharpe_tripped
+    assert held.thresholds["release_rolling_sharpe"] == -0.5
+
+
+def test_release_band_lets_go_above_the_release_level():
+    returns = _returns_with_sharpe(-0.25)
+    decision = evaluate_kill_switch(
+        {"recent_bar_returns": returns, "rolling_sharpe_tripped_last_bar": True}, _config(release_rolling_sharpe=-0.5)
+    )
+    assert not decision.tripped
+
+
+def test_no_release_level_is_todays_behaviour():
+    returns = _returns_with_sharpe(-0.75)
+    decision = evaluate_kill_switch({"recent_bar_returns": returns, "rolling_sharpe_tripped_last_bar": True}, _config())
+    assert not decision.tripped
+    assert decision.thresholds["release_rolling_sharpe"] is None
+    tripped = evaluate_kill_switch({"recent_bar_returns": _returns_with_sharpe(-1.5)}, _config())
+    assert tripped.tripped and tripped.rolling_sharpe_tripped

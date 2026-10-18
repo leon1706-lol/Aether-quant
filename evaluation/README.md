@@ -233,3 +233,13 @@ compressed dispersion in a way IC is not.
 - `lean_attribution.py` — a position belongs to the component that **opened** it (`opener_members_by_date`); the per-day view stays as `components_by_membership`.
 - `model_predictions.py` — `predict_heads_ensemble`: the seed-ensemble mean of each head (NaN where any member is NaN).
 - `readme_research.py` — reads the V6 decisions and the shipped config (no settings typed here) and renders the R-CAL2 and rule-chain results.
+
+## V6.3.0 additions
+
+- `backtest_statistics.py` (`aq evaluate --backtest-stats`) — the README's Backtest Statistics for one Lean run (López de Prado, AFML ch. 14): general characteristics (AUM, leverage, bets, holding period, turnover, SPY correlation), performance (PnL by side, hit ratio, time-weighted return), runs (HHI of returns and of bet timing, 95th-percentile drawdown and time under water), implementation shortfall (fees and slippage per turnover, return on execution costs), efficiency (PSR, deflated Sharpe over the trial registry), classification scores and risk / return per asset class. Each row has a portfolio value and a strategy value (the run without its T-bill sweep); an uncomputable metric carries a `reason`, never a number.
+- `readme_statistics.py` — renders those sections from `ml/evaluation/backtest_statistics.json`; `LEAN_STAT_SECTION` gives every Lean statistic its section.
+- `lean_report.py` (`aq evaluate --lean-report`, run by `aq backtest`) — the order of the run-folder tools; `aq_cli._run_lean_report` runs each step best-effort.
+- `backtest_audit.py` — `class_by_ticker_from_config` files the cash-sweep ticker as its own class `cash_sweep` (it was ~0.8 of NAV inside "equity").
+- `fill_price_audit.py` — `zip_opens_for_fills` (shared with the slippage metric); fills carry their quantity.
+- `rank_book_simulator.py` / `kill_switch_replay.py` — carry the kill switch's `release_rolling_sharpe` band state bar to bar, as `main.py` does (rule R-KILL).
+- `readme_research.py` — R-CAL3 replaces R-CAL2's table once `v630/calibration.json` exists; the V6.3.0 rule chain table.

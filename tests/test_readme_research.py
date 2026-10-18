@@ -207,3 +207,30 @@ def test_the_v620_rule_chain_lists_each_rule_and_why_a_variant_failed(tmp_path):
     assert "none (double count stays)" in lines and "-0.090" in lines
     assert "S2: backtest +0.516" in lines and "fails validation_phase_range_cut_ge_25pct" in lines
     assert "1 candidates fail the IC clauses" in lines
+
+
+def test_v630_rule_chain_names_branches_and_failed_clauses(tmp_path):
+    import json as _json
+
+    from evaluation.readme_research import _calibration_line, _rule_chain_v630_lines
+
+    (tmp_path / "v630").mkdir()
+    (tmp_path / "v630" / "research.json").write_text(_json.dumps({
+        "kill": {"branch": "C", "adopted": None, "base": {"backtest": {"stability_jaccard_median": 0.62}},
+                 "variants": {"KS2": {"verdict": {"backtest_gain": 0.03, "validation_change": -0.01,
+                                                  "checks": {"backtest_gain_ge_0.10": False}},
+                                      "extra_checks": {"stability_jaccard_ge_0.80": True}, "stability": 0.91}}},
+        "stagger": {"adopted": False, "verdict": {"backtest_gain": 0.5, "validation_change": 0.2, "checks": {}},
+                    "extra_checks": {"validation_iqr_widening_le_25pct": False}},
+        "gates": {"skipped": "R-CAL3 branch B: the gates stay frozen as safety controls"},
+    }), encoding="utf-8")
+    text = "\n".join(_rule_chain_v630_lines(tmp_path))
+    assert "branch C: none (KS0 stays)" in text and "KS0 lock stability 0.62" in text
+    assert "KS2: backtest +0.030" in text and "fails backtest_gain_ge_0.10" in text
+    assert "fails validation_iqr_widening_le_25pct" in text
+    assert "| R-GATE3 (rolling-IC floor / window) | skipped |" in text
+    (tmp_path / "v630" / "calibration.json").write_text(_json.dumps({
+        "verdict": {"variant": "v610", "branch": "B", "calibrated": False, "per_window": {"w": False}, "thresholds": {}},
+        "windows": {"w": {"variants": {"v610": {"daily_correlation": 0.7}}}},
+    }), encoding="utf-8")
+    assert _calibration_line(tmp_path).startswith("Rule R-CAL3")

@@ -2,10 +2,10 @@
 
 <p align="center">
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
-  <img src="https://img.shields.io/badge/tests-3593%2F3593%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3593 of 3593 tests passing">
+  <img src="https://img.shields.io/badge/tests-3666%2F3666%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3666 of 3666 tests passing">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <img src="https://img.shields.io/badge/problems-197%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="197 problem entries">
+  <img src="https://img.shields.io/badge/problems-214%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="214 problem entries">
 </p>
 
 Bugs and infrastructure issues found in this codebase, how they were fixed
@@ -2284,7 +2284,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 193. The README performance section mixed V5.8.0 text with V6 results (V6.1.0)
 
-**Severity:** 4/10 · **Status:** 🟡 `partial` (builders fixed; the blocks are regenerated in the final refresh)
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (V6.3.0: every block regenerated on the shipped config and BT4; `scripts/readme_freshness.py` finds none stale, #206)
 
 **Problem:** every offline block (Monte Carlo, evaluation, benchmarks, as-live, research, kill-switch replay) dated from V5.8.0 and two contradicted the shipped config (the forex sleeve "shipped at gross 0.10", crypto caps 0.01 / 0.05); `_updated_at()` stamped render time, so a re-render made old data look fresh; `--audit-backtest`, `--attribute-lean`, `--audit-fills` and `--reconcile-features` did not refresh the README; Monte Carlo bootstrapped only the offline idealized book and said nothing about its source; `README.md` / `REPRODUCIBILITY.md` said `--all` excludes Monte Carlo.
 
@@ -2343,7 +2343,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 198. CI red on the V6.1.0 commit: a test read the gitignored `ml/model_weights.json`; ubuntu-latest moves to 26.04 (V6.2.0)
 
-**Severity:** 5/10 · **Status:** 🟡 `partial` (fixed and verified on a clean checkout; the owner's push confirms it on GitHub)
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (GitHub CI green on the V6.2.0 commit `5d5ae86`, 2026-10-18)
 
 **Problem:** run 39036302436 failed python-tests (ubuntu, windows) and subsystem-matrix (ml) on one test: `test_v610_harness_warms_the_gate_on_earlier_rows_and_models_the_legacy_signal` reached `AsLiveHarness.v610_mechanisms()`, which reads `ml/model_weights.json`, present locally and on the Codespace but gitignored. CI also warned that `ubuntu-latest` moves to Ubuntu 26.04 from 2026-10-19 and that the Node 20 actions are forced onto Node 24.
 
@@ -2363,7 +2363,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 200. Idle cash earned nothing in Lean: a T-bill sweep (BIL), outside the strategy and its risk controls (V6.2.0)
 
-**Severity:** 7/10 · **Status:** 🟡 `partial` (shipped and measured in Lean BT1 / BT3; the kill-switch lock-date clause did not hold, see Result)
+**Severity:** 7/10 · **Status:** 🔴 `closed` (the sweep shipped and is confirmed; the lock-path sensitivity is a documented design limit of the kill switch at its floor, decided by rule R-KILL branch C in V6.3.0, #211)
 
 **Problem:** the market-neutral book is mostly vetoed, so 70-95% of the NAV sat as cash Lean pays no interest on while its Sharpe subtracts the full risk-free rate.
 
@@ -2385,7 +2385,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 202. Phase luck: a staggered tranche book, decided by rule R-STAGGER - not adopted, S2 the strongest open lead (V6.2.0)
 
-**Severity:** 5/10 · **Status:** 🟢 `fixed` (built offline and decided by rule; one tranche stays, nothing to build live)
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (built offline and decided by rule; one tranche stays, nothing to build live; V6.3.0's second look R-STAGGER2 also adopted nothing, #212)
 
 **Problem:** lead 3: the shipped book's ungated validation Sharpe spans -1.02..+0.57 across its rebalance phases (#195); several tranches rebalancing at offsets should average the timing luck out.
 
@@ -2422,3 +2422,87 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Tooling fixed on the way:** `find_book_history_for_run` matched a run folder's LOCAL-time name against UTC file names and gave V6.1 BT1 the next run's history (it now reads the engine log's UTC start; V6.1's attribution was unaffected because both runs had identical books); `codespace_sync.ps1` joined two Codespace names under Windows PowerShell 5.1's `ConvertFrom-Json`; `_iter_backtest_result_jsons` ordered two folders with equal mtimes at random (a flaky test on the Codespace).
 
 **Verification:** `ml/evaluation/v620/attribution_bt2_v620.json`, `lean_stats_2026-10-17_21-39-55.json`, `backtest_audit.json`, `monte_carlo_lean.json`; `tests/test_lean_attribution.py`, `test_generate_backtest_report.py`, `test_v620_config_decisions.py`.
+
+### 206. The README's backtest section had Lean's raw statistics dump and no bet, concentration or cost-per-turnover measures: rebuilt as "Backtest Statistics" (V6.3.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the owner's V6.3.0 brief: Lean's 27 statistics were one unsorted dump next to the offline blocks, with no average AUM, leverage, bets, holding period, HHI, 95th-percentile drawdown or time under water, cost per turnover, deflated Sharpe, classification scores or per-class risk, and the T-bill carry was mixed into every number.
+
+**Fix:** `evaluation/backtest_statistics.py` computes López de Prado's ch. 14 set from a run folder, each row for the portfolio and for the strategy without its sweep (an uncomputable metric carries a reason, never a number); `evaluation/readme_statistics.py` renders seven sections; `aq evaluate --backtest-stats`, `--lean-report` (every run-folder tool, run automatically by `aq backtest`) and `--classification` (in `--all`); `scripts/build_trial_registry.py` gives the deflated Sharpe its N (18 scored variants of V6.1-V6.2). The README section is restructured: one TOC entry per point, every Lean statistic placed in a section, the raw dump removed, prose cut to one caption per block.
+
+**Verification:** `tests/test_backtest_statistics.py` (hand-computed HHI, drawdown episodes, PSR / DSR, classification, a synthetic six-day run), `test_readme_statistics.py`, `test_lean_report.py`, `test_build_trial_registry.py`. On BT2: net PnL $16,847.72 = end minus start equity, fees $1,210.90 = Lean's, max drawdown 4.33% (Lean 4.300%), Lean-formula Sharpe 0.082, ex-sweep PnL $6,148 and Sharpe +0.54 (#205).
+
+### 207. Each Lean-run `aq evaluate` flag picked "the latest run" its own way and none honoured the README pin (V6.3.0)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `--audit-backtest`, `--attribute-lean` and `--audit-fills` took the last folder by name, `--lean-stats` and `--lean-monte-carlo` the last one by name with an engine log, the README generator the pin or the newest by mtime: two README blocks could describe two different runs.
+
+**Fix:** one resolver, `generate_backtest_report.resolve_lean_run_dir` (explicit `--backtest-dir`, else the pin, else the newest finished run), used by every Lean-reading flag.
+
+**Verification:** `tests/test_generate_backtest_report.py`, `test_aq_cli.py`, `test_lean_report.py`.
+
+### 208. The T-bill sweep was counted as equity in the order audit's per-class P&L (V6.3.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+**Problem:** BIL is a Lean equity outside the universe, so `--audit-backtest` filed its carry under "equity" (BT2's "equity +$12,809" held $10.7k of carry) and made the book look equity-long; crypto assets, which carry only `security_type`, would have fallen to "equity" in a config-only class map.
+
+**Fix:** `evaluation.backtest_audit.class_by_ticker_from_config` maps `phase_v2.cash_sweep.ticker` to its own class `cash_sweep` and falls back to `security_type`; `--audit-backtest` and the backtest statistics use it (`lean_attribution` already did).
+
+**Verification:** `tests/test_backtest_audit.py`, `test_backtest_statistics.py`.
+
+### 209. Codespaces billed while idle and the Lean host was undecided (lead 5) (V6.3.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the owner's monthly Codespace budget was ~90% used; the Docker-in-Docker Lean recipe was typed by hand and `development/infrastructure.md` still said Lean cannot run on a Codespace.
+
+**Fix:** AGENTS.md rule 13 (a Codespace is on only while a job runs, heavy offline work bundled into one session, a Lean DinD Codespace deleted after its pull, on/off times in the Changelog); `scripts/codespace_lean_run.ps1` + `codespace_lean_dind.sh` script the DinD runs; `codespace_session_v630.sh` puts the whole offline phase (calibration, rule chain, every README block) into one training-Codespace lifetime. Lead 5 decided: Lean runs on a temporary DinD Codespace, the dev PC keeps Docker for the engine stack only.
+
+**Verification:** `tests/test_codespace_lean_scripts.py`; Changelog V6.3.0 "Hosts".
+
+### 210. R-CAL3: the offline simulator against V6.2.0's BT2 - branch B, the gates stay frozen (V6.3.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by rule)
+
+**Result:** `scripts/lean_calibration.py --rcal3` (R-CAL2's clauses on BT2's two stretches, `ml/evaluation/v630/calibration.json`): backtest stretch daily correlation 0.79, annual gap +1.3 pp, decision agreement 78%; holdout stretch 0.70, -3.0 pp, 94%. Both windows fail (agreement 78% < 80%, gap 3.0 > 2 pp): branch B, so R-GATE3 is skipped and the rolling-IC gate and spread gate stay frozen as safety controls, as in V6.0-V6.2. The correlation is the best yet (V6.1: 0.67-0.71).
+
+**Verification:** `ml/evaluation/v630/calibration.json`; README "Research and Audit".
+
+### 211. R-KILL: the kill switch's window and a release band against its lock-path fragility (#200 / #205) - branch C, nothing adopted (V6.3.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by rule; the incumbent stays and #200 closes as a design limit)
+
+**Problem:** todo lead 3: at the -1.0 floor a few dollars flipped Lean's lock path (46 against 14 lock dates on identical decisions).
+
+**Fix:** `risk.kill_switch.release_rolling_sharpe` (default `null`, a no-op) holds a rolling-Sharpe trip until the Sharpe recovers above it; `main.py`, the simulator and the replay carry the previous verdict through the same function. **R-KILL** (pre-registered, ungated, 10 phases, both splits; lock stability = median Jaccard of locked dates under 0.5 bp noise on the kill switch's input): KS0 (incumbent) median Sharpe +0.046 / +0.740, stability 0.94, median 92 / 107 locked dates. KS1 (120-bar window) +0.163 / +0.977 and KS3 (window + band) +0.139 / +0.977 gain +0.24 but lock on 24 / 10 and 55 / 25 dates, fewer than half of KS0's: a weaker brake, the safety clause fails. KS2 (band at -0.5) is the most stable (0.99) but loses -0.063 on backtest, not non-inferior. Branch C. Offline the incumbent's lock path is already stable (0.94), so Lean's flip is the NAV path, not the switch's arithmetic.
+
+**Verification:** `tests/test_kill_switch.py`, `test_v630_round.py`, `test_v630_research.py`; `ml/evaluation/v630/research.json` (`kill`).
+
+### 212. R-STAGGER2: S2's second look with phase measures that ignore one lucky phase - not adopted (V6.3.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by rule; the live tranche path stays unbuilt)
+
+**Result:** S2 (2 tranches) on KS0, ungated: +0.305 / +1.256 median Sharpe (+0.26 / +0.52), every `rule_verdict` margin, cost drag and the worst-phase clause pass, but the validation interquartile range of phase Sharpe widens from 0.50 to 0.67 (limit +25% = 0.62): not adopted. Both looks (R-STAGGER, R-STAGGER2) count in the deflated Sharpe's trial registry (22 trials). S2 stays the strongest offline candidate for a paper period.
+
+**Verification:** `ml/evaluation/v630/research.json` (`stagger`); `tests/test_v630_research.py`.
+
+### 213. BT4 (Lean, the V6.3.0 code, BT2's config plus the null release band): identical to BT2 order for order (V6.3.0)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (measured and written up; the final run of the phase)
+
+**Result** (`backtests/2026-10-18_12-55-00` on a temporary DinD Codespace, config `ml/evaluation/run_configs/2026-10-18_12-55-00.json`): all 1,596 order events and all 27 Lean statistics equal BT2's (+16.848%, Sharpe 0.082, drawdown 4.30%, 779 orders, fees $1,211), engine log `PythonInitializer.Shutdown(): ended`. The new key is a true no-op and Lean on the DinD host is deterministic. No rule shipped a change, so BT5 was not run (D1) and BT4 is the README's pinned run. Backtest statistics of note: strategy (ex sweep) mean gross exposure 0.17x of NAV, 87 bets a year, hit ratio 51.7%, PSR 84%, deflated Sharpe 46% (22 trials); the offline direction heads' log-loss is worse than a coin flip (-0.70 / -0.72) although their accuracy is 57-58% (they mostly call "up").
+
+**Verification:** `aq evaluate --lean-report --backtest-dir backtests/2026-10-18_12-55-00` (0 failed steps); `ml/evaluation/backtest_statistics.json`, `backtest_audit.json`, `lean_attribution.json`, `lean_stats_2026-10-18_12-55-00.json`.
+
+### 214. Engine image checked on the DinD host; run tooling fixed on the way (V6.3.0)
+
+**Severity:** 4/10 · **Status:** 🟡 `partial` (the image builds and serves; the dev PC's local image is still stale until Docker Desktop starts there)
+
+**Result:** `scripts/codespace_engine_check.sh` built `aether-quant-engine:latest` (`sha256:7351f68d...`) and `GET /api/assets-status` answered 200; the response now carries the T-bill sweep (`monitoring/assets_status.build_sleeve_status` had no `cash_sweep` block). On that host the alpine redis / postgres images cannot exec their entrypoint, so the check runs the engine alone with compose's mounts (the API degrades without them by design). Docker Desktop on the PC still reports "unable to start" (~270 MB free).
+
+**Fix on the way:** the DinD runner put the pip-installed Lean CLI on PATH (a detached shell has no `~/.local/bin`: BT4's first start exited 127); `codespace_sync.ps1` and `codespace_lean_run.ps1` keep one ssh config per Codespace (two sessions at once overwrote each other's host).
+
+**Verification:** `tests/test_assets_status.py`, `test_codespace_lean_scripts.py`; `ml/evaluation/v630/engine_assets_status.json`.

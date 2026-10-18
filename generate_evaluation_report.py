@@ -49,6 +49,8 @@ from evaluation.readme_research import (
     build_lean_vs_offline_markdown,
     build_research_markdown,
 )
+from evaluation.readme_statistics import MARKERS as BTSTATS_MARKERS
+from evaluation.readme_statistics import build_backtest_statistics_blocks
 from generate_backtest_report import (
     README_PATH,
     _atomic_write,
@@ -742,6 +744,12 @@ def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
     )
     if updated is not None:
         text, changed = updated, True
+
+    for section, body in build_backtest_statistics_blocks(EVALUATION_DIR).items():
+        start_marker, end_marker = BTSTATS_MARKERS[section]
+        updated = _replace_between_markers(text, start_marker, end_marker, body)
+        if updated is not None:
+            text, changed = updated, True
 
     if changed:
         _atomic_write(readme_path, text)

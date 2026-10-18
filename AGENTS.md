@@ -70,6 +70,14 @@ ruff check .              # must be clean before commit
     Codespace). After any feature/dataset change, compare a backtest's `feature_snapshot` with `aq evaluate --reconcile-features`.
     Never run a heavy process (evaluation, tests) during `aq backtest`: `Initialize()` has a hard 90-second limit (#16) and CPU
     contention trips it. CI runs Python 3.11, the dev PC 3.14 (lazy annotations): test with the stub guards, not by intuition.
+13. **Codespaces bill the owner's monthly budget: on only while a job runs.** Run `gh codespace list` at the start and end
+    of every session and stop anything not in active use (`gh codespace stop -c <name>`). Anything that fits on the dev
+    PC (offline research, `aq evaluate`, tests) runs locally. Create every Codespace with `--idle-timeout 30m`; never
+    hold one open "just in case" or while waiting for the owner. The training Codespace is started for one job and
+    stopped right after its results are pulled. A Lean DinD Codespace is temporary: bundle every Lean run and Docker
+    check of a phase into one lifetime, pull (run folder, logs, `visualization/book_history/`), then
+    `gh codespace delete` it in the same session (its ~20 GB image is billed storage). Record each Codespace's on/off
+    times in the phase's Changelog "Hosts" bullet.
 
 ## Where things live
 
@@ -112,7 +120,12 @@ ruff check .              # must be clean before commit
 
 Always train on the Codespace `aq-Training-Ground-Fixed` via the CLI, never locally.
 Sync the full local project first (including gitignored files); keep the codespace OFF
-when idle; afterwards bring model, data, and extra files back locally for testing.
+when idle (rule 13: `gh codespace stop` as soon as the job's results are pulled);
+afterwards bring model, data, and extra files back locally for testing.
+
+Lean backtests run on a temporary Docker-in-Docker Codespace
+(`scripts/codespace_lean_run.ps1`, `development/infrastructure.md` "Lean on a DinD Codespace"):
+the dev PC cannot start Docker Desktop reliably. Delete that Codespace when its runs are pulled.
 
 ## CI
 

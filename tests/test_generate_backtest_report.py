@@ -4,8 +4,6 @@ import os
 from generate_backtest_report import (
     BACKTEST_MARKER_END,
     BACKTEST_MARKER_START,
-    FULL_STATS_MARKER_END,
-    FULL_STATS_MARKER_START,
     find_latest_backtest_result_json,
     generate_equity_chart,
     load_backtest_summary,
@@ -60,7 +58,6 @@ def _write_readme_with_markers(path) -> None:
     path.write_text(
         "# Aether Quant\n\nSome intro.\n\n"
         f"{BACKTEST_MARKER_START}\nold content\n{BACKTEST_MARKER_END}\n\n"
-        f"{FULL_STATS_MARKER_START}\nold full stats\n{FULL_STATS_MARKER_END}\n\n"
         "More text.\n",
         encoding="utf-8",
     )
@@ -178,41 +175,25 @@ def test_update_readme_backtest_section_replaces_between_markers(tmp_path):
     assert "More text." in text
 
 
-def test_update_readme_backtest_section_also_fills_in_full_stats_table(tmp_path):
-    """The compact summary table only shows a curated subset of Lean's
-    statistics - the full-stats block below it must show every field Lean
-    reports, not just the curated highlights."""
+def test_headline_table_carries_the_curated_statistics(tmp_path):
+    """Every other Lean statistic now lives in the Backtest Statistics sections (evaluation/readme_statistics.py)."""
     readme_path = tmp_path / "README.md"
     _write_readme_with_markers(readme_path)
     summary = load_backtest_summary_from_written(tmp_path)
 
-    updated = update_readme_backtest_section(summary, readme_path, tmp_path / "chart.png")
-
-    assert updated is True
-    text = readme_path.read_text(encoding="utf-8")
-    assert "old full stats" not in text
-    full_stats_block = text.split(FULL_STATS_MARKER_START)[1].split(FULL_STATS_MARKER_END)[0]
+    assert update_readme_backtest_section(summary, readme_path, tmp_path / "chart.png") is True
+    block = readme_path.read_text(encoding="utf-8").split(BACKTEST_MARKER_START)[1].split(BACKTEST_MARKER_END)[0]
     for key in ("Sharpe Ratio", "Net Profit", "Compounding Annual Return", "Drawdown", "Total Orders", "Win Rate"):
-        assert key in full_stats_block
+        assert key in block
 
 
-def test_update_readme_backtest_section_tolerates_missing_full_stats_markers(tmp_path):
-    """Older READMEs without the full-stats markers must still get the
-    compact summary/chart section updated - a missing optional block must
-    never block the rest of the update."""
-    readme_path = tmp_path / "README.md"
-    readme_path.write_text(
-        f"# Aether Quant\n\n{BACKTEST_MARKER_START}\nold content\n{BACKTEST_MARKER_END}\n\nMore text.\n",
-        encoding="utf-8",
-    )
-    summary = load_backtest_summary_from_written(tmp_path)
+def test_resolve_lean_run_dir_prefers_explicit_then_newest(tmp_path):
+    from generate_backtest_report import resolve_lean_run_dir
 
-    updated = update_readme_backtest_section(summary, readme_path, tmp_path / "chart.png")
-
-    assert updated is True
-    text = readme_path.read_text(encoding="utf-8")
-    assert "Sharpe Ratio" in text
-    assert "More text." in text
+    assert resolve_lean_run_dir(tmp_path / "given", tmp_path) == tmp_path / "given"
+    assert resolve_lean_run_dir(None, tmp_path) is None
+    _write_result_json(tmp_path / "2026-06-01_00-00-00" / "222.json")
+    assert resolve_lean_run_dir(None, tmp_path) == tmp_path / "2026-06-01_00-00-00"
 
 
 def test_update_readme_backtest_section_returns_false_when_markers_missing(tmp_path):

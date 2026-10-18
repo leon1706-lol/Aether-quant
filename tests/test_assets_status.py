@@ -148,3 +148,13 @@ def test_assets_status_report_carries_the_sleeves_block():
         report = build_assets_status(_config(), {}, {"forex": {"active": True}})
     assert set(report["sleeves"]) >= {"forex_sleeve", "bond_sleeve", "crypto_graduates", "rl_sizing"}
     assert report["sleeves"]["forex_sleeve"]["guard"]["runtime"] == {"active": True}
+
+
+def test_sleeve_status_shows_the_cash_sweep():
+    from monitoring.assets_status import build_sleeve_status
+
+    status = build_sleeve_status({"phase_v2": {"cash_sweep": {"enabled": True, "ticker": "BIL", "max_weight": 0.9,
+                                                              "margin_leverage": 2.0, "exclude_from_risk_controls": True}}})
+    assert status["cash_sweep"] == {"enabled": True, "ticker": "BIL", "max_weight": 0.9, "margin_leverage": 2.0,
+                                    "exclude_from_risk_controls": True}
+    assert build_sleeve_status({})["cash_sweep"]["enabled"] is False

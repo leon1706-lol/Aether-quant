@@ -52,6 +52,11 @@ class KillSwitchDecision:
     def to_dict(self) -> dict:
         return asdict(self)
 
+    @property
+    def rolling_sharpe_tripped(self) -> bool:
+        """The next bar's `runtime_metrics["rolling_sharpe_tripped_last_bar"]` (the `release_rolling_sharpe` band)."""
+        return "rolling_sharpe_below_floor" in self.triggers
+
 
 def _finite_or_none(value) -> float | None:
     """V5.4.5 (development/Problems.md #117): normalizes a runtime metric to
@@ -194,7 +199,16 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
         else None
     )
     observed["rolling_sharpe"] = rolling_sharpe
-    if rolling_sharpe is not None and rolling_sharpe < min_rolling_sharpe:
+    # V6.3.0 (rule R-KILL): `release_rolling_sharpe` (default None = no band) keeps a rolling-Sharpe trip latched until
+    # the Sharpe recovers above the release level, so a reading hovering at the floor does not flip the lock bar to bar.
+    release_rolling_sharpe = _finite_or_none(config.get("release_rolling_sharpe"))
+    held_by_band = (
+        release_rolling_sharpe is not None
+        and bool(runtime_metrics.get("rolling_sharpe_tripped_last_bar", False))
+        and rolling_sharpe is not None
+        and rolling_sharpe < release_rolling_sharpe
+    )
+    if rolling_sharpe is not None and (rolling_sharpe < min_rolling_sharpe or held_by_band):
         triggers.append("rolling_sharpe_below_floor")
 
     drawdown_velocity = _finite_or_none(runtime_metrics.get("drawdown_velocity_pct_per_bar"))
@@ -231,6 +245,7 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
         "min_bars_for_sharpe": min_bars_for_sharpe,
         "min_return_std_for_sharpe": min_return_std_for_sharpe,
         "min_rolling_sharpe": min_rolling_sharpe,
+        "release_rolling_sharpe": release_rolling_sharpe,
         "max_drawdown_velocity_pct_per_bar": max_drawdown_velocity_pct_per_bar,
         "min_live_rank_ic": min_live_rank_ic,
         "max_consecutive_losses": max_consecutive_losses,

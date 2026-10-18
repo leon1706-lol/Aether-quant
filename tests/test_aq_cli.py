@@ -25,7 +25,17 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import aq_cli
+
+
+@pytest.fixture(autouse=True)
+def _no_real_lean_report():
+    """`aq backtest` runs the Lean report over the real backtests/ folder afterwards; these tests only check the CLI
+    wiring (tests/test_lean_report.py covers the report itself)."""
+    with patch("aq_cli._run_lean_report", return_value=0) as report:
+        yield report
 
 
 def _parse_and_dispatch(argv: list[str], run_mock: MagicMock) -> int:
@@ -33,6 +43,29 @@ def _parse_and_dispatch(argv: list[str], run_mock: MagicMock) -> int:
     args = parser.parse_args(argv)
     with patch("aq_cli._run", run_mock):
         return args.func(args)
+
+
+def test_backtest_runs_the_lean_report_for_the_newest_run(_no_real_lean_report, tmp_path):
+    run_mock = MagicMock(return_value=0)
+    with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "aq_cli._ensure_local_lean_engine_image", return_value=True
+    ), patch("generate_backtest_report.update_readme_from_latest_backtest", return_value=False), patch(
+        "aq_cli._resolve_lean_run_dir", return_value=tmp_path
+    ), patch("aq_cli._refresh_readme_evaluation_sections"):
+        assert _parse_and_dispatch(["backtest"], run_mock) == 0
+    _no_real_lean_report.assert_called_once()
+    assert _no_real_lean_report.call_args.args[2] == tmp_path
+    assert _no_real_lean_report.call_args.kwargs == {"pin": False}
+
+
+def test_backtest_survives_a_failing_lean_report(_no_real_lean_report, tmp_path):
+    _no_real_lean_report.side_effect = RuntimeError("boom")
+    with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch(
+        "aq_cli._ensure_local_lean_engine_image", return_value=True
+    ), patch("generate_backtest_report.update_readme_from_latest_backtest", return_value=False), patch(
+        "aq_cli._resolve_lean_run_dir", return_value=tmp_path
+    ), patch("aq_cli._refresh_readme_evaluation_sections"):
+        assert _parse_and_dispatch(["backtest"], MagicMock(return_value=0)) == 0
 
 
 def test_train_wraps_plain_train_py():

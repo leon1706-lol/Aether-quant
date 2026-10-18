@@ -484,6 +484,7 @@ def _simulate_rank_book_core(
     kill_switch_active = bool(kill_switch_config) and bool((kill_switch_config or {}).get("enabled", False))
     kill_switch_returns: list[float] = []
     kill_switch_latched = False
+    kill_switch_sharpe_tripped = False  # main.py's _kill_switch_rolling_sharpe_tripped (the release band's state)
     kill_switch_previous_drawdown: float | None = None
     kill_switch_consecutive_losses = 0
     num_kill_switch_locked_dates = 0
@@ -616,9 +617,11 @@ def _simulate_rank_book_core(
                     "slippage_divergence_bps": None,
                     "model_age_days": None,
                     "reconciliation_breach": False,
+                    "rolling_sharpe_tripped_last_bar": kill_switch_sharpe_tripped,
                 },
                 kill_switch_config,
             )
+            kill_switch_sharpe_tripped = decision.rolling_sharpe_tripped
             if decision.tripped and kill_switch_sticky:
                 kill_switch_latched = True
             kill_switch_locked = decision.tripped or kill_switch_latched

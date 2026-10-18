@@ -45,7 +45,8 @@ $KeyFiles = @(
 )
 
 function Get-SshConfig {
-    $config = Join-Path $Scratch 'ssh_config'
+    # one file per Codespace: two sessions at once (training + Lean DinD) would otherwise overwrite each other's host
+    $config = Join-Path $Scratch "ssh_config_$Codespace"
     gh codespace ssh --config -c $Codespace | Out-File -FilePath $config -Encoding ascii
     $hostLine = Select-String -Path $config -Pattern '^Host\s+(\S+)' | Select-Object -First 1
     if (-not $hostLine) { throw "gh did not return an ssh config for $Codespace (is it available? try: gh codespace list)" }

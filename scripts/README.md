@@ -106,6 +106,18 @@ codebase.
   `build_legacy_probability.py` writes the legacy signal's `final_probability_up` per row; `model_candidate_research.py` scores
   every retrained candidate, seed ensembles included (rank IC, HAC t, per-head); `prepare_v610_candidates.py` turns that into
   scoreable candidate dirs, R-HEAD per candidate and the inference-latency ratio; `compare_datasets.py` diffs two dataset builds.
+- `v630_research.py` (V6.3.0) — the pre-registered chain R-KILL (kill-switch window / release band, lock-path stability under
+  0.5 bp noise) -> R-STAGGER2 (S2's second look, interquartile range and worst phase in place of the max-min range) -> R-GATE3
+  (only on R-CAL3 branch A); writes `ml/evaluation/v630/research.json` and `adopted_changes.json`. `lean_calibration.py --rcal3`
+  is R-CAL2's clauses on V6.2.0's BT2. `codespace_session_v630.sh` runs R-CAL3, the chain, applies the adopted changes and
+  recomputes every offline README block in ONE Codespace lifetime. `build_trial_registry.py` collects every scored variant
+  into `ml/evaluation/trial_registry.json` (the deflated Sharpe's N and Sharpe variance).
+- `codespace_lean_run.ps1` + `codespace_lean_dind.sh` (V6.3.0) — Lean backtests on a temporary Docker-in-Docker Codespace:
+  create, push, run frozen configs in order, poll, pull, delete (`development/infrastructure.md` "Lean on a DinD Codespace").
+  `codespace_engine_check.sh` builds the engine image there and checks `GET /api/assets-status`;
+  `codespace_clean_checkout_test.sh` runs CI's pytest on a tarball of exactly the files a commit would hold (the PC cannot
+  hold the suite; `clean_checkout_test.ps1` is the local equivalent). `readme_freshness.py` lists every Backtest Statistics
+  block with its date and source run and fails on a stale one (`--since`, `--allow`).
 - `codespace_session_v610.sh` (S1: datasets with Lean's forex holidays, multitask x5 / sequence x3 for the control and three
   variants, candidate IC, the suite), `codespace_research_v610.sh` (S2: legacy probability, R-CAL2, candidates, the rule chain)
   and `codespace_readme_v610.sh` (S3: the offline blocks of the README performance section): resumable (`RESUME=1`).

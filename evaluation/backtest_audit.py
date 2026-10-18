@@ -54,6 +54,24 @@ def _symbol_value(order: dict) -> str:
     return str(symbol or "")
 
 
+CASH_SWEEP_CLASS = "cash_sweep"
+
+
+def class_by_ticker_from_config(config: dict) -> dict[str, str]:
+    """Upper-case ticker -> the config's asset class. The T-bill sweep ticker (`phase_v2.cash_sweep.ticker`, BIL) is its
+    own class: it is a Lean equity, but filing it under "equity" put ~0.8 of NAV into the equity long exposure and its
+    carry into equity P&L, overstating the book's long tilt."""
+    mapping = {
+        str(asset["ticker"]).upper(): str(asset.get("asset_class") or asset.get("security_type"))
+        for asset in config.get("phase1", {}).get("universe", {}).get("assets", [])
+        if asset.get("ticker") and (asset.get("asset_class") or asset.get("security_type"))
+    }
+    sweep_ticker = config.get("phase_v2", {}).get("cash_sweep", {}).get("ticker")
+    if sweep_ticker:
+        mapping[str(sweep_ticker).upper()] = CASH_SWEEP_CLASS
+    return mapping
+
+
 def _asset_class(order: dict, class_by_ticker: dict[str, str] | None = None) -> str:
     """The config's asset class when `class_by_ticker` knows the ticker (bond ETFs are Lean equities, so the security
     type alone files them under "equity"), else Lean's security type."""

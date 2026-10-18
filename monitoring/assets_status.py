@@ -45,7 +45,12 @@ def build_sleeve_status(config: dict, runtime_guards: dict | None = None) -> dic
     forex, bond = phase_v2.get("forex_sleeve", {}) or {}, phase_v2.get("bond_sleeve", {}) or {}
     crypto_caps = (phase_v2.get("class_weight_caps", {}) or {}).get("crypto", {}) or {}
     dynamic_risk = phase_v2.get("dynamic_risk", {}) or {}
+    sweep = phase_v2.get("cash_sweep", {}) or {}
     return {
+        # V6.2.0's T-bill sweep (V6.3.0: shown here, the engine deploy check reads it)
+        "cash_sweep": {"enabled": bool(sweep.get("enabled", False)), "ticker": sweep.get("ticker"),
+                       "max_weight": sweep.get("max_weight"), "margin_leverage": sweep.get("margin_leverage"),
+                       "exclude_from_risk_controls": bool(sweep.get("exclude_from_risk_controls", False))},
         "forex_sleeve": {"enabled": bool(forex.get("enabled", False)) and bool(phase_v2.get("forex_risk", {}).get("enabled", False)),
                          "signal": forex.get("signal", "model_rank"), "gross_budget": forex.get("gross_budget"), "guard": _guard("forex")},
         "bond_sleeve": {"enabled": bool(bond.get("enabled", False)), "signal": bond.get("signal", "model_rank"),

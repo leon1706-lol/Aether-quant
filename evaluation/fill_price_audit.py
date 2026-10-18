@@ -52,6 +52,7 @@ def fills_from_run(run: dict) -> list[dict]:
                 "symbol": str(event.get("symbolValue") or event.get("symbol", "")),
                 "date": local.date().isoformat(),
                 "price": price,
+                "quantity": quantity,
                 "direction": 1 if str(event.get("direction", "")).lower() == "buy" else -1,
                 "asset_class": asset_class,
                 "order_type": ORDER_TYPE_NAMES.get(int(order.get("type", 0) or 0), "other"),
@@ -174,14 +175,8 @@ def reference_gap(
     return _distribution(gaps)
 
 
-def audit_fills(
-    run: dict,
-    dataset_opens: dict[tuple[str, str], float],
-    data_root: Path,
-) -> dict:
-    """The whole audit: fills against the dataset open and against the Lean zip open, plus the dataset-vs-zip gap on the
-    traded ticker-dates."""
-    fills = fills_from_run(run)
+def zip_opens_for_fills(fills: list[dict], data_root: Path) -> dict[tuple[str, str], float]:
+    """{(symbol, date): open} from the Lean data zips of every traded symbol; equity opens adjusted like the engine."""
     zip_opens: dict[tuple[str, str], float] = {}
     for symbol, asset_class in sorted({(fill["symbol"], fill["asset_class"]) for fill in fills}):
         path = lean_daily_zip_path(data_root, symbol, asset_class)
@@ -194,6 +189,18 @@ def audit_fills(
             opens = apply_factor_rows(opens, read_factor_file(Path(data_root) / "equity" / "usa" / "factor_files" / f"{symbol.lower()}.csv"))
         for date, value in opens.items():
             zip_opens[(symbol, date)] = value
+    return zip_opens
+
+
+def audit_fills(
+    run: dict,
+    dataset_opens: dict[tuple[str, str], float],
+    data_root: Path,
+) -> dict:
+    """The whole audit: fills against the dataset open and against the Lean zip open, plus the dataset-vs-zip gap on the
+    traded ticker-dates."""
+    fills = fills_from_run(run)
+    zip_opens = zip_opens_for_fills(fills, data_root)
     traded_keys = {(fill["symbol"], fill["date"]) for fill in fills}
     traded_dataset = {key: value for key, value in dataset_opens.items() if key in traded_keys}
     traded_zip = {key: value for key, value in zip_opens.items() if key in traded_keys}

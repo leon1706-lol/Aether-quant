@@ -61,6 +61,11 @@ RCAL2_WINDOWS = (
     "v6bt2_holdout=backtests/2026-10-15_17-29-50@2025-07-01..2026-09-30:backtest+holdout",
     "v580bt2_backtest=backtests/2026-10-14_07-27-32@2023-07-01..2025-06-30:backtest+holdout",
 )
+# R-CAL3 windows (plan V6.3.0): V6.2.0's BT2 (the shipped config, T-bill sweep on; the sweep is outside the compared book).
+RCAL3_WINDOWS = (
+    "v62bt2_backtest=backtests/2026-10-17_21-39-55@2023-07-01..2025-06-30:backtest+holdout",
+    "v62bt2_holdout=backtests/2026-10-17_21-39-55@2025-07-01..2026-09-30:backtest+holdout",
+)
 MIN_CORRELATION = 0.50
 MAX_ANNUAL_GAP = 0.02
 MIN_DECISION_AGREEMENT = 0.80
@@ -416,6 +421,7 @@ def main() -> int:
     parser.add_argument("--dataset", default=str(ROOT_DIR / "ml" / "datasets" / "full_dataset.csv"))
     parser.add_argument("--window", action="append", default=[])
     parser.add_argument("--rcal2", action="store_true", help="V6.1.0: the three R-CAL2 windows and components")
+    parser.add_argument("--rcal3", action="store_true", help="V6.3.0: R-CAL2's clauses and components on V6.2.0 BT2's windows")
     parser.add_argument("--components", default=None, help="comma list of attribution components to compare")
     parser.add_argument("--predict", action="store_true", help="no Lean comparison: write the prediction only")
     parser.add_argument("--legacy-probability", default=None, help="scripts/build_legacy_probability.py output (R-CAL2)")
@@ -423,7 +429,8 @@ def main() -> int:
     parser.add_argument("--out", default=str(ROOT_DIR / "ml" / "evaluation" / "v600" / "calibration.json"))
     args = parser.parse_args()
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
-    texts = list(args.window) + (list(RCAL2_WINDOWS) if args.rcal2 else [])
+    texts = list(args.window) + (list(RCAL2_WINDOWS) if args.rcal2 else []) + (list(RCAL3_WINDOWS) if args.rcal3 else [])
+    args.rcal2 = args.rcal2 or args.rcal3
     if not texts:
         parser.error("pass --window or --rcal2")
     components = tuple(args.components.split(",")) if args.components else (RCAL2_COMPONENTS if args.rcal2 else BOOK_COMPONENTS)

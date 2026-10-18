@@ -13,8 +13,9 @@ python train.py                 # full dataset build + train
 python train.py --dataset-only  # dataset/scaler/manifest only
 
 # Recommended pre-commit workflow
-pytest tests/
-aq backtest                     # runs `lean backtest .`, refreshes Backtest Results
+aq test                         # full suite (never bare pytest from the root, development/Problems.md #8)
+aq backtest                     # runs `lean backtest .`, then every run-folder report and the README's Backtest Statistics
+aq evaluate --lean-report --backtest-dir backtests/<run>   # the same report for a run made on the DinD Codespace
 aq report <backtest-folder> <result-id>   # official Lean HTML report
 git status
 

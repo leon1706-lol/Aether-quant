@@ -17,6 +17,7 @@ Sources (all written by `aq evaluate ...` or the research scripts):
     v600/forex_research.json, v600/crypto_research.json   the V6.0.0 rule decisions (R-FX6, R-CRYPTO); the shipped setting
                                                 is read from config.json, never typed here
     v610/calibration.json, v610/research.json   V6.1.0: R-CAL2 and the rule chain (model, head, book, legacy, gate)
+    v630/calibration.json, v630/research.json   V6.3.0: R-CAL3 (replaces R-CAL2's table) and R-KILL / R-STAGGER2 / R-GATE3
 """
 
 from __future__ import annotations
@@ -145,7 +146,10 @@ def _crypto_row_v6(evaluation_dir: Path, config: dict) -> str | None:
 
 
 def _calibration_line(evaluation_dir: Path) -> str:
-    report = load_json(evaluation_dir / "v610" / "calibration.json")
+    # V6.3.0: R-CAL3 (R-CAL2's clauses on V6.2.0's BT2) supersedes R-CAL2 once it exists.
+    rule, report = "R-CAL3", load_json(evaluation_dir / "v630" / "calibration.json")
+    if not isinstance(report, dict) or not isinstance(report.get("verdict"), dict):
+        rule, report = "R-CAL2", load_json(evaluation_dir / "v610" / "calibration.json")
     verdict = (report or {}).get("verdict") if isinstance(report, dict) else None
     if not isinstance(verdict, dict):
         return "_Not run yet: `python scripts/lean_calibration.py --rcal2` (rule R-CAL2)._"
@@ -159,7 +163,7 @@ def _calibration_line(evaluation_dir: Path) -> str:
         )
     thresholds = verdict.get("thresholds") or {}
     return (
-        f"Rule R-CAL2 (daily correlation >= {_num(thresholds.get('min_correlation'), '.2f')}, annual return gap <= "
+        f"Rule {rule} (daily correlation >= {_num(thresholds.get('min_correlation'), '.2f')}, annual return gap <= "
         f"{_pct(thresholds.get('max_annual_gap'), '.0f')}, rebalance-decision agreement >= "
         f"{_pct(thresholds.get('min_decision_agreement'), '.0f')} on every window): **branch {verdict.get('branch', '?')}** "
         f"({'calibrated' if verdict.get('calibrated') else 'not calibrated'}).\n\n"
@@ -222,6 +226,46 @@ def _rule_chain_v620_lines(evaluation_dir: Path) -> list[str]:
                     f"| {len(skipped)} candidates fail the IC clauses (yardstick: resampled control ensembles) |")
     if not rows:
         return ["_V6.2.0 rule chain has no stage results yet._"]
+    return ["| Rule | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]
+
+
+def _failed(verdict: dict, extra: dict | None = None) -> list[str]:
+    return [key for key, ok in {**(verdict.get("checks") or {}), **(extra or {})}.items() if not ok]
+
+
+def _rule_chain_v630_lines(evaluation_dir: Path) -> list[str]:
+    """V6.3.0's chain (v630/research.json): R-KILL and R-STAGGER2 ungated, R-GATE3 as-live only on R-CAL3 branch A."""
+    report = load_json(evaluation_dir / "v630" / "research.json")
+    if not isinstance(report, dict):
+        return ["_Not run yet: `python scripts/v630_research.py` (rules R-KILL, R-STAGGER2, R-GATE3)._"]
+    rows = []
+    kill = report.get("kill")
+    if isinstance(kill, dict):
+        detail = []
+        for name, value in (kill.get("variants") or {}).items():
+            verdict = value.get("verdict") or {}
+            failed = _failed(verdict, value.get("extra_checks"))
+            detail.append(f"{name}: backtest {_num(verdict.get('backtest_gain'))}, validation {_num(verdict.get('validation_change'))}, "
+                          f"lock stability {_num(value.get('stability'), '.2f')}" + (f" (fails {', '.join(failed)})" if failed else ""))
+        base = ((kill.get("base") or {}).get("backtest") or {}).get("stability_jaccard_median")
+        rows.append(f"| R-KILL (kill-switch window / release band; KS0 lock stability {_num(base, '.2f')}) | branch {kill.get('branch', '?')}: "
+                    f"{kill.get('adopted') or 'none (KS0 stays)'} | {'; '.join(detail) or 'n/a'} |")
+    stagger = report.get("stagger")
+    if isinstance(stagger, dict):
+        verdict = stagger.get("verdict") or {}
+        failed = _failed(verdict, stagger.get("extra_checks"))
+        rows.append(f"| R-STAGGER2 (S2, second look) | {'S2' if stagger.get('adopted') else 'none (one book stays)'} | backtest "
+                    f"{_num(verdict.get('backtest_gain'))}, validation {_num(verdict.get('validation_change'))}"
+                    + (f" (fails {', '.join(failed)})" if failed else "") + " |")
+    gates = report.get("gates")
+    if isinstance(gates, dict):
+        if "skipped" in gates:
+            rows.append(f"| R-GATE3 (rolling-IC floor / window) | skipped | {gates['skipped']} |")
+        else:
+            detail = [f"{name} {_num((value.get('verdict') or {}).get('backtest_gain'))}" for name, value in (gates.get("variants") or {}).items()]
+            rows.append(f"| R-GATE3 (rolling-IC floor / window) | {gates.get('adopted') or 'none (gate stays)'} | {', '.join(detail)} |")
+    if not rows:
+        return ["_V6.3.0 rule chain has no stage results yet._"]
     return ["| Rule | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]
 
 
@@ -388,6 +432,9 @@ def build_research_markdown(evaluation_dir: Path) -> str:
         "\n".join(_rule_chain_lines(evaluation_dir)),
         "**V6.2.0 rule chain** (pre-registered, the T-bill sweep off in every score so alpha is judged ex-carry)",
         "\n".join(_rule_chain_v620_lines(evaluation_dir)),
+        "**V6.3.0 rule chain** (pre-registered; the kill switch scored on the ungated book with its lock path perturbed by "
+        "0.5 bp noise; T-bill sweep off)",
+        "\n".join(_rule_chain_v630_lines(evaluation_dir)),
         "**Where the rank edge sits** (pooled vs between-class vs within-class IC against the 20-day return)",
         "\n".join(_class_ic_lines(evaluation_dir)),
         "**Rolling-IC gate audit** (a false veto is a vetoed date whose realised book return was positive)",

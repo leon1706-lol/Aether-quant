@@ -411,3 +411,18 @@ def test_audit_degrades_on_a_run_with_no_equity_curve(tmp_path):
     assert audit["window"] == {"start": None, "end": None, "num_days": 0}
     assert audit["sharpe"]["no_risk_free"] is None
     assert audit["orders"]["num_overlapping_pairs"] == 0
+
+
+def test_class_map_files_the_sweep_ticker_apart_and_falls_back_to_security_type():
+    from evaluation.backtest_audit import class_by_ticker_from_config
+
+    config = {
+        "phase1": {"universe": {"assets": [
+            {"ticker": "spy", "security_type": "equity", "asset_class": "equity"},
+            {"ticker": "TLT", "security_type": "equity", "asset_class": "bond"},
+            {"ticker": "BTCUSD", "security_type": "crypto"},
+        ]}},
+        "phase_v2": {"cash_sweep": {"ticker": "BIL"}},
+    }
+    assert class_by_ticker_from_config(config) == {"SPY": "equity", "TLT": "bond", "BTCUSD": "crypto", "BIL": "cash_sweep"}
+    assert "BIL" not in class_by_ticker_from_config({"phase1": config["phase1"]})

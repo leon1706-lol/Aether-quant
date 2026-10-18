@@ -1647,6 +1647,17 @@ dates). A residual non-limit contributor is documented in #153.
   reported statistics); the simulator annualises its trading-date series at 252, which is
   correct for that series. `evaluation/lean_statistics.py` reproduces Lean's numbers exactly.
 
+### V6.3.0 contracts (Problems #206 onward)
+
+- **Kill-switch release band** (`risk.kill_switch.release_rolling_sharpe`, default `null`): one function,
+  `risk.kill_switch.evaluate_kill_switch`, holds a rolling-Sharpe trip while the Sharpe stays below the release level when
+  the caller passes the previous verdict (`rolling_sharpe_tripped_last_bar`). `main.py` keeps it in
+  `_kill_switch_rolling_sharpe_tripped`, the simulator and `evaluation/kill_switch_replay.py` in a local carried bar to bar;
+  parity tests `tests/test_v630_round.py`.
+- **Tranche book**: still offline only; R-STAGGER2 is the gate for building the live path.
+- **Backtest statistics** (`evaluation/backtest_statistics.py`): measurement of a finished Lean run only, nothing in the
+  trading path reads it. The T-bill sweep ticker is its own asset class (`cash_sweep`) in every Lean-run report.
+
 ### Diagnostics contract (all default off in code)
 
 `phase_v2.diagnostics.timing_probe` (one `timing-probe:` line at shutdown, no

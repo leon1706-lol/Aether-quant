@@ -252,7 +252,10 @@ velocity, live rank-IC, consecutive losing sessions, slippage divergence,
 model age, a reconciliation-breach flag); trips `main.py`'s existing sticky
 trade lock (never a second one) if any of 7 independently config-gated
 conditions fires. Every threshold defaults to a value it can never cross —
-strict no-op until configured.
+strict no-op until configured. V6.3.0: `release_rolling_sharpe` (default
+`null`) holds a rolling-Sharpe trip until the Sharpe recovers above it, when
+the caller passes the previous verdict as `rolling_sharpe_tripped_last_bar`
+(`KillSwitchDecision.rolling_sharpe_tripped`); main.py and the simulator do.
 
 `manual_override.py`: `read_manual_trade_lock_override()`/
 `write_manual_trade_lock_override()` (pre-existing trade-lock override);

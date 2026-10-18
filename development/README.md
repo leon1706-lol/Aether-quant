@@ -27,8 +27,10 @@ root `README.md` so that file stays short and scannable.
   when a later phase changes something they mention.
 - `Problems.md` — audit log of bugs and infrastructure issues found in this
   codebase, each with a severity rating (1 = cosmetic, 10 = critical
-  data-loss/safety issue) and a `fixed`/`open` status. Also append-only for
-  the same reason as the changelog.
+  data-loss/safety issue) and a status marker: 🟢 `fixed` (code changed and
+  verified), 🟡 `partial` (shipped, verification pending) or 🔴 `closed` (no
+  code fix: declined, won't-fix, moot, superseded). Also append-only for the
+  same reason as the changelog.
 - `backups/` — frozen pre-condensation snapshots of Changelog.md and
   Problems.md taken before each condensing pass (restore points only, see
   `backups/README.md`).

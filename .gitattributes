@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts run on Linux Codespaces: always LF in the working tree.
+*.sh text eol=lf

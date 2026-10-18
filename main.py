@@ -2002,6 +2002,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._live_rank_ic: float | None = None
         self._kill_switch_manual_override: bool | None = None
         self._kill_switch_previously_tripped: bool = False
+        self._kill_switch_rolling_sharpe_tripped: bool = False
         self._last_kill_switch_decision: dict = {}
         self._last_reconciliation_report: dict = {"status": "not_evaluated"}
         self.latest_regime_by_symbol = {}
@@ -7831,8 +7832,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "slippage_divergence_bps": slippage_divergence_bps,
             "model_age_days": self._model_age_days(),
             "reconciliation_breach": reconciliation_breach,
+            "rolling_sharpe_tripped_last_bar": self._kill_switch_rolling_sharpe_tripped,
         }
         kill_switch_decision = evaluate_kill_switch(runtime_metrics, effective_kill_switch_config)
+        self._kill_switch_rolling_sharpe_tripped = kill_switch_decision.rolling_sharpe_tripped
         self._last_kill_switch_decision = kill_switch_decision.to_dict()
 
         if kill_switch_decision.tripped:

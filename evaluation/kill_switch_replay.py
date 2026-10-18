@@ -97,6 +97,7 @@ def replay_kill_switch_over_dataset(
     peak_equity = portfolio_value
     trade_lock_active = False
     trade_lock_reason = None
+    sharpe_tripped_last_bar = False
 
     records = []
 
@@ -150,8 +151,10 @@ def replay_kill_switch_over_dataset(
             "slippage_divergence_bps": None,
             "model_age_days": None,
             "reconciliation_breach": False,
+            "rolling_sharpe_tripped_last_bar": sharpe_tripped_last_bar,
         }
         decision = evaluate_kill_switch(runtime_metrics, kill_switch_config)
+        sharpe_tripped_last_bar = decision.rolling_sharpe_tripped
         if decision.tripped:
             trade_lock_active = True
             trade_lock_reason = decision.reason

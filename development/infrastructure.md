@@ -596,16 +596,17 @@ isn't crashing, it's thrashing (see `development/Problems.md` #50/#52 for
 the measured evidence: ~800 CPU-seconds consumed over ~4 hours of
 wall-clock). **GitHub Codespaces solves exactly this one problem** — a
 free-tier (2-core/8GB) cloud container reachable over SSH, used purely as
-disposable training compute. It does **not** replace local Lean
-backtesting (see the limitation below) — Lean backtests still run
-locally.
+disposable training compute. This training Codespace has no Docker; Lean
+backtests run on a separate, temporary Docker-in-Docker Codespace since
+V6.2.0 (see "Lean on a DinD Codespace" below).
 
 **Before training, sync anything the Codespace doesn't have yet**
 (tracked-but-uncommitted changes, or gitignored-but-needed data like a
 freshly-exported experience-events dump) via `gh codespace cp`. **After
 training, pull the resulting `ml/` artifacts back** the same way. **Stop
 the Codespace** (`gh codespace stop`) whenever it isn't actively
-training — this is free-tier usage, not unlimited.
+training — every core-hour and GB of storage bills the owner's monthly
+budget (AGENTS.md rule 13).
 
 **One-time setup** — `.devcontainer/devcontainer.json` at the repo root:
 
@@ -628,18 +629,12 @@ training — this is free-tier usage, not unlimited.
 
 Two non-obvious gotchas this config exists to avoid:
 
-- **Do not add the `docker-in-docker` feature.** Both v1 and v2 of that
-  feature silently make Codespaces build from an **Alpine** base instead
-  of the `image` field above, regardless of what's specified — confirmed
-  via 5 systematic A/B rebuild tests (see `development/Problems.md`, the
-  Codespaces entry). The practical consequence: **Lean/Docker backtests
-  cannot run inside a Codespace at all** — even manually installing
-  `docker.io` and starting `dockerd` fails (`iptables: Permission denied`,
-  `mount overlay: operation not permitted`), because Codespaces containers
-  are unprivileged by default and only that broken feature grants the
-  needed capabilities. Training (pure Python/PyTorch, no Docker) is
-  entirely unaffected by this and is the only heavy task this workflow
-  offloads.
+- **Do not add the `docker-in-docker` feature to this training
+  container.** On the `mcr.microsoft.com/devcontainers/python:3.11` image
+  it made Codespaces build from an Alpine base (5 A/B rebuilds), and a
+  manual `dockerd` fails unprivileged. Lean gets its own container
+  instead: `.devcontainer/dind-v1-test/` (`python:3.11-bookworm` +
+  `docker-in-docker:2`) works, see "Lean on a DinD Codespace".
 - **`sshd` feature is required** for `gh codespace ssh` specifically (VS
   Code's own tunnel-based Remote-Explorer connection doesn't need it, but
   the `gh` CLI's SSH path does — the base Debian image has no SSH server).
@@ -855,10 +850,10 @@ an explicit escape hatch and bypasses the local-image build.
 The complete workflow (create → connect → train → sync artifacts → stop)
 lives in "Cloud Training via GitHub Codespaces" above. Summary: sync
 needed files up before training, train Python-only inside the Codespace
-(Lean/Docker backtests stay local), pull the entire `ml/` artifact tree
+(Lean runs on the DinD Codespace, not here), pull the entire `ml/` artifact tree
 back after (tarball for anything large, verify file presence/mtime), and
-`gh codespace stop` immediately when done — Codespaces only bill while
-running.
+`gh codespace stop` immediately when done: compute bills while running,
+storage while it exists (AGENTS.md rule 13).
 
 
 
@@ -966,4 +961,22 @@ audit parses; the algorithm log never records it.
   `data/alternative/interest-rate/usa/interest-rate.csv` current (FRED DPCREDIT); copy it to every Codespace
   with `gh codespace cp` (a `-CodeOnly` push skips `data/`).
 - **CI checkout locally:** `powershell -File scripts/clean_checkout_test.ps1` before handing over a commit.
+
+### Lean on a DinD Codespace (V6.3.0, the standing Lean host)
+
+The recipe above is scripted. The PC drives it, and the Codespace lives only for one phase's runs.
+
+```powershell
+.\scripts\codespace_lean_run.ps1 -Create                                   # 4-core / 16 GB, --idle-timeout 30m; prints <name>
+.\scripts\codespace_lean_run.ps1 -Codespace <name> -Push -Run ml/evaluation/run_configs/<a>.json,ml/evaluation/run_configs/<b>.json
+.\scripts\codespace_lean_run.ps1 -Codespace <name> -Status                 # every <= 10 minutes (also keeps it from idling out)
+.\scripts\codespace_lean_run.ps1 -Codespace <name> -Pull -Delete           # run folders + book history, then delete it
+aq evaluate --lean-report --backtest-dir backtests/<run>                   # every run-folder tool + the README
+```
+
+- **The script on the Codespace:** `scripts/codespace_lean_dind.sh` does the data-root move, builds the image only when it is missing, and pins the Lean CLI. It runs each frozen config in turn over `config.json` and restores the original afterwards. Status lines go to `/tmp/aq_lean/status`, and the Lean CLI log is copied into each run folder as `lean_cli.log`.
+- **Budget (AGENTS.md rule 13):**
+  - Put every Lean run of a phase in one `-Run` call.
+  - Check the engine image (`docker compose build engine`) in the same lifetime, if the PC cannot.
+  - `-Delete` right after `-Pull`. The image and disk are billed storage while the Codespace exists, even when stopped.
 
