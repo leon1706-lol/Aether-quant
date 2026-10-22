@@ -98,6 +98,7 @@ def replay_kill_switch_over_dataset(
     trade_lock_active = False
     trade_lock_reason = None
     sharpe_tripped_last_bar = False
+    sharpe_below_run_last_bar = 0
 
     records = []
 
@@ -152,9 +153,11 @@ def replay_kill_switch_over_dataset(
             "model_age_days": None,
             "reconciliation_breach": False,
             "rolling_sharpe_tripped_last_bar": sharpe_tripped_last_bar,
+            "rolling_sharpe_below_run_last_bar": sharpe_below_run_last_bar,
         }
         decision = evaluate_kill_switch(runtime_metrics, kill_switch_config)
         sharpe_tripped_last_bar = decision.rolling_sharpe_tripped
+        sharpe_below_run_last_bar = decision.rolling_sharpe_below_run
         if decision.tripped:
             trade_lock_active = True
             trade_lock_reason = decision.reason
@@ -187,3 +190,40 @@ def summarize_kill_switch_replay(records: list) -> dict:
         "locked_days": locked_days,
         "locked_day_fraction": (locked_days / total_dates) if total_dates else 0.0,
     }
+
+
+def forward_window_returns(daily_returns: dict, horizon: int = 20) -> dict:
+    """{date: compounded return of the next `horizon` dates after it} for every date with a full window (V6.4.0, lead L7).
+    `daily_returns` = {date: return} of the book as it would have run UNLOCKED."""
+    dates = sorted(daily_returns)
+    out = {}
+    for index, date in enumerate(dates):
+        window = dates[index + 1 : index + 1 + horizon]
+        if len(window) < horizon:
+            break
+        growth = 1.0
+        for day in window:
+            growth *= 1.0 + float(daily_returns[day])
+        out[str(date)] = growth - 1.0
+    return out
+
+
+def percentile(values, q: float) -> float | None:
+    """Linear-interpolated `q` quantile (0-1) of `values`; None when empty."""
+    ordered = sorted(float(value) for value in values)
+    if not ordered:
+        return None
+    position = q * (len(ordered) - 1)
+    low, high = int(position // 1), min(int(-(-position // 1)), len(ordered) - 1)
+    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
+
+
+def false_lock_share(locked_dates, forward_returns: dict, quantile: float = 2.0 / 3.0) -> float | None:
+    """Share of locked dates whose UNLOCKED book went on to a next-`horizon` return at or above the `quantile` of all
+    dates' forward returns: locks that sat out a strong stretch (V6.4.0, lead L7's "false lock"). None when no locked
+    date has a full forward window."""
+    threshold = percentile(forward_returns.values(), quantile)
+    scored = [forward_returns[str(date)] for date in locked_dates if str(date) in forward_returns]
+    if threshold is None or not scored:
+        return None
+    return sum(1 for value in scored if value >= threshold) / len(scored)

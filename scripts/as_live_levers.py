@@ -302,6 +302,8 @@ class AsLiveHarness:
             max_position_weight=float(config.get("phase6", {}).get("risk", {}).get("max_position_weight", 0.25)),
             candidate_metadata=self.metadata, rolling_ic_gate_fn=gate_fn, topology_config=phase_v2.get("topology", {}),
             rank_group_by_ticker=self.rank_groups, venue_listing_dates=self.venue_listing_dates,
+            rank_signal_config=phase_v2.get("rank_signal", {}),
+            sector_relative_min_size=int(self.config["phase1"]["target"]["ranking"].get("sector_neutral", {}).get("min_sector_size", 3)),
             class_weight_caps=resolve_class_weight_caps(phase_v2.get("class_weight_caps")),
             resize_threshold_weight=_resize_threshold(phase_v2),
             trade_cooldown_bars=int(config.get("phase6", {}).get("risk", {}).get("trade_cooldown_bars", 0)),

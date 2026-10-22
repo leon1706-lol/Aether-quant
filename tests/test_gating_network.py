@@ -540,3 +540,39 @@ def test_zero_skill_expert_is_excluded_from_the_blend_entirely():
     # Only bullish had any measured skill - it should get ALL the weight.
     bullish_weight = next(weight for weight in decision.weights if weight.expert == "bullish")
     assert bullish_weight.weight == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# V6.4.0 (lead L8) - excluded_experts: the expert-ablation switch
+# ---------------------------------------------------------------------------
+
+_BULLISH_REGIME = {"trend_regime": "bullish", "volatility_regime": "normal_volatility", "risk_regime": "risk_on"}
+_PROBABILITIES = {"bullish": 0.70, "bearish": 0.35, "sideways": 0.52, "volatility": 0.20}
+
+
+def test_no_excluded_experts_is_byte_identical():
+    plain = build_gating_decision(regime=_BULLISH_REGIME, expert_training_metrics=_metrics(),
+                                  expert_probabilities=_PROBABILITIES, baseline_probability_up=0.55)
+    empty = build_gating_decision(regime=_BULLISH_REGIME, expert_training_metrics=_metrics(),
+                                  expert_probabilities=_PROBABILITIES, baseline_probability_up=0.55, excluded_experts=())
+    assert plain.to_dict() == empty.to_dict()
+
+
+def test_an_excluded_expert_is_dropped_and_the_others_renormalise():
+    decision = build_gating_decision(regime=_BULLISH_REGIME, expert_training_metrics=_metrics(),
+                                     expert_probabilities=_PROBABILITIES, baseline_probability_up=0.55,
+                                     excluded_experts=("bullish",))
+    weights = {weight.expert: weight for weight in decision.weights}
+    assert weights["bullish"].weight == 0.0 and weights["bullish"].reason == "missing_probability"
+    assert "bullish" not in decision.active_experts
+    assert sum(weight.weight for weight in decision.weights) == pytest.approx(1.0)
+    full = build_gating_decision(regime=_BULLISH_REGIME, expert_training_metrics=_metrics(),
+                                 expert_probabilities=_PROBABILITIES, baseline_probability_up=0.55)
+    assert decision.final_probability_up < full.final_probability_up  # the bullish 0.70 no longer lifts the blend
+
+
+def test_excluding_every_eligible_expert_falls_back_to_the_baseline():
+    decision = build_gating_decision(regime=_BULLISH_REGIME, expert_training_metrics=_metrics(),
+                                     expert_probabilities=_PROBABILITIES, baseline_probability_up=0.55,
+                                     excluded_experts=("bullish", "bearish", "sideways", "volatility"))
+    assert decision.decision_source == "baseline_fallback" and decision.final_probability_up == 0.55

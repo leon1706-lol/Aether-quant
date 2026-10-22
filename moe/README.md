@@ -145,3 +145,9 @@ benefit automatically with no duplicate code paths.
   passed into `build_gating_decision(...)`. The runtime state's
   `config.model.sequence.informational_only` flag now reflects this —
   `True` only while `sequence_weight` stays at its default `0.0`.
+
+## V6.4.0: excluded experts
+
+`build_gating_decision(excluded_experts=)` (default none; `phase_v2.gating_network.disabled_experts`) treats the named
+experts as having no probability, so the others renormalise: the ablation switch for lead L8 (Problems #224). The experts
+and the gating blend only feed the legacy signal's `final_probability_up`; the main book ranks on the rank heads.

@@ -18,6 +18,7 @@ Sources (all written by `aq evaluate ...` or the research scripts):
                                                 is read from config.json, never typed here
     v610/calibration.json, v610/research.json   V6.1.0: R-CAL2 and the rule chain (model, head, book, legacy, gate)
     v630/calibration.json, v630/research.json   V6.3.0: R-CAL3 (replaces R-CAL2's table) and R-KILL / R-STAGGER2 / R-GATE3
+    v640/research.json                          V6.4.0: R-DEDUPE2 and leads L1-L10
 """
 
 from __future__ import annotations
@@ -269,6 +270,93 @@ def _rule_chain_v630_lines(evaluation_dir: Path) -> list[str]:
     return ["| Rule | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]
 
 
+def _rule_chain_v640_lines(evaluation_dir: Path) -> list[str]:
+    """V6.4.0's chain (v640/research.json): one row per lead (R-DEDUPE2, L2-L10); L1 has its own table below."""
+    report = load_json(evaluation_dir / "v640" / "research.json")
+    if not isinstance(report, dict):
+        return ["_Not run yet: `python scripts/v640_research.py` (leads L1-L10, R-DEDUPE2)._"]
+    rows = []
+
+    def verdict_text(entry: dict) -> str:
+        verdict = entry.get("verdict") or {}
+        failed = _failed(verdict, entry.get("extra_checks") or entry.get("checks"))
+        gain = f"backtest {_num(verdict.get('backtest_gain'))}, validation {_num(verdict.get('validation_change'))}" if verdict else "n/a"
+        return gain + (f" (fails {', '.join(failed)})" if failed else "")
+
+    def add(label: str, stage, variants_key: str = "variants", adopted_key: str = "adopted", none_text: str = "none (unchanged)"):
+        if not isinstance(stage, dict) or variants_key not in stage:
+            return
+        detail = [f"{name}: {verdict_text(value)}" for name, value in (stage.get(variants_key) or {}).items()]
+        rows.append(f"| {label} | {stage.get(adopted_key) or none_text} | {'; '.join(detail) or 'n/a'} |")
+
+    dedupe = report.get("dedupe")
+    if isinstance(dedupe, dict):
+        rows.append(f"| R-DEDUPE2 (crypto counted once in the gate; validation + backtest + holdout span) | "
+                    f"{'once' if dedupe.get('adopted') else 'none (twice stays)'} | {verdict_text({'verdict': dedupe.get('verdict')})} |")
+    add("L2 direction overlay (calibrated on validation)", report.get("l2"), none_text="none (direction = diagnostic only)")
+    l3 = report.get("l3")
+    if isinstance(l3, dict):
+        add("L3a legacy budget", l3, "budgets", "budget_adopted", "none (0.05 / 0.02 stays)")
+        model = l3.get("model") or {}
+        if isinstance(model, dict) and ("checks" in model or "reason" in model or "skipped" in model):
+            failed = [key for key, ok in (model.get("checks") or {}).items() if not ok]
+            rows.append(f"| L3b legacy as a model input (yardstick 0.034) | {'v640_leg' if model.get('adopted') else 'none (models unchanged)'} | "
+                        f"{model.get('reason') or model.get('skipped') or ('fails ' + ', '.join(failed) if failed else 'all clauses pass')} |")
+    add("L4 within-class ranks", report.get("l4"), none_text="none (pooled equity + crypto ranks stay)")
+    add("L5 rebalance / hold grid", report.get("l5"), none_text="none (20 / 40 stays)")
+    add("L6 staggered book (phase spread)", report.get("l6"), none_text="none (one book stays)")
+    add("L7 kill-switch confirmation", report.get("l7"), none_text="none (KS0 stays)")
+    l8 = report.get("l8")
+    if isinstance(l8, dict):
+        decision = l8.get("decision") or {}
+        rows.append(f"| L8 expert ablation (legacy signal) | {', '.join(decision.get('disable') or []) or 'none disabled'} | "
+                    f"no contribution on both splits: {', '.join(decision.get('candidates_with_no_contribution') or []) or 'none'}; "
+                    f"non-inferior: {decision.get('non_inferior')} |")
+    l9 = report.get("l9")
+    if isinstance(l9, dict) and "decision" in l9:
+        rows.append(f"| L9 crypto graduates against core only | {'graduates kept' if l9['decision'].get('keep_graduates') else 'core only'} | "
+                    f"graduates beat core-only: {l9['decision'].get('graduates_beat_core_only_on')} |")
+    add("L10 residual head blend", report.get("l10"), none_text="none (rank_20d / rank_5d stay)")
+    if not rows:
+        return ["_V6.4.0 rule chain has no stage results yet._"]
+    return ["| Lead | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]
+
+
+def _l1_lines(evaluation_dir: Path) -> list[str]:
+    report = load_json(evaluation_dir / "v640" / "research.json")
+    stage = report.get("l1") if isinstance(report, dict) else None
+    if not isinstance(stage, dict):
+        return ["_Not run yet: stage `l1` of `scripts/v640_research.py`._"]
+    rows = ["| Split | Dates engaged / vetoed | IC all | IC engaged | IC margin | Sharpe margin (median over phases) |", "|---|---|---|---|---|---|"]
+    for split, skill in (stage.get("skill") or {}).items():
+        margins = (stage.get("margins") or {}).get(split) or {}
+        rows.append(f"| {split}{' (report only)' if split == 'holdout' else ''} | {skill.get('engaged_dates')} / {skill.get('vetoed_dates')} | "
+                    f"{_num((skill.get('all') or {}).get('daily_mean_ic'))} | {_num((skill.get('engaged') or {}).get('daily_mean_ic'))} | "
+                    f"{_num(margins.get('ic_margin'))} | {_num(margins.get('sharpe_margin'))} |")
+    verdict = stage.get("verdict") or {}
+    rows.append("")
+    rows.append(f"Bar (+0.02 IC and +0.15 Sharpe on both splits): **{verdict.get('reading', 'n/a')}**.")
+    return rows
+
+
+def _l2_lines(evaluation_dir: Path) -> list[str]:
+    report = load_json(evaluation_dir / "v640" / "research.json")
+    stage = report.get("l2") if isinstance(report, dict) else None
+    if not isinstance(stage, dict) or not stage.get("heads"):
+        return ["_Not run yet: stage `l2` of `scripts/v640_research.py`._"]
+    rows = ["| Head (direction_20d) | Validation ECE | Log-loss raw -> cross-fitted best | Backtest log-loss raw -> calibrated | Backtest balanced accuracy |",
+            "|---|---|---|---|---|"]
+    for kind, entry in stage["heads"].items():
+        validation = entry.get("validation") or {}
+        cross = {k: v for k, v in (validation.get("cross_fitted_log_loss") or {}).items() if v is not None}
+        best = min(cross, key=cross.get) if cross else None
+        rows.append(f"| {kind}{' (used)' if kind == stage.get('chosen_head') else ''} | {_num(validation.get('ece'), '.4f')} | "
+                    f"{_num(validation.get('log_loss'), '.4f')} -> {_num(cross.get(best), '.4f') if best else 'n/a'} ({best or 'n/a'}) | "
+                    f"{_num(entry.get('backtest_raw_log_loss'), '.4f')} -> {_num(entry.get('backtest_calibrated_log_loss'), '.4f')} | "
+                    f"{_num(entry.get('backtest_balanced_accuracy'), '.3f')} |")
+    return rows
+
+
 def _crypto_row(research: dict | None) -> str | None:
     if not research:
         return None
@@ -435,6 +523,13 @@ def build_research_markdown(evaluation_dir: Path) -> str:
         "**V6.3.0 rule chain** (pre-registered; the kill switch scored on the ungated book with its lock path perturbed by "
         "0.5 bp noise; T-bill sweep off)",
         "\n".join(_rule_chain_v630_lines(evaluation_dir)),
+        "**V6.4.0 rule chain** (pre-registered in `scripts/v640_research.py` before any score; as-live unless a lead says ungated; "
+        "the holdout is read only where a lead's bar names it)",
+        "\n".join(_rule_chain_v640_lines(evaluation_dir)),
+        "**L1: does the rank skill sit on the days the gate lets the book trade?**",
+        "\n".join(_l1_lines(evaluation_dir)),
+        "**L2: calibration of the direction heads** (fitted on validation only)",
+        "\n".join(_l2_lines(evaluation_dir)),
         "**Where the rank edge sits** (pooled vs between-class vs within-class IC against the 20-day return)",
         "\n".join(_class_ic_lines(evaluation_dir)),
         "**Rolling-IC gate audit** (a false veto is a vetoed date whose realised book return was positive)",

@@ -21,6 +21,7 @@ from portfolio.book_construction import (
     apply_class_weight_caps,
     build_book_raw_weights,
     build_rank_based_book,
+    partial_adjust_weights,
     remember_formed_book,
 )
 from portfolio.book_neutrality import apply_book_neutrality
@@ -313,6 +314,10 @@ def _simulate_rank_book_core(
     impact_inputs_fn=None,
     min_commission_usd_by_ticker: dict[str, float] | None = None,
     rank_group_by_ticker: dict[str, str] | None = None,
+    sector_relative_rank: bool = False,
+    partial_adjust_fraction: float = 1.0,
+    rank_overlay_fn=None,
+    sector_relative_min_size: int = 3,
     sleeve_guard_config: dict | None = None,
     venue_listing_dates: dict[str, dict] | None = None,
     class_weight_caps: dict[str, dict] | None = None,
@@ -485,6 +490,7 @@ def _simulate_rank_book_core(
     kill_switch_returns: list[float] = []
     kill_switch_latched = False
     kill_switch_sharpe_tripped = False  # main.py's _kill_switch_rolling_sharpe_tripped (the release band's state)
+    kill_switch_below_run = 0  # main.py's _kill_switch_rolling_sharpe_below_run (trip_confirm_bars' counter)
     kill_switch_previous_drawdown: float | None = None
     kill_switch_consecutive_losses = 0
     num_kill_switch_locked_dates = 0
@@ -618,10 +624,12 @@ def _simulate_rank_book_core(
                     "model_age_days": None,
                     "reconciliation_breach": False,
                     "rolling_sharpe_tripped_last_bar": kill_switch_sharpe_tripped,
+                    "rolling_sharpe_below_run_last_bar": kill_switch_below_run,
                 },
                 kill_switch_config,
             )
             kill_switch_sharpe_tripped = decision.rolling_sharpe_tripped
+            kill_switch_below_run = decision.rolling_sharpe_below_run
             if decision.tripped and kill_switch_sticky:
                 kill_switch_latched = True
             kill_switch_locked = decision.tripped or kill_switch_latched
@@ -718,10 +726,17 @@ def _simulate_rank_book_core(
                     str(ticker): float(rank) for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
                 }
                 candidate_ranks = (
-                    grouped_cross_sectional_rank_scores(raw_scores_by_ticker, rank_group_by_ticker)
+                    grouped_cross_sectional_rank_scores(
+                        raw_scores_by_ticker, rank_group_by_ticker,
+                        sector_by_ticker if sector_relative_rank else None, sector_relative_min_size,
+                    )
                     if normalize_to_percentile
                     else raw_scores_by_ticker
                 )
+                if rank_overlay_fn is not None and normalize_to_percentile:
+                    # V6.4.0 (lead L2): live applies portfolio.direction_overlay to the normalised ranks, after the percentile
+                    # and before the book; the spread gate below keeps reading the raw scores
+                    candidate_ranks = rank_overlay_fn(str(date), candidate_ranks)
                 spread_scores = raw_scores_by_ticker
                 if rank_group_by_ticker:
                     spread_scores = {
@@ -899,6 +914,10 @@ def _simulate_rank_book_core(
                     new_weights, held_weights, candidate_ranks,
                     int(max_active_positions) - (len(legacy_state["weights"]) if legacy_state is not None else 0),
                 )
+                held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
+
+            if partial_adjust_fraction < 1.0 and is_rebalance and new_weights != held_weights:
+                new_weights = partial_adjust_weights(held_weights, new_weights, partial_adjust_fraction)
                 held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
 
             for symbol in set(new_weights) | set(held_weights):

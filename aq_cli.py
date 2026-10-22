@@ -692,7 +692,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_options_margin_sizing.py",
         "test_options_greeks.py", "test_simulated_portfolio.py", "test_options_assignment_risk.py",
         # V5.1 Phase 1 (development/Problems.md #73) - portfolio/rank_signal.py.
-        "test_rank_signal.py",
+        "test_rank_signal.py", "test_direction_overlay.py",
         # V5.3.5 (development/Problems.md #102) - portfolio/rolling_ic_gate.py.
         "test_rolling_ic_gate.py",
         # V5.5.0 (Problems.md #128) - portfolio/legacy_sleeve.py.
@@ -833,6 +833,9 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_v620_dedupe.py", "test_v620_tranche_book.py", "test_v620_research.py",
         # V6.3.0 - the R-KILL / R-STAGGER2 clauses and the release-band parity round.
         "test_v630_research.py", "test_v630_round.py",
+        # V6.4.0 - Lean book-call probabilities, the paper protocol, calibration, engaged-day skill, the crypto bootstrap.
+        "test_classification_parity.py", "test_paper_protocol.py", "test_probability_calibration.py",
+        "test_engaged_day_skill.py", "test_trade_bootstrap.py", "test_v640_round.py", "test_data_append_guard.py", "test_v640_research.py", "test_codespace_session_v640.py", "test_freeze_run_config.py",
         "test_book_variant_research.py",
         "test_crypto_fee_research.py",
         "test_forex_keep_or_drop.py",
@@ -1895,11 +1898,16 @@ def _universe_asset_metadata(config: dict) -> tuple[dict[str, str], dict[str, bo
         sleeve_classes.add("forex")
     if phase_v2.get("bond_sleeve", {}).get("enabled", False):
         sleeve_classes.add("bond")
+    from portfolio.book_construction import crypto_core_only_settings, crypto_graduate_excluded
+
+    core_only, core_names = crypto_core_only_settings(phase_v2.get("class_weight_caps"))
     for asset in config.get("phase1", {}).get("universe", {}).get("assets", []):
         ticker = asset["ticker"]
         trading_eligible_by_ticker[ticker] = book_candidate_trading_eligible(
             trading_eligible_by_ticker.get(ticker, True), asset_class_by_ticker[ticker], *class_flags
-        ) and asset_class_by_ticker[ticker] not in sleeve_classes
+        ) and asset_class_by_ticker[ticker] not in sleeve_classes and not crypto_graduate_excluded(
+            ticker, asset_class_by_ticker[ticker], core_only, core_names
+        )
     return asset_class_by_ticker, trading_eligible_by_ticker
 
 
@@ -2078,6 +2086,58 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                     print(f"  {section}: {len(rows)} rows (e.g. {first['metric']}: {first.get('portfolio')})")
             print(f"  Wrote {out_path}")
         _refresh_readme_evaluation_sections()
+        return 0
+
+    # V6.4.0 (R-L11) - `aq evaluate --classification-parity`: Lean's logged book-call probabilities vs the offline head.
+    if getattr(args, "classification_parity", False):
+        from evaluation.classification_parity import classification_parity_for_run_dir
+
+        run_dir = _resolve_lean_run_dir(args)
+        if run_dir is None or not run_dir.exists():
+            print("error: no backtest folder found - pass --backtest-dir PATH.", file=sys.stderr)
+            return 1
+        result = classification_parity_for_run_dir(run_dir, config, ROOT_DIR, dataset_path=getattr(args, "dataset", None))
+        result["run"] = run_dir.name
+        _write_evaluation_json(ML_DIR / "evaluation" / "classification_parity.json", result)
+        if result.get("status") != "ok":
+            print(f"Classification parity ({run_dir.name}): {result.get('status')} - {result.get('reason') or 'nothing to compare'}")
+            return 0
+        deltas = result["deltas"]
+        print(f"Classification parity ({run_dir.name}, {result['model']} {result['head']}): matched {result['n_matched']} of "
+              f"{result['n_calls']} calls; accuracy delta {deltas['accuracy']:+.4f}, neg log-loss delta {deltas['neg_log_loss']:+.4f}, "
+              f"median |dp| {deltas['median_abs_probability_gap']:.5f}; within tolerance: {result['within_tolerance']}")
+        return 0 if result["within_tolerance"] in (True, None) else 1
+
+    # V6.4.0 (L12) - `aq evaluate --paper-check`: the paper-period checklist against the reference run's bands.
+    if getattr(args, "paper_check", False):
+        from evaluation.paper_protocol import band_check, paper_metrics_for_run_dir, reference_bands
+        from generate_backtest_report import resolve_lean_run_dir
+
+        run_dir = _resolve_lean_run_dir(args)
+        reference_dir = resolve_lean_run_dir(getattr(args, "reference_dir", None), ROOT_DIR / "backtests")
+        if run_dir is None or reference_dir is None or not run_dir.exists() or not reference_dir.exists():
+            print("error: pass --backtest-dir PATH (the run to check); --reference-dir defaults to the README pin.", file=sys.stderr)
+            return 1
+        reference_config_path = None
+        try:
+            from evaluation.lean_attribution import run_config_path
+
+            reference_config_path = run_config_path(reference_dir, ROOT_DIR)
+        except Exception:  # noqa: BLE001 - falls back to the current config
+            pass
+        reference_config = json.loads(reference_config_path.read_text(encoding="utf-8")) if reference_config_path else config
+        run = paper_metrics_for_run_dir(run_dir, config, ROOT_DIR, start=getattr(args, "start", None), end=getattr(args, "end", None))
+        reference = paper_metrics_for_run_dir(reference_dir, reference_config, ROOT_DIR)
+        bands = reference_bands(reference["table"], reference["rebalances"], reference["slippage_by_date"])
+        verdict = band_check(run["metrics"], bands)
+        payload = {"run": run_dir.name, "reference": reference_dir.name, "window": [getattr(args, "start", None), getattr(args, "end", None)],
+                   "metrics": run["metrics"], "bands": bands, "verdict": verdict,
+                   "note": "a tool dry run unless the run is a paper period of the frozen config"}
+        _write_evaluation_json(ML_DIR / "evaluation" / "paper_check.json", payload)
+        print(f"Paper check {run_dir.name} against {reference_dir.name}: {run['metrics']['rebalances']} rebalances, "
+              f"{run['metrics']['trading_days']} days; inside all bands: {verdict['inside']}"
+              + (f" (outside: {', '.join(verdict['outside'])})" if verdict["outside"] else "")
+              + ("" if verdict["minimum_met"] else f" - below the minimum of {verdict['minimum']}"))
         return 0
 
     # V5.5.0 (Problems.md #127/#128) - `aq evaluate --audit-backtest` audits
@@ -4537,6 +4597,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="V6.3.0: accuracy / precision / recall / F1 / negative log-loss of the --model's direction_20d head on --split "
         "-> ml/evaluation/classification_scores_<model>.json (the Backtest Statistics' offline rows). Included in --all.",
     )
+    evaluate_parser.add_argument(
+        "--classification-parity", action="store_true",
+        help="V6.4.0 (R-L11): a Lean run's logged book-call probabilities (diagnostics.book_history.include_probabilities) "
+        "against the same direction_20d head scored offline on the same rows, to a pre-registered tolerance "
+        "(--backtest-dir, --dataset) -> ml/evaluation/classification_parity.json. Needs the dataset and the model.",
+    )
+    evaluate_parser.add_argument(
+        "--paper-check", action="store_true",
+        help="V6.4.0 (L12): the paper-period checklist (veto rate, exposure, fills, slippage, fees, strategy vs sweep P&L, "
+        "turnover) of --backtest-dir (a paper or Lean run folder, optionally --start/--end) against the bands of the "
+        "contiguous 6-rebalance windows of --reference-dir (default: the README pin) -> ml/evaluation/paper_check.json.",
+    )
+    evaluate_parser.add_argument("--reference-dir", default=None, help="V6.4.0: with --paper-check, the reference Lean run (default: the README pin).")
+    evaluate_parser.add_argument("--start", default=None, help="V6.4.0: with --paper-check, first date (YYYY-MM-DD) of the window to check.")
+    evaluate_parser.add_argument("--end", default=None, help="V6.4.0: with --paper-check, last date (YYYY-MM-DD) of the window to check.")
     evaluate_parser.add_argument(
         "--interest-rate-file", default=None,
         help="V6.2.0: with --lean-stats, price the run on this risk-free file only (Lean's interest-rate.csv format).",

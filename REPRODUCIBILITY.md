@@ -43,6 +43,19 @@ aq evaluate --benchmarks                    # strategy + SPY/60-40 baselines
 aq evaluate --all                           # rank book, Monte Carlo, benchmarks, capacity, stress, calibrate-edge
 ```
 
+## V6.4.0 research (rules written before any score)
+
+```powershell
+python scripts/data_append_guard.py snapshot --out ml/evaluation/v640/data_before.json      # before a refresh
+python scripts/data_append_refresh.py --end 2026-10-17 --apply                                # append only, stored vintage
+python scripts/data_append_guard.py verify --before ml/evaluation/v640/data_before.json     # 0 changed rows
+# on the training Codespace (one lifetime): bash scripts/codespace_session_v640.sh <manifest>   -> ml/evaluation/v640/research.json
+python scripts/v640_research.py --smoke ...        # every stage, one variant, two phases, before the real chain
+aq evaluate --classification-parity --backtest-dir backtests/<run with include_probabilities>
+aq evaluate --paper-check --backtest-dir <run folder> --reference-dir backtests/<pinned run>
+python scripts/freeze_run_config.py --base ml/evaluation/run_configs/v640_bt5.json --adopted ml/evaluation/v640/adopted_changes.json --name v640_bt6
+```
+
 ## Lean backtest
 
 ```powershell

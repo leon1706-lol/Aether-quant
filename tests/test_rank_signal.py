@@ -249,3 +249,38 @@ def test_cross_sectional_rank_scores_all_tied_matches_pandas_rank_pct_true():
     # import on the runtime hot path), so it must match pandas bit for bit.
     ranks = cross_sectional_rank_scores({"A": 0.5, "B": 0.5, "C": 0.5, "D": 0.5})
     assert all(abs(value - 0.625) < 1e-9 for value in ranks.values())
+
+
+# ---------------------------------------------------------------------------
+# V6.4.0 (lead L4) - sector-relative normalisation
+# ---------------------------------------------------------------------------
+
+import pytest  # noqa: E402
+
+from portfolio.rank_signal import grouped_cross_sectional_rank_scores, sector_relative_scores  # noqa: E402
+
+_SECTORS = {"A1": "tech", "A2": "tech", "A3": "tech", "B1": "energy", "B2": "energy", "B3": "energy", "C1": "solo"}
+
+
+def test_sector_relative_scores_demean_by_the_sector_mean():
+    scores = {"A1": 0.9, "A2": 0.8, "A3": 0.7, "B1": 0.3, "B2": 0.2, "B3": 0.1, "C1": 0.5}
+    relative = sector_relative_scores(scores, _SECTORS)
+    assert relative["A1"] == pytest.approx(0.1) and relative["A3"] == pytest.approx(-0.1)
+    assert relative["B1"] == pytest.approx(0.1) and relative["B3"] == pytest.approx(-0.1)
+    overall = sum(scores.values()) / len(scores)
+    assert relative["C1"] == pytest.approx(0.5 - overall)  # a sector below min size uses the cross-section mean
+
+
+def test_sector_relative_ranks_best_names_of_a_weak_sector_alongside_the_best_of_a_strong_one():
+    scores = {"A1": 1.0, "A2": 0.75, "A3": 0.5, "B1": 0.5, "B2": 0.25, "B3": 0.0}  # binary-exact: ties are real ties
+    plain = grouped_cross_sectional_rank_scores(scores, None)
+    relative = grouped_cross_sectional_rank_scores(scores, None, _SECTORS)
+    assert plain["A1"] > plain["B1"]  # raw: the strong sector's leader outranks the weak sector's
+    assert relative["B1"] == pytest.approx(relative["A1"])  # within sectors: the leaders tie, the laggards tie
+
+
+def test_no_sector_map_is_the_unchanged_percentile():
+    scores = {"A1": 0.9, "A2": 0.8, "B1": 0.3}
+    assert grouped_cross_sectional_rank_scores(scores, None, None) == grouped_cross_sectional_rank_scores(scores, None)
+    groups = {"A1": "main", "A2": "main", "B1": "bond"}
+    assert grouped_cross_sectional_rank_scores(scores, groups, None) == grouped_cross_sectional_rank_scores(scores, groups)

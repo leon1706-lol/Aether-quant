@@ -243,3 +243,13 @@ compressed dispersion in a way IC is not.
 - `fill_price_audit.py` — `zip_opens_for_fills` (shared with the slippage metric); fills carry their quantity.
 - `rank_book_simulator.py` / `kill_switch_replay.py` — carry the kill switch's `release_rolling_sharpe` band state bar to bar, as `main.py` does (rule R-KILL).
 - `readme_research.py` — R-CAL3 replaces R-CAL2's table once `v630/calibration.json` exists; the V6.3.0 rule chain table.
+
+## V6.4.0 additions
+
+- `classification_parity.py` (`aq evaluate --classification-parity`, step of `--lean-report`) — a Lean run's logged book-call probabilities against the same `direction_20d` head scored offline on the same (date, ticker) calls (late-bar names on the previous row, as live decides them); rule R-L11's tolerance: |accuracy delta|, |neg log-loss delta| <= 0.01, median |probability gap| <= 0.005.
+- `paper_protocol.py` (`aq evaluate --paper-check`) — the paper-period checklist of a run folder (veto rate, lock share, exposure, fills, slippage, fee bps, strategy and sweep P&L per day, hit ratio, turnover) and the 5-95% bands of every contiguous 6-rebalance window of a reference run; success = every metric inside its band, >= 6 rebalances, >= 120 days.
+- `probability_calibration.py` — reliability curve, ECE, Brier, log-loss, temperature scaling, isotonic regression (pool adjacent violators), per-class thresholds and cross-fitted log-loss for the direction heads (lead L2).
+- `engaged_day_skill.py` — rank IC, top/bottom spread and as-live Sharpe on the dates the rolling-IC gate engages against all dates, and the owner's bar (+0.02 IC, +0.15 Sharpe on both splits; lead L1).
+- `trade_bootstrap.py` — bootstrap of a sleeve's round-trip P&L, top-k share and leave-one-name-out (lead L9).
+- `backtest_statistics.py` — `lean_book_calls` + `_classification_section`: the Lean row of Classification Scores gets a log-loss when the book history logged `member_probabilities`.
+- `rank_book_simulator.py` — `sector_relative_rank`, `partial_adjust_fraction` and `rank_overlay_fn` (default off, each calling the function live uses); the kill switch carries `trip_confirm_bars`' counter. `kill_switch_replay.py` — `forward_window_returns` / `false_lock_share` (a lock before the unlocked book's top-third 20-day return).

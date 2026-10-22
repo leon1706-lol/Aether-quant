@@ -256,6 +256,11 @@ strict no-op until configured. V6.3.0: `release_rolling_sharpe` (default
 `null`) holds a rolling-Sharpe trip until the Sharpe recovers above it, when
 the caller passes the previous verdict as `rolling_sharpe_tripped_last_bar`
 (`KillSwitchDecision.rolling_sharpe_tripped`); main.py and the simulator do.
+V6.4.0: `trip_confirm_bars` (default 1 = a trip on the first reading below
+the floor) asks for N consecutive readings (`rolling_sharpe_below_run_last_bar`
+in, `KillSwitchDecision.rolling_sharpe_below_run` out); a latched trip is still
+held by the release band. One function, carried bar to bar by `main.py`, the
+simulator and `kill_switch_replay`.
 
 `manual_override.py`: `read_manual_trade_lock_override()`/
 `write_manual_trade_lock_override()` (pre-existing trade-lock override);

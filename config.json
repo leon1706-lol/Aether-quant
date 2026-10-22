@@ -27,7 +27,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/aapl.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "SPY",
@@ -35,7 +35,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/spy.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "QQQ",
@@ -43,7 +43,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/qqq.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "IWM",
@@ -51,7 +51,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/iwm.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "EEM",
@@ -59,7 +59,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/eem.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "BAC",
@@ -67,7 +67,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/bac.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "IBM",
@@ -75,7 +75,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/ibm.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "AIG",
@@ -83,7 +83,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/aig.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "BNO",
@@ -91,7 +91,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/bno.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "FB",
@@ -99,7 +99,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/fb.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "GOOG",
@@ -107,7 +107,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/goog.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "GOOGL",
@@ -115,7 +115,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/googl.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "USO",
@@ -123,7 +123,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/uso.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "WM",
@@ -131,7 +131,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/wm.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "AAA",
@@ -139,7 +139,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/aaa.zip",
                     "available_from": "2020-09-09",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "BTCUSD",
@@ -147,7 +147,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/btcusd_trade.zip",
                     "available_from": "2014-09-17",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "BTC-USD",
@@ -163,7 +163,7 @@
                     "derived_from": "data/crypto/coinbase/minute/ethusd",
                     "aggregation": "daily_from_minute_trade",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "ETH-USD",
@@ -179,7 +179,7 @@
                     "derived_from": "data/crypto/coinbase/minute/ltcusd",
                     "aggregation": "daily_from_minute_trade",
                     "available_from": "2014-09-17",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "LTC-USD",
@@ -193,7 +193,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/xrpusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "XRP-USD",
@@ -207,7 +207,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/adausd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "ADA-USD",
@@ -222,7 +222,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/shy.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 1.9,
                         "yield_curve_bucket": "short_duration",
@@ -236,7 +236,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/ief.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 7.5,
                         "yield_curve_bucket": "medium_duration",
@@ -250,7 +250,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/tlt.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 17.5,
                         "yield_curve_bucket": "long_duration",
@@ -264,7 +264,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/agg.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 6.0,
                         "yield_curve_bucket": "medium_duration",
@@ -278,7 +278,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/lqd.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 8.5,
                         "yield_curve_bucket": "medium_duration",
@@ -292,7 +292,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/hyg.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 3.5,
                         "yield_curve_bucket": "short_duration",
@@ -306,7 +306,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/tip.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 7.0,
                         "yield_curve_bucket": "medium_duration",
@@ -320,7 +320,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/mbb.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 5.5,
                         "yield_curve_bucket": "medium_duration",
@@ -334,7 +334,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/emb.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 7.0,
                         "yield_curve_bucket": "medium_duration",
@@ -348,7 +348,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/mub.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 6.5,
                         "yield_curve_bucket": "medium_duration",
@@ -361,7 +361,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/msft.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "MSFT",
@@ -375,7 +375,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/nvda.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "NVDA",
@@ -389,7 +389,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/amzn.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "AMZN",
@@ -403,7 +403,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/jpm.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "JPM",
@@ -417,7 +417,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/xom.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "XOM",
@@ -431,7 +431,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/jnj.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "JNJ",
@@ -445,7 +445,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/pg.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "PG",
@@ -459,7 +459,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/ko.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "KO",
@@ -473,7 +473,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/dis.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "DIS",
@@ -487,7 +487,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/hd.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "HD",
@@ -501,7 +501,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/wmt.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "WMT",
@@ -515,7 +515,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/v.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "V",
@@ -529,7 +529,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/ma.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "MA",
@@ -543,7 +543,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/unh.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "UNH",
@@ -557,7 +557,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/cvx.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "CVX",
@@ -571,7 +571,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/pfe.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "PFE",
@@ -585,7 +585,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/vz.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "VZ",
@@ -599,7 +599,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/csco.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "CSCO",
@@ -613,7 +613,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/intc.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "INTC",
@@ -627,7 +627,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/mcd.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "MCD",
@@ -641,7 +641,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/abbv.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "ABBV",
@@ -655,7 +655,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/crm.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "CRM",
@@ -669,7 +669,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/cost.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "COST",
@@ -683,7 +683,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/pep.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "PEP",
@@ -697,7 +697,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/tmo.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "TMO",
@@ -712,7 +712,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/bnd.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 6.5,
                         "yield_curve_bucket": "medium_duration",
@@ -732,7 +732,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/govt.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 6.5,
                         "yield_curve_bucket": "medium_duration",
@@ -752,7 +752,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/shv.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 0.4,
                         "yield_curve_bucket": "short_duration",
@@ -772,7 +772,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/igib.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 6.3,
                         "yield_curve_bucket": "medium_duration",
@@ -792,7 +792,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/vcit.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 6.4,
                         "yield_curve_bucket": "medium_duration",
@@ -812,7 +812,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/vcsh.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 2.7,
                         "yield_curve_bucket": "short_duration",
@@ -832,7 +832,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/biv.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 6.5,
                         "yield_curve_bucket": "medium_duration",
@@ -852,7 +852,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/bsv.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 2.7,
                         "yield_curve_bucket": "short_duration",
@@ -872,7 +872,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/tlh.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 17.0,
                         "yield_curve_bucket": "long_duration",
@@ -892,7 +892,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/igsb.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 2.7,
                         "yield_curve_bucket": "short_duration",
@@ -912,7 +912,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/jnk.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 4.0,
                         "yield_curve_bucket": "short_duration",
@@ -932,7 +932,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/bwx.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "bond_metadata": {
                         "duration_proxy_years": 7.5,
                         "yield_curve_bucket": "medium_duration",
@@ -951,7 +951,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/bchusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "BCH-USD",
@@ -965,7 +965,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/linkusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "LINK-USD",
@@ -979,7 +979,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/dogeusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "DOGE-USD",
@@ -993,7 +993,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/xlmusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "XLM-USD",
@@ -1007,7 +1007,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/eosusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30",
+                    "available_to": "2026-10-16",
                     "backfill": {
                         "source": "yfinance",
                         "symbol": "EOS-USD",
@@ -1021,7 +1021,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/etcusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "ZECUSD",
@@ -1029,7 +1029,7 @@
                     "market": "coinbase",
                     "data_path": "data/crypto/coinbase/daily/zecusd_trade.zip",
                     "available_from": "2017-11-09",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "EURUSD",
@@ -1037,7 +1037,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/eurusd.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "GBPUSD",
@@ -1045,7 +1045,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/gbpusd.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "USDJPY",
@@ -1053,7 +1053,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/usdjpy.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "AUDUSD",
@@ -1061,7 +1061,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/audusd.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "USDCAD",
@@ -1069,7 +1069,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/usdcad.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "USDCHF",
@@ -1077,7 +1077,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/usdchf.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "NZDUSD",
@@ -1085,7 +1085,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/nzdusd.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "EURGBP",
@@ -1093,7 +1093,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/eurgbp.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "EURJPY",
@@ -1101,7 +1101,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/eurjpy.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "GBPJPY",
@@ -1109,7 +1109,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/gbpjpy.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "EURCHF",
@@ -1117,7 +1117,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/eurchf.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "EURAUD",
@@ -1125,7 +1125,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/euraud.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "AUDJPY",
@@ -1133,7 +1133,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/audjpy.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "CADJPY",
@@ -1141,7 +1141,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/cadjpy.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "GBPCAD",
@@ -1149,7 +1149,7 @@
                     "market": "oanda",
                     "data_path": "data/forex/oanda/daily/gbpcad.zip",
                     "available_from": "2013-01-01",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "WFC",
@@ -1157,7 +1157,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/wfc.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "GS",
@@ -1165,7 +1165,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/gs.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "HON",
@@ -1173,7 +1173,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/hon.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "CAT",
@@ -1181,7 +1181,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/cat.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "BA",
@@ -1189,7 +1189,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/ba.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "UNP",
@@ -1197,7 +1197,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/unp.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "GE",
@@ -1205,7 +1205,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/ge.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "ABT",
@@ -1213,7 +1213,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/abt.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "MRK",
@@ -1221,7 +1221,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/mrk.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "NKE",
@@ -1229,7 +1229,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/nke.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "SBUX",
@@ -1237,7 +1237,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/sbux.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "ORCL",
@@ -1245,7 +1245,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/orcl.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "ADBE",
@@ -1253,7 +1253,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/adbe.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "TXN",
@@ -1261,7 +1261,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/txn.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 },
                 {
                     "ticker": "T",
@@ -1269,7 +1269,7 @@
                     "market": "usa",
                     "data_path": "data/equity/usa/daily/t.zip",
                     "available_from": "2013-01-02",
-                    "available_to": "2026-09-30"
+                    "available_to": "2026-10-16"
                 }
             ],
             "common_window": {
@@ -1292,7 +1292,7 @@
             },
             "holdout": {
                 "start": "2025-07-01",
-                "end": "2026-09-30"
+                "end": "2026-10-16"
             },
             "purge_label_horizon_days": 20
         },
@@ -1622,6 +1622,7 @@
                 "evaluation_bars": 60,
                 "min_rolling_sharpe": -1.0,
                 "release_rolling_sharpe": null,
+                "trip_confirm_bars": 1,
                 "max_drawdown_velocity_pct_per_bar": 0.01,
                 "min_live_rank_ic": -0.02,
                 "max_consecutive_losses": 12,
@@ -1727,7 +1728,8 @@
         "gating_network": {
             "baseline_weight": 0.25,
             "learned_model_enabled": false,
-            "sequence_weight": 0.5
+            "sequence_weight": 0.5,
+            "disabled_experts": []
         },
         "multitask_model": {
             "enabled": true
@@ -1787,7 +1789,7 @@
             "top_n": 6,
             "bottom_n": 6,
             "min_rank_confidence_spread": 0.1,
-            "rebalance_every_bars": 20,
+            "rebalance_every_bars": 10,
             "allocation_method": "rank",
             "neutrality": {
                 "enabled": true,
@@ -1821,7 +1823,7 @@
         },
         "exits": {
             "enabled": true,
-            "max_holding_bars": 40,
+            "max_holding_bars": 20,
             "trailing_stop_pct": 0.15
         },
         "liquidity": {
@@ -1907,6 +1909,8 @@
                 "include_full_universe": true,
                 "include_decisions": true,
                 "include_feature_snapshot": true,
+                "include_probabilities": true,
+                "paper_enabled": false,
                 "feature_snapshot_symbols": ["XOM", "NVDA", "TLT", "ETHUSD", "BTCUSD", "EURUSD", "GBPJPY"]
             },
             "timing_probe": {
@@ -2429,7 +2433,7 @@
             "aggressive": {
                 "phase_v2.portfolio_book.top_n": 6,
                 "phase_v2.portfolio_book.bottom_n": 6,
-                "phase_v2.portfolio_book.rebalance_every_bars": 20,
+                "phase_v2.portfolio_book.rebalance_every_bars": 10,
                 "phase_v2.portfolio_book.min_rank_confidence_spread": 0.1,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.05,
                 "phase9.portfolio.max_active_positions": 12,
@@ -2522,7 +2526,8 @@
                 "exempt": [
                     "BTCUSD",
                     "LTCUSD"
-                ]
+                ],
+                "core_only": true
             }
         }
     },

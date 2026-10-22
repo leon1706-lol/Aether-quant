@@ -490,3 +490,9 @@ keeps a resize worth less than IB's minimum commission from trading. Shared by `
 - `legacy_sleeve.py` — `resolve_legacy_signal_params`: the legacy probability signal's thresholds, adaptive sell band and position cap read once, shared by `main.py` and the offline replay.
 - `book_construction.py` — `build_book_history_record(rolling_ic_state=)` stores the rolling-IC gate's reading (`rolling_ic`) next to the veto reason.
 - `rank_signal.py` — the policy reports `demotion_fallback` / `failed_heads` when every decision head fails its gate and the configured blend is kept (fail-open).
+
+## V6.4.0 additions
+
+- `book_construction.py` — `build_book_history_record(member_probabilities=)` (the book calls' head probabilities, `diagnostics.book_history.include_probabilities`); `book_history_mode_allowed` (backtest: full record, paper with `paper_enabled`: bounded record, live never); `partial_adjust_weights` (a rebalance moves a fraction of the way to the target; offline until adopted).
+- `rank_signal.py` — `sector_relative_scores` and `grouped_cross_sectional_rank_scores(sector_by_symbol=)`: `rank_signal.normalization: "sector_relative"` de-means each rank group's scores by sector before the percentile (sectors under `ranking.sector_neutral.min_sector_size` use the cross-section mean).
+- `direction_overlay.py` — `apply_direction_overlay`: a calibrated direction probability blended into, or used to filter, the percentile ranks (default off, offline until a rule adopts it; lead L2).

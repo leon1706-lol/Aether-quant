@@ -630,6 +630,23 @@ def tranche_book_params(top_n: int, bottom_n: int, gross_exposure_cap: float, tr
     }
 
 
+def partial_adjust_weights(current: dict[str, float], target: dict[str, float], fraction: float,
+                           min_weight: float = 1e-3) -> dict[str, float]:
+    """V6.4.0 (lead L6): move `fraction` of the way from the held weights to the new target on a rebalance,
+    `current + fraction * (target - current)` per name; weights that fall under `min_weight` are dropped. A fraction of 1
+    returns the target unchanged (the shipped book); the blend of two valid books stays inside the same gross cap."""
+    fraction = float(fraction)
+    if fraction >= 1.0:
+        return dict(target)
+    adjusted = {}
+    for symbol in set(current) | set(target):
+        before = float(current.get(symbol, 0.0))
+        weight = before + fraction * (float(target.get(symbol, 0.0)) - before)
+        if abs(weight) >= min_weight:
+            adjusted[symbol] = weight
+    return adjusted
+
+
 def combine_tranche_weights(tranche_weights: list[dict[str, float]]) -> dict[str, float]:
     """The live book target: the sum of the tranches' signed weights per name (a name held by two tranches nets); names
     that net to zero are dropped."""
@@ -811,6 +828,7 @@ def build_book_history_record(
     feature_snapshot: dict[str, dict] | None = None,
     run_id: str | None = None,
     rolling_ic_state: dict | None = None,
+    member_probabilities: dict[str, dict] | None = None,
 ) -> dict:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
@@ -960,7 +978,29 @@ def build_book_history_record(
         }
     if run_id is not None:
         record["run_id"] = str(run_id)
+    if member_probabilities is not None:
+        record["member_probabilities"] = {
+            symbol_key: {key: _finite_or_none(value) for key, value in probabilities.items()}
+            for symbol_key, probabilities in member_probabilities.items()
+        }
     return record
+
+
+def _finite_or_none(value) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
+
+
+def book_history_mode_allowed(runtime_mode: str, enabled: bool, paper_enabled: bool = False) -> tuple[bool, bool]:
+    """(write the book history this rebalance?, bounded record). Backtests log the full record; `paper_enabled` (V6.4.0,
+    default off) also logs paper runs with the bounded record (no full universe, no feature snapshot: one small line per
+    rebalance); live never logs. Disabled = nothing."""
+    if not enabled:
+        return False, False
+    if runtime_mode == "backtest":
+        return True, False
+    if runtime_mode == "paper" and paper_enabled:
+        return True, True
+    return False, False
 
 
 def resolve_class_weight_caps(raw: dict | None) -> dict[str, dict]:
@@ -983,6 +1023,21 @@ def resolve_class_weight_caps(raw: dict | None) -> dict[str, dict]:
             continue
         caps[str(asset_class)] = {"per_name_cap": per_name, "class_gross_cap": gross, "exempt": frozenset(map(str, entry.get("exempt", ())))}
     return caps
+
+
+def crypto_core_only_settings(class_weight_caps_config: dict | None) -> tuple[bool, frozenset[str]]:
+    """(core_only, core names) from `phase_v2.class_weight_caps.crypto`: `core_only` (V6.4.0, default false, lead L9) keeps the
+    crypto pairs that are not `exempt` (the proven core, BTC / LTC) out of the main book's candidates."""
+    entry = (class_weight_caps_config or {}).get("crypto")
+    if not isinstance(entry, dict):
+        return False, frozenset()
+    return bool(entry.get("core_only", False)), frozenset(map(str, entry.get("exempt", ())))
+
+
+def crypto_graduate_excluded(ticker: str, asset_class: str | None, core_only: bool, core_names: frozenset[str]) -> bool:
+    """True when `core_only` is on and `ticker` is a crypto pair outside the core: it takes no book slot or neutrality weight.
+    One definition for main.py's live candidates and the offline simulator's candidate metadata."""
+    return bool(core_only) and asset_class == "crypto" and str(ticker) not in core_names
 
 
 def apply_class_weight_caps(

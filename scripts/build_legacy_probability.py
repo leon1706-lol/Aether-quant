@@ -11,6 +11,11 @@ backtest the drawdown never triggers risk-off - `bypass_regime_drawdown_gate` - 
 
     python scripts/build_legacy_probability.py [--dataset ml/datasets/full_dataset.csv] [--ml-dir ml]
         [--sequence-members DIR ...] [--splits validation backtest holdout] [--out ml/datasets/legacy_probability.csv]
+        [--emit-components ml/datasets/legacy_components.csv]
+
+V6.4.0 (lead L8): `--emit-components` also writes every row's gating inputs (baseline, the four experts, the sequence
+direction and the three regime labels), and `legacy_probability_from_components` recombines them - with any expert
+excluded - through the same gating call, so an expert ablation costs seconds, not another inference pass.
 """
 
 from __future__ import annotations
@@ -44,24 +49,47 @@ def regime_thresholds(config: dict) -> dict:
     }
 
 
+EXPERT_COLUMNS = ("bullish", "bearish", "sideways", "volatility")
+REGIME_COLUMNS = ("trend_regime", "volatility_regime", "risk_regime")
+
+
 def legacy_probability(raw_features: dict, baseline: float | None, experts: dict[str, float | None],
-                       sequence_direction: float | None, expert_metrics: dict, config: dict) -> float:
+                       sequence_direction: float | None, expert_metrics: dict, config: dict,
+                       excluded_experts: tuple[str, ...] = ()) -> float:
     """One row's final_probability_up, through the same gating call main.py's Pass 1c makes (learned gating off)."""
-    from moe.gating import build_gating_decision
     from regime.market_regime import build_market_regime_vector
 
-    gating = config.get("phase_v2", {}).get("gating_network", {})
     regime = build_market_regime_vector(
         raw_features, portfolio_drawdown=0.0,
         average_correlation=float(raw_features.get("topology_correlation_strength", 0.0) or 0.0), **regime_thresholds(config),
     ).to_dict()
+    return _gate(regime, baseline, experts, sequence_direction, expert_metrics, config, excluded_experts)
+
+
+def _gate(regime: dict, baseline, experts, sequence_direction, expert_metrics: dict, config: dict, excluded_experts=()) -> float:
+    from moe.gating import build_gating_decision
+
+    gating = config.get("phase_v2", {}).get("gating_network", {})
     decision = build_gating_decision(
         regime=regime, expert_training_metrics=expert_metrics, expert_probabilities=experts,
         baseline_probability_up=baseline, baseline_weight=float(gating.get("baseline_weight", 0.25)),
         sequence_prediction={"direction": sequence_direction} if sequence_direction is not None else None,
         sequence_weight=float(gating.get("sequence_weight", 0.0)),
+        excluded_experts=tuple(excluded_experts),
     )
     return float(decision.final_probability_up)
+
+
+def legacy_probability_from_components(row, expert_metrics: dict, config: dict, excluded_experts: tuple[str, ...] = ()) -> float:
+    """final_probability_up from one row of the components file (`--emit-components`): the same gating call on the stored
+    baseline, expert and sequence outputs and regime labels, optionally without `excluded_experts`."""
+    def _value(name):
+        value = row.get(name)
+        return None if value is None or value != value else float(value)
+
+    regime = {name: str(row.get(name, "unknown")) for name in REGIME_COLUMNS}
+    experts = {name: _value(name) for name in EXPERT_COLUMNS}
+    return _gate(regime, _value("baseline"), experts, _value("sequence_direction"), expert_metrics, config, excluded_experts)
 
 
 def main() -> int:
@@ -75,6 +103,7 @@ def main() -> int:
     parser.add_argument("--sequence-members", nargs="*", default=None, help="sequence version dirs (an ensemble)")
     parser.add_argument("--splits", nargs="*", default=["validation", "backtest", "holdout"])
     parser.add_argument("--out", default=str(ROOT_DIR / "ml" / "datasets" / "legacy_probability.csv"))
+    parser.add_argument("--emit-components", default=None, help="also write each row's gating inputs here (V6.4.0, lead L8)")
     args = parser.parse_args()
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
     ml_dir = Path(args.ml_dir)
@@ -110,16 +139,31 @@ def main() -> int:
         sequence_feature_schema=sequence_schema, configured_window_size=window, batched=True,
     )["direction"]
 
+    from regime.market_regime import build_market_regime_vector
+
     raw_names = [name for name in schema["feature_names"] if name in frame.columns]
     raw = frame[raw_names].to_dict("records")
     probabilities = np.full(len(frame), np.nan)
+    components = []
+    thresholds = regime_thresholds(config)
     for index in np.flatnonzero(wanted):
         expert_values = {name: float(values[index]) for name, values in experts.items()}
         seq = float(direction[index]) if direction[index] == direction[index] else None
         probabilities[index] = legacy_probability(raw[index], float(baseline[index]), expert_values, seq, expert_metrics, config)
+        if args.emit_components:
+            regime = build_market_regime_vector(
+                raw[index], portfolio_drawdown=0.0,
+                average_correlation=float(raw[index].get("topology_correlation_strength", 0.0) or 0.0), **thresholds,
+            ).to_dict()
+            components.append({"baseline": float(baseline[index]), **{name: expert_values.get(name) for name in EXPERT_COLUMNS},
+                               "sequence_direction": seq, **{name: regime[name] for name in REGIME_COLUMNS}})
     out = frame.loc[wanted, ["date", "ticker"]].assign(final_probability_up=probabilities[wanted])
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.out, index=False)
+    if args.emit_components:
+        pd.concat([frame.loc[wanted, ["date", "ticker"]].reset_index(drop=True), pd.DataFrame(components)], axis=1).to_csv(
+            args.emit_components, index=False)
+        print(f"written {args.emit_components}: {len(components)} component rows")
     print(f"written {args.out}: {len(out)} rows, mean {np.nanmean(out['final_probability_up']):.4f}")
     return 0
 

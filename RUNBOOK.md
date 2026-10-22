@@ -47,9 +47,11 @@ gh codespace stop -c <codespace-name>
 Before training, first sync any local uncommitted source/data changes to the
 Codespace; afterward verify the whole extracted `ml/` artifact tree (not just
 JSON summaries) before stopping it. Model artifacts are gitignored and the
-SSH copy keeps them out of the public repo. Lean/Docker backtests can't run in
-a Codespace (see `development/infrastructure.md`'s "Cloud Training via GitHub
-Codespaces" section for why); those stay local.
+SSH copy keeps them out of the public repo. Lean backtests run on a *temporary*
+Docker-in-Docker Codespace (`scripts/codespace_lean_run.ps1`; see
+`development/infrastructure.md`'s "Lean on a DinD Codespace"), never on the training
+Codespace and never on the dev PC, whose Docker Desktop does not start; delete the
+DinD Codespace as soon as its runs are pulled (AGENTS.md rule 13).
 
 Since V5.6.0 the sync is scripted (`gh codespace cp` upload is broken and `-r` drops files):
 
@@ -67,12 +69,28 @@ The VM reboots about hourly: walk-forward resumes with `--resume-run-id`. See `d
 Run top to bottom; stop at the first red item. Evidence status at V5.8.0: the models carry a weak, unproven rank edge (`development/Problems.md` #169, #172, #174), so **paper trading only, no live capital**, until a paper period shows otherwise.
 
 1. **Freeze:** `aq test` green, `ruff check .` clean, `aq secrets-check` passes, `python scripts/ml_manifest.py` equals the manifest the last Lean run used.
-2. **Image:** `aq docker build`, then `aq docker up` and `GET /api/assets-status` returns 200.
+2. **Image:** build it on the deploy host (`aq docker build`, then `aq docker up`) and `GET /api/assets-status` returns 200. The image of record is the one `scripts/codespace_engine_check.sh` builds and health-checks on the DinD Codespace each phase; the dev PC's local image is not a requirement (Problems #214).
 3. **Config:** `aq render-lean-config` from `.env.live` (secrets only in the gitignored `lean.live.json`); `phase_v2.runtime.mode` stays `observation` until step 4.
 4. **Gate:** `aq paper-readiness` (needs the Postgres observation history and the paper broker config) before flipping the mode to `paper`.
 5. **Dashboard (`/api/assets-status`, Operations page):** the forex sleeve shows OFF (V6.0.0, rule R-FX6: `forex_risk.enabled` false), bond momentum sleeve (gross 0.10), crypto graduates (0.5% per name, 2.5% class), RL range [0.9, 1.1] with its shadow guard, the venue listing guard, and every enabled `sleeve_guards.*` entry reading `sleeve_guard_ok`. **Crypto venue:** QuantConnect's Interactive Brokers brokerage does not support crypto (Problems.md #192), so with IB credentials crypto cannot fill live; `aq render-lean-config` warns about it. Crypto exits rest as limit orders (`limit_orders.exit_asset_classes`); check Lean's benchmark follows SPY (`runtime.benchmark_ticker`) in the first backtest's engine log.
 6. **Kill switch fields to watch:** rolling Sharpe floor, drawdown velocity, slippage divergence (reference = submit price), the rolling-IC gate state and the spread floor.
 7. **First week:** keep `diagnostics.book_history.include_feature_snapshot` on for a few symbols and run `aq evaluate --reconcile-features --symbol X` against a fresh dataset; the regime inputs must match (they are drawdown-free since V5.8.0).
+
+## Paper period protocol (V6.4.0, lead L12, Problems #228)
+
+The paper period is the only out-of-sample test left. Its success is **not** "make money": a fixed-config run is inside the
+bands a reference Lean run spans. Pre-registered, before the first paper day:
+
+1. **Freeze:** the shipped `config.json` sha256 (Changelog "Freeze"), the model manifest, `diagnostics.book_history.paper_enabled: true`
+   (a bounded book-history record per rebalance; live never logs it), no live capital.
+2. **Minimum:** 6 rebalances and 120 trading days; `aq paper-readiness` passed first.
+3. **Checklist** (`aq evaluate --paper-check --backtest-dir <paper run folder> --reference-dir <pinned Lean run>`): veto rate, kill-switch
+   lock share, strategy gross exposure, fills per rebalance, median / p90 adverse slippage, fee bps per turnover, strategy and T-bill
+   P&L per day, daily hit ratio, annualised turnover.
+4. **Bands:** the 5-95% range of every contiguous 6-rebalance window of the pinned final Lean run (frozen in Problems #228).
+   Success = every metric inside its band. A metric outside is a finding to explain, not a failure to hide; run
+   `aq evaluate --reconcile-features --symbol X` in week 1.
+5. **Cadence:** weekly check; the verdict is written up (Problems.md + Changelog) before any capital decision.
 
 ---
 

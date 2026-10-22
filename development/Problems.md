@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/tests-3666%2F3666%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3666 of 3666 tests passing">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <img src="https://img.shields.io/badge/problems-214%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="214 problem entries">
+  <img src="https://img.shields.io/badge/problems-228%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="228 problem entries">
 </p>
 
 Bugs and infrastructure issues found in this codebase, how they were fixed
@@ -2157,3 +2157,171 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** `scripts/codespace_engine_check.sh` builds it on DinD and checks `/api/assets-status` (the engine alone: alpine redis/postgres cannot start there), which now reports the sweep; the DinD runner puts the Lean CLI on PATH and each Codespace gets its own ssh config.
 
 **Verification:** HTTP 200 with the sweep settings (`ml/evaluation/v630/engine_assets_status.json`); `tests/test_assets_status.py`.
+
+### 215. Data refresh to 2026-10-16: rows are appended in the stored vintage, never rewritten (V6.4.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided; nothing pending)
+
+**Problem:** the data ended 2026-09-30; a full Yahoo rewrite would move every adjusted row (each new dividend rescales history), and with it the dataset, the models' inputs and the BT5 = BT4 check.
+
+**Fix:** `scripts/data_append_refresh.py` fetches from 14 days before the last stored date, puts today's vintage back on the stored basis (old / new close at the latest common date, 1.0 unless a dividend or split intervened), appends only the new rows and merges the FRED caches the same way; `scripts/data_append_guard.py` hashes every row up to 2026-09-30 before and after.
+
+**Verification:** 144 files, 0 changed rows up to the cutoff (`ml/evaluation/v640/data_append_guard.json`); the Codespace's copy is checked against the same pre-refresh hashes; the rebuilt dataset may differ from V6.1's only in new rows and newly resolved `target_*` cells.
+
+**Result:** Yahoo returned the 12 sessions to 2026-10-16 for 105 assets (the 104 plus BIL / SPY); no splice factor was further than 0.62% from 1 (ABT, a dividend), 144 files show 0 changed rows up to the cutoff on the PC and again on the Codespace, and the rebuilt dataset has 1,296 new rows and 12 differing columns, all `target_*` (labels that resolved). Four FRED series published a monthly rate late for a date inside the old window: it stays out, so the features of that day are unchanged.
+
+### 216. R-DEDUPE2: crypto counted twice in the rolling-IC gate, second look on the longer span (V6.4.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by rule; #201 closes: the double count stays)
+
+**Problem:** #201's rule did not adopt `late_bar_event_count: "once"` (validation +0.13, backtest -0.09 against a +0.10 bar) and said to revisit it with more data.
+
+**Fix:** the same variant, as-live, scored on validation and the pooled post-validation span (backtest + holdout, the holdout read logged); adopted iff `verdict_as_live` passes (backtest gain >= +0.10, validation >= -0.02, >= 60% of phases beat the base median on both splits, drawdown within 1 pp). The margins are not loosened; #201 closes either way.
+
+**Verification:** `scripts/v640_research.py` stage `dedupe`; `tests/test_v640_research.py`.
+
+**Result:** On the pooled backtest + holdout span "once" scores a median Sharpe of 0.13 against 0.24 for "per_tick" (-0.10, the bar was +0.10) while validation gains +0.58; it beats the base median on 40% of phases (60% needed). Not adopted: more data did not change V6.2's reading, and the rule's margins stay.
+
+### 217. L1: engaged-day rank skill - does the gate protect capital or hide weakness? (V6.4.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by rule: the gate hides weakness, it does not protect capital)
+
+**Problem:** the gate vetoes most rebalances (mean exposure 0.17x) while the pooled IC (~0.05) cannot pay for a full book; is the IC higher when the gate lets the book trade?
+
+**Fix:** report, no config change. On validation and backtest (holdout report only) the gate's per-date verdict splits the dates; rank IC (daily mean, non-overlapping, HAC t), the top-6/bottom-6 spread and the as-live Sharpe over the days whose latest rebalance was engaged are compared with all days. Bar (owner): engaged - all >= +0.02 IC and >= +0.15 Sharpe (median over phases) on BOTH splits, else "the gate hides weakness" and L6 / L7 cannot ship.
+
+**Verification:** `evaluation/engaged_day_skill.py`; `tests/test_engaged_day_skill.py`.
+
+**Result:** Engaged days carry LESS rank skill than the days the gate vetoes: IC 0.006 -> -0.003 (validation), 0.093 -> 0.088 (backtest), -0.004 -> -0.034 (holdout, report only); the vetoed dates read +0.021 / +0.129 / +0.037. The as-live Sharpe margin is +0.01 / +0.03 against +0.15 needed, so the gate is a safety control that does not select good days, and L6 / L7 close by their precondition. The engaged-day pooled IC of 0.09 on backtest is real (HAC t 2.8), but so is the vetoed-day IC: the veto discards good days as often as bad ones.
+
+### 218. L2: direction heads - calibrated signal or diagnostic only? (V6.4.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by rule: direction = diagnostic only)
+
+**Problem:** the direction heads reach ~57-58% accuracy with a weak log-loss, and the Lean book's side accuracy is ~51%; they are not in the book.
+
+**Fix:** temperature scaling or isotonic regression fitted on validation only (the method chosen by cross-fitted log-loss), per-class thresholds, and three overlays on the percentile ranks (`portfolio/direction_overlay.py`): blend w=0.25, blend w=0.5, agree-filter margin 0.05. Shipped iff `verdict_as_live` passes AND the median turnover rises <= 20%; otherwise "direction = diagnostic only".
+
+**Verification:** `evaluation/probability_calibration.py`, `tests/test_probability_calibration.py`, `tests/test_direction_overlay.py`.
+
+**Result:** Both direction_20d heads are over-confident (validation ECE 0.21 / 0.17, log-loss 0.81 / 0.77, worse than a coin flip's 0.693); the best temperature hits the search bound (T = 20) and brings the cross-fitted log-loss to 0.706 / 0.694: calibrated, the heads carry no information (backtest balanced accuracy 0.528 / 0.536). The overlays: C1 blend 0.25 -0.37 backtest Sharpe, C2 0.5 -0.27, C3 agree-filter 0.0 (the calibrated probabilities never leave 0.5 +- 0.05, so nothing is filtered). Nothing ships.
+
+### 219. L3: the legacy signal against the main MoE book (V6.4.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by rule: the legacy sleeve and the models stay)
+
+**Problem:** legacy made ~+$1.45k against the main book's ~+$1.04k on the same Lean run; is it a better primary signal, a feature, or a permanent parallel sleeve?
+
+**Fix:** (a) legacy budget off / half (0.025 / 0.01) / double (0.10 / 0.04, with the legacy-positive clause), as-live: shipped iff `verdict_as_live` passes and validation improves. (b) one controlled retrain: the multitask model with the previous day's legacy probability (z-scored on train) as an input, 5 seeds, against the installed models with the yardstick fixed at the owner's 0.034, plus `verdict_as_live` with validation improving and latency <= 1.5x. (c) report: legacy IC against rank_20d's by class and regime.
+
+**Verification:** `scripts/v640_research.py` stage `l3`; `ml/evaluation/v640/model_ic.json`.
+
+**Result:** (a) off +0.01 / half -0.05 / double -0.18 backtest Sharpe against the shipped 0.05 / 0.02 (validation +0.17 / +0.08 / -0.01): no budget passes, and doubling fails the legacy-positive clause. (b) the multitask model with the previous day's legacy probability (z-scored, 5 seeds, in-sample on train) does not beat the installed models by the 0.034 yardstick on validation (swapped priority, the only one where multitask ranks) and its backtest HAC t is < 2: no candidate directory, no book score. (c) IC of the legacy score by class and regime is in `research.json` (`l3.ic_by_class_and_regime`).
+
+### 220. L4: within-class equity ranking against the global pool (V6.4.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by rule: pooled equity + crypto ranks stay)
+
+**Problem:** equity carries ~88% of the risk share at a Sharpe of ~0.23; does ranking inside equities (or inside sectors) beat the pooled equity + crypto rank?
+
+**Fix:** W1 crypto leaves the main rank group, W2 `rank_signal.normalization: "sector_relative"`, W3 both. Shipped (best backtest median) iff the whole book stays non-inferior (>= -0.02 on both splits), the engaged equity IC and the equity sleeve's gross Sharpe rise on both splits, and the holdout Sharpe falls by <= 0.10 (one logged read).
+
+**Verification:** `portfolio/rank_signal.py::sector_relative_scores`, `tests/test_rank_signal.py`, `tests/test_v640_round.py` (live and offline use the same function).
+
+**Result:** W1 (crypto leaves the main rank group) lifts validation (+0.87 Sharpe) and loses on backtest (-0.31); W2 (sector-relative ranks) loses on both (-0.54 backtest); W3 -0.59. No variant keeps the whole book non-inferior, so the holdout veto was never read for a leader.
+
+### 221. L5: turnover against IC - the rebalance / max-hold grid (V6.4.0)
+
+**Severity:** 4/10 · **Status:** 🟡 `partial` (shipped by rule; the Lean confirm BT6 is open: no Codespace budget)
+
+**Problem:** with IC ~0.05 which (rebalance, hold) maximises the net Sharpe? V6's slower 20/40 book helped, yet the walk-forward net Sharpe is negative in 8 of 12 windows.
+
+**Fix:** rebalance {10, 20, 40} x hold {20, 40, 60} against 20/40, as-live, across rebalance phases: shipped iff `verdict_as_live` passes and the median AND p25 phase Sharpe are >= the base's on both splits (at most one Lean confirm).
+
+**Verification:** `scripts/v640_research.py` stage `l5`.
+
+**Result:** Only R10/H20 passes: as-live median Sharpe validation -0.45 -> +0.15, backtest +0.89 -> +1.06 (+0.17, bar +0.10), p25 backtest +0.39 -> +0.68, median drawdown -4.6% against -4.9%, annualised turnover 7.5x -> 10.8x. The other seven cells fail (R10/H60 and R20/H20 gain +0.12 / +0.07 on backtest but not on >= 60% of phases or the margin; every 40-bar cadence and R20/H60 lose). `portfolio_book.rebalance_every_bars` 10, `exits.max_holding_bars` 20 and the `aggressive` preset ship; the idealized `net_performance` book keeps 20. The offline simulator tracks Lean at a daily correlation of ~0.7, so this is a pre-registered offline decision: confirm it with one Lean run (`ml/evaluation/run_configs/v640_bt6.json`) and revert to `v640_bt5.json`'s book if R-LEAN13 fails (strategy-ex-sweep Sharpe >= the BT4 baseline - 0.10, drawdown <= baseline + 1 pp, clean teardown).
+
+### 222. L6: a staggered book judged on phase spread (V6.4.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by rule: closed by its precondition, no variant scored)
+
+**Problem:** S2 passed the level margins twice but widened the phase interquartile range (0.50 -> 0.67).
+
+**Fix:** T2, T2h (half-way adjustment), T3, T3h, ungated: shipped iff the median >= base on both splits, the validation IQR <= base, p10 >= base on both splits, the cost drag rises <= 30%, and L1 showed the gate protects capital. The live tranche path is built only on adoption.
+
+**Verification:** `portfolio/book_construction.py::partial_adjust_weights`, `tests/test_v640_round.py`.
+
+**Result:** L1 found the gate hides weakness, so no tranche variant could ship; scoring them (about 1.5 hours of Codespace time) could not change the decision, and `scripts/v640_research.py` now closes L6 and L7 by `blocked_by_l1` unless `--score-blocked-stages` is given. The code that would score them (`partial_adjust_weights`, `simulate_rank_book(partial_adjust_fraction=)`) stays, tested, for a later phase.
+
+### 223. L7: kill-switch design - the lock that one borderline order flips (V6.4.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by rule: closed by its precondition, no variant scored)
+
+**Problem:** at the -1.0 floor a few dollars moved the lock from 14 to 46 dates (#200); R-KILL rejected "lock less often".
+
+**Fix:** `risk.kill_switch.trip_confirm_bars` (default 1 = today) through the same function live and offline; KD1 confirm 3, KD2 120 bars + confirm 3, KD3 release -0.5 + confirm 3, KD4 floor -1.5. Shipped (lowest false-lock share) iff the false-lock share (a lock before the unlocked book's top-third 20-day return) is below KS0's on both splits, the p95 phase drawdown <= KS0's + 0.5 pp, stability >= KS0's, the Sharpe change >= -0.02, and L1 holds. The switch already reads strategy-only returns (V6.2), so that option is the status quo.
+
+**Verification:** `risk/kill_switch.py`, `evaluation/kill_switch_replay.py::false_lock_share`, `tests/test_kill_switch.py`, `tests/test_v640_round.py`.
+
+**Result:** Closed with #222 by the L1 precondition. `risk.kill_switch.trip_confirm_bars` (default 1) ships as a tested, default-off knob with its false-lock measure (`false_lock_share`); the strategy-only equity option is the V6.2 status quo.
+
+### 224. L8: which experts earn their place in the legacy signal? (V6.4.0)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (decided by rule: every expert stays)
+
+**Problem:** the four regime experts and the gating blend feed only the legacy signal (the main book ranks on the rank heads); attribution is by class, not by expert.
+
+**Fix:** contribution(e) = IC(legacy score) - IC(legacy score without e) on the engaged equity dates, both splits; experts at <= 0 on both splits are disabled together (`gating_network.disabled_experts`) iff the book is non-inferior as-live (>= -0.02 on both splits).
+
+**Verification:** `moe/gating.py` (`excluded_experts`), `scripts/build_legacy_probability.py::legacy_probability_from_components`, `tests/test_gating_network.py`.
+
+**Result:** No expert is at or below zero contribution on BOTH splits (bullish +0.012 / -0.001, bearish -0.010 / +0.009, sideways +0.007 / -0.017, volatility +0.003 / -0.0002 IC points on the engaged equity dates): nothing is disabled. The contributions flip sign between splits, which is noise-sized next to IC 0.01.
+
+### 225. L9: crypto core against graduates - a repeatable rank effect or a few fills? (V6.4.0)
+
+**Severity:** 3/10 · **Status:** 🟡 `partial` (shipped by rule; the Lean confirm BT6 is open)
+
+**Problem:** crypto_core made ~+$3.9k on 13 fills; the graduates +$85 on $141 of fees.
+
+**Fix:** bootstrap by trade on BT4's closed trades, leave-one-name-out (as-live), crypto IC; graduates on against off (only BTC / LTC selectable): graduates stay iff they beat core-only on the median Sharpe of BOTH splits.
+
+**Verification:** `evaluation/trade_bootstrap.py`, `tests/test_trade_bootstrap.py`.
+
+**Result:** BT4's closed trades: the core (BTC, LTC) made 13 round trips, mean +$302 (95% bootstrap interval +$73..+$601, P(mean <= 0) = 0.0001), BTC +$1,705 and LTC +$2,225, the three best trades 79% of its P&L: repeatable. The graduates made 61 round trips, mean -$1.1 (interval -$19..+$18), net about -$70 after fees: no evidence of an effect. As-live, graduates on / core only: validation +0.15 / +0.07, backtest +1.06 / +1.08, so they do not add Sharpe on both splits and the owner's rule ships core-only: `class_weight_caps.crypto.core_only` (new, default false, `crypto_graduate_excluded` shared by `main.py` and the offline metadata) is now true. Leave-one-name-out is in `research.json` (`l9.leave_one_out`).
+
+### 226. L10: the residual rank head as a blend component (V6.4.0)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (decided by rule: the residual head stays demoted)
+
+**Problem:** `residual_rank_20d` was demoted yet shows a positive walk-forward IC (~0.024).
+
+**Fix:** blends R1 (0.4 / 0.4 / 0.2), R2 (0.35 / 0.35 / 0.3), R3 (0.5 / 0 / 0.5) over rank_20d / rank_5d / residual_rank_20d, as-live: shipped iff `verdict_as_live` passes and neither the market nor the momentum loading of the book moves by more than 0.10.
+
+**Verification:** `scripts/v640_research.py` stage `l10`.
+
+**Result:** R1 (0.4 / 0.4 / 0.2) -0.12 backtest Sharpe and -0.42 validation, R2 -0.32 / -0.27, R3 +0.02 / -0.32: none passes.
+
+### 227. L11: book-call probabilities in Lean, and the Lean-vs-offline parity rule R-L11 (V6.4.0)
+
+**Severity:** 3/10 · **Status:** 🟡 `partial` (shipped, default-on diagnostic; BT5, the run that proves the parity, is open)
+
+**Problem:** the Backtest Statistics' classification table showed n/a log-loss for the Lean book calls: the book history dropped the head probabilities `main.py` already held.
+
+**Fix:** `diagnostics.book_history.include_probabilities` (a diagnostic, never an order input) logs `probability_up` and the two models' `direction_20d` per allocated and decided symbol; `evaluation/classification_parity.py` scores Lean and the offline head on the identical calls. R-L11 tolerance: |accuracy delta| <= 0.01, |neg log-loss delta| <= 0.01, median |probability gap| <= 0.005.
+
+**Verification:** `tests/test_classification_parity.py`, `tests/test_v640_round.py`; BT5 (below).
+
+**Result:** `include_probabilities` is on in the shipped config; `aq evaluate --classification-parity` reports `no_logged_probabilities` on BT4 (which predates it) and is a step of `--lean-report`. R-L11's verdict needs a Lean run with the logging (`ml/evaluation/run_configs/v640_bt5.json` = BT4's config + the logging + the window to 2026-10-16, expected to equal BT4 order for order through 2026-09-30): not run, no Codespace budget.
+
+### 228. L12: the paper-period protocol and its band check (V6.4.0)
+
+**Severity:** 4/10 · **Status:** 🟡 `partial` (protocol and tool shipped; the paper run itself needs IB paper and the bands need the confirmed run)
+
+**Problem:** every recent rule names paper trading as the honest test, with no pre-registered success criterion.
+
+**Fix:** frozen config; at least 6 rebalances and 120 trading days; success = every checklist metric inside the 5-95% band of the contiguous 6-rebalance windows of the pinned final Lean run (veto rate, kill-switch lock share, strategy exposure, fills per rebalance, slippage, fee bps, strategy and sweep P&L per day, hit ratio, turnover); no live capital. `diagnostics.book_history.paper_enabled` writes the bounded book history in paper mode; `aq evaluate --paper-check` compares.
+
+**Verification:** `evaluation/paper_protocol.py`, `tests/test_paper_protocol.py`; a tool dry run on BT5's tail after 2026-09-30, labelled as such.
+
+**Result:** `aq evaluate --paper-check` ran on BT4's own 2025-H1 window against BT4's bands (165 windows of 6 rebalances) and lands inside every band, as it must: a tool dry run, not a paper result. The bands must be rebuilt from the final pinned Lean run (BT6) before a paper period starts.

@@ -288,7 +288,8 @@ def test_bond_sleeve_guard_suspends_the_sleeve_after_a_loss(main_module):
 
 def test_main_reads_the_shared_v580_functions():
     source = (ROOT / "main.py").read_text(encoding="utf-8")
-    assert "grouped_cross_sectional_rank_scores(raw_scores_by_symbol, self._rank_group_by_symbol)" in source
+    flat = " ".join(source.split())
+    assert "grouped_cross_sectional_rank_scores( raw_scores_by_symbol, self._rank_group_by_symbol," in flat
     assert "asset_listed_on_venue(symbol_key" in source
     assert "evaluate_sleeve_guard(" in source and "rolling_duration_beta(" in source
     assert math.isfinite(1.0)

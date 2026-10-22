@@ -95,9 +95,12 @@ from portfolio.sleeve_guard import evaluate_sleeve_guard, resolve_sleeve_guard_c
 from portfolio import (
     apply_book_weight_floor,
     apply_class_weight_caps,
+    book_history_mode_allowed,
     build_book_history_record,
     build_book_raw_weights,
     build_rank_based_book,
+    crypto_core_only_settings,
+    crypto_graduate_excluded,
     apply_hrp_weights,
     cross_sectional_rank_scores,
     is_rotation_exit_candidate,
@@ -964,6 +967,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._bond_sleeve_weights: dict[str, float] = {}
         # V5.8.0 - per-class book-weight caps for names that must trade without a proven edge (default: none)
         self.class_weight_caps = resolve_class_weight_caps(self.phase_v2.get("class_weight_caps"))
+        # V6.4.0 (lead L9): with `class_weight_caps.crypto.core_only` the crypto graduates take no main-book slot
+        self.crypto_core_only, self.crypto_core_names = crypto_core_only_settings(self.phase_v2.get("class_weight_caps"))
         # V5.8.0 - venue listing guard: no crypto pair is a book candidate before its exchange listed it (off by default)
         _listing_guard = self.phase_v2.get("venue_listing_guard", {})
         self.venue_listing_dates = (
@@ -1104,6 +1109,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # which degrades every symbol to book_neutrality's own "Unknown"
         # bucket default rather than crashing Initialize().
         self.sector_by_ticker = load_sector_mapping(self.config)
+        self.rank_sector_min_size = int(
+            self.config.get("phase1", {}).get("target", {}).get("ranking", {}).get("sector_neutral", {}).get("min_sector_size", 3)
+        )
         phase_v2_portfolio_book_neutrality = phase_v2_portfolio_book.get("neutrality", {})
         self.book_neutrality_enabled = bool(phase_v2_portfolio_book_neutrality.get("enabled", False))
         self.book_dollar_neutral = bool(phase_v2_portfolio_book_neutrality.get("dollar_neutral", True))
@@ -1268,6 +1276,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # changes final_probability_up itself, not just a sizing
         # multiplier. See moe/README.md.
         self.gating_sequence_weight = float(phase_v2_gating.get("sequence_weight", 0.0))
+        # V6.4.0 (lead L8): experts dropped from the legacy signal's blend (default none)
+        self.gating_excluded_experts = frozenset(str(name) for name in phase_v2_gating.get("disabled_experts", []) or [])
         phase_v2_multitask = self.phase_v2.get("multitask_model", {})
         self.multitask_model_enabled = bool(phase_v2_multitask.get("enabled", True))
         self.use_predicted_volatility = bool(phase_v2_risk.get("use_predicted_volatility", False))
@@ -1912,6 +1922,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
             str(symbol).upper()
             for symbol in phase_v2_diagnostics_book_history.get("feature_snapshot_symbols", [])
         )
+        # V6.4.0 - both default off: per-member probabilities in each record (the Lean classification table's log-loss),
+        # and a bounded record for paper runs (book_history_mode_allowed).
+        self.book_history_include_probabilities = bool(phase_v2_diagnostics_book_history.get("include_probabilities", False))
+        self.book_history_paper_enabled = bool(phase_v2_diagnostics_book_history.get("paper_enabled", False))
         # V5.2.7 (development/Problems.md) - opt-in, backtest-only,
         # real-orders-only diagnostic confirming
         # _forex_order_units_for_weight()'s Lean-forex-units assumption
@@ -2003,6 +2017,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._kill_switch_manual_override: bool | None = None
         self._kill_switch_previously_tripped: bool = False
         self._kill_switch_rolling_sharpe_tripped: bool = False
+        self._kill_switch_rolling_sharpe_below_run: int = 0
         self._last_kill_switch_decision: dict = {}
         self._last_reconciliation_report: dict = {"status": "not_evaluated"}
         self.latest_regime_by_symbol = {}
@@ -2537,6 +2552,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 baseline_volatility=baseline_volatility,
                 sequence_prediction=sequence_prediction,
                 sequence_weight=self.gating_sequence_weight,
+                excluded_experts=self.gating_excluded_experts,
             ).to_dict()
             probability_up = float(gating_payload["final_probability_up"])
             # Same gating-blended treatment probability_up already gets
@@ -2577,6 +2593,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 "baseline_probability_up": baseline_probability_up,
                 "gating_payload": gating_payload,
                 "probability_up": probability_up,
+                "direction_prob_multitask": multitask_payload.get("direction_20d") if multitask_payload else None,
                 "predicted_return_magnitude": predicted_return_magnitude,
                 "predicted_volatility": predicted_volatility,
                 "predicted_rank_20d": predicted_rank_20d,
@@ -2631,6 +2648,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     self.futures_risk_enabled, self.options_risk_enabled, self.forex_risk_enabled,
                 ) and self._sleeve_class_for_asset(asset) is None
                 and not self._graduate_suspended(symbol_key, asset)
+                and not crypto_graduate_excluded(
+                    symbol_key, asset.get("asset_class") or asset.get("security_type"), self.crypto_core_only, self.crypto_core_names
+                )
                 and asset_listed_on_venue(symbol_key, self.Time.date(), getattr(self, "venue_listing_dates", {})),
                 # Only consumed when portfolio_book_per_asset_class_slots is
                 # configured (development/Problems.md#29) - same
@@ -2648,13 +2668,17 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # dashboard visibility (state.json). normalization != "cross_sectional"
         # (not the default) leaves predicted_rank_20d as the raw blended
         # score - an explicit opt-out, not a silent skip.
-        if self._rank_signal_policy.get("normalization", "cross_sectional") == "cross_sectional":
+        rank_normalization = self._rank_signal_policy.get("normalization", "cross_sectional")
+        if rank_normalization in ("cross_sectional", "sector_relative"):
             raw_scores_by_symbol = {
                 symbol_key: state["raw_rank_score"]
                 for symbol_key, state in pass1_state.items()
                 if state["raw_rank_score"] is not None
             }
-            normalized_ranks_by_symbol = grouped_cross_sectional_rank_scores(raw_scores_by_symbol, self._rank_group_by_symbol)
+            normalized_ranks_by_symbol = grouped_cross_sectional_rank_scores(
+                raw_scores_by_symbol, self._rank_group_by_symbol,
+                self.sector_by_ticker if rank_normalization == "sector_relative" else None, self.rank_sector_min_size,
+            )
             for symbol_key, state in pass1_state.items():
                 normalized_value = normalized_ranks_by_symbol.get(symbol_key)
                 state["predicted_rank_20d"] = normalized_value
@@ -3575,11 +3599,10 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # from min_rank_confidence_spread, the new rolling-IC gate, or
         # anything else - see build_book_history_record()'s own
         # gate_veto_reason docstring paragraph.
-        if (
-            self.book_history_diagnostics_enabled
-            and self.runtime_mode == "backtest"
-            and book_history_should_log_this_bar
-        ):
+        book_history_write, book_history_bounded = book_history_mode_allowed(
+            self.runtime_mode, self.book_history_diagnostics_enabled, self.book_history_paper_enabled
+        )
+        if book_history_write and book_history_should_log_this_bar:
             try:
                 # V5.2.3 (development/Problems.md #91) - `signals`
                 # (Phase 1a's per-symbol payload, already built earlier
@@ -3591,7 +3614,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # symbol (e.g. crypto/FX) never made the book, rather than
                 # just that it didn't.
                 full_universe_signals = None
-                if self.book_history_include_full_universe:
+                if self.book_history_include_full_universe and not book_history_bounded:
                     full_universe_signals = {
                         symbol_key: {
                             "raw_rank_score": pass1_state.get(symbol_key, {}).get("raw_rank_score"),
@@ -3611,7 +3634,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 # absent from that bar's snapshot - reconcile-features
                 # degrades on missing dates by design.
                 feature_snapshot = None
-                if self.book_history_include_feature_snapshot and self.book_history_feature_snapshot_symbols:
+                if (
+                    self.book_history_include_feature_snapshot
+                    and self.book_history_feature_snapshot_symbols
+                    and not book_history_bounded
+                ):
                     feature_snapshot = {}
                     for symbol_key, state in pass1_state.items():
                         ticker = str(self.asset_lookup.get(symbol_key, {}).get("ticker", symbol_key)).upper()
@@ -3622,6 +3649,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
                             feature_snapshot[symbol_key] = dict(base_features)
                     if not feature_snapshot:
                         feature_snapshot = None
+                member_probabilities = None
+                if self.book_history_include_probabilities:
+                    member_probabilities = {}
+                    for symbol_key in set(book_allocations) | set(book_member_decisions):
+                        state = pass1_state.get(symbol_key)
+                        if state is None:
+                            continue
+                        member_sequence = state.get("sequence_prediction")
+                        member_probabilities[symbol_key] = {
+                            "probability_up": state.get("probability_up"),
+                            "direction_prob_multitask": state.get("direction_prob_multitask"),
+                            "direction_prob_sequence": member_sequence.get("direction_20d") if member_sequence else None,
+                        }
                 record = build_book_history_record(
                     str(self.Time.date()),
                     book_allocations,
@@ -3635,6 +3675,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     rolling_ic_state=rolling_ic_state,
                     feature_snapshot=feature_snapshot,
                     run_id=self.book_history_run_id,
+                    member_probabilities=member_probabilities,
                 )
                 if self._slippage_trace:
                     record["slippage_divergence"] = {
@@ -7833,9 +7874,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "model_age_days": self._model_age_days(),
             "reconciliation_breach": reconciliation_breach,
             "rolling_sharpe_tripped_last_bar": self._kill_switch_rolling_sharpe_tripped,
+            "rolling_sharpe_below_run_last_bar": self._kill_switch_rolling_sharpe_below_run,
         }
         kill_switch_decision = evaluate_kill_switch(runtime_metrics, effective_kill_switch_config)
         self._kill_switch_rolling_sharpe_tripped = kill_switch_decision.rolling_sharpe_tripped
+        self._kill_switch_rolling_sharpe_below_run = kill_switch_decision.rolling_sharpe_below_run
         self._last_kill_switch_decision = kill_switch_decision.to_dict()
 
         if kill_switch_decision.tripped:

@@ -12,6 +12,7 @@ LEAN_REPORT_FLAGS = (
     ("P&L attribution", "attribute_lean"),
     ("fill prices", "audit_fills"),
     ("backtest statistics", "backtest_stats"),
+    ("classification parity", "classification_parity"),
 )
 
 

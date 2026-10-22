@@ -233,14 +233,17 @@ def build_gating_decision(
     baseline_volatility: float | None = None,
     sequence_prediction: dict | None = None,
     sequence_weight: float = 0.0,
+    excluded_experts: tuple[str, ...] | frozenset[str] = (),
 ) -> GatingDecision:
+    """`excluded_experts` (V6.4.0, `phase_v2.gating_network.disabled_experts`, default none): experts treated as having no
+    probability, so the others renormalise - the expert-ablation switch (lead L8)."""
     expert_magnitudes = expert_magnitudes or {}
     expert_volatilities = expert_volatilities or {}
     weights: list[ExpertGateWeight] = []
     disabled_experts = []
 
     for expert_name in EXPERT_NAMES:
-        probability = expert_probabilities.get(expert_name)
+        probability = None if expert_name in excluded_experts else expert_probabilities.get(expert_name)
         metrics = _expert_metrics(expert_training_metrics, expert_name)
         quality_multiplier, quality_status, gating_eligible = _quality_multiplier(metrics)
         performance_score = _performance_score(metrics)

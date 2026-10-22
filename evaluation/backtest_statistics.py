@@ -553,25 +553,53 @@ def _forward_return(series: dict[str, float], sorted_dates: list[str], day: str,
     return end / start - 1.0 if start > 0.0 else None
 
 
-def _classification_section(book_history, closes, sorted_closes, offline: dict[str, dict] | None, horizon: int = 20) -> list[dict]:
-    """One row per source: the Lean run's book calls (side vs the sign of the ticker's own 20-bar forward return) and
-    the offline direction_20d heads (written by `aq evaluate --classification`)."""
-    rows = []
-    truth, predicted = [], []
+LEAN_PROBABILITY_SOURCE = "direction_prob_multitask"
+
+
+def lean_book_calls(book_history, closes, sorted_closes, horizon: int = 20, source: str = LEAN_PROBABILITY_SOURCE) -> dict:
+    """The Lean run's book calls as aligned lists: side (1 = long) vs the sign of the ticker's own `horizon`-bar forward
+    move, plus the logged probability of "up" (`source` in the record's `member_probabilities`, V6.4.0) where there is one.
+    `dates` / `tickers` identify each call so an offline score can be matched to it."""
+    calls = {"truth": [], "predicted": [], "probability": [], "dates": [], "tickers": []}
     for record in book_history or []:
+        member_probabilities = record.get("member_probabilities") or {}
         for ticker, allocation in (record.get("allocations") or {}).items():
             role = str((allocation or {}).get("role", "")).lower()
-            series = closes.get(str(ticker).upper())
+            name = str(ticker).upper()
+            series = closes.get(name)
             if role not in ("long", "short") or not series:
                 continue
-            forward = _forward_return(series, sorted_closes[str(ticker).upper()], record.get("date", ""), horizon)
+            forward = _forward_return(series, sorted_closes[name], record.get("date", ""), horizon)
             if forward is None or forward == 0.0:
                 continue
-            truth.append(1 if forward > 0.0 else 0)
-            predicted.append(1 if role == "long" else 0)
-    lean_scores = classification_scores(truth, predicted) if truth else {"n": 0}
-    rows.append({"source": "Lean book calls (side vs 20-bar forward move)", **lean_scores,
-                 "reason": "no probability is logged per book call" if truth else "no book history for this run"})
+            probability = (member_probabilities.get(ticker) or {}).get(source)
+            calls["truth"].append(1 if forward > 0.0 else 0)
+            calls["predicted"].append(1 if role == "long" else 0)
+            calls["probability"].append(float(probability) if isinstance(probability, (int, float)) and math.isfinite(probability) else None)
+            calls["dates"].append(record.get("date", ""))
+            calls["tickers"].append(name)
+    return calls
+
+
+def _classification_section(book_history, closes, sorted_closes, offline: dict[str, dict] | None, horizon: int = 20) -> list[dict]:
+    """One row per source: the Lean run's book calls (side vs the sign of the ticker's own 20-bar forward return, with
+    a log-loss when the run logged the head's probability) and the offline direction_20d heads (written by
+    `aq evaluate --classification`)."""
+    rows = []
+    calls = lean_book_calls(book_history, closes, sorted_closes, horizon)
+    truth = calls["truth"]
+    lean_scores = classification_scores(truth, calls["predicted"]) if truth else {"n": 0}
+    with_probability = [index for index, value in enumerate(calls["probability"]) if value is not None]
+    reason = "no book history for this run"
+    if truth and len(with_probability) == len(truth):
+        lean_scores = classification_scores(truth, calls["predicted"], calls["probability"])
+        reason = None
+    elif truth:
+        reason = "no probability is logged per book call" if not with_probability else (
+            f"probability logged for {len(with_probability)} of {len(truth)} calls")
+    label = "Lean book calls (side vs 20-bar forward move" + (
+        f"; log-loss of the logged {LEAN_PROBABILITY_SOURCE})" if reason is None else ")")
+    rows.append({"source": label, **lean_scores, "reason": reason})
     for model, scores in sorted((offline or {}).items()):
         rows.append({"source": f"Offline {model} direction_20d (backtest split, threshold {scores.get('threshold', 0.5)})",
                      **{key: scores.get(key) for key in ("n", "accuracy", "precision", "recall", "f1", "positive_rate", "neg_log_loss")},

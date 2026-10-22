@@ -4,7 +4,7 @@ The trading universe currently spans **104 assets**: 55 stocks/broad-market
 ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs.
 It is defined in `config.json`'s `phase1.universe.assets` and
 shared across training, validation, and backtesting
-(`phase1.universe.common_window`: `2014-12-01` to `2025-06-30`; V5.8.0 moved it from `2021-03-31`). Splits: train 2014-12-01..2021-12-31, validation 2022-01-01..2023-06-30, backtest 2023-07-01..2025-06-30, plus a holdout 2025-07-01..2026-09-30 that was looked at once (`phase1.windows.holdout`). Every class is one Yahoo-sourced vintage through 2026-09-30.
+(`phase1.universe.common_window`: `2014-12-01` to `2025-06-30`; V5.8.0 moved it from `2021-03-31`). Splits: train 2014-12-01..2021-12-31, validation 2022-01-01..2023-06-30, backtest 2023-07-01..2025-06-30, plus a holdout 2025-07-01..2026-10-16 (`phase1.windows.holdout`; its first read covered 2025-07-01..2026-09-30, V6.4.0 only appended 12 sessions and reads it where a lead's bar names it, each read logged in `ml/evaluation/v640/research.json`). Every class is one Yahoo-sourced vintage through 2026-09-30, extended to 2026-10-16 by an append-only refresh (`scripts/data_append_refresh.py`, Problems #215): no stored row moved.
 
 The universe was deliberately grown — from an original 30 assets
 (`Problems.md` #52) to add bonds/crypto, then 15 forex pairs in V4.10

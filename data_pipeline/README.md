@@ -290,4 +290,4 @@ touched, so the trained models, the dataset and Lean backtests are unaffected.
 
 - `data_audit.py` (`aq evaluate --audit-data`) — per-ticker coverage against the class calendar, return outliers, OHLC sanity, flat runs, quote-vs-trade coverage, plus a SHA-256 file manifest (`data/manifest_v580.json`) the Codespace sync compares both ways.
 - `price_overrides.json` — documented back-adjustment ratios for corporate actions Yahoo does not adjust (spinoffs); applied by the writer with a source note.
-- `yfinance_backfill.py` — can rewrite a whole universe zip from one pull (`merge_with_existing=False`), which is how every class got one Yahoo vintage through 2026-09-30; never leave a sentinel-only factor file (the 2050 trap, Problems #130).
+- `yfinance_backfill.py` — can rewrite a whole universe zip from one pull (`merge_with_existing=False`), which is how every class got one Yahoo vintage through 2026-09-30 (V6.4.0 extended it to 2026-10-16 by appending only, `scripts/data_append_refresh.py` / `data_append_guard.py`); never leave a sentinel-only factor file (the 2050 trap, Problems #130).

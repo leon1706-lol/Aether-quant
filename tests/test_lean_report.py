@@ -32,8 +32,8 @@ def test_each_step_switches_only_its_own_flag_on():
     assert "period" not in dict(steps)["backtest statistics"]
 
 
-def test_backtest_statistics_come_last():
-    assert LEAN_REPORT_FLAGS[-1][1] == "backtest_stats"
+def test_backtest_statistics_precede_the_classification_parity_check():
+    assert [flag for _label, flag in LEAN_REPORT_FLAGS[-2:]] == ["backtest_stats", "classification_parity"]
 
 
 def test_run_lean_report_continues_after_a_failing_step(tmp_path):

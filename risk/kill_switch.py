@@ -57,6 +57,12 @@ class KillSwitchDecision:
         """The next bar's `runtime_metrics["rolling_sharpe_tripped_last_bar"]` (the `release_rolling_sharpe` band)."""
         return "rolling_sharpe_below_floor" in self.triggers
 
+    @property
+    def rolling_sharpe_below_run(self) -> int:
+        """The next bar's `runtime_metrics["rolling_sharpe_below_run_last_bar"]` (`trip_confirm_bars`'s counter): the
+        consecutive bars the rolling Sharpe has read below the floor, whether or not the trip is confirmed yet."""
+        return int(self.observed.get("rolling_sharpe_below_run", 0) or 0)
+
 
 def _finite_or_none(value) -> float | None:
     """V5.4.5 (development/Problems.md #117): normalizes a runtime metric to
@@ -208,7 +214,13 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
         and rolling_sharpe is not None
         and rolling_sharpe < release_rolling_sharpe
     )
-    if rolling_sharpe is not None and (rolling_sharpe < min_rolling_sharpe or held_by_band):
+    # V6.4.0 (lead L7): `trip_confirm_bars` (default 1 = a trip on the first bar below the floor) asks for that many
+    # consecutive readings below it, so one borderline bar cannot flip the lock; a latched trip is still held by the band.
+    trip_confirm_bars = max(1, int(config.get("trip_confirm_bars", 1)))
+    below_floor = rolling_sharpe is not None and rolling_sharpe < min_rolling_sharpe
+    below_run = int(runtime_metrics.get("rolling_sharpe_below_run_last_bar", 0) or 0) + 1 if below_floor else 0
+    observed["rolling_sharpe_below_run"] = below_run
+    if rolling_sharpe is not None and ((below_floor and below_run >= trip_confirm_bars) or held_by_band):
         triggers.append("rolling_sharpe_below_floor")
 
     drawdown_velocity = _finite_or_none(runtime_metrics.get("drawdown_velocity_pct_per_bar"))
@@ -246,6 +258,7 @@ def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecis
         "min_return_std_for_sharpe": min_return_std_for_sharpe,
         "min_rolling_sharpe": min_rolling_sharpe,
         "release_rolling_sharpe": release_rolling_sharpe,
+        "trip_confirm_bars": trip_confirm_bars,
         "max_drawdown_velocity_pct_per_bar": max_drawdown_velocity_pct_per_bar,
         "min_live_rank_ic": min_live_rank_ic,
         "max_consecutive_losses": max_consecutive_losses,

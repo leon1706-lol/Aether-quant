@@ -980,3 +980,31 @@ aq evaluate --lean-report --backtest-dir backtests/<run>                   # eve
   - Check the engine image (`docker compose build engine`) in the same lifetime, if the PC cannot.
   - `-Delete` right after `-Pull`. The image and disk are billed storage while the Codespace exists, even when stopped.
 
+
+### V6.4.0: appending data, and the research lifetime
+
+**Extending the data window without moving history.** The shipped `data/` is one Yahoo vintage (`auto_adjust=True`, V5.8.0). A later
+full rewrite would rescale every adjusted row with each new dividend, so the window is *appended* instead (Problems #215):
+
+1. `python scripts/data_append_guard.py snapshot --out ml/evaluation/v640/data_before.json --cutoff <last stored date>` hashes the rows
+   of every equity / crypto / forex zip and FRED cache up to the cutoff. Back `data/` up first (`data_backups/`, gitignored and excluded from the sync).
+2. `python scripts/data_append_refresh.py --end <last close + 1 day> [--apply]` fetches from 14 days before each file's last row,
+   multiplies the new rows by old close / new close at the latest common date (1.0 unless a dividend or split intervened; a factor
+   further than 5% from 1 is flagged), and merges them behind the stored rows; the FRED caches take only rows dated after the cutoff
+   (a late-published earlier date stays out: no dataset row of that day saw it).
+3. `python scripts/data_append_guard.py verify --before ... --out ml/evaluation/v640/data_append_guard.json` must report 0 changed
+   files; the session script repeats it on the Codespace against the same hashes, which also proves the push.
+4. Bump `available_to` of every asset and `phase1.windows.holdout.end`; rebuild the dataset on the Codespace with
+   `scripts/build_holdout_dataset.py --full-splits --write-split-files` (the active scaler, no refit). `scripts/compare_datasets.py`
+   against the previous dataset must show new rows and newly resolved `target_*` cells only.
+
+**One research lifetime.** `scripts/codespace_session_v640.sh <expected manifest>` (launch with `codespace_start_bg.sh`, `RESUME=1`
+continues) runs the guards, the dataset, the legacy input and its 5-seed retrain, candidate IC with the yardstick fixed at 0.034, a
+`--smoke` pass of `scripts/v640_research.py` (every stage, one variant, two phases), the real chain (memoised in
+`research.memo.json`), the adopted config-only changes, every offline README block and the suite. Push first with a full
+`codespace_sync.ps1 -Mode push` (the data changed); after the retrain's artifacts exist use `-CodeOnly`.
+
+**Paper runs.** `diagnostics.book_history.paper_enabled` writes the bounded per-rebalance record in paper mode (backtests keep the full
+one, live never logs it); `aq evaluate --paper-check` turns a paper run folder into the protocol's checklist (RUNBOOK "Paper period
+protocol"). `diagnostics.book_history.include_probabilities` adds the head probabilities behind each book call; `aq evaluate
+--classification-parity` scores them against the offline head.

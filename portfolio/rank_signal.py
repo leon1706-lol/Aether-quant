@@ -239,18 +239,44 @@ def rank_group_by_symbol(asset_class_by_symbol: dict[str, str | None], separate_
     }
 
 
+def sector_relative_scores(
+    scores_by_symbol: dict[str, float], sector_by_symbol: dict[str, str] | None, min_sector_size: int = 3
+) -> dict[str, float]:
+    """Each score minus the mean of its sector's scores in this cross-section (V6.4.0, lead L4): a rank within the sector's
+    own peers rather than across sectors. A sector with fewer than `min_sector_size` scored names (or none mapped) is
+    de-meaned by the whole cross-section's mean instead, so its names keep their relative order."""
+    if not scores_by_symbol:
+        return {}
+    overall = sum(scores_by_symbol.values()) / len(scores_by_symbol)
+    members: dict[str, list[float]] = {}
+    for symbol, score in scores_by_symbol.items():
+        members.setdefault((sector_by_symbol or {}).get(str(symbol), ""), []).append(score)
+    means = {
+        sector: (sum(values) / len(values) if sector and len(values) >= min_sector_size else overall)
+        for sector, values in members.items()
+    }
+    return {symbol: score - means[(sector_by_symbol or {}).get(str(symbol), "")] for symbol, score in scores_by_symbol.items()}
+
+
 def grouped_cross_sectional_rank_scores(
-    scores_by_symbol: dict[str, float], group_by_symbol: dict[str, str] | None
+    scores_by_symbol: dict[str, float], group_by_symbol: dict[str, str] | None,
+    sector_by_symbol: dict[str, str] | None = None, min_sector_size: int = 3,
 ) -> dict[str, float]:
     """cross_sectional_rank_scores() applied WITHIN each rank group (V5.8.0): a model trained on grouped rank targets
     (bonds ranked among bonds, forex among forex) emits scores that are only comparable inside their group, so the
-    percentile is taken per group. With no mapping (or every symbol in "main") this equals cross_sectional_rank_scores()."""
+    percentile is taken per group. With no mapping (or every symbol in "main") this equals cross_sectional_rank_scores().
+
+    `sector_by_symbol` (V6.4.0, `rank_signal.normalization: "sector_relative"`, default None = off) de-means each group's
+    scores by their sector's mean first (`sector_relative_scores`), so the percentile ranks a name against its sector peers."""
     if not group_by_symbol:
-        return cross_sectional_rank_scores(scores_by_symbol)
+        scores = sector_relative_scores(scores_by_symbol, sector_by_symbol, min_sector_size) if sector_by_symbol else scores_by_symbol
+        return cross_sectional_rank_scores(scores)
     by_group: dict[str, dict[str, float]] = {}
     for symbol, score in scores_by_symbol.items():
         by_group.setdefault(group_by_symbol.get(str(symbol), MAIN_RANK_GROUP), {})[symbol] = score
     ranks: dict[str, float] = {}
     for group_scores in by_group.values():
+        if sector_by_symbol:
+            group_scores = sector_relative_scores(group_scores, sector_by_symbol, min_sector_size)
         ranks.update(cross_sectional_rank_scores(group_scores))
     return ranks

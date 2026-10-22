@@ -234,3 +234,29 @@ def test_v630_rule_chain_names_branches_and_failed_clauses(tmp_path):
         "windows": {"w": {"variants": {"v610": {"daily_correlation": 0.7}}}},
     }), encoding="utf-8")
     assert _calibration_line(tmp_path).startswith("Rule R-CAL3")
+
+
+def test_v640_chain_renders_each_lead_and_degrades_without_results(tmp_path):
+    from evaluation.readme_research import _l1_lines, _l2_lines, _rule_chain_v640_lines
+
+    assert "Not run yet" in _rule_chain_v640_lines(tmp_path)[0] and "Not run yet" in _l1_lines(tmp_path)[0]
+    assert "Not run yet" in _l2_lines(tmp_path)[0]
+    (tmp_path / "v640").mkdir()
+    (tmp_path / "v640" / "research.json").write_text(json.dumps({
+        "dedupe": {"adopted": False, "verdict": {"backtest_gain": -0.02, "validation_change": 0.4, "checks": {"backtest_gain_ge_0.10": False}}},
+        "l1": {"skill": {"validation": {"engaged_dates": 40, "vetoed_dates": 200, "all": {"daily_mean_ic": 0.05}, "engaged": {"daily_mean_ic": 0.06}},
+                         "holdout": {"engaged_dates": 9, "vetoed_dates": 50, "all": {"daily_mean_ic": 0.01}, "engaged": None}},
+               "margins": {"validation": {"ic_margin": 0.01, "sharpe_margin": 0.05}},
+               "verdict": {"reading": "the gate hides weakness, not protects capital"}},
+        "l5": {"adopted": None, "variants": {"R40/H60": {"verdict": {"backtest_gain": 0.2, "validation_change": 0.0, "checks": {}},
+                                                      "extra_checks": {"p25_not_below_base_on_both_splits": False}}}},
+        "l8": {"decision": {"disable": [], "candidates_with_no_contribution": ["bullish"], "non_inferior": False}},
+        "l9": {"decision": {"keep_graduates": True, "graduates_beat_core_only_on": {"validation": True, "backtest": True}}},
+    }), encoding="utf-8")
+    text = "\n".join(_rule_chain_v640_lines(tmp_path))
+    assert "R-DEDUPE2" in text and "none (twice stays)" in text and "fails backtest_gain_ge_0.10" in text
+    assert "R40/H60: backtest +0.200" in text and "fails p25_not_below_base_on_both_splits" in text
+    assert "L8 expert ablation" in text and "none disabled" in text and "graduates kept" in text
+    l1 = "\n".join(_l1_lines(tmp_path))
+    assert "| validation | 40 / 200 |" in l1 and "(report only)" in l1 and "the gate hides weakness" in l1
+    assert "L1:" in rr.build_research_markdown(tmp_path) and "V6.4.0 rule chain" in rr.build_research_markdown(tmp_path)

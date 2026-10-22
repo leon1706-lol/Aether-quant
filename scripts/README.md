@@ -112,6 +112,14 @@ codebase.
   is R-CAL2's clauses on V6.2.0's BT2. `codespace_session_v630.sh` runs R-CAL3, the chain, applies the adopted changes and
   recomputes every offline README block in ONE Codespace lifetime. `build_trial_registry.py` collects every scored variant
   into `ml/evaluation/trial_registry.json` (the deflated Sharpe's N and Sharpe variance).
+- `v640_research.py` (V6.4.0) — the pre-registered chain for todo leads L1-L10 plus R-DEDUPE2 (the rules are in its docstring, written
+  before any score): engaged-day skill, expert ablation, direction calibration and overlays, the legacy budget and the legacy-input
+  retrain, within-class ranks, the rebalance / hold grid, the staggered book on phase spread, kill-switch confirmation and false
+  locks, crypto core vs graduates, the residual head; `--smoke` runs one variant per stage on two phases first. Resumable through
+  `research.memo.json` -> `ml/evaluation/v640/research.json`, `adopted_changes.json`. `codespace_session_v640.sh` is the one
+  Codespace lifetime (guards, dataset, legacy input, retrain, candidate IC, smoke, chain, offline blocks, suite).
+  `data_append_refresh.py` appends the latest bars in the stored vintage and `data_append_guard.py` proves no row up to the cutoff
+  moved (`snapshot` / `verify`); `build_legacy_probability.py --emit-components` writes the gating inputs the ablation recombines.
 - `codespace_lean_run.ps1` + `codespace_lean_dind.sh` (V6.3.0) — Lean backtests on a temporary Docker-in-Docker Codespace:
   create, push, run frozen configs in order, poll, pull, delete (`development/infrastructure.md` "Lean on a DinD Codespace").
   `codespace_engine_check.sh` builds the engine image there and checks `GET /api/assets-status`;

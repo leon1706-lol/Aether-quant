@@ -441,3 +441,46 @@ def test_no_release_level_is_todays_behaviour():
     assert decision.thresholds["release_rolling_sharpe"] is None
     tripped = evaluate_kill_switch({"recent_bar_returns": _returns_with_sharpe(-1.5)}, _config())
     assert tripped.tripped and tripped.rolling_sharpe_tripped
+
+
+# ---------------------------------------------------------------------------
+# V6.4.0 (lead L7) - trip_confirm_bars: consecutive readings below the floor before the rolling-Sharpe trip
+# ---------------------------------------------------------------------------
+
+
+def test_trip_confirm_bars_default_trips_on_the_first_bar_below_the_floor():
+    returns = _returns_with_sharpe(-1.5)
+    decision = evaluate_kill_switch({"recent_bar_returns": returns}, _config())
+    assert decision.tripped and decision.rolling_sharpe_below_run == 1
+    assert decision.thresholds["trip_confirm_bars"] == 1
+
+
+def test_trip_confirm_bars_waits_for_consecutive_readings():
+    returns = _returns_with_sharpe(-1.5)
+    config = _config(trip_confirm_bars=3)
+    run, trips = 0, []
+    for _ in range(4):
+        decision = evaluate_kill_switch({"recent_bar_returns": returns, "rolling_sharpe_below_run_last_bar": run}, config)
+        run = decision.rolling_sharpe_below_run
+        trips.append(decision.tripped)
+    assert trips == [False, False, True, True]
+    assert run == 4
+
+
+def test_a_reading_back_above_the_floor_resets_the_confirmation_run():
+    bad, fine = _returns_with_sharpe(-1.5), _returns_with_sharpe(0.5)
+    config = _config(trip_confirm_bars=2)
+    first = evaluate_kill_switch({"recent_bar_returns": bad}, config)
+    assert not first.tripped and first.rolling_sharpe_below_run == 1
+    recovered = evaluate_kill_switch({"recent_bar_returns": fine, "rolling_sharpe_below_run_last_bar": 1}, config)
+    assert recovered.rolling_sharpe_below_run == 0
+    again = evaluate_kill_switch({"recent_bar_returns": bad, "rolling_sharpe_below_run_last_bar": 0}, config)
+    assert not again.tripped
+
+
+def test_a_latched_trip_is_held_by_the_release_band_whatever_the_confirmation():
+    returns = _returns_with_sharpe(-0.75)  # above the floor, below the release level
+    config = _config(trip_confirm_bars=3, release_rolling_sharpe=-0.5)
+    held = evaluate_kill_switch({"recent_bar_returns": returns, "rolling_sharpe_tripped_last_bar": True}, config)
+    assert held.tripped
+
