@@ -835,7 +835,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_v630_research.py", "test_v630_round.py",
         # V6.4.0 - Lean book-call probabilities, the paper protocol, calibration, engaged-day skill, the crypto bootstrap.
         "test_classification_parity.py", "test_paper_protocol.py", "test_probability_calibration.py",
-        "test_engaged_day_skill.py", "test_trade_bootstrap.py", "test_v640_round.py", "test_data_append_guard.py", "test_v640_research.py", "test_codespace_session_v640.py", "test_freeze_run_config.py",
+        "test_engaged_day_skill.py", "test_trade_bootstrap.py", "test_v640_round.py", "test_data_append_guard.py", "test_v640_research.py", "test_codespace_session_v640.py", "test_freeze_run_config.py", "test_lean_verdict.py",
         "test_book_variant_research.py",
         "test_crypto_fee_research.py",
         "test_forex_keep_or_drop.py",

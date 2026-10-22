@@ -253,3 +253,7 @@ compressed dispersion in a way IC is not.
 - `trade_bootstrap.py` — bootstrap of a sleeve's round-trip P&L, top-k share and leave-one-name-out (lead L9).
 - `backtest_statistics.py` — `lean_book_calls` + `_classification_section`: the Lean row of Classification Scores gets a log-loss when the book history logged `member_probabilities`.
 - `rank_book_simulator.py` — `sector_relative_rank`, `partial_adjust_fraction` and `rank_overlay_fn` (default off, each calling the function live uses); the kill switch carries `trip_confirm_bars`' counter. `kill_switch_replay.py` — `forward_window_returns` / `false_lock_share` (a lock before the unlocked book's top-third 20-day return).
+
+## V6.4.1 additions
+
+- `lean_verdict.py` (`python -m evaluation.lean_verdict --baseline backtests/<BT5> --candidate backtests/<BT6>`) — R-LEAN13: a confirming Lean run keeps an adopted change iff the strategy's Sharpe without a risk-free rate is not worse than the baseline run's by more than 0.10, the portfolio's maximum drawdown not worse by more than 1 percentage point, and the engine log shows a complete run (statistics written, teardown reached, no inference failure; the PC's teardown timeout is reported, not judged).

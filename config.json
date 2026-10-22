@@ -1789,7 +1789,7 @@
             "top_n": 6,
             "bottom_n": 6,
             "min_rank_confidence_spread": 0.1,
-            "rebalance_every_bars": 10,
+            "rebalance_every_bars": 20,
             "allocation_method": "rank",
             "neutrality": {
                 "enabled": true,
@@ -1823,7 +1823,7 @@
         },
         "exits": {
             "enabled": true,
-            "max_holding_bars": 20,
+            "max_holding_bars": 40,
             "trailing_stop_pct": 0.15
         },
         "liquidity": {
@@ -2433,7 +2433,7 @@
             "aggressive": {
                 "phase_v2.portfolio_book.top_n": 6,
                 "phase_v2.portfolio_book.bottom_n": 6,
-                "phase_v2.portfolio_book.rebalance_every_bars": 10,
+                "phase_v2.portfolio_book.rebalance_every_bars": 20,
                 "phase_v2.portfolio_book.min_rank_confidence_spread": 0.1,
                 "phase_v2.portfolio_book.hysteresis_rank_margin": 0.05,
                 "phase9.portfolio.max_active_positions": 12,
@@ -2527,7 +2527,7 @@
                     "BTCUSD",
                     "LTCUSD"
                 ],
-                "core_only": true
+                "core_only": false
             }
         }
     },

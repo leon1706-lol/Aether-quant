@@ -317,6 +317,17 @@ def _rule_chain_v640_lines(evaluation_dir: Path) -> list[str]:
         rows.append(f"| L9 crypto graduates against core only | {'graduates kept' if l9['decision'].get('keep_graduates') else 'core only'} | "
                     f"graduates beat core-only: {l9['decision'].get('graduates_beat_core_only_on')} |")
     add("L10 residual head blend", report.get("l10"), none_text="none (rank_20d / rank_5d stay)")
+    lean = load_json(evaluation_dir / "v640" / "r_lean13.json")
+    if isinstance(lean, dict) and isinstance(lean.get("values"), dict):
+        values = lean["values"]
+        failed = [name for name, ok in (lean.get("checks") or {}).items() if not ok]
+        rows.append(
+            f"| R-LEAN13 (Lean confirm of the adopted L5 + L9 changes, run {lean.get('candidate')} against {lean.get('baseline')}) | "
+            f"{'kept' if lean.get('keep') else 'reverted'} | strategy Sharpe {_num(values.get('candidate_strategy_sharpe'), '.2f')} against "
+            f"{_num(values.get('baseline_strategy_sharpe'), '.2f')}, max drawdown {_pct(values.get('candidate_max_drawdown'), '.2f')} "
+            f"against {_pct(values.get('baseline_max_drawdown'), '.2f')}"
+            + (f" (fails {', '.join(failed)})" if failed else "") + " |"
+        )
     if not rows:
         return ["_V6.4.0 rule chain has no stage results yet._"]
     return ["| Lead | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]

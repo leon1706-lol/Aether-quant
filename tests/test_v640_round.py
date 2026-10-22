@@ -264,16 +264,15 @@ def test_main_py_filters_book_candidates_through_the_shared_core_only_function()
     assert 'and not crypto_graduate_excluded( symbol_key, asset.get("asset_class") or asset.get("security_type"), self.crypto_core_only, self.crypto_core_names )' in source
 
 
-def test_the_shipped_config_carries_exactly_the_adopted_changes_and_default_off_everything_else():
+def test_the_shipped_config_keeps_the_confirmed_book_and_every_v640_knob_default_off():
     import json
     from pathlib import Path
 
     config = json.loads((Path(__file__).resolve().parents[1] / "config.json").read_text(encoding="utf-8"))
     v2 = config["phase_v2"]
-    # adopted by the pre-registered rules (Problems #221 R-L5, #225 R-L9)
-    assert (v2["portfolio_book"]["rebalance_every_bars"], v2["exits"]["max_holding_bars"]) == (10, 20)
-    assert v2["class_weight_caps"]["crypto"]["core_only"] is True
-    # default off: nothing else changes the trading path
+    # R-L5 / R-L9 adopted 10 / 20 and core-only crypto offline; BT6 failed R-LEAN13 in Lean, so the confirmed book (BT5's) stays
+    assert (v2["portfolio_book"]["rebalance_every_bars"], v2["exits"]["max_holding_bars"]) == (20, 40)
+    assert v2["class_weight_caps"]["crypto"]["core_only"] is False
     assert v2["risk"]["kill_switch"]["trip_confirm_bars"] == 1
     assert v2["gating_network"]["disabled_experts"] == []
     assert v2["diagnostics"]["book_history"]["paper_enabled"] is False

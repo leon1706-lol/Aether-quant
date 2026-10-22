@@ -13,10 +13,11 @@ V2 = CONFIG["phase_v2"]
 
 
 def test_r_book_slower_book_and_a_preset_that_matches_it():
-    # V6.0.0's R-BOOK picked 20 / 40; V6.4.0's R-L5 (Problems.md #221) re-scored the grid as-live and picked 10 / 20
-    assert V2["portfolio_book"]["rebalance_every_bars"] == 10 and V2["exits"]["max_holding_bars"] == 20
+    # V6.0.0's R-BOOK picked 20 / 40. V6.4.0's R-L5 re-scored the grid as-live and picked 10 / 20, but the confirming Lean run
+    # failed R-LEAN13 (Problems.md #221: strategy Sharpe -1.12 against +0.35), so the book stays 20 / 40
+    assert V2["portfolio_book"]["rebalance_every_bars"] == 20 and V2["exits"]["max_holding_bars"] == 40
     preset = V2["presets"]["aggressive"]
-    assert preset["phase_v2.portfolio_book.rebalance_every_bars"] == 10
+    assert preset["phase_v2.portfolio_book.rebalance_every_bars"] == 20
     assert preset["phase_v2.portfolio_book.min_rank_confidence_spread"] == V2["portfolio_book"]["min_rank_confidence_spread"] == 0.1
     assert preset["phase6.risk.min_confidence_to_trade"] == CONFIG["phase6"]["risk"]["min_confidence_to_trade"]
     # the gates were frozen by R-CAL branch B: no R-GATE flip in V6

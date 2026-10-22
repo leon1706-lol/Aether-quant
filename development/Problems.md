@@ -2,10 +2,10 @@
 
 <p align="center">
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
-  <img src="https://img.shields.io/badge/tests-3666%2F3666%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3666 of 3666 tests passing">
+  <img src="https://img.shields.io/badge/tests-3796%2F3796%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3796 of 3796 tests passing">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <img src="https://img.shields.io/badge/problems-228%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="228 problem entries">
+  <img src="https://img.shields.io/badge/problems-230%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="230 problem entries">
 </p>
 
 Bugs and infrastructure issues found in this codebase, how they were fixed
@@ -2232,7 +2232,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 221. L5: turnover against IC - the rebalance / max-hold grid (V6.4.0)
 
-**Severity:** 4/10 · **Status:** 🟡 `partial` (shipped by rule; the Lean confirm BT6 is open: no Codespace budget)
+**Severity:** 4/10 · **Status:** 🔴 `closed` (adopted offline, reverted by R-LEAN13 on BT6; the book stays 20 / 40)
 
 **Problem:** with IC ~0.05 which (rebalance, hold) maximises the net Sharpe? V6's slower 20/40 book helped, yet the walk-forward net Sharpe is negative in 8 of 12 windows.
 
@@ -2240,7 +2240,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Verification:** `scripts/v640_research.py` stage `l5`.
 
-**Result:** Only R10/H20 passes: as-live median Sharpe validation -0.45 -> +0.15, backtest +0.89 -> +1.06 (+0.17, bar +0.10), p25 backtest +0.39 -> +0.68, median drawdown -4.6% against -4.9%, annualised turnover 7.5x -> 10.8x. The other seven cells fail (R10/H60 and R20/H20 gain +0.12 / +0.07 on backtest but not on >= 60% of phases or the margin; every 40-bar cadence and R20/H60 lose). `portfolio_book.rebalance_every_bars` 10, `exits.max_holding_bars` 20 and the `aggressive` preset ship; the idealized `net_performance` book keeps 20. The offline simulator tracks Lean at a daily correlation of ~0.7, so this is a pre-registered offline decision: confirm it with one Lean run (`ml/evaluation/run_configs/v640_bt6.json`) and revert to `v640_bt5.json`'s book if R-LEAN13 fails (strategy-ex-sweep Sharpe >= the BT4 baseline - 0.10, drawdown <= baseline + 1 pp, clean teardown).
+**Result:** Only R10/H20 passed the offline rule: as-live median Sharpe validation -0.45 -> +0.15, backtest +0.89 -> +1.06 (+0.17, bar +0.10), p25 +0.39 -> +0.68, turnover 7.5x -> 10.8x; every other cell failed. The confirming Lean run (#230) reversed it: with the 10 / 20 book and core-only crypto the strategy's Sharpe is -1.12 against +0.35 and its P&L -$10.9k against +$3.9k (fees $1,736 against $1,237, hit ratio 44% against 52%), so R-LEAN13 reverts it. The offline simulator tracks Lean's daily returns at a correlation of ~0.7 (R-CAL branch B) and does not price a faster book's costs and fills like the engine: a cadence change is not decidable offline. `config.json` keeps 20 / 40; the sim-side knobs stay.
 
 ### 222. L6: a staggered book judged on phase spread (V6.4.0)
 
@@ -2280,7 +2280,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 225. L9: crypto core against graduates - a repeatable rank effect or a few fills? (V6.4.0)
 
-**Severity:** 3/10 · **Status:** 🟡 `partial` (shipped by rule; the Lean confirm BT6 is open)
+**Severity:** 3/10 · **Status:** 🔴 `closed` (adopted offline, reverted by R-LEAN13 on BT6; crypto graduates stay in the book)
 
 **Problem:** crypto_core made ~+$3.9k on 13 fills; the graduates +$85 on $141 of fees.
 
@@ -2288,7 +2288,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Verification:** `evaluation/trade_bootstrap.py`, `tests/test_trade_bootstrap.py`.
 
-**Result:** BT4's closed trades: the core (BTC, LTC) made 13 round trips, mean +$302 (95% bootstrap interval +$73..+$601, P(mean <= 0) = 0.0001), BTC +$1,705 and LTC +$2,225, the three best trades 79% of its P&L: repeatable. The graduates made 61 round trips, mean -$1.1 (interval -$19..+$18), net about -$70 after fees: no evidence of an effect. As-live, graduates on / core only: validation +0.15 / +0.07, backtest +1.06 / +1.08, so they do not add Sharpe on both splits and the owner's rule ships core-only: `class_weight_caps.crypto.core_only` (new, default false, `crypto_graduate_excluded` shared by `main.py` and the offline metadata) is now true. Leave-one-name-out is in `research.json` (`l9.leave_one_out`).
+**Result:** BT4's closed trades: the core (BTC, LTC) made 13 round trips, mean +$302 (95% bootstrap interval +$73..+$601), BTC +$1,705 and LTC +$2,225, the three best trades 79% of its P&L; the graduates 61 round trips, mean -$1.1 (interval -$19..+$18), net about -$70. As-live, graduates on / core only: validation +0.15 / +0.07, backtest +1.06 / +1.08, so the owner's rule shipped core-only offline. BT6 (#230) changed the book AND the graduates together, failed R-LEAN13 and both changes were reverted; the effect of core-only alone was not measured in Lean. `class_weight_caps.crypto.core_only` (default false, `crypto_graduate_excluded`) stays as a tested knob.
 
 ### 226. L10: the residual rank head as a blend component (V6.4.0)
 
@@ -2304,7 +2304,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 227. L11: book-call probabilities in Lean, and the Lean-vs-offline parity rule R-L11 (V6.4.0)
 
-**Severity:** 3/10 · **Status:** 🟡 `partial` (shipped, default-on diagnostic; BT5, the run that proves the parity, is open)
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (R-L11 verified on BT5)
 
 **Problem:** the Backtest Statistics' classification table showed n/a log-loss for the Lean book calls: the book history dropped the head probabilities `main.py` already held.
 
@@ -2312,11 +2312,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Verification:** `tests/test_classification_parity.py`, `tests/test_v640_round.py`; BT5 (below).
 
-**Result:** `include_probabilities` is on in the shipped config; `aq evaluate --classification-parity` reports `no_logged_probabilities` on BT4 (which predates it) and is a step of `--lean-report`. R-L11's verdict needs a Lean run with the logging (`ml/evaluation/run_configs/v640_bt5.json` = BT4's config + the logging + the window to 2026-10-16, expected to equal BT4 order for order through 2026-09-30): not run, no Codespace budget.
+**Result:** BT5 (`backtests/2026-10-22_10-56-13`) logged the probabilities; all 444 book calls matched an offline prediction: accuracy of the head's own call 54.73% (Lean) against 54.50% (offline), delta +0.0023; negative log-loss -0.7157 against -0.7149, delta -0.0008; median |probability gap| 1e-16, max 0.029 - inside the 0.01 / 0.01 / 0.005 tolerance. The Classification Scores row now has a Lean log-loss. The head's call is a coin flip (log-loss 0.716 against 0.693): the parity is exact, the information is not there.
 
 ### 228. L12: the paper-period protocol and its band check (V6.4.0)
 
-**Severity:** 4/10 · **Status:** 🟡 `partial` (protocol and tool shipped; the paper run itself needs IB paper and the bands need the confirmed run)
+**Severity:** 4/10 · **Status:** 🟡 `partial` (protocol, tool and frozen bands shipped; the paper run itself needs the IB paper account)
 
 **Problem:** every recent rule names paper trading as the honest test, with no pre-registered success criterion.
 
@@ -2324,4 +2324,24 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Verification:** `evaluation/paper_protocol.py`, `tests/test_paper_protocol.py`; a tool dry run on BT5's tail after 2026-09-30, labelled as such.
 
-**Result:** `aq evaluate --paper-check` ran on BT4's own 2025-H1 window against BT4's bands (165 windows of 6 rebalances) and lands inside every band, as it must: a tool dry run, not a paper result. The bands must be rebuilt from the final pinned Lean run (BT6) before a paper period starts.
+**Result:** Frozen bands (5-95% of the 166 contiguous 6-rebalance windows of BT5, `backtests/2026-10-22_10-56-13`, the run of the shipped config; `ml/evaluation/v640/paper_bands.json`): veto_rate 0..1; lock_rebalance_share 0..1; strategy_gross_exposure 0.01115..0.2819; fills_per_rebalance 0..15.83; median_slippage_bps 1.644e-12..5.002; p90_slippage_bps 1.644e-12..51.42; fee_bps_per_turnover 2.725..17.98; strategy_pnl_bps_per_day -4.355..16.37; sweep_pnl_bps_per_day 0.4483..1.067; daily_hit_ratio 0.125..0.625; annualized_turnover 0..8.653. The veto-rate and lock-share bands span 0..1 (the gate and the kill switch flip from window to window), so only the exposure, fills, slippage, fee, P&L, hit-ratio and turnover bands can fail a paper run. `aq evaluate --paper-check` on BT5's own 2026-04..10 window lands inside every band, as it must (a tool dry run, not a paper result).
+
+### 229. BT5 (Lean, V6.3's book plus the probability logging, 2023-07-01..2026-10-16) equals BT4 order for order (V6.4.1)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (the baseline of the phase)
+
+**Problem:** prove the V6.4.0 instrumentation is a no-op on the trading path, extend the span to the appended data, and give R-L11 its Lean run (the Codespace budget was spent, so this ran on the PC's own Docker).
+
+**Fix:** none needed: 1,596 of 1,596 order events through 2026-09-30 are identical to BT4's (`ml/evaluation/run_configs/v640_bt5.json`), plus 50 events in October; the engine log reaches the teardown (the PC's usual timeout).
+
+**Verification:** net +$14,770 (Lean Sharpe -0.11), strategy without the sweep +$3,904 (Sharpe +0.35, deflated 29%), drawdown 4.33%, fees $1,237: October 2026 cost the strategy about $2.2k against BT4's +$6,093. `aq evaluate --lean-report` ran with 0 failed steps (#227).
+
+### 230. BT6 (Lean, the adopted 10 / 20 book + core-only crypto) fails R-LEAN13 and is reverted (V6.4.1)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (decided by rule; `config.json` unchanged from BT5's book)
+
+**Problem:** #221 and #225 were adopted by the offline rules; the pre-registered confirm is one Lean run judged by R-LEAN13 (strategy Sharpe not below the baseline's by more than 0.10, drawdown within +1 pp, a complete run).
+
+**Fix:** `evaluation/lean_verdict.py` (`python -m evaluation.lean_verdict --baseline <BT5> --candidate <BT6>`): BT6 (`backtests/2026-10-22_12-41-40`, `v640_bt6.json`) made -$2,329 net, the strategy -$10,937 (Sharpe -1.12 against +0.35), drawdown 5.20% against 4.33%, fees $1,736 against $1,237, 1,873 order events against 1,646, hit ratio 44% against 52%: the Sharpe clause fails, so the three keys are back at 20 / 40 / graduates in.
+
+**Verification:** `ml/evaluation/v640/r_lean13.json`; `tests/test_lean_verdict.py`. The run is the first Lean evidence that the offline as-live simulator cannot rank book cadences (it said +0.6 Sharpe on validation and +0.17 on backtest).

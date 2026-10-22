@@ -64,7 +64,7 @@ aq backtest    # requires Docker Desktop + local Lean data folder
 
 ---
 
-## Claimed numbers (as of V6.3.0, 2026-10-18)
+## Claimed numbers (as of V6.4.1, 2026-10-22)
 
 | Source | Metric | Value | File |
 |---|---|---|---|
@@ -73,12 +73,13 @@ aq backtest    # requires Docker Desktop + local Lean data folder
 | Offline rank-book, as live (validation / backtest) | Net Sharpe | −1.056 / +0.937 | `rank_book_simulation_as_live_*.json` |
 | Holdout (2025-07..2026-09, already seen) | as-live / idealized net Sharpe | +1.439 / −0.226 | `holdout_report.json` |
 | Monte Carlo of the offline idealized book (sequence) | p5 / p50 / p95 total return | −17.97% / −7.66% / +2.61% | `monte_carlo.json` |
-| Monte Carlo of the Lean run's own equity curve | p5 / p50 / p95 total return | +3.68% / +16.85% / +30.78% | `monte_carlo_lean.json` |
+| Monte Carlo of the Lean run's own equity curve (BT5) | p5 / p50 / p95 total return | +2.68% / +15.16% / +29.48% | `monte_carlo_lean.json` |
 | Benchmark: SPY buy-and-hold / 60/40 SPY-TLT | Net Sharpe, backtest split | 0.882 / 0.895 | `benchmark_comparison.json` |
 | Walk-forward (out-of-sample) | Mean per-window net Sharpe | −0.158 (4 of 12 windows positive) | `ml/versions/walk-forward-633816f4-*/` |
-| Lean backtest 2023-07..2026-09 (V6.3.0 BT4 = V6.2.0 BT2) | Net profit / Sharpe (risk-free) / drawdown | +16.848% / +0.082 / 4.30% | `backtests/2026-10-18_12-55-00/` |
-| Same run, strategy without the T-bill sweep | PnL / Sharpe (no risk-free) / deflated Sharpe | +$6,148 / +0.544 / 46% (22 trials) | `ml/evaluation/backtest_statistics.json` |
+| Lean backtest 2023-07..2026-10-16 (V6.4.1 BT5 = BT4's orders through 2026-09-30) | Net profit / Sharpe (risk-free) / drawdown | +14.770% / -0.110 / 4.33% | `backtests/2026-10-22_10-56-13/` |
+| Same run, strategy without the T-bill sweep | PnL / Sharpe (no risk-free) / deflated Sharpe | +$3,904 / +0.352 / 29% (49 trials) | `ml/evaluation/backtest_statistics.json` |
+| The adopted-offline 10 / 20 book + core-only crypto (BT6, reverted by R-LEAN13) | Net profit / strategy PnL / strategy Sharpe | -$2,329 / -$10,937 / -1.12 | `backtests/2026-10-22_12-41-40/`, `ml/evaluation/v640/r_lean13.json` |
 
-Every Backtest Statistics number is reproduced from the run folder alone with `aq evaluate --lean-report --backtest-dir backtests/2026-10-18_12-55-00` (the frozen config is `ml/evaluation/run_configs/2026-10-18_12-55-00.json`); the offline rows with `scripts/codespace_session_v630.sh` on the training Codespace.
+Every Backtest Statistics number is reproduced from the run folder alone with `aq evaluate --lean-report --backtest-dir backtests/2026-10-22_10-56-13` (the frozen config is `ml/evaluation/run_configs/2026-10-22_10-56-13.json`); the offline rows with `scripts/codespace_session_v630.sh` on the training Codespace.
 
 These are **offline** numbers using the torch-free simulator — not a substitute for a real Lean backtest, which includes slippage, entry lag, and execution realism the offline model approximates but does not replicate exactly. The README's evaluation sections are regenerated from `ml/evaluation/*.json` on every `aq evaluate` run, so they always reflect the latest local run rather than this table.

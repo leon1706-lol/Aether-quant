@@ -260,3 +260,11 @@ def test_v640_chain_renders_each_lead_and_degrades_without_results(tmp_path):
     l1 = "\n".join(_l1_lines(tmp_path))
     assert "| validation | 40 / 200 |" in l1 and "(report only)" in l1 and "the gate hides weakness" in l1
     assert "L1:" in rr.build_research_markdown(tmp_path) and "V6.4.0 rule chain" in rr.build_research_markdown(tmp_path)
+    (tmp_path / "v640" / "r_lean13.json").write_text(json.dumps({
+        "keep": False, "baseline": "bt5", "candidate": "bt6",
+        "checks": {"strategy_sharpe_within_0.10": False, "max_drawdown_within_1pp": True},
+        "values": {"baseline_strategy_sharpe": 0.35, "candidate_strategy_sharpe": -1.12,
+                   "baseline_max_drawdown": 0.0433, "candidate_max_drawdown": 0.0520},
+    }), encoding="utf-8")
+    lean_row = next(line for line in _rule_chain_v640_lines(tmp_path) if line.startswith("| R-LEAN13"))
+    assert "reverted" in lean_row and "-1.12" in lean_row and "5.20%" in lean_row and "fails strategy_sharpe_within_0.10" in lean_row
