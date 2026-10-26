@@ -2,17 +2,17 @@
 
 <p align="center">
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
-  <img src="https://img.shields.io/badge/tests-3796%2F3796%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3796 of 3796 tests passing">
+  <img src="https://img.shields.io/badge/tests-3818%2F3818%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3818 of 3818 tests passing">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <img src="https://img.shields.io/badge/problems-230%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="230 problem entries">
+  <img src="https://img.shields.io/badge/problems-238%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="238 problem entries">
 </p>
 
 Bugs and infrastructure issues found in this codebase, how they were fixed
 (or why still open), with severity rating (1 = cosmetic, 10 = critical
 data-loss/safety issue) and status. Ordered by entry number (oldest first);
 entries #73-76 don't exist (skipped in original numbering), and #88 appears
-twice (`88a` and `88`) from an earlier numbering mistake — both kept
+twice (`88a` and `88`) and #112 twice (V5.4.1 RL sizing, V5.4.2 residual head) from earlier numbering mistakes — all kept
 unrenumbered to avoid breaking cross-references elsewhere in this repo
 (Changelog.md, memory files, etc.).
 
@@ -1424,7 +1424,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 141. Two FRED sensitivity drivers existed only on the Codespace: 4 model features were 0 live and real in training (V5.6.0)
 
-**Severity:** 8/10 · **Status:** 🟢 `fixed` — files pulled local; the next backtest must show the four features non-zero
+**Severity:** 8/10 · **Status:** 🟢 `fixed` — files pulled local; confirmed live in V6.4.2: BT5's feature snapshots (`visualization/book_history/20261022T090307Z.jsonl`, 7 symbols, 431 book records) carry non-zero `sens_real_rate_beta` and `sens_dollar_beta` in 1,197 of 1,197 snapshots (the interactions are zero only on days the driver did not move)
 **Problem:** `sens_real_rate_beta/interaction` and `sens_dollar_beta/interaction` are regressions on the FRED series `treasury_10yr_real` and `dollar_index`, which `data/reference/fred_series/` on this PC never had (nor `breakeven_inflation_10y`); only the Codespace copy did. Every dataset built there trained on real values; every Lean run (and `aq evaluate`) read empty series and fed 0.0. BT1's snapshots showed it directly (live 0.0 vs offline 0.1456 on all 45 dates for both symbols) once everything else matched.
 **Fix:** the three CSVs copied to the local `data/` (now identical to the Codespace's file list: 1302 files each way). A silent per-driver zero is a skew by construction, so the drift check is the reconcile tool: after the next backtest `aq evaluate --reconcile-features` must list no `sens_*` feature.
 **Verification:** file lists diffed both ways; the `sens_*` rows of BT1's reconciliation are the before-picture.
@@ -2150,13 +2150,13 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 214. Engine image checked on the DinD host; run tooling fixed on the way (V6.3.0)
 
-**Severity:** 4/10 · **Status:** 🟡 `partial` (the local image is stale until Docker Desktop starts on the PC)
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (the local image was rebuilt on the PC in V6.4.1)
 
 **Problem:** the live path changed in V6.2, so the engine image needed rebuilding, and Docker Desktop cannot start on the PC.
 
 **Fix:** `scripts/codespace_engine_check.sh` builds it on DinD and checks `/api/assets-status` (the engine alone: alpine redis/postgres cannot start there), which now reports the sweep; the DinD runner puts the Lean CLI on PATH and each Codespace gets its own ssh config.
 
-**Verification:** HTTP 200 with the sweep settings (`ml/evaluation/v630/engine_assets_status.json`); `tests/test_assets_status.py`.
+**Verification:** HTTP 200 with the sweep settings (`ml/evaluation/v630/engine_assets_status.json`); `tests/test_assets_status.py`; V6.4.1 rebuilt the image on the PC's Docker and it answered HTTP 200 with the 2026-10-16 FRED cache (`ml/evaluation/v640/engine_image.txt`, `engine_assets_status.json`).
 
 ### 215. Data refresh to 2026-10-16: rows are appended in the stored vintage, never rewritten (V6.4.0)
 
@@ -2345,3 +2345,83 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** `evaluation/lean_verdict.py` (`python -m evaluation.lean_verdict --baseline <BT5> --candidate <BT6>`): BT6 (`backtests/2026-10-22_12-41-40`, `v640_bt6.json`) made -$2,329 net, the strategy -$10,937 (Sharpe -1.12 against +0.35), drawdown 5.20% against 4.33%, fees $1,736 against $1,237, 1,873 order events against 1,646, hit ratio 44% against 52%: the Sharpe clause fails, so the three keys are back at 20 / 40 / graduates in.
 
 **Verification:** `ml/evaluation/v640/r_lean13.json`; `tests/test_lean_verdict.py`. The run is the first Lean evidence that the offline as-live simulator cannot rank book cadences (it said +0.6 Sharpe on validation and +0.17 on backtest).
+
+### 231. Every Lean window label named a date two days after the run's end (V6.4.2)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the README Overview, every run-history row, Backtest Statistics' "Time range" and the Lean Monte Carlo line took the window's end from the last Strategy Equity point, which Lean writes about two days past the end (BT5: "to 2026-10-18" for a run ending 2026-10-16).
+
+**Fix:** `evaluation/backtest_audit.configured_run_window` reads `algorithmConfiguration.startDate/endDate`; `generate_backtest_report.load_backtest_summary`, `backtest_statistics` and `aq evaluate --lean-monte-carlo` label with it and fall back to the chart only when it is missing. The statistics still use the chart series.
+
+**Verification:** `tests/test_generate_backtest_report.py`, `test_backtest_statistics.py`, `test_backtest_audit.py`; the re-rendered README reads "2023-07-01 to 2026-10-16".
+
+### 232. The README's run history had no date and no status: the rejected BT6 read like any run (V6.4.2)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `AQ:BACKTEST_HISTORY` listed the ten newest runs without saying which one is shipped or which one a rule rejected, and carried no date, so the freshness check skipped it.
+
+**Fix:** a Status column from `run_status` (the README pin = "shipped (README pin)", each `ml/evaluation/*/r_lean*.json` verdict = "kept / rejected (R-LEANnn)") and a `computed YYYY-MM-DD` line; `readme_freshness.py` now dates the block like any other.
+
+**Verification:** `tests/test_generate_backtest_report.py`; the README shows BT6 as "rejected (R-LEAN13)".
+
+### 233. The walk-forward blocks always read "undated", and the freshness check missed the research sources (V6.4.2)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the walk-forward block printed only its re-render time as "Last updated ..." (no `|`), so `readme_freshness.py` never matched a date and every phase had to `--allow` it; the `RESEARCH` block's source list missed `holdout_report.json` and the V6.4 files.
+
+**Fix:** the blocks print the run id and the summary file's write time ("computed 2026-10-13 ... (rendered ...)"); the walk-forward blocks are model-bound (stale only when older than the installed models, `MODEL_FILES`), since only a retrain can refresh them; `RESEARCH` lists `holdout_report.json`, the V6.4 research and the R-LEAN13 / R-LEAN14 verdicts. Owner decision (2026-10-23): no retrain, the windows end 2025-06-30 and the models and data are unchanged.
+
+**Verification:** `tests/test_readme_freshness.py`, `test_generate_evaluation_report.py`; `python scripts/readme_freshness.py --since 2026-10-23` passes without `--allow`.
+
+### 234. R-LEAN14: the two halves of BT6 judged one at a time, rule written before the runs (V6.4.2)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (rule registered 2026-10-23, `ml/evaluation/v642/r_lean14_rule.json`)
+
+**Problem:** R-LEAN13 judged the 10 / 20 book and core-only crypto together (#230), so neither half is known; a change adopted on Lean evidence needs superiority, not R-LEAN13's non-inferiority.
+
+**Fix:** BT7 = BT5 + the book keys only (`v642_bt7.json`, sha256 107ab4f6...), BT8 = BT5 + `core_only` only (`v642_bt8.json`, ab2bb581...), checked to differ from BT5 by exactly those keys and to add up to BT6. A variant ships iff its strategy Sharpe without risk-free is at least BT5's + 0.10, its drawdown at most BT5's + 1 pp, and the run is complete with no inference failure; if both pass only the higher Sharpe ships (their sum is BT6); otherwise `config.json` stays. `evaluation/lean_verdict.py --rule superiority` scores it, each run with its own frozen config.
+
+**Verification:** `tests/test_lean_verdict.py`; the runs and the verdict are in the entries below.
+
+### 235. Lean on the 4 GB PC: the 90 s ceiling is `algorithm-creation-timeout`, a slow CLI probe read as "not found", a VM that would not boot (V6.4.2)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** with ~300 MB free, (a) WSL's `CreateVm` timed out, so Docker Desktop never started its engine (it also misread a slow `wsl --version` as "WSL update required"); (b) `aq backtest` reported "Lean CLI not found" because the venv CLI's `--version` took longer than the 30 s probe; (c) two BT7 starts died at Lean's 90 s limit while Python imported `main` (#16).
+
+**Fix:** (a) boot the `docker-desktop` VM by hand and keep it alive, then start Docker (recipe in `development/infrastructure.md`); (b) the probe waits 120 s (`aq_cli._find_quantconnect_lean_binary`); (c) `lean.json` sets `algorithm-creation-timeout: 600`, the engine key behind the 90 s (found in `QuantConnect.Lean.Engine.dll`), a host-speed setting that changes no trade. The two failed starts are in `backtests_invalid/2026-10-24_*_bt7_init_timeout` (code snapshots deleted: Lean compiles every `.py` under the project).
+
+**Verification:** BT7's third start imported `main` in 4 m 15 s and ran; `tests/test_lean_runtime_imports.py` pins the key.
+
+### 236. Smaller gaps found by the V6.4.2 audit (V6.4.2)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `lean_verdict` scored both runs with the root `config.json`; `retraining/lean_backtest.py` launched `lean backtest` on a candidate's model folder, which can only fail; `aq backtest` dropped the README pin silently; the DinD runner froze no `run_configs/<folder>.json`; AGENTS.md's rule 5 and CI job list, `portfolio/README.md` (`core_only`, the offline-only `tranche_adjust_fraction`), the parity table (`core_only`) and `evaluation/README.md` (11 flags) had drifted; #214 still read `partial`.
+
+**Fix:** per-run frozen configs in `lean_verdict.run_config`; the retraining gate returns `not_a_lean_project` without a `main.py`; the unpin prints the dropped run and the re-pin command; `codespace_lean_run.ps1 -Pull` copies each named config to its folder name and checks the hash; the docs are updated and #214 is `fixed` (the image was rebuilt on the PC in V6.4.1).
+
+**Verification:** `tests/test_lean_verdict.py`, `test_lean_backtest.py`, `test_generate_backtest_report.py`, `test_codespace_lean_scripts.py`; the failed BT7 starts printed the unpin notice.
+
+### 237. BT7 and BT8 (Lean, each half of BT6 alone): R-LEAN14 adopts neither, the book cadence carries the loss (V6.4.2)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule #234; `config.json` unchanged)
+
+**Problem:** split BT6's -$14.8k strategy loss against BT5 between its two changes, and adopt a half only on Lean superiority.
+
+**Fix:** none needed, both runs complete on the PC's Docker (0 inference failures, the PC's usual teardown timeout). BT7 (`backtests/2026-10-24_05-28-07`, 10 / 20 book): +5.24% net, strategy -$4,895 (Sharpe -0.44 against +0.35), drawdown 3.48%, fees $1,910, 1,246 orders, so it fails the Sharpe clause. BT8 (`backtests/2026-10-24_18-50-22`, core-only crypto): +14.79% net, strategy +$6,086 (Sharpe +0.457, above BT5 + 0.10 by 0.005), but its drawdown is 6.00% against 4.33% (+1.67 pp), so it fails the drawdown clause. Strategy P&L against BT5: book alone -$8.8k, core-only alone +$2.2k, together -$14.8k, interaction -$8.2k. Each run took about 11-13 h on the starved PC (BT5: 1 h 46 min).
+
+**Verification:** `ml/evaluation/v642/r_lean14_bt7.json`, `r_lean14_bt8.json`, `attribution.json`, `backtest_audit_bt7.json` / `_bt8.json`; the README run history marks both as "rejected (R-LEAN14)". The slower book is the loss; core-only crypto earns more for more drawdown, a trade-off the rule does not take.
+
+### 238. The holdout rows refreshed on the 4 GB PC by a guarded splice, not the 8 GB rebuild (V6.4.2)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the PC's `ml/datasets/full_dataset.csv` ended 2026-09-29 (pre-refresh build); the 2026-10-16 build existed only on the training Codespace, and a full rebuild needs ~8 GB.
+
+**Fix:** `scripts/splice_holdout_dataset.py`: `--build` runs `build_holdout_dataset.py` with one-month train / validation windows from a start a sensitivity lookback before the holdout (2024-05-31; a 2025-03 start left the trailing 252-row `sens_*` betas at 0.0, which the guard caught), at ~400 MB; `--splice` streams the old rows before 2025-07-01 and the new holdout rows into the file after an overlap guard (every feature and label of 32,179 rows dated 2025-07-01..2026-08-28 equal within 1e-9). The four beta-neutral / residual rank labels are exempt and counted: they use one whole-history beta per asset, so any rebuild moves them (93,999 cells; neither head is on the shipped path).
+
+**Verification:** 280,146 rows kept verbatim, 34,510 old holdout rows replaced by 35,806 (= the 1,296 rows V6.4.0 reported), last date 2026-10-15; the split files are untouched (their windows end before the holdout); `tests/test_splice_holdout_dataset.py`. Backup in `ml/_backup_v642_datasets/`.

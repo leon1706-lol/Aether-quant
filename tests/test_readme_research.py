@@ -268,3 +268,22 @@ def test_v640_chain_renders_each_lead_and_degrades_without_results(tmp_path):
     }), encoding="utf-8")
     lean_row = next(line for line in _rule_chain_v640_lines(tmp_path) if line.startswith("| R-LEAN13"))
     assert "reverted" in lean_row and "-1.12" in lean_row and "5.20%" in lean_row and "fails strategy_sharpe_within_0.10" in lean_row
+
+
+def test_r_lean14_rows_name_each_half_of_bt6(tmp_path):
+    """V6.4.2: each R-LEAN14 verdict gets its own row, labelled with the change from the pre-registered rule file."""
+    from evaluation.readme_research import _r_lean14_rows
+
+    assert _r_lean14_rows(tmp_path) == []
+    phase = tmp_path / "v642"
+    phase.mkdir()
+    (phase / "r_lean14_rule.json").write_text(json.dumps({"variants": {"BT7": {"change": "10 / 20 book"}}}), encoding="utf-8")
+    (phase / "r_lean14_bt7.json").write_text(json.dumps({
+        "keep": False, "baseline": "bt5", "candidate": "bt7",
+        "checks": {"strategy_sharpe_above_by_0.10": False, "max_drawdown_within_1pp": True},
+        "values": {"baseline_strategy_sharpe": 0.35, "candidate_strategy_sharpe": 0.10,
+                   "baseline_max_drawdown": 0.0433, "candidate_max_drawdown": 0.0480},
+    }), encoding="utf-8")
+    rows = _r_lean14_rows(tmp_path)
+    assert len(rows) == 1 and rows[0].startswith("| R-LEAN14 BT7 (10 / 20 book alone, run bt7 against bt5)")
+    assert "none (config unchanged)" in rows[0] and "fails strategy_sharpe_above_by_0.10" in rows[0]

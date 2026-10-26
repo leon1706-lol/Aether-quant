@@ -41,7 +41,8 @@ ruff check .              # must be clean before commit
    (the suite runs without them). Never let NaN / inf / None pass silently through
    feature pipelines — use `json_safety` helpers and explicit guards.
 4. **No secrets** in commits. No `aq backtest` in any automated gate or agent session.
-5. **New top-level `.py` module** → add to `pyproject.toml` `py-modules`, then
+5. **New top-level `.py` module** → add to `pyproject.toml` `py-modules` (or, if `aq` never
+   imports it, to `INTENTIONALLY_NOT_SHIPPED` in `tests/test_packaging_modules.py`), then
    `pip install -e .`. A stale editable install breaks `aq` with
    `ModuleNotFoundError` — reinstall after pulling new modules.
 6. **Offline/live parity.** Any change to the live trading path (`main.py` signal,
@@ -132,8 +133,8 @@ the dev PC cannot start Docker Desktop reliably. Delete that Codespace when its 
 `.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu + windows, 80% coverage
 gate), `python-lint` (ruff, `py_compile main.py`), `dependency-audit` (pip-audit),
 `webui-tests`, `cli-smoke`, `workflows-lint` (actionlint), plus the V5.5.0 guard jobs
-(fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks, docs-links,
-secret-scan, parity-smoke). `tests/test_ci_workflows.py` pins the shape — update it with
+(fast-guards — which also runs the docs-link check —, subsystem-matrix, wheel-smoke, python-compat,
+docker-checks, secret-scan, parity-smoke, test-count-drift). `tests/test_ci_workflows.py` pins the shape — update it with
 any workflow change. No Lean backtest in CI; the badge is refreshed locally by `aq test`.
 Docker rebuild is required before any paper/live deploy once material code changes land.
 

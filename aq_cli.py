@@ -127,7 +127,8 @@ def _find_quantconnect_lean_binary() -> str | None:
         if candidate != on_path and not Path(candidate).exists():
             continue
         try:
-            result = subprocess.run([candidate, "--version"], capture_output=True, text=True, timeout=30)
+            # the CLI's own startup takes 20-40 s on the 4 GB dev PC under memory pressure: 30 s reported a real CLI as missing
+            result = subprocess.run([candidate, "--version"], capture_output=True, text=True, timeout=120)
         except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
             continue
         if "Lean (version" not in (result.stdout or "") + (result.stderr or ""):
@@ -732,7 +733,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "ml": [
         # V6.0.0 - extra-horizon (rank_60d) targets and heads.
         "test_v600_extra_horizon.py",
-        "test_build_holdout_dataset.py", "test_holdout_report.py", "test_v610_model_ensemble.py",
+        "test_build_holdout_dataset.py", "test_splice_holdout_dataset.py", "test_holdout_report.py", "test_v610_model_ensemble.py",
         "test_v620_model_inputs.py",
         "test_compare_datasets.py", "test_model_candidate_research.py", "test_build_legacy_probability.py",
         "test_as_live_levers.py",
@@ -2250,22 +2251,26 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         print(f"  Wrote {out_path}")
         return 0
     if getattr(args, "lean_monte_carlo", False):
-        from evaluation.backtest_audit import daily_equity_from_chart, load_backtest_run
+        from evaluation.backtest_audit import configured_run_window, daily_equity_from_chart, load_backtest_run
         from evaluation.monte_carlo import run_monte_carlo
 
         run_dir = _resolve_lean_run_dir(args)
         if run_dir is None or not run_dir.exists():
             print("error: no backtest folder found - pass --backtest-dir PATH.", file=sys.stderr)
             return 1
-        equity = daily_equity_from_chart(load_backtest_run(run_dir)["result"])
+        lean_result = load_backtest_run(run_dir)["result"]
+        equity = daily_equity_from_chart(lean_result)
+        configured_start, configured_end = configured_run_window(lean_result)
         returns = [after / before - 1.0 for (_, before), (_, after) in zip(equity, equity[1:]) if before > 0]
         mc = run_monte_carlo(
             returns, n_runs=int(getattr(args, "mc_runs", 1000)), block_size=int(getattr(args, "mc_block_size", 20)),
             seed=int(getattr(args, "mc_seed", 42)), method=str(getattr(args, "mc_method", "block")),
         )
         payload = {key: value for key, value in mc.items() if key != "runs_curves"}
-        payload.update(source="lean", run=run_dir.name, first_date=equity[0][0] if equity else None,
-                       last_date=equity[-1][0] if equity else None, num_daily_returns=len(returns),
+        payload.update(source="lean", run=run_dir.name,
+                       first_date=configured_start.date().isoformat() if configured_start else (equity[0][0] if equity else None),
+                       last_date=configured_end.date().isoformat() if configured_end else (equity[-1][0] if equity else None),
+                       num_daily_returns=len(returns),
                        observed_total_return_pct=round((equity[-1][1] / equity[0][1] - 1.0) * 100.0, 2) if equity else None)
         out_path = ML_DIR / "evaluation" / "monte_carlo_lean.json"
         _write_evaluation_json(out_path, payload)

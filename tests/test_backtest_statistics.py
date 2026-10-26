@@ -234,3 +234,11 @@ def test_assembly_reports_missing_curve_instead_of_numbers(synthetic):
     run, config, root, _ = synthetic
     run["result"]["charts"]["Strategy Equity"]["series"]["Equity"]["values"] = []
     assert compute_backtest_statistics(run, config, root, run_name="empty")["status"] == "no equity curve"
+
+
+def test_time_range_is_the_configured_window_when_lean_charts_past_the_end(synthetic):
+    """V6.4.2: Lean keeps charting about two days past the end; the label reads algorithmConfiguration."""
+    run, config, root, history = synthetic
+    run["result"]["algorithmConfiguration"] = {"startDate": "2024-01-01T00:00:00Z", "endDate": "2024-01-04T23:59:59Z"}
+    general = _rows(compute_backtest_statistics(run, config, root, run_name="synthetic", book_history=history), "general")
+    assert general["Time range"]["portfolio"] == "2024-01-01 to 2024-01-04"

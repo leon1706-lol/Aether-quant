@@ -1,5 +1,6 @@
 {
     "data-folder": "data",
+    "algorithm-creation-timeout": 600,
     "log-handler": "QuantConnect.Logging.CompositeLogHandler",
     "messaging-handler": "QuantConnect.Messaging.Messaging",
     "job-queue-handler": "QuantConnect.Queues.JobQueue",
@@ -644,6 +645,6 @@
     },
     "job-organization-id": "",
     "organization-id": "",
-    "file-database-last-update": "10/22/2026 10:56:12",
+    "file-database-last-update": "10/24/2026 04:02:58",
     "id": "Local"
 }

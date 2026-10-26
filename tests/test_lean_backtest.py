@@ -12,6 +12,12 @@ from retraining.lean_backtest import find_lean_binary, run_lean_backtest
 _CONFIG = {"run_lean_backtest": True, "lean_binary": "lean", "lean_timeout_seconds": 60}
 
 
+def _project(tmp_path: Path) -> Path:
+    """A folder Lean can back-test: it holds the algorithm."""
+    (tmp_path / "main.py").write_text("", encoding="utf-8")
+    return tmp_path
+
+
 def test_find_lean_binary_returns_none_when_missing():
     with patch("retraining.lean_backtest.shutil.which", return_value=None):
         assert find_lean_binary(_CONFIG) is None
@@ -22,11 +28,11 @@ def test_find_lean_binary_returns_path_when_present():
         assert find_lean_binary(_CONFIG) == "/usr/bin/lean"
 
 
-def test_run_lean_backtest_never_attempts_subprocess_when_binary_missing():
+def test_run_lean_backtest_never_attempts_subprocess_when_binary_missing(tmp_path):
     with patch("retraining.lean_backtest.shutil.which", return_value=None), patch(
         "retraining.lean_backtest.subprocess.run"
     ) as run_mock:
-        result = run_lean_backtest(Path("ml/versions/abc"), _CONFIG)
+        result = run_lean_backtest(_project(tmp_path), _CONFIG)
 
     run_mock.assert_not_called()
     assert result == {"ran": False, "ok": None, "output_path": None, "error": "lean_not_available"}
@@ -44,24 +50,35 @@ def test_run_lean_backtest_disabled_never_calls_which_or_subprocess():
     assert result["error"] == "lean_backtest_disabled"
 
 
-def test_run_lean_backtest_returns_ok_true_on_success():
+def test_run_lean_backtest_returns_ok_true_on_success(tmp_path):
     completed = MagicMock(returncode=0)
     with patch("retraining.lean_backtest.shutil.which", return_value="/usr/bin/lean"), patch(
         "retraining.lean_backtest.subprocess.run", return_value=completed
     ):
-        result = run_lean_backtest(Path("ml/versions/abc"), _CONFIG)
+        result = run_lean_backtest(_project(tmp_path), _CONFIG)
 
     assert result["ran"] is True
     assert result["ok"] is True
 
 
-def test_run_lean_backtest_returns_ok_false_on_nonzero_exit():
+def test_run_lean_backtest_returns_ok_false_on_nonzero_exit(tmp_path):
     completed = MagicMock(returncode=1, stderr="failure", stdout="")
     with patch("retraining.lean_backtest.shutil.which", return_value="/usr/bin/lean"), patch(
         "retraining.lean_backtest.subprocess.run", return_value=completed
     ):
-        result = run_lean_backtest(Path("ml/versions/abc"), _CONFIG)
+        result = run_lean_backtest(_project(tmp_path), _CONFIG)
 
     assert result["ran"] is True
     assert result["ok"] is False
     assert result["error"] == "failure"
+
+
+def test_run_lean_backtest_skips_a_model_folder(tmp_path):
+    """V6.4.2: a candidate's version folder holds artifacts, not the algorithm, so Lean is never pointed at it."""
+    with patch("retraining.lean_backtest.shutil.which", return_value="/usr/bin/lean"), patch(
+        "retraining.lean_backtest.subprocess.run"
+    ) as run_mock:
+        result = run_lean_backtest(tmp_path, _CONFIG)
+
+    run_mock.assert_not_called()
+    assert result == {"ran": False, "ok": None, "output_path": None, "error": "not_a_lean_project"}

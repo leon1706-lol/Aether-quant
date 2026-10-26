@@ -47,6 +47,13 @@ def _parse_time(value) -> datetime | None:
         return None
 
 
+def configured_run_window(result: dict) -> tuple[datetime | None, datetime | None]:
+    """(start, end) the run was configured for (`algorithmConfiguration`). Lean keeps charting about two days past the end,
+    so a window label read off the last chart point names a date the run never traded."""
+    configuration = result.get("algorithmConfiguration") or {}
+    return _parse_time(configuration.get("startDate")), _parse_time(configuration.get("endDate"))
+
+
 def _symbol_value(order: dict) -> str:
     symbol = order.get("symbol")
     if isinstance(symbol, dict):

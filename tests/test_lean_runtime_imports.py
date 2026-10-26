@@ -143,3 +143,10 @@ def test_main_definition_time_lean_names_are_exported_by_the_test_stubs():
         text = (ROOT / "tests" / stub_file).read_text(encoding="utf-8")
         for name in sorted(LEAN_DEFINITION_TIME_NAMES):
             assert f"stub.{name} =" in text, f"{stub_file} stub must export {name}"
+
+
+def test_lean_config_lifts_the_algorithm_creation_ceiling():
+    """V6.4.2: importing main.py took 4 m 15 s on the 4 GB dev PC (Problems #16's 90 s ceiling, BT7 failed twice on it);
+    `algorithm-creation-timeout` (seconds, read by Lean's setup handler) is a host-speed setting, never a trading one."""
+    config = json.loads(LEAN_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert config["algorithm-creation-timeout"] >= 300

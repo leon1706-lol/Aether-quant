@@ -387,3 +387,68 @@ def test_folders_with_equal_mtimes_are_ordered_by_name(tmp_path):
         (tmp_path / name / "1.json").write_text("{}", encoding="utf-8")
         os.utime(tmp_path / name, (5_000_000, 5_000_000))
     assert [path.parent.name for path in report._iter_backtest_result_jsons(tmp_path)] == ["2026-10-16_run", "2026-10-15_run"]
+
+
+def test_the_window_is_the_configured_one_not_the_last_chart_point(tmp_path):
+    """V6.4.2: Lean keeps charting about two days past the run's end, so the label reads algorithmConfiguration."""
+    result_json = tmp_path / "111.json"
+    _write_result_json(result_json)
+    data = json.loads(result_json.read_text(encoding="utf-8"))
+    data["algorithmConfiguration"] = {"startDate": "2014-11-30T00:00:00Z", "endDate": "2014-12-01T23:59:59Z"}
+    result_json.write_text(json.dumps(data), encoding="utf-8")
+
+    summary = load_backtest_summary(result_json)
+
+    assert summary["start_date"].date().isoformat() == "2014-11-30"
+    assert summary["end_date"].date().isoformat() == "2014-12-01"  # the chart's last point is 2014-12-02
+
+
+def test_run_status_names_the_pin_and_the_verdicts(tmp_path):
+    from generate_backtest_report import load_lean_verdicts, run_status
+
+    phase = tmp_path / "v640"
+    phase.mkdir()
+    (phase / "r_lean13.json").write_text(json.dumps({"keep": False, "baseline": "a", "candidate": "b"}), encoding="utf-8")
+    (phase / "r_lean14_bt7.json").write_text(json.dumps({"keep": True, "rule": "R-LEAN14", "baseline": "a", "candidate": "c"}),
+                                             encoding="utf-8")
+    (phase / "r_lean_rule.json").write_text(json.dumps({"rule": "no candidate"}), encoding="utf-8")
+    verdicts = load_lean_verdicts(tmp_path)
+
+    assert [verdict["rule"] for verdict in verdicts] == ["R-LEAN13", "R-LEAN14"]
+    assert run_status("a", "a", verdicts) == "shipped (README pin)"
+    assert run_status("b", "a", verdicts) == "rejected (R-LEAN13)"
+    assert run_status("c", None, verdicts) == "kept (R-LEAN14)"
+    assert run_status("d", "a", verdicts) == "-"
+
+
+def test_history_table_has_a_status_column_and_a_date(tmp_path):
+    from generate_backtest_report import build_history_markdown
+
+    backtests_dir = tmp_path / "backtests"
+    _write_result_json(backtests_dir / "2026-06-01_00-00-00" / "111.json")
+    verdicts = [{"candidate": "2026-06-01_00-00-00", "keep": False, "rule": "R-LEAN13"}]
+
+    text = build_history_markdown(backtests_dir, verdicts=verdicts)
+
+    assert "| Status |" in text and "| rejected (R-LEAN13) |" in text
+    assert "computed 20" in text
+
+
+def test_a_fresh_run_says_which_pin_it_dropped(tmp_path, monkeypatch, capsys):
+    import generate_backtest_report as report
+
+    backtests = tmp_path / "backtests"
+    _write_result_json(backtests / "2026-06-01_00-00-00" / "111.json")
+    _write_result_json(backtests / "2026-06-02_00-00-00" / "222.json")
+    readme_path = tmp_path / "README.md"
+    _write_readme_with_markers(readme_path)
+    pin = tmp_path / "pin.json"
+    monkeypatch.setattr(report, "BACKTESTS_DIR", backtests)
+    monkeypatch.setattr(report, "README_PATH", readme_path)
+    monkeypatch.setattr(report, "PIN_PATH", pin)
+    report.set_pinned_run(backtests / "2026-06-01_00-00-00")
+
+    assert report.update_readme_from_latest_backtest(backtests, readme_path, tmp_path / "chart.png") is True
+
+    assert not pin.exists()
+    assert "README unpinned from 2026-06-01_00-00-00" in capsys.readouterr().err

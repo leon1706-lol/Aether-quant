@@ -43,6 +43,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from evaluation.backtest_audit import configured_run_window
+
 ROOT_DIR = Path(__file__).resolve().parent
 BACKTESTS_DIR = ROOT_DIR / "backtests"
 README_PATH = ROOT_DIR / "README.md"
@@ -171,8 +173,9 @@ def load_backtest_summary(result_json_path: Path) -> dict:
     # a benchmark function answers 0.0 until the first price exists: such leading points cannot be rebased
     benchmark_series = [(int(point[0]), float(point[-1])) for point in benchmark_points if float(point[-1]) > 0.0]
 
-    start_date = datetime.fromtimestamp(strategy_series[0][0], tz=timezone.utc) if strategy_series else None
-    end_date = datetime.fromtimestamp(strategy_series[-1][0], tz=timezone.utc) if strategy_series else None
+    configured_start, configured_end = configured_run_window(data)
+    start_date = configured_start or (datetime.fromtimestamp(strategy_series[0][0], tz=timezone.utc) if strategy_series else None)
+    end_date = configured_end or (datetime.fromtimestamp(strategy_series[-1][0], tz=timezone.utc) if strategy_series else None)
 
     return {
         "statistics": statistics,
@@ -333,9 +336,42 @@ HISTORY_MARKER_END = "<!-- AQ:BACKTEST_HISTORY_END -->"
 HISTORY_LIMIT = 10
 
 
-def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HISTORY_LIMIT) -> str:
+VERDICTS_GLOB = "*/r_lean*.json"
+
+
+def load_lean_verdicts(evaluation_dir: Path | None = None) -> list[dict]:
+    """Every `evaluation.lean_verdict` output (`ml/evaluation/<phase>/r_lean*.json`) that names a candidate run."""
+    evaluation_dir = evaluation_dir or (ROOT_DIR / "ml" / "evaluation")
+    verdicts = []
+    for path in sorted(evaluation_dir.glob(VERDICTS_GLOB)):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(payload, dict) and payload.get("candidate") and "keep" in payload:
+            number = re.match(r"r_lean(\d+)", path.stem)
+            verdicts.append(dict(payload, rule=payload.get("rule") or (f"R-LEAN{number.group(1)}" if number else path.stem)))
+    return verdicts
+
+
+def run_status(run_name: str, pinned_run: str | None, verdicts: list[dict]) -> str:
+    """The history table's Status cell: the README pin is the shipped configuration's run, a verdict file says whether a
+    candidate run was kept or rejected; anything else is a plain run."""
+    labels = []
+    if pinned_run and run_name == pinned_run:
+        labels.append("shipped (README pin)")
+    for verdict in verdicts:
+        if verdict.get("candidate") == run_name:
+            labels.append(f"{'kept' if verdict.get('keep') else 'rejected'} ({verdict.get('rule') or 'verdict'})")
+    return ", ".join(labels) or "-"
+
+
+def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HISTORY_LIMIT, verdicts: list[dict] | None = None) -> str:
     """One row per finished Lean run, newest first: the README's main table shows only the latest run, so two runs on
     different windows (the backtest window, then backtest + holdout) would otherwise overwrite each other."""
+    pinned = pinned_run_dir(backtests_dir)
+    pinned_name = pinned.name if pinned is not None else None
+    verdicts = load_lean_verdicts() if verdicts is None else verdicts
     rows: list[str] = []
     for candidate in _iter_backtest_result_jsons(backtests_dir):
         if len(rows) >= limit:
@@ -351,11 +387,17 @@ def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HIS
         window = f"{start.date().isoformat()} to {end.date().isoformat()}" if start and end else "unknown"
         rows.append(
             f"| `{candidate.parent.name}` | {window} | {statistics.get('Sharpe Ratio', 'n/a')} | "
-            f"{statistics.get('Net Profit', 'n/a')} | {statistics.get('Drawdown', 'n/a')} | {statistics.get('Total Orders', 'n/a')} |"
+            f"{statistics.get('Net Profit', 'n/a')} | {statistics.get('Drawdown', 'n/a')} | {statistics.get('Total Orders', 'n/a')} | "
+            f"{run_status(candidate.parent.name, pinned_name, verdicts)} |"
         )
     if not rows:
         return "_No finished Lean run yet._"
-    return "\n".join(["| Run | Window | Sharpe | Net profit | Drawdown | Orders |", "|---|---|---|---|---|---|", *rows])
+    computed = datetime.now(tz=timezone.utc).date().isoformat()
+    return "\n".join([
+        "| Run | Window | Sharpe | Net profit | Drawdown | Orders | Status |", "|---|---|---|---|---|---|---|", *rows,
+        "", f"_The {len(rows)} newest finished Lean runs, computed {computed}; Status from the README pin and the "
+        "`evaluation.lean_verdict` files (`ml/evaluation/*/r_lean*.json`)._",
+    ])
 
 
 def update_readme_backtest_section(
@@ -407,7 +449,11 @@ def update_readme_from_latest_backtest(
     try/except - a report-generation bug must never fail the backtest
     command itself."""
     if backtests_dir == BACKTESTS_DIR and readme_path == README_PATH:
+        dropped = pinned_run_dir(backtests_dir) if backtest_dir is None else None
         set_pinned_run(backtest_dir)  # an explicit run pins every Lean block to it; the default (a fresh run) unpins
+        if dropped is not None:
+            print(f"README unpinned from {dropped.name}: it now describes the newest run. Re-pin with "
+                  f"`aq evaluate --lean-report --backtest-dir backtests/{dropped.name}`.", file=sys.stderr)
     result_json_path = find_latest_backtest_result_json(backtests_dir) if backtest_dir is None else _result_json_in(backtest_dir)
     if result_json_path is None:
         return False

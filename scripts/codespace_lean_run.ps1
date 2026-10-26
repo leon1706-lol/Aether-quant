@@ -92,7 +92,8 @@ if ($Status) {
 
 if ($Pull) {
     $lines = ssh -F $ssh.Config $ssh.Host 'cat /tmp/aq_lean/status 2>/dev/null'
-    $folders = @($lines | Where-Object { $_ -match '^LEAN_DONE\s+\S+\s+(\S+)$' } | ForEach-Object { ($_ -split '\s+')[2] })
+    $done = @($lines | Where-Object { $_ -match '^LEAN_DONE\s+\S+\s+(\S+)$' })
+    $folders = @($done | ForEach-Object { ($_ -split '\s+')[2] })
     if ($folders.Count -eq 0) { throw 'no finished run to pull (LEAN_DONE lines in /tmp/aq_lean/status)' }
     $members = ($folders | ForEach-Object { "'$_'" }) -join ' '
     # book-history logs written since the first finished run's folder was created (main.py writes one file per run)
@@ -105,6 +106,16 @@ if ($Pull) {
     foreach ($folder in $folders) {
         if (-not (Test-Path (Join-Path $Root "$folder/log.txt"))) { throw "pulled run has no engine log: $folder" }
         Write-Host "pulled $folder"
+    }
+    # freeze each run's config under its folder name (lean_verdict and the run-folder tools read it; on the PC this is a manual copy)
+    foreach ($line in $done) {
+        $parts = $line -split '\s+'
+        $source = Join-Path $Root "ml/evaluation/run_configs/$($parts[1]).json"
+        $target = Join-Path $Root "ml/evaluation/run_configs/$(Split-Path $parts[2] -Leaf).json"
+        if (-not (Test-Path $source)) { throw "no frozen config $source for $($parts[2])" }
+        Copy-Item $source $target -Force
+        if ((Get-FileHash $source).Hash -ne (Get-FileHash $target).Hash) { throw "config freeze mismatch: $target" }
+        Write-Host "froze $target"
     }
 }
 

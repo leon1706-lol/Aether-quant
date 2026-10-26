@@ -292,7 +292,7 @@ def compute_backtest_statistics(
     """Every section of the README's "Backtest Statistics" for one loaded run (`backtest_audit.load_backtest_run`).
     `lean_basis` is `lean_statistics.statistics_table` output, `attribution` `lean_attribution.attribute_run` output; both
     optional. Pure apart from reading the Lean data zips under `root` for closes and opens."""
-    from evaluation.backtest_audit import CASH_SWEEP_CLASS, class_by_ticker_from_config, daily_equity_from_chart
+    from evaluation.backtest_audit import CASH_SWEEP_CLASS, class_by_ticker_from_config, configured_run_window, daily_equity_from_chart
     from evaluation.fill_price_audit import fills_from_run, zip_opens_for_fills
     from evaluation.lean_attribution import closes_for_universe, daily_ticker_pnl, fills_from_order_events, quote_to_usd_rate
 
@@ -405,8 +405,10 @@ def compute_backtest_statistics(
     long_net = sum(trade["net"] for trade in trades if trade["long"])
     short_net = sum(trade["net"] for trade in trades if not trade["long"])
 
+    configured_start, configured_end = configured_run_window(result)
     general = [
-        _row("Time range", f"{dates[0]} to {dates[-1]}", None, "text"),
+        _row("Time range", f"{(configured_start.date().isoformat() if configured_start else dates[0])} to "
+             f"{(configured_end.date().isoformat() if configured_end else dates[-1])}", None, "text"),
         _row("Years", years, None, "num2"),
         _row("Average AUM", average_aum, None, "usd"),
         _row("Capacity (Lean estimate)", _numbers(stats, "Estimated Strategy Capacity"), None, "usd",

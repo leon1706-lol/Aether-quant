@@ -484,6 +484,10 @@ keeps a resize worth less than IB's minimum commission from trading. Shared by `
 - `sleeve_guard.py` — `evaluate_sleeve_guard`: a per-sleeve loss guard (drawdown from the trailing peak over `lookback_bars` against `max_loss_fraction_nav`, then a cooldown). `main.py::_update_sleeve_guards` and the simulator call the same function; the state is in `state.json` under `sleeve_guards`.
 - `cash_sweep.py` (V6.2.0, `phase_v2.cash_sweep`) — the T-bill sweep (BIL, outside the universe): `cash_sweep_target_weight` under the no-borrow and Lean-margin limits with `strategy_reserve` for the next session's possible orders, `sweep_order_needed`, and `advance_strategy_value`, the strategy-only value the kill switch and drawdown lock read. `main.py` and the simulator call the same functions. `book_construction.py` also gains the staggered-tranche helpers (`tranche_offsets`, `tranche_book_params`, `combine_tranche_weights`, `should_rebalance_this_bar(phase_offset=)`) and `rolling_ic_gate.py` the late-bar event switch (`should_record_ic_event`).
 - `book_construction.py` — `resolve_class_weight_caps` / `apply_class_weight_caps` bound the crypto graduates (1% per name, 5% for the class).
+  `crypto_core_only_settings` / `crypto_graduate_excluded` read `class_weight_caps.crypto.core_only` (V6.4.0, default `false`): when on,
+  only the `exempt` core (BTC / LTC) are book candidates; one definition for `main.py`'s live candidates and the simulator.
+- `portfolio_book.tranche_adjust_fraction` (V6.4.0) is **offline-only**: `simulate_rank_book(partial_adjust_fraction=)` and the research
+  scripts read it, `main.py` does not and `config.json` carries no such key; a live tranche path is built only if a rule adopts it.
 
 ## V6.1.0 additions
 

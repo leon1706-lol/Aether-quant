@@ -56,3 +56,28 @@ def test_stale_and_pinned_checks(tmp_path):
     assert not any(problem.startswith(("WALKFORWARD", "BTSTATS_GENERAL")) for problem in problems)
     other_pin = freshness.stale_blocks(dates, "2026-10-01", {"WALKFORWARD", "EVAL", "ASLIVE"}, "2026-11-01_00-00-00")
     assert other_pin == ["BTSTATS_GENERAL: does not name the pinned run 2026-11-01_00-00-00"]
+
+
+def test_walk_forward_blocks_are_bound_to_the_installed_models(tmp_path):
+    """V6.4.2: a walk-forward block describes the installed models, so it is current while it is newer than they are."""
+    freshness = _load()
+    readme = README.replace("Last updated 2026-10-01", "run `walk-forward-x`, computed 2026-10-01 11:53 UTC (rendered 2026-10-22 17:04 UTC)")
+    dates = freshness.block_dates(readme, tmp_path)
+    assert dates["WALKFORWARD"]["date"] == "2026-10-01"
+    older_models = freshness.stale_blocks(dates, "2026-10-18", {"EVAL", "ASLIVE"}, None, models_date="2026-09-30")
+    assert older_models == []
+    newer_models = freshness.stale_blocks(dates, "2026-10-18", {"EVAL", "ASLIVE"}, None, models_date="2026-10-12")
+    assert newer_models == ["WALKFORWARD: dated 2026-10-01 (printed), before the installed models (2026-10-12)"]
+    no_models = freshness.stale_blocks(dates, "2026-10-18", {"EVAL", "ASLIVE"}, None)
+    assert no_models and no_models[0].startswith("WALKFORWARD:")
+
+
+def test_models_written_is_the_newest_model_artifact(tmp_path):
+    import os
+
+    freshness = _load()
+    assert freshness.models_written(tmp_path) is None
+    for name, stamp in (("model_weights.json", 1_760_000_000), ("multitask_model.json", 1_760_300_000)):
+        (tmp_path / name).write_text("{}", encoding="utf-8")
+        os.utime(tmp_path / name, (stamp, stamp))
+    assert freshness.models_written(tmp_path) == "2025-10-12"

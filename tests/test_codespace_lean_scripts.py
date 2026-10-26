@@ -49,3 +49,12 @@ def test_runner_checks_trees_after_push_and_engine_log_after_pull():
     text = RUNNER.read_text(encoding="utf-8")
     assert "-Mode status" in text
     assert "log.txt" in text
+
+
+def test_pull_freezes_each_runs_config_under_its_folder_name():
+    """V6.4.2: the DinD route ran `lean backtest` directly, so no `run_configs/<folder>.json` existed for lean_verdict and
+    the run-folder tools; -Pull now copies the named config the status line reports and checks the hash."""
+    text = RUNNER.read_text(encoding="utf-8")
+    assert "ml/evaluation/run_configs/$($parts[1]).json" in text
+    assert "ml/evaluation/run_configs/$(Split-Path $parts[2] -Leaf).json" in text
+    assert "config freeze mismatch" in text

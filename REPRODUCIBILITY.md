@@ -71,7 +71,7 @@ aq backtest    # requires Docker Desktop + local Lean data folder
 | Offline rank-book, ungated (multitask) | Net Sharpe, backtest split | −0.252 | `ml/evaluation/rank_book_simulation_multitask.json` |
 | Offline rank-book, ungated (sequence) | Net Sharpe, backtest split | −0.866 | `ml/evaluation/rank_book_simulation_sequence.json` |
 | Offline rank-book, as live (validation / backtest) | Net Sharpe | −1.056 / +0.937 | `rank_book_simulation_as_live_*.json` |
-| Holdout (2025-07..2026-09, already seen) | as-live / idealized net Sharpe | +1.439 / −0.226 | `holdout_report.json` |
+| Holdout (2025-07..2026-10-15, already seen; V6.4.2 splice) | as-live / idealized net Sharpe | +0.919 / −0.273 | `holdout_report.json` |
 | Monte Carlo of the offline idealized book (sequence) | p5 / p50 / p95 total return | −17.97% / −7.66% / +2.61% | `monte_carlo.json` |
 | Monte Carlo of the Lean run's own equity curve (BT5) | p5 / p50 / p95 total return | +2.68% / +15.16% / +29.48% | `monte_carlo_lean.json` |
 | Benchmark: SPY buy-and-hold / 60/40 SPY-TLT | Net Sharpe, backtest split | 0.882 / 0.895 | `benchmark_comparison.json` |

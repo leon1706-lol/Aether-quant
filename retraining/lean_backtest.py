@@ -34,6 +34,11 @@ def run_lean_backtest(version_dir: Path, config: dict) -> dict:
     if not config.get("run_lean_backtest", True):
         return {"ran": False, "ok": None, "output_path": None, "error": "lean_backtest_disabled"}
 
+    # a candidate's version folder holds model artifacts, not the algorithm: `lean backtest` on it can only fail. A candidate
+    # is Lean-confirmed by installing it and running the project (the R-LEAN13 route), not from here.
+    if not (Path(version_dir) / "main.py").is_file():
+        return {"ran": False, "ok": None, "output_path": None, "error": "not_a_lean_project"}
+
     lean_binary = find_lean_binary(config)
     if lean_binary is None:
         return {"ran": False, "ok": None, "output_path": None, "error": "lean_not_available"}

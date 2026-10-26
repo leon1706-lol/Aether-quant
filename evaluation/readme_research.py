@@ -270,6 +270,28 @@ def _rule_chain_v630_lines(evaluation_dir: Path) -> list[str]:
     return ["| Rule | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]
 
 
+def _r_lean14_rows(evaluation_dir: Path) -> list[str]:
+    """V6.4.2: one row per R-LEAN14 verdict (`v642/r_lean14_bt*.json`), each half of BT6 against BT5 on Lean."""
+    rule = load_json(evaluation_dir / "v642" / "r_lean14_rule.json")
+    variants = rule.get("variants", {}) if isinstance(rule, dict) else {}
+    rows = []
+    for path in sorted((evaluation_dir / "v642").glob("r_lean14_bt*.json")):
+        verdict = load_json(path)
+        if not isinstance(verdict, dict) or not isinstance(verdict.get("values"), dict):
+            continue
+        key = path.stem.rsplit("_", 1)[-1].upper()
+        values = verdict["values"]
+        failed = [name for name, ok in (verdict.get("checks") or {}).items() if not ok]
+        rows.append(
+            f"| R-LEAN14 {key} ({(variants.get(key) or {}).get('change', 'one half of BT6')} alone, run {verdict.get('candidate')} "
+            f"against {verdict.get('baseline')}) | {'adopted' if verdict.get('keep') else 'none (config unchanged)'} | strategy Sharpe "
+            f"{_num(values.get('candidate_strategy_sharpe'), '.2f')} against {_num(values.get('baseline_strategy_sharpe'), '.2f')}, max "
+            f"drawdown {_pct(values.get('candidate_max_drawdown'), '.2f')} against {_pct(values.get('baseline_max_drawdown'), '.2f')}"
+            + (f" (fails {', '.join(failed)})" if failed else "") + " |"
+        )
+    return rows
+
+
 def _rule_chain_v640_lines(evaluation_dir: Path) -> list[str]:
     """V6.4.0's chain (v640/research.json): one row per lead (R-DEDUPE2, L2-L10); L1 has its own table below."""
     report = load_json(evaluation_dir / "v640" / "research.json")
@@ -328,6 +350,7 @@ def _rule_chain_v640_lines(evaluation_dir: Path) -> list[str]:
             f"against {_pct(values.get('baseline_max_drawdown'), '.2f')}"
             + (f" (fails {', '.join(failed)})" if failed else "") + " |"
         )
+    rows += _r_lean14_rows(evaluation_dir)
     if not rows:
         return ["_V6.4.0 rule chain has no stage results yet._"]
     return ["| Lead | Adopted | Median-Sharpe change per variant (every rebalance phase) |", "|---|---|---|", *rows]

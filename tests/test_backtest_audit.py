@@ -426,3 +426,11 @@ def test_class_map_files_the_sweep_ticker_apart_and_falls_back_to_security_type(
     }
     assert class_by_ticker_from_config(config) == {"SPY": "equity", "TLT": "bond", "BTCUSD": "crypto", "BIL": "cash_sweep"}
     assert "BIL" not in class_by_ticker_from_config({"phase1": config["phase1"]})
+
+
+def test_configured_run_window_reads_algorithm_configuration():
+    from evaluation.backtest_audit import configured_run_window
+
+    start, end = configured_run_window({"algorithmConfiguration": {"startDate": "2023-07-01T00:00:00Z", "endDate": "2026-10-16T23:59:59Z"}})
+    assert (start.date().isoformat(), end.date().isoformat()) == ("2023-07-01", "2026-10-16")
+    assert configured_run_window({}) == (None, None)

@@ -7,6 +7,12 @@ daily correlation of ~0.7. One Lean run (BT6) confirms or reverts it, judged aga
     (b) the portfolio's maximum drawdown is not worse than the baseline's by more than 1 percentage point,
     (c) the engine log shows a complete run: statistics written, the interpreter teardown reached, and no model-inference failure.
         (The teardown TIMEOUT is the PC's, Problems #104/#204, and is reported, not judged.)
+
+R-LEAN14 (V6.4.2, `--rule superiority`) adopts a change on Lean evidence instead of confirming one: clause (a) becomes "better
+than the baseline by at least the margin" (0.10), (b) and (c) are unchanged.
+
+Each run's statistics use the config it ran with (`ml/evaluation/run_configs/<run folder>.json`), the root config.json only
+when no frozen copy exists.
 """
 
 from __future__ import annotations
@@ -59,16 +65,39 @@ def r_lean13(baseline: dict, candidate: dict, candidate_engine_log: str) -> dict
     }
 
 
-def verdict_for_run_dirs(baseline_dir: Path, candidate_dir: Path, config: dict, root: Path) -> dict:
-    """Statistics of both run folders (`backtest_statistics.compute_for_run_dir`) and the candidate's engine log."""
+def r_lean14(baseline: dict, candidate: dict, candidate_engine_log: str, margin: float = MAX_SHARPE_LOSS) -> dict:
+    """R-LEAN13 with clause (a) turned into superiority: the strategy Sharpe must beat the baseline's by `margin`."""
+    result = r_lean13(baseline, candidate, candidate_engine_log)
+    base_sharpe, new_sharpe = result["values"]["baseline_strategy_sharpe"], result["values"]["candidate_strategy_sharpe"]
+    checks = dict(result["checks"])
+    checks.pop("strategy_sharpe_within_0.10")
+    checks = {f"strategy_sharpe_above_by_{margin:.2f}": None not in (base_sharpe, new_sharpe) and new_sharpe >= base_sharpe + margin,
+              **checks}
+    return dict(result, checks=checks, keep=all(checks.values()))
+
+
+RULES = {"non_inferiority": ("R-LEAN13", r_lean13), "superiority": ("R-LEAN14", r_lean14)}
+
+
+def run_config(run_dir: Path, root: Path, fallback: dict) -> dict:
+    """The config a run was frozen with (`ml/evaluation/run_configs/<folder>.json`), else `fallback`."""
+    frozen = Path(root) / "ml" / "evaluation" / "run_configs" / f"{Path(run_dir).name}.json"
+    return json.loads(frozen.read_text(encoding="utf-8")) if frozen.exists() else fallback
+
+
+def verdict_for_run_dirs(baseline_dir: Path, candidate_dir: Path, config: dict, root: Path, rule: str = "non_inferiority",
+                         margin: float = MAX_SHARPE_LOSS) -> dict:
+    """Statistics of both run folders (`backtest_statistics.compute_for_run_dir`, each with its own frozen config) and the
+    candidate's engine log."""
     from evaluation.backtest_statistics import compute_for_run_dir
 
-    baseline = compute_for_run_dir(Path(baseline_dir), config, Path(root))
-    candidate = compute_for_run_dir(Path(candidate_dir), config, Path(root))
+    baseline = compute_for_run_dir(Path(baseline_dir), run_config(baseline_dir, root, config), Path(root))
+    candidate = compute_for_run_dir(Path(candidate_dir), run_config(candidate_dir, root, config), Path(root))
     log_path = Path(candidate_dir) / "log.txt"
     log = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
-    result = r_lean13(baseline, candidate, log)
-    result.update(baseline=Path(baseline_dir).name, candidate=Path(candidate_dir).name)
+    name, judge = RULES[rule]
+    result = judge(baseline, candidate, log, margin) if rule == "superiority" else judge(baseline, candidate, log)
+    result.update(rule=name, baseline=Path(baseline_dir).name, candidate=Path(candidate_dir).name)
     return result
 
 
@@ -79,10 +108,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baseline", required=True, help="the run that differs only by the change (BT5)")
     parser.add_argument("--candidate", required=True, help="the confirming run (BT6)")
     parser.add_argument("--out", default="ml/evaluation/v640/r_lean13.json")
+    parser.add_argument("--rule", choices=sorted(RULES), default="non_inferiority",
+                        help="non_inferiority (R-LEAN13, confirm an adopted change) or superiority (R-LEAN14, adopt one)")
+    parser.add_argument("--margin", type=float, default=MAX_SHARPE_LOSS, help="the superiority rule's Sharpe margin")
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     config = json.loads((root / "config.json").read_text(encoding="utf-8"))
-    result = verdict_for_run_dirs(root / args.baseline, root / args.candidate, config, root)
+    result = verdict_for_run_dirs(root / args.baseline, root / args.candidate, config, root, args.rule, args.margin)
     out = root / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")

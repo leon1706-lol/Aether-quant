@@ -1,11 +1,12 @@
 """Is every block of the README's Backtest Statistics current (V6.3.0, the end-of-phase recapture check)?
 
 Each `AQ:*` block between "## Backtest Statistics" and "## Test Suite" is dated by the timestamp it prints ("computed ...",
-"Last updated ...") or, when it prints none, by the newest mtime of the files it is rendered from. A block is stale when
-that date is before `--since`; the walk-forward blocks are exempt when no retrain happened (`--allow walkforward`), as is
-any other block named with `--allow`. Lean-reading blocks must name the pinned run (`ml/evaluation/readme_lean_run.json`).
+"Last updated | ...") or, when it prints none, by the newest mtime of the files it is rendered from. A block is stale when
+that date is before `--since`, unless it is named with `--allow`. The walk-forward blocks are model-bound: they describe the
+installed models, so they are stale only when dated before those models were written (a retrain refreshes them, nothing
+else can). Lean-reading blocks must name the pinned run (`ml/evaluation/readme_lean_run.json`).
 
-    python scripts/readme_freshness.py --since 2026-10-18 [--allow WALKFORWARD --allow WALKFORWARD_FULL_STATS]
+    python scripts/readme_freshness.py --since 2026-10-18 [--allow BLOCK ...]
 """
 
 from __future__ import annotations
@@ -25,7 +26,8 @@ RUN_RE = re.compile(r"`?(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})`?")
 SOURCES = {
     "ASLIVE": ["rank_book_simulation_as_live_validation.json", "rank_book_simulation_as_live_backtest.json"],
     "LEANCMP": ["backtest_audit.json"],
-    "RESEARCH": ["v630/research.json", "v630/calibration.json", "head_audit.json"],
+    "RESEARCH": ["v630/research.json", "v630/calibration.json", "head_audit.json", "holdout_report.json",
+                 "v640/research.json", "v640/r_lean13.json", "v642/r_lean14_bt7.json", "v642/r_lean14_bt8.json"],
     "BACKTEST_HISTORY": [],
     "MONTECARLO_FULL_STATS": ["monte_carlo.json"],
     "EVAL_FULL_STATS": ["rank_book_simulation_sequence.json", "rank_book_simulation_multitask.json"],
@@ -33,6 +35,15 @@ SOURCES = {
 }
 LEAN_BLOCKS = ("BACKTEST_HISTORY", "BTSTATS_GENERAL", "BTSTATS_PERFORMANCE", "BTSTATS_RUNS", "BTSTATS_SHORTFALL",
                "BTSTATS_EFFICIENCY", "BTSTATS_CLASSIFICATION", "BTSTATS_ATTRIBUTION")
+MODEL_BOUND = ("WALKFORWARD", "WALKFORWARD_FULL_STATS")
+# the installed models the model-bound blocks describe (ml/, written by a retrain)
+MODEL_FILES = ("model_weights.json", "multitask_model.json", "sequence_model.json")
+
+
+def models_written(ml_dir: Path = ROOT / "ml") -> str | None:
+    """UTC date the newest installed model artifact was written, None when none exists."""
+    stamps = [(ml_dir / name).stat().st_mtime for name in MODEL_FILES if (ml_dir / name).exists()]
+    return datetime.fromtimestamp(max(stamps), tz=timezone.utc).date().isoformat() if stamps else None
 
 
 def section(text: str) -> str:
@@ -58,13 +69,16 @@ def block_dates(text: str, evaluation_dir: Path = EVALUATION) -> dict[str, dict]
     return out
 
 
-def stale_blocks(dates: dict[str, dict], since: str, allow: set[str], pinned_run: str | None) -> list[str]:
+def stale_blocks(dates: dict[str, dict], since: str, allow: set[str], pinned_run: str | None,
+                 models_date: str | None = None) -> list[str]:
     problems = []
     for name, info in sorted(dates.items()):
         if name in allow:
             continue
-        if name != "BACKTEST_HISTORY" and (info["date"] is None or info["date"] < since):
-            problems.append(f"{name}: dated {info['date'] or 'nowhere'} ({info['source']}), before {since}")
+        bound = models_date if name in MODEL_BOUND and models_date else since
+        if info["date"] is None or info["date"] < bound:
+            what = f"the installed models ({bound})" if bound != since else since
+            problems.append(f"{name}: dated {info['date'] or 'nowhere'} ({info['source']}), before {what}")
         if pinned_run and name in LEAN_BLOCKS and pinned_run not in info["runs"]:
             problems.append(f"{name}: does not name the pinned run {pinned_run}")
     return problems
@@ -81,7 +95,7 @@ def main() -> int:
     pinned = json.loads(pin.read_text(encoding="utf-8")).get("run") if pin.exists() else None
     for name, info in sorted(dates.items()):
         print(f"{name:28s} {info['date'] or '-':10s} {info['source']:8s} {', '.join(info['runs'][:2])}")
-    problems = stale_blocks(dates, args.since, set(args.allow), pinned)
+    problems = stale_blocks(dates, args.since, set(args.allow), pinned, models_written())
     for problem in problems:
         print("STALE:", problem)
     print(f"{len(dates)} blocks, {len(problems)} problem(s); pinned run {pinned or 'none'}")

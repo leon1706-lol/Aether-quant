@@ -191,9 +191,26 @@ descriptions):
   `--reconcile-features` (V5.3.5.3, requires `--symbol`)
 - Monte Carlo (V5.3.8): `--rank-book --monte-carlo`
   (`--mc-runs/--mc-block-size/--mc-seed/--mc-method`)
-- Diagnostics/investigation (not in `--all`): `--ablation`,
-  `--replay-kill-switch` (V5.2.8), `--simulate-limit-fills` (V5.3.1,
-  `--limit-fill-offset-sweep`), `--walk-forward-summary`
+- Diagnostics/investigation (not in `--all`): `--ablation` (`--variants`
+  picks the ablation variants), `--replay-kill-switch` (V5.2.8),
+  `--simulate-limit-fills` (V5.3.1, `--limit-fill-offset-sweep`),
+  `--walk-forward-summary`
+- Rolling-IC gate: `--calibrate-rolling-ic-floor` (a suggested
+  `min_rolling_mean_ic`), `--replay-rolling-ic-gate` (day-by-day offline
+  replay of the gate, no lookahead)
+- Book-history reconciliation options: `--reconcile-run-index N` (one run
+  segment), `--reconcile-all-runs` (every segment on its own),
+  `--hysteresis-survives-veto` (keep offline's hysteresis anchor across a
+  vetoed rebalance, as live does)
+- Lean run: `--lean-monte-carlo` (block bootstrap of a finished run's own
+  daily returns, writes `monte_carlo_lean.json`)
+- Factors and regimes: `--factor-exposure` (rank-book returns on SPY and a
+  momentum factor), `--calibrate-volatility-threshold` (per-class realised
+  volatility percentiles)
+- Data and features: `--audit-data` (coverage, gaps, suspicious moves, OHLC
+  sanity per universe zip), `--audit-features --permutation` (adds the
+  multitask model's validation IC drop per shuffled feature; slow, >1 h on
+  the dev PC)
 
 Writes `ml/evaluation/*.json`, consumed by `monitoring/evaluation_state.py`
 for the webui's Evaluation tab (`/api/evaluation`).
@@ -257,3 +274,8 @@ compressed dispersion in a way IC is not.
 ## V6.4.1 additions
 
 - `lean_verdict.py` (`python -m evaluation.lean_verdict --baseline backtests/<BT5> --candidate backtests/<BT6>`) — R-LEAN13: a confirming Lean run keeps an adopted change iff the strategy's Sharpe without a risk-free rate is not worse than the baseline run's by more than 0.10, the portfolio's maximum drawdown not worse by more than 1 percentage point, and the engine log shows a complete run (statistics written, teardown reached, no inference failure; the PC's teardown timeout is reported, not judged).
+
+## V6.4.2 additions
+
+- `lean_verdict.py` — `--rule superiority --margin 0.10` is R-LEAN14, which adopts a change on Lean evidence: the strategy Sharpe must beat the baseline's by the margin (drawdown and completeness clauses as R-LEAN13). Each run's statistics now use its own frozen config (`ml/evaluation/run_configs/<run folder>.json`), the root `config.json` only as a fallback.
+- `backtest_audit.configured_run_window` — a run's configured start / end (`algorithmConfiguration`); every window label (README Overview, run history, Backtest Statistics "Time range", the Lean Monte Carlo line) uses it, because Lean keeps charting about two days past the end.

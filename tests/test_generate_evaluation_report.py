@@ -559,3 +559,22 @@ def test_benchmark_markers_replaced_in_readme(tmp_path, monkeypatch):
     text = readme_path.read_text(encoding="utf-8")
     assert "old benchmarks" not in text
     assert "has not been run yet" in text
+
+
+def test_walk_forward_blocks_carry_the_run_date_not_the_render_time(tmp_path, monkeypatch):
+    """V6.4.2: the summary file's write time is when the walk-forward finished; a re-render must not look like a new run."""
+    import os
+
+    import generate_evaluation_report as report_module
+
+    ml_dir = tmp_path / "ml"
+    _write_walk_forward_summary(ml_dir, run_id="walk-forward-x")
+    summary_path = next((ml_dir / "versions").glob("walk-forward-*/walk_forward_summary.json"))
+    os.utime(summary_path, (1_760_300_000, 1_760_300_000))  # 2025-10-12 20:13 UTC
+    monkeypatch.setattr(report_module, "VERSIONS_DIR", ml_dir / "versions")
+
+    summary = load_latest_walk_forward_summary()
+
+    assert summary["_computed_at"] == "2025-10-12 20:13 UTC"
+    assert "computed 2025-10-12 20:13 UTC (rendered " in _build_walk_forward_compact_markdown(summary)
+    assert "computed 2025-10-12 20:13 UTC" in _build_walk_forward_full_stats_markdown(summary)
