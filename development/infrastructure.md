@@ -983,6 +983,26 @@ aq evaluate --lean-report --backtest-dir backtests/<run>                   # eve
   - `-Delete` right after `-Pull`. The image and disk are billed storage while the Codespace exists, even when stopped.
 
 
+### V6.4.3: Lean 4 (the theorem prover) and Mathlib on the PC
+
+`formal/` is a Lake project (Lean `v4.35.0`, Mathlib `v4.35.0`, both pinned). elan installs the toolchain on first use;
+Mathlib's prebuilt `.olean` files come from its cache, never a local compile (hours on the PC):
+
+1. `cd formal`, `lake update` (clones Mathlib and its dependencies into `formal/.lake/packages/`, gitignored), then
+   `lake exe cache get` (~9,000 files, ~5 GB). Close Docker and other large apps first: with ~350 MB free the tool's
+   hashing phase starves for an hour.
+2. **Do not start `lake build` before `cache get` prints its end.** An interrupted unpack leaves ~1,200 `.olean` files
+   missing and the next build compiles Mathlib. Never extract `~/.cache/mathlib/*.ltar` by hand: that folder holds every
+   Mathlib version ever fetched and a blind `leantar -x` puts other versions' oleans in place (V6.4.3 lesson).
+3. Check: the olean count under `.lake/packages/mathlib/.lake/build/lib/lean/Mathlib` equals the `.lean` count under
+   `.lake/packages/mathlib/Mathlib`; then `aq prove` builds the 11 specs (~2 min each on the PC, mostly import
+   loading). Lake builds modules in parallel; on the 4 GB PC parallel `lean` processes failed reading toolchain `.olean`
+   files under memory pressure, so a failed module is rebuilt alone with `aq prove --module <Name>`.
+4. `aq prove --regen-cases` runs `GenCases.lean` interpreted (`lake env lean --run`): an executable importing Mathlib
+   would need Mathlib's C code compiled, which the cache does not ship.
+
+`aq prove --check-sorry` and the differential tests need no Lean; CI runs only those.
+
 ### V6.4.0: appending data, and the research lifetime
 
 **Extending the data window without moving history.** The shipped `data/` is one Yahoo vintage (`auto_adjust=True`, V5.8.0). A later

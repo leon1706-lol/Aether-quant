@@ -99,3 +99,8 @@ from the FRED OECD interbank series (`aq backfill fred --group fx`) and the dail
 ## V6.1.0 additions
 
 - `cross_asset_timing.py` — `lean_market_holidays` (Lean's market-hours database), `resolve_forex_lean_holidays` (`phase1.features.forex_lean_holidays`): on a Lean forex holiday no bar is delivered and none is filled forward, so `fill_forward_open_forex_days(..., holidays)`, `CrossAssetTimeline.from_frames(..., forex_holidays=)` and the dataset builder skip those days and drop the zip's own bar there.
+
+## V6.4.3 additions
+
+- `cross_sectional_norm.py` — `cross_sectional_rank(frame, columns, group_column=None)`: per-date (per-group) percentile ranks centred to [-0.5, 0.5].
+- `asof_beta_labels.py` — `asof_rolling_beta` (trailing OLS slope of realised daily returns, no lookahead), `build_asof_rank_labels` (`target_beta_neutral_rank_{h}d_asof`, `target_residual_rank_{h}d_asof`: train.py's definitions with the as-of beta instead of one whole-history beta per asset) and `cross_sectional_residualize` (now shared with train.py). `train.py` uses the as-of beta when `phase1.target.ranking.beta_estimation` is `"asof"` (default `"full_history"`).

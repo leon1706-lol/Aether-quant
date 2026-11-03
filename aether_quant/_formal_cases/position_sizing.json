@@ -1,0 +1,10509 @@
+{
+ "target": "position_sizing",
+ "spec_files": [
+  "AetherFormal/PositionSizing.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -3,
+     "den": 200
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 6,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 49,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 43,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 2,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 41,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 19,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 67,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -63,
+     "den": 500
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 69,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 39,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -67,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 43,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 13,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -67,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 741,
+     "den": 16000
+    },
+    "rank_multiplier": {
+     "num": 39,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 49,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 13,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 50
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 63,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 17,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -147,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 15,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 40
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -31,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -31,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 31,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -247,
+     "den": 4000
+    },
+    "rank_multiplier": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 7,
+     "den": 80
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 31,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -41,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -2,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -69,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 11,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -99,
+     "den": 4000
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -31,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 69,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -19,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 31,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 11,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -67,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 73,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 63,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -2,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -8,
+     "den": 125
+    },
+    "rank_multiplier": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 3,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 63,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 11,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 23,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 17,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -67,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -43,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 23,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 121,
+     "den": 800
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 69,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 37,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -2,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 19,
+     "den": 100
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 11,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 2,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 57,
+     "den": 400
+    },
+    "rank_multiplier": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 17,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 2,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -351,
+     "den": 6400
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 87,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 63,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -69,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 37,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 69,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "rank_multiplier": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -43,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -4,
+     "den": 25
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 13,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 17,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 61,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -121,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -41,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 11,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 39,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 79,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 49,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 0,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -2,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 17,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 17,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 61,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 9,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 21,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 3,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 77,
+     "den": 4000
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 11,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 3,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 3,
+     "den": 32
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 561,
+     "den": 8000
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 2,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 160
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 49,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -9,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 13,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 43,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 37,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 0,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -37,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -49,
+     "den": 2000
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": -1,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -69,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 41,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 3,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 67,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 39,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 2,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 11,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 11,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 7,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 37,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": -1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 17,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 33,
+     "den": 800
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 3,
+     "den": 4
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 4,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 4
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": -7,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -19,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 1
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 19,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 2
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 4,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 6,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 9,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 5,
+     "den": 4
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "rank_multiplier": {
+     "num": 9,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -1,
+     "den": 1
+    },
+    "base_target_weight": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 3,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": 7,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 13,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "rank_multiplier": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 19,
+     "den": 20
+    },
+    "min_rank_multiplier": {
+     "num": 0,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 8,
+     "den": 5
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 1,
+     "den": 10
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 50
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "confidence": {
+     "num": 1,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": -3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -17,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 1,
+     "den": 2
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 5
+    },
+    "confidence": {
+     "num": 1,
+     "den": 2
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "predicted_rank_20d": {
+     "num": 2,
+     "den": 5
+    },
+    "min_rank_multiplier": {
+     "num": -2,
+     "den": 1
+    },
+    "min_position_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "max_rank_multiplier": {
+     "num": 1,
+     "den": 1
+    },
+    "max_position_weight": {
+     "num": 1,
+     "den": 10
+    },
+    "confidence": {
+     "num": -3,
+     "den": 10
+    },
+    "base_target_weight": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "target_weight": {
+     "num": 0,
+     "den": 1
+    },
+    "rank_multiplier": {
+     "num": -4,
+     "den": 5
+    }
+   }
+  }
+ ],
+ "spec_sha256": "f816c74b18e2d95e97ff0156d4371159d5a716945f869713407f8c6b623952ba"
+}

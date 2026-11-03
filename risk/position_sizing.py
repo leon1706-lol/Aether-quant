@@ -201,6 +201,9 @@ def build_dynamic_position_sizing(
     max_rl_multiplier: float = 1.0,
 ) -> PositionSizingDecision:
     base_target_weight = float(base_target_weight)
+    # V6.4.3: a non-finite base target sizes to nothing (it used to come out as a NaN target weight).
+    if not math.isfinite(base_target_weight):
+        base_target_weight = 0.0
     confidence = max(0.0, min(float(confidence), 1.0))
     max_position_weight = max(float(max_position_weight), 0.0)
     abs_base_target = abs(base_target_weight)
@@ -264,7 +267,9 @@ def build_dynamic_position_sizing(
         abs_base_target * volatility_multiplier * confidence_multiplier
         * topology_multiplier * rank_multiplier * rl_multiplier
     )
-    sized_weight = min(sized_weight, max_position_weight)
+    # Clamped at 0 (V6.4.3): a negative multiplier product from a misconfigured bound flipped the trade and, since
+    # min() only caps from above, escaped max_position_weight (formal/AetherFormal/PositionSizing.lean).
+    sized_weight = max(0.0, min(sized_weight, max_position_weight))
     if sized_weight > 0.0 and min_position_weight > 0.0:
         # V5.4.5: the floor is re-clamped by the cap - a misconfigured
         # min > max previously pushed the sized weight ABOVE the leverage

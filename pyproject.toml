@@ -37,6 +37,11 @@ Changelog = "https://github.com/leon1706-lol/Aether-quant/blob/main/development/
 [project.scripts]
 aq = "aq_cli:main"
 
+# V6.4.3: what the aether_quant library needs beyond the stdlib (the full system installs requirements/requirements.txt).
+[project.optional-dependencies]
+lib = ["numpy", "pandas"]
+research = ["numpy", "pandas", "pyarrow", "scipy", "scikit-learn", "statsmodels"]
+
 [tool.setuptools]
 # Explicit, not auto-discovered: backtests/*/code/ contains full copies of
 # this repo's packages (each backtest run snapshots the algorithm code), so
@@ -73,7 +78,11 @@ aq = "aq_cli:main"
 # by scripts/wheel_smoke.py against a real built wheel - `aq evaluate
 # --replay-kill-switch` raised ModuleNotFoundError for wheel users).
 py-modules = ["aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls"]
-packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer", "monitoring", "topology", "liquidity", "experience"]
+# V6.4.3: `aether_quant` - the library facade (re-exports of the pure modules above, research tools, formal cases).
+packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant"]
+
+[tool.setuptools.package-data]
+aether_quant = ["py.typed", "README.md", "_formal_cases/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -111,6 +120,7 @@ select = ["E", "F"]
 # V5.3.9 - coverage configuration for the ci.yml fail-under gate.
 [tool.coverage.run]
 source = [
+    "aether_quant",
     "aq_cli",
     "analyzer",
     "audit",

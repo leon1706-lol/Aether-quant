@@ -46,7 +46,10 @@ def resolve_sleeve_guard_config(raw: dict | None) -> SleeveGuardConfig:
 
 def trailing_drawdown(pnl_increments: Sequence[float], lookback_bars: int) -> float:
     """Largest peak-to-trough fall (a positive number, same unit as the increments) of the cumulative P&L over the last
-    `lookback_bars` increments, measured up to the latest bar. Non-finite increments count as 0."""
+    `lookback_bars` increments, measured up to the latest bar. Non-finite increments count as 0. A non-positive
+    lookback reads no window (V6.4.3: `xs[-0:]` is the whole history)."""
+    if lookback_bars <= 0:
+        return 0.0
     window = [float(value) if value is not None and math.isfinite(float(value)) else 0.0 for value in pnl_increments[-lookback_bars:]]
     peak = 0.0
     level = 0.0

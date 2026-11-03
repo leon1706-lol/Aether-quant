@@ -33,7 +33,7 @@ from pathlib import Path
 # tests/test_packaging_modules.py, which fails when this drifts).
 SHIPPED_PACKAGES = (
     "risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference",
-    "analyzer", "monitoring", "topology", "liquidity", "experience",
+    "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant",
 )
 SHIPPED_MODULES = (
     "aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls",
@@ -93,6 +93,32 @@ def check_help(names: list[str]) -> list[str]:
     return failures
 
 
+def check_library() -> list[str]:
+    """V6.4.3: one real call per aether_quant module, from the installed wheel (package data included)."""
+    failures: list[str] = []
+    checks = {
+        "audit": lambda m: m.verify_chain([]) == (True, None),
+        "execution": lambda m: m.resolve_order_permission("observation", True, True, True)[0] is False,
+        "portfolio": lambda m: m.apply_book_neutrality({}, sector_by_symbol={}, dollar_neutral=True, sector_neutral=True,
+                                                       gross_exposure_cap=1.0, max_weight_per_name=0.1,
+                                                       sector_max_net_weight=0.1)[0] == {},
+        "risk": lambda m: m.cap_target_weight(0.1, 0.0, 1.0) == (0.1, False),
+        "io": lambda m: m.sanitize_json_finite([float("nan")]) == [None],
+        "formal": lambda m: len(m.targets()) == 11 and bool(m.load_cases("order_gate")["cases"]),
+        "research": lambda m: m.block_bootstrap_mean_ci([0.1, 0.2, 0.3], block=1, draws=20) is not None,
+        "evaluation": lambda m: m.newey_west_t_stat([0.1, 0.2, 0.3], lags=1) != 0.0,
+        "features": lambda m: m.cross_sectional_rank.__name__ == "cross_sectional_rank",
+        "inference": lambda m: callable(m.run_exported_model),
+    }
+    for name, check in checks.items():
+        try:
+            if not check(importlib.import_module(f"aether_quant.{name}")):
+                failures.append(f"aether_quant.{name}: smoke call returned an unexpected value")
+        except Exception as error:  # noqa: BLE001 - any failure of the installed library is a smoke failure
+            failures.append(f"aether_quant.{name}: {type(error).__name__}: {error}")
+    return failures
+
+
 def main() -> int:
     import aq_cli
 
@@ -102,6 +128,7 @@ def main() -> int:
         return 1
 
     import_failures, tolerated = check_imports()
+    import_failures += check_library()
     names = subcommand_names()
     help_failures = check_help(names) if names else ["no aq subcommands found on the parser"]
 

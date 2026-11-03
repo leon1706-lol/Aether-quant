@@ -1,0 +1,5799 @@
+{
+ "target": "order_gate",
+ "spec_files": [
+  "AetherFormal/OrderGate.lean"
+ ],
+ "cases": [
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "backtest",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "backtest",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "backtest",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "backtest",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "backtest",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "backtest",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "backtest",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "backtest",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "backtest_unrestricted",
+    "permitted": true,
+    "cash_sweep_reason": "backtest_unrestricted",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "observation",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "observation",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "observation",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "observation",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "observation",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "observation",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "observation",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "observation",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "observation_mode_no_real_orders",
+    "permitted": false,
+    "cash_sweep_reason": "observation_mode_no_real_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "paper",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "permitted": false,
+    "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "paper",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "permitted": false,
+    "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "paper",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "permitted": false,
+    "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "paper",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "permitted": false,
+    "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "paper",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "permitted": false,
+    "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "paper",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "permitted": false,
+    "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "paper",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "paper_orders_blocked_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "paper_orders_enabled",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "paper",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "paper_orders_enabled",
+    "permitted": true,
+    "cash_sweep_reason": "paper_orders_enabled",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "live",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "live",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "live",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "live",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "live",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "live",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "live",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "permitted": false,
+    "cash_sweep_reason": "live_orders_enabled",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "live",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "live_orders_enabled",
+    "permitted": true,
+    "cash_sweep_reason": "live_orders_enabled",
+    "cash_sweep_permitted": true
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "bogus",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "bogus",
+    "broker_config_present": false,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "bogus",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "bogus",
+    "broker_config_present": true,
+    "allow_live_orders": false
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "bogus",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "bogus",
+    "broker_config_present": false,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": false,
+    "mode": "bogus",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "permission",
+   "input": {
+    "risk_locks_healthy": true,
+    "mode": "bogus",
+    "broker_config_present": true,
+    "allow_live_orders": true
+   },
+   "expected": {
+    "reason": "unknown_mode_defaults_to_no_orders",
+    "permitted": false,
+    "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
+    "cash_sweep_permitted": false
+   }
+  },
+  {
+   "kind": "runtime_mode",
+   "input": {
+    "raw": "backtest"
+   },
+   "expected": {
+    "mode": "backtest"
+   }
+  },
+  {
+   "kind": "runtime_mode",
+   "input": {
+    "raw": "observation"
+   },
+   "expected": {
+    "mode": "observation"
+   }
+  },
+  {
+   "kind": "runtime_mode",
+   "input": {
+    "raw": "paper"
+   },
+   "expected": {
+    "mode": "paper"
+   }
+  },
+  {
+   "kind": "runtime_mode",
+   "input": {
+    "raw": "live"
+   },
+   "expected": {
+    "mode": "live"
+   }
+  },
+  {
+   "kind": "runtime_mode",
+   "input": {
+    "raw": "LIVE"
+   },
+   "expected": {
+    "mode": "observation"
+   }
+  },
+  {
+   "kind": "runtime_mode",
+   "input": {
+    "raw": ""
+   },
+   "expected": {
+    "mode": "observation"
+   }
+  },
+  {
+   "kind": "runtime_mode",
+   "input": {
+    "raw": null
+   },
+   "expected": {
+    "mode": "observation"
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 30271,
+     "den": 50
+    },
+    "price": {
+     "num": 413,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 79741,
+     "den": 100
+    },
+    "price": {
+     "num": 267,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 267,
+     "den": 400
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 1076,
+     "den": 25
+    },
+    "price": {
+     "num": 4661,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 4661,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 39459,
+     "den": 50
+    },
+    "price": {
+     "num": 15409,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 15409,
+     "den": 2000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 3449,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 6179,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 34117,
+     "den": 50
+    },
+    "price": {
+     "num": 10273,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 981,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 14107,
+     "den": 50
+    },
+    "price": {
+     "num": 2782,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 1391,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 16681,
+     "den": 50
+    },
+    "price": {
+     "num": 1115,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 16681,
+     "den": 50
+    },
+    "amount": {
+     "num": 3719863,
+     "den": 400000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 14253,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 8948,
+     "den": 25
+    },
+    "price": {
+     "num": 10141,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 15409,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 4383,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 6873,
+     "den": 20
+    },
+    "price": {
+     "num": 13733,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 56007,
+     "den": 100
+    },
+    "price": {
+     "num": 13951,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 13951,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1639,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 17157,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 18711,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": -379,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 19147,
+     "den": 25
+    },
+    "price": {
+     "num": 2271,
+     "den": 10
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 2271,
+     "den": 4000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1172,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": -2033,
+     "den": 50
+    },
+    "price": {
+     "num": 60,
+     "den": 1
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 27409,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 5309,
+     "den": 100
+    },
+    "price": {
+     "num": 7183,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 7183,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 63941,
+     "den": 100
+    },
+    "price": {
+     "num": 15969,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 13941,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 3067,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 6449,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 27363,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 6502,
+     "den": 25
+    },
+    "price": {
+     "num": 8683,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 2187,
+     "den": 50
+    },
+    "price": {
+     "num": 8967,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 21089,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 20899,
+     "den": 50
+    },
+    "price": {
+     "num": 78,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 39,
+     "den": 1250
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 54581,
+     "den": 100
+    },
+    "price": {
+     "num": 662,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 331,
+     "den": 250
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2712,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 28831,
+     "den": 100
+    },
+    "price": {
+     "num": 21951,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 28831,
+     "den": 100
+    },
+    "amount": {
+     "num": 632869281,
+     "den": 100000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 23193,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 28269,
+     "den": 100
+    },
+    "price": {
+     "num": 7033,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 7033,
+     "den": 2500
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 53299,
+     "den": 100
+    },
+    "price": {
+     "num": 385,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 77,
+     "den": 16
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 29989,
+     "den": 50
+    },
+    "price": {
+     "num": 19509,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 19509,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 7053,
+     "den": 10
+    },
+    "price": {
+     "num": 5557,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 5557,
+     "den": 20000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 28079,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 15833,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 40587,
+     "den": 100
+    },
+    "price": {
+     "num": 563,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 563,
+     "den": 400
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 683,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 21789,
+     "den": 50
+    },
+    "price": {
+     "num": 26663,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 21789,
+     "den": 50
+    },
+    "amount": {
+     "num": 580960107,
+     "den": 50000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 32463,
+     "den": 50
+    },
+    "price": {
+     "num": 1214,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 607,
+     "den": 250
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 1091,
+     "den": 2
+    },
+    "price": {
+     "num": 214,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 107,
+     "den": 1000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": -99,
+     "den": 2
+    },
+    "price": {
+     "num": 4653,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1399,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 2232,
+     "den": 25
+    },
+    "price": {
+     "num": 25153,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 7783,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": -1393,
+     "den": 100
+    },
+    "price": {
+     "num": 3579,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 22113,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 27423,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 3841,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 30251,
+     "den": 100
+    },
+    "price": {
+     "num": 1107,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 30251,
+     "den": 100
+    },
+    "amount": {
+     "num": 33487857,
+     "den": 25000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 10481,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 19889,
+     "den": 100
+    },
+    "price": {
+     "num": 747,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": -1513,
+     "den": 50
+    },
+    "price": {
+     "num": 6983,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 287,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 4267,
+     "den": 25
+    },
+    "price": {
+     "num": 6529,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 4267,
+     "den": 25
+    },
+    "amount": {
+     "num": 27859243,
+     "den": 12500000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 235,
+     "den": 2
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1276,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 3183,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 14313,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": -743,
+     "den": 50
+    },
+    "price": {
+     "num": 13139,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 17367,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 39057,
+     "den": 50
+    },
+    "price": {
+     "num": 18373,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 18373,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 12769,
+     "den": 100
+    },
+    "price": {
+     "num": -69,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 41967,
+     "den": 100
+    },
+    "price": {
+     "num": 27993,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 27993,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 10239,
+     "den": 50
+    },
+    "price": {
+     "num": 22663,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 10239,
+     "den": 50
+    },
+    "amount": {
+     "num": 232046457,
+     "den": 50000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 61589,
+     "den": 100
+    },
+    "price": {
+     "num": 999,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 999,
+     "den": 400
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 46711,
+     "den": 100
+    },
+    "price": {
+     "num": 19097,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 56483,
+     "den": 100
+    },
+    "price": {
+     "num": 4399,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 4399,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 11233,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 22953,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 6553,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2429,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2193,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 12001,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 20459,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2156,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 35569,
+     "den": 100
+    },
+    "price": {
+     "num": 1336,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 334,
+     "den": 125
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2373,
+     "den": 10
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 659,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 22831,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 65219,
+     "den": 100
+    },
+    "price": {
+     "num": 21129,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 59643,
+     "den": 100
+    },
+    "price": {
+     "num": 4921,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 5738,
+     "den": 25
+    },
+    "price": {
+     "num": 16523,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 16523,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 26133,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 7089,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 11727,
+     "den": 20
+    },
+    "price": {
+     "num": 15589,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": -3299,
+     "den": 100
+    },
+    "price": {
+     "num": 783,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 873,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 931,
+     "den": 5
+    },
+    "price": {
+     "num": 129,
+     "den": 4
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 129,
+     "den": 1600
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 604,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 3326,
+     "den": 5
+    },
+    "price": {
+     "num": 5157,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 5157,
+     "den": 2000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 18707,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 263,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 3035,
+     "den": 4
+    },
+    "price": {
+     "num": 1391,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 1391,
+     "den": 500
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 9379,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2486,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 14733,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 573,
+     "den": 10
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1357,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 23573,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 917,
+     "den": 100
+    },
+    "price": {
+     "num": 27347,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 917,
+     "den": 100
+    },
+    "amount": {
+     "num": 25077199,
+     "den": 100000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 8163,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 18481,
+     "den": 100
+    },
+    "price": {
+     "num": 12197,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 12197,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 3951,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 5884,
+     "den": 25
+    },
+    "price": {
+     "num": 25269,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 4923,
+     "den": 25
+    },
+    "price": {
+     "num": 18101,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 18101,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2873,
+     "den": 10
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 14777,
+     "den": 20
+    },
+    "price": {
+     "num": 609,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 609,
+     "den": 100
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": -9,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 6949,
+     "den": 50
+    },
+    "price": {
+     "num": 1223,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 1223,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 4594,
+     "den": 25
+    },
+    "price": {
+     "num": 7249,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 7249,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 22731,
+     "den": 100
+    },
+    "price": {
+     "num": 4006,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 22731,
+     "den": 100
+    },
+    "amount": {
+     "num": 45530193,
+     "den": 12500000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 14503,
+     "den": 20
+    },
+    "price": {
+     "num": 27447,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 27447,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 17933,
+     "den": 50
+    },
+    "price": {
+     "num": 1357,
+     "den": 10
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 30803,
+     "den": 100
+    },
+    "price": {
+     "num": 1619,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 1619,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 26191,
+     "den": 100
+    },
+    "price": {
+     "num": 10573,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 10573,
+     "den": 20000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 8357,
+     "den": 20
+    },
+    "price": {
+     "num": 4346,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 2173,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 18543,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 55441,
+     "den": 100
+    },
+    "price": {
+     "num": 14643,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 14643,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 751,
+     "den": 4
+    },
+    "price": {
+     "num": 11147,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 32247,
+     "den": 50
+    },
+    "price": {
+     "num": 2649,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 4739,
+     "den": 20
+    },
+    "price": {
+     "num": 27169,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 27169,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 3591,
+     "den": 10
+    },
+    "price": {
+     "num": 23509,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 23509,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 12773,
+     "den": 50
+    },
+    "price": {
+     "num": 17447,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 17447,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1451,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 54849,
+     "den": 100
+    },
+    "price": {
+     "num": 689,
+     "den": 10
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 15511,
+     "den": 20
+    },
+    "price": {
+     "num": 497,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 497,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 8509,
+     "den": 100
+    },
+    "price": {
+     "num": 18397,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 18397,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 5581,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 34267,
+     "den": 100
+    },
+    "price": {
+     "num": 3237,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 34267,
+     "den": 100
+    },
+    "amount": {
+     "num": 110922279,
+     "den": 25000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 14384,
+     "den": 25
+    },
+    "price": {
+     "num": 1281,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 1281,
+     "den": 2000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 13124,
+     "den": 25
+    },
+    "price": {
+     "num": 1673,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 1673,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 3679,
+     "den": 10
+    },
+    "price": {
+     "num": 7939,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 7939,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 26113,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 12231,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 8379,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 30763,
+     "den": 100
+    },
+    "price": {
+     "num": 5683,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 30763,
+     "den": 100
+    },
+    "amount": {
+     "num": 174826129,
+     "den": 100000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 4571,
+     "den": 100
+    },
+    "price": {
+     "num": 10791,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 10791,
+     "den": 20000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 5467,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 61693,
+     "den": 100
+    },
+    "price": {
+     "num": 2947,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 3571,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 1382,
+     "den": 25
+    },
+    "price": {
+     "num": 5223,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 14553,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 11646,
+     "den": 25
+    },
+    "price": {
+     "num": 239,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 239,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1773,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 5314,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 28537,
+     "den": 100
+    },
+    "price": {
+     "num": 4942,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 2471,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 12233,
+     "den": 25
+    },
+    "price": {
+     "num": 4614,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 20601,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 34999,
+     "den": 100
+    },
+    "price": {
+     "num": 8019,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 8019,
+     "den": 40000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 4699,
+     "den": 100
+    },
+    "price": {
+     "num": 3901,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 4699,
+     "den": 100
+    },
+    "amount": {
+     "num": 18330799,
+     "den": 20000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 8051,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 3964,
+     "den": 25
+    },
+    "price": {
+     "num": 3243,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 3243,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 31821,
+     "den": 50
+    },
+    "price": {
+     "num": 29893,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 29893,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 311,
+     "den": 2
+    },
+    "price": {
+     "num": 13527,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 155,
+     "den": 1
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 3661,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 10723,
+     "den": 25
+    },
+    "price": {
+     "num": 4957,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 4957,
+     "den": 2000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 11801,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1346,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 21823,
+     "den": 100
+    },
+    "price": {
+     "num": 319,
+     "den": 2
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 319,
+     "den": 200
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 5831,
+     "den": 10
+    },
+    "price": {
+     "num": 21639,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 21639,
+     "den": 2000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 959,
+     "den": 5
+    },
+    "price": {
+     "num": 17907,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 959,
+     "den": 5
+    },
+    "amount": {
+     "num": 17172813,
+     "den": 5000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 26457,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 1037,
+     "den": 20
+    },
+    "price": {
+     "num": 11379,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 1037,
+     "den": 20
+    },
+    "amount": {
+     "num": 11800023,
+     "den": 20000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 10247,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 2103,
+     "den": 25
+    },
+    "price": {
+     "num": 8361,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 2103,
+     "den": 25
+    },
+    "amount": {
+     "num": 17583183,
+     "den": 25000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2143,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 60479,
+     "den": 100
+    },
+    "price": {
+     "num": 12763,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 12763,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 21577,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 2272,
+     "den": 25
+    },
+    "price": {
+     "num": 18511,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 2272,
+     "den": 25
+    },
+    "amount": {
+     "num": 1314281,
+     "den": 781250
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 47451,
+     "den": 100
+    },
+    "price": {
+     "num": 12699,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2757,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 8389,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 12943,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 13,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 1039,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 12251,
+     "den": 100
+    },
+    "price": {
+     "num": 964,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 241,
+     "den": 625
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 4187,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 572,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 5549,
+     "den": 50
+    },
+    "price": {
+     "num": 1474,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 2577,
+     "den": 50
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": -2213,
+     "den": 100
+    },
+    "price": {
+     "num": 177,
+     "den": 1
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 10367,
+     "den": 25
+    },
+    "price": {
+     "num": 673,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 10367,
+     "den": 25
+    },
+    "amount": {
+     "num": 6976991,
+     "den": 5000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 52359,
+     "den": 100
+    },
+    "price": {
+     "num": 2978,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 1489,
+     "den": 250
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 78193,
+     "den": 100
+    },
+    "price": {
+     "num": 19959,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 19959,
+     "den": 2000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": null,
+    "price": {
+     "num": 219,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 50123,
+     "den": 100
+    },
+    "price": {
+     "num": 2929,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 100,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 100,
+     "den": 1
+    },
+    "amount": {
+     "num": 2929,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 3019,
+     "den": 20
+    },
+    "price": {
+     "num": 24343,
+     "den": 100
+    },
+    "max_bps": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 0,
+     "den": 1
+    },
+    "amount": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 43339,
+     "den": 100
+    },
+    "price": {
+     "num": 1209,
+     "den": 5
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 43339,
+     "den": 100
+    },
+    "amount": {
+     "num": 52396851,
+     "den": 5000000
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 5681,
+     "den": 10
+    },
+    "price": {
+     "num": 4769,
+     "den": 20
+    },
+    "max_bps": {
+     "num": 500,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 500,
+     "den": 1
+    },
+    "amount": {
+     "num": 4769,
+     "den": 400
+    }
+   }
+  },
+  {
+   "kind": "slippage",
+   "input": {
+    "raw_bps": {
+     "num": 63873,
+     "den": 100
+    },
+    "price": {
+     "num": 1139,
+     "den": 25
+    },
+    "max_bps": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "bps": {
+     "num": 25,
+     "den": 1
+    },
+    "amount": {
+     "num": 1139,
+     "den": 10000
+    }
+   }
+  }
+ ],
+ "spec_sha256": "94401ca02cf56ebbcc6e96e1364d1af4a992acbd89815aa7d6764e6929961edc"
+}

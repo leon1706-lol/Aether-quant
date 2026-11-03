@@ -1,0 +1,6653 @@
+{
+ "target": "sleeve_guard",
+ "spec_files": [
+  "AetherFormal/SleeveGuard.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 29,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": -16,
+      "den": 5
+     },
+     {
+      "num": -33,
+      "den": 10
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 10
+     },
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": 12,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 2
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 3,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 33,
+      "den": 10
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": 14,
+      "den": 5
+     },
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": 8,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 10
+     },
+     {
+      "num": 33,
+      "den": 10
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": 14,
+      "den": 5
+     },
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": -21,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 17,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": -2,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 23,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 41,
+      "den": 10
+     },
+     {
+      "num": -29,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 17,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": 5,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": 14,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": 12,
+      "den": 5
+     },
+     {
+      "num": -41,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 41,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": -19,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 11,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 11,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 13,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": -14,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": -8,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 43,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": 5,
+      "den": 2
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": 33,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 1
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 10
+     },
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": -18,
+      "den": 5
+     },
+     {
+      "num": 29,
+      "den": 10
+     },
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 19,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": 23,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 2
+     },
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 57,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": 5,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -22,
+      "den": 5
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 25,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": 21,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 10
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": 31,
+      "den": 10
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": 21,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -2,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": -19,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -19,
+      "den": 10
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": 12,
+      "den": 5
+     },
+     {
+      "num": -22,
+      "den": 5
+     },
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 16,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -5,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 5,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": 21,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": -29,
+      "den": 10
+     },
+     {
+      "num": -27,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 97,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 19,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -16,
+      "den": 5
+     },
+     {
+      "num": 29,
+      "den": 10
+     },
+     {
+      "num": -16,
+      "den": 5
+     },
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": -29,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 109,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 3,
+      "den": 5
+     },
+     {
+      "num": 11,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": 12,
+      "den": 5
+     },
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": 33,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": -5,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 11,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 23,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": -17,
+      "den": 5
+     },
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 83,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -16,
+      "den": 5
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 5
+     },
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 33,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": -18,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": -47,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 111,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 8,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -29,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": 5,
+      "den": 2
+     },
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": 21,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": -27,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": 5,
+      "den": 1
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": -2,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": 39,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -8,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 8,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -41,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": -33,
+      "den": 10
+     },
+     {
+      "num": 39,
+      "den": 10
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -41,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 39,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 9,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 27,
+      "den": 10
+     },
+     {
+      "num": -21,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": 12,
+      "den": 5
+     },
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": 14,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 5,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 14,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": -33,
+      "den": 10
+     },
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 11,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": -21,
+      "den": 10
+     },
+     {
+      "num": 12,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 5
+     },
+     {
+      "num": 5,
+      "den": 1
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 13,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": 11,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 2
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 19,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -11,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": -18,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": -18,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 5
+     },
+     {
+      "num": -22,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 1
+     },
+     {
+      "num": 49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 27,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": 21,
+      "den": 10
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -6,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": -17,
+      "den": 5
+     },
+     {
+      "num": -47,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 81,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -18,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": 18,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": -18,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": -17,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 91,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": -21,
+      "den": 5
+     },
+     {
+      "num": 31,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 14,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": 41,
+      "den": 10
+     },
+     {
+      "num": -21,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": 29,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": -21,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 1
+     },
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": 49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 2
+     },
+     {
+      "num": -29,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 24,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 3,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": 27,
+      "den": 10
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -11,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 39,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -2,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": 13,
+      "den": 10
+     },
+     {
+      "num": -21,
+      "den": 10
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": -49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 12,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 2
+     },
+     {
+      "num": 24,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": 33,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -23,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 23,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 39,
+      "den": 10
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 59,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": 18,
+      "den": 5
+     },
+     {
+      "num": -5,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 5,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": 2,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 87,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 23,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 41,
+      "den": 10
+     },
+     {
+      "num": -19,
+      "den": 10
+     },
+     {
+      "num": -6,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 31,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 2
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": -49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 47,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 3,
+      "den": 5
+     },
+     {
+      "num": 29,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 19,
+      "den": 10
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 2
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": -17,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 77,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 8,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": 19,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": 33,
+      "den": 10
+     },
+     {
+      "num": 21,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 43,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -11,
+      "den": 5
+     },
+     {
+      "num": -14,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 5,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 27,
+      "den": 10
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 43,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 14,
+      "den": 5
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 41,
+      "den": 10
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": -22,
+      "den": 5
+     },
+     {
+      "num": -11,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 15,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": -2,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 28,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": 16,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 23,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": 11,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -22,
+      "den": 5
+     },
+     {
+      "num": -49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 27,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -16,
+      "den": 5
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": -18,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 14,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -43,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 43,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": 8,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 6
+   },
+   "expected": {
+    "drawdown": {
+     "num": 31,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 1
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 10
+     },
+     {
+      "num": -49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 49,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 10
+     },
+     {
+      "num": -14,
+      "den": 5
+     },
+     {
+      "num": -18,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": -21,
+      "den": 10
+     },
+     {
+      "num": 2,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": 5,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": -17,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": 21,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": 21,
+      "den": 10
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 39,
+      "den": 10
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 19,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 6,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 5
+     },
+     {
+      "num": -7,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 2
+     },
+     {
+      "num": -33,
+      "den": 10
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 8,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -7,
+      "den": 2
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": -14,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 33,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 18,
+      "den": 5
+     },
+     {
+      "num": -33,
+      "den": 10
+     },
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": -21,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 47,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -29,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": 49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": -11,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 10
+   },
+   "expected": {
+    "drawdown": {
+     "num": 11,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": 23,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 5
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 2
+     },
+     {
+      "num": -29,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 3,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -4,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": -14,
+      "den": 5
+     },
+     {
+      "num": -17,
+      "den": 5
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 63,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 23,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": -21,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 41,
+      "den": 10
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 10
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 2
+     },
+     {
+      "num": 17,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 3,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": 23,
+      "den": 10
+     },
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 21,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": 13,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 21,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 27,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": 14,
+      "den": 5
+     },
+     {
+      "num": -7,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 7,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": 21,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": -7,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 7,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -8,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 8,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": 27,
+      "den": 10
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": -11,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 2
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 5
+     },
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 7,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": 27,
+      "den": 10
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": -11,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": -17,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 17,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 1
+     }
+    ],
+    "lookback_bars": -2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": 24,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 8,
+      "den": 5
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": 5,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -6,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 6,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -2,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 109,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": 23,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -7,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": 9,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 27,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 67,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 19,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": 37,
+      "den": 10
+     }
+    ],
+    "lookback_bars": -1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": -11,
+      "den": 5
+     },
+     {
+      "num": -41,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 63,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -11,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 10
+     },
+     {
+      "num": -43,
+      "den": 10
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": -14,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": -11,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 11,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 5,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 18,
+      "den": 5
+     },
+     {
+      "num": -18,
+      "den": 5
+     },
+     {
+      "num": -11,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -19,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": 19,
+      "den": 10
+     },
+     {
+      "num": -18,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 46,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": 24,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 2
+     },
+     {
+      "num": -14,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": -37,
+      "den": 10
+     },
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": -41,
+      "den": 10
+     }
+    ],
+    "lookback_bars": -1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": -22,
+      "den": 5
+     },
+     {
+      "num": -17,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 61,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": 4,
+      "den": 1
+     },
+     {
+      "num": 9,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": 19,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -6,
+      "den": 5
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 13,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": -49,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -17,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 17,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 17,
+      "den": 10
+     },
+     {
+      "num": 21,
+      "den": 5
+     },
+     {
+      "num": 6,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 5
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -21,
+      "den": 10
+     },
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": 11,
+      "den": 5
+     },
+     {
+      "num": 22,
+      "den": 5
+     },
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": -24,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 1
+     },
+     {
+      "num": 11,
+      "den": 5
+     },
+     {
+      "num": 49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 13,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": -3,
+      "den": 5
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": 5,
+      "den": 2
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": 19,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 9,
+      "den": 10
+     },
+     {
+      "num": -12,
+      "den": 5
+     },
+     {
+      "num": -23,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 6,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 4,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 10
+     },
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": 49,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 1
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -19,
+      "den": 10
+     },
+     {
+      "num": 14,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": -19,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -39,
+      "den": 10
+     },
+     {
+      "num": 41,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 2
+     },
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 10
+     },
+     {
+      "num": -11,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 8
+   },
+   "expected": {
+    "drawdown": {
+     "num": 3,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 29,
+      "den": 10
+     },
+     {
+      "num": 13,
+      "den": 5
+     }
+    ],
+    "lookback_bars": -1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": 16,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -9,
+      "den": 2
+     },
+     {
+      "num": -37,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 41,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -27,
+      "den": 10
+     },
+     {
+      "num": -18,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": 47,
+      "den": 10
+     },
+     {
+      "num": 37,
+      "den": 10
+     },
+     {
+      "num": 27,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": 17,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 3
+   },
+   "expected": {
+    "drawdown": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 2,
+      "den": 1
+     },
+     {
+      "num": -4,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 2
+     },
+     {
+      "num": -11,
+      "den": 5
+     },
+     {
+      "num": -33,
+      "den": 10
+     },
+     {
+      "num": 43,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": 23,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 3,
+      "den": 2
+     },
+     {
+      "num": 31,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": -7,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 5
+     },
+     {
+      "num": 21,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 29,
+      "den": 10
+     },
+     {
+      "num": 9,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 1
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 3,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 31,
+      "den": 10
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -22,
+      "den": 5
+     },
+     {
+      "num": 13,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 2
+     },
+     {
+      "num": -21,
+      "den": 5
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": -21,
+      "den": 10
+     },
+     {
+      "num": 5,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 9
+   },
+   "expected": {
+    "drawdown": {
+     "num": 92,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": -33,
+      "den": 10
+     },
+     {
+      "num": 24,
+      "den": 5
+     },
+     {
+      "num": -9,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 1
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -21,
+      "den": 10
+     },
+     {
+      "num": 14,
+      "den": 5
+     },
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 2
+     }
+    ],
+    "lookback_bars": 4
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 19,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 13,
+      "den": 5
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -49,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 49,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 11,
+      "den": 10
+     },
+     {
+      "num": -47,
+      "den": 10
+     },
+     {
+      "num": 6,
+      "den": 5
+     },
+     {
+      "num": -8,
+      "den": 5
+     },
+     {
+      "num": -47,
+      "den": 10
+     }
+    ],
+    "lookback_bars": -1
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": 13,
+      "den": 10
+     },
+     {
+      "num": 7,
+      "den": 5
+     },
+     {
+      "num": -21,
+      "den": 5
+     },
+     {
+      "num": 14,
+      "den": 5
+     },
+     {
+      "num": -29,
+      "den": 10
+     },
+     {
+      "num": -31,
+      "den": 10
+     },
+     {
+      "num": 3,
+      "den": 1
+     },
+     {
+      "num": -13,
+      "den": 5
+     },
+     {
+      "num": -13,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 2
+   },
+   "expected": {
+    "drawdown": {
+     "num": 26,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -5,
+      "den": 2
+     },
+     {
+      "num": -23,
+      "den": 10
+     },
+     {
+      "num": -17,
+      "den": 10
+     },
+     {
+      "num": 12,
+      "den": 5
+     },
+     {
+      "num": 2,
+      "den": 5
+     }
+    ],
+    "lookback_bars": 11
+   },
+   "expected": {
+    "drawdown": {
+     "num": 37,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": -33,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 12
+   },
+   "expected": {
+    "drawdown": {
+     "num": 33,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -4,
+      "den": 5
+     },
+     {
+      "num": -2,
+      "den": 1
+     },
+     {
+      "num": -19,
+      "den": 10
+     },
+     {
+      "num": 27,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 0
+   },
+   "expected": {
+    "drawdown": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "pnl_increments": [
+     {
+      "num": -19,
+      "den": 5
+     },
+     {
+      "num": -41,
+      "den": 10
+     },
+     {
+      "num": 1,
+      "den": 10
+     },
+     {
+      "num": -13,
+      "den": 10
+     },
+     {
+      "num": 21,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 10
+     }
+    ],
+    "lookback_bars": 7
+   },
+   "expected": {
+    "drawdown": {
+     "num": 23,
+     "den": 5
+    }
+   }
+  }
+ ],
+ "spec_sha256": "7f5e22c44eba378a4c55f820e0d2b582b350eaf5947f4579240c5fba4c50cb5e"
+}

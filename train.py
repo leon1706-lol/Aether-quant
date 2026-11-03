@@ -1916,6 +1916,31 @@ DEFAULT_RESIDUAL_MIN_BETA_OBSERVATIONS = 60
 DEFAULT_RESIDUAL_SIZE_PROXY_COLUMN = "liquidity_log_dollar_volume"
 
 
+from features.asof_beta_labels import asof_rolling_beta, cross_sectional_residualize  # noqa: E402
+
+
+def _beta_estimation(ranking_config: dict) -> str:
+    """`phase1.target.ranking.beta_estimation` (V6.4.3): "full_history" (default, one OLS beta per asset over its
+    whole history of forward returns) or "asof" (a trailing 252-day beta of realised daily returns per date,
+    features/asof_beta_labels.py - no lookahead into the label)."""
+    return "asof" if ranking_config.get("beta_estimation", "full_history") == "asof" else "full_history"
+
+
+def _asof_betas(frame: pd.DataFrame, market_daily_by_date: dict) -> list[float]:
+    """Per-row as-of beta of one asset's frame against the market's daily return (0.0 until enough history)."""
+    if "close_to_close_return_1d" not in frame.columns:
+        return [0.0] * len(frame)
+    market = [market_daily_by_date.get(current_date, np.nan) for current_date in frame["date"]]
+    betas = asof_rolling_beta(frame["close_to_close_return_1d"].to_numpy(dtype=float), market)
+    return [0.0 if not np.isfinite(beta) else float(beta) for beta in betas]
+
+
+def _market_daily_by_date(market_frame: pd.DataFrame | None) -> dict:
+    if market_frame is None or "close_to_close_return_1d" not in market_frame.columns:
+        return {}
+    return dict(zip(market_frame["date"], market_frame["close_to_close_return_1d"]))
+
+
 def load_sector_mapping(config: dict) -> dict[str, str]:
     """Phase 5 of the 5/10 -> 9/10 roadmap: ticker -> sector-neutral-ranking
     bucket. V5.1 Phase 0 (Problems.md #75): thin delegate to
@@ -1925,34 +1950,6 @@ def load_sector_mapping(config: dict) -> dict[str, str]:
     shape, same {} (never raises) fallback contract as before this delegate
     existed - see the shared implementation's own docstring."""
     return _features_load_sector_mapping(config, default_path=SECTOR_MAPPING_PATH)
-
-
-def cross_sectional_residualize(returns: np.ndarray, design_matrix: np.ndarray) -> np.ndarray:
-    """V5.1 Phase 2 (item 5 of the roadmap): fits `returns ~ design_matrix`
-    via `np.linalg.lstsq` for ONE date's cross-section and returns the
-    residuals - the core primitive build_residual_rank_targets() below
-    calls once per (date, horizon).
-
-    A singular/degenerate date (fewer rows than design columns, a
-    LinAlgError, a rank-deficient fit, or a non-finite residual) returns
-    `returns` UNCHANGED - the safe, uninformative fallback. This mirrors
-    empirical_duration_beta()'s own beta=0.0 convention: residualizing
-    against a degenerate fit is equivalent to residualizing against
-    nothing at all, never a crash or a fabricated number. Never raises."""
-    n_rows, n_columns = design_matrix.shape
-    if n_rows == 0 or n_rows < n_columns:
-        return returns
-    try:
-        coefficients, _residual_sum, rank, _singular_values = np.linalg.lstsq(design_matrix, returns, rcond=None)
-    except np.linalg.LinAlgError:
-        return returns
-    if rank < 1:
-        return returns
-    fitted = design_matrix @ coefficients
-    residuals = returns - fitted
-    if not np.all(np.isfinite(residuals)):
-        return returns
-    return residuals
 
 
 def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: dict) -> dict[str, pd.DataFrame]:
@@ -2026,6 +2023,12 @@ def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: d
 
     sector_by_ticker = load_sector_mapping(config) if use_sector else {}
     market_frame = updated_frames.get(market_ticker) if use_market else None
+    asof = _beta_estimation(ranking_config) == "asof"
+    asof_beta_by_ticker_date: dict = {}
+    if asof and market_frame is not None:
+        market_daily = _market_daily_by_date(market_frame)
+        for ticker, frame in updated_frames.items():
+            asof_beta_by_ticker_date.update(zip(zip([ticker] * len(frame), frame["date"]), _asof_betas(frame, market_daily)))
 
     for horizon_days in (5, 20):
         return_column = f"target_return_{horizon_days}d"
@@ -2059,7 +2062,10 @@ def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: d
             continue
 
         long_frame = pd.DataFrame(long_rows)
-        long_frame["beta"] = long_frame["ticker"].map(beta_by_ticker).fillna(0.0) if use_market else 0.0
+        if use_market and asof:
+            long_frame["beta"] = [asof_beta_by_ticker_date.get(key, 0.0) for key in zip(long_frame["ticker"], long_frame["date"])]
+        else:
+            long_frame["beta"] = long_frame["ticker"].map(beta_by_ticker).fillna(0.0) if use_market else 0.0
         long_frame["market_return"] = (
             long_frame["date"].map(market_return_by_date).fillna(0.0) if use_market else 0.0
         )
@@ -2201,6 +2207,7 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     beta_neutral_config = ranking_config.get("beta_neutral", {})
     market_ticker = beta_neutral_config.get("market_ticker", DEFAULT_BETA_NEUTRAL_MARKET_TICKER)
     beta_min_observations = int(beta_neutral_config.get("min_observations", DEFAULT_BETA_NEUTRAL_MIN_OBSERVATIONS))
+    asof = _beta_estimation(ranking_config) == "asof"
 
     updated_frames: dict[str, pd.DataFrame] = dict(asset_frames)
     for horizon_days in (5, 20) + resolve_extra_horizon_days(config):
@@ -2251,9 +2258,12 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
                     None if pd.isna(market_return_by_date.get(current_date)) else float(market_return_by_date[current_date])
                     for current_date in dates
                 ]
-                beta = empirical_duration_beta(asset_returns, market_returns, min_observations=beta_min_observations)
-                beta = beta if beta is not None else 0.0
-                for current_date, asset_return, market_return in zip(dates, asset_returns, market_returns):
+                if asof:
+                    row_betas = _asof_betas(frame, _market_daily_by_date(market_frame))
+                else:
+                    beta = empirical_duration_beta(asset_returns, market_returns, min_observations=beta_min_observations)
+                    row_betas = [beta if beta is not None else 0.0] * len(dates)
+                for current_date, asset_return, market_return, beta in zip(dates, asset_returns, market_returns, row_betas):
                     if asset_return is None or market_return is None:
                         continue
                     residual_rows.append(

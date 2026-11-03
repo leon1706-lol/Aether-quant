@@ -65,6 +65,8 @@ LEAN_JSON_PATH = ROOT_DIR / "lean.json"
 WEBUI_DIR = ROOT_DIR / "webui"
 README_PATH = ROOT_DIR / "README.md"
 ML_DIR = ROOT_DIR / "ml"
+FORMAL_DIR = ROOT_DIR / "formal"
+FORMAL_CASES_DIR = ROOT_DIR / "aether_quant" / "_formal_cases"
 
 PACKAGE_NAME = "aether-quant"
 UPDATE_CACHE_PATH = Path.home() / ".aq" / "update_check.json"
@@ -715,6 +717,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_cross_asset_sensitivity.py", "test_train_cross_asset_sensitivity.py",
         # V5.8.0 - features/fx_signals.py.
         "test_fx_signals.py",
+        # V6.4.3 - features/cross_sectional_norm.py, features/asof_beta_labels.py.
+        "test_cross_sectional_norm.py", "test_asof_beta_labels.py",
     ],
     "data-pipeline": [
         "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
@@ -779,6 +783,10 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_main_wiring.py", "test_main_ensure_ready_smoke.py",
     ],
     "evaluation": [
+        # V6.4.3 - the research and audit tools.
+        "test_research_harness.py", "test_pbo.py", "test_factor_spanning.py", "test_overfit_diagnostics.py",
+        "test_leakage_audit.py", "test_research_probes.py", "test_sim_lean_calibration.py", "test_trial_registry.py",
+        "test_research_runners.py",
         "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
         "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
         # V5.1 Phase 5 (item 9) - evaluation/ablation.py.
@@ -859,8 +867,19 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     # `aq test --ruff` flag, packaging lists, docs links, CI helper scripts),
     # split out of the `evaluation` catch-all they used to be hidden in so a
     # failure in one of them names its own bucket in CI's subsystem matrix.
+    # V6.4.3 - the Lean 4 differential cases (formal/) and the proof findings' round file.
+    "formal": [
+        "test_formal_cases_drift.py", "test_formal_differential_order_gate.py", "test_formal_differential_hash_chain.py",
+        "test_formal_differential_book_neutrality.py", "test_formal_differential_book_construction.py",
+        "test_formal_differential_risk_controls.py", "test_formal_differential_kill_switch.py",
+        "test_formal_differential_position_sizing.py", "test_formal_differential_cost_model.py",
+        "test_formal_differential_reconciliation.py", "test_formal_differential_sleeve_guard.py",
+        "test_formal_differential_json_safety.py", "test_v643_formal_findings.py",
+    ],
     "meta": [
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py",
+        # V6.4.3 - the aether_quant library's public surface and quickstart.
+        "test_aether_quant_api.py", "test_aether_quant_quickstart.py",
         "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_readme_freshness.py",
     ],
 }
@@ -1093,6 +1112,68 @@ def cmd_report(args: argparse.Namespace) -> int:
             "--overwrite",
         ]
     )
+
+
+def cmd_research(args: argparse.Namespace) -> int:
+    """`aq research` (V6.4.3): IC, non-overlapping and HAC t-stats, bootstrap CI, era stability and decay of any signal on
+    the validation and backtest splits (evaluation/research_harness.py)."""
+    from evaluation.research_runners import run_signal_report
+
+    horizons = tuple(int(value) for value in str(args.horizons).split(",") if value.strip())
+    report = run_signal_report(Path(args.signal), args.dataset, horizons=horizons)
+    out = Path(args.out) if args.out else ML_DIR / "evaluation" / "signal_report.json"
+    _write_evaluation_json(out, report)
+    for split, entry in report["splits"].items():
+        for horizon in horizons:
+            row = entry.get(f"h{horizon}")
+            if row and row["num_dates"]:
+                print(f"{split:10s} h{horizon:<3d} IC {row['mean_ic']:+.4f}  t {row['t']:.2f}  non-overlap t {row['nonoverlap_t']:.2f}  "
+                      f"HAC t {row['hac_t']:.2f}  CI {row['ci95']}")
+    print(f"wrote {out}")
+    return 0
+
+
+def _formal_sorry_hits() -> list[str]:
+    hits = []
+    for path in sorted((FORMAL_DIR / "AetherFormal").glob("*.lean")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if re.search(r"\b(sorry|admit)\b", line):
+                hits.append(f"{path.relative_to(ROOT_DIR)}:{number}")
+    return hits
+
+
+def cmd_prove(args: argparse.Namespace) -> int:
+    """`aq prove` (V6.4.3): builds the Lean 4 proofs in formal/ (Mathlib comes from its cache: `lake exe cache get`) and,
+    with --regen-cases, rewrites aether_quant/_formal_cases/, the inputs and Lean-computed outputs that
+    tests/test_formal_differential_*.py run the Python functions against. --check-sorry only scans the specs for an
+    unfinished proof and needs no Lean install."""
+    if args.check_sorry:
+        hits = _formal_sorry_hits()
+        for hit in hits:
+            print(f"unfinished proof: {hit}")
+        print(f"{len(hits)} sorry/admit in formal/AetherFormal/")
+        return 1 if hits else 0
+    lake = shutil.which("lake")
+    if lake is None:
+        print("lake not found: install elan (https://github.com/leanprover/elan), then `lake exe cache get` in formal/",
+              file=sys.stderr)
+        return 2
+    target = f"AetherFormal.{args.module}" if args.module else "AetherFormal"
+    exit_code = _run([lake, "build", target], cwd=FORMAL_DIR)
+    if exit_code or not args.regen_cases:
+        return exit_code
+    # interpreted, so no Mathlib C code has to be compiled for an executable
+    exit_code = _run([lake, "env", "lean", "--run", "AetherFormal/GenCases.lean", str(FORMAL_CASES_DIR)], cwd=FORMAL_DIR)
+    if exit_code:
+        return exit_code
+    from aether_quant.formal import spec_sha256
+
+    for path in sorted(FORMAL_CASES_DIR.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["spec_sha256"] = spec_sha256(FORMAL_DIR, data["spec_files"])
+        path.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+    print(f"regenerated {len(list(FORMAL_CASES_DIR.glob('*.json')))} case files in {FORMAL_CASES_DIR.relative_to(ROOT_DIR)}")
+    return 0
 
 
 def cmd_api(_args: argparse.Namespace) -> int:
@@ -2325,6 +2406,37 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                                           "config": str(snapshot), "reports": reports})
         print(f"  Wrote {out_path}")
         _refresh_readme_evaluation_sections()
+        return 0
+
+    # V6.4.3 - the research / audit flags (evaluation/research_runners.py): each writes one JSON and returns.
+    v643_flags = (
+        ("audit_leakage", "leakage_audit.json"), ("overfit_report", "overfit_report.json"), ("pbo", "pbo.json"),
+        ("factor_spanning", "factor_spanning.json"), ("calibrate_sim_lean", "sim_lean_gap.json"),
+    )
+    v643_requested = [(flag, filename) for flag, filename in v643_flags if getattr(args, flag, False)]
+    if v643_requested:
+        from evaluation import research_runners
+
+        for flag, filename in v643_requested:
+            if flag == "audit_leakage":
+                report = research_runners.run_audit_leakage(getattr(args, "dataset", None))
+            elif flag == "overfit_report":
+                report = research_runners.run_overfit_report()
+            elif flag == "pbo":
+                report = research_runners.run_pbo(Path(args.trial_returns or ML_DIR / "evaluation" / "v643" / "trial_returns.parquet"))
+            elif flag == "factor_spanning":
+                if not getattr(args, "signal", None):
+                    print("error: --factor-spanning needs --signal CSV (date,ticker,score)", file=sys.stderr)
+                    return 1
+                report = research_runners.run_factor_spanning(Path(args.signal), getattr(args, "dataset", None),
+                                                              split=getattr(args, "split", None) or "backtest")
+            else:
+                if not getattr(args, "calibration_file", None):
+                    print("error: --calibrate-sim-lean needs --calibration-file (a scripts/lean_calibration.py report)", file=sys.stderr)
+                    return 1
+                report = research_runners.run_sim_lean_gap(Path(args.calibration_file))
+            _write_evaluation_json(ML_DIR / "evaluation" / filename, report)
+            print(json.dumps(report, indent=2, default=str)[:4000] if args.json else f"{flag}: wrote {ML_DIR / 'evaluation' / filename}")
         return 0
 
     # V5.8.0 - the audit flags (evaluation/audit_runners.py): each writes one JSON and returns before any book run.
@@ -4168,6 +4280,21 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("result_id", help="Result JSON id, e.g. 1366365999")
     report_parser.set_defaults(func=cmd_report)
 
+    research_parser = subparsers.add_parser("research", help="Score any signal CSV (date,ticker,score) against the rank targets")
+    research_parser.add_argument("--signal", required=True, help="CSV with date, ticker, score columns")
+    research_parser.add_argument("--dataset", default=None, help="Dataset CSV (default: ml/datasets/full_dataset.csv)")
+    research_parser.add_argument("--horizons", default="5,20", help="Comma list of rank-target horizons (default: 5,20)")
+    research_parser.add_argument("--out", default=None, help="Report path (default: ml/evaluation/signal_report.json)")
+    research_parser.set_defaults(func=cmd_research)
+
+    prove_parser = subparsers.add_parser("prove", help="Build the Lean 4 proofs in formal/ (needs elan + Mathlib cache)")
+    prove_parser.add_argument("--module", default=None, help="Build one spec only, e.g. BookNeutrality (default: all)")
+    prove_parser.add_argument("--regen-cases", action="store_true",
+                              help="Also regenerate aether_quant/_formal_cases/ (the differential test inputs/outputs)")
+    prove_parser.add_argument("--check-sorry", action="store_true",
+                              help="Only scan formal/AetherFormal/*.lean for sorry/admit (no Lean needed)")
+    prove_parser.set_defaults(func=cmd_prove)
+
     api_parser = subparsers.add_parser("api", help="Start the FastAPI monitoring server on :8001")
     api_parser.set_defaults(func=cmd_api)
 
@@ -4684,6 +4811,39 @@ def build_parser() -> argparse.ArgumentParser:
         "--audit-heads", action="store_true",
         help="V5.8.0: every model head and submodel against its own promotion gate, marking what the live path reads "
         "(-> ml/evaluation/head_audit.json). Reads only ml/*_training_metrics.json.",
+    )
+    evaluate_parser.add_argument(
+        "--audit-leakage", action="store_true",
+        help="V6.4.3: label/feature leakage audit - tail NaN, label shuffle, single-feature IC, asset-identity prior "
+        "(-> ml/evaluation/leakage_audit.json).",
+    )
+    evaluate_parser.add_argument(
+        "--overfit-report", action="store_true",
+        help="V6.4.3: train / validation / backtest rank IC per head and the gap (-> ml/evaluation/overfit_report.json).",
+    )
+    evaluate_parser.add_argument(
+        "--pbo", action="store_true",
+        help="V6.4.3: probability of backtest overfitting (CSCV) over a trials' daily-returns table (-> ml/evaluation/pbo.json).",
+    )
+    evaluate_parser.add_argument(
+        "--trial-returns", default=None,
+        help="V6.4.3: with --pbo, a parquet/csv of daily returns, one column per trial (default: ml/evaluation/v643/trial_returns.parquet).",
+    )
+    evaluate_parser.add_argument(
+        "--factor-spanning", action="store_true",
+        help="V6.4.3: regress a signal's long/short return on five factor baselines; needs --signal "
+        "(-> ml/evaluation/factor_spanning.json).",
+    )
+    evaluate_parser.add_argument(
+        "--signal", default=None, help="V6.4.3: with --factor-spanning, a CSV of date,ticker,score.",
+    )
+    evaluate_parser.add_argument(
+        "--calibrate-sim-lean", action="store_true",
+        help="V6.4.3: decompose the offline-vs-Lean gap of a scripts/lean_calibration.py report rung by rung; needs "
+        "--calibration-file (-> ml/evaluation/sim_lean_gap.json).",
+    )
+    evaluate_parser.add_argument(
+        "--calibration-file", default=None, help="V6.4.3: with --calibrate-sim-lean, the lean_calibration.py JSON report.",
     )
     evaluate_parser.add_argument(
         "--audit-features", action="store_true",

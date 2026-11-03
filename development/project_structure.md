@@ -22,7 +22,10 @@ aether-quant/
 ├── analyzer/                    # Central market analyzer (final per-asset decision layer)
 ├── moe/                         # Mixture-of-Experts gating network
 ├── experts/                     # Bullish / bearish / sideways / volatility expert models
-├── features/                    # Shared feature-computation functions (train.py + main.py parity)
+├── features/                    # Shared feature-computation functions (train.py + main.py parity) + V6.4.3 cross-sectional ranks and as-of beta labels
+├── formal/                      # V6.4.3 Lean 4 + Mathlib proofs of the shared pure functions, and the differential-case generator (+ README)
+├── aether_quant/                # V6.4.3 library facade: re-exports of the pure modules, research tools, the Lean-computed cases (+ README)
+├── examples/                    # V6.4.3 aether_quant quickstart
 ├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation) + V5.5.0 as-live parity, backtest audit, volatility calibration + V5.8.0 audits (class IC, gates, heads, features), `aq clean ml` plan, README research blocks + V6.1.0 simulator replicas of the live mechanisms (daily member pass, whole-portfolio kill switch, legacy signal) and Lean attribution by opener
 ├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing + V5.5.0 legacy-signal sleeve + V5.8.0 class sleeves (forex, bonds) and their loss guard
 ├── regime/                      # Market regime detection (+ V5.8.0 drawdown-free vector the models read)

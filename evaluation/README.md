@@ -279,3 +279,15 @@ compressed dispersion in a way IC is not.
 
 - `lean_verdict.py` — `--rule superiority --margin 0.10` is R-LEAN14, which adopts a change on Lean evidence: the strategy Sharpe must beat the baseline's by the margin (drawdown and completeness clauses as R-LEAN13). Each run's statistics now use its own frozen config (`ml/evaluation/run_configs/<run folder>.json`), the root `config.json` only as a fallback.
 - `backtest_audit.configured_run_window` — a run's configured start / end (`algorithmConfiguration`); every window label (README Overview, run history, Backtest Statistics "Time range", the Lean Monte Carlo line) uses it, because Lean keeps charting about two days past the end.
+
+## V6.4.3 additions
+
+- `research_harness.py` — `evaluate_signal(frame, score_column=...)`: any signal's rank IC per split and horizon with plain, non-overlapping and HAC t-stats, a date-block bootstrap CI, 90-day era stability, IC by year / class / regime tercile and the decay over horizons (`aq research --signal CSV`).
+- `pbo.py` — `probability_of_backtest_overfitting(returns, blocks=16)`: CSCV (Bailey, Borwein, López de Prado, Zhu 2017) over a T x N table of the trials' daily returns, plus the out-of-sample degradation slope (`aq evaluate --pbo`).
+- `factor_spanning.py` — `build_factor_scores` (12-1 and 20-day momentum, 5-day reversal, low volatility, 52-week high, a composite; as of each row), `build_factor_returns` (top-minus-bottom quintile), `factor_spanning` (OLS with Newey-West errors: the alpha a signal adds over the factors; `aq evaluate --factor-spanning`).
+- `leakage_audit.py` — `audit_leakage`: tail-NaN (a forward window), label shuffle (t-test), single-feature IC above 0.15, and the IC of an asset-identity / asset-class prior against the model's (`aq evaluate --audit-leakage`).
+- `overfit_diagnostics.py` — `training_gap_report` (train / validation / backtest IC of every rank head and the share retained; `aq evaluate --overfit-report`) and `learning_curve`.
+- `research_probes.py` — `load_research_frame` (chunked, `usecols`, float32), `fit_ridge_rank`, `fit_hgb_rank` (sklearn on call), `predict_scores`: evaluation-only models, never installed.
+- `sim_lean_calibration.py` — `rung_attribution`, `daily_gap_breakdown`, `gap_report`: what each rung of `scripts/lean_calibration.py`'s ladder adds to the offline-vs-Lean daily correlation (rule R-CAL4; `aq evaluate --calibrate-sim-lean`).
+- `trial_registry.py` — the trial registry's functions, moved from `scripts/build_trial_registry.py` (which now imports them) so the library shares one definition.
+- `research_runners.py` — the runners behind those flags and `aq research`.

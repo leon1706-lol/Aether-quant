@@ -24,6 +24,19 @@ def _clip(value: float, low: float, high: float) -> float:
     return max(low, min(value, high))
 
 
+def _shrink_sectors_to_cap(weights: dict[str, float], sector_by_symbol: dict[str, str], cap: float) -> None:
+    """Step 2, in place: every bucket whose |net| exceeds `cap` is scaled (sign preserved) so its net lands on it."""
+    symbols_by_sector: dict[str, list[str]] = {}
+    for symbol in weights:
+        symbols_by_sector.setdefault(sector_by_symbol.get(symbol, "Unknown"), []).append(symbol)
+    for members in symbols_by_sector.values():
+        bucket_net = sum(weights[symbol] for symbol in members)
+        if abs(bucket_net) > cap:
+            shrink_factor = cap / abs(bucket_net)
+            for symbol in members:
+                weights[symbol] *= shrink_factor
+
+
 def apply_book_neutrality(
     raw_weights_by_symbol: dict[str, float],
     *,
@@ -33,6 +46,7 @@ def apply_book_neutrality(
     gross_exposure_cap: float,
     max_weight_per_name: float,
     sector_max_net_weight: float,
+    reapply_sector_cap_after_dollar_neutral: bool = False,
 ) -> tuple[dict[str, float], dict]:
     """Deterministic 4-step pipeline over an already-selected book's raw
     per-symbol weights (main.py's today-formula:
@@ -69,6 +83,14 @@ def apply_book_neutrality(
          recorded in diagnostics.
       4. Gross cap: scale everything by min(1, gross_exposure_cap / gross).
 
+    Step 3 shrinks one leg only, so a sector holding both a long and a short can end above its cap (proved in
+    formal/AetherFormal/BookNeutrality.lean, `sector_cap_counterexample`). `reapply_sector_cap_after_dollar_neutral`
+    (default False, the shipped behaviour) runs step 2 again after step 3: every sector then ends within its cap, and
+    the book may be left slightly off dollar-neutral (recorded as "sector_cap_reapplied").
+
+    A non-positive max_weight_per_name skips step 1 like the other two caps (V6.4.3: a cap of 0 zeroed the book and a
+    negative one turned every weight, shorts included, into a long of |cap|).
+
     Returns (weights, diagnostics) where diagnostics is JSON-serializable
     (state.json's state["book_neutrality"]):
       {"pre_gross", "post_gross", "net_before", "net_after",
@@ -93,11 +115,15 @@ def apply_book_neutrality(
     net_before = sum(raw_weights_by_symbol.values())
 
     # Step 1: per-name cap.
-    weights = {
-        symbol: _clip(weight, -max_weight_per_name, max_weight_per_name)
-        for symbol, weight in raw_weights_by_symbol.items()
-    }
-    steps_applied.append("per_name_cap")
+    if max_weight_per_name > 0.0:
+        weights = {
+            symbol: _clip(weight, -max_weight_per_name, max_weight_per_name)
+            for symbol, weight in raw_weights_by_symbol.items()
+        }
+        steps_applied.append("per_name_cap")
+    else:
+        weights = dict(raw_weights_by_symbol)
+        steps_applied.append("per_name_cap_skipped_nonpositive_cap")
 
     # Step 2: sector neutrality - shrink each bucket's net toward the cap,
     # never demean to exact zero. See the docstring above (Problems.md #81).
@@ -112,17 +138,7 @@ def apply_book_neutrality(
     # cap to shrink toward), so it is treated the same as sector_neutral
     # being off for this step, not silently honored.
     if sector_neutral and sector_max_net_weight > 0.0:
-        symbols_by_sector: dict[str, list[str]] = {}
-        for symbol in weights:
-            sector = sector_by_symbol.get(symbol, "Unknown")
-            symbols_by_sector.setdefault(sector, []).append(symbol)
-
-        for sector, members in symbols_by_sector.items():
-            bucket_net = sum(weights[symbol] for symbol in members)
-            if abs(bucket_net) > sector_max_net_weight:
-                shrink_factor = sector_max_net_weight / abs(bucket_net)
-                for symbol in members:
-                    weights[symbol] *= shrink_factor
+        _shrink_sectors_to_cap(weights, sector_by_symbol, sector_max_net_weight)
         steps_applied.append("sector_neutral")
     elif sector_neutral:
         steps_applied.append("sector_neutral_skipped_invalid_max_net_weight")
@@ -145,6 +161,10 @@ def apply_book_neutrality(
             steps_applied.append("dollar_neutral")
         else:
             steps_applied.append("dollar_neutral_skipped_one_sided_book")
+
+    if reapply_sector_cap_after_dollar_neutral and sector_neutral and sector_max_net_weight > 0.0:
+        _shrink_sectors_to_cap(weights, sector_by_symbol, sector_max_net_weight)
+        steps_applied.append("sector_cap_reapplied")
 
     # Step 4: gross exposure cap. A non-positive cap is a misconfiguration -
     # V5.4.5 (#117 family): the old `gross > cap` comparison happily scaled

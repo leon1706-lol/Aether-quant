@@ -1,0 +1,9249 @@
+{
+ "target": "cost_model",
+ "spec_files": [
+  "AetherFormal/CostModel.lean"
+ ],
+ "cases": [
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 28,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 5,
+     "den": 2
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 6,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 5,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 13,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 13,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 0,
+     "den": 1
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 129,
+     "den": 100
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 47,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 93,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 373,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 91,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 24,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 6,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 91,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 9,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 13,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 93,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 13,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 39,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 89,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 42,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 42,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 71,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 7,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 291,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 41,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 43,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 48,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 48,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 43,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 8,
+     "den": 1
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 43,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 67,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 22,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 22,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 4,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 41,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 5,
+     "den": 1
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 159,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 24,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 17,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 24,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 17,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 7,
+     "den": 1
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 6,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 47,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 71,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 47,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 4,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 7,
+     "den": 2
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 4,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 19,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 19,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 13,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 53,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 13,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 33,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 7,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 89,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 99,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 33,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 99,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 61,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 21,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 3,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 44,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 9,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 23,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 9,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 63,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 63,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 63,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 27,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 83,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 83,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 37,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 37,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 8,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 37,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 33,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 33,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 44,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 11,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 29,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 29,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 51,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 6,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 26,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 6,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 59,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 9,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 59,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 31,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 46,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 31,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 67,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 37,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 37,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 73,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 12,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 3,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 32,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 8,
+     "den": 1
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 32,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 29,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 173,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 21,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 6,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 21,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 36,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 43,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 409,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 15,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 13,
+     "den": 2
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 36,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 99,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 71,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 99,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 11,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 69,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 11,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 13,
+     "den": 2
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 22,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 1,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 1,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 69,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 13,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 37,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 51,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 51,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 3,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 29,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 3,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 37,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 17,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 37,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 87,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 29,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 667,
+     "den": 100
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 18,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 8,
+     "den": 1
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 8,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 51,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 31,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 51,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 51,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 9,
+     "den": 2
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 237,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 77,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 26,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 77,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 13,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 4,
+     "den": 1
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 86,
+     "den": 25
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 11,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 39,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 11,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 36,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 36,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 93,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 93,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 87,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 36,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 36,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 10,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 48,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 10,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 1,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 33,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 123,
+     "den": 25
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 3,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 43,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 4,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 13,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 69,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 4,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 69,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 10,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 31,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 10,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 2,
+     "den": 1
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 38,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 77,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 41,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 41,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 51,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 39,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 51,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 14,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 83,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 61,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 10,
+     "den": 1
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 10,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 47,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 39,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 47,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 1,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 8,
+     "den": 1
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 14,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 21,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 14,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 3,
+     "den": 1
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 67,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 47,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 67,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 97,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 21,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 7,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 99,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 6,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 99,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 39,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 11,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 39,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 13,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 6,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 13,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 77,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 57,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 77,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 46,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 5,
+     "den": 2
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 5,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 19,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 0,
+     "den": 1
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 19,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 26,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 49,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 49,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 1,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 77,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 59,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 641,
+     "den": 100
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 17,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 3,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 17,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 37,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 69,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 37,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 79,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 79,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 4,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 11,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 77,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 51,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 77,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 43,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 43,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 32,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 71,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 32,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 0,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 3,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 1,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 4,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 14,
+     "den": 25
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 44,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 10,
+     "den": 1
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 44,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 21,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 31,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 21,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 41,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 87,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 41,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 53,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 42,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 53,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 46,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 26,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 46,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 29,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 31,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 29,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 23,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 83,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 13,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 13,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 13,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 28,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 1,
+     "den": 2
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 15,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 48,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 48,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 29,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 15,
+     "den": 2
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 29,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 43,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 8,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 37,
+     "den": 10
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 8,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 28,
+     "den": 5
+    },
+    "maker_bps": {
+     "num": 4,
+     "den": 1
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 28,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 57,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 81,
+     "den": 10
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 57,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 7,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "is_limit_route": false,
+    "fill_rate": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 7,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 19,
+     "den": 2
+    },
+    "maker_bps": {
+     "num": 26,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 19,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 19,
+     "den": 10
+    },
+    "maker_bps": {
+     "num": 38,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 361,
+     "den": 100
+    }
+   }
+  },
+  {
+   "kind": "fill_fee",
+   "input": {
+    "taker_bps": {
+     "num": 4,
+     "den": 1
+    },
+    "maker_bps": {
+     "num": 9,
+     "den": 5
+    },
+    "is_limit_route": true,
+    "fill_rate": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "fee_bps": {
+     "num": 9,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2402,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 0,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 223,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 2,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 32,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 22366,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4240,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 299,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1586109,
+     "den": 530
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 185,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 29,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 133,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1042792,
+     "den": 185
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1710,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 293,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 5,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 49,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 336305,
+     "den": 57
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4789,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 11,
+     "den": 50
+    },
+    "extra_slippage_bps": {
+     "num": 4,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 52868156,
+     "den": 23945
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4119,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 159,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 47,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 8018,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 887,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 19,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 789,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 31,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 70391797,
+     "den": 8870
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1111,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 93,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 33,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 18654,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4420,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 0,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 131,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 17,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 13201,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2023,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 2,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 849,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 47,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 67,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 85081,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3766,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 387,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 17,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 73,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 38863,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 279,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 83,
+     "den": 200
+    },
+    "extra_slippage_bps": {
+     "num": 5,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 18,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1193245,
+     "den": 279
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2651,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 907,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 41,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 23,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 90787,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2076,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 327,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 22,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 27,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 8539568,
+     "den": 2595
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 677,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 157,
+     "den": 200
+    },
+    "extra_slippage_bps": {
+     "num": 18,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 69,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 39337,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": -76,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 19,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 67,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 5,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 49,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 10725,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2679,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 11,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 913,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 14,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 122540461,
+     "den": 13395
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3466,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 97,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 22,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 23,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 16898226,
+     "den": 8665
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4453,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 0,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 89,
+     "den": 100
+    },
+    "extra_slippage_bps": {
+     "num": 17,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 51,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 89119,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2741,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 9,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 669,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 21,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 91899342,
+     "den": 13705
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 663,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 29,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 67,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 5,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 949735,
+     "den": 663
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4239,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 23,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 337,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 49,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 67607,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2209,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 7,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 207,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 46,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 20804,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 598,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 161,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 23,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 47,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 32317,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 405,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 9,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 633,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 34,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 286877,
+     "den": 45
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4614,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 143,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 11015928,
+     "den": 3845
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2090,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 569,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 48,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 57101,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1094,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 441,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 17,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 89,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 48404699,
+     "den": 5470
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3595,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 253,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 49,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 33,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 36484631,
+     "den": 7190
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4036,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 2,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 23,
+     "den": 200
+    },
+    "extra_slippage_bps": {
+     "num": 1,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 10,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1171,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3085,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 7,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 797,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 5,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 73,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 39948,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2378,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 327,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 12,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 19484418,
+     "den": 5945
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 132,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 109,
+     "den": 200
+    },
+    "extra_slippage_bps": {
+     "num": 22,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 53,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 304992,
+     "den": 55
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2863,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 0,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 44,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 79,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 35379,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4867,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 7,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 37,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1829391,
+     "den": 4867
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2600,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 11,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 171,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 49,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 87,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 17323,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1628,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 5,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 349,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 22,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 14273312,
+     "den": 2035
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2145,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 14,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 161,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 14,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 11,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 13875806,
+     "den": 2145
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 211,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 559,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 2367613,
+     "den": 422
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1581,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 97,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 15549929,
+     "den": 15810
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 663,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 14,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 217,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 11,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 58114367,
+     "den": 6630
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 651,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 291,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 11,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 27,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 9649211,
+     "den": 3255
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4708,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 17,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 4,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 4081508,
+     "den": 5885
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4286,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 6,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 277,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 1,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 33,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 27734,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3571,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 21,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 737,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 57,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 263641981,
+     "den": 35710
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 419,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 2,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 329,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 59,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 27988217,
+     "den": 4190
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2997,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 33,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 29,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 53,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 79547713,
+     "den": 29970
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 540,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 5,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 827,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 43,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1129274,
+     "den": 135
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2804,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 6,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 563,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 19,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 5,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 19776469,
+     "den": 3505
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 536,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 21,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 579,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 12,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 29,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1966704,
+     "den": 335
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 627,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 27,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 243,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 5263089,
+     "den": 2090
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 783,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 5,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 233,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 24,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 36740149,
+     "den": 3915
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 592,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 14,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 33,
+     "den": 100
+    },
+    "extra_slippage_bps": {
+     "num": 41,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 9,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1257517,
+     "den": 370
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1963,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 13,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 149,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 2,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 5,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1145252,
+     "den": 755
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4559,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 6,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 949,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 31,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 43,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 95017,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4423,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 4,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 19,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 47,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 7803,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3861,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 19,
+     "den": 25
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 15209,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3036,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 14,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 169,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 23,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 19,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 8568,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4358,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 179,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 22,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 9,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 35912,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1140,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 14,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 77,
+     "den": 100
+    },
+    "extra_slippage_bps": {
+     "num": 1,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 23,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 2208557,
+     "den": 285
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1994,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 13,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 23,
+     "den": 40
+    },
+    "extra_slippage_bps": {
+     "num": 6,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 53,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 28799732,
+     "den": 4985
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4308,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 9,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 117,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 2,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 4,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 9370,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3448,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 493,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 21273946,
+     "den": 2155
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 545,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 4,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 197,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 1,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 41,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 218039,
+     "den": 109
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1843,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 13,
+     "den": 20
+    },
+    "extra_slippage_bps": {
+     "num": 18,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 3,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 32548,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4434,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 21,
+     "den": 25
+    },
+    "extra_slippage_bps": {
+     "num": 19,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 73,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 16833,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3503,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 2,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 221,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 2,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 28,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 44258,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 789,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 19,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 931,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 47,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 11,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 73872983,
+     "den": 7890
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 210,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 27,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 427,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 39,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 37,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 616073,
+     "den": 70
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2761,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 5,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 263,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 8,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 26,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 36579238,
+     "den": 13805
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 424,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 14,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 1,
+     "den": 8
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 61,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 146659,
+     "den": 106
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3574,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 13,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 587,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 49,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 93,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 11787,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3436,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 27,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 3,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 39,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 13,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 2230101,
+     "den": 8590
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4306,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 6,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 91,
+     "den": 200
+    },
+    "extra_slippage_bps": {
+     "num": 23,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 89,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 22862,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1559,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 6,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 713,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 47,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 15,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 111469973,
+     "den": 15590
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 678,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 8,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 689,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 31,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 11763974,
+     "den": 1695
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 95,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 13,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 999,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 41,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 9,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 2002879,
+     "den": 190
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2050,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 29,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 477,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 19,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1962279,
+     "den": 205
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3761,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 21,
+     "den": 40
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 29,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 26288,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1331,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 11,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 3,
+     "den": 20
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 47,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 371363,
+     "den": 242
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3542,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 21,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 271,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 23,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 10,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 27223,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2934,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 9,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 99,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 43,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 4,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 79323,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3388,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 331,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 1,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 89,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 66383,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2503,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 23,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 61,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 27,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 34,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 61600781,
+     "den": 25030
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2406,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 11,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 359,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 81,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 86608633,
+     "den": 12030
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3069,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 21,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 59,
+     "den": 200
+    },
+    "extra_slippage_bps": {
+     "num": 8,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 57,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 15167434,
+     "den": 5115
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 788,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 6,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 1,
+     "den": 8
+    },
+    "extra_slippage_bps": {
+     "num": 4,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 17,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 253038,
+     "den": 197
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2104,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 5,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 79,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 0,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 46,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 1668410,
+     "den": 263
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4330,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 11,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 7,
+     "den": 40
+    },
+    "extra_slippage_bps": {
+     "num": 18,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 91,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 8859,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4899,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 3,
+     "den": 4
+    },
+    "extra_slippage_bps": {
+     "num": 16,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 8,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 37596,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1847,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 13,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 871,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 161410323,
+     "den": 18470
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3885,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 19,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 307,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 37,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 33,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 23958649,
+     "den": 7770
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4885,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 19,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 419,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 19,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 22,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 83907,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2848,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 11,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 17,
+     "den": 25
+    },
+    "extra_slippage_bps": {
+     "num": 23,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 83,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 34106,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4995,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 551,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 8,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 27633,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4842,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 23,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 143,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 31,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 49,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 14527,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1501,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 251,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 7,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 87,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 12644,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 586,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 421,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 6,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 93,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 6219408,
+     "den": 1465
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1519,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 21,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 699,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 9,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 8,
+     "den": 1
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 3047613,
+     "den": 434
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 799,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 3,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 669,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 41,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 53769879,
+     "den": 7990
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2886,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 9,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 373,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 21,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 14941,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2009,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 49,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 33,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 20094497,
+     "den": 20090
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 235,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 29,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 11,
+     "den": 100
+    },
+    "extra_slippage_bps": {
+     "num": 31,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 33,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 634457,
+     "den": 470
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2675,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 3,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 13,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 27,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 421,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3624,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 13,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 59,
+     "den": 200
+    },
+    "extra_slippage_bps": {
+     "num": 23,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 43,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 14816,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 2353,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 87,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 38,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 69773,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 328,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 13,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 861,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 11,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 36,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 3563051,
+     "den": 410
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": -62,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 29,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 381,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 4,
+     "den": 1
+    },
+    "commission_bps_per_side": {
+     "num": 81,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 3814,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3997,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 12,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 397,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 47,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 37,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 318029659,
+     "den": 39970
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 316,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 27,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 421,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 13,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 692417,
+     "den": 158
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 626,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 419,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 18,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 17,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 6612984,
+     "den": 1565
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3687,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 27,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 599,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 24,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 51,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 36928046,
+     "den": 6145
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4831,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 19,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 481,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 47,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 19263,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 4560,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 1
+    },
+    "liquidity_fraction": {
+     "num": 843,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 13,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 24,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 42211,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1671,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 7,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 1,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 19,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 11,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 478849,
+     "den": 16710
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1656,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 9,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 799,
+     "den": 1000
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 17,
+     "den": 2
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 80091,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": -73,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 11,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 6,
+     "den": 125
+    },
+    "extra_slippage_bps": {
+     "num": 5,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 26,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 965,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1123,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 1,
+     "den": 2
+    },
+    "liquidity_fraction": {
+     "num": 153,
+     "den": 250
+    },
+    "extra_slippage_bps": {
+     "num": 1,
+     "den": 2
+    },
+    "commission_bps_per_side": {
+     "num": 41,
+     "den": 5
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 61369,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 3100,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 17,
+     "den": 10
+    },
+    "liquidity_fraction": {
+     "num": 17,
+     "den": 100
+    },
+    "extra_slippage_bps": {
+     "num": 21,
+     "den": 10
+    },
+    "commission_bps_per_side": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 531051,
+     "den": 310
+    }
+   }
+  },
+  {
+   "kind": "round_trip",
+   "input": {
+    "order_value": {
+     "num": 1653,
+     "den": 1
+    },
+    "min_commission_usd": {
+     "num": 6,
+     "den": 5
+    },
+    "liquidity_fraction": {
+     "num": 333,
+     "den": 500
+    },
+    "extra_slippage_bps": {
+     "num": 3,
+     "den": 5
+    },
+    "commission_bps_per_side": {
+     "num": 79,
+     "den": 10
+    }
+   },
+   "expected": {
+    "cost_bps": {
+     "num": 33382,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 2,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 6,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 4
+    },
+    "horizon_days": 2,
+    "holding_bars": 29,
+    "edge_bps_per_rank_unit": {
+     "num": 15,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 15,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 21,
+    "holding_bars": 15,
+    "edge_bps_per_rank_unit": {
+     "num": 59,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 177,
+     "den": 28
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 0,
+     "den": 1
+    },
+    "horizon_days": 12,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 5,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 1,
+    "holding_bars": 26,
+    "edge_bps_per_rank_unit": {
+     "num": 40,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 12,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 5
+    },
+    "horizon_days": 24,
+    "holding_bars": 19,
+    "edge_bps_per_rank_unit": {
+     "num": 35,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -133,
+     "den": 16
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 1
+    },
+    "horizon_days": 22,
+    "holding_bars": 3,
+    "edge_bps_per_rank_unit": {
+     "num": 55,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -15,
+     "den": 4
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 22,
+    "holding_bars": 6,
+    "edge_bps_per_rank_unit": {
+     "num": 11,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 17,
+     "den": 20
+    },
+    "horizon_days": 3,
+    "holding_bars": 31,
+    "edge_bps_per_rank_unit": {
+     "num": 51,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -357,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 19,
+     "den": 20
+    },
+    "horizon_days": 12,
+    "holding_bars": 18,
+    "edge_bps_per_rank_unit": {
+     "num": 75,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 135,
+     "den": 4
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 1,
+    "holding_bars": 12,
+    "edge_bps_per_rank_unit": {
+     "num": 29,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 29,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 4,
+    "holding_bars": 29,
+    "edge_bps_per_rank_unit": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 5,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 7,
+     "den": 10
+    },
+    "horizon_days": 5,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 3,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -24,
+     "den": 25
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 2
+    },
+    "horizon_days": 18,
+    "holding_bars": 22,
+    "edge_bps_per_rank_unit": {
+     "num": 23,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 4,
+     "den": 5
+    },
+    "horizon_days": 13,
+    "holding_bars": 17,
+    "edge_bps_per_rank_unit": {
+     "num": 81,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 243,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 28,
+    "holding_bars": 29,
+    "edge_bps_per_rank_unit": {
+     "num": 11,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -22,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 4
+    },
+    "horizon_days": 8,
+    "holding_bars": 37,
+    "edge_bps_per_rank_unit": {
+     "num": 20,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -10,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 11,
+     "den": 20
+    },
+    "horizon_days": 1,
+    "holding_bars": 35,
+    "edge_bps_per_rank_unit": {
+     "num": 59,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -59,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 13,
+    "holding_bars": 6,
+    "edge_bps_per_rank_unit": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 48,
+     "den": 65
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 9,
+     "den": 20
+    },
+    "horizon_days": 6,
+    "holding_bars": 34,
+    "edge_bps_per_rank_unit": {
+     "num": 42,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -21,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 11,
+     "den": 20
+    },
+    "horizon_days": 26,
+    "holding_bars": 7,
+    "edge_bps_per_rank_unit": {
+     "num": 28,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -49,
+     "den": 65
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 0,
+     "den": 1
+    },
+    "horizon_days": 1,
+    "holding_bars": 15,
+    "edge_bps_per_rank_unit": {
+     "num": 25,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -25,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 1
+    },
+    "horizon_days": 13,
+    "holding_bars": 19,
+    "edge_bps_per_rank_unit": {
+     "num": 9,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 9,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 24,
+    "holding_bars": 19,
+    "edge_bps_per_rank_unit": {
+     "num": 48,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -152,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 21,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 14,
+    "holding_bars": 34,
+    "edge_bps_per_rank_unit": {
+     "num": 63,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -126,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 0,
+     "den": 1
+    },
+    "horizon_days": 25,
+    "holding_bars": 1,
+    "edge_bps_per_rank_unit": {
+     "num": 27,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 27,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 0,
+     "den": 1
+    },
+    "horizon_days": 3,
+    "holding_bars": 14,
+    "edge_bps_per_rank_unit": {
+     "num": 81,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -81,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 29,
+    "holding_bars": 9,
+    "edge_bps_per_rank_unit": {
+     "num": 27,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -1701,
+     "den": 290
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 20
+    },
+    "horizon_days": 4,
+    "holding_bars": 2,
+    "edge_bps_per_rank_unit": {
+     "num": 21,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 189,
+     "den": 40
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 28,
+    "holding_bars": 36,
+    "edge_bps_per_rank_unit": {
+     "num": 59,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 118,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 16,
+    "holding_bars": 32,
+    "edge_bps_per_rank_unit": {
+     "num": 7,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -7,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 7,
+    "holding_bars": 15,
+    "edge_bps_per_rank_unit": {
+     "num": 77,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -77,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 12,
+    "holding_bars": 9,
+    "edge_bps_per_rank_unit": {
+     "num": 41,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 861,
+     "den": 40
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 1,
+    "holding_bars": 23,
+    "edge_bps_per_rank_unit": {
+     "num": 31,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 93,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 27,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -2,
+     "den": 45
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 17,
+     "den": 20
+    },
+    "horizon_days": 28,
+    "holding_bars": 29,
+    "edge_bps_per_rank_unit": {
+     "num": 50,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 35,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 4,
+    "holding_bars": 22,
+    "edge_bps_per_rank_unit": {
+     "num": 29,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 29,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 24,
+    "holding_bars": 13,
+    "edge_bps_per_rank_unit": {
+     "num": 47,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -611,
+     "den": 60
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 2,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 41,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 19,
+     "den": 20
+    },
+    "horizon_days": 15,
+    "holding_bars": 6,
+    "edge_bps_per_rank_unit": {
+     "num": 33,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -297,
+     "den": 50
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 1
+    },
+    "horizon_days": 0,
+    "holding_bars": 9,
+    "edge_bps_per_rank_unit": {
+     "num": 23,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 1
+    },
+    "horizon_days": 7,
+    "holding_bars": 8,
+    "edge_bps_per_rank_unit": {
+     "num": 7,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 7,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 10,
+    "holding_bars": 27,
+    "edge_bps_per_rank_unit": {
+     "num": 27,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 108,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 5
+    },
+    "horizon_days": 7,
+    "holding_bars": 21,
+    "edge_bps_per_rank_unit": {
+     "num": 50,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -30,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 15,
+    "holding_bars": 11,
+    "edge_bps_per_rank_unit": {
+     "num": 25,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 11,
+     "den": 3
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 29,
+    "holding_bars": 12,
+    "edge_bps_per_rank_unit": {
+     "num": 75,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -90,
+     "den": 29
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 3,
+    "holding_bars": 20,
+    "edge_bps_per_rank_unit": {
+     "num": 24,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -84,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 4,
+    "holding_bars": 6,
+    "edge_bps_per_rank_unit": {
+     "num": 61,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 183,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 10
+    },
+    "horizon_days": 8,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 40,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 8,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 1,
+    "holding_bars": 2,
+    "edge_bps_per_rank_unit": {
+     "num": 89,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -267,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 4
+    },
+    "horizon_days": 1,
+    "holding_bars": 1,
+    "edge_bps_per_rank_unit": {
+     "num": 93,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 93,
+     "den": 4
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 4
+    },
+    "horizon_days": 5,
+    "holding_bars": 14,
+    "edge_bps_per_rank_unit": {
+     "num": 19,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -19,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 20
+    },
+    "horizon_days": 24,
+    "holding_bars": 17,
+    "edge_bps_per_rank_unit": {
+     "num": 38,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 969,
+     "den": 40
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 18,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 12,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 17,
+     "den": 20
+    },
+    "horizon_days": 17,
+    "holding_bars": 17,
+    "edge_bps_per_rank_unit": {
+     "num": 47,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 329,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 2
+    },
+    "horizon_days": 25,
+    "holding_bars": 2,
+    "edge_bps_per_rank_unit": {
+     "num": 9,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 12,
+    "holding_bars": 21,
+    "edge_bps_per_rank_unit": {
+     "num": 27,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -27,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 27,
+    "holding_bars": 7,
+    "edge_bps_per_rank_unit": {
+     "num": 26,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 91,
+     "den": 45
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 11,
+    "holding_bars": 33,
+    "edge_bps_per_rank_unit": {
+     "num": 48,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 48,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 17,
+    "holding_bars": 11,
+    "edge_bps_per_rank_unit": {
+     "num": 47,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 517,
+     "den": 170
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 4,
+     "den": 5
+    },
+    "horizon_days": 25,
+    "holding_bars": 32,
+    "edge_bps_per_rank_unit": {
+     "num": 5,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 3,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 24,
+    "holding_bars": 2,
+    "edge_bps_per_rank_unit": {
+     "num": 49,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -343,
+     "den": 240
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 17,
+    "holding_bars": 38,
+    "edge_bps_per_rank_unit": {
+     "num": 10,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 8,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 4
+    },
+    "horizon_days": 26,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 4,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 4
+    },
+    "horizon_days": 13,
+    "holding_bars": 8,
+    "edge_bps_per_rank_unit": {
+     "num": 17,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -34,
+     "den": 13
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 0,
+    "holding_bars": 38,
+    "edge_bps_per_rank_unit": {
+     "num": 87,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 11,
+     "den": 20
+    },
+    "horizon_days": 17,
+    "holding_bars": 11,
+    "edge_bps_per_rank_unit": {
+     "num": 49,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 539,
+     "den": 340
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 11,
+     "den": 20
+    },
+    "horizon_days": 20,
+    "holding_bars": 5,
+    "edge_bps_per_rank_unit": {
+     "num": 57,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -57,
+     "den": 80
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 24,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 91,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 91,
+     "den": 15
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 1,
+    "holding_bars": 27,
+    "edge_bps_per_rank_unit": {
+     "num": 11,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -77,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 7,
+     "den": 10
+    },
+    "horizon_days": 11,
+    "holding_bars": 20,
+    "edge_bps_per_rank_unit": {
+     "num": 5,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -2,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 0,
+    "holding_bars": 11,
+    "edge_bps_per_rank_unit": {
+     "num": 38,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 10,
+    "holding_bars": 13,
+    "edge_bps_per_rank_unit": {
+     "num": 43,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 43,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 7,
+     "den": 10
+    },
+    "horizon_days": 6,
+    "holding_bars": 8,
+    "edge_bps_per_rank_unit": {
+     "num": 27,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -27,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 29,
+    "holding_bars": 1,
+    "edge_bps_per_rank_unit": {
+     "num": 41,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -123,
+     "den": 290
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 2
+    },
+    "horizon_days": 4,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 57,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 22,
+    "holding_bars": 23,
+    "edge_bps_per_rank_unit": {
+     "num": 40,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -12,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 1
+    },
+    "horizon_days": 23,
+    "holding_bars": 33,
+    "edge_bps_per_rank_unit": {
+     "num": 14,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -14,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 28,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 17,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 34,
+     "den": 35
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 7,
+    "holding_bars": 10,
+    "edge_bps_per_rank_unit": {
+     "num": 14,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -28,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 1
+    },
+    "horizon_days": 5,
+    "holding_bars": 19,
+    "edge_bps_per_rank_unit": {
+     "num": 69,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 69,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 1,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 18,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -72,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 12,
+    "holding_bars": 25,
+    "edge_bps_per_rank_unit": {
+     "num": 10,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 3,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 1
+    },
+    "horizon_days": 13,
+    "holding_bars": 39,
+    "edge_bps_per_rank_unit": {
+     "num": 43,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 43,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 11,
+     "den": 20
+    },
+    "horizon_days": 1,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 50,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -5,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 5
+    },
+    "horizon_days": 23,
+    "holding_bars": 25,
+    "edge_bps_per_rank_unit": {
+     "num": 19,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 57,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 11,
+    "holding_bars": 11,
+    "edge_bps_per_rank_unit": {
+     "num": 39,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 78,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 4
+    },
+    "horizon_days": 13,
+    "holding_bars": 34,
+    "edge_bps_per_rank_unit": {
+     "num": 67,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -67,
+     "den": 4
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 15,
+    "holding_bars": 13,
+    "edge_bps_per_rank_unit": {
+     "num": 87,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 754,
+     "den": 25
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 9,
+     "den": 20
+    },
+    "horizon_days": 4,
+    "holding_bars": 13,
+    "edge_bps_per_rank_unit": {
+     "num": 13,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 13,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 11,
+    "holding_bars": 33,
+    "edge_bps_per_rank_unit": {
+     "num": 93,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -279,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 4
+    },
+    "horizon_days": 25,
+    "holding_bars": 29,
+    "edge_bps_per_rank_unit": {
+     "num": 79,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 79,
+     "den": 4
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 5
+    },
+    "horizon_days": 28,
+    "holding_bars": 4,
+    "edge_bps_per_rank_unit": {
+     "num": 20,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 4,
+     "den": 7
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 14,
+    "holding_bars": 16,
+    "edge_bps_per_rank_unit": {
+     "num": 53,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 159,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 4
+    },
+    "horizon_days": 16,
+    "holding_bars": 19,
+    "edge_bps_per_rank_unit": {
+     "num": 5,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 5,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 1,
+    "holding_bars": 35,
+    "edge_bps_per_rank_unit": {
+     "num": 20,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -6,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 16,
+    "holding_bars": 29,
+    "edge_bps_per_rank_unit": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -6,
+     "den": 5
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 29,
+    "holding_bars": 15,
+    "edge_bps_per_rank_unit": {
+     "num": 34,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -102,
+     "den": 29
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 5
+    },
+    "horizon_days": 19,
+    "holding_bars": 5,
+    "edge_bps_per_rank_unit": {
+     "num": 61,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -183,
+     "den": 38
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 19,
+    "holding_bars": 18,
+    "edge_bps_per_rank_unit": {
+     "num": 29,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -1827,
+     "den": 190
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 4,
+     "den": 5
+    },
+    "horizon_days": 8,
+    "holding_bars": 3,
+    "edge_bps_per_rank_unit": {
+     "num": 33,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 297,
+     "den": 40
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 11,
+    "holding_bars": 10,
+    "edge_bps_per_rank_unit": {
+     "num": 71,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 284,
+     "den": 11
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 3,
+     "den": 10
+    },
+    "horizon_days": 16,
+    "holding_bars": 1,
+    "edge_bps_per_rank_unit": {
+     "num": 17,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -17,
+     "den": 80
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 17,
+     "den": 20
+    },
+    "horizon_days": 28,
+    "holding_bars": 27,
+    "edge_bps_per_rank_unit": {
+     "num": 61,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -1647,
+     "den": 80
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 13,
+     "den": 20
+    },
+    "horizon_days": 0,
+    "holding_bars": 16,
+    "edge_bps_per_rank_unit": {
+     "num": 41,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 9,
+     "den": 20
+    },
+    "horizon_days": 13,
+    "holding_bars": 28,
+    "edge_bps_per_rank_unit": {
+     "num": 53,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 53,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 3,
+     "den": 20
+    },
+    "horizon_days": 3,
+    "holding_bars": 12,
+    "edge_bps_per_rank_unit": {
+     "num": 29,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 203,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 10
+    },
+    "horizon_days": 16,
+    "holding_bars": 2,
+    "edge_bps_per_rank_unit": {
+     "num": 11,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 11,
+     "den": 20
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 4,
+    "holding_bars": 7,
+    "edge_bps_per_rank_unit": {
+     "num": 45,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 9,
+     "den": 2
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 23,
+    "holding_bars": 13,
+    "edge_bps_per_rank_unit": {
+     "num": 33,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -858,
+     "den": 115
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 7,
+     "den": 20
+    },
+    "horizon_days": 27,
+    "holding_bars": 8,
+    "edge_bps_per_rank_unit": {
+     "num": 48,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -64,
+     "den": 15
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 4
+    },
+    "horizon_days": 15,
+    "holding_bars": 7,
+    "edge_bps_per_rank_unit": {
+     "num": 59,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 413,
+     "den": 60
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 2
+    },
+    "horizon_days": 21,
+    "holding_bars": 19,
+    "edge_bps_per_rank_unit": {
+     "num": 45,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 17,
+     "den": 20
+    },
+    "horizon_days": 7,
+    "holding_bars": 27,
+    "edge_bps_per_rank_unit": {
+     "num": 23,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 161,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 1,
+     "den": 10
+    },
+    "horizon_days": 11,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 11,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 2,
+     "den": 5
+    },
+    "horizon_days": 5,
+    "holding_bars": 11,
+    "edge_bps_per_rank_unit": {
+     "num": 53,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 53,
+     "den": 10
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 3,
+    "holding_bars": 0,
+    "edge_bps_per_rank_unit": {
+     "num": 8,
+     "den": 1
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": 1,
+    "rank": {
+     "num": 1,
+     "den": 4
+    },
+    "horizon_days": 11,
+    "holding_bars": 32,
+    "edge_bps_per_rank_unit": {
+     "num": 61,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -61,
+     "den": 4
+    }
+   }
+  },
+  {
+   "kind": "edge",
+   "input": {
+    "trade_direction": -1,
+    "rank": {
+     "num": 9,
+     "den": 10
+    },
+    "horizon_days": 29,
+    "holding_bars": 33,
+    "edge_bps_per_rank_unit": {
+     "num": 77,
+     "den": 2
+    }
+   },
+   "expected": {
+    "edge_bps": {
+     "num": -154,
+     "den": 5
+    }
+   }
+  }
+ ],
+ "spec_sha256": "5781932343471c489820e99594c50bd12eebb7415ef609b908a14a8a17b206c7"
+}

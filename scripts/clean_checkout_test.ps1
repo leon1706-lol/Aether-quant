@@ -26,9 +26,14 @@ if (Test-Path $WorkDir) {
 git worktree add --detach $WorkDir HEAD | Out-Null
 
 $patch = Join-Path $env:TEMP "aq-clean-checkout.patch"
-git diff HEAD --binary | Out-File -FilePath $patch -Encoding ascii
+# git writes the file itself: piping through Out-File re-encodes it, and a non-ASCII diff then no longer applies
+git diff HEAD --binary --output=$patch
 if ((Get-Item $patch).Length -gt 0) {
     git -C $WorkDir apply --binary --whitespace=nowarn $patch
+    if ($LASTEXITCODE -ne 0) {
+        git worktree remove --force $WorkDir | Out-Null
+        throw "the working-tree changes did not apply to the clean checkout (git apply exit $LASTEXITCODE)"
+    }
 }
 foreach ($file in (git ls-files --others --exclude-standard)) {
     $target = Join-Path $WorkDir $file

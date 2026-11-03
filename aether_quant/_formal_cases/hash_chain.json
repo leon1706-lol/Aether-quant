@@ -1,0 +1,603 @@
+{
+ "target": "hash_chain",
+ "spec_files": [
+  "AetherFormal/HashChain.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "tamper": "none",
+    "length": 0,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 0,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 0,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 0,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 0,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 0,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 1,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 1,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 1,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 1,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 1,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 1,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 2,
+    "index": 1
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 2,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 2,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 2,
+    "index": 1
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 1
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 2,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 2,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 3,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 3,
+    "index": 2
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 2
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 3,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 3,
+    "index": 1
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 1
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 3,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 3,
+    "index": 2
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 4,
+    "index": 3
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 4,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 4,
+    "index": 1
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 1
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 4,
+    "index": 2
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 2
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 4,
+    "index": 3
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 4,
+    "index": 0
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 5,
+    "index": 1
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 5,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 5,
+    "index": 4
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 4
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 5,
+    "index": 2
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 2
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 5,
+    "index": 3
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 3
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 5,
+    "index": 1
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 6,
+    "index": 2
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 6,
+    "index": 1
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 1
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 6,
+    "index": 4
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 4
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 6,
+    "index": 5
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 5
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 6,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 6,
+    "index": 1
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 7,
+    "index": 3
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 7,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 7,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 7,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 7,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 7,
+    "index": 4
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "none",
+    "length": 8,
+    "index": 7
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  },
+  {
+   "input": {
+    "tamper": "payload",
+    "length": 8,
+    "index": 0
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 0
+   }
+  },
+  {
+   "input": {
+    "tamper": "prev",
+    "length": 8,
+    "index": 5
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 5
+   }
+  },
+  {
+   "input": {
+    "tamper": "hash",
+    "length": 8,
+    "index": 7
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 7
+   }
+  },
+  {
+   "input": {
+    "tamper": "delete",
+    "length": 8,
+    "index": 1
+   },
+   "expected": {
+    "valid": false,
+    "first_broken_index": 1
+   }
+  },
+  {
+   "input": {
+    "tamper": "truncate",
+    "length": 8,
+    "index": 2
+   },
+   "expected": {
+    "valid": true,
+    "first_broken_index": null
+   }
+  }
+ ],
+ "spec_sha256": "67b984ccf48f997e597b736879046c95f6acb44aaf1cb50a63edc068fa55eb59"
+}

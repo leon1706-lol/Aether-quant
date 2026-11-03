@@ -47,7 +47,15 @@ job, the subsystem matrix equal to `_SUBSYSTEM_TEST_FILES`, CPU torch ordering, 
 tool versions), `test_packaging_modules.py` fails when a shipped file imports a
 first-party module `pyproject.toml` does not ship, `test_docs_links.py` checks every
 relative Markdown link and `AQ:*` marker pair, `test_ci_scripts.py` covers the CI
-helper scripts.
+helper scripts, and (V6.4.3) `test_aether_quant_api.py` pins the library's public surface
+(`tests/data/aether_quant_api.json`) and that importing it loads no heavy dependency.
+
+**Formal differential cases (`aq test --formal`, V6.4.3):** `test_formal_differential_<target>.py`
+runs each verified Python function on the inputs the Lean 4 models in `formal/` generated and
+compares with their exact outputs (`aether_quant/_formal_cases/`); `test_formal_cases_drift.py`
+fails when a spec changed after its cases were generated (`aq prove --regen-cases`), and
+`test_v643_formal_findings.py` pins the proof findings and the non-finite audit. No Lean install
+is needed to run them.
 
 **Run with an explicit path, never bare `pytest`:**
 

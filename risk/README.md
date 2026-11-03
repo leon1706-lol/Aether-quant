@@ -309,3 +309,8 @@ to ENTRIES only.
 
 - `asset_class_router.py` — `load_venue_listing_dates` / `asset_listed_on_venue`: a crypto pair takes no order before its Coinbase listing or during a suspension (XRP, Jan 2021 - Jul 2023); data from `scripts/coinbase_listing_dates.py`, switch `phase_v2.venue_listing_guard`. `book_candidate_trading_eligible` also keeps a class that a sleeve governs out of the main pool.
 - `rl_sizing.py` — `rl_excess_return`, `rl_shadow_guard_allows`: the RL multiplier falls back to 1.0 when it trails the constant-1.0 counterfactual over the guard window (`phase_v2.dynamic_risk.rl_shadow_guard`); the shipped range is [0.9, 1.1].
+
+## V6.4.3 additions
+
+- `risk_controls.cap_target_weight` blocks a non-finite target (`(0.0, True)`); a NaN target used to come out as a full short of the remaining capacity.
+- `position_sizing.build_dynamic_position_sizing` sizes a non-finite base target to 0 and clamps the sized magnitude at 0, so a misconfigured negative multiplier bound can no longer flip the trade or escape `max_position_weight`. Both proved in `formal/AetherFormal/{RiskControls,PositionSizing}.lean`.

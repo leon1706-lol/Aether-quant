@@ -34,13 +34,17 @@ def compute_entry_hash(prev_hash: str, event_type: str, created_at: str, payload
     return hashlib.sha256(digest_input.encode("utf-8")).hexdigest()
 
 
-def verify_chain(rows: list[dict]) -> tuple[bool, int | None]:
+def verify_chain(rows: list[dict], expected_tail_hash: str | None = None) -> tuple[bool, int | None]:
     """Walks `rows` (each needing prev_hash/hash/event_type/created_at/payload
     keys, oldest-first) recomputing every hash and comparing. Returns
     (all_valid, first_broken_index) - first_broken_index is None when
     all_valid is True, else the 0-based index of the first row whose
     prev_hash doesn't match the prior row's hash, or whose own hash doesn't
-    match its recomputed value. An empty list is trivially valid."""
+    match its recomputed value. An empty list is trivially valid.
+
+    Deleting the newest rows leaves a valid chain: every prefix of a valid chain is valid
+    (formal/AetherFormal/HashChain.lean, `truncation_undetected`). `expected_tail_hash`, the latest hash recorded
+    somewhere else, closes that gap: a chain that does not end on it reports index len(rows)."""
     expected_prev = GENESIS_HASH
     for index, row in enumerate(rows):
         if row["prev_hash"] != expected_prev:
@@ -49,4 +53,6 @@ def verify_chain(rows: list[dict]) -> tuple[bool, int | None]:
         if recomputed != row["hash"]:
             return False, index
         expected_prev = row["hash"]
+    if expected_tail_hash is not None and expected_prev != expected_tail_hash:
+        return False, len(rows)
     return True, None

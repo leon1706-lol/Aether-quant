@@ -663,7 +663,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** Impl renamed back to `_build_model_input`, wrapper deleted; dead `perf_counter` import removed; log file deleted. Real per-call timing collection remains an open task — `scripts/profile_inference.py`'s in-process harness (no disk I/O) intended path forward.
 
-**Verification:** `py_compile main.py` clean; grep confirms zero references to removed names/file; `main.py` via trace only (unit-untestable by convention).
+**Verification:** `py_compile main.py` clean; grep confirms zero references to removed names/file; `main.py` via trace only (unit-untestable by convention). Per-call timing was measured in #204 (0.6 ms); nothing open (V6.4.3).
 
 ### 64. V4.9 Priority 4 — `_build_options_chains_payload()`'s gating, considered and declined
 
@@ -2425,3 +2425,123 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** `scripts/splice_holdout_dataset.py`: `--build` runs `build_holdout_dataset.py` with one-month train / validation windows from a start a sensitivity lookback before the holdout (2024-05-31; a 2025-03 start left the trailing 252-row `sens_*` betas at 0.0, which the guard caught), at ~400 MB; `--splice` streams the old rows before 2025-07-01 and the new holdout rows into the file after an overlap guard (every feature and label of 32,179 rows dated 2025-07-01..2026-08-28 equal within 1e-9). The four beta-neutral / residual rank labels are exempt and counted: they use one whole-history beta per asset, so any rebuild moves them (93,999 cells; neither head is on the shipped path).
 
 **Verification:** 280,146 rows kept verbatim, 34,510 old holdout rows replaced by 35,806 (= the 1,296 rows V6.4.0 reported), last date 2026-10-15; the split files are untouched (their windows end before the holdout); `tests/test_splice_holdout_dataset.py`. Backup in `ml/_backup_v642_datasets/`.
+
+### 239. The stopped training Codespace deleted (V6.4.3)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed` (owner decision 2026-11-02)
+
+**Problem:** `aq-sshd-only-test-7v49pjgx6jg43r7g6` (stopped since V6.4.0) billed storage while holding only the rejected `v640_mt_leg_s1..5` / `v640_cand_*` candidates (L3, #217) and an old dataset.
+
+**Fix:** deleted with `gh codespace delete --force` on the owner's answer; the candidates are gone (they were never installable).
+
+**Verification:** `gh codespace list` is empty.
+
+### 240. Lean 4 proofs of the shared pure functions (V6.4.3)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the safety invariants of the functions `main.py` and the simulator share (order gate, hash chain, book neutrality and construction, risk controls, kill switch, sizing, cost model, reconciliation, sleeve guard, JSON safety) lived only in docstrings and example-based tests.
+
+**Fix:** `formal/` (Lean 4 v4.35.0 + Mathlib v4.35.0 from its cache): 11 specs generic over an ordered field (one proof for ℚ and ℝ, `Real.lean` restates the headline theorems at ℝ), 143 theorems and lemmas, no `sorry`; `GenCases.lean` (run interpreted: `lake env lean --run`, no Mathlib C build) runs the models at ℚ on seeded inputs and edge cases (3,134 cases) into `aether_quant/_formal_cases/`, which `tests/test_formal_differential_*.py` run the Python against (CI needs no Lean); `aq prove [--module] [--regen-cases] [--check-sorry]`; new test bucket `formal` (CI matrix). NaN / inf stay with the Python guards (`tests/test_v643_formal_findings.py`).
+
+**Verification:** `aq prove --regen-cases` builds all 13 modules (11 specs, `Real`, `GenCases`), `aq prove --check-sorry` 0 hits, `aq test --formal` 44 passed (the Python matches the Lean models on every case); the proofs produced #241-#244.
+
+### 241. The sector cap does not survive the dollar-neutral step (V6.4.3)
+
+**Severity:** 4/10 · **Status:** 🟡 `partial` (option shipped default-off; adopting it is an owner call)
+
+**Problem:** `apply_book_neutrality` shrinks one leg only in step 3, so a sector holding a long and a short can end above `sector_max_net_weight`; the docstring only claimed the cap after step 2. Proved false in general (`sector_cap_counterexample`: a sector at the cap ends at 9/140 against 1/20); replaying the logged books it happens on 5 of BT5's 38 rebalances (BT7 7/71, BT8 3/38), by at most 1.45 pp over the 15% cap.
+
+**Fix:** `phase_v2.portfolio_book.neutrality.reapply_sector_cap_after_dollar_neutral` (default `false`, the shipped book): the sector shrink runs again after step 3, proved to hold every sector within the cap at the end (`sector_cap_with_reapply`) at the cost of a net exposure of at most 1.45% on BT5's books (mean L1 change 0.3%). `main.py` and the simulator read the same key (`evaluation/live_parity.build_as_live_kwargs`).
+
+**Verification:** `ml/evaluation/v643/sector_cap_frequency.json` (`scripts/v643_sector_cap_frequency.py`); `tests/test_v643_formal_findings.py`; the differential cases cover both settings.
+
+### 242. A non-positive per-name cap erased or flipped the book (V6.4.3)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** step 1 of `apply_book_neutrality` always clipped to `[-cap, cap]`: `max_weight_per_name = 0` zeroed every weight, a negative value turned every weight, shorts included, into a long of |cap| (`old_clip_flips_shorts`). The sector and gross steps already skipped a non-positive cap.
+
+**Fix:** step 1 is skipped for a cap <= 0 (`per_name_cap_skipped_nonpositive_cap`), like the other caps. Shipped value 0.12, so no shipped behaviour changes.
+
+**Verification:** `tests/test_v643_formal_findings.py`; `name_cap` in `BookNeutrality.lean` holds for any positive cap.
+
+### 243. Non-finite and misconfigured inputs in the sizing path (V6.4.3)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the non-finite audit of the verified functions found: `cap_target_weight(nan, ...)` returned a full short of the remaining capacity (`nan >= 0.0` is False); `build_dynamic_position_sizing` turned a NaN base target into a NaN weight, and a negative multiplier product (a misconfigured `min_*_multiplier < 0`) flipped the trade and escaped `max_position_weight` (`old_negative_product_escapes_cap`: 50x the cap, wrong side); `trailing_drawdown(..., lookback_bars=0)` read the whole history (`xs[-0:]`).
+
+**Fix:** a non-finite target is blocked `(0.0, True)`; a non-finite base sizes to 0 and the sized magnitude is clamped at 0; a non-positive lookback reads no window. Finite, configured inputs are bit-identical; the guards cost 0.1-1.2 µs a call (idle PC, `scripts/v643_microbench.py`, ~0.1 ms a bar over 74 symbols). No proof exposed a redundant branch worth removing, so no optimisation was made.
+
+**Verification:** `tests/test_v643_formal_findings.py`; `size_le_cap`, `size_no_flip`, `capTargetWeight_*`, `trailingDrawdown_nonpos_lookback`; `aq test --risk --portfolio --live` green.
+
+### 244. Hash-chain truncation is invisible (V6.4.3)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** every prefix of a valid audit chain is valid (`truncation_undetected`), so deleting the newest rows passes `verify_chain`; the module docstring claimed any deletion breaks the chain. Deleting a row with a successor is detected (`delete_detected`), as are altered fields (`payload_tamper_detected`).
+
+**Fix:** `verify_chain(rows, expected_tail_hash=None)`: with the latest hash recorded elsewhere, a truncated chain reports index `len(rows)`. Default unchanged.
+
+**Verification:** `tests/test_v643_formal_findings.py`, `tests/test_formal_differential_hash_chain.py` (Lean's verdict on a real sha256 chain for every tamper kind).
+
+### 245. Two verification tools lied quietly: README stamps under test, a clean checkout of HEAD (V6.4.3)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+**Problem:** four tests (`aq backtest` wiring, `aq evaluate --reconcile-features`) ran the real `_refresh_readme_evaluation_sections`, so every `aq test --cli` changed five "rendered" stamps in the repository's README. Worse, `scripts/clean_checkout_test.ps1` piped `git diff` through `Out-File -Encoding ascii`: any non-ASCII character in the working-tree diff made `git apply` fail, the script ignored it, and the "clean checkout" ran HEAD plus only the new untracked files (18 V6.4.3 tests failed there for that reason alone; earlier phases' diffs were ASCII).
+
+**Fix:** an autouse fixture in `tests/test_aq_cli.py` patches the refresh (tests that check it patch it themselves); the script lets git write the patch (`--output`) and stops when it does not apply.
+
+**Verification:** `aq test --cli` leaves `git status README.md` clean; the clean checkout with the working tree applied passes (Changelog V6.4.3).
+
+### 246. The beta-neutral and residual labels' lookahead, measured (V6.4.3)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed` (default unchanged; a retrain can switch)
+
+**Problem:** #238: both labels residualise against one whole-history beta per asset, fitted on forward returns that include the label's own future.
+
+**Fix:** `features/asof_beta_labels.py` (a trailing 252-day beta of realised daily returns, as of each date; train.py's definitions otherwise unchanged) and `phase1.target.ranking.beta_estimation` (`"full_history"` default, `"asof"` for a retrain); `cross_sectional_residualize` moved there and shared with train.py. Measured on the installed multitask heads: validation IC unchanged (residual 0.0132 vs 0.0129 as-of, beta-neutral 0.0160 vs 0.0169), backtest inflated by the leak (residual 0.049 vs 0.042, beta-neutral 0.060 vs 0.038); the labels agree at Spearman 0.94-0.97.
+
+**Verification:** `ml/evaluation/v643/research.json` `label_leak`, `ml/datasets/v643_asof_labels.parquet`; `tests/test_asof_beta_labels.py` (a label row never changes when later data changes); the features bucket green.
+
+### 247. The installed model ranks worse than "who the asset is" (V6.4.3)
+
+**Severity:** 6/10 · **Status:** 🔴 `closed` (a measurement; it feeds the next retrain, no code fix)
+
+**Problem:** `aq evaluate --audit-leakage` (new) on the validation split: no feature is flagged (no forward-looking window, no IC left after shuffling the target, no single feature above |0.15|), but the installed live score's mean daily rank-20d IC is 0.004, below a pure asset-identity prior (each ticker's mean train target, 0.021) and far below an asset-class prior (0.066). `aq evaluate --overfit-report` (new): the rank_20d heads keep none of their train IC (multitask 0.374 -> -0.017, sequence 0.335 -> -0.022 non-overlapping); only the sector-neutral heads keep 27-30%.
+
+**Fix:** none in this phase (no retrain, owner decision 2026-11-02). A retrain should start from what V6.4.3 measured: per-date cross-sectional inputs, the as-of labels (#246), and a model that has to beat the identity and class priors before it beats nothing.
+
+**Verification:** `ml/evaluation/v643/leakage_audit.json`, `ml/evaluation/overfit_report.json`.
+
+### 248. R-MODEL11: no factor, probe, blend or head switch qualifies; the grid overfits (V6.4.3)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule; `config.json` unchanged)
+
+**Problem:** find a better signal than the installed V5.8.0 stack without retraining it: 17 trials written down before any score (`ml/evaluation/v643/r_model11_rule.json`, one dated amendment adding S1 before scoring): five factors and their composite, ridge and gradient-boosting probes on per-date ranked features (one on the as-of residual label), three blends of the installed score with the factor composite, a regime-weighted factor mix and the sector-neutral head as the live signal.
+
+**Fix:** none qualifies. The grid's probability of backtest overfitting is 0.66 (CSCV, 16 blocks, 12,870 splits; out-of-sample Sharpe falls by 0.64 per unit of in-sample Sharpe), which by clause 4 blocks every candidate, and no candidate passes `verdict_as_live` on its own either: each one that beats the installed book on one split loses on the other (S1: backtest as-live Sharpe +1.07 against +0.90, validation -0.76 against -0.51; B1: validation +0.84, backtest -0.00). The probes add little over plain factors (factor-spanning alpha t 0.0-2.2) and three of them fail clause 1. The holdout was never read (no finalist), R-LEAN15 never triggered (no BT9) and no retrain brief was written (no probe qualified).
+
+**Verification:** `ml/evaluation/v643/research.json` (per trial: IC with non-overlapping and HAC t, bootstrap CI, era stability, as-live phases, clause checks), `trial_returns.parquet`, `ml/evaluation/pbo.json`; the trial registry grows to 66 (`ml/evaluation/trial_registry.json`).
+
+### 249. R-CAL4: the simulator tracks the last three Lean runs at 0.44-0.61; no option adopted (V6.4.3)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule; branch B stands)
+
+**Problem:** an offline win only means something if the simulator tracks Lean (R-CAL2 left it at ~0.7 on older runs; BT6 / BT7 lost in Lean what the simulator had adopted).
+
+**Fix:** `scripts/lean_calibration.py`'s ladder on BT5 / BT7 / BT8 (2023-07-01..2026-10-16): the calibrated rung's daily correlation is 0.614 / 0.439 / 0.578 (decision agreement 87% / 83% / 87%; replaying live's own gate decisions lifts it to 0.74 / 0.73 / 0.71), so branch B stands. `evaluation/sim_lean_calibration.gap_report` (`aq evaluate --calibrate-sim-lean`): the rebalance phase is the largest gain on every run (+0.23 / +0.10 / +0.18) and the live-gate replicas (resize threshold, cooldown, trailing stop) lower it on every run (-0.08 / -0.11 / -0.05); the simulator also holds ~1.6x live's gross with ~35% name overlap. The candidate chosen on BT5, C1 = the calibrated rung without the live-gate replicas (`scripts/v643_rcal4.py`), gains +0.022 / +0.164 / +0.031: it helps every run but misses the BT5 clause (+0.05), so nothing is adopted. A lead for a later rule: re-derive the live-gate replicas from the engine's own orders before trusting them.
+
+**Verification:** `ml/evaluation/v643/calibration.json`, `r_cal4_result.json`, `ml/evaluation/sim_lean_gap.json`.
+
+### 250. Research and audit tools, and the `aether_quant` library (V6.4.3)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** each research phase rebuilt its scoring in a one-off script, there was no overfitting statistic across a grid of variants, no factor baseline to beat, no leakage or identity check, and nothing of the system was importable as a library.
+
+**Fix:** `evaluation/research_harness.py` (`aq research --signal CSV`), `pbo.py` (`--pbo`), `factor_spanning.py` (`--factor-spanning`), `leakage_audit.py` (`--audit-leakage`), `overfit_diagnostics.py` (`--overfit-report`), `sim_lean_calibration.py` (`--calibrate-sim-lean`), `research_probes.py`, `trial_registry.py` (moved from the script), `features/cross_sectional_norm.py`; `aether_quant/`: a facade re-exporting the shared pure functions (the same objects `main.py` uses), the research tools and the Lean cases, with `lib` / `research` extras, `py.typed`, a pinned public surface (`tests/data/aether_quant_api.json`) and `examples/aether_quant_quickstart.py`.
+
+**Verification:** one test file per module (`aq test --evaluation --features --meta`); `tests/test_aether_quant_api.py` (same objects, no torch / Lean / Redis / Postgres / sklearn on import); a wheel built from the tree and installed into a clean venv passes `scripts/wheel_smoke.py` with a real call into every library module.

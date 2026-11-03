@@ -1,0 +1,8559 @@
+{
+ "target": "risk_controls",
+ "spec_files": [
+  "AetherFormal/RiskControls.lean"
+ ],
+ "cases": [
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 31,
+     "den": 50
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 97,
+     "den": 100
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 47,
+     "den": 50
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 31,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 47,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 20
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -2,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 100
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -12,
+     "den": 25
+    },
+    "current": {
+     "num": 6,
+     "den": 5
+    },
+    "cap": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 5
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 77,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 23,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -16,
+     "den": 25
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -16,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 100
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -19,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -33,
+     "den": 50
+    },
+    "current": {
+     "num": 21,
+     "den": 20
+    },
+    "cap": {
+     "num": 31,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -59,
+     "den": 100
+    },
+    "current": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 25
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 17,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 23,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 100
+    },
+    "current": {
+     "num": 31,
+     "den": 20
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 50
+    },
+    "current": {
+     "num": 37,
+     "den": 20
+    },
+    "cap": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 1
+    },
+    "current": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 11,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 37,
+     "den": 50
+    },
+    "current": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -57,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -39,
+     "den": 100
+    },
+    "current": {
+     "num": 6,
+     "den": 5
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -39,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 100
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 27,
+     "den": 50
+    },
+    "current": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 20
+    },
+    "current": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 91,
+     "den": 100
+    },
+    "current": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 6,
+     "den": 25
+    },
+    "current": {
+     "num": 19,
+     "den": 10
+    },
+    "cap": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 25
+    },
+    "current": {
+     "num": 11,
+     "den": 10
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 11,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 87,
+     "den": 100
+    },
+    "current": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 100
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 21,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -8,
+     "den": 25
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 25
+    },
+    "current": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 50
+    },
+    "current": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 17,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 20
+    },
+    "current": {
+     "num": 23,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 50
+    },
+    "current": {
+     "num": 29,
+     "den": 20
+    },
+    "cap": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 20
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -29,
+     "den": 50
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -29,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 29,
+     "den": 100
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -4,
+     "den": 5
+    },
+    "current": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 2
+    },
+    "current": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 50
+    },
+    "current": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 27,
+     "den": 50
+    },
+    "current": {
+     "num": 9,
+     "den": 5
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 73,
+     "den": 100
+    },
+    "current": {
+     "num": 33,
+     "den": 20
+    },
+    "cap": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -99,
+     "den": 100
+    },
+    "current": {
+     "num": 37,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 67,
+     "den": 100
+    },
+    "current": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 67,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 73,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 50
+    },
+    "current": {
+     "num": 29,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -79,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 27,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -12,
+     "den": 25
+    },
+    "current": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -12,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 49,
+     "den": 50
+    },
+    "current": {
+     "num": 19,
+     "den": 10
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 25
+    },
+    "current": {
+     "num": 29,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -73,
+     "den": 100
+    },
+    "current": {
+     "num": 23,
+     "den": 20
+    },
+    "cap": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -73,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 67,
+     "den": 100
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 21,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -51,
+     "den": 100
+    },
+    "current": {
+     "num": 37,
+     "den": 20
+    },
+    "cap": {
+     "num": 23,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 53,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 50
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 59,
+     "den": 100
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 2,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -31,
+     "den": 50
+    },
+    "current": {
+     "num": 5,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 4,
+     "den": 5
+    },
+    "current": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 31,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 4,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 25
+    },
+    "current": {
+     "num": 17,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 20
+    },
+    "current": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -37,
+     "den": 100
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -18,
+     "den": 25
+    },
+    "current": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -18,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -27,
+     "den": 50
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 20
+    },
+    "current": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -13,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 50
+    },
+    "current": {
+     "num": 17,
+     "den": 10
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 20
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 29,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 25
+    },
+    "current": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 41,
+     "den": 50
+    },
+    "current": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -31,
+     "den": 100
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 17,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 21,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 25
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 23,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -33,
+     "den": 100
+    },
+    "current": {
+     "num": 21,
+     "den": 20
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 25
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -9,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 87,
+     "den": 100
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -29,
+     "den": 50
+    },
+    "current": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 21,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -29,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 100
+    },
+    "current": {
+     "num": 29,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 31,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 5
+    },
+    "cap": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -29,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -29,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 100
+    },
+    "current": {
+     "num": 21,
+     "den": 20
+    },
+    "cap": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 47,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "current": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -71,
+     "den": 100
+    },
+    "current": {
+     "num": 27,
+     "den": 20
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 50
+    },
+    "current": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -9,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 4
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 100
+    },
+    "current": {
+     "num": 17,
+     "den": 10
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 37,
+     "den": 50
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "current": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 10
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -79,
+     "den": 100
+    },
+    "current": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 97,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -83,
+     "den": 100
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 5
+    },
+    "current": {
+     "num": 27,
+     "den": 20
+    },
+    "cap": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 25
+    },
+    "current": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 31,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 33,
+     "den": 100
+    },
+    "current": {
+     "num": 23,
+     "den": 20
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 33,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 89,
+     "den": 100
+    },
+    "current": {
+     "num": 23,
+     "den": 20
+    },
+    "cap": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 20
+    },
+    "current": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -13,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -49,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 2
+    },
+    "cap": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 50
+    },
+    "current": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -13,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 100
+    },
+    "current": {
+     "num": 9,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -97,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 39,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -97,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 100
+    },
+    "current": {
+     "num": 5,
+     "den": 4
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 11,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 87,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 17,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 5
+    },
+    "current": {
+     "num": 7,
+     "den": 4
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -97,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 19,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -97,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -47,
+     "den": 50
+    },
+    "current": {
+     "num": 29,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 50
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -16,
+     "den": 25
+    },
+    "current": {
+     "num": 39,
+     "den": 20
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 1
+    },
+    "current": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 17,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 89,
+     "den": 100
+    },
+    "current": {
+     "num": 6,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -97,
+     "den": 100
+    },
+    "current": {
+     "num": 37,
+     "den": 20
+    },
+    "cap": {
+     "num": 39,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 8,
+     "den": 25
+    },
+    "current": {
+     "num": 29,
+     "den": 20
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -23,
+     "den": 50
+    },
+    "current": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 4,
+     "den": 25
+    },
+    "current": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 4,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 10
+    },
+    "current": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -18,
+     "den": 25
+    },
+    "current": {
+     "num": 9,
+     "den": 5
+    },
+    "cap": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 5
+    },
+    "current": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 2,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 20
+    },
+    "current": {
+     "num": 9,
+     "den": 5
+    },
+    "cap": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -16,
+     "den": 25
+    },
+    "current": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 50
+    },
+    "current": {
+     "num": 33,
+     "den": 20
+    },
+    "cap": {
+     "num": 29,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 20
+    },
+    "current": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 17,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -4,
+     "den": 25
+    },
+    "current": {
+     "num": 21,
+     "den": 20
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 10
+    },
+    "current": {
+     "num": 19,
+     "den": 10
+    },
+    "cap": {
+     "num": 6,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -22,
+     "den": 25
+    },
+    "current": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -9,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 50
+    },
+    "current": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 21,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -14,
+     "den": 25
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 100
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -87,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 5
+    },
+    "cap": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 10
+    },
+    "current": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 6,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 13,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -61,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 69,
+     "den": 100
+    },
+    "current": {
+     "num": 27,
+     "den": 20
+    },
+    "cap": {
+     "num": 39,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 25
+    },
+    "current": {
+     "num": 37,
+     "den": 20
+    },
+    "cap": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 21,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 61,
+     "den": 100
+    },
+    "current": {
+     "num": 31,
+     "den": 20
+    },
+    "cap": {
+     "num": 21,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 4,
+     "den": 5
+    },
+    "current": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 10
+    },
+    "current": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 9,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 50
+    },
+    "current": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 63,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 31,
+     "den": 100
+    },
+    "current": {
+     "num": 9,
+     "den": 5
+    },
+    "cap": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 93,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 5
+    },
+    "cap": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 25
+    },
+    "current": {
+     "num": 7,
+     "den": 5
+    },
+    "cap": {
+     "num": 39,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 25
+    },
+    "current": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -7,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -47,
+     "den": 50
+    },
+    "current": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 8,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -47,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -18,
+     "den": 25
+    },
+    "current": {
+     "num": 39,
+     "den": 20
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -13,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 50
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 50
+    },
+    "current": {
+     "num": 39,
+     "den": 20
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 29,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 29,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 29,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -47,
+     "den": 100
+    },
+    "current": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 10
+    },
+    "current": {
+     "num": 11,
+     "den": 10
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 11,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 25
+    },
+    "current": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 25
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 5
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 51,
+     "den": 100
+    },
+    "current": {
+     "num": 8,
+     "den": 5
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -97,
+     "den": 100
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 71,
+     "den": 100
+    },
+    "current": {
+     "num": 23,
+     "den": 20
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -93,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 20
+    },
+    "current": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 31,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 20
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -23,
+     "den": 25
+    },
+    "current": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -99,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -4,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 4
+    },
+    "current": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -39,
+     "den": 50
+    },
+    "current": {
+     "num": 7,
+     "den": 4
+    },
+    "cap": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 50
+    },
+    "current": {
+     "num": 21,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -57,
+     "den": 100
+    },
+    "current": {
+     "num": 5,
+     "den": 4
+    },
+    "cap": {
+     "num": 11,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 100
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 50
+    },
+    "current": {
+     "num": 7,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 2
+    },
+    "current": {
+     "num": 21,
+     "den": 20
+    },
+    "cap": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 10
+    },
+    "current": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 11,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 10
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 53,
+     "den": 100
+    },
+    "current": {
+     "num": 17,
+     "den": 10
+    },
+    "cap": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 100
+    },
+    "current": {
+     "num": 17,
+     "den": 10
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 5
+    },
+    "current": {
+     "num": 5,
+     "den": 4
+    },
+    "cap": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 67,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 67,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -41,
+     "den": 50
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 39,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -43,
+     "den": 100
+    },
+    "current": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 39,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -43,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 47,
+     "den": 100
+    },
+    "current": {
+     "num": 23,
+     "den": 20
+    },
+    "cap": {
+     "num": 27,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 25
+    },
+    "current": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -18,
+     "den": 25
+    },
+    "current": {
+     "num": 29,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -37,
+     "den": 100
+    },
+    "current": {
+     "num": 31,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -41,
+     "den": 50
+    },
+    "current": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -41,
+     "den": 50
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 100
+    },
+    "current": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -83,
+     "den": 100
+    },
+    "current": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 37,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -83,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 100
+    },
+    "current": {
+     "num": 5,
+     "den": 4
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 9,
+     "den": 100
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -23,
+     "den": 25
+    },
+    "current": {
+     "num": 5,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 12,
+     "den": 25
+    },
+    "current": {
+     "num": 3,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 10
+    },
+    "current": {
+     "num": 33,
+     "den": 20
+    },
+    "cap": {
+     "num": 23,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 25
+    },
+    "current": {
+     "num": 21,
+     "den": 20
+    },
+    "cap": {
+     "num": 33,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 25
+    },
+    "current": {
+     "num": 13,
+     "den": 10
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -61,
+     "den": 100
+    },
+    "current": {
+     "num": 6,
+     "den": 5
+    },
+    "cap": {
+     "num": 9,
+     "den": 5
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 5
+    },
+    "blocked": false
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 100
+    },
+    "current": {
+     "num": 33,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 20
+    },
+    "current": {
+     "num": 2,
+     "den": 1
+    },
+    "cap": {
+     "num": 13,
+     "den": 10
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 25
+    },
+    "current": {
+     "num": 19,
+     "den": 10
+    },
+    "cap": {
+     "num": 29,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 50
+    },
+    "current": {
+     "num": 39,
+     "den": 20
+    },
+    "cap": {
+     "num": 21,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "cap_target_weight",
+   "input": {
+    "target": {
+     "num": -77,
+     "den": 100
+    },
+    "current": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    },
+    "blocked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 25
+    },
+    "max_total": {
+     "num": 43,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 19,
+     "den": 50
+    },
+    "daily": {
+     "num": -41,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 50
+    },
+    "max_total": {
+     "num": 3,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 41,
+     "den": 50
+    },
+    "daily": {
+     "num": -19,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -9,
+     "den": 10
+    },
+    "max_total": {
+     "num": 11,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 21,
+     "den": 50
+    },
+    "daily": {
+     "num": -17,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -9,
+     "den": 25
+    },
+    "max_total": {
+     "num": 11,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 16,
+     "den": 25
+    },
+    "daily": {
+     "num": -19,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -43,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 2
+    },
+    "max_daily": {
+     "num": 19,
+     "den": 25
+    },
+    "daily": {
+     "num": -11,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -4,
+     "den": 5
+    },
+    "max_total": {
+     "num": 47,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 8,
+     "den": 25
+    },
+    "daily": {
+     "num": -6,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -37,
+     "den": 50
+    },
+    "max_total": {
+     "num": 9,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 4,
+     "den": 25
+    },
+    "daily": {
+     "num": -24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -18,
+     "den": 25
+    },
+    "max_total": {
+     "num": 7,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 5
+    },
+    "daily": {
+     "num": -12,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -2,
+     "den": 5
+    },
+    "max_total": {
+     "num": 2,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 50
+    },
+    "daily": {
+     "num": -27,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 10
+    },
+    "max_total": {
+     "num": 3,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 39,
+     "den": 50
+    },
+    "daily": {
+     "num": -22,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 2
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 50
+    },
+    "daily": {
+     "num": -23,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -14,
+     "den": 25
+    },
+    "max_total": {
+     "num": 29,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 11,
+     "den": 50
+    },
+    "daily": {
+     "num": -19,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 50
+    },
+    "max_total": {
+     "num": 19,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 24,
+     "den": 25
+    },
+    "daily": {
+     "num": -17,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -2,
+     "den": 25
+    },
+    "max_total": {
+     "num": 47,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 10
+    },
+    "daily": {
+     "num": -17,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -43,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 6,
+     "den": 25
+    },
+    "daily": {
+     "num": -47,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 25
+    },
+    "max_total": {
+     "num": 2,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 25
+    },
+    "daily": {
+     "num": -9,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -23,
+     "den": 50
+    },
+    "max_total": {
+     "num": 4,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 10
+    },
+    "daily": {
+     "num": -22,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 25
+    },
+    "max_total": {
+     "num": 7,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 22,
+     "den": 25
+    },
+    "daily": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -16,
+     "den": 25
+    },
+    "max_total": {
+     "num": 23,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 19,
+     "den": 50
+    },
+    "daily": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 10
+    },
+    "max_total": {
+     "num": 24,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 13,
+     "den": 25
+    },
+    "daily": {
+     "num": -2,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -17,
+     "den": 25
+    },
+    "max_total": {
+     "num": 13,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 11,
+     "den": 50
+    },
+    "daily": {
+     "num": -2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -4,
+     "den": 5
+    },
+    "max_total": {
+     "num": 49,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 10
+    },
+    "daily": {
+     "num": -16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -23,
+     "den": 25
+    },
+    "max_total": {
+     "num": 1,
+     "den": 2
+    },
+    "max_daily": {
+     "num": 12,
+     "den": 25
+    },
+    "daily": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 10
+    },
+    "max_total": {
+     "num": 16,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 17,
+     "den": 50
+    },
+    "daily": {
+     "num": -33,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 25
+    },
+    "max_total": {
+     "num": 3,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 25
+    },
+    "daily": {
+     "num": -24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -33,
+     "den": 50
+    },
+    "max_total": {
+     "num": 27,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 43,
+     "den": 50
+    },
+    "daily": {
+     "num": -7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 25
+    },
+    "max_total": {
+     "num": 19,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 23,
+     "den": 25
+    },
+    "daily": {
+     "num": -7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -17,
+     "den": 50
+    },
+    "max_total": {
+     "num": 13,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 0,
+     "den": 1
+    },
+    "daily": {
+     "num": -39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -14,
+     "den": 25
+    },
+    "max_total": {
+     "num": 2,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 2,
+     "den": 5
+    },
+    "daily": {
+     "num": -39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -37,
+     "den": 50
+    },
+    "max_total": {
+     "num": 3,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 4,
+     "den": 25
+    },
+    "daily": {
+     "num": -3,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -18,
+     "den": 25
+    },
+    "max_total": {
+     "num": 33,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 33,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 25
+    },
+    "max_total": {
+     "num": 1,
+     "den": 1
+    },
+    "max_daily": {
+     "num": 4,
+     "den": 5
+    },
+    "daily": {
+     "num": -24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -2,
+     "den": 5
+    },
+    "max_total": {
+     "num": 1,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 2,
+     "den": 5
+    },
+    "daily": {
+     "num": -12,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -6,
+     "den": 25
+    },
+    "max_total": {
+     "num": 33,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 50
+    },
+    "daily": {
+     "num": -31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 10
+    },
+    "max_total": {
+     "num": 17,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 10
+    },
+    "daily": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -19,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 1
+    },
+    "max_daily": {
+     "num": 17,
+     "den": 25
+    },
+    "daily": {
+     "num": -39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -16,
+     "den": 25
+    },
+    "max_total": {
+     "num": 29,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 13,
+     "den": 50
+    },
+    "daily": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -2,
+     "den": 25
+    },
+    "max_total": {
+     "num": 1,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 10
+    },
+    "daily": {
+     "num": -24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 5
+    },
+    "max_total": {
+     "num": 9,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -8,
+     "den": 25
+    },
+    "max_total": {
+     "num": 8,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 10
+    },
+    "daily": {
+     "num": -23,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 10
+    },
+    "max_total": {
+     "num": 39,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 17,
+     "den": 50
+    },
+    "daily": {
+     "num": -21,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 25
+    },
+    "max_total": {
+     "num": 3,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 25
+    },
+    "daily": {
+     "num": -13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -23,
+     "den": 50
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 50
+    },
+    "daily": {
+     "num": -3,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -11,
+     "den": 50
+    },
+    "max_total": {
+     "num": 7,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 18,
+     "den": 25
+    },
+    "daily": {
+     "num": -7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 2
+    },
+    "max_daily": {
+     "num": 19,
+     "den": 25
+    },
+    "daily": {
+     "num": -9,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 5
+    },
+    "max_total": {
+     "num": 43,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 25
+    },
+    "daily": {
+     "num": -13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -11,
+     "den": 25
+    },
+    "max_total": {
+     "num": 29,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 22,
+     "den": 25
+    },
+    "daily": {
+     "num": -1,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -33,
+     "den": 50
+    },
+    "max_total": {
+     "num": 9,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 19,
+     "den": 25
+    },
+    "daily": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -16,
+     "den": 25
+    },
+    "max_total": {
+     "num": 8,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 19,
+     "den": 50
+    },
+    "daily": {
+     "num": -41,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -19,
+     "den": 25
+    },
+    "max_total": {
+     "num": 19,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 19,
+     "den": 25
+    },
+    "daily": {
+     "num": -2,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -24,
+     "den": 25
+    },
+    "max_total": {
+     "num": 1,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 41,
+     "den": 50
+    },
+    "daily": {
+     "num": -17,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -4,
+     "den": 25
+    },
+    "max_total": {
+     "num": 14,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 31,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -9,
+     "den": 50
+    },
+    "max_total": {
+     "num": 9,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 37,
+     "den": 50
+    },
+    "daily": {
+     "num": -31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -31,
+     "den": 50
+    },
+    "max_total": {
+     "num": 19,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 25
+    },
+    "daily": {
+     "num": -7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 5
+    },
+    "max_total": {
+     "num": 23,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 24,
+     "den": 25
+    },
+    "daily": {
+     "num": -1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -2,
+     "den": 5
+    },
+    "max_total": {
+     "num": 14,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 47,
+     "den": 50
+    },
+    "daily": {
+     "num": -14,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -12,
+     "den": 25
+    },
+    "max_total": {
+     "num": 3,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 49,
+     "den": 50
+    },
+    "daily": {
+     "num": -41,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -23,
+     "den": 25
+    },
+    "max_total": {
+     "num": 1,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 14,
+     "den": 25
+    },
+    "daily": {
+     "num": -11,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -49,
+     "den": 50
+    },
+    "max_total": {
+     "num": 31,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 6,
+     "den": 25
+    },
+    "daily": {
+     "num": -3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 25
+    },
+    "max_total": {
+     "num": 17,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -17,
+     "den": 50
+    },
+    "max_total": {
+     "num": 2,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 10
+    },
+    "daily": {
+     "num": -18,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -4,
+     "den": 25
+    },
+    "max_total": {
+     "num": 9,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 22,
+     "den": 25
+    },
+    "daily": {
+     "num": -43,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 50
+    },
+    "max_total": {
+     "num": 8,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 17,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -39,
+     "den": 50
+    },
+    "max_total": {
+     "num": 17,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 31,
+     "den": 50
+    },
+    "daily": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 1
+    },
+    "max_total": {
+     "num": 2,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 14,
+     "den": 25
+    },
+    "daily": {
+     "num": -16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -49,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 2
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 25
+    },
+    "daily": {
+     "num": -2,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -9,
+     "den": 50
+    },
+    "max_total": {
+     "num": 43,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 39,
+     "den": 50
+    },
+    "daily": {
+     "num": -27,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -18,
+     "den": 25
+    },
+    "max_total": {
+     "num": 49,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 27,
+     "den": 50
+    },
+    "daily": {
+     "num": -24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -18,
+     "den": 25
+    },
+    "max_total": {
+     "num": 49,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 10
+    },
+    "daily": {
+     "num": -1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -41,
+     "den": 50
+    },
+    "max_total": {
+     "num": 27,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 21,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -39,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 5
+    },
+    "daily": {
+     "num": -24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 50
+    },
+    "max_total": {
+     "num": 37,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 14,
+     "den": 25
+    },
+    "daily": {
+     "num": -21,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -8,
+     "den": 25
+    },
+    "max_total": {
+     "num": 22,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 49,
+     "den": 50
+    },
+    "daily": {
+     "num": -11,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -31,
+     "den": 50
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 10
+    },
+    "daily": {
+     "num": -37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -8,
+     "den": 25
+    },
+    "max_total": {
+     "num": 13,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 13,
+     "den": 50
+    },
+    "daily": {
+     "num": -6,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -41,
+     "den": 50
+    },
+    "max_total": {
+     "num": 29,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 43,
+     "den": 50
+    },
+    "daily": {
+     "num": -21,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -12,
+     "den": 25
+    },
+    "max_total": {
+     "num": 16,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 21,
+     "den": 25
+    },
+    "daily": {
+     "num": -16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -2,
+     "den": 25
+    },
+    "max_total": {
+     "num": 7,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 14,
+     "den": 25
+    },
+    "daily": {
+     "num": -23,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -22,
+     "den": 25
+    },
+    "max_total": {
+     "num": 27,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 10
+    },
+    "daily": {
+     "num": -22,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -4,
+     "den": 5
+    },
+    "max_total": {
+     "num": 24,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 25
+    },
+    "daily": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -41,
+     "den": 50
+    },
+    "max_total": {
+     "num": 9,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 23,
+     "den": 50
+    },
+    "daily": {
+     "num": -3,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -17,
+     "den": 50
+    },
+    "max_total": {
+     "num": 11,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 17,
+     "den": 50
+    },
+    "daily": {
+     "num": -39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 2
+    },
+    "max_total": {
+     "num": 9,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 21,
+     "den": 25
+    },
+    "daily": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -24,
+     "den": 25
+    },
+    "max_total": {
+     "num": 29,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 6,
+     "den": 25
+    },
+    "daily": {
+     "num": -33,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -39,
+     "den": 50
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 50
+    },
+    "max_total": {
+     "num": 33,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 29,
+     "den": 50
+    },
+    "daily": {
+     "num": -22,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -6,
+     "den": 25
+    },
+    "max_total": {
+     "num": 31,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 10
+    },
+    "daily": {
+     "num": -21,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 25
+    },
+    "max_total": {
+     "num": 23,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 10
+    },
+    "daily": {
+     "num": -23,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -39,
+     "den": 50
+    },
+    "max_total": {
+     "num": 4,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 2,
+     "den": 5
+    },
+    "daily": {
+     "num": -21,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 25
+    },
+    "max_total": {
+     "num": 17,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 1
+    },
+    "daily": {
+     "num": -39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -4,
+     "den": 25
+    },
+    "max_total": {
+     "num": 3,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 10
+    },
+    "daily": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -22,
+     "den": 25
+    },
+    "max_total": {
+     "num": 7,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 25
+    },
+    "daily": {
+     "num": -41,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -12,
+     "den": 25
+    },
+    "max_total": {
+     "num": 3,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 31,
+     "den": 50
+    },
+    "daily": {
+     "num": -9,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 10
+    },
+    "max_total": {
+     "num": 1,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 29,
+     "den": 50
+    },
+    "daily": {
+     "num": -37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -23,
+     "den": 25
+    },
+    "max_total": {
+     "num": 13,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 23,
+     "den": 25
+    },
+    "daily": {
+     "num": -13,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -49,
+     "den": 50
+    },
+    "max_total": {
+     "num": 21,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 25
+    },
+    "daily": {
+     "num": -14,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -23,
+     "den": 25
+    },
+    "max_total": {
+     "num": 19,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 2
+    },
+    "daily": {
+     "num": -39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 2
+    },
+    "max_total": {
+     "num": 1,
+     "den": 2
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 25
+    },
+    "daily": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 2
+    },
+    "max_total": {
+     "num": 16,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 1
+    },
+    "daily": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 50
+    },
+    "max_total": {
+     "num": 9,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 33,
+     "den": 50
+    },
+    "daily": {
+     "num": -13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 10
+    },
+    "max_total": {
+     "num": 33,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 22,
+     "den": 25
+    },
+    "daily": {
+     "num": -7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -31,
+     "den": 50
+    },
+    "max_total": {
+     "num": 9,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 25
+    },
+    "daily": {
+     "num": -21,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -17,
+     "den": 25
+    },
+    "max_total": {
+     "num": 16,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 25
+    },
+    "daily": {
+     "num": -33,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": 0,
+     "den": 1
+    },
+    "max_total": {
+     "num": 41,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 13,
+     "den": 25
+    },
+    "daily": {
+     "num": -14,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 5
+    },
+    "max_total": {
+     "num": 37,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 10
+    },
+    "daily": {
+     "num": -21,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 50
+    },
+    "max_total": {
+     "num": 31,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 1
+    },
+    "daily": {
+     "num": -49,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -49,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 47,
+     "den": 50
+    },
+    "daily": {
+     "num": -27,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 10
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 1
+    },
+    "daily": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 25
+    },
+    "max_total": {
+     "num": 9,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 4,
+     "den": 5
+    },
+    "daily": {
+     "num": -3,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -33,
+     "den": 50
+    },
+    "max_total": {
+     "num": 22,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 10
+    },
+    "daily": {
+     "num": -37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -14,
+     "den": 25
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 10
+    },
+    "daily": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -18,
+     "den": 25
+    },
+    "max_total": {
+     "num": 31,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 6,
+     "den": 25
+    },
+    "daily": {
+     "num": -4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 25
+    },
+    "max_total": {
+     "num": 8,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 14,
+     "den": 25
+    },
+    "daily": {
+     "num": -17,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -19,
+     "den": 25
+    },
+    "max_total": {
+     "num": 21,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 18,
+     "den": 25
+    },
+    "daily": {
+     "num": -4,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -29,
+     "den": 50
+    },
+    "max_total": {
+     "num": 22,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 50
+    },
+    "daily": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -11,
+     "den": 25
+    },
+    "max_total": {
+     "num": 17,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 13,
+     "den": 25
+    },
+    "daily": {
+     "num": -43,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -11,
+     "den": 25
+    },
+    "max_total": {
+     "num": 13,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 5
+    },
+    "daily": {
+     "num": -24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -16,
+     "den": 25
+    },
+    "max_total": {
+     "num": 33,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 33,
+     "den": 50
+    },
+    "daily": {
+     "num": -39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -14,
+     "den": 25
+    },
+    "max_total": {
+     "num": 2,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 47,
+     "den": 50
+    },
+    "daily": {
+     "num": -3,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 10
+    },
+    "max_total": {
+     "num": 47,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 17,
+     "den": 50
+    },
+    "daily": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 10
+    },
+    "max_total": {
+     "num": 27,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 3,
+     "den": 5
+    },
+    "daily": {
+     "num": -21,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -18,
+     "den": 25
+    },
+    "max_total": {
+     "num": 43,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 24,
+     "den": 25
+    },
+    "daily": {
+     "num": -17,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -39,
+     "den": 50
+    },
+    "max_total": {
+     "num": 2,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 50
+    },
+    "daily": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -21,
+     "den": 50
+    },
+    "max_total": {
+     "num": 49,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 18,
+     "den": 25
+    },
+    "daily": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -21,
+     "den": 50
+    },
+    "max_total": {
+     "num": 3,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 11,
+     "den": 50
+    },
+    "daily": {
+     "num": -43,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -9,
+     "den": 10
+    },
+    "max_total": {
+     "num": 31,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 14,
+     "den": 25
+    },
+    "daily": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -21,
+     "den": 25
+    },
+    "max_total": {
+     "num": 1,
+     "den": 1
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 10
+    },
+    "daily": {
+     "num": -3,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -27,
+     "den": 50
+    },
+    "max_total": {
+     "num": 14,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 2,
+     "den": 5
+    },
+    "daily": {
+     "num": -37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -23,
+     "den": 25
+    },
+    "max_total": {
+     "num": 1,
+     "den": 2
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 25
+    },
+    "daily": {
+     "num": -23,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 50
+    },
+    "max_total": {
+     "num": 17,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 1
+    },
+    "daily": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -13,
+     "den": 50
+    },
+    "max_total": {
+     "num": 7,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 21,
+     "den": 25
+    },
+    "daily": {
+     "num": -49,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": 0,
+     "den": 1
+    },
+    "max_total": {
+     "num": 23,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 49,
+     "den": 50
+    },
+    "daily": {
+     "num": -49,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -16,
+     "den": 25
+    },
+    "max_total": {
+     "num": 7,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 41,
+     "den": 50
+    },
+    "daily": {
+     "num": -16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -11,
+     "den": 50
+    },
+    "max_total": {
+     "num": 2,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 47,
+     "den": 50
+    },
+    "daily": {
+     "num": -9,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -31,
+     "den": 50
+    },
+    "max_total": {
+     "num": 41,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 50
+    },
+    "daily": {
+     "num": -9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 25
+    },
+    "max_total": {
+     "num": 21,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 12,
+     "den": 25
+    },
+    "daily": {
+     "num": -1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -9,
+     "den": 10
+    },
+    "max_total": {
+     "num": 22,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 1,
+     "den": 5
+    },
+    "daily": {
+     "num": -37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -13,
+     "den": 50
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 10
+    },
+    "daily": {
+     "num": -16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -1,
+     "den": 50
+    },
+    "max_total": {
+     "num": 9,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 6,
+     "den": 25
+    },
+    "daily": {
+     "num": -31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -21,
+     "den": 25
+    },
+    "max_total": {
+     "num": 0,
+     "den": 1
+    },
+    "max_daily": {
+     "num": 4,
+     "den": 5
+    },
+    "daily": {
+     "num": -3,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -19,
+     "den": 50
+    },
+    "max_total": {
+     "num": 1,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 22,
+     "den": 25
+    },
+    "daily": {
+     "num": -19,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -4,
+     "den": 5
+    },
+    "max_total": {
+     "num": 6,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 50
+    },
+    "daily": {
+     "num": -7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -11,
+     "den": 25
+    },
+    "max_total": {
+     "num": 3,
+     "den": 10
+    },
+    "max_daily": {
+     "num": 7,
+     "den": 10
+    },
+    "daily": {
+     "num": -37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -18,
+     "den": 25
+    },
+    "max_total": {
+     "num": 3,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 24,
+     "den": 25
+    },
+    "daily": {
+     "num": -1,
+     "den": 5
+    }
+   },
+   "expected": {
+    "reason": "total_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -7,
+     "den": 25
+    },
+    "max_total": {
+     "num": 23,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 31,
+     "den": 50
+    },
+    "daily": {
+     "num": -3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -13,
+     "den": 25
+    },
+    "max_total": {
+     "num": 27,
+     "den": 50
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 10
+    },
+    "daily": {
+     "num": -7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -13,
+     "den": 50
+    },
+    "max_total": {
+     "num": 4,
+     "den": 5
+    },
+    "max_daily": {
+     "num": 11,
+     "den": 50
+    },
+    "daily": {
+     "num": -33,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": "daily_drawdown_limit_breached",
+    "locked": true
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -12,
+     "den": 25
+    },
+    "max_total": {
+     "num": 13,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 4,
+     "den": 5
+    },
+    "daily": {
+     "num": -1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 10
+    },
+    "max_total": {
+     "num": 11,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 21,
+     "den": 25
+    },
+    "daily": {
+     "num": -19,
+     "den": 25
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  },
+  {
+   "kind": "drawdown_lock",
+   "input": {
+    "total": {
+     "num": -3,
+     "den": 50
+    },
+    "max_total": {
+     "num": 7,
+     "den": 25
+    },
+    "max_daily": {
+     "num": 9,
+     "den": 25
+    },
+    "daily": {
+     "num": -13,
+     "den": 50
+    }
+   },
+   "expected": {
+    "reason": null,
+    "locked": false
+   }
+  }
+ ],
+ "spec_sha256": "f549d5d1360027b860390b0e57782e5c6a1c9c21ceb9c6f1c2bcdd3e1feae8e7"
+}

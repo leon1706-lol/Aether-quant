@@ -12,59 +12,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPLIT = "backtest"
+sys.path.insert(0, str(ROOT))
 
-
-def collect_trials(payload, phase: str, path: tuple[str, ...] = ()) -> list[dict]:
-    """(phase, path, median Sharpe) for every `<...>/backtest/{median_net_sharpe}` summary in a research payload."""
-    trials: list[dict] = []
-    if isinstance(payload, dict):
-        summary = payload.get(SPLIT)
-        if isinstance(summary, dict) and isinstance(summary.get("median_net_sharpe"), (int, float)):
-            value = float(summary["median_net_sharpe"])
-            if math.isfinite(value):
-                trials.append({
-                    "phase": phase, "trial": "/".join(path), "split": SPLIT, "median_sharpe": value,
-                    "phases": summary.get("phases"), "annualization": 252,
-                })
-        for key, child in payload.items():
-            if key != SPLIT:
-                trials.extend(collect_trials(child, phase, path + (str(key),)))
-    elif isinstance(payload, list):
-        for index, child in enumerate(payload):
-            trials.extend(collect_trials(child, phase, path + (str(index),)))
-    return trials
-
-
-def dedupe(trials: list[dict]) -> list[dict]:
-    """One trial per distinct (phase, score): the same configuration re-scored in a later stage is not a new trial."""
-    seen: set[tuple[str, float]] = set()
-    unique = []
-    for trial in trials:
-        key = (trial["phase"], round(trial["median_sharpe"], 9))
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(trial)
-    return unique
-
-
-def build_registry(evaluation_dir: Path) -> dict:
-    trials: list[dict] = []
-    sources = []
-    for research in sorted(Path(evaluation_dir).glob("v*/research.json")):
-        try:
-            payload = json.loads(research.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        sources.append(research.relative_to(evaluation_dir).as_posix())
-        trials.extend(collect_trials(payload, research.parent.name))
-    trials = dedupe(trials)
-    return {"sources": sources, "num_trials": len(trials), "split": SPLIT, "trials": trials}
+from evaluation.trial_registry import SPLIT, build_registry, collect_trials, dedupe  # noqa: E402,F401
 
 
 def main() -> int:

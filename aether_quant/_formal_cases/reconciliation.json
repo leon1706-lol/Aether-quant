@@ -1,0 +1,11402 @@
+{
+ "target": "reconciliation",
+ "spec_files": [
+  "AetherFormal/Reconciliation.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -27,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 37,
+       "den": 200
+      },
+      "actual": {
+       "num": 4977,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -117,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -19,
+       "den": 100
+      },
+      "actual": {
+       "num": -11,
+       "den": 40
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 47,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 107,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 47,
+     "den": 50
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -14,
+       "den": 25
+      },
+      "actual": {
+       "num": 12,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -61,
+       "den": 100
+      },
+      "actual": {
+       "num": -77,
+       "den": 125
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 3,
+       "den": 25
+      },
+      "actual": {
+       "num": 67,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 1,
+       "den": 40
+      },
+      "actual": {
+       "num": 9,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -21,
+       "den": 200
+      },
+      "actual": {
+       "num": -83,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 26,
+     "den": 25
+    },
+    "classes": [
+     "drifted",
+     "matched",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 19,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 41,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 41,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 173,
+       "den": 200
+      },
+      "actual": {
+       "num": -13,
+       "den": 20
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 139,
+       "den": 200
+      },
+      "actual": {
+       "num": 6769,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 189,
+       "den": 200
+      },
+      "actual": {
+       "num": -1,
+       "den": 8
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 131,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -57,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 303,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 157,
+       "den": 200
+      },
+      "actual": {
+       "num": 21,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 25
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -79,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 79,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -19,
+       "den": 25
+      },
+      "actual": {
+       "num": 63,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 187,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 7,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -151,
+       "den": 200
+      },
+      "actual": {
+       "num": -16299,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -1,
+       "den": 4
+      },
+      "actual": {
+       "num": -393,
+       "den": 2000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 43,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "missing_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 7,
+       "den": 10
+      },
+      "actual": {
+       "num": 7977,
+       "den": 10000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 977,
+     "den": 10000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -14,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -16,
+       "den": 25
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 29,
+       "den": 50
+      },
+      "actual": {
+       "num": 11941,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 131,
+       "den": 200
+      },
+      "actual": {
+       "num": -9,
+       "den": 100
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -157,
+       "den": 200
+      },
+      "actual": {
+       "num": -39,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 149,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "matched",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 73,
+       "den": 100
+      },
+      "actual": {
+       "num": 13019,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 1581,
+     "den": 20000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 41,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 33,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 109,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -3,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 53,
+       "den": 200
+      },
+      "actual": {
+       "num": 771,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -17,
+       "den": 50
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 33,
+     "den": 40
+    },
+    "classes": [
+     "missing_broker",
+     "missing_broker",
+     "missing_broker",
+     "orphan_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 119,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 119,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -37,
+       "den": 40
+      },
+      "actual": {
+       "num": -13,
+       "den": 20
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -21,
+       "den": 25
+      },
+      "actual": {
+       "num": 1,
+       "den": 5
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -149,
+       "den": 200
+      },
+      "actual": {
+       "num": -15221,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 1,
+       "den": 200
+      },
+      "actual": {
+       "num": 57,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 67,
+       "den": 100
+      },
+      "actual": {
+       "num": -191,
+       "den": 200
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 3,
+       "den": 100
+      },
+      "actual": {
+       "num": -169,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 13,
+     "den": 8
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -31,
+       "den": 40
+      },
+      "actual": {
+       "num": -3,
+       "den": 8
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -183,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 103,
+       "den": 200
+      },
+      "actual": {
+       "num": 117,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 51,
+       "den": 200
+      },
+      "actual": {
+       "num": -129,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": 51,
+       "den": 200
+      }
+     },
+     {
+      "sym": 5,
+      "expected": null,
+      "actual": {
+       "num": 161,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 183,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 151,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -5,
+       "den": 8
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -29,
+       "den": 50
+      },
+      "actual": {
+       "num": -9927,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 13,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 151,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "missing_broker",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -7,
+       "den": 8
+      },
+      "actual": {
+       "num": -1043,
+       "den": 1250
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -143,
+       "den": 200
+      },
+      "actual": {
+       "num": -1847,
+       "den": 2500
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 57,
+       "den": 200
+      },
+      "actual": {
+       "num": 221,
+       "den": 800
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -77,
+       "den": 200
+      },
+      "actual": {
+       "num": 31,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 23,
+       "den": 25
+      },
+      "actual": {
+       "num": -3,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 199,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -9,
+       "den": 100
+      },
+      "actual": {
+       "num": 3,
+       "den": 40
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 17,
+       "den": 25
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 25
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -8,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 27,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 27,
+     "den": 50
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 7,
+       "den": 20
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -7,
+       "den": 10
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 47,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 39,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -7,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 21,
+       "den": 100
+      },
+      "actual": {
+       "num": 4733,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 39,
+     "den": 40
+    },
+    "classes": [
+     "orphan_broker",
+     "missing_broker",
+     "missing_broker",
+     "missing_broker",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -157,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 91,
+       "den": 100
+      },
+      "actual": {
+       "num": 9321,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -59,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 157,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -39,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -21,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -18,
+       "den": 25
+      },
+      "actual": {
+       "num": -15693,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -157,
+       "den": 200
+      },
+      "actual": {
+       "num": 147,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 38,
+     "den": 25
+    },
+    "classes": [
+     "missing_broker",
+     "orphan_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -4,
+       "den": 25
+      },
+      "actual": {
+       "num": -1343,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -7,
+       "den": 100
+      },
+      "actual": {
+       "num": -289,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -1,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 89,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -3,
+       "den": 100
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -11,
+       "den": 50
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 89,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "matched",
+     "matched",
+     "missing_broker",
+     "orphan_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 69,
+       "den": 100
+      },
+      "actual": {
+       "num": -19,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 73,
+       "den": 200
+      },
+      "actual": {
+       "num": 6077,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 73,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -87,
+       "den": 200
+      },
+      "actual": {
+       "num": 193,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -3,
+       "den": 4
+      },
+      "actual": {
+       "num": -7007,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 5,
+      "expected": null,
+      "actual": {
+       "num": 37,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 7,
+     "den": 5
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "matched",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 63,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 87,
+       "den": 200
+      },
+      "actual": {
+       "num": 2313,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 17,
+       "den": 50
+      },
+      "actual": {
+       "num": -23,
+       "den": 25
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 97,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 9,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -139,
+       "den": 200
+      },
+      "actual": {
+       "num": -71,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 63,
+     "den": 50
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 37,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 37,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -69,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 27,
+       "den": 40
+      },
+      "actual": {
+       "num": -147,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 89,
+       "den": 100
+      },
+      "actual": {
+       "num": 69,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 141,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 51,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -53,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 119,
+       "den": 200
+      },
+      "actual": {
+       "num": 2749,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 8,
+       "den": 25
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 8,
+     "den": 25
+    },
+    "classes": [
+     "missing_broker",
+     "orphan_broker",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 181,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -43,
+       "den": 200
+      },
+      "actual": {
+       "num": -1081,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 91,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 17,
+       "den": 20
+      },
+      "actual": {
+       "num": -4,
+       "den": 5
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 33,
+     "den": 20
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 173,
+       "den": 200
+      },
+      "actual": {
+       "num": 11,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -89,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -1,
+       "den": 20
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 129,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -31,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -11,
+       "den": 40
+      },
+      "actual": {
+       "num": -19,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -101,
+       "den": 200
+      },
+      "actual": {
+       "num": -2347,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 71,
+       "den": 100
+      },
+      "actual": {
+       "num": 13257,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 159,
+       "den": 200
+      },
+      "actual": {
+       "num": 14453,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 31,
+     "den": 100
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 1,
+       "den": 4
+      },
+      "actual": {
+       "num": -9,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 49,
+       "den": 50
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -113,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 73,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": 23,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 49,
+     "den": 50
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 4,
+       "den": 5
+      },
+      "actual": {
+       "num": 1,
+       "den": 10
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 17,
+       "den": 20
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -199,
+       "den": 200
+      },
+      "actual": {
+       "num": -37,
+       "den": 50
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 53,
+       "den": 200
+      },
+      "actual": {
+       "num": 21,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 20
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 199,
+       "den": 200
+      },
+      "actual": {
+       "num": 4049,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -21,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -3,
+       "den": 10
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -27,
+       "den": 40
+      },
+      "actual": {
+       "num": 9,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 18,
+     "den": 25
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 73,
+       "den": 200
+      },
+      "actual": {
+       "num": -191,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 33,
+     "den": 25
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -21,
+       "den": 40
+      },
+      "actual": {
+       "num": -21,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -123,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -33,
+       "den": 200
+      },
+      "actual": {
+       "num": -221,
+       "den": 1000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -1,
+       "den": 100
+      },
+      "actual": {
+       "num": -119,
+       "den": 1250
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 123,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 79,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -39,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -1,
+       "den": 4
+      },
+      "actual": {
+       "num": -123,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -8,
+       "den": 25
+      },
+      "actual": {
+       "num": 41,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": 53,
+       "den": 100
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 6,
+       "den": 25
+      },
+      "actual": {
+       "num": 21,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 79,
+     "den": 100
+    },
+    "classes": [
+     "orphan_broker",
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -159,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 23,
+       "den": 200
+      },
+      "actual": {
+       "num": 4,
+       "den": 5
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -31,
+       "den": 40
+      },
+      "actual": {
+       "num": -6,
+       "den": 25
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -16,
+       "den": 25
+      },
+      "actual": {
+       "num": -2933,
+       "den": 4000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 159,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 177,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 89,
+       "den": 100
+      },
+      "actual": {
+       "num": 18599,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -141,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -3,
+       "den": 5
+      },
+      "actual": {
+       "num": -10309,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 177,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 3,
+       "den": 50
+      },
+      "actual": {
+       "num": 1441,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 61,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -173,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 157,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 93,
+       "den": 200
+      },
+      "actual": {
+       "num": 2769,
+       "den": 5000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 173,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 17,
+       "den": 25
+      },
+      "actual": {
+       "num": 1511,
+       "den": 2000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -13,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -1,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -119,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -11,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 119,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "matched",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -17,
+       "den": 200
+      },
+      "actual": {
+       "num": -307,
+       "den": 2000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -83,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 83,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -77,
+       "den": 100
+      },
+      "actual": {
+       "num": -15659,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -29,
+       "den": 50
+      },
+      "actual": {
+       "num": -11989,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 389,
+     "den": 20000
+    },
+    "classes": [
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -11,
+       "den": 40
+      },
+      "actual": {
+       "num": -5077,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 113,
+       "den": 200
+      },
+      "actual": {
+       "num": 87,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 13,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -141,
+       "den": 200
+      },
+      "actual": {
+       "num": 0,
+       "den": 1
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -41,
+       "den": 100
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 9,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -87,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 33,
+       "den": 50
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 141,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 117,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 99,
+       "den": 100
+      },
+      "actual": {
+       "num": 5383,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -177,
+       "den": 200
+      },
+      "actual": {
+       "num": -37,
+       "den": 100
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -117,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 23,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 7,
+       "den": 200
+      },
+      "actual": {
+       "num": 53,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 117,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 43,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -7,
+       "den": 8
+      },
+      "actual": {
+       "num": 11,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 81,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 23,
+     "den": 20
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 57,
+       "den": 200
+      },
+      "actual": {
+       "num": 121,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 7,
+       "den": 200
+      },
+      "actual": {
+       "num": 33,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -97,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 97,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -191,
+       "den": 200
+      },
+      "actual": {
+       "num": 129,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 7,
+       "den": 8
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 8,
+     "den": 5
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 3,
+       "den": 20
+      },
+      "actual": {
+       "num": 603,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 17,
+       "den": 50
+      },
+      "actual": {
+       "num": -127,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 123,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 43,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 103,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -51,
+       "den": 100
+      },
+      "actual": {
+       "num": -5087,
+       "den": 10000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 39,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "missing_broker",
+     "matched"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -33,
+       "den": 200
+      },
+      "actual": {
+       "num": -393,
+       "den": 4000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 267,
+     "den": 4000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 12,
+       "den": 25
+      },
+      "actual": {
+       "num": 151,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -17,
+       "den": 20
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 67,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 133,
+       "den": 200
+      },
+      "actual": {
+       "num": 408,
+       "den": 625
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -13,
+       "den": 40
+      },
+      "actual": {
+       "num": -21,
+       "den": 25
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 167,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 20
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 13,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 2,
+       "den": 5
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 3,
+       "den": 20
+      },
+      "actual": {
+       "num": 1937,
+       "den": 10000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 2,
+     "den": 5
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 199,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -173,
+       "den": 200
+      },
+      "actual": {
+       "num": -3,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 199,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 189,
+       "den": 200
+      },
+      "actual": {
+       "num": 89,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 11,
+     "den": 200
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 97,
+       "den": 200
+      },
+      "actual": {
+       "num": 13,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -2,
+       "den": 25
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 93,
+       "den": 200
+      },
+      "actual": {
+       "num": 99,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 9,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 71,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 167,
+       "den": 200
+      },
+      "actual": {
+       "num": 15937,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 37,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 49,
+       "den": 200
+      },
+      "actual": {
+       "num": -21,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 37,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 57,
+       "den": 200
+      },
+      "actual": {
+       "num": 317,
+       "den": 1250
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -11,
+       "den": 50
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 11,
+     "den": 50
+    },
+    "classes": [
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 127,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 27,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -47,
+       "den": 100
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -127,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -143,
+       "den": 200
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -169,
+       "den": 200
+      },
+      "actual": {
+       "num": -193,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 143,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "orphan_broker",
+     "missing_broker",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -17,
+       "den": 50
+      },
+      "actual": {
+       "num": -14,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -53,
+       "den": 100
+      },
+      "actual": {
+       "num": -10843,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 77,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -131,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 77,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -29,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 131,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -7,
+       "den": 8
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -93,
+       "den": 100
+      },
+      "actual": {
+       "num": -4029,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -23,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 7,
+     "den": 8
+    },
+    "classes": [
+     "orphan_broker",
+     "missing_broker",
+     "orphan_broker",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 119,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 83,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 17,
+       "den": 25
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 25
+    },
+    "classes": [
+     "orphan_broker",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -2,
+       "den": 5
+      },
+      "actual": {
+       "num": -1407,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 3,
+       "den": 5
+      },
+      "actual": {
+       "num": 12503,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 173,
+       "den": 200
+      },
+      "actual": {
+       "num": -49,
+       "den": 100
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -7,
+       "den": 8
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 271,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -19,
+       "den": 25
+      },
+      "actual": {
+       "num": -3,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 137,
+     "den": 200
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 53,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 137,
+       "den": 200
+      },
+      "actual": {
+       "num": 3107,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -7,
+       "den": 10
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 13,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 17,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -23,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 7,
+     "den": 10
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "missing_broker",
+     "missing_broker",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -23,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -59,
+       "den": 100
+      },
+      "actual": {
+       "num": -3069,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -37,
+       "den": 50
+      },
+      "actual": {
+       "num": -15167,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 23,
+     "den": 50
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -103,
+       "den": 200
+      },
+      "actual": {
+       "num": 47,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -81,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 19,
+       "den": 100
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -3,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -109,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 197,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "orphan_broker",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -13,
+       "den": 100
+      },
+      "actual": {
+       "num": -57,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 11,
+     "den": 25
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 193,
+       "den": 200
+      },
+      "actual": {
+       "num": 3,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 19,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 1,
+       "den": 4
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 169,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 99,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 99,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -107,
+       "den": 200
+      },
+      "actual": {
+       "num": -6071,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -129,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -113,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -51,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -5,
+       "den": 8
+      },
+      "actual": {
+       "num": -3003,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -3,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 129,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "orphan_broker",
+     "orphan_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -37,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -61,
+       "den": 100
+      },
+      "actual": {
+       "num": -49,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 37,
+     "den": 50
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -9,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -7,
+       "den": 8
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -1,
+       "den": 8
+      },
+      "actual": {
+       "num": -69,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -181,
+       "den": 200
+      },
+      "actual": {
+       "num": -1,
+       "den": 5
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 63,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 7,
+     "den": 8
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -197,
+       "den": 200
+      },
+      "actual": {
+       "num": -19181,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -51,
+       "den": 100
+      },
+      "actual": {
+       "num": 7,
+       "den": 25
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -31,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 29,
+       "den": 40
+      },
+      "actual": {
+       "num": 12821,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 79,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 43,
+       "den": 50
+      },
+      "actual": {
+       "num": 11,
+       "den": 40
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -159,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -1,
+       "den": 5
+      },
+      "actual": {
+       "num": 37,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 159,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 4,
+       "den": 25
+      },
+      "actual": {
+       "num": 167,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 81,
+       "den": 200
+      },
+      "actual": {
+       "num": 97,
+       "den": 100
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 11,
+       "den": 50
+      },
+      "actual": {
+       "num": 657,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 33,
+       "den": 40
+      },
+      "actual": {
+       "num": -17,
+       "den": 50
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": 49,
+       "den": 100
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 127,
+       "den": 200
+      },
+      "actual": {
+       "num": 131,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 233,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "matched"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 17,
+       "den": 20
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 20
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -13,
+       "den": 20
+      },
+      "actual": {
+       "num": -3409,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -11,
+       "den": 25
+      },
+      "actual": {
+       "num": -5,
+       "den": 8
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 22,
+       "den": 25
+      },
+      "actual": {
+       "num": 187,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -17,
+       "den": 50
+      },
+      "actual": {
+       "num": -87,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 37,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 139,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 39,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 197,
+       "den": 200
+      },
+      "actual": {
+       "num": 10689,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 61,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 33,
+       "den": 50
+      },
+      "actual": {
+       "num": 14561,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 139,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "drifted",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 173,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 7,
+       "den": 25
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -11,
+       "den": 25
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 173,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -163,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 163,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -9,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -53,
+       "den": 100
+      },
+      "actual": {
+       "num": 189,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -1,
+       "den": 20
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 59,
+     "den": 40
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 14,
+       "den": 25
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 14,
+     "den": 25
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 21,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -17,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 40
+    },
+    "classes": [
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -13,
+       "den": 25
+      },
+      "actual": {
+       "num": -2157,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 3,
+       "den": 4
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 29,
+       "den": 200
+      },
+      "actual": {
+       "num": 573,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -6,
+       "den": 25
+      },
+      "actual": {
+       "num": -1609,
+       "den": 5000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 3,
+     "den": 4
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 0,
+       "den": 1
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -57,
+       "den": 100
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -53,
+       "den": 200
+      },
+      "actual": {
+       "num": -4829,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -73,
+       "den": 100
+      },
+      "actual": {
+       "num": -14057,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -43,
+       "den": 200
+      },
+      "actual": {
+       "num": -2271,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 49,
+       "den": 200
+      },
+      "actual": {
+       "num": -13,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 57,
+     "den": 100
+    },
+    "classes": [
+     "matched",
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -16,
+       "den": 25
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -97,
+       "den": 200
+      },
+      "actual": {
+       "num": -1051,
+       "den": 2000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 16,
+     "den": 25
+    },
+    "classes": [
+     "missing_broker",
+     "matched"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -23,
+       "den": 200
+      },
+      "actual": {
+       "num": -251,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -49,
+       "den": 200
+      },
+      "actual": {
+       "num": -5519,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -29,
+       "den": 200
+      },
+      "actual": {
+       "num": -7,
+       "den": 20
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -51,
+       "den": 100
+      },
+      "actual": {
+       "num": -127,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -133,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 133,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 13,
+       "den": 50
+      },
+      "actual": {
+       "num": -83,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 153,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 9,
+       "den": 50
+      },
+      "actual": {
+       "num": 3,
+       "den": 20
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 37,
+       "den": 200
+      },
+      "actual": {
+       "num": 2643,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 3,
+       "den": 40
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 153,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -9,
+       "den": 25
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -7,
+       "den": 20
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -79,
+       "den": 200
+      },
+      "actual": {
+       "num": -23,
+       "den": 25
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -41,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 21,
+     "den": 40
+    },
+    "classes": [
+     "missing_broker",
+     "orphan_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 2,
+       "den": 25
+      },
+      "actual": {
+       "num": 937,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -97,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 97,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -1,
+       "den": 20
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 29,
+       "den": 40
+      },
+      "actual": {
+       "num": 3,
+       "den": 25
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 79,
+       "den": 100
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -109,
+       "den": 200
+      },
+      "actual": {
+       "num": -39,
+       "den": 40
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -9,
+       "den": 25
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 79,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 1,
+       "den": 50
+      },
+      "actual": {
+       "num": 1627,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -47,
+       "den": 50
+      },
+      "actual": {
+       "num": 7,
+       "den": 10
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 77,
+       "den": 100
+      },
+      "actual": {
+       "num": 17153,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 109,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 41,
+     "den": 25
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 1,
+       "den": 200
+      },
+      "actual": {
+       "num": 13,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 8,
+     "den": 25
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -69,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 11,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 149,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -1,
+       "den": 10
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 39,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -11,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 149,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "missing_broker",
+     "missing_broker",
+     "orphan_broker",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -87,
+       "den": 100
+      },
+      "actual": {
+       "num": -187,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 71,
+       "den": 100
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 91,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -37,
+       "den": 50
+      },
+      "actual": {
+       "num": -13129,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 71,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -49,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 49,
+     "den": 100
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -111,
+       "den": 200
+      },
+      "actual": {
+       "num": 179,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 29,
+     "den": 20
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 11,
+       "den": 25
+      },
+      "actual": {
+       "num": -59,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 87,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -33,
+       "den": 100
+      },
+      "actual": {
+       "num": -5323,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -99,
+       "den": 100
+      },
+      "actual": {
+       "num": -427,
+       "den": 400
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 1,
+       "den": 5
+      },
+      "actual": {
+       "num": 253,
+       "den": 1250
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 87,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -6,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -63,
+       "den": 100
+      },
+      "actual": {
+       "num": 193,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 11,
+       "den": 25
+      },
+      "actual": {
+       "num": -11,
+       "den": 40
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -39,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 319,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -19,
+       "den": 200
+      },
+      "actual": {
+       "num": -91,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -57,
+       "den": 100
+      },
+      "actual": {
+       "num": 31,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -19,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 79,
+       "den": 100
+      },
+      "actual": {
+       "num": -163,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 321,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 7,
+       "den": 40
+      },
+      "actual": {
+       "num": -37,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -87,
+       "den": 100
+      },
+      "actual": {
+       "num": 131,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 93,
+       "den": 100
+      },
+      "actual": {
+       "num": 23,
+       "den": 50
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -37,
+       "den": 40
+      },
+      "actual": {
+       "num": -47,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": 11,
+       "den": 25
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -22,
+       "den": 25
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 61,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 9,
+       "den": 40
+      },
+      "actual": {
+       "num": -11,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 97,
+       "den": 100
+      },
+      "actual": {
+       "num": 18913,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 19,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 67,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 71,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -31,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 33,
+       "den": 50
+      },
+      "actual": {
+       "num": -3,
+       "den": 10
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 17,
+       "den": 20
+      },
+      "actual": {
+       "num": 3017,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -2,
+       "den": 5
+      },
+      "actual": {
+       "num": 47,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 67,
+     "den": 50
+    },
+    "classes": [
+     "orphan_broker",
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 53,
+       "den": 200
+      },
+      "actual": {
+       "num": 17,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -13,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -9,
+       "den": 50
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 17,
+       "den": 200
+      },
+      "actual": {
+       "num": 3537,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -5,
+       "den": 8
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -183,
+       "den": 200
+      },
+      "actual": {
+       "num": 71,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 127,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "orphan_broker",
+     "drifted",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 23,
+       "den": 25
+      },
+      "actual": {
+       "num": 81,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -37,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -49,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -59,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 103,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -9,
+       "den": 50
+      },
+      "actual": {
+       "num": -419,
+       "den": 2000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 59,
+     "den": 2000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 9,
+       "den": 25
+      },
+      "actual": {
+       "num": 11,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 1,
+     "den": 4
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 13,
+       "den": 25
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -29,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 29,
+     "den": 40
+    },
+    "classes": [
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 13,
+       "den": 20
+      },
+      "actual": {
+       "num": 9,
+       "den": 40
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -16,
+       "den": 25
+      },
+      "actual": {
+       "num": -1237,
+       "den": 2000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 69,
+       "den": 100
+      },
+      "actual": {
+       "num": 12701,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 187,
+       "den": 200
+      },
+      "actual": {
+       "num": 19363,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -7,
+       "den": 50
+      },
+      "actual": {
+       "num": 1,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 13,
+       "den": 100
+      },
+      "actual": {
+       "num": 3429,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -179,
+       "den": 200
+      },
+      "actual": {
+       "num": -831,
+       "den": 1000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -27,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 27,
+     "den": 50
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 73,
+       "den": 200
+      },
+      "actual": {
+       "num": 81,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -17,
+       "den": 40
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -41,
+       "den": 50
+      },
+      "actual": {
+       "num": -1803,
+       "den": 2000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -117,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 29,
+       "den": 50
+      },
+      "actual": {
+       "num": 179,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 117,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -3,
+       "den": 4
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -21,
+       "den": 100
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -103,
+       "den": 200
+      },
+      "actual": {
+       "num": 43,
+       "den": 50
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 77,
+       "den": 100
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -17,
+       "den": 25
+      },
+      "actual": {
+       "num": -83,
+       "den": 100
+      }
+     },
+     {
+      "sym": 5,
+      "expected": null,
+      "actual": {
+       "num": -7,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 11,
+     "den": 8
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -41,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 181,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 181,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -3,
+       "den": 25
+      },
+      "actual": {
+       "num": -11,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 21,
+       "den": 50
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 23,
+       "den": 200
+      },
+      "actual": {
+       "num": -39,
+       "den": 50
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 19,
+       "den": 40
+      },
+      "actual": {
+       "num": -139,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 117,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -37,
+       "den": 50
+      },
+      "actual": {
+       "num": -2901,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -39,
+       "den": 50
+      },
+      "actual": {
+       "num": -17,
+       "den": 25
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -83,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 11,
+       "den": 40
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 111,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 5,
+      "expected": null,
+      "actual": {
+       "num": 49,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 49,
+     "den": 50
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "orphan_broker",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 139,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 139,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 17,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 139,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -19,
+       "den": 100
+      },
+      "actual": {
+       "num": -501,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -7,
+       "den": 200
+      },
+      "actual": {
+       "num": -319,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 27,
+       "den": 40
+      },
+      "actual": {
+       "num": -7,
+       "den": 40
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 167,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 20
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "drifted",
+     "matched",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -19,
+       "den": 50
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 19,
+       "den": 50
+      },
+      "actual": {
+       "num": 149,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -179,
+       "den": 200
+      },
+      "actual": {
+       "num": -19039,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 4,
+       "den": 5
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 9,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 4,
+     "den": 5
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 43,
+       "den": 200
+      },
+      "actual": {
+       "num": -131,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -3,
+       "den": 25
+      },
+      "actual": {
+       "num": 67,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 87,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -2,
+       "den": 5
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 2,
+     "den": 5
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -51,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 51,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 51,
+       "den": 200
+      },
+      "actual": {
+       "num": 187,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 25
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -33,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -89,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 73,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 73,
+     "den": 100
+    },
+    "classes": [
+     "orphan_broker",
+     "orphan_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -67,
+       "den": 100
+      },
+      "actual": {
+       "num": -1663,
+       "den": 2500
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -1,
+       "den": 50
+      },
+      "actual": {
+       "num": -731,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 69,
+       "den": 200
+      },
+      "actual": {
+       "num": 5523,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 1,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 1377,
+     "den": 20000
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 87,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 53,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 187,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -1,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -23,
+       "den": 40
+      },
+      "actual": {
+       "num": 63,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 241,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "missing_broker",
+     "missing_broker",
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -191,
+       "den": 200
+      },
+      "actual": {
+       "num": -4217,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -13,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -37,
+       "den": 200
+      },
+      "actual": {
+       "num": -209,
+       "den": 1250
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -19,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -9,
+       "den": 100
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 19,
+       "den": 25
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 19,
+     "den": 25
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "missing_broker",
+     "orphan_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -7,
+       "den": 25
+      },
+      "actual": {
+       "num": -377,
+       "den": 1000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 5,
+       "den": 8
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 5,
+     "den": 8
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -43,
+       "den": 200
+      },
+      "actual": {
+       "num": -753,
+       "den": 4000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 107,
+     "den": 4000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -29,
+       "den": 200
+      },
+      "actual": {
+       "num": -867,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -133,
+       "den": 200
+      },
+      "actual": {
+       "num": 19,
+       "den": 20
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -191,
+       "den": 200
+      },
+      "actual": {
+       "num": 17,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 33,
+       "den": 50
+      },
+      "actual": {
+       "num": -119,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -27,
+       "den": 50
+      },
+      "actual": {
+       "num": -2,
+       "den": 5
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 49,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 323,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -3,
+       "den": 100
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -7,
+       "den": 40
+      },
+      "actual": {
+       "num": -5203,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 12,
+       "den": 25
+      },
+      "actual": {
+       "num": 717,
+       "den": 1250
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -39,
+       "den": 50
+      },
+      "actual": {
+       "num": -15467,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -139,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 139,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -7,
+       "den": 25
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 7,
+     "den": 25
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": -11,
+       "den": 25
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 11,
+     "den": 25
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 139,
+       "den": 200
+      },
+      "actual": {
+       "num": 93,
+       "den": 125
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -121,
+       "den": 200
+      },
+      "actual": {
+       "num": -151,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 39,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 47,
+       "den": 200
+      },
+      "actual": {
+       "num": 5771,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -57,
+       "den": 200
+      },
+      "actual": {
+       "num": -6059,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -121,
+       "den": 200
+      },
+      "actual": {
+       "num": -11749,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 39,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -41,
+       "den": 100
+      },
+      "actual": {
+       "num": -4061,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 49,
+       "den": 100
+      },
+      "actual": {
+       "num": 2113,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -39,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 39,
+       "den": 40
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 39,
+     "den": 40
+    },
+    "classes": [
+     "matched",
+     "drifted",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -133,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 133,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 4,
+       "den": 25
+      },
+      "actual": {
+       "num": -1,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 19,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 19,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 41,
+       "den": 50
+      },
+      "actual": {
+       "num": -9,
+       "den": 25
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -77,
+       "den": 100
+      },
+      "actual": {
+       "num": 123,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 277,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -89,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 193,
+       "den": 200
+      },
+      "actual": {
+       "num": 19677,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 171,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 89,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker",
+     "matched",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 7,
+       "den": 40
+      },
+      "actual": {
+       "num": 113,
+       "den": 1250
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 3,
+       "den": 5
+      },
+      "actual": {
+       "num": -3,
+       "den": 8
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -17,
+       "den": 50
+      },
+      "actual": {
+       "num": -5229,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -23,
+       "den": 40
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -77,
+       "den": 200
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 39,
+       "den": 200
+      },
+      "actual": {
+       "num": -153,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 39,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 19,
+       "den": 50
+      },
+      "actual": {
+       "num": 7259,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 341,
+     "den": 20000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 129,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 129,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -3,
+       "den": 10
+      },
+      "actual": {
+       "num": -853,
+       "den": 2500
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 59,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 59,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 61,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 61,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 61,
+       "den": 100
+      },
+      "actual": {
+       "num": 119,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 63,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 63,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 0,
+       "den": 1
+      },
+      "actual": {
+       "num": 83,
+       "den": 1000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 83,
+     "den": 1000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 169,
+       "den": 200
+      },
+      "actual": {
+       "num": 8999,
+       "den": 10000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 549,
+     "den": 10000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -16,
+       "den": 25
+      },
+      "actual": {
+       "num": 3,
+       "den": 8
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 13,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 143,
+       "den": 200
+      },
+      "actual": {
+       "num": -119,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -2,
+       "den": 5
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 131,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 83,
+       "den": 100
+      },
+      "actual": {
+       "num": 16461,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 37,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 37,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -77,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 4,
+       "den": 5
+      },
+      "actual": {
+       "num": 4311,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -27,
+       "den": 40
+      },
+      "actual": {
+       "num": -7551,
+       "den": 10000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 77,
+     "den": 200
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -147,
+       "den": 200
+      },
+      "actual": {
+       "num": -1773,
+       "den": 2500
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 29,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -1,
+       "den": 1
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 9,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 1,
+     "den": 1
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "missing_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 12,
+       "den": 25
+      },
+      "actual": {
+       "num": 5409,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -3,
+       "den": 200
+      },
+      "actual": {
+       "num": 559,
+       "den": 10000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 709,
+     "den": 10000
+    },
+    "classes": [
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -17,
+       "den": 100
+      },
+      "actual": {
+       "num": -161,
+       "den": 1250
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 7,
+       "den": 20
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -7,
+       "den": 40
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 7,
+     "den": 20
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 89,
+       "den": 200
+      },
+      "actual": {
+       "num": 1781,
+       "den": 5000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 179,
+       "den": 200
+      },
+      "actual": {
+       "num": 3,
+       "den": 4
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -167,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -53,
+       "den": 100
+      },
+      "actual": {
+       "num": 17,
+       "den": 40
+      }
+     },
+     {
+      "sym": 4,
+      "expected": null,
+      "actual": {
+       "num": -16,
+       "den": 25
+      }
+     },
+     {
+      "sym": 5,
+      "expected": null,
+      "actual": {
+       "num": -77,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 191,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "orphan_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -7,
+       "den": 10
+      },
+      "actual": {
+       "num": 47,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -21,
+       "den": 50
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 43,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -21,
+       "den": 200
+      },
+      "actual": {
+       "num": 71,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 41,
+     "den": 25
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 171,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 171,
+     "den": 200
+    },
+    "classes": [
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -3,
+       "den": 8
+      },
+      "actual": {
+       "num": -43,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 91,
+       "den": 100
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -81,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 91,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -117,
+       "den": 200
+      },
+      "actual": {
+       "num": -11,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 31,
+       "den": 50
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 31,
+     "den": 50
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 99,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -1,
+       "den": 25
+      },
+      "actual": {
+       "num": -1,
+       "den": 5
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -101,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 24,
+       "den": 25
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 21,
+       "den": 100
+      },
+      "actual": {
+       "num": 183,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 24,
+     "den": 25
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "orphan_broker",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -79,
+       "den": 200
+      },
+      "actual": {
+       "num": -821,
+       "den": 2000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -117,
+       "den": 200
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -167,
+       "den": 200
+      },
+      "actual": {
+       "num": -16727,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -3,
+       "den": 40
+      },
+      "actual": {
+       "num": 5,
+       "den": 8
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -11,
+       "den": 25
+      },
+      "actual": {
+       "num": -3607,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": 1,
+       "den": 2
+      },
+      "actual": {
+       "num": 11,
+       "den": 40
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 7,
+     "den": 10
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "matched",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -23,
+       "den": 100
+      },
+      "actual": {
+       "num": -27,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 23,
+       "den": 100
+      },
+      "actual": {
+       "num": 6097,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -141,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": -19,
+       "den": 40
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -49,
+       "den": 50
+      },
+      "actual": {
+       "num": -41,
+       "den": 50
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -9,
+       "den": 25
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 141,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "orphan_broker",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 141,
+       "den": 200
+      },
+      "actual": {
+       "num": 1273,
+       "den": 2000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -43,
+       "den": 50
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 43,
+     "den": 50
+    },
+    "classes": [
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -81,
+       "den": 100
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 81,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 113,
+       "den": 200
+      },
+      "actual": {
+       "num": -41,
+       "den": 50
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -41,
+       "den": 50
+      },
+      "actual": {
+       "num": -7461,
+       "den": 10000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": -121,
+       "den": 200
+      },
+      "actual": {
+       "num": -1523,
+       "den": 2500
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 99,
+       "den": 100
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 18,
+       "den": 25
+      },
+      "actual": {
+       "num": 101,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 277,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "matched",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 19,
+       "den": 40
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 37,
+       "den": 100
+      },
+      "actual": {
+       "num": 6529,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": -49,
+       "den": 100
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": 93,
+       "den": 100
+      },
+      "actual": {
+       "num": 39,
+       "den": 50
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": 21,
+       "den": 200
+      },
+      "actual": {
+       "num": 1557,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 5,
+      "expected": {
+       "num": -87,
+       "den": 200
+      },
+      "actual": {
+       "num": -11,
+       "den": 20
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 49,
+     "den": 100
+    },
+    "classes": [
+     "missing_broker",
+     "drifted",
+     "orphan_broker",
+     "drifted",
+     "drifted",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -9,
+       "den": 10
+      },
+      "actual": {
+       "num": -3857,
+       "den": 4000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": 0,
+       "den": 1
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 12,
+       "den": 25
+      },
+      "actual": {
+       "num": 3,
+       "den": 50
+      }
+     },
+     {
+      "sym": 3,
+      "expected": null,
+      "actual": {
+       "num": 97,
+       "den": 100
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -19,
+       "den": 200
+      },
+      "actual": {
+       "num": -79,
+       "den": 200
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 97,
+     "den": 100
+    },
+    "classes": [
+     "drifted",
+     "matched",
+     "drifted",
+     "orphan_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 89,
+       "den": 200
+      },
+      "actual": {
+       "num": 7899,
+       "den": 20000
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -59,
+       "den": 100
+      },
+      "actual": {
+       "num": 177,
+       "den": 200
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 29,
+       "den": 100
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -91,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 59,
+     "den": 40
+    },
+    "classes": [
+     "drifted",
+     "drifted",
+     "orphan_broker",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -3,
+       "den": 25
+      },
+      "actual": {
+       "num": -833,
+       "den": 4000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 353,
+     "den": 4000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 17,
+       "den": 200
+      },
+      "actual": {
+       "num": 187,
+       "den": 2000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 2000
+    },
+    "classes": [
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 193,
+       "den": 200
+      },
+      "actual": {
+       "num": -11,
+       "den": 40
+      }
+     },
+     {
+      "sym": 1,
+      "expected": null,
+      "actual": {
+       "num": -37,
+       "den": 100
+      }
+     },
+     {
+      "sym": 2,
+      "expected": null,
+      "actual": {
+       "num": 49,
+       "den": 100
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 31,
+     "den": 25
+    },
+    "classes": [
+     "drifted",
+     "orphan_broker",
+     "orphan_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 20
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": -93,
+       "den": 100
+      },
+      "actual": {
+       "num": 143,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -9,
+       "den": 25
+      },
+      "actual": null
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 23,
+       "den": 100
+      },
+      "actual": {
+       "num": -43,
+       "den": 200
+      }
+     },
+     {
+      "sym": 3,
+      "expected": {
+       "num": -91,
+       "den": 200
+      },
+      "actual": {
+       "num": -9,
+       "den": 200
+      }
+     },
+     {
+      "sym": 4,
+      "expected": {
+       "num": -27,
+       "den": 200
+      },
+      "actual": null
+     }
+    ],
+    "portfolio_value": {
+     "num": 1000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 329,
+     "den": 200
+    },
+    "classes": [
+     "drifted",
+     "missing_broker",
+     "drifted",
+     "drifted",
+     "missing_broker"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": {
+       "num": 17,
+       "den": 25
+      },
+      "actual": null
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": -9,
+       "den": 20
+      },
+      "actual": {
+       "num": -7991,
+       "den": 20000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 17,
+     "den": 25
+    },
+    "classes": [
+     "missing_broker",
+     "drifted"
+    ]
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 100,
+     "den": 1
+    },
+    "rows": [],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 0,
+     "den": 1
+    },
+    "classes": []
+   }
+  },
+  {
+   "input": {
+    "weight_tolerance": {
+     "num": 1,
+     "den": 100
+    },
+    "value_tolerance_usd": {
+     "num": 10,
+     "den": 1
+    },
+    "rows": [
+     {
+      "sym": 0,
+      "expected": null,
+      "actual": {
+       "num": 57,
+       "den": 200
+      }
+     },
+     {
+      "sym": 1,
+      "expected": {
+       "num": 27,
+       "den": 100
+      },
+      "actual": {
+       "num": -13,
+       "den": 100
+      }
+     },
+     {
+      "sym": 2,
+      "expected": {
+       "num": 61,
+       "den": 100
+      },
+      "actual": {
+       "num": 1071,
+       "den": 2000
+      }
+     }
+    ],
+    "portfolio_value": {
+     "num": 100000,
+     "den": 1
+    }
+   },
+   "expected": {
+    "max_abs_weight_drift": {
+     "num": 2,
+     "den": 5
+    },
+    "classes": [
+     "orphan_broker",
+     "drifted",
+     "drifted"
+    ]
+   }
+  }
+ ],
+ "spec_sha256": "88ce5b53736f30b17951d94bc8c16683c1d9319d7cb27fabae85ca33e27da2e1"
+}

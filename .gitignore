@@ -220,3 +220,6 @@ ml/rl_main_config.json
 
 # V6.4.0: local pre-refresh backup of data/
 data_backups/
+
+# V6.4.3: Lean 4 build output and the Mathlib cache (~5 GB) of the formal/ proofs
+formal/.lake/

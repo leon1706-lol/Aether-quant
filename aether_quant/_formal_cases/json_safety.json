@@ -1,0 +1,3246 @@
+{
+ "target": "json_safety",
+ "spec_files": [
+  "AetherFormal/JsonSafety.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "v": "s17",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s17",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -56,
+    "t": "int"
+   },
+   "expected": {
+    "v": -56,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": {
+        "num": 193,
+        "den": 50
+       },
+       "t": "num"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": {
+        "num": 193,
+        "den": 50
+       },
+       "t": "num"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": {
+        "num": -7,
+        "den": 1
+       },
+       "t": "num"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": {
+        "num": -7,
+        "den": 1
+       },
+       "t": "num"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "s44",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s44",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -463,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -463,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": [
+       [
+        "k2",
+        {
+         "v": true,
+         "t": "bool"
+        }
+       ],
+       [
+        "k1",
+        {
+         "t": "null"
+        }
+       ],
+       [
+        "k0",
+        {
+         "v": 4,
+         "t": "int"
+        }
+       ]
+      ],
+      "t": "obj"
+     },
+     {
+      "v": "inf",
+      "t": "nonfinite"
+     },
+     {
+      "v": [
+       [
+        "k2",
+        {
+         "v": {
+          "num": -184,
+          "den": 25
+         },
+         "t": "num"
+        }
+       ],
+       [
+        "k1",
+        {
+         "v": "inf",
+         "t": "nonfinite"
+        }
+       ],
+       [
+        "k0",
+        {
+         "v": {
+          "num": -18,
+          "den": 25
+         },
+         "t": "num"
+        }
+       ]
+      ],
+      "t": "obj"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": [
+       [
+        "k2",
+        {
+         "v": true,
+         "t": "bool"
+        }
+       ],
+       [
+        "k1",
+        {
+         "t": "null"
+        }
+       ],
+       [
+        "k0",
+        {
+         "v": 4,
+         "t": "int"
+        }
+       ]
+      ],
+      "t": "obj"
+     },
+     {
+      "t": "null"
+     },
+     {
+      "v": [
+       [
+        "k2",
+        {
+         "v": {
+          "num": -184,
+          "den": 25
+         },
+         "t": "num"
+        }
+       ],
+       [
+        "k1",
+        {
+         "t": "null"
+        }
+       ],
+       [
+        "k0",
+        {
+         "v": {
+          "num": -18,
+          "den": 25
+         },
+         "t": "num"
+        }
+       ]
+      ],
+      "t": "obj"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -37,
+    "t": "int"
+   },
+   "expected": {
+    "v": -37,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -89,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -89,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": "s15",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": "s15",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -100,
+    "t": "int"
+   },
+   "expected": {
+    "v": -100,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 367,
+     "den": 50
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 367,
+     "den": 50
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k2",
+      {
+       "v": 11,
+       "t": "int"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": [
+        {
+         "v": [
+          {
+           "v": "s26",
+           "t": "str"
+          },
+          {
+           "v": "inf",
+           "t": "nonfinite"
+          }
+         ],
+         "t": "arr"
+        }
+       ],
+       "t": "arr"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": "s11",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k2",
+      {
+       "v": 11,
+       "t": "int"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": [
+        {
+         "v": [
+          {
+           "v": "s26",
+           "t": "str"
+          },
+          {
+           "t": "null"
+          }
+         ],
+         "t": "arr"
+        }
+       ],
+       "t": "arr"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": "s11",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": 8,
+       "t": "int"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [],
+       "t": "arr"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": 8,
+       "t": "int"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [],
+       "t": "arr"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k2",
+      {
+       "t": "null"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": {
+        "num": -267,
+        "den": 100
+       },
+       "t": "num"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": false,
+       "t": "bool"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k2",
+      {
+       "t": "null"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": {
+        "num": -267,
+        "den": 100
+       },
+       "t": "num"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": false,
+       "t": "bool"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "s2",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s2",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": [],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": [],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": [
+        [
+         "k1",
+         {
+          "t": "null"
+         }
+        ],
+        [
+         "k0",
+         {
+          "v": true,
+          "t": "bool"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ],
+     [
+      "k0",
+      {
+       "t": "null"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": [
+        [
+         "k1",
+         {
+          "t": "null"
+         }
+        ],
+        [
+         "k0",
+         {
+          "v": true,
+          "t": "bool"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ],
+     [
+      "k0",
+      {
+       "t": "null"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": "s0",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": "s0",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": true,
+    "t": "bool"
+   },
+   "expected": {
+    "v": true,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": 19,
+    "t": "int"
+   },
+   "expected": {
+    "v": 19,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": -51,
+      "t": "int"
+     },
+     {
+      "v": "inf",
+      "t": "nonfinite"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": -51,
+      "t": "int"
+     },
+     {
+      "t": "null"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "t": "null"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "t": "null"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": -51,
+    "t": "int"
+   },
+   "expected": {
+    "v": -51,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -53,
+     "den": 25
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -53,
+     "den": 25
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": "s9",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s9",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": "s46",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s46",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": 55,
+    "t": "int"
+   },
+   "expected": {
+    "v": 55,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "s49",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s49",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "s20",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s20",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -631,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -631,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -77,
+    "t": "int"
+   },
+   "expected": {
+    "v": -77,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -99,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -99,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -439,
+     "den": 50
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -439,
+     "den": 50
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": -55,
+    "t": "int"
+   },
+   "expected": {
+    "v": -55,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": [],
+       "t": "arr"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": [],
+       "t": "arr"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "s46",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s46",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": 71,
+    "t": "int"
+   },
+   "expected": {
+    "v": 71,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k2",
+      {
+       "v": [],
+       "t": "arr"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": "s26",
+       "t": "str"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k1",
+         {
+          "v": -83,
+          "t": "int"
+         }
+        ],
+        [
+         "k0",
+         {
+          "v": [],
+          "t": "arr"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k2",
+      {
+       "v": [],
+       "t": "arr"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": "s26",
+       "t": "str"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k1",
+         {
+          "v": -83,
+          "t": "int"
+         }
+        ],
+        [
+         "k0",
+         {
+          "v": [],
+          "t": "arr"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": -56,
+    "t": "int"
+   },
+   "expected": {
+    "v": -56,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": true,
+       "t": "bool"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k0",
+         {
+          "v": "s37",
+          "t": "str"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": true,
+       "t": "bool"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k0",
+         {
+          "v": "s37",
+          "t": "str"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -30,
+    "t": "int"
+   },
+   "expected": {
+    "v": -30,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "s45",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s45",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": {
+       "num": 87,
+       "den": 100
+      },
+      "t": "num"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": {
+       "num": 87,
+       "den": 100
+      },
+      "t": "num"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": "s40",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s40",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -15,
+    "t": "int"
+   },
+   "expected": {
+    "v": -15,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": 5,
+    "t": "int"
+   },
+   "expected": {
+    "v": 5,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": true,
+    "t": "bool"
+   },
+   "expected": {
+    "v": true,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": "s16",
+      "t": "str"
+     },
+     {
+      "v": true,
+      "t": "bool"
+     },
+     {
+      "v": [
+       {
+        "v": "inf",
+        "t": "nonfinite"
+       },
+       {
+        "v": "nan",
+        "t": "nonfinite"
+       }
+      ],
+      "t": "arr"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": "s16",
+      "t": "str"
+     },
+     {
+      "v": true,
+      "t": "bool"
+     },
+     {
+      "v": [
+       {
+        "t": "null"
+       },
+       {
+        "t": "null"
+       }
+      ],
+      "t": "arr"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 343,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 343,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": "s42",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s42",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": 13,
+    "t": "int"
+   },
+   "expected": {
+    "v": 13,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k2",
+      {
+       "v": "inf",
+       "t": "nonfinite"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": 45,
+       "t": "int"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k0",
+         {
+          "v": -97,
+          "t": "int"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k2",
+      {
+       "t": "null"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": 45,
+       "t": "int"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k0",
+         {
+          "v": -97,
+          "t": "int"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": true,
+    "t": "bool"
+   },
+   "expected": {
+    "v": true,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -13,
+     "den": 4
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -13,
+     "den": 4
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "s39",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s39",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": "s5",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s5",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 339,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 339,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": [
+       {
+        "v": [
+         [
+          "k2",
+          {
+           "v": -43,
+           "t": "int"
+          }
+         ],
+         [
+          "k1",
+          {
+           "t": "null"
+          }
+         ],
+         [
+          "k0",
+          {
+           "v": false,
+           "t": "bool"
+          }
+         ]
+        ],
+        "t": "obj"
+       }
+      ],
+      "t": "arr"
+     },
+     {
+      "v": 4,
+      "t": "int"
+     },
+     {
+      "v": "-inf",
+      "t": "nonfinite"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": [
+       {
+        "v": [
+         [
+          "k2",
+          {
+           "v": -43,
+           "t": "int"
+          }
+         ],
+         [
+          "k1",
+          {
+           "t": "null"
+          }
+         ],
+         [
+          "k0",
+          {
+           "v": false,
+           "t": "bool"
+          }
+         ]
+        ],
+        "t": "obj"
+       }
+      ],
+      "t": "arr"
+     },
+     {
+      "v": 4,
+      "t": "int"
+     },
+     {
+      "t": "null"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -131,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -131,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 8,
+     "den": 25
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 8,
+     "den": 25
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": true,
+    "t": "bool"
+   },
+   "expected": {
+    "v": true,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": "-inf",
+      "t": "nonfinite"
+     },
+     {
+      "v": "nan",
+      "t": "nonfinite"
+     },
+     {
+      "v": 78,
+      "t": "int"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "t": "null"
+     },
+     {
+      "t": "null"
+     },
+     {
+      "v": 78,
+      "t": "int"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 379,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 379,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": "s4",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s4",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -85,
+    "t": "int"
+   },
+   "expected": {
+    "v": -85,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "s12",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s12",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "s9",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s9",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": "inf",
+       "t": "nonfinite"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "t": "null"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -103,
+     "den": 50
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -103,
+     "den": 50
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": false,
+      "t": "bool"
+     },
+     {
+      "v": false,
+      "t": "bool"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": false,
+      "t": "bool"
+     },
+     {
+      "v": false,
+      "t": "bool"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": "s40",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s40",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": [
+       [
+        "k2",
+        {
+         "v": [
+          [
+           "k0",
+           {
+            "v": -38,
+            "t": "int"
+           }
+          ]
+         ],
+         "t": "obj"
+        }
+       ],
+       [
+        "k1",
+        {
+         "v": [
+          [
+           "k0",
+           {
+            "v": -24,
+            "t": "int"
+           }
+          ]
+         ],
+         "t": "obj"
+        }
+       ],
+       [
+        "k0",
+        {
+         "v": {
+          "num": -363,
+          "den": 100
+         },
+         "t": "num"
+        }
+       ]
+      ],
+      "t": "obj"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": [
+       [
+        "k2",
+        {
+         "v": [
+          [
+           "k0",
+           {
+            "v": -38,
+            "t": "int"
+           }
+          ]
+         ],
+         "t": "obj"
+        }
+       ],
+       [
+        "k1",
+        {
+         "v": [
+          [
+           "k0",
+           {
+            "v": -24,
+            "t": "int"
+           }
+          ]
+         ],
+         "t": "obj"
+        }
+       ],
+       [
+        "k0",
+        {
+         "v": {
+          "num": -363,
+          "den": 100
+         },
+         "t": "num"
+        }
+       ]
+      ],
+      "t": "obj"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": "s21",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s21",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": "s31",
+       "t": "str"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k1",
+         {
+          "v": [
+           [
+            "k0",
+            {
+             "v": 72,
+             "t": "int"
+            }
+           ]
+          ],
+          "t": "obj"
+         }
+        ],
+        [
+         "k0",
+         {
+          "v": [
+           {
+            "v": 1,
+            "t": "int"
+           },
+           {
+            "v": false,
+            "t": "bool"
+           }
+          ],
+          "t": "arr"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k1",
+      {
+       "v": "s31",
+       "t": "str"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        [
+         "k1",
+         {
+          "v": [
+           [
+            "k0",
+            {
+             "v": 72,
+             "t": "int"
+            }
+           ]
+          ],
+          "t": "obj"
+         }
+        ],
+        [
+         "k0",
+         {
+          "v": [
+           {
+            "v": 1,
+            "t": "int"
+           },
+           {
+            "v": false,
+            "t": "bool"
+           }
+          ],
+          "t": "arr"
+         }
+        ]
+       ],
+       "t": "obj"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": {
+       "num": 69,
+       "den": 20
+      },
+      "t": "num"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": {
+       "num": 69,
+       "den": 20
+      },
+      "t": "num"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": "s46",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s46",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -623,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -623,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": -92,
+    "t": "int"
+   },
+   "expected": {
+    "v": -92,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": "inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": 69,
+    "t": "int"
+   },
+   "expected": {
+    "v": 69,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 807,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 807,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 193,
+     "den": 25
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 193,
+     "den": 25
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": 23,
+    "t": "int"
+   },
+   "expected": {
+    "v": 23,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": 20,
+    "t": "int"
+   },
+   "expected": {
+    "v": 20,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k1",
+      {
+       "t": "null"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": "s13",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k1",
+      {
+       "t": "null"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": "s13",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 167,
+     "den": 50
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 167,
+     "den": 50
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": -3,
+     "den": 2
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": -3,
+     "den": 2
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 603,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 603,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     {
+      "v": [
+       {
+        "v": {
+         "num": 131,
+         "den": 50
+        },
+        "t": "num"
+       },
+       {
+        "t": "null"
+       }
+      ],
+      "t": "arr"
+     },
+     {
+      "v": true,
+      "t": "bool"
+     },
+     {
+      "v": true,
+      "t": "bool"
+     }
+    ],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [
+     {
+      "v": [
+       {
+        "v": {
+         "num": 131,
+         "den": 50
+        },
+        "t": "num"
+       },
+       {
+        "t": "null"
+       }
+      ],
+      "t": "arr"
+     },
+     {
+      "v": true,
+      "t": "bool"
+     },
+     {
+      "v": true,
+      "t": "bool"
+     }
+    ],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "s22",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s22",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": 96,
+    "t": "int"
+   },
+   "expected": {
+    "v": 96,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": -1,
+       "t": "int"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": -1,
+       "t": "int"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "s13",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s13",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": 59,
+    "t": "int"
+   },
+   "expected": {
+    "v": 59,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": "-inf",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": "s38",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s38",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 583,
+     "den": 100
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 583,
+     "den": 100
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "arr"
+   },
+   "expected": {
+    "v": [],
+    "t": "arr"
+   }
+  },
+  {
+   "input": {
+    "v": {
+     "num": 22,
+     "den": 25
+    },
+    "t": "num"
+   },
+   "expected": {
+    "v": {
+     "num": 22,
+     "den": 25
+    },
+    "t": "num"
+   }
+  },
+  {
+   "input": {
+    "v": 61,
+    "t": "int"
+   },
+   "expected": {
+    "v": 61,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": 83,
+    "t": "int"
+   },
+   "expected": {
+    "v": 83,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": [],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": false,
+    "t": "bool"
+   },
+   "expected": {
+    "v": false,
+    "t": "bool"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k2",
+      {
+       "v": [],
+       "t": "obj"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": [
+        {
+         "v": [],
+         "t": "obj"
+        }
+       ],
+       "t": "arr"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        {
+         "t": "null"
+        }
+       ],
+       "t": "arr"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k2",
+      {
+       "v": [],
+       "t": "obj"
+      }
+     ],
+     [
+      "k1",
+      {
+       "v": [
+        {
+         "v": [],
+         "t": "obj"
+        }
+       ],
+       "t": "arr"
+      }
+     ],
+     [
+      "k0",
+      {
+       "v": [
+        {
+         "t": "null"
+        }
+       ],
+       "t": "arr"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": "s42",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s42",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": "s39",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   },
+   "expected": {
+    "v": [
+     [
+      "k0",
+      {
+       "v": "s39",
+       "t": "str"
+      }
+     ]
+    ],
+    "t": "obj"
+   }
+  },
+  {
+   "input": {
+    "v": 1,
+    "t": "int"
+   },
+   "expected": {
+    "v": 1,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "s11",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s11",
+    "t": "str"
+   }
+  },
+  {
+   "input": {
+    "t": "null"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": 62,
+    "t": "int"
+   },
+   "expected": {
+    "v": 62,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "nan",
+    "t": "nonfinite"
+   },
+   "expected": {
+    "t": "null"
+   }
+  },
+  {
+   "input": {
+    "v": -64,
+    "t": "int"
+   },
+   "expected": {
+    "v": -64,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": 4,
+    "t": "int"
+   },
+   "expected": {
+    "v": 4,
+    "t": "int"
+   }
+  },
+  {
+   "input": {
+    "v": "s23",
+    "t": "str"
+   },
+   "expected": {
+    "v": "s23",
+    "t": "str"
+   }
+  }
+ ],
+ "spec_sha256": "76a279b8367215c73e3e176ea3d98a9aeb75aa0994ac822627409736455f4bba"
+}

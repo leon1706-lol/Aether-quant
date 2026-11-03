@@ -38,6 +38,14 @@ def _no_real_lean_report():
         yield report
 
 
+@pytest.fixture(autouse=True)
+def _no_real_readme_refresh():
+    """`aq backtest` / `aq evaluate` re-render the repository's README afterwards; under test that rewrote its render
+    stamps on every run (V6.4.3). Tests that check the refresh patch it themselves."""
+    with patch("aq_cli._refresh_readme_evaluation_sections"):
+        yield
+
+
 def _parse_and_dispatch(argv: list[str], run_mock: MagicMock) -> int:
     parser = aq_cli.build_parser()
     args = parser.parse_args(argv)

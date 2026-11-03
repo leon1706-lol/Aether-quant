@@ -290,6 +290,7 @@ def _simulate_rank_book_core(
     max_weight_per_name: float,
     min_universe_size: int = 20,
     sector_max_net_weight: float = DEFAULT_SECTOR_MAX_NET_WEIGHT,
+    reapply_sector_cap_after_dollar_neutral: bool = False,
     trading_days_per_year: int = 252,
     entry_lag_bars: int = 0,
     min_commission_usd: float = 0.0,
@@ -826,6 +827,7 @@ def _simulate_rank_book_core(
                         gross_exposure_cap=gross_exposure,
                         max_weight_per_name=max_weight_per_name,
                         sector_max_net_weight=sector_max_net_weight,
+                        reapply_sector_cap_after_dollar_neutral=reapply_sector_cap_after_dollar_neutral,
                     )
                     if class_weight_caps:
                         new_weights = apply_class_weight_caps(

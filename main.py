@@ -1121,6 +1121,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.book_sector_max_net_weight = float(
             phase_v2_portfolio_book_neutrality.get("sector_max_net_weight", 0.05)
         )
+        self.book_reapply_sector_cap = bool(phase_v2_portfolio_book_neutrality.get("reapply_sector_cap_after_dollar_neutral", False))
         self.portfolio_book_hysteresis_rank_margin = float(
             phase_v2_portfolio_book.get("hysteresis_rank_margin", 0.0)
         )
@@ -2875,6 +2876,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                         gross_exposure_cap=self.book_gross_exposure_cap,
                         max_weight_per_name=self.book_max_weight_per_name,
                         sector_max_net_weight=self.book_sector_max_net_weight,
+                        reapply_sector_cap_after_dollar_neutral=self.book_reapply_sector_cap,
                     )
                 elif hrp_weights_by_symbol:
                     self._book_target_weights = dict(hrp_weights_by_symbol)

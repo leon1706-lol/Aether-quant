@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 
 def assess_drawdown_lock(
     daily_drawdown: float,
@@ -107,6 +109,10 @@ def cap_target_weight(
     current_exposure: float,
     exposure_cap: float,
 ) -> tuple[float, bool]:
+    """(weight, blocked): the target clipped to the exposure left under the cap, sign preserved. A non-finite target is
+    blocked (V6.4.3: `nan >= 0.0` is False, so a NaN target came out as a full short of the remaining capacity)."""
+    if not math.isfinite(target_weight):
+        return 0.0, True
     remaining_exposure = max(0.0, exposure_cap - current_exposure)
     requested_exposure = abs(target_weight)
     if requested_exposure <= remaining_exposure:

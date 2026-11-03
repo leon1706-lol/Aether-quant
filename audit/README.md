@@ -45,3 +45,7 @@ and reports the first break, if any). See `development/infrastructure.md`'s
 audit section for the worker's Compose service and `development/Problems.md`
 #42/#48 for the full design rationale and the reconciliation/`init: true`
 hardening.
+
+**V6.4.3:** `verify_chain(rows, expected_tail_hash=None)`. Every prefix of a valid chain is valid
+(`formal/AetherFormal/HashChain.lean`, `truncation_undetected`), so deleting the newest rows is invisible to the walk
+alone; passing the latest hash recorded elsewhere makes a truncated chain report index `len(rows)`.

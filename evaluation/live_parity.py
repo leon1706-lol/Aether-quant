@@ -633,6 +633,7 @@ def build_as_live_kwargs(
         gross_exposure=float(neutrality.get("gross_exposure_cap", base_kwargs.get("gross_exposure", 1.0))),
         max_weight_per_name=float(neutrality.get("max_weight_per_name", base_kwargs.get("max_weight_per_name", 0.12))),
         sector_max_net_weight=float(neutrality.get("sector_max_net_weight", 0.15)),
+        reapply_sector_cap_after_dollar_neutral=bool(neutrality.get("reapply_sector_cap_after_dollar_neutral", False)),
         entry_lag_bars=1,
         candidate_metadata_by_ticker=candidate_metadata,
         normalize_to_percentile=True,

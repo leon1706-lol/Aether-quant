@@ -1566,7 +1566,7 @@ Almgren impact model.
 - **Sizing multipliers** (volatility 0.35–1.25, cost, liquidity) are modeled since V5.7.0 (`build_live_member_weight_fn`); the learned-topology multiplier is modelled only as a bracket (V5.8.0: `topology.learned_topology.learned_sizing_inputs` scores each row's prototype confidence and regime mismatch; the whole-bar peer-overlap term is unknown offline and is run at 0 / 0.5 / 1 by `scripts/topology_sizing_research.py`, rule R-TOPO) and the multitask volatility head is replaced by `rolling_volatility_20d`. Their shrink is bounded by `sizing_floor_fraction` (0.5) for book members.
 - **Offline = book + legacy signal (V6.1.0):** the kill switch now reads the simulated book plus the legacy signal plus the bond / forex sleeves' P&L (from the Lean attribution when calibrating); with no sleeve data it reads only what is simulated.
 - **Rank pool:** the as-live frame keeps every row with features, observation-only names included, because live's percentile normalisation runs over all of them.
-- **Forex/crypto previous-day bar:** unchanged live (a daily forex/crypto bar closes after the equity session); modeled offline with a one-day lag. Cross-asset FEATURES are now aligned the same way on both sides (V5.6.0, #135): a row sees the bars that closed strictly before its own tick, so the dataset no longer carries the same-day values live never had. Deciding forex/crypto on their own tick is a possible follow-up.
+- **Forex/crypto previous-day bar:** unchanged live (a daily forex/crypto bar closes after the equity session); modeled offline with a one-day lag. Cross-asset FEATURES are now aligned the same way on both sides (V5.6.0, #135): a row sees the bars that closed strictly before its own tick, so the dataset no longer carries the same-day values live never had. Deciding forex/crypto on their own tick is a possible follow-up. Moot while forex is observation-only (since V6.0.0).
 - **Kill switch:** applied to the as-live returns since V5.7.0 (see the table); `--replay-kill-switch` replays it on the idealized series for the sticky (non-bypassed) behaviour.
 - **Learned-topology sizing multiplier (V5.8.0 verdict):** still not modelled offline. It is a shrink-only factor in [0.5, 1.0] derived from node-level confidence and cluster disagreement, and the dataset carries no cluster membership, so any offline replica would be a guess; every Lean backtest already includes the live one, which is where it is judged. A topology model retrained with `train_topology.py --source dataset` is installed only if its prototype statistics beat the active one, never on an offline Sharpe.
 - **Crypto-graduates loss guard and the slippage reference are live-only:** the simulator's `sleeve_guard_config` guards the whole simulated book's own returns, not the capped crypto names inside it (they are bounded by `class_weight_caps`, which both sides share), and it has no fills to measure slippage on.
@@ -1666,6 +1666,22 @@ dates). A residual non-limit contributor is documented in #153.
 - **Tranche book**: still offline only; R-STAGGER2 is the gate for building the live path.
 - **Backtest statistics** (`evaluation/backtest_statistics.py`): measurement of a finished Lean run only, nothing in the
   trading path reads it. The T-bill sweep ticker is its own asset class (`cash_sweep`) in every Lean-run report.
+
+### V6.4.3 contracts
+
+- **Formal models are of the shared functions.** `formal/AetherFormal/*.lean` model the pure functions both `main.py` and
+  the simulator call (book neutrality and construction, sizing, risk controls, kill switch, cost model, order gate,
+  reconciliation, sleeve guard, hash chain, JSON safety). A change to one of them changes its spec or fails
+  `tests/test_formal_differential_*.py`; `aq prove --regen-cases` after a spec edit.
+- **Sector cap re-applied after the dollar step** (`phase_v2.portfolio_book.neutrality.reapply_sector_cap_after_dollar_neutral`,
+  default `false`): one function, `apply_book_neutrality`; `main.py` and `evaluation/live_parity.build_as_live_kwargs`
+  pass the same key. With it on every sector ends within `sector_max_net_weight` (proved), the book may end up to ~1.5%
+  off dollar-neutral (BT5 replay).
+- **Fail-safe guards** (no config): a non-finite target in `cap_target_weight`, a non-finite base or a negative multiplier
+  product in `build_dynamic_position_sizing`, a non-positive `trailing_drawdown` lookback and a non-positive per-name cap
+  in `apply_book_neutrality` degrade to "no position / step skipped" in both paths (they share the functions).
+- **As-of beta labels** (`phase1.target.ranking.beta_estimation`, default `"full_history"`): `train.py` only; no live reader.
+- **`aether_quant`** re-exports the shared functions and adds research tools; nothing in the trading path imports it.
 
 ### Diagnostics contract (all default off in code)
 
