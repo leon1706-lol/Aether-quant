@@ -565,3 +565,46 @@ def test_load_multitask_training_config_defaults_to_empty_dict_when_missing(tmp_
     config = load_multitask_training_config(config_path)
 
     assert config == {}
+
+
+def test_main_with_ranked_inputs_appends_csr_inputs_and_stamps_the_schema(tmp_path, monkeypatch):
+    """V6.4.4: with phase1.features.cross_sectional_inputs on ("append"), the trainer ranks the scaled inputs per
+    (date, class), trains on `<name>_csr` too, and stamps the schema so main.py can refuse a mismatched config."""
+    import sys
+
+    import train_multitask
+
+    rng = np.random.default_rng(3)
+    rows = []
+    for split, days in (("train", 12), ("validation", 6), ("backtest", 6)):
+        for day in range(days):
+            for ticker in ("A", "B", "C", "D", "E", "F"):
+                rows.append({
+                    "date": f"{split}-{day:02d}", "ticker": ticker, "split": split,
+                    "x_scaled": float(rng.normal()), "y_scaled": float(rng.normal()), "asset_class_equity": 1.0,
+                    "target_direction": int(rng.integers(0, 2)), "target_return_1d": float(rng.normal(0, 0.01)),
+                    "target_volatility_next_day": abs(float(rng.normal(0, 0.01))),
+                })
+    dataset_path = tmp_path / "ds.csv"
+    pd.DataFrame(rows).to_csv(dataset_path, index=False)
+    schema_path = tmp_path / "schema.json"
+    schema_path.write_text(json.dumps({"model_input_names": ["x_scaled", "y_scaled", "asset_class_equity"]}), encoding="utf-8")
+    config = {
+        "phase1": {"universe": {"assets": [{"ticker": t, "asset_class": "equity"} for t in "ABCDEF"]},
+                   "features": {"cross_sectional_inputs": {"enabled": True, "mode": "append", "min_group_size": 3}}},
+        "phase_v2": {"retraining": {"multitask_training": {
+            "min_train_rows": 10, "min_validation_rows": 5, "min_backtest_rows": 5, "epochs": 2, "patience": 2,
+            "hidden_layers": [8], "batch_size": 16}}},
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(train_multitask, "multitask_candidate_output_paths", lambda version_id: {
+        "version_dir": out_dir, "multitask_model": out_dir / "m.json",
+        "multitask_feature_schema": out_dir / "s.json", "multitask_training_metrics": out_dir / "t.json"})
+    monkeypatch.setattr(sys, "argv", ["train_multitask.py", "--version-id", "t", "--config-path", str(config_path),
+                                      "--dataset-path", str(dataset_path), "--feature-schema-path", str(schema_path)])
+    assert train_multitask.main() == 0
+    schema = json.loads((out_dir / "s.json").read_text(encoding="utf-8"))
+    assert schema["model_input_names"] == ["x_scaled", "y_scaled", "asset_class_equity", "x_scaled_csr", "y_scaled_csr"]
+    assert schema["cross_sectional_inputs"] == {"group": "asset_class", "mode": "append", "min_group_size": 3}

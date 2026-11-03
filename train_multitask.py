@@ -53,6 +53,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from features.cross_sectional_inputs import apply_cross_sectional_inputs, expand_input_names, settings_from_config
+
 from train import (
     add_rank_label_noise,
     HORIZON_HEAD_SPECS,
@@ -348,6 +350,13 @@ def main() -> int:
             LOGGER.info("train_multitask: dataset not found at %s - skipping.", dataset_path)
             return 0
         dataset = pd.read_csv(dataset_path)
+        # V6.4.4: ranked inputs (phase1.features.cross_sectional_inputs, default off) - the same transform main.py and
+        # the offline scorer apply; "append" mode adds `<name>_csr` inputs to the schema this run writes.
+        cross_sectional_settings = settings_from_config(full_config)
+        if cross_sectional_settings is not None:
+            feature_names = expand_input_names(feature_names, cross_sectional_settings)
+            dataset = apply_cross_sectional_inputs(dataset, full_config, feature_names)
+            LOGGER.info("train_multitask: cross-sectionally ranked inputs %s", cross_sectional_settings)
 
         # Horizon target columns are NOT required here the way the core 3
         # are - an older dataset built before Phase 3/4 shipped simply
@@ -833,6 +842,8 @@ def main() -> int:
             "export": export_multitask_horizons_architecture(model) | {"state_dict": export_state_dict(model)},
         }
         feature_schema_payload = {"model_input_names": feature_names}
+        if cross_sectional_settings is not None:
+            feature_schema_payload["cross_sectional_inputs"] = cross_sectional_settings
 
         paths = multitask_candidate_output_paths(args.version_id)
         paths["version_dir"].mkdir(parents=True, exist_ok=True)

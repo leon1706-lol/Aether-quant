@@ -15,6 +15,45 @@ mkdir -p "${STATE_DIR}"
 STATUS="${STATE_DIR}/status"
 : > "${STATUS}"
 
+# Per-run model artifacts: main.py reads its models from fixed ml/ paths, so a run whose config needs other models ships
+# them in ml/evaluation/run_artifacts/<run name>/ (same relative paths as under ml/). They are copied over ml/ for that run
+# only, the originals restored (and verified) afterwards, and run_artifacts_manifest.json records what the run read.
+apply_artifacts() {
+  local name="$1" overlay="ml/evaluation/run_artifacts/$1" backup="${STATE_DIR}/ml_backup/$1"
+  [ -d "${overlay}" ] || return 0
+  rm -rf "${backup}" && mkdir -p "${backup}"
+  : > "${backup}.new"
+  (cd "${overlay}" && find . -type f | sed 's|^\./||' | sort) > "${backup}.list"
+  while read -r rel; do
+    if [ -f "ml/${rel}" ]; then
+      mkdir -p "$(dirname "${backup}/${rel}")" && cp -p "ml/${rel}" "${backup}/${rel}"
+    else
+      echo "${rel}" >> "${backup}.new"
+    fi
+    mkdir -p "$(dirname "ml/${rel}")" && cp "${overlay}/${rel}" "ml/${rel}"
+  done < "${backup}.list"
+  python3 - "${overlay}" "${backup}.list" > "${STATE_DIR}/$1.run_artifacts_manifest.json" <<'PYEOF'
+import hashlib, json, sys
+overlay, listing = sys.argv[1], sys.argv[2]
+rels = [line.strip() for line in open(listing) if line.strip()]
+print(json.dumps({rel: hashlib.sha256(open(f"{overlay}/{rel}", "rb").read()).hexdigest() for rel in rels}, indent=1, sort_keys=True))
+PYEOF
+}
+
+restore_artifacts() {
+  local name="$1" overlay="ml/evaluation/run_artifacts/$1" backup="${STATE_DIR}/ml_backup/$1"
+  [ -d "${overlay}" ] || return 0
+  while read -r rel; do
+    if grep -qxF "${rel}" "${backup}.new"; then
+      rm -f "ml/${rel}"
+      rmdir -p --ignore-fail-on-non-empty "$(dirname "ml/${rel}")" 2>/dev/null
+    else
+      cp -p "${backup}/${rel}" "ml/${rel}"
+      cmp -s "${backup}/${rel}" "ml/${rel}" || return 1
+    fi
+  done < "${backup}.list"
+}
+
 fail_all() {
   echo "LEAN_FAILED setup $1" >> "${STATUS}"
   echo "ALL_DONE" >> "${STATUS}"
@@ -23,6 +62,7 @@ fail_all() {
 
 # The workspace disk is 32 GB and the Lean image ~20 GB: Docker's data root goes on the 118 GB /tmp disk.
 if [ "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)" != "${DATA_ROOT}" ]; then
+  sudo mkdir -p /etc/docker  # the docker-in-docker feature with Docker 29 no longer creates it (V6.4.4)
   echo "{\"data-root\": \"${DATA_ROOT}\", \"dns\": [\"168.63.129.16\"]}" | sudo tee /etc/docker/daemon.json > /dev/null
   sudo pkill dockerd
   sleep 5
@@ -50,18 +90,24 @@ for run_config in ${RUN_CONFIGS:-}; do
     continue
   fi
   cp "${run_config}" config.json
+  apply_artifacts "${name}"
   echo "LEAN_RUNNING ${name}" >> "${STATUS}"
   before="$(ls -1d backtests/*/ 2>/dev/null | sort | tail -n 1)"
   if lean backtest . --image "${IMAGE}" > "${STATE_DIR}/${name}.log" 2>&1; then
     after="$(ls -1d backtests/*/ 2>/dev/null | sort | tail -n 1)"
     if [ -n "${after}" ] && [ "${after}" != "${before}" ]; then
       cp "${STATE_DIR}/${name}.log" "${after%/}/lean_cli.log"
+      [ -f "${STATE_DIR}/${name}.run_artifacts_manifest.json" ] && cp "${STATE_DIR}/${name}.run_artifacts_manifest.json" "${after%/}/run_artifacts_manifest.json"
       echo "LEAN_DONE ${name} ${after%/}" >> "${STATUS}"
     else
       echo "LEAN_FAILED ${name} no new backtest folder" >> "${STATUS}"
     fi
   else
     echo "LEAN_FAILED ${name} lean exit $? (see ${name}.log)" >> "${STATUS}"
+  fi
+  if ! restore_artifacts "${name}"; then
+    echo "LEAN_FAILED ${name} restore of ml/ after the run did not verify" >> "${STATUS}"
+    break
   fi
 done
 [ -f "${STATE_DIR}/config.json.orig" ] && cp "${STATE_DIR}/config.json.orig" config.json

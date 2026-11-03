@@ -350,7 +350,9 @@ def load_lean_verdicts(evaluation_dir: Path | None = None) -> list[dict]:
             continue
         if isinstance(payload, dict) and payload.get("candidate") and "keep" in payload:
             number = re.match(r"r_lean(\d+)", path.stem)
-            verdicts.append(dict(payload, rule=payload.get("rule") or (f"R-LEAN{number.group(1)}" if number else path.stem)))
+            # the file names the rule it records (r_lean16_*.json = R-LEAN16); `rule` inside is lean_verdict's clause set
+            label = payload.get("reported_as") or (f"R-LEAN{number.group(1)}" if number else None) or payload.get("rule") or path.stem
+            verdicts.append(dict(payload, rule=label))
     return verdicts
 
 

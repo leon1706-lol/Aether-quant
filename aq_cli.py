@@ -704,6 +704,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_forex_sleeve.py",
         # V5.8.0 - portfolio/sleeve_guard.py, portfolio/class_sleeve.py.
         "test_sleeve_guard.py", "test_class_sleeve.py",
+        # V6.4.4 - portfolio/trend_sleeve.py.
+        "test_trend_sleeve.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -717,6 +719,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_cross_asset_sensitivity.py", "test_train_cross_asset_sensitivity.py",
         # V5.8.0 - features/fx_signals.py.
         "test_fx_signals.py",
+        # V6.4.4 - features/cross_sectional_inputs.py (ranked model inputs).
+        "test_cross_sectional_inputs.py",
         # V6.4.3 - features/cross_sectional_norm.py, features/asof_beta_labels.py.
         "test_cross_sectional_norm.py", "test_asof_beta_labels.py",
     ],
@@ -786,6 +790,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V6.4.3 - the research and audit tools.
         "test_research_harness.py", "test_pbo.py", "test_factor_spanning.py", "test_overfit_diagnostics.py",
         "test_leakage_audit.py", "test_research_probes.py", "test_sim_lean_calibration.py", "test_trial_registry.py",
+        # V6.4.4 - the trend sleeve simulator and the alpha proof.
+        "test_trend_sleeve_backtest.py", "test_alpha_proof.py", "test_gate_replica_audit.py",
         "test_research_runners.py",
         "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
         "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
@@ -844,7 +850,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_v630_research.py", "test_v630_round.py",
         # V6.4.0 - Lean book-call probabilities, the paper protocol, calibration, engaged-day skill, the crypto bootstrap.
         "test_classification_parity.py", "test_paper_protocol.py", "test_probability_calibration.py",
-        "test_engaged_day_skill.py", "test_trade_bootstrap.py", "test_v640_round.py", "test_data_append_guard.py", "test_v640_research.py", "test_codespace_session_v640.py", "test_freeze_run_config.py", "test_lean_verdict.py",
+        "test_engaged_day_skill.py", "test_trade_bootstrap.py", "test_v640_round.py", "test_data_append_guard.py", "test_v640_research.py", "test_codespace_session_v640.py",
+        "test_codespace_session_v644.py", "test_freeze_run_config.py", "test_lean_verdict.py",
         "test_book_variant_research.py",
         "test_crypto_fee_research.py",
         "test_forex_keep_or_drop.py",
@@ -880,7 +887,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py",
         # V6.4.3 - the aether_quant library's public surface and quickstart.
         "test_aether_quant_api.py", "test_aether_quant_quickstart.py",
-        "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_readme_freshness.py",
+        "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_v644_fixes.py", "test_readme_freshness.py",
     ],
 }
 
@@ -1929,6 +1936,12 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
         if not model_path.exists() or not schema_path.exists():
             continue  # best-effort - a missing model falls through to the next model_priority entry
         feature_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        # V6.4.4: ranked inputs (phase1.features.cross_sectional_inputs) feed the multitask model only, as in main.py.
+        model_frame = dataset
+        if model_kind_for_head == "multitask":
+            from features.cross_sectional_inputs import apply_cross_sectional_inputs
+
+            model_frame = apply_cross_sectional_inputs(dataset, config, feature_schema["model_input_names"])
         # V6.1.0: a seed ensemble (phase_v2.model_ensemble) replaces the single export, exactly as main.py loads it.
         members = (
             load_ensemble_member_exports(ml_dir / ensemble[f"{model_kind_for_head}_dir"]) if ensemble["enabled"] else []
@@ -1941,12 +1954,12 @@ def _blend_raw_scores_for_dataset(dataset, config: dict, sequence_window_default
         )
         if members:
             predictions_by_model_head[model_kind_for_head] = predict_heads_ensemble(
-                dataset, members, feature_schema["model_input_names"], list(active_heads), **predict_kwargs
+                model_frame, members, feature_schema["model_input_names"], list(active_heads), **predict_kwargs
             )
         else:
             model_export = json.loads(model_path.read_text(encoding="utf-8"))
             predictions_by_model_head[model_kind_for_head] = predict_heads(
-                dataset, model_export, feature_schema["model_input_names"], list(active_heads), **predict_kwargs
+                model_frame, model_export, feature_schema["model_input_names"], list(active_heads), **predict_kwargs
             )
     return compute_blended_raw_scores(dataset, predictions_by_model_head, policy), policy
 
@@ -2141,6 +2154,31 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         return _run_lean_report(args, config, run_dir, pin=bool(getattr(args, "backtest_dir", None)))
 
     # V6.3.0 - `aq evaluate --backtest-stats`: the README's Backtest Statistics for one Lean run; no dataset, no model.
+    if getattr(args, "alpha_proof", False):
+        from evaluation.alpha_proof import alpha_proof_report
+        from evaluation.backtest_statistics import load_trial_sharpes
+
+        run_dir = _resolve_lean_run_dir(args)
+        if run_dir is None or not run_dir.exists():
+            print("error: no backtest folder found - pass --backtest-dir PATH or run `aq backtest` first.", file=sys.stderr)
+            return 1
+        report = alpha_proof_report(run_dir, config, ROOT_DIR,
+                                    trial_sharpes=load_trial_sharpes(ML_DIR / "evaluation" / "trial_registry.json"))
+        out_path = ML_DIR / "evaluation" / "alpha_proof.json"
+        _write_evaluation_json(out_path, report)
+        if args.json:
+            print(json.dumps(report, indent=2, default=str))
+        else:
+            print(f"Alpha proof: {run_dir.name}")
+            for name, period in (report.get("periods") or {}).items():
+                alpha = period.get("alpha") or {}
+                print(f"  {name:9s} n={period.get('n', 0):4d} Sharpe={period.get('sharpe')} CI={period.get('sharpe_ci95')} "
+                      f"alpha/yr={alpha.get('alpha_annual')} t={alpha.get('t_hac')} DSR={period.get('dsr')}")
+            verdict = report.get("r_alpha1") or {}
+            print(f"  R-ALPHA1: {verdict.get('verdict')} {verdict.get('failed') or ''}")
+            print(f"  Wrote {out_path}")
+        return 0
+
     if getattr(args, "backtest_stats", False):
         from evaluation.backtest_statistics import compute_for_run_dir
 
@@ -4710,6 +4748,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="V6.2.0: a finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas on the "
         "shipped and the pre-V6.2 risk-free file, at 252 and 365 days a year (--backtest-dir, --interest-rate-file, "
         "--trading-days) -> ml/evaluation/lean_stats_<run>.json. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--alpha-proof", action="store_true",
+        help="V6.4.4: proof of alpha for one finished Lean run (--backtest-dir, default the README pin or the newest run): "
+        "the strategy without its T-bill sweep, per period (full / backtest / holdout / the fresh weeks after 2026-10-16) - "
+        "Sharpe with a bootstrap 95%% interval, alpha against SPY / AGG / BTC with a Newey-West t, PSR and the deflated "
+        "Sharpe over the trial registry - and the descriptive R-ALPHA1 verdict -> ml/evaluation/alpha_proof.json.",
     )
     evaluate_parser.add_argument(
         "--backtest-stats", action="store_true",

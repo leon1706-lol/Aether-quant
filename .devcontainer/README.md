@@ -6,7 +6,9 @@ Docker-in-Docker setups.
 
 The container is the `mcr.microsoft.com/devcontainers/python:3.11` image with
 an sshd feature (Codespaces training access) and a post-create command that
-installs the CPU PyTorch build plus both requirements files. This is the
+installs the CPU PyTorch build plus both requirements files. `hostRequirements` (2 CPU / 8 GB) is a minimum: since
+V6.4.4 the training Codespace is created on a 4-core / 16 GB machine (`-m standardLinux32gb`, owner choice), and
+`gh codespace create` needs `--devcontainer-path .devcontainer/devcontainer.json` because the repo has two definitions. This is the
 environment behind this project's own "train in the cloud" convention — see
 [`RUNBOOK.md`](../RUNBOOK.md) and
 [`development/infrastructure.md`](../development/infrastructure.md).

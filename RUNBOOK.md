@@ -87,7 +87,9 @@ bands a reference Lean run spans. Pre-registered, before the first paper day:
 3. **Checklist** (`aq evaluate --paper-check --backtest-dir <paper run folder> --reference-dir <pinned Lean run>`): veto rate, kill-switch
    lock share, strategy gross exposure, fills per rebalance, median / p90 adverse slippage, fee bps per turnover, strategy and T-bill
    P&L per day, daily hit ratio, annualised turnover.
-4. **Bands:** the 5-95% range of every contiguous 6-rebalance window of the pinned final Lean run (frozen in Problems #228).
+4. **Bands:** the 5-95% range of every contiguous 6-rebalance window of the pinned final Lean run: since V6.4.4 BT11
+   (`backtests/2026-11-03_16-26-39`, frozen in `ml/evaluation/v644/paper_bands.json`, Problems #267; the BT5 bands of #228 are kept
+   as `ml/evaluation/v640/paper_bands_bt5.json`).
    Success = every metric inside its band. A metric outside is a finding to explain, not a failure to hide; run
    `aq evaluate --reconcile-features --symbol X` in week 1.
 5. **Cadence:** weekly check; the verdict is written up (Problems.md + Changelog) before any capital decision.

@@ -27,9 +27,21 @@ def run_audit_leakage(dataset_path=None, *, target_column: str = "target_rank_20
     features = _scaled_features()
     frame = load_research_frame(dataset_path or DEFAULT_DATASET, columns=[*features, target_column, *CLASS_COLUMNS],
                                 splits=("train", "validation"))
-    report = audit_leakage(frame, feature_columns=features, target_column=target_column, class_columns=CLASS_COLUMNS)
+    frame["_rank_group"] = rank_group_labels(frame["ticker"], json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8")))
+    report = audit_leakage(frame, feature_columns=features, target_column=target_column, class_columns=CLASS_COLUMNS,
+                           group_column="_rank_group")
     report["dataset"] = str(dataset_path or DEFAULT_DATASET)
     return report
+
+
+def rank_group_labels(tickers, config: dict) -> list[str]:
+    """The label's rank group of each ticker (phase1.target.ranking.separate_rank_groups by asset class, else "main")."""
+    from features.cross_sectional_inputs import asset_class_by_ticker
+
+    classes = asset_class_by_ticker(config)
+    separate = config["phase1"]["target"]["ranking"].get("separate_rank_groups") or {}
+    group_of_class = {cls: name for name, members in separate.items() for cls in members}
+    return [group_of_class.get(classes.get(str(ticker), "unknown"), "main") for ticker in tickers]
 
 
 def run_overfit_report(ml_dir: Path = ML_DIR) -> dict:

@@ -333,6 +333,7 @@ def _simulate_rank_book_core(
     trailing_stop_pct: float | None = None,
     close_column: str = "close",
     mid_cycle_member_updates: bool = False,
+    member_pass_resizes: bool = True,
     accrue_skipped_dates: bool = False,
     kill_switch_extra_returns: dict[str, float] | None = None,
     legacy_component: dict | None = None,
@@ -461,6 +462,9 @@ def _simulate_rank_book_core(
       close since entry, direction-aware.
 
     V6.1.0, all off by default (rule R-CAL2: each one replicates a main.py mechanism):
+    - `member_pass_resizes` (V6.4.4, R-CAL5 candidate; default True = V6.1.0 behaviour): False keeps a held member's weight
+      on the between-rebalance member pass (only entries and exits trade there); BT5's engine made 3 resizes in 3.3
+      years against the simulator's 32 (ml/evaluation/v644/gate_replica_audit.json).
     - `mid_cycle_member_updates`: between rebalances live re-runs every member of the last ENGAGED book through the
       member chain on every session (`book_allocations = self._last_book_allocations`), so a member blocked on the
       rebalance day (kill-switch lock, net edge, cooldown) or closed by the age exit / trailing stop is entered as soon as
@@ -894,7 +898,7 @@ def _simulate_rank_book_core(
                 new_weights = frozen
                 held_allocations = {symbol: allocation for symbol, allocation in held_allocations.items() if symbol in new_weights}
 
-            if (resize_threshold_weight > 0.0 or trade_cooldown_dates > 0) and new_weights:
+            if (resize_threshold_weight > 0.0 or trade_cooldown_dates > 0 or (mid_cycle and not member_pass_resizes)) and new_weights:
                 date_index = rebalance_counter - 1
                 adjusted = dict(new_weights)
                 for symbol, target in new_weights.items():
@@ -902,6 +906,9 @@ def _simulate_rank_book_core(
                     if target == held:
                         continue
                     same_side_hold = held != 0.0 and (held > 0) == (target > 0)
+                    if same_side_hold and mid_cycle and not member_pass_resizes:
+                        adjusted[symbol] = held
+                        continue
                     if same_side_hold and resize_threshold_weight > 0.0 and not should_scale_position(held, target, resize_threshold_weight):
                         adjusted[symbol] = held  # live: a trivial resize is not traded
                         continue

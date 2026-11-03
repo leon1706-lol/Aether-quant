@@ -647,17 +647,18 @@ Two non-obvious gotchas this config exists to avoid:
 
 ```powershell
 # Create (only once; reuse the same Codespace afterward)
-gh codespace create --repo <owner>/Aether-quant --branch main --machine basicLinux32gb
+gh codespace create -R leon1706-lol/Aether-quant -b main --devcontainer-path .devcontainer/devcontainer.json -m standardLinux32gb --idle-timeout 30m --display-name aq-Training-Ground-Fixed
+# (--devcontainer-path is required: the repo has two devcontainers; 4-core / 16 GB since V6.4.4, owner choice)
 
 # Connect
 gh codespace ssh -c <codespace-name>
 
-# Inside the Codespace: run training exactly like locally
-cd Aether-quant
+# Inside the Codespace: the repo is the folder under /workspaces/ (the sync scripts find it)
+cd /workspaces/*/
 python train.py                 # or python train.py --multitask-only, etc.
 
 # Back on your local machine: pull the trained artifacts down
-gh codespace cp -e "remote:Aether-quant/ml/*.json" ./ml/ -c <codespace-name>
+.\scripts\codespace_sync.ps1 -Mode pull -Codespace <codespace-name>   # backs up nothing: copy ml/ aside first
 
 # When done training, stop billing (Codespaces only bills while running)
 gh codespace stop -c <codespace-name>
@@ -677,7 +678,7 @@ the single tarball, extract locally, and always verify file presence/mtime
 afterward:
 
 ```powershell
-gh codespace ssh -c <codespace-name> -- "cd Aether-quant && tar czf /tmp/aether-quant-ml.tgz ml"
+gh codespace ssh -c <codespace-name> -- "cd /workspaces/*/ && tar czf /tmp/aether-quant-ml.tgz ml"
 gh codespace cp -c <codespace-name> remote:/tmp/aether-quant-ml.tgz .\aether-quant-ml.tgz
 tar -xzf .\aether-quant-ml.tgz
 ```
@@ -1030,3 +1031,27 @@ continues) runs the guards, the dataset, the legacy input and its 5-seed retrain
 one, live never logs it); `aq evaluate --paper-check` turns a paper run folder into the protocol's checklist (RUNBOOK "Paper period
 protocol"). `diagnostics.book_history.include_probabilities` adds the head probabilities behind each book call; `aq evaluate
 --classification-parity` scores them against the offline head.
+
+### V6.4.4: the training Codespace on 4 cores, per-run models for Lean, and Codespace lessons
+
+**Training host.** `gh codespace create -R leon1706-lol/Aether-quant -b main --devcontainer-path .devcontainer/devcontainer.json -m standardLinux32gb --idle-timeout 30m --display-name aq-Training-Ground-Fixed`
+(4 cores / 16 GB, owner choice). On it the full-split dataset builds in ~8 minutes and a multitask fit takes 4-9 minutes. The
+devcontainer installs only `requirements/*.txt`, so anything a research chain imports must be listed there (`pyarrow` was missing,
+Problems #256). The V6.4.4 Codespace is kept **stopped** (owner decision); local is the source of truth, so push before its next use.
+
+**Rules before scores, on the server too.** `scripts/codespace_session_v644.sh` refuses to start unless `ml/evaluation/v644/rules.json`
+matches `rules.sha256`; a follow-up rule (R-MODEL13) runs in the same lifetime with `codespace_session_v644b.sh`, sharing the memo.
+
+**Per-run models in a DinD Lean run.** Put the files a run needs in `ml/evaluation/run_artifacts/<run name>/` (paths as under `ml/`):
+the runner swaps them in for that run only, restores and verifies the originals, and writes `run_artifacts_manifest.json` into the run
+folder (Problems #254).
+
+**Gotchas met.**
+- `codespace_lean_run.ps1 -Create` on Windows PowerShell 5.1 needs gh's stderr notice kept non-fatal (fixed, #257); the docker-in-docker
+  feature with Docker 29 no longer creates `/etc/docker` (the runner makes it, #257).
+- Copy a single changed file with `gh codespace cp` while a session runs: a full push can rewrite a shell script bash is still reading.
+- `aq clean ml --apply` prunes every version folder but the newest 5 (by design); to free a walk-forward's disk, delete only its own
+  `window_*/` CSVs.
+- The full suite on a Codespace that holds the real datasets crawled (one test at 100% CPU for 15+ minutes under pandas 3.1); CI's
+  clean checkout (no datasets) takes ~3 minutes and the PC's buckets pass, so the session's suite step is informational.
+- Windows OpenSSH strips double quotes from inline remote commands: send a script with `gh codespace cp` and run it.

@@ -58,8 +58,14 @@ function Get-RemoteRepo([hashtable]$Ssh) {
 }
 
 if ($Create) {
-    $name = gh codespace create -R leon1706-lol/Aether-quant -b main --devcontainer-path $Devcontainer -m standardLinux32gb --idle-timeout 30m --display-name aq-lean-dind
-    if ($LASTEXITCODE -ne 0) { throw 'gh codespace create failed' }
+    # gh prints notices on stderr ("Codespaces usage ... is paid for by ..."); under 'Stop' Windows PowerShell 5.1 turns any
+    # native stderr line into a terminating error and the create never finished (V6.4.4)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $name = gh codespace create -R leon1706-lol/Aether-quant -b main --devcontainer-path $Devcontainer -m standardLinux32gb --idle-timeout 30m --display-name aq-lean-dind 2>$null
+    $createExit = $LASTEXITCODE
+    $ErrorActionPreference = $previousPreference
+    if ($createExit -ne 0) { throw 'gh codespace create failed' }
     $Codespace = ($name | Select-Object -Last 1).Trim()
     Write-Host "created $Codespace (delete it with -Delete as soon as its runs are pulled)"
 }
@@ -116,6 +122,10 @@ if ($Pull) {
         Copy-Item $source $target -Force
         if ((Get-FileHash $source).Hash -ne (Get-FileHash $target).Hash) { throw "config freeze mismatch: $target" }
         Write-Host "froze $target"
+        # a run with per-run model artifacts must carry the manifest of what it read
+        if ((Test-Path (Join-Path $Root "ml/evaluation/run_artifacts/$($parts[1])")) -and -not (Test-Path (Join-Path $Root "$($parts[2])/run_artifacts_manifest.json"))) {
+            throw "run $($parts[2]) used ml/evaluation/run_artifacts/$($parts[1]) but has no run_artifacts_manifest.json"
+        }
     }
 }
 

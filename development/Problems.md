@@ -2448,13 +2448,13 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 241. The sector cap does not survive the dollar-neutral step (V6.4.3)
 
-**Severity:** 4/10 · **Status:** 🟡 `partial` (option shipped default-off; adopting it is an owner call)
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (V6.4.4: BT11 passed R-LEAN16, the key ships, #267)
 
 **Problem:** `apply_book_neutrality` shrinks one leg only in step 3, so a sector holding a long and a short can end above `sector_max_net_weight`; the docstring only claimed the cap after step 2. Proved false in general (`sector_cap_counterexample`: a sector at the cap ends at 9/140 against 1/20); replaying the logged books it happens on 5 of BT5's 38 rebalances (BT7 7/71, BT8 3/38), by at most 1.45 pp over the 15% cap.
 
 **Fix:** `phase_v2.portfolio_book.neutrality.reapply_sector_cap_after_dollar_neutral` (default `false`, the shipped book): the sector shrink runs again after step 3, proved to hold every sector within the cap at the end (`sector_cap_with_reapply`) at the cost of a net exposure of at most 1.45% on BT5's books (mean L1 change 0.3%). `main.py` and the simulator read the same key (`evaluation/live_parity.build_as_live_kwargs`).
 
-**Verification:** `ml/evaluation/v643/sector_cap_frequency.json` (`scripts/v643_sector_cap_frequency.py`); `tests/test_v643_formal_findings.py`; the differential cases cover both settings.
+**Verification:** `ml/evaluation/v643/sector_cap_frequency.json` (`scripts/v643_sector_cap_frequency.py`); `tests/test_v643_formal_findings.py`; the differential cases cover both settings. **V6.4.4:** BT11 passed R-LEAN16 and the key ships (#267).
 
 ### 242. A non-positive per-name cap erased or flipped the book (V6.4.3)
 
@@ -2514,7 +2514,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** none in this phase (no retrain, owner decision 2026-11-02). A retrain should start from what V6.4.3 measured: per-date cross-sectional inputs, the as-of labels (#246), and a model that has to beat the identity and class priors before it beats nothing.
 
-**Verification:** `ml/evaluation/v643/leakage_audit.json`, `ml/evaluation/overfit_report.json`.
+**Verification:** `ml/evaluation/v643/leakage_audit.json`, `ml/evaluation/overfit_report.json`. **V6.4.4 correction (#259):** the priors mostly read a label artifact (percentile ranks in groups of different size have different means); on group-centred labels the sector-neutral priors fall to ~0 and the installed head beats them (0.026), while on rank_20d a real crypto-vs-equity class effect remains (0.070).
 
 ### 248. R-MODEL11: no factor, probe, blend or head switch qualifies; the grid overfits (V6.4.3)
 
@@ -2545,3 +2545,174 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** `evaluation/research_harness.py` (`aq research --signal CSV`), `pbo.py` (`--pbo`), `factor_spanning.py` (`--factor-spanning`), `leakage_audit.py` (`--audit-leakage`), `overfit_diagnostics.py` (`--overfit-report`), `sim_lean_calibration.py` (`--calibrate-sim-lean`), `research_probes.py`, `trial_registry.py` (moved from the script), `features/cross_sectional_norm.py`; `aether_quant/`: a facade re-exporting the shared pure functions (the same objects `main.py` uses), the research tools and the Lean cases, with `lib` / `research` extras, `py.typed`, a pinned public surface (`tests/data/aether_quant_api.json`) and `examples/aether_quant_quickstart.py`.
 
 **Verification:** one test file per module (`aq test --evaluation --features --meta`); `tests/test_aether_quant_api.py` (same objects, no torch / Lean / Redis / Postgres / sklearn on import); a wheel built from the tree and installed into a clean venv passes `scripts/wheel_smoke.py` with a real call into every library module.
+
+
+### 251. A shell script with CRLF endings would break on the Codespace (V6.4.4)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `scripts/codespace_retrain_v580.sh` had CRLF in the working tree despite `*.sh text eol=lf`; a tar push carries the working tree, so bash on the Codespace would fail on it.
+
+**Fix:** rewritten with LF (the index content is unchanged).
+
+**Verification:** `tests/test_v644_fixes.py::test_shell_scripts_are_lf` checks every `scripts/*.sh`.
+
+### 252. The Codespace keepalive returned while long jobs still ran (V6.4.4)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `scripts/codespace_keepalive.sh` matched only the session, research, test and multitask / sequence trainer processes, so a `train.py` walk-forward, a retrain script, `v644_research.py` or a dataset build could lose its ssh hold and idle out with the Codespace.
+
+**Fix:** the pattern also matches `codespace_retrain_`, `train.py`, `v644_research.py` and `build_holdout_dataset.py`.
+
+**Verification:** `tests/test_v644_fixes.py::test_keepalive_holds_every_long_codespace_job`; it held the V6.4.4 sessions.
+
+### 253. Training-Codespace docs: an ambiguous create command and a wrong repo path (V6.4.4)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `development/infrastructure.md` created the training Codespace without `--devcontainer-path` (the repo has two devcontainers) on a 2-core machine, and told users to `cd Aether-quant` (the repo is `/workspaces/<repo>`).
+
+**Fix:** the documented command names the devcontainer, the 4-core / 16 GB machine (owner choice), `--idle-timeout 30m` and the display name the sync script expects; the paths point at `/workspaces/*/`; `.devcontainer/README.md` says the 2-core requirement is a minimum.
+
+**Verification:** the V6.4.4 training Codespace was created with that command and synced by `scripts/codespace_sync.ps1`.
+
+### 254. A Lean run on the DinD Codespace could not use other models (V6.4.4)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `main.py` reads its models from fixed `ml/` paths and the DinD runner swapped only `config.json`, so a retrained candidate could not be backtested there without installing it first.
+
+**Fix:** `scripts/codespace_lean_dind.sh` copies `ml/evaluation/run_artifacts/<run>/` over `ml/` for that run only, restores and byte-verifies the originals afterwards (a failed restore stops the batch), and writes `run_artifacts_manifest.json` into the run folder; `codespace_lean_run.ps1 -Pull` refuses a run that used an overlay but has no manifest.
+
+**Verification:** `tests/test_codespace_lean_scripts.py` (two new tests) and a local simulation of apply / restore (a new folder is removed, an existing file restored).
+
+### 255. The as-live harness returned stale cached scores for ranked inputs or a seed ensemble (V6.4.4)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `scripts/as_live_levers._fingerprint` keyed the cached live score on the model files, the dataset and `phase_v2.rank_signal` only; scoring the same models with `phase1.features.cross_sectional_inputs` or `phase_v2.model_ensemble` turned on (or with new ensemble members) read the old cache.
+
+**Fix:** both settings and the ensemble members' files enter the key when either is on; a default config keeps its old key, so existing caches stay valid.
+
+**Verification:** `tests/test_v644_fixes.py::test_harness_score_cache_key_covers_ranked_inputs_and_the_seed_ensemble`.
+
+### 256. The training Codespace had no parquet reader for the research chains (V6.4.4)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the research chains cache scores and trial returns as parquet, but `pyarrow` was only in `pyproject.toml`'s `research` extra, which the devcontainer never installs; the V6.4.4 session stopped at its first parquet write.
+
+**Fix:** `pyarrow>=14.0` in `requirements/requirements-dev.txt` (the devcontainer's install list); the running session was unblocked with a one-off `pip install`.
+
+**Verification:** `tests/test_v644_fixes.py::test_dev_requirements_carry_the_parquet_reader_the_research_chains_need`; the session resumed (`RESUME=1`) and finished.
+
+### 257. Two DinD runner failures: the create on Windows PowerShell 5.1 and the Docker config folder (V6.4.4)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `codespace_lean_run.ps1 -Create` ran gh under `$ErrorActionPreference = 'Stop'`, so gh's stderr notice ("usage ... is paid for by ...") became a terminating error and no Codespace was created; on the new Codespace the docker-in-docker feature (Docker 29) no longer creates `/etc/docker`, so writing `daemon.json` failed and dockerd never moved to `/tmp`.
+
+**Fix:** the create runs with `Continue` and stderr discarded, then checks gh's exit code; the runner creates `/etc/docker` before writing `daemon.json`.
+
+**Verification:** `tests/test_codespace_lean_scripts.py` (two new tests); the second create and the BT10 / BT11 batch ran.
+
+### 258. Data to 2026-11-02 (V6.4.4)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the data ended 2026-10-16.
+
+**Fix:** `scripts/data_append_refresh.py --end 2026-11-03 --cutoff 2026-10-16 --apply`: 11 sessions appended to all 105 files in the stored vintage (splice factors 1.000-1.006), FRED appended after the cutoff; `config.json` `available_to` and the holdout end move to 2026-11-02 (a data-only change); the local holdout rows were rebuilt with `splice_holdout_dataset.py` (to 2026-11-01).
+
+**Verification:** `data_append_guard.py verify`: 144 files, 0 changed rows up to 2026-10-16, on the PC and on the training Codespace; `factor_file_backfill --audit` and `refresh_universe_availability.py` clean; the splice's overlap guard compared 33,630 rows.
+
+### 259. The identity / class priors mostly measure a percentile-rank artifact (V6.4.4)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (the audit reports both; the labels themselves are unchanged)
+
+**Problem:** a percentile rank in a group of n names averages (n+1)/2n. With separate rank groups (bond 22 names, forex 15, the main pool) and small sectors the per-group label means are constants (bond 0.5227, forex 0.5333, sector-neutral equity 0.5833, identical in train and validation), so a pooled per-date IC rewards knowing a name's group size: the "class prior" of #247 (0.066 on rank_20d, 0.090 on the sector-neutral target) and part of every model's pooled IC are that artifact, which a book ranking within groups cannot trade.
+
+**Fix:** `evaluation/leakage_audit.identity_check(..., group_column=)` and `centre_by_group` also report every figure on the group-centred target (`aq evaluate --audit-leakage` passes the label's rank groups); `scripts/v644_research.py --centred` scores on centred labels (rule R-MODEL13, #263).
+
+**Verification:** `tests/test_leakage_audit.py::test_group_centred_priors_drop_the_percentile_group_size_artifact`, `tests/test_codespace_session_v644.py::test_centred_targets_remove_the_group_size_artifact`; on the V6.4.4 dataset the sector-neutral priors fall from 0.079 / 0.090 to 0.005 / 0.001 and the installed head's IC is 0.026; on rank_20d a real crypto-vs-equity effect stays (class prior 0.070).
+
+### 260. Ranked model inputs, built and judged offline (V6.4.4)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (default off; not wired into `main.py`, no candidate qualified)
+
+**Problem:** #247 asked for per-date cross-sectional inputs; nothing in the trainer or the scorer supported them.
+
+**Fix:** `features/cross_sectional_inputs.py` ranks each `*_scaled` input within (bar, asset class) ("replace", or "append" as `<name>_csr`), one definition in list and pandas form; `train_multitask.py` (and so the walk-forward) and `aq_cli._blend_raw_scores_for_dataset` apply it behind `phase1.features.cross_sectional_inputs` (default off), and the trainer stamps the setting into its schema. The live path (`main.py`, on the tick's pending symbols) waits for a qualifying candidate.
+
+**Verification:** `tests/test_cross_sectional_inputs.py` (list = frame on 400 random frames, NaN to the centre, class mapping = the dataset's one-hots), `tests/test_train_multitask.py` (an end-to-end trainer run in append mode).
+
+### 261. R-MODEL12: no retrained candidate beats the priors (V6.4.4)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule; `ml/` unchanged)
+
+**Problem:** the retrain #247 asked for, judged by a rule written before any score (`ml/evaluation/v644/rules.json`, sha `42dcaf43…`): seven multitask recipes on as-of labels (today's, the sector-neutral head as the target, ranked inputs, both, plus regularisation, ListNet, append mode), seed 1 first, seeds 2-3 for at most three survivors, then as-live, PBO, a walk-forward and one holdout read.
+
+**Fix:** none qualifies: every seed-1 candidate fails C1 (validation IC at or above the identity / class priors and the installed model + 0.034); the best validation non-overlapping IC is M4's 0.079 (ranked inputs, sector-neutral target, regularised) against priors of 0.079 / 0.090. No stage 2, no walk-forward, no holdout read. For the record: every candidate's backtest as-live Sharpe is below the installed book's (+0.90; M0 +0.45, M1 +0.63, M4 +0.01), validation is better for M2 / M4 / M6 (+0.37 / +0.30 / +0.58 against -0.51), grid PBO 0.37.
+
+**Verification:** `ml/evaluation/v644/research.json`, `trial_returns.parquet`, `ml/versions/v644_M*_s1`, `ml/session_v644.log`.
+
+### 262. R-TREND1: the trend sleeve loses on the backtest (V6.4.4)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule; the sleeve stays off)
+
+**Problem:** time-series momentum is the one classic alpha source the system lacked: a small directional sleeve on SPY, QQQ, IWM, EEM, TLT, IEF and USO (`portfolio/trend_sleeve.py`: the sign of the trailing return, inverse-volatility weights aimed at 3% of NAV a year, caps, a 2% loss guard; the owner approved researching and shipping it by rule).
+
+**Fix:** K1 picks T2 (126-session sign; train+validation net Sharpe +0.40, phase median), K2 passes, K4 passes (correlation with the main book 0.10), but K3 fails (backtest net Sharpe -0.34; all four trials lose on 2023-07..2025-06: T1 -0.48, T3 -0.61, T4 -0.33) and K5 fails (the combined book's backtest Sharpe -0.02 against the main book's -0.04 + 0.10). Not wired into `main.py`, no Lean run, holdout not read.
+
+**Verification:** `ml/evaluation/v644/research.json` (`trend`, `trend_main`, `verdict`); `tests/test_trend_sleeve.py`, `tests/test_trend_sleeve_backtest.py`.
+
+### 263. R-MODEL13: the same grid on group-centred labels, nothing qualifies (V6.4.4)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (a follow-up rule written before any centred score; `ml/` unchanged)
+
+**Problem:** #259 showed R-MODEL12's C1 bar was mostly an artifact, so its verdict says little about skill.
+
+**Fix:** R-MODEL13 (`ml/evaluation/v644/r_model13_rule.json`, written after R-MODEL12's stage 1 and before any centred number; the raw validation ICs already seen are listed in it) repeats R-MODEL12 with C1 / C3 on group-centred labels. On centred labels the candidates' validation ICs shrink (M4 0.079 -> 0.033, M3 0.062 -> 0.021) and none passes C1': M3 / M4 clear the priors but not the installed model's centred IC + 0.034 (0.055 + 0.034), M2 the reverse. The installed model's sector-neutral head (centred validation IC 0.055) remains the best ranking the project has; nothing ships.
+
+**Verification:** `ml/evaluation/v644/research_r13.json`, `ml/session_v644b.log` (`scripts/codespace_session_v644b.sh`, same Codespace lifetime).
+
+### 264. R-CAL5: the live-gate replicas re-derived from the engine's trades; no option adopted (V6.4.4)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule; branch B stands)
+
+**Problem:** the #249 lead: re-derive the simulator's resize / cooldown / trailing-stop replicas from Lean's own trades (the order events carry no reason tags).
+
+**Fix:** `evaluation/gate_replica_audit.py` classifies Lean's fills and the simulator's weights into entries, exits, flips and resizes on and off live's rebalance dates (Lean fills a close decision at the next open, one session later). On BT5 / BT7 / BT8 the research default (the calibrated rung plus the V6.1.0 mechanisms) tracks Lean at daily correlation 0.733 on BT5 (R-CAL4's calibrated rung: 0.614); Lean still makes ~1.6-2.4x more entries and exits between rebalances, and the simulator resizes 32 times against the engine's 3. The candidate from that audit, `simulate_rank_book(member_pass_resizes=False)` (default True), lowers BT5's correlation to 0.722 (clause +0.05 missed): not adopted (the rule's base was amended to the research-default rung before scoring).
+
+**Verification:** `ml/evaluation/v644/r_cal5_rule.json`, `gate_replica_audit.json`, `r_cal5_result.json`; `tests/test_gate_replica_audit.py`, `tests/test_v644_fixes.py::test_member_pass_resizes_false_keeps_held_weights_between_rebalances`.
+
+### 265. A proof-of-alpha report for any Lean run (V6.4.4)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the README reported the strategy's Sharpe and deflated Sharpe, but nothing asked whether its return is alpha (not explained by market exposures), per period, including data no model or rule has seen.
+
+**Fix:** `evaluation/alpha_proof.py` / `aq evaluate --alpha-proof`: per period (the run, backtest, holdout, the fresh weeks after 2026-10-16) the strategy's Sharpe with a stationary-bootstrap 95% interval, its alpha against SPY / AGG / BTC on the session calendar with a Newey-West t (the factor-spanning estimator), PSR and the deflated Sharpe over the trial registry, and the descriptive R-ALPHA1 verdict (written in `rules.json`). BT5: Sharpe +0.35 (95% interval -0.91..+1.65), alpha t 0.05, DSR 9.3%: not demonstrated.
+
+**Verification:** `tests/test_alpha_proof.py` (a known alpha and beta recovered, noise gives none, session compounding, the verdict clauses), `tests/test_aq_cli.py`; `ml/evaluation/v644/alpha_proof_bt5.json`.
+
+### 266. BT10: the shipped book on the new data, the V6.4.4 Lean baseline (V6.4.4)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** every V6.4.4 Lean candidate needs a baseline over the same window, which now ends 2026-11-02.
+
+**Fix:** BT10 = CFG0 (`ml/evaluation/run_configs/v644_bt10.json`, sha `13f89088…`) over 2023-07-01..2026-11-02 on a DinD Codespace (`backtests/2026-11-03_16-16-07`, 614 s): it repeats BT5 fill for fill through 2026-10-16 (762 of 762) and adds 7 fills in the fresh weeks. Net +13.70%, Lean Sharpe -0.21, drawdown 5.0%, strategy Sharpe +0.263 without a risk-free rate; the 19 fresh days lost money (strategy Sharpe -2.4 over them). Alpha proof: not demonstrated (alpha t -0.08, DSR 3.8% over 78 trials).
+
+**Verification:** the engine log reaches `PythonInitializer.Shutdown(): start`, 0 inference failures; `aq evaluate --lean-report` (0 steps failed; reports in `ml/evaluation/v644/bt10_reports/`), classification parity 444 of 444 calls, `ml/evaluation/v644/alpha_proof_bt10.json`.
+
+### 267. BT11: the sector cap re-applied after the dollar step passes R-LEAN16 and ships (V6.4.4)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (adopted by the pre-registered rule; README pinned to BT11)
+
+**Problem:** #241's owner call: `phase_v2.portfolio_book.neutrality.reapply_sector_cap_after_dollar_neutral` keeps every sector within its cap (proved) at the cost of up to ~1.5% net exposure; it needed a Lean run.
+
+**Fix:** BT11 = CFG0 + the key (`v644_bt11.json`, sha `b16aa933…`, `backtests/2026-11-03_16-26-39`): strategy Sharpe +0.268 against BT10's +0.263, max drawdown 4.98% against 4.98%, a complete run; R-LEAN16 (non-inferiority, written in `rules.json` before the run) keeps it, so `config.json` gets the key (CFG1 sha `c9c8732d…`, = BT11's frozen config without its window override). 345 of ~770 fills differ in size from BT10, the P&L by +$60. The README is pinned to BT11 and the paper bands (#228) are re-frozen from it (`ml/evaluation/v644/paper_bands.json`; they move by less than 0.1%). Alpha proof on the pin: not demonstrated (alpha -0.15%/yr, t -0.07; Sharpe +0.27, 95% interval -1.03..+1.52; DSR 3.8%).
+
+**Verification:** `ml/evaluation/v644/r_lean16_bt11.json` (`python -m evaluation.lean_verdict --rule non_inferiority --margin 0.10`), the engine log (teardown reached, 0 inference failures), `aq evaluate --lean-report --backtest-dir backtests/2026-11-03_16-26-39` (0 steps failed), `alpha_proof_bt11.json`. #241 is closed by this entry.

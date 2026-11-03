@@ -49,3 +49,27 @@ def test_identity_prior_has_no_ic_when_targets_are_iid():
     assert abs(out["identity_prior_ic"]) < 0.05
     assert out["model_minus_identity"] > 0.5
     assert "class_prior_ic" in out
+
+
+def test_group_centred_priors_drop_the_percentile_group_size_artifact():
+    """V6.4.4: separate rank groups of different sizes give constant label means ((n+1)/2n); a class prior then scores IC
+    on the raw labels with no skill at all, and none once the labels are centred per (date, group)."""
+    import numpy as np
+    import pandas as pd
+
+    from evaluation.leakage_audit import identity_check
+
+    rng = np.random.default_rng(0)
+    rows = []
+    for split, days in (("train", 60), ("validation", 60)):
+        for day in range(days):
+            for group, size in (("big", 30), ("small", 6)):
+                ranks = (rng.permutation(size) + 1) / size  # percentile ranks: mean (n+1)/2n
+                for i in range(size):
+                    rows.append({"split": split, "date": f"{split}{day}", "ticker": f"{group}{i}", "grp": group,
+                                 "target": ranks[i], "asset_class_a": float(group == "big"), "asset_class_b": float(group == "small")})
+    frame = pd.DataFrame(rows)
+    train, validation = frame[frame.split == "train"], frame[frame.split == "validation"]
+    out = identity_check(train, validation, "target", class_columns=("asset_class_a", "asset_class_b"), group_column="grp")
+    assert out["class_prior_ic"] > 0.05
+    assert abs(out["group_centred"]["class_prior_ic"] or 0.0) < 0.05

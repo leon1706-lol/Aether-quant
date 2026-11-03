@@ -1683,6 +1683,18 @@ dates). A residual non-limit contributor is documented in #153.
 - **As-of beta labels** (`phase1.target.ranking.beta_estimation`, default `"full_history"`): `train.py` only; no live reader.
 - **`aether_quant`** re-exports the shared functions and adds research tools; nothing in the trading path imports it.
 
+### V6.4.4 contracts
+
+- **Ranked model inputs** (`phase1.features.cross_sectional_inputs`, default off): one definition, `features/cross_sectional_inputs.py`
+  (`rank_input_matrix` for a tick's symbols, `rank_input_frame` for dataset dates, equal values by test); `train_multitask.py` and
+  `aq_cli._blend_raw_scores_for_dataset` apply it and the trainer stamps it into the multitask schema. Not wired into `main.py`
+  (no candidate qualified, Problems #260); a live path must transform the multitask inputs of the tick's pending symbols per asset
+  class and refuse a schema / config mismatch.
+- **Trend sleeve** (`phase_v2.trend_sleeve`, default off): `portfolio/trend_sleeve.py` is the shared definition and
+  `evaluation/trend_sleeve_backtest.py` its offline path; not wired into `main.py` (R-TREND1 failed, #262).
+- **`simulate_rank_book(member_pass_resizes=)`** (default True = live): a research option of R-CAL5, False is not a live behaviour.
+- **Per-run model artifacts** (`ml/evaluation/run_artifacts/<run>/`) change what a DinD Lean run loads from `ml/`, never the code.
+
 ### Diagnostics contract (all default off in code)
 
 `phase_v2.diagnostics.timing_probe` (one `timing-probe:` line at shutdown, no

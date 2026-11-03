@@ -60,8 +60,33 @@ def single_feature_ic(frame: pd.DataFrame, feature_columns, target_column: str, 
     return result
 
 
+def centre_by_group(frame: pd.DataFrame, target_column: str, group_column: str, *, date_column: str = "date") -> pd.Series:
+    """`target_column` minus its mean over the same (date, group). A percentile rank in a group of n names averages
+    (n+1)/2n, so with separate rank groups or small sectors the raw label means differ by group size alone (V6.4.4)."""
+    return frame[target_column] - frame.groupby([date_column, group_column])[target_column].transform("mean")
+
+
 def identity_check(train: pd.DataFrame, evaluation: pd.DataFrame, target_column: str, *, ticker_column: str = "ticker",
-                   date_column: str = "date", class_columns=(), model_score_column: str | None = None, min_names: int = 20) -> dict:
+                   date_column: str = "date", class_columns=(), model_score_column: str | None = None, min_names: int = 20,
+                   group_column: str | None = None) -> dict:
+    """IC of an asset-identity prior (each ticker's mean train target) and an asset-class prior against the model's.
+    With `group_column` (V6.4.4) the same figures are also computed on the group-centred target ("group_centred"): the
+    raw priors mostly read the group-size artifact of percentile ranks, which a book ranking within groups cannot trade."""
+    out = _identity_figures(train, evaluation, target_column, ticker_column=ticker_column, date_column=date_column,
+                            class_columns=class_columns, model_score_column=model_score_column, min_names=min_names)
+    if group_column and group_column in train.columns and group_column in evaluation.columns:
+        centred = "_target_group_centred"
+        out["group_centred"] = _identity_figures(
+            train.assign(**{centred: centre_by_group(train, target_column, group_column, date_column=date_column)}),
+            evaluation.assign(**{centred: centre_by_group(evaluation, target_column, group_column, date_column=date_column)}),
+            centred, ticker_column=ticker_column, date_column=date_column, class_columns=class_columns,
+            model_score_column=model_score_column, min_names=min_names)
+        out["group_column"] = group_column
+    return out
+
+
+def _identity_figures(train: pd.DataFrame, evaluation: pd.DataFrame, target_column: str, *, ticker_column: str, date_column: str,
+                      class_columns, model_score_column: str | None, min_names: int) -> dict:
     prior = train.groupby(ticker_column)[target_column].mean()
     scored = evaluation.assign(_identity_prior=evaluation[ticker_column].map(prior))
     out = {"identity_prior_ic": _mean_ic(scored, "_identity_prior", target_column, date_column, min_names)}
@@ -81,7 +106,7 @@ def identity_check(train: pd.DataFrame, evaluation: pd.DataFrame, target_column:
 
 def audit_leakage(frame: pd.DataFrame, *, feature_columns, target_column: str = "target_rank_20d", ticker_column: str = "ticker",
                   date_column: str = "date", split_column: str = "split", horizon: int = 20, class_columns=(),
-                  model_score_column: str | None = None, min_names: int = 20, seed: int = 7) -> dict:
+                  model_score_column: str | None = None, min_names: int = 20, seed: int = 7, group_column: str | None = None) -> dict:
     """All four checks; (b) and (c) on the validation split, (d) fit on train and read on validation."""
     validation = frame[frame[split_column] == "validation"] if split_column in frame else frame
     train = frame[frame[split_column] == "train"] if split_column in frame else frame
@@ -91,7 +116,8 @@ def audit_leakage(frame: pd.DataFrame, *, feature_columns, target_column: str = 
                                              min_names=min_names, seed=seed),
         "single_feature_ic": single_feature_ic(validation, feature_columns, target_column, date_column=date_column, min_names=min_names),
         "identity": identity_check(train, validation, target_column, ticker_column=ticker_column, date_column=date_column,
-                                   class_columns=class_columns, model_score_column=model_score_column, min_names=min_names),
+                                   class_columns=class_columns, model_score_column=model_score_column, min_names=min_names,
+                                   group_column=group_column),
     }
     report["flagged"] = sorted(
         {column for check in ("tail_nan", "label_shuffle", "single_feature_ic") for column, row in report[check].items() if row["flag"]}

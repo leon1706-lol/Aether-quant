@@ -120,8 +120,15 @@ codebase.
   Codespace lifetime (guards, dataset, legacy input, retrain, candidate IC, smoke, chain, offline blocks, suite).
   `data_append_refresh.py` appends the latest bars in the stored vintage and `data_append_guard.py` proves no row up to the cutoff
   moved (`snapshot` / `verify`); `build_legacy_probability.py --emit-components` writes the gating inputs the ablation recombines.
+- `v644_research.py` + `v644_make_configs.py` + `codespace_session_v644.sh` (V6.4.4) — rules R-MODEL12 (a two-stage retrain grid on
+  the as-of labels: priors, seed medians, an ensemble, as-live, PBO, walk-forward, one holdout read) and R-TREND1 (the trend
+  sleeve), written in `ml/evaluation/v644/rules.json` before any score; the session is one training-Codespace lifetime and
+  refuses to start when `rules.json` no longer matches `rules.sha256`. `v644_rcal5.py` audits the live-gate replicas against
+  the engine's fills and scores simulator options by R-CAL5.
 - `codespace_lean_run.ps1` + `codespace_lean_dind.sh` (V6.3.0) — Lean backtests on a temporary Docker-in-Docker Codespace:
   create, push, run frozen configs in order, poll, pull, delete (`development/infrastructure.md` "Lean on a DinD Codespace").
+  A run whose config needs other models ships them in `ml/evaluation/run_artifacts/<run name>/` (V6.4.4): they replace the
+  matching `ml/` files for that run only, are restored and verified afterwards, and `run_artifacts_manifest.json` records them.
   `codespace_engine_check.sh` builds the engine image there and checks `GET /api/assets-status`;
   `codespace_clean_checkout_test.sh` runs CI's pytest on a tarball of exactly the files a commit would hold (the PC cannot
   hold the suite; `clean_checkout_test.ps1` is the local equivalent). `readme_freshness.py` lists every Backtest Statistics

@@ -44,6 +44,18 @@ def _fingerprint(config: dict, dataset_path: Path, ml_dir: Path = ML_DIR) -> str
         digest.update(f"{name}:{path.stat().st_size if path.exists() else 0}:{int(path.stat().st_mtime) if path.exists() else 0}".encode())
     digest.update(f"dataset:{dataset_path.stat().st_size}:{int(dataset_path.stat().st_mtime)}".encode())
     digest.update(json.dumps(config.get("phase_v2", {}).get("rank_signal", {}), sort_keys=True).encode())
+    # V6.4.4: the scores also depend on the ranked-input setting and the seed ensemble (and its members' files)
+    extra = {
+        "cross_sectional_inputs": ((config.get("phase1") or {}).get("features") or {}).get("cross_sectional_inputs"),
+        "model_ensemble": (config.get("phase_v2") or {}).get("model_ensemble"),
+    }
+    if any(value not in (None, {}) and (not isinstance(value, dict) or value.get("enabled")) for value in extra.values()):
+        digest.update(json.dumps(extra, sort_keys=True).encode())
+        ensemble = extra["model_ensemble"] or {}
+        if ensemble.get("enabled"):
+            for kind in ("multitask_dir", "sequence_dir"):
+                for member in sorted((ml_dir / str(ensemble.get(kind, ""))).glob("*.json")):
+                    digest.update(f"{member.name}:{member.stat().st_size}:{int(member.stat().st_mtime)}".encode())
     return digest.hexdigest()[:16]
 
 

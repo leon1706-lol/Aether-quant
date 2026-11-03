@@ -4047,3 +4047,19 @@ def test_reconciliation_dataset_columns_cover_every_model_input_of_the_shipped_s
     })
 
     assert aq_cli._reconciliation_dataset_columns() == ["a", "b", "c", "date", "ticker", "training_eligible"]
+
+
+def test_evaluate_alpha_proof_writes_the_report_for_the_resolved_run(tmp_path):
+    """V6.4.4: `aq evaluate --alpha-proof` resolves the run like every Lean-reading flag and writes alpha_proof.json."""
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["evaluate", "--alpha-proof", "--backtest-dir", str(tmp_path)])
+    assert args.alpha_proof is True
+    report = {"run": tmp_path.name, "periods": {"full": {"n": 3, "alpha": {"alpha_annual": 0.01, "t_hac": 0.5}}},
+              "r_alpha1": {"verdict": "not demonstrated", "failed": ["x"]}}
+    written = {}
+    with patch("aq_cli._resolve_lean_run_dir", return_value=tmp_path), patch(
+        "evaluation.alpha_proof.alpha_proof_report", return_value=report
+    ), patch("aq_cli._write_evaluation_json", side_effect=lambda path, payload: written.update({str(path): payload})):
+        assert aq_cli.cmd_evaluate(args) == 0
+    (path, payload), = written.items()
+    assert path.endswith("alpha_proof.json") and payload["r_alpha1"]["verdict"] == "not demonstrated"
