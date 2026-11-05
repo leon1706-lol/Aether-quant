@@ -8,6 +8,7 @@ from portfolio.options_arbitrage_detector import (
     box_spread_fair_value,
     build_arbitrage_position_sizing,
     conversion_parity_value,
+    detect_executable_edge,
     detect_mispricing,
     jelly_roll_fair_value,
     select_arbitrage_signal,
@@ -31,6 +32,55 @@ def _sample_chain(expiries=("2026-08-21",), bid=1.0, ask=1.05) -> list[dict]:
                 "delta": put_delta, "vega": vega, "bid": bid, "ask": ask, "underlying_price": 100.0,
             })
     return rows
+
+
+def _parity_chain(call_shift: float = 0.0, half_spread: float = 0.05, strikes=(90.0, 100.0, 110.0), rate: float = 0.05) -> list[dict]:
+    """A chain priced at put-call parity with no carry skew: spot 100, one expiry a year out; calls moved by `call_shift`."""
+    rows = []
+    discount = math.exp(-rate)
+    for strike in strikes:
+        put_value = max(strike * discount - 100.0, 0.0) + 5.0
+        call_value = put_value + 100.0 - strike * discount + call_shift
+        delta = max(0.05, min(0.95, 0.5 + (100.0 - strike) * 0.02))
+        rows.append({"symbol": f"C{strike}", "right": "call", "strike": strike, "expiry": "2027-01-01", "delta": delta, "vega": 1.0,
+                     "bid": call_value - half_spread, "ask": call_value + half_spread, "underlying_price": 100.0})
+        rows.append({"symbol": f"P{strike}", "right": "put", "strike": strike, "expiry": "2027-01-01", "delta": delta - 1.0, "vega": 1.0,
+                     "bid": put_value - half_spread, "ask": put_value + half_spread, "underlying_price": 100.0})
+    return rows
+
+
+NAMES = ("box_spread", "short_box_spread", "conversion", "reverse_conversion")
+TODAY = date(2026, 1, 1)
+
+
+def test_a_fair_priced_chain_is_no_arbitrage_for_any_structure():
+    # the first Lean run on real quotes flagged all six at once: the detector compared absolute values, so a short box's
+    # credit always looked like a mispricing of twice its notional
+    for name in NAMES:
+        assert select_arbitrage_signal(name, _parity_chain(), TODAY, 0.05, min_mispricing_bps=5.0) is False, name
+
+
+def test_rich_calls_are_an_arbitrage_for_the_conversion_only():
+    chain = _parity_chain(call_shift=2.0)
+    assert select_arbitrage_signal("conversion", chain, TODAY, 0.05, min_mispricing_bps=5.0) is True
+    assert select_arbitrage_signal("reverse_conversion", chain, TODAY, 0.05, min_mispricing_bps=5.0) is False
+
+
+def test_cheap_calls_are_an_arbitrage_for_the_reverse_conversion_only():
+    chain = _parity_chain(call_shift=-2.0)
+    assert select_arbitrage_signal("reverse_conversion", chain, TODAY, 0.05, min_mispricing_bps=5.0) is True
+    assert select_arbitrage_signal("conversion", chain, TODAY, 0.05, min_mispricing_bps=5.0) is False
+
+
+def test_a_spread_wider_than_the_mispricing_is_no_arbitrage():
+    chain = _parity_chain(call_shift=0.2, half_spread=1.0)
+    assert select_arbitrage_signal("conversion", chain, TODAY, 0.05, min_mispricing_bps=5.0) is False
+
+
+def test_executable_edge_is_one_sided():
+    assert detect_executable_edge(1.0, 5.0, 100.0) is True
+    assert detect_executable_edge(-1.0, 5.0, 100.0) is False
+    assert detect_executable_edge(1.0, 5.0, 0.0) is False
 
 
 # ---------------------------------------------------------------------------

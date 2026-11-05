@@ -64,3 +64,14 @@ def test_run_lean_report_pins_an_explicit_run(tmp_path):
     ) as pin:
         assert aq_cli._run_lean_report(args, CONFIG, Path(tmp_path), pin=True) == 0
     assert pin.call_args.kwargs == {"backtest_dir": Path(tmp_path)}
+
+
+def test_a_target_weights_run_skips_the_tools_that_read_a_book():
+    from evaluation.lean_report import NEEDS_BOOK_HISTORY, lean_report_steps
+
+    gated = {flag for _, overrides in lean_report_steps({}) for flag, on in overrides.items() if on is True}
+    thin = {flag for _, overrides in lean_report_steps({"phase_v2": {"target_weights": {"enabled": True}}}) for flag, on in overrides.items() if on is True}
+
+    assert NEEDS_BOOK_HISTORY <= gated
+    assert not NEEDS_BOOK_HISTORY & thin
+    assert "backtest_stats" in thin

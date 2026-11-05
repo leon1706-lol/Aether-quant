@@ -65,7 +65,12 @@ if [ "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)" != "${DATA_ROOT}
   sudo mkdir -p /etc/docker  # the docker-in-docker feature with Docker 29 no longer creates it (V6.4.4)
   echo "{\"data-root\": \"${DATA_ROOT}\", \"dns\": [\"168.63.129.16\"]}" | sudo tee /etc/docker/daemon.json > /dev/null
   sudo pkill dockerd
-  sleep 5
+  # a new daemon refuses to start while the pid file names a live process, and on a fresh container that pid can be reused
+  for _ in $(seq 1 30); do
+    pgrep -x dockerd > /dev/null || break
+    sleep 1
+  done
+  sudo rm -f /var/run/docker.pid
   sudo setsid nohup dockerd > "${STATE_DIR}/dockerd.log" 2>&1 < /dev/null &
   for _ in $(seq 1 60); do
     docker info > /dev/null 2>&1 && break

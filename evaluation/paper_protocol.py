@@ -170,6 +170,11 @@ def _slippage_by_date(run: dict, data_root: Path) -> dict[str, list[float]]:
     return out
 
 
+def target_weight_rebalances(table: dict) -> list[dict]:
+    """A target-weights run writes no book history (it has no book and no vetoes): each day with a strategy fill is a rebalance."""
+    return [{"date": day, "allocations": {"filled": True}} for day in sorted(table) if table[day]["fills"] > 0]
+
+
 def paper_metrics_for_run_dir(run_dir, config: dict, root, *, start: str | None = None, end: str | None = None) -> dict:
     """Load one run folder (+ its book history) and return {"table", "rebalances", "slippage_by_date", "metrics"}; the
     first three feed `reference_bands` when this run is the reference."""
@@ -203,6 +208,8 @@ def paper_metrics_for_run_dir(run_dir, config: dict, root, *, start: str | None 
     if history_path is not None:
         history = [json.loads(line) for line in Path(history_path).read_text(encoding="utf-8").splitlines() if line.strip()]
     rebalances = live_rebalances(history)
+    if not rebalances and ((config.get("phase_v2") or {}).get("target_weights") or {}).get("enabled"):
+        rebalances = target_weight_rebalances(table)
     slippage = _slippage_by_date(run, root / "data")
     return {"table": table, "rebalances": rebalances, "slippage_by_date": slippage,
             "metrics": metrics_for_window(table, rebalances, slippage, start, end),

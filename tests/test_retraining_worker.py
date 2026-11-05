@@ -9,7 +9,29 @@ retraining.orchestrator.<name>).
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from retraining.worker import RetrainingWorker
+
+
+@pytest.fixture(autouse=True)
+def _vault_ready():
+    """The suite runs without `av`; only the preflight test below looks at its outcome."""
+    with patch("retraining.worker.preflight_vault", return_value={"ok": True, "reason": "ready", "av_version": "test"}) as mock:
+        yield mock
+
+
+def test_run_once_stops_before_training_when_the_vault_preflight_fails(_vault_ready):
+    worker = _worker()
+    _vault_ready.return_value = {"ok": False, "reason": "av_binary_not_found", "av_version": None}
+
+    with patch("retraining.worker.plan", return_value={"should_plan": True, "retraining_id": "r1"}), patch(
+        "retraining.worker.train"
+    ) as train_mock:
+        result = worker.run_once()
+
+    train_mock.assert_not_called()
+    assert result == {"ran": True, "reason": "vault_preflight_failed", "retraining_id": "r1", "detail": "av_binary_not_found"}
 
 
 def _make_conn_mock():

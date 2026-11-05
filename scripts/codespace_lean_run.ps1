@@ -10,7 +10,8 @@
   Switches run in this order when combined; each is safe to repeat.
     -Create            gh codespace create (idle timeout 30m); prints the new name
     -Push              full project push (codespace_sync.ps1 -Mode push, no datasets), then -Mode status must match
-    -Run <configs>     start scripts/codespace_lean_dind.sh detached for these frozen run configs, in order
+    -Run <configs>     start scripts/codespace_lean_dind.sh detached for these frozen run configs, in order;
+                       with -Parallel N, scripts/codespace_lean_parallel.sh with N runs at a time
     -Status            print /tmp/aq_lean/status (poll every <= 10 minutes: each poll is also the idle-timeout ssh)
     -Pull              copy every finished backtests/<run> folder and the book-history logs written since the first run
     -Delete            gh codespace delete
@@ -26,6 +27,8 @@ param(
     [switch]$Create,
     [switch]$Push,
     [string[]]$Run = @(),
+    [int]$Parallel = 0,
+    [string]$Machine = 'standardLinux32gb',
     [switch]$Status,
     [switch]$Pull,
     [switch]$Delete
@@ -62,7 +65,7 @@ if ($Create) {
     # native stderr line into a terminating error and the create never finished (V6.4.4)
     $previousPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    $name = gh codespace create -R leon1706-lol/Aether-quant -b main --devcontainer-path $Devcontainer -m standardLinux32gb --idle-timeout 30m --display-name aq-lean-dind 2>$null
+    $name = gh codespace create -R leon1706-lol/Aether-quant -b main --devcontainer-path $Devcontainer -m $Machine --idle-timeout 30m --display-name aq-lean-dind 2>$null
     $createExit = $LASTEXITCODE
     $ErrorActionPreference = $previousPreference
     if ($createExit -ne 0) { throw 'gh codespace create failed' }
@@ -88,7 +91,11 @@ if ($Run.Count -gt 0) {
         if (-not (Test-Path (Join-Path $Root $config))) { throw "run config missing locally: $config" }
     }
     # Windows-written shell scripts carry CRLF; strip it on the Codespace before running.
-    Invoke-Remote $ssh ('cd ' + $repo + ' && sed -i ''s/\r$//'' scripts/codespace_lean_dind.sh && mkdir -p /tmp/aq_lean && RUN_CONFIGS=''' + $configs + ''' setsid nohup bash scripts/codespace_lean_dind.sh > /tmp/aq_lean/launcher.log 2>&1 < /dev/null & echo started')
+    if ($Parallel -gt 0) {
+        Invoke-Remote $ssh ('cd ' + $repo + ' && sed -i ''s/\r$//'' scripts/codespace_lean_dind.sh scripts/codespace_lean_parallel.sh && mkdir -p /tmp/aq_lean && MAX_JOBS=' + $Parallel + ' RUN_CONFIGS=''' + $configs + ''' setsid nohup bash scripts/codespace_lean_parallel.sh > /tmp/aq_lean/launcher.log 2>&1 < /dev/null & echo started')
+    } else {
+        Invoke-Remote $ssh ('cd ' + $repo + ' && sed -i ''s/\r$//'' scripts/codespace_lean_dind.sh && mkdir -p /tmp/aq_lean && RUN_CONFIGS=''' + $configs + ''' setsid nohup bash scripts/codespace_lean_dind.sh > /tmp/aq_lean/launcher.log 2>&1 < /dev/null & echo started')
+    }
     Write-Host "started: $configs. Poll with -Status every <= 10 minutes."
 }
 

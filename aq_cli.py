@@ -691,6 +691,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     ],
     "portfolio": [
         "test_portfolio_book_construction.py", "test_options_strategy.py", "test_cash_sweep.py",
+        "test_target_weights.py", "test_financing.py", "test_premia_signals.py", "test_daily_target_weights.py",
         "test_options_strategy_multileg.py", "test_options_arbitrage_detector.py",
         "test_options_margin_sizing.py",
         "test_options_greeks.py", "test_simulated_portfolio.py", "test_options_assignment_risk.py",
@@ -725,7 +726,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_cross_sectional_norm.py", "test_asof_beta_labels.py",
     ],
     "data-pipeline": [
-        "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
+        "test_alt_data_v650.py", "test_build_pre2013_root.py", "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
         "test_dividend_backfill.py", "test_factor_file_backfill.py",
         "test_refresh_lean_interest_rate.py",
         # V5.8.0 - data_pipeline/data_audit.py.
@@ -739,6 +740,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_api_server.py",
     ],
     "ml": [
+        "test_train_cross_sectional.py",
         # V6.0.0 - extra-horizon (rank_60d) targets and heads.
         "test_v600_extra_horizon.py",
         "test_build_holdout_dataset.py", "test_splice_holdout_dataset.py", "test_holdout_report.py", "test_v610_model_ensemble.py",
@@ -772,7 +774,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "retraining": [
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
         "test_retraining_postgres_registry.py", "test_retraining_worker.py", "test_trigger_worker.py",
-        "test_triggers.py", "test_vault_client.py", "test_vault_commands.py", "test_lean_backtest.py",
+        "test_triggers.py", "test_vault_client.py", "test_vault_commands.py", "test_vault_contract.py", "test_vault_record.py", "test_lean_backtest.py",
         "test_v2_pipeline_manifest.py",
         # V5.1 Phase 6 (production safety) - retraining/auto_rollback.py.
         "test_auto_rollback.py",
@@ -787,6 +789,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_main_wiring.py", "test_main_ensure_ready_smoke.py",
     ],
     "evaluation": [
+        "test_target_weights_engine.py", "test_trial_ledger.py", "test_premia_research.py", "test_v650_lean.py", "test_v650_scripts.py",
         # V6.4.3 - the research and audit tools.
         "test_research_harness.py", "test_pbo.py", "test_factor_spanning.py", "test_overfit_diagnostics.py",
         "test_leakage_audit.py", "test_research_probes.py", "test_sim_lean_calibration.py", "test_trial_registry.py",
@@ -887,7 +890,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py",
         # V6.4.3 - the aether_quant library's public surface and quickstart.
         "test_aether_quant_api.py", "test_aether_quant_quickstart.py",
-        "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_v644_fixes.py", "test_readme_freshness.py",
+        "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_lean_smoke_scripts.py", "test_v644_fixes.py", "test_readme_freshness.py",
     ],
 }
 

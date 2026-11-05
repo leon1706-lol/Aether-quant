@@ -83,3 +83,11 @@ def test_band_check_flags_outside_metrics_and_the_minimum():
 def test_a_metric_the_run_could_not_compute_is_outside_its_band():
     bands = {"bands": {"veto_rate": {"low": 0.0, "high": 1.0, "windows": 3}}}
     assert band_check({"veto_rate": None, "rebalances": 10, "trading_days": 200}, bands)["outside"] == ["veto_rate"]
+
+
+def test_a_target_weights_run_counts_its_fill_days_as_rebalances():
+    from evaluation.paper_protocol import target_weight_rebalances
+
+    table = {"2024-01-02": {"fills": 3}, "2024-01-03": {"fills": 0}, "2024-01-09": {"fills": 1}}
+    assert [record["date"] for record in target_weight_rebalances(table)] == ["2024-01-02", "2024-01-09"]
+    assert all(record["allocations"] for record in target_weight_rebalances(table))

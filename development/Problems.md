@@ -413,7 +413,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** New `select_vertical_spread_legs()`/`build_vertical_spread_position_sizing()` (net-vega sized), wired through `risk/asset_class_router.py` + new `_apply_option_spread_order()` using Lean's own `OptionStrategies` atomic combo-order primitive (previously completely unused here); two real bugs (field-existence check ordering; early draft breaking option orders entirely for spread case) caught/fixed during implementation.
 
-**Verification:** 20 new tests (leg selection/sizing/degrade paths) + critical zero-behavior-change parity for single-leg path. **Real-backtest verification still genuinely open** — no option/future asset configured in universe yet, so never exercised against real Lean order placement, margin, or partial-fill behavior.
+**Verification:** 20 new tests (leg selection/sizing/degrade paths) + critical zero-behavior-change parity for single-leg path. **V6.5.0:** verticals fill through `OptionStrategies` on Lean's sample chain (`scripts/lean_smoke/option_structures.py`), and `main.py` with an option asset now initializes and runs a month of the sample (it crashed at initialization, #276). Still open: that month produced no signal, so `main.py`'s own `_apply_option_spread_order` has not placed an order; a longer chain than Lean's sample needs IB data.
 
 ### 39. Final pre-backtest bug sweep — 4 fixes found and fixed before this project's first real `lean backtest .` run
 
@@ -607,7 +607,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 58. Architecturally-sound options: multi-position book, symmetric scale-down, held-contract sizing, spread combo orders (V4.4)
 
-**Severity:** n/a (architecture pass, no defect) · **Status:** 🟡 `partial` (code-complete, ⚪ IB-unverified — no option assets in the universe, no IB key connected)
+**Severity:** n/a (architecture pass, no defect) · **Status:** 🟡 `partial` (code-complete, ⚪ IB-unverified — no option assets in the universe, no IB key connected; the combo orders fill in Lean's model since V6.5.0, #38)
 
 **Problem:** Review of #57's options paths found six gaps: single-leg options scaled up only, never down; spreads couldn't scale down at all (no `Sell`-side combo primitive); drifted position with `rotate_on_drift` off frozen rather than re-managed; single-slot tracking capped book at one position per underlying; rotation's same-bar liquidate+reenter had no netting; spreads had no limit-order path.
 
@@ -623,7 +623,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** Near-duplicate per-strategy functions replaced by `MULTI_LEG_STRATEGY_REGISTRY` data table (all 43, transcribed from real Lean C# source, correcting 2 mistranscribed leg-direction assumptions found en route) dispatched through ~10 shared shape-family leg selectors; `options_margin_sizing.py` for naked/uncovered/bounded-max-loss tiers; `main.py` generalized to `"multi_leg"` record kind; gated behind `multi_leg_strategies_enabled` (default false, byte-identical).
 
-**Verification:** Tests 1589→1656 (registry completeness, all 43 strategies vs synthetic chains, margin tiers, router gating); rewrite verified via trace plus full pre-existing suite unchanged (proves legacy vertical path identical through generalized code); combo surface remains IB-unverified.
+**Verification:** Tests 1589→1656 (registry completeness, all 43 strategies vs synthetic chains, margin tiers, router gating); rewrite verified via trace plus full pre-existing suite unchanged (proves legacy vertical path identical through generalized code); combo surface remains IB-unverified. **V6.5.0:** all 43 structures filled through Lean's `OptionStrategies` on its sample AAPL chain (`ml/evaluation/v650/lean_smoke_options.jsonl`), after that run found one built wrong (#275). Real fills and margin still need IB.
 
 ### 60. V4.6 — bounded options follow-ups, arbitrage mispricing detector, Forex/FX, analytic bond-ETF duration/convexity
 
@@ -633,7 +633,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** distinct-position counting, a rotation cooldown and same-bar netting, per-asset strategy overrides, `options_arbitrage_detector.py` (off), `risk/forex_risk.py` with pair specs, and analytic bond duration / convexity / DV01 (informational).
 
-**Verification:** tests 1656 -> 1722; forex traded live in two Lean runs (220 fills, notional within 0.15%).
+**Verification:** tests 1656 -> 1722; forex traded live in two Lean runs (220 fills, notional within 0.15%). **V6.5.0:** on a real chain the detector flagged everything (#274, fixed). It ignores dividends, so it still flags a reverse conversion on a dividend payer: a known limit, and it stays off.
 
 ### 61. V4.7 — early-assignment/corporate-action modeling, a learned strategy-selector model, and bond analytics wired into the trained model
 
@@ -643,7 +643,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** `dividend_backfill.py` (yfinance ex-dividend history + cadence-based next-date projection); Barone-Adesi-Whaley American-exercise pricer; `options_assignment_risk.py` scoring; default-off auto-close sweep; capture path in observation-mode order branch (real-order path never fires without IB); `train_strategy_selector.py`, `inference/strategy_selector_inference.py`, router reranking (active only once model trained/enabled); 3 new bond features (`bond_analytic_modified_duration`, `bond_analytic_convexity`, `bond_dv01`) into `input_set`, computed in both `main.py` and `train.py` offline pipeline.
 
-**Verification:** Tests 1722→1813 (91 new, incl. American≥European price invariant and put-always-zero-assignment-risk invariant); `main.py` trace only. **V5.2.8: "requires retrain before deploy" caveat stale — none needed**: `ml/feature_schema.json`'s 49 `feature_names` byte-identical to current 49-entry `input_set`; `ml/scaler_stats.json` arrays length-49 aligned; `git diff --stat HEAD` zero drift (closed by #70's retrain, verified via backtests V5.2.4-V5.2.7). Early-assignment/strategy-selector remain dormant/default-off — no live signal to verify against.
+**Verification:** Tests 1722→1813 (91 new, incl. American≥European price invariant and put-always-zero-assignment-risk invariant); `main.py` trace only. **V5.2.8: "requires retrain before deploy" caveat stale — none needed**: `ml/feature_schema.json`'s 49 `feature_names` byte-identical to current 49-entry `input_set`; `ml/scaler_stats.json` arrays length-49 aligned; `git diff --stat HEAD` zero drift (closed by #70's retrain, verified via backtests V5.2.4-V5.2.7). Early-assignment/strategy-selector remain dormant/default-off — no live signal to verify against. **V6.5.0:** the assignment score runs on a real chain in Lean (an in-the-money AAPL call: score 0.35, below the flag); the selector has no option history to train on.
 
 ### 62. Phase 4.8 — closing operational/surfacing gaps: `lean` CLI in retraining-worker, a `main.py` scoping bug fix, new Options & Strategy webui page
 
@@ -697,7 +697,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 67. V4.10 follow-up — opt-in live (Lean/IB-calibrated) futures margin source, toggleable via `aq config`
 
-**Severity:** n/a (feature, off by default) · **Status:** 🟡 `partial` (code-complete, genuinely Lean-API-unverified)
+**Severity:** n/a (feature, off by default) · **Status:** 🟢 `fixed` (V6.5.0: the calls main.py makes ran against Lean's API on sample ES data: initial margin $4,180, multiplier 50, order filled, `scripts/lean_smoke/futures_margin.py`)
 
 **Problem:** `futures_contract_specs.json` carried since V4.6 an explicit "documented future enhancement, not implemented" note asking to prefer IB's live margin over static reference numbers.
 
@@ -2716,3 +2716,153 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** BT11 = CFG0 + the key (`v644_bt11.json`, sha `b16aa933…`, `backtests/2026-11-03_16-26-39`): strategy Sharpe +0.268 against BT10's +0.263, max drawdown 4.98% against 4.98%, a complete run; R-LEAN16 (non-inferiority, written in `rules.json` before the run) keeps it, so `config.json` gets the key (CFG1 sha `c9c8732d…`, = BT11's frozen config without its window override). 345 of ~770 fills differ in size from BT10, the P&L by +$60. The README is pinned to BT11 and the paper bands (#228) are re-frozen from it (`ml/evaluation/v644/paper_bands.json`; they move by less than 0.1%). Alpha proof on the pin: not demonstrated (alpha -0.15%/yr, t -0.07; Sharpe +0.27, 95% interval -1.03..+1.52; DSR 3.8%).
 
 **Verification:** `ml/evaluation/v644/r_lean16_bt11.json` (`python -m evaluation.lean_verdict --rule non_inferiority --margin 0.10`), the engine log (teardown reached, 0 inference failures), `aq evaluate --lean-report --backtest-dir backtests/2026-11-03_16-26-39` (0 steps failed), `alpha_proof_bt11.json`. #241 is closed by this entry.
+
+### 268. A candidate's vault commit silently dropped its model and scaler, so no commit could ever restore one (V6.5.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed` (the vault half is in the Aether-Vault working tree, uncommitted by owner decision)
+
+**Problem:** `av` matched this repo's `ml/*.pkl` and `ml/*.pt` with a `*` that crosses `/`, so `av add ml/versions/<id>` dropped `scaler.pkl` and `model.pt` with no message. `.av` had never held a commit, so nobody had seen it.
+
+**Fix:** Aether-Vault Probleme.md #189: `.gitignore` patterns match per path segment, like git. `tests/test_vault_contract.py` runs the real `av` against a copy of this `.gitignore`.
+
+**Verification:** the contract test asserts every `REQUIRED_CANDIDATE_FILES` entry is in the commit's tree; `av log` in this repo now holds real gate commits (`e390a72`, `bd88f8d`, ...).
+
+### 269. The vault client could lose `av`'s output on Windows and stored only a short hash (V6.5.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `run_av_command` decoded output with the system codepage; `av`'s UTF-8 banner killed the reader thread and left `stdout` as `None` on Windows. The hash was scraped from human text with a regex capped at 40 characters, and a push queued because the server was unreachable looked the same as a delivered one.
+
+**Fix:** explicit UTF-8; commit, push and restore read `av --output json`; the full 64-character hash is stored; `push_state` is `drained`, `queued`, `failed` or `skipped`, and `vault.require_push` (default off, today's behaviour) can make a queued push block.
+
+**Verification:** `tests/test_vault_client.py`, `tests/test_vault_commands.py`, and `tests/test_vault_contract.py` against the real CLI, including an unreachable remote.
+
+### 270. Rollback ran a repo-wide `av checkout` that could overwrite and delete source files (V6.5.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** when a candidate's files failed their hash check, `orchestrator.rollback` ran `av checkout <hash>`, which overwrites every tracked file (`main.py`, `train.py`, `config.json`) and deletes whatever the old commit did not track. A dirty tree made it refuse and still exit 0, so the failure was invisible.
+
+**Fix:** new `av restore --source <hash> PATH...` (Aether-Vault #193), restoring only `ml/versions/<id>/`; `av checkout` failures now exit non-zero (Aether-Vault #190). Rollback never calls `checkout`.
+
+**Verification:** `test_rollback_restores_only_the_candidate_from_the_vault_and_never_runs_a_checkout`, and the real-CLI contract test where a dirty sibling survives a restore.
+
+### 271. A worker without `av` found out only after a whole training run (V6.5.0)
+
+**Severity:** 5/10 · **Status:** 🟡 `partial` (fails fast now; the Docker image still has no `av` until the owner releases a fixed vault)
+
+**Problem:** the retraining worker image has no `av`, so every cycle would train fully and then fail at the commit. `vault.repo_path` was read by nothing and rollback ignored the timeout.
+
+**Fix:** `vault_preflight` runs before training and fails the event with the reason. New `vault.enabled` (default on), `vault.min_version`, `vault.extra_add_paths` (the other trainers, `features/`, schema and dataset manifest, so a commit can reproduce a candidate); `repo_path` is now the working directory; `.av/` is in `.dockerignore`.
+
+**Verification:** `test_run_once_stops_before_training_when_the_vault_preflight_fails` and the preflight tests. Pinning `av` in the image waits for a vault release, the owner's call.
+
+### 272. The offline simulator could not be trusted to select anything (V6.5.0)
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed` for a new path; the gated path keeps its old simulator
+
+**Problem:** the rank-book simulator tracks the gated live path at a daily correlation of about 0.73 and has got the sign wrong (BT6: +1.06 offline, -1.12 in Lean), because the path has too many gates to replicate. Offline selection on it was not selection.
+
+**Fix:** `phase_v2.target_weights` (default off): `main.py` executes a hash-pinned file of target weights with no gates between a weight and its order, and `evaluation/target_weights_engine.py` calls the same pure functions (`rebalance_deltas`, `daily_financing_usd`, `cash_sweep_target_weight`).
+
+**Verification:** R-INSTR1: daily correlation 0.9999993 (equities), 0.99999994 (crypto), 0.992 (mixed), 0.99999995 (oracle, drawdown lock on the same day); annual gaps 0.14, 1.27, 65 and 3.6 bps. BT16 in a parallel batch equals BT13 alone, order for order, and BT12 (flag off) equals BT11 (`ml/evaluation/v650/instrument_result.json`).
+
+### 273. Comparing the engine with Lean found four defects on the first run (V6.5.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+**Problem:** assigning a Python fee model to Lean's `FeeModel` property charged $0 in every fill, flattering a run by about 250 bps a year. The engine assumed a 50 bps Coinbase tier Lean does not have, marked crypto and forex a day ahead of Lean's daily sample, and wrote to a pandas 3 read-only array.
+
+**Fix:** `SetFeeModel`, which wraps the Python object; the schedule read from Lean's own fills (30, 25, then 80 bps from 2019-10-08); crypto and forex marks follow the bar that ended as the label began.
+
+**Verification:** BT13 fees $5,347.47 in Lean against $5,347.65 in the engine, 5,306 fills each; `tests/test_target_weights_engine.py`.
+
+### 274. The arbitrage detector called fair prices arbitrage, in either direction (V6.5.0)
+
+**Severity:** 6/10 (default off, nothing traded on it) · **Status:** 🟢 `fixed`
+
+**Problem:** on its first real chain it flagged all six structures. It compared `abs(cost - fair)`, so a short box's credit always read as a mispricing of twice its notional; it used mids, not the prices one could trade; and its docstring had the conversion's direction reversed.
+
+**Fix:** `detect_executable_edge`: a one-sided edge at bid and ask, per structure, with the conversion's sign corrected.
+
+**Verification:** parity-priced chains fire nothing, rich calls fire only the conversion, cheap calls only the reverse, a wider spread than the mispricing fires neither (`tests/test_options_arbitrage_detector.py`). On the AAPL sample five of six are now silent; the reverse conversion remains, since the detector ignores dividends and AAPL pays one (a documented limit, noted in #60).
+
+### 275. A short iron condor was built as an ordinary iron condor (V6.5.0)
+
+**Severity:** 6/10 (default off) · **Status:** 🟢 `fixed`
+
+**Problem:** the shared selector always placed the role named `short_*` on the inner strikes. A short iron condor has its shorts on the outside, so it passed strikes out of order; Lean's factory raised, on the first time it was ever called.
+
+**Fix:** the inner legs are the registry's anchors, and the short iron condor's anchors are now its long legs.
+
+**Verification:** `test_both_iron_condors_pass_lean_ascending_strikes` asserts ascending strikes for both; the smoke run reports the structure.
+
+### 276. `except Exception` in `main.py` never caught a Python error (V6.5.0)
+
+**Severity:** 9/10 (every fail-safe block of the live path) · **Status:** 🟢 `fixed`
+
+**Problem:** Lean's `from AlgorithmImports import *` exports .NET's `System.Exception` over the builtin. `System.Exception` is a subclass of Python's `Exception`, so about 40 `except Exception` blocks caught .NET errors only, and any Python error crashed the algorithm instead of degrading (rule 3). Pinned runs raised none, which hid it; `main.py` with an option asset crashed at initialization through a `try` written to survive exactly that.
+
+**Fix:** `from builtins import Exception` after the star import, beside rule 10's `time` workaround. The builtin catches both kinds.
+
+**Verification:** `scripts/lean_smoke/exception_scope.py` in real Lean: `Exception` is `<class 'System.Exception'>`, an `AttributeError` escapes it, and the builtin catches a Python error, a .NET binding error and a raised `System.ArgumentException`. `test_except_exception_in_main_catches_python_errors` pins it; BT12 reruns on the fixed code.
+
+### 277. The alpha test compared crypto a day ahead of the strategy, booking its beta as alpha (V6.5.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `benchmark_daily_returns` dated BTC on its bar's own date, but a bar dated D ends after the equity close of D, so a run's sample of D holds the bar before it. The regression saw BTC a day early and found almost no beta: a long-only crypto sleeve showed beta 0.012, alpha 5.7%/yr, t 2.76.
+
+**Fix:** crypto and forex benchmarks follow the sample's timeline. The same sleeve is now beta 0.075, alpha 1.3%/yr, t 0.83; weekly returns, which no one-day shift can affect, agree. BT11's verdict does not change (t -0.14 against -0.07).
+
+**Verification:** `test_crypto_benchmark_is_on_the_timeline_of_a_runs_daily_sample`.
+
+### 278. A velocity lock pre-registered by the plan halted every run within months (V6.5.0)
+
+**Severity:** 8/10 (it would have shipped a result that was mostly T-bills) · **Status:** 🟢 `fixed` by a recorded amendment
+
+**Problem:** the plan set a sticky drawdown-velocity lock of 3 x 7% / sqrt(252) = 1.32% per bar. One ordinary bad crypto day trips it. The first R-LEAN19 pool stopped trading by 2024-03-06 at the latest, and its winner's +0.655 Lean Sharpe was 8 months of a crypto rally followed by T-bills.
+
+**Fix:** `ml/evaluation/v650/rules_amendment_1.json`, recorded in the vault before any rerun: the velocity trigger is off on this path, as it was in selection; the owner's 15% drawdown stays the sticky stop. No acceptance bar changed.
+
+**Verification:** 18 of 18 weight files hash the same in the rerun, so nothing was reselected, and the winner now trades to the end of its file. The first pool is kept as `r_lean19_locked.json`, so its windows are disclosed as seen. **A live deployment needs its own velocity decision.**
+
+### 279. V6.5.0's verdict: no verified edge; a crypto trend sleeve ships as improved, not verified
+
+**Severity:** n/a (phase result) · **Status:** 🔴 `closed` for R-EDGE1; the shipped sleeve is 🟡 until the forward check and a venue (#192)
+
+**Problem:** the owner's target: Lean Sharpe >= 1 and a verified edge. 46 pre-registered candidates: 20 rule sleeves, 2 positioning sleeves, 12 walk-forward model books, 4 new-architecture rankers (set transformer, gradient boosting), 2 combinations, 6 gate ablations.
+
+**Fix:** only two sleeves passed selection (`t3_crypto_trend_blend`, `t3_trend_blend`). PBO over the 38 selection trials is 0.53, above the 0.5 limit, which ended verification: R-EDGE1 cannot be awarded, and E4 and E5 were not read, so `data_pre2013/` stays unread for the owner to spend. By R-LEAN19, `t3_crypto_trend_blend` installs (`config.json` sha `38a24ffd…`; pin `backtests/2026-11-04_18-10-49`, the median of 5 phases).
+
+**Verification:** Lean Sharpe 0.63 (0.51-0.77) against -0.20; strategy Sharpe 0.72 against 0.27; vol 7.3%, drawdown 7.8%. **It is not alpha:** t 0.13 on the window, 0.83 over 2014-12..2026-11, deflated Sharpe 13% over 128 trials (with the earnings trials of #281), and its strategy Sharpe fell from 1.15 (2023-07..2025-06) to 0.06 (2025-07..2026-11). It is a long-only crypto book on today's surviving coins that IB cannot fill. Runner-up BT21 (the V6.4.4 book with non-model exits off) reached Lean Sharpe 0.15 and strategy Sharpe 0.53 with no new signal. All in `ml/evaluation/v650/r_lean19.json`.
+
+### 280. SEC EDGAR refuses a client that names no contact (V6.5.0)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the two earnings-surprise trials need `companyfacts`, and SEC returned HTTP 403 to a generic client name; it asks for a contact address. No personal address is sent without the owner's say.
+
+**Fix:** with the owner's approval (2026-11-05), `AQ_SEC_CONTACT` supplies the address for one run, so it never enters the repository. `TICKER_ALIASES` maps the universe's `FB` to SEC's `META`.
+
+**Verification:** 2,805 quarters for 47 tickers in `data/reference/edgar_eps.csv` (no `@` in the file); `tests/test_alt_data_v650.py`.
+
+### 281. Earnings-surprise signal: wrong comparison quarter, and splits read as misses (V6.5.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** the signal compared "four rows back", but most companies report no standalone Q4, so 53.6% of rows compared a quarter 15-18 months earlier. EPS was also unadjusted, so a split read as a large miss (AAPL -5.64 after 2020). Those trials still passed R-SLEEVE2 and both placebos at Sharpe 0.55 and 0.65.
+
+**Fix:** match the quarter ending 350-380 days earlier, divide each first filing by the splits after its filing date (`split_adjusted_eps`, `data/reference/equity_splits.csv`), and use only rows filed by that date. Amendment 3 closed the old trials before the new score; a missing Q4 gives no signal rather than a derived one.
+
+**Verification:** corrected Sharpe 0.18 and 0.17 against the 0.50 needed, so nothing reached Lean; a placebo pass did not protect against a defective signal. `ml/evaluation/v650/amendment3_eps.json`, `tests/test_alt_data_v650.py`.
+
+### 282. A new DinD Codespace's Docker daemon failed to restart on its data-root move (V6.5.0)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `dockerd` refused to start because `/var/run/docker.pid` named a live process after the old daemon was killed, so a whole batch failed in setup.
+
+**Fix:** `scripts/codespace_lean_dind.sh` waits up to 30 s for the old daemon to exit and removes the stale pid file before starting the new one.
+
+**Verification:** the same Codespace then ran all 21 pre-2013 runs; `tests/test_codespace_lean_scripts.py`.

@@ -6,26 +6,23 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 -----
 # Current objective: next phase — owner to write
 
-V6.4.4 (Problems #251-#267) closed everything that needs no external account. Baseline: `config.json` sha256
-`c9c8732d4b8eec1b893a29da55a64a016a24d19b749cb9957b3935db8733ff22` (BT11's book: V6.4.3's + the sector cap re-applied after the
-dollar step), data to 2026-11-02, models from V5.8.0, README pinned to BT11 (`backtests/2026-11-03_16-26-39`). No alpha is
-demonstrated (`aq evaluate --alpha-proof`: alpha t -0.07, deflated Sharpe 3.8% over 78 trials).
+V6.5.0 (Problems #268-#282) did not reach Lean Sharpe 1 or a verified edge. Baseline: `config.json` sha256
+`38a24ffd7f1bea292a996d7dfcaf89a1b0a3d2c0a96d2efab114630e2c309c61`, a long-only crypto trend sleeve installed as "improved, not verified" by rule R-LEAN19 and kept by the owner (2026-11-05),
+data to 2026-11-02, README pinned to `backtests/2026-11-04_18-10-49`. Lean Sharpe 0.63, alpha t 0.13, strategy Sharpe 0.06 since mid-2025.
 
-## Open (needs an external account — do not start without the owner)
-1. **Paper period** (IB paper account): judge it with `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/2026-11-03_16-26-39` against the bands in `ml/evaluation/v644/paper_bands.json` (RUNBOOK "Paper period protocol"). The IB items go with it: #38, #58, #59, #60, #61, #67, #116 (IB part), #147, `aq paper-readiness`.
-2. **Crypto live venue** (#192): Coinbase, or crypto off before live; decided with the IB items.
+## Owner calls
+1. **Docker rebuild:** the owner will do it later; it is needed before any paper or live deploy.
+2. **AetherVault:** the owner commits its fixes (Probleme.md #189-#194) manually. A release is what unblocks pinning `av` in the Docker image (#271), so settle it before that rebuild.
+3. **Pre-2013 data (`data_pre2013/`):** spent once on multi-asset trend (Sharpe 0.33, alpha t 0.83, 6 of 20 placebos as good). Nothing else has been scored on it, but no crypto sleeve can use it.
 
-## What V6.4.4 leaves for a next research phase (no external account needed; each needs a new pre-registered rule)
-- The installed model's **sector-neutral head** is the best ranking on record (group-centred validation IC 0.055, #263) but S1 (using it as
-  the live signal) lost on validation in V6.4.3; a rule that judges it on centred labels and in Lean is the obvious next trial.
-- **Label design** (#259): percentile ranks in small groups carry a group-size offset; centring the training labels per (date, group)
-  would remove it at the source (a retrain).
-- The trend sleeve and ranked inputs exist default-off (`portfolio/trend_sleeve.py`, `features/cross_sectional_inputs.py`); neither has a live path.
+## Open (needs time or an external account)
+- **Forward check** (RUNBOOK "Forward check"): sessions after 2026-11-02 are unseen by everything; judge at 60 sessions.
+- **Paper period** (IB paper account): `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/2026-11-04_18-10-49`. The IB items go with it: #38 (`main.py`'s own option order), #58, #59, #60, #61, #116 (IB part), #147, `aq paper-readiness`. A live run also needs a velocity-control decision (#278) and `scripts/daily_target_weights.py` before each open.
+- **Crypto live venue** (#192): Coinbase, or crypto off, which with the shipped sleeve means no book.
 
 ## PC notes (not covered in AGENTS.md / `development/infrastructure.md`)
 - Close ChatGPT / WhatsApp / Google Drive before heavy work (the 4 GB PC thrashes otherwise).
-- Lean runs on a temporary DinD Codespace (`scripts/codespace_lean_run.ps1`; fixed for Windows PowerShell 5.1 and Docker 29 in V6.4.4); the
-  training Codespace `aq-Training-Ground-Fixed` (4-core / 16 GB) is kept **stopped** - push before reusing it (local is the source of truth).
+- Lean runs on a temporary DinD Codespace; the training Codespace `aq-Training-Ground-Fixed` (4-core / 16 GB) is kept **stopped** - push before reusing it (local is the source of truth). Its `ml/versions/` holds the V6.5.0 walk-forward (`ml/evaluation/v650/walkforward_run_id`).
 - The system Python's pip is broken: `.venv\Scripts\python.exe -m pip --python "C:\Program Files\Python314\python.exe" install --user --no-deps --no-build-isolation -e .`
 - Data refresh without the 8 GB build: `scripts/data_append_refresh.py` (checked by `scripts/data_append_guard.py`), then `scripts/splice_holdout_dataset.py --build` and `--splice --compare-until <a label horizon before the old end>`.
 - `config.json` is LF; `tests/` is not a package on CI (never `from tests.x import ...`); never `git checkout -- <file>` with uncommitted work.

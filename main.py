@@ -89,6 +89,17 @@ from portfolio.cash_sweep import (
     advance_strategy_value,
     sweep_order_needed,
 )
+from portfolio.financing import daily_financing_usd, load_rate_series, rate_asof
+from portfolio.target_weights import (
+    NEXT_BAR_CLASSES,
+    equity_fee_usd,
+    load_weight_file,
+    rebalance_deltas,
+    resolve_target_weights_config,
+    slippage_bps_for,
+    sweep_reserve,
+    weights_at_tick,
+)
 from portfolio.class_sleeve import build_class_sleeve_weights, resolve_class_sleeve_config
 from portfolio.forex_sleeve import build_forex_sleeve_weights, forex_resize_below_minimum
 from portfolio.sleeve_guard import evaluate_sleeve_guard, resolve_sleeve_guard_config
@@ -139,6 +150,10 @@ from performance_probe import (
 # bar 1. Import the function under a private alias AFTER the star import - never `import time` here.
 from itertools import zip_longest as _zip_longest
 from time import perf_counter as _perf_counter
+# The star import also exports .NET's System.Exception, a subclass of Python's: `except Exception` then lets every Python error
+# through. The builtin catches both, which is what each fail-safe block in this file means (shown in a Lean run,
+# scripts/lean_smoke/exception_scope.py).
+from builtins import Exception  # noqa: A004
 # V5.3.5 (development/Problems.md #102) - a genuinely light, direct
 # submodule import (not routed through portfolio/__init__.py, though that
 # package is itself safe today) so a future addition there can never
@@ -387,6 +402,19 @@ class _LiquidityAwareSlippageModel:
             self._algorithm.latest_liquidity_slippage_bps,
             max_bps=self._algorithm._liquidity_slippage_max_bps,
         )
+
+
+class _BpsEquityFeeModel(globals().get("FeeModel", object)):
+    """The target-weights path's equity commission (`portfolio.target_weights.equity_fee_usd`)."""
+
+    def __init__(self, bps: float, min_usd: float) -> None:
+        super().__init__()
+        self._bps = bps
+        self._min_usd = min_usd
+
+    def GetOrderFee(self, parameters):
+        notional = float(parameters.Order.AbsoluteQuantity) * float(parameters.Security.Price)
+        return OrderFee(CashAmount(equity_fee_usd(notional, self._bps, self._min_usd), "USD"))
 
 
 def _record_target_symbols(record: dict) -> list:
@@ -2060,6 +2088,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.latest_derivatives_macro_payload = {}
         self._previous_topology_positions: dict[str, tuple[float, ...]] = {}
         self._previous_topology_correlations: dict[tuple[str, str], float] = {}
+        self._setup_target_weights()
 
         self._timing_probe.stop("ensure_ready", _ensure_ready_started)
         self._ready = True
@@ -2107,6 +2136,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._pending_entries_this_bar.clear()
         self._refresh_risk_state()
         self._liquidate_positions_for_disabled_asset_classes()
+        if self.target_weights_config.enabled:
+            self._target_weights_tick(slice)
+            return
         self._apply_option_expiry_auto_close_sweep()
         self._apply_option_assignment_risk_sweep()
         self._process_pending_limit_order_timeouts()
@@ -4058,19 +4090,23 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 short_weight -= weight
                 book_short -= weight if key in book_keys else 0.0
         formed = self._book_target_weights or {}
-        rebalance_next = bool(self.portfolio_book_enabled) and should_rebalance_this_bar(
-            self.bar_index + 1, self.portfolio_book_rebalance_every_bars, bool(self._last_book_allocations),
-            is_trading_day_bar=True,
-        )
-        reserve = strategy_reserve(
-            rebalance_next=rebalance_next,
-            book_gross_cap=self.book_gross_exposure_cap if self.portfolio_book_enabled else 0.0,
-            max_short_exposure=self.max_short_exposure,
-            formed_long=sum(w for w in formed.values() if w > 0.0),
-            formed_short=-sum(w for w in formed.values() if w < 0.0),
-            book_long=book_long, book_short=book_short,
-            other_budget_remaining=self._cash_sweep_other_budget, neutral_budget=self._cash_sweep_neutral_budget,
-        )
+        target_weights_config = getattr(self, "target_weights_config", None)
+        if target_weights_config is not None and target_weights_config.enabled:
+            reserve = sweep_reserve(target_weights_config)
+        else:
+            rebalance_next = bool(self.portfolio_book_enabled) and should_rebalance_this_bar(
+                self.bar_index + 1, self.portfolio_book_rebalance_every_bars, bool(self._last_book_allocations),
+                is_trading_day_bar=True,
+            )
+            reserve = strategy_reserve(
+                rebalance_next=rebalance_next,
+                book_gross_cap=self.book_gross_exposure_cap if self.portfolio_book_enabled else 0.0,
+                max_short_exposure=self.max_short_exposure,
+                formed_long=sum(w for w in formed.values() if w > 0.0),
+                formed_short=-sum(w for w in formed.values() if w < 0.0),
+                book_long=book_long, book_short=book_short,
+                other_budget_remaining=self._cash_sweep_other_budget, neutral_budget=self._cash_sweep_neutral_budget,
+            )
         target = cash_sweep_target_weight(
             long_weight=long_weight, short_weight=short_weight, margin_used=margin_fraction(margin_inputs),
             reserve=reserve, config=self.cash_sweep_config,
@@ -4085,6 +4121,154 @@ class AetherQuantAlgorithm(QCAlgorithm):
             quantity = -int(held)
         if quantity != 0:
             self.MarketOrder(self._cash_sweep_symbol, quantity, tag="cash_sweep")
+
+    def _setup_target_weights(self) -> None:
+        """`phase_v2.target_weights`: reads the frozen weight file and sets this path's costs. A file that fails its hash
+        leaves the run with no decisions, so it trades nothing rather than something other than what was frozen."""
+        self.target_weights_config = resolve_target_weights_config(self.phase_v2.get("target_weights"))
+        self._target_weights: dict[str, dict[str, float]] = {}
+        self._target_pending: dict[str, float] = {}
+        self._target_financing_date = None
+        self._target_rf_dates: list[str] = []
+        self._target_rf_rates: list[float] = []
+        self._target_symbol_by_ticker: dict = {}
+        self._target_class_by_ticker: dict[str, str] = {}
+        self._target_lot_by_ticker: dict[str, float] = {}
+        config = self.target_weights_config
+        if not config.enabled:
+            return
+        try:
+            self._target_weights = load_weight_file(self.root_path / config.weights_path, config.weights_sha256)
+        except (OSError, ValueError) as error:
+            self.Debug(f"target_weights: no decisions, the run will not trade - {error}")
+        self._target_rf_dates, self._target_rf_rates = load_rate_series(
+            self.root_path / "data" / "alternative" / "interest-rate" / "usa" / "interest-rate.csv"
+        )
+        for symbol in self.symbols:
+            asset = self.asset_lookup[str(symbol)]
+            ticker = str(asset["ticker"])
+            asset_class = str(asset.get("asset_class") or asset.get("security_type"))
+            self._target_symbol_by_ticker[ticker] = symbol
+            self._target_class_by_ticker[ticker] = asset_class
+            self._target_lot_by_ticker[ticker] = float(self.Securities[symbol].SymbolProperties.LotSize)
+            self.latest_liquidity_slippage_bps[str(symbol)] = slippage_bps_for(asset_class, config)
+            # SetFeeModel, not the FeeModel property: only the setter wraps a Python model so that .NET calls it (assigned to
+            # the property, the base class answers and every fee is $0, which one Lean run showed).
+            if asset["security_type"] == "equity":
+                self.Securities[symbol].SetFeeModel(_BpsEquityFeeModel(config.equity_fee_bps, config.equity_min_fee_usd))
+        if self._cash_sweep_symbol is not None:
+            self.Securities[self._cash_sweep_symbol].SetFeeModel(_BpsEquityFeeModel(config.equity_fee_bps, config.equity_min_fee_usd))
+
+    def _target_usd_per_unit(self, symbol) -> float:
+        security = self.Securities[symbol]
+        return float(security.Price) * float(security.QuoteCurrency.ConversionRate)
+
+    def _target_weights_tick(self, slice: Slice) -> None:
+        """The whole tick on this path (portfolio/target_weights.py): this bar's decision, its orders, the T-bill sweep."""
+        if self.is_warming_up:
+            return
+        orders_allowed, _ = self._order_permission()
+        if not orders_allowed:
+            return
+        if self.is_equity_session_bar:
+            self._accrue_target_financing()
+            if self.trade_lock_active:
+                self._target_pending = {}
+                self._liquidate_strategy_positions()
+            else:
+                self._apply_target_decision(slice)
+            self._update_cash_sweep()
+        if self._target_pending:
+            self._submit_next_bar_target_orders(slice)
+
+    def _apply_target_decision(self, slice: Slice) -> None:
+        decision_date = None
+        for symbol in self._equity_symbols:
+            bar = slice.Bars.get(symbol)
+            if bar is not None:
+                decision_date = bar.Time.date().isoformat()
+                break
+        target = weights_at_tick(self._target_weights, decision_date) if decision_date else None
+        if target is None:
+            return
+        classes = self._target_class_by_ticker
+        target = {
+            ticker: (max(0.0, weight) if classes.get(ticker) == "crypto" else weight)
+            for ticker, weight in target.items() if ticker in self._target_symbol_by_ticker
+        }
+        self._realized_target_weights_by_symbol = {
+            str(self._target_symbol_by_ticker[ticker]): weight for ticker, weight in target.items()
+        }
+        held, values = {}, {}
+        pending: dict[str, float] = {}
+        for ticker, symbol in self._target_symbol_by_ticker.items():
+            quantity = float(self.Portfolio[symbol].Quantity) + self._open_order_quantity(symbol)
+            if classes[ticker] in NEXT_BAR_CLASSES:
+                if ticker in target or quantity != 0.0:
+                    pending[ticker] = target.get(ticker, 0.0)
+                continue
+            if ticker in target or quantity != 0.0:
+                held[ticker] = quantity
+                values[ticker] = self._target_usd_per_unit(symbol)
+        self._target_pending = pending
+        same_session = {ticker: weight for ticker, weight in target.items() if ticker in values}
+        self._send_target_orders(held, values, same_session)
+
+    def _submit_next_bar_target_orders(self, slice: Slice) -> None:
+        """Crypto and forex orders wait for their own next bar, which fills them at its close."""
+        held, values, target = {}, {}, {}
+        for ticker, weight in self._target_pending.items():
+            symbol = self._target_symbol_by_ticker[ticker]
+            if slice.Bars.get(symbol) is None and slice.QuoteBars.get(symbol) is None:
+                continue
+            held[ticker] = float(self.Portfolio[symbol].Quantity) + self._open_order_quantity(symbol)
+            values[ticker] = self._target_usd_per_unit(symbol)
+            if weight != 0.0:
+                target[ticker] = weight
+        if not held:
+            return
+        for ticker in held:
+            del self._target_pending[ticker]
+        self._send_target_orders(held, values, target)
+
+    def _send_target_orders(self, held: dict, values: dict, target: dict) -> None:
+        deltas = rebalance_deltas(
+            held, values, float(self.Portfolio.TotalPortfolioValue), target, self.target_weights_config,
+            lot_size=self._target_lot_by_ticker, class_by_ticker=self._target_class_by_ticker,
+        )
+        for ticker, delta in deltas:
+            self.MarketOrder(self._target_symbol_by_ticker[ticker], delta, tag="target_weights")
+
+    def _accrue_target_financing(self) -> None:
+        """Books what a broker would charge since the last session on the USD cash (portfolio/financing.py)."""
+        config = self.target_weights_config
+        today = self.Time.date()
+        previous, self._target_financing_date = self._target_financing_date, today
+        if not config.financing_enabled or previous is None:
+            return
+        long_usd = short_usd = 0.0
+        fx_positions = []
+        for ticker, symbol in self._target_symbol_by_ticker.items():
+            quantity = float(self.Portfolio[symbol].Quantity)
+            if quantity == 0.0:
+                continue
+            value = quantity * self._target_usd_per_unit(symbol)
+            if self._target_class_by_ticker[ticker] == "forex":
+                fx_positions.append((value, fx_carry_3m(ticker, "forex", today, self.fred_series)))
+            elif value > 0.0:
+                long_usd += value
+            else:
+                short_usd -= value
+        if self._cash_sweep_symbol is not None:
+            long_usd += float(self.Portfolio[self._cash_sweep_symbol].Quantity) * self._target_usd_per_unit(self._cash_sweep_symbol)
+        amount = daily_financing_usd(
+            long_usd=long_usd, short_usd=short_usd, nav=float(self.Portfolio.TotalPortfolioValue),
+            rf_annual_pct=rate_asof(self._target_rf_dates, self._target_rf_rates, today.isoformat()),
+            fx_positions=fx_positions, days=(today - previous).days, margin_spread_bps=config.margin_spread_bps,
+            borrow_bps=config.borrow_bps, fx_spread_bps=config.fx_spread_bps,
+        )
+        if amount != 0.0 and math.isfinite(amount):
+            self.Portfolio.CashBook["USD"].AddAmount(amount)
 
     def _liquidate_strategy_positions(self) -> None:
         """The drawdown lock's liquidation: every position except the T-bill sweep (cash, not risk)."""

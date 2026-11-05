@@ -10,6 +10,46 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIND = ROOT / "scripts" / "codespace_lean_dind.sh"
 RUNNER = ROOT / "scripts" / "codespace_lean_run.ps1"
+PARALLEL = ROOT / "scripts" / "codespace_lean_parallel.sh"
+
+
+def test_parallel_script_gives_each_run_its_own_project_copy():
+    text = PARALLEL.read_text(encoding="utf-8")
+    assert 'RUN_ROOT="${STATE_DIR}/run"' in text
+    assert 'cp "${run_config}" "${dir}/config.json"' in text
+    assert "cp -al" in text  # the read-only data is hard-linked, not copied per run
+    assert 'cd "${dir}" && lean backtest . --image "${IMAGE}"' in text
+
+
+def test_parallel_script_reuses_the_sequential_setup_and_its_status_contract():
+    text = PARALLEL.read_text(encoding="utf-8")
+    assert 'RUN_CONFIGS="" bash scripts/codespace_lean_dind.sh' in text
+    for marker in ("LEAN_RUNNING", "LEAN_DONE", "LEAN_FAILED", "ALL_DONE"):
+        assert marker in text
+
+
+def test_parallel_script_keeps_run_folders_unique_and_can_swap_the_data_root():
+    text = PARALLEL.read_text(encoding="utf-8")
+    assert "flock 8" in text
+    assert 'candidate="backtests/${stamp}-${suffix}"' in text
+    assert ".dataroot" in text
+
+
+def test_dind_script_waits_for_the_old_daemon_and_clears_its_pid_file():
+    text = DIND.read_text(encoding="utf-8")
+    assert text.index("sudo pkill dockerd") < text.index("pgrep -x dockerd") < text.index("sudo rm -f /var/run/docker.pid") < text.index("sudo setsid nohup dockerd")
+
+
+def test_parallel_script_is_lf():
+    assert b"\r\n" not in PARALLEL.read_bytes()
+
+
+def test_runner_can_start_the_parallel_script_on_a_chosen_machine():
+    text = RUNNER.read_text(encoding="utf-8")
+    assert "[int]$Parallel = 0" in text
+    assert "[string]$Machine = 'standardLinux32gb'" in text
+    assert "-m $Machine --idle-timeout 30m" in text
+    assert "scripts/codespace_lean_parallel.sh" in text
 
 
 def test_dind_script_moves_docker_data_root_before_building_the_image():

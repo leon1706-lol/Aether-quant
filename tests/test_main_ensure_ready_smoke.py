@@ -209,8 +209,10 @@ def _sweep_world(algorithm, monkeypatch, *, held_long=0.2, sweep_quantity=0.0):
 
 def test_the_cash_sweep_buys_up_to_both_limits_and_stays_out_of_the_strategy(algorithm, monkeypatch):
     from portfolio.cash_sweep import cash_sweep_target_weight, margin_fraction, strategy_reserve
+    from portfolio.target_weights import resolve_target_weights_config
 
     orders = _sweep_world(algorithm, monkeypatch)
+    monkeypatch.setattr(algorithm, "target_weights_config", resolve_target_weights_config({}))  # the gated path's reserve
     assert algorithm._cash_sweep_key == "BIL" and "BIL" not in algorithm.asset_lookup
     algorithm._update_cash_sweep()
     reserve = strategy_reserve(  # the book is empty, so the next session is a rebalance attempt
@@ -231,6 +233,19 @@ def test_the_cash_sweep_buys_up_to_both_limits_and_stays_out_of_the_strategy(alg
     monkeypatch.setattr(algorithm, "_pending_entries_this_bar", set())
     algorithm.Portfolio._holdings["BIL"] = _Holding("BIL", quantity=500.0)
     assert algorithm._active_position_count(orders_allowed=True) == 1
+
+
+def test_on_the_target_weights_path_the_sweep_leaves_that_paths_reserve(algorithm, monkeypatch):
+    from portfolio.cash_sweep import cash_sweep_target_weight, margin_fraction
+    from portfolio.target_weights import resolve_target_weights_config, sweep_reserve
+
+    orders = _sweep_world(algorithm, monkeypatch)
+    config = resolve_target_weights_config({"enabled": True, "reserve_gross": 0.3})
+    monkeypatch.setattr(algorithm, "target_weights_config", config)
+    algorithm._update_cash_sweep()
+    expected = cash_sweep_target_weight(long_weight=0.2, short_weight=0.0, margin_used=margin_fraction([("equity", 0.2)]),
+                                        reserve=sweep_reserve(config), config=algorithm.cash_sweep_config)
+    assert orders == [("BIL", int(expected * 100_000 / 100.0), "cash_sweep")]
 
 
 def test_a_sweep_already_near_target_is_left_alone_and_the_drawdown_liquidation_keeps_it(algorithm, monkeypatch):

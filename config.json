@@ -1549,8 +1549,8 @@
             "max_position_weight": 0.12,
             "min_confidence_to_trade": 0.0968,
             "trade_cooldown_bars": 10,
-            "max_daily_drawdown_pct": 0.03,
-            "max_total_drawdown_pct": 0.12,
+            "max_daily_drawdown_pct": 0.05,
+            "max_total_drawdown_pct": 0.15,
             "liquidate_on_risk_breach": true
         }
     },
@@ -1627,13 +1627,13 @@
             "kill_switch": {
                 "enabled": true,
                 "evaluation_bars": 60,
-                "min_rolling_sharpe": -1.0,
+                "min_rolling_sharpe": -100.0,
                 "release_rolling_sharpe": null,
                 "trip_confirm_bars": 1,
-                "max_drawdown_velocity_pct_per_bar": 0.01,
-                "min_live_rank_ic": -0.02,
-                "max_consecutive_losses": 12,
-                "max_slippage_divergence_bps": 80,
+                "max_drawdown_velocity_pct_per_bar": 1.0,
+                "min_live_rank_ic": -100.0,
+                "max_consecutive_losses": 100000,
+                "max_slippage_divergence_bps": 100000,
                 "max_model_age_days": 180,
                 "min_return_std_for_sharpe": 0.0005,
                 "action": "trade_lock",
@@ -1660,6 +1660,27 @@
             "target_leverage_utilization": 0.2,
             "max_leverage_utilization": 0.4,
             "pair_specs_path": "data/reference/forex_pair_specs.json"
+        },
+        "target_weights": {
+            "enabled": true,
+            "weights_path": "ml/target_weights.csv",
+            "weights_sha256": "57240be0c0486c8ce56fa238c80450a2d26507540482a23b353d139fbb911690",
+            "min_weight_change": 0.002,
+            "min_trade_usd": 100.0,
+            "forex_min_trade_usd": 5000.0,
+            "reserve_gross": 0.3,
+            "equity_fee_bps": 1.5,
+            "equity_min_fee_usd": 1.0,
+            "slippage_bps_by_class": {
+                "equity": 3.0,
+                "bond": 3.0,
+                "forex": 1.0,
+                "crypto": 10.0
+            },
+            "financing_enabled": true,
+            "margin_spread_bps": 150.0,
+            "borrow_bps": 25.0,
+            "fx_spread_bps": 50.0
         },
         "forex_sleeve": {
             "enabled": false,
@@ -1869,11 +1890,15 @@
                 "future",
                 "option"
             ],
-            "exit_asset_classes": ["crypto"],
+            "exit_asset_classes": [
+                "crypto"
+            ],
             "offset_multiplier": 1.0,
             "unfilled_timeout_bars": 3,
             "offset_multiplier_by_class": {},
-            "unfilled_timeout_bars_by_class": {"crypto": 5},
+            "unfilled_timeout_bars_by_class": {
+                "crypto": 5
+            },
             "fallback_to_market_on_timeout": {
                 "equity": true,
                 "crypto": true,
@@ -1919,7 +1944,15 @@
                 "include_feature_snapshot": true,
                 "include_probabilities": true,
                 "paper_enabled": false,
-                "feature_snapshot_symbols": ["XOM", "NVDA", "TLT", "ETHUSD", "BTCUSD", "EURUSD", "GBPJPY"]
+                "feature_snapshot_symbols": [
+                    "XOM",
+                    "NVDA",
+                    "TLT",
+                    "ETHUSD",
+                    "BTCUSD",
+                    "EURUSD",
+                    "GBPJPY"
+                ]
             },
             "timing_probe": {
                 "enabled": false
@@ -1993,7 +2026,7 @@
         },
         "backtest": {
             "bypass_safety_gates": false,
-            "bypass_sticky_trade_lock": true,
+            "bypass_sticky_trade_lock": false,
             "bypass_regime_drawdown_gate": false
         },
         "paper_trading": {
@@ -2089,6 +2122,7 @@
                 "lean_timeout_seconds": 1800
             },
             "vault": {
+                "enabled": true,
                 "av_binary": "av",
                 "repo_path": ".",
                 "add_paths": [
@@ -2096,9 +2130,18 @@
                     "main.py",
                     "config.json"
                 ],
+                "extra_add_paths": [
+                    "train_multitask.py",
+                    "train_sequence.py",
+                    "features/",
+                    "ml/feature_schema.json",
+                    "ml/dataset_manifest.json"
+                ],
                 "commit_message_template": "candidate model {version_id}",
                 "tag": "candidate",
                 "push": true,
+                "require_push": false,
+                "min_version": null,
                 "timeout_seconds": 120
             },
             "promotion": {

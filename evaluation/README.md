@@ -294,3 +294,7 @@ compressed dispersion in a way IC is not.
 - `trend_sleeve_backtest.py` (V6.4.4) — the trend sleeve on the shipped daily zips (one-bar lag, units that drift between rebalances, commission with its dollar floor plus a half-spread, the sleeve's loss guard), and `trend_phase_summary` over rebalance phases (rule R-TREND1).
 - `gate_replica_audit.py` (V6.4.4) — classifies Lean's main-book trades (from the fills) and the simulator's (from its weights) into entries, exits, flips and resizes on and off live's rebalance dates (rule R-CAL5).
 - `research_runners.py` — the runners behind those flags and `aq research`.
+- `target_weights_engine.py` (V6.5.0) — the offline twin of the target-weights path: same pure functions, fills and marks on Lean's timeline, cash per currency. Daily correlation with Lean 0.992-0.9999999 (R-INSTR1), against 0.73 for `rank_book_simulator` on the gated path. Trust it only for this path.
+- `premia_research.py` (V6.5.0) — scores a sleeve as the median over 5 rebalance phases, runs placebos, and holds the gate R-SLEEVE2 as code (`selection_gate`).
+- `trial_ledger.py` (V6.5.0) — append-only log of every run with its window and role, and `deflation_inputs` (N and the same-window Sharpe variance for the deflated Sharpe).
+- `alpha_proof.py` (V6.5.0) — `window_report`, `deflated_sharpe_from_inputs`; `fresh` now starts at 2026-11-03, `forward_judgeable` at 60 sessions.

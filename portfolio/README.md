@@ -506,3 +506,11 @@ keeps a resize worth less than IB's minimum commission from trading. Shared by `
 
 - `book_neutrality.py` — `apply_book_neutrality(..., reapply_sector_cap_after_dollar_neutral=False)`: the dollar step shrinks one leg only, so a sector holding a long and a short can end above `sector_max_net_weight` (proved in `formal/AetherFormal/BookNeutrality.lean`; 5 of BT5's 38 rebalances, by up to 1.45 pp). With the option on (`phase_v2.portfolio_book.neutrality.reapply_sector_cap_after_dollar_neutral`, default off; `main.py` and the simulator read it) the sector shrink runs again after the dollar step and every sector ends within its cap. A non-positive `max_weight_per_name` now skips the per-name step (`per_name_cap_skipped_nonpositive_cap`) instead of zeroing or flipping the book.
 - `sleeve_guard.py` — `trailing_drawdown` with a non-positive lookback reads no window (it read the whole history).
+
+## V6.5.0 additions
+
+- `target_weights.py` — the path that holds a hash-pinned file of target weights, with no gates between a weight and its order (`phase_v2.target_weights`, default off): `load_weight_file`, `write_weight_file`, `weights_at_tick`, `rebalance_deltas`, `equity_fee_usd`, `sweep_reserve`. Crypto and forex orders wait for their own next bar.
+- `financing.py` — `daily_financing_usd`: margin interest, stock borrow and FX swap, which Lean does not charge and both engines book.
+- `premia_signals.py` — the rule-based sleeves as pure functions of what is known at each equity close (`sleeve_signal`), and the pipeline to weights (`signal_to_weights`, `scale_and_cap`), placebos (`null_signal`) and fixed-rule mixes (`combine_sleeves`). `test_no_lookahead` holds every sleeve to its timing.
+- `options_arbitrage_detector.py` — `detect_executable_edge`: a one-sided edge at bid and ask per structure (it used to flag fair prices). It still ignores dividends.
+- `options_strategy.py` — `select_iron_condor_legs` takes the inner legs from the registry's anchors, so a short iron condor is one.

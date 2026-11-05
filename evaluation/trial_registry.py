@@ -50,6 +50,21 @@ def dedupe(trials: list[dict]) -> list[dict]:
     return unique
 
 
+def _ledger_trials(path: Path) -> list[dict]:
+    """A V6.5.0 ledger's selectable candidates, one trial each by its last score; placebos and plumbing runs are nulls and never count."""
+    from evaluation.trial_ledger import read_ledger
+
+    latest: dict[str, dict] = {}
+    for entry in read_ledger(path):
+        if entry["role"] == "candidate" and entry["annualised_sharpe"] is not None:
+            latest[entry["trial_id"]] = entry
+    return [
+        {"phase": path.parent.name, "trial": name, "split": entry["window"], "median_sharpe": float(entry["annualised_sharpe"]),
+         "phases": None, "annualization": 365}
+        for name, entry in sorted(latest.items())
+    ]
+
+
 def build_registry(evaluation_dir: Path) -> dict:
     trials: list[dict] = []
     sources = []
@@ -60,5 +75,8 @@ def build_registry(evaluation_dir: Path) -> dict:
             continue
         sources.append(research.relative_to(evaluation_dir).as_posix())
         trials.extend(collect_trials(payload, research.parent.name))
+    for ledger in sorted(Path(evaluation_dir).glob("v*/trial_ledger.jsonl")):
+        sources.append(ledger.relative_to(evaluation_dir).as_posix())
+        trials.extend(_ledger_trials(ledger))
     trials = dedupe(trials)
     return {"sources": sources, "num_trials": len(trials), "split": SPLIT, "trials": trials}

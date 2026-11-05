@@ -76,6 +76,17 @@ Run top to bottom; stop at the first red item. Evidence status at V5.8.0: the mo
 6. **Kill switch fields to watch:** rolling Sharpe floor, drawdown velocity, slippage divergence (reference = submit price), the rolling-IC gate state and the spread floor.
 7. **First week:** keep `diagnostics.book_history.include_feature_snapshot` on for a few symbols and run `aq evaluate --reconcile-features --symbol X` against a fresh dataset; the regime inputs must match (they are drawdown-free since V5.8.0).
 
+## Forward check, no IB needed (V6.5.0)
+
+V6.5.0 froze `data/` at 2026-11-02, so every session after it was unseen by every rule of that phase. It is the only test nothing has been
+fitted on. Any time:
+
+1. Append the data: `python scripts/data_append_refresh.py --apply`, then `python scripts/data_append_guard.py verify ...` (no stored row may change).
+2. Rerun the pinned config unchanged on a DinD Codespace, with its window ending at the new last session (`runtime.lean_window_override`).
+3. `aq evaluate --alpha-proof --backtest-dir backtests/<rerun>` reports these sessions as `fresh`. `forward_judgeable` turns true at 60 sessions; before that, read nothing into it.
+
+A new config restarts this clock. A rerun is not a paper run: it proves the signal on new prices, not IB's fills, margin or live data.
+
 ## Paper period protocol (V6.4.0, lead L12, Problems #228)
 
 The paper period is the only out-of-sample test left. Its success is **not** "make money": a fixed-config run is inside the
@@ -87,9 +98,10 @@ bands a reference Lean run spans. Pre-registered, before the first paper day:
 3. **Checklist** (`aq evaluate --paper-check --backtest-dir <paper run folder> --reference-dir <pinned Lean run>`): veto rate, kill-switch
    lock share, strategy gross exposure, fills per rebalance, median / p90 adverse slippage, fee bps per turnover, strategy and T-bill
    P&L per day, daily hit ratio, annualised turnover.
-4. **Bands:** the 5-95% range of every contiguous 6-rebalance window of the pinned final Lean run: since V6.4.4 BT11
-   (`backtests/2026-11-03_16-26-39`, frozen in `ml/evaluation/v644/paper_bands.json`, Problems #267; the BT5 bands of #228 are kept
-   as `ml/evaluation/v640/paper_bands_bt5.json`).
+4. **Bands:** the 5-95% range of every contiguous 6-rebalance window of the pinned final Lean run: since V6.5.0
+   `backtests/2026-11-04_18-10-49` (frozen in `ml/evaluation/v650/paper_bands.json`; a target-weights run counts its fill days as
+   rebalances and has no veto or lock metrics; the BT11 and BT5 bands are kept as `ml/evaluation/v644/paper_bands.json` and
+   `ml/evaluation/v640/paper_bands_bt5.json`). A live run of this path also runs `python scripts/daily_target_weights.py --candidate ml/target_weights_candidate.json --out ml/target_weights.csv` before each open and leaves `weights_sha256` empty.
    Success = every metric inside its band. A metric outside is a finding to explain, not a failure to hide; run
    `aq evaluate --reconcile-features --symbol X` in week 1.
 5. **Cadence:** weekly check; the verdict is written up (Problems.md + Changelog) before any capital decision.

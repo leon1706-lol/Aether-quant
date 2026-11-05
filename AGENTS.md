@@ -58,8 +58,9 @@ ruff check .              # must be clean before commit
 9. **New `config.json` keys default to current behaviour.** Behaviour flips are owner
    decisions, recorded in the Changelog.
 10. **`main.py` lives behind Lean's `from AlgorithmImports import *`**, which exports names like `time`
-    (`datetime.time`) over any stdlib module of the same name: never `import time` there (use
-    `from time import perf_counter as _perf_counter` after the star import). `tests/test_main_ensure_ready_smoke.py`
+    (`datetime.time`) over any stdlib module of the same name, and `Exception` (.NET's, which no Python error matches, #276):
+    never `import time` there (use `from time import perf_counter as _perf_counter` after the star import), and keep
+    `from builtins import Exception`. `tests/test_main_ensure_ready_smoke.py`
     runs the real first-bar setup - run it after touching `main.py`'s imports or config reads. And read the
     **engine** log of any backtest, even a crashed one, before calling the failure understood (#132).
 11. **Latency-aware.** Hot-path code (`main.py` per-bar, `inference/`) allocates nothing
@@ -69,8 +70,9 @@ ruff check .              # must be clean before commit
     (`features/cross_asset_timing.py` is the one definition; forex carries Lean's fill-forward calendar), and local `data/` and
     the Codespace's must be file-for-file identical (a push overlays, never deletes — three FRED files once existed only on the
     Codespace). After any feature/dataset change, compare a backtest's `feature_snapshot` with `aq evaluate --reconcile-features`.
-    Never run a heavy process (evaluation, tests) during `aq backtest`: `Initialize()` has a hard 90-second limit (#16) and CPU
-    contention trips it. CI runs Python 3.11, the dev PC 3.14 (lazy annotations): test with the stub guards, not by intuition.
+    Don't run a heavy process (evaluation, tests) during `aq backtest` on the PC: `import main` runs under Lean's
+    `algorithm-creation-timeout` (600 s in `lean.json`, 90 s before V6.4.2, #16) and CPU contention can still trip it. CI runs
+    Python 3.11, the dev PC 3.14 (lazy annotations), the Codespaces pandas 3: test with the stub guards, not by intuition.
 13. **Codespaces bill the owner's monthly budget: on only while a job runs.** Run `gh codespace list` at the start and end
     of every session and stop anything not in active use (`gh codespace stop -c <name>`). Anything that fits on the dev
     PC (offline research, `aq evaluate`, tests) runs locally. Create every Codespace with `--idle-timeout 30m`; never

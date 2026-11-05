@@ -54,10 +54,10 @@ def conversion_parity_value(
 ) -> float:
     """Put-call parity: call_price - put_price should equal
     spot - strike * exp(-r*T) (ignoring dividends). Returns the SIGNED
-    discrepancy (actual minus theoretical) - a conversion (long stock,
-    long put, short call) profits when this is negative (options priced
-    cheap relative to parity); a reverse conversion profits when
-    positive."""
+    discrepancy (actual minus theoretical). A conversion (long stock, long
+    put, short call) locks in call - put - spot + PV(strike), which is this
+    discrepancy, so it profits when it is positive (calls rich against
+    puts); a reverse conversion profits when it is negative."""
     theoretical = spot - strike * math.exp(-risk_free_rate * max(time_to_expiry_years, 0.0))
     actual = call_price - put_price
     return actual - theoretical
@@ -86,6 +86,14 @@ def detect_mispricing(actual_net_cost: float, fair_value: float, min_mispricing_
         return False
     mispricing_bps = abs(actual_net_cost - fair_value) / notional * 10_000.0
     return mispricing_bps >= min_mispricing_bps
+
+
+def detect_executable_edge(edge: float, min_mispricing_bps: float, notional: float) -> bool:
+    """True when entering the structure at executable prices beats its fair value by at least the threshold. One-sided: a
+    structure priced dear is no arbitrage for the side that would pay up, and only its opposite may fire."""
+    if notional <= 0.0:
+        return False
+    return edge / notional * 10_000.0 >= min_mispricing_bps
 
 
 def _years_between(current_date, expiry_date_str: str) -> float:
@@ -156,7 +164,9 @@ def select_arbitrage_signal(
             time_to_expiry_years = _years_between(current_date, higher_row["expiry"])
             fair_value = box_spread_fair_value(higher_strike, lower_strike, risk_free_rate, time_to_expiry_years)
             actual_net_cost = _actual_net_cost(spec, legs_by_role)
-            return detect_mispricing(actual_net_cost, fair_value, min_mispricing_bps, higher_strike - lower_strike)
+            # long: pay the cost, collect the discounted payoff. short: the cost is a credit, and the payoff is owed.
+            edge = fair_value - actual_net_cost if strategy_name == "box_spread" else -actual_net_cost - fair_value
+            return detect_executable_edge(edge, min_mispricing_bps, higher_strike - lower_strike)
 
         if strategy_name in ("conversion", "reverse_conversion"):
             call_role = next(leg.role for leg in spec.legs if leg.right == "call")
@@ -166,10 +176,13 @@ def select_arbitrage_signal(
             strike = float(call_row["strike"])
             spot = float(call_row.get("underlying_price") or strike)
             time_to_expiry_years = _years_between(current_date, call_row["expiry"])
-            call_mid = (float(call_row["bid"]) + float(call_row["ask"])) / 2.0
-            put_mid = (float(put_row["bid"]) + float(put_row["ask"])) / 2.0
-            discrepancy = conversion_parity_value(call_mid, put_mid, spot, strike, risk_free_rate, time_to_expiry_years)
-            return detect_mispricing(discrepancy, 0.0, min_mispricing_bps, strike)
+            # at the prices one could trade: a conversion sells the call and buys the put, a reverse does the opposite
+            if strategy_name == "conversion":
+                call_price, put_price, sign = float(call_row["bid"]), float(put_row["ask"]), 1.0
+            else:
+                call_price, put_price, sign = float(call_row["ask"]), float(put_row["bid"]), -1.0
+            discrepancy = conversion_parity_value(call_price, put_price, spot, strike, risk_free_rate, time_to_expiry_years)
+            return detect_executable_edge(sign * discrepancy, min_mispricing_bps, strike)
 
         if strategy_name in ("jelly_roll", "short_jelly_roll"):
             near_call_role = next(leg.role for leg in spec.legs if leg.right == "call" and leg.expiry_role == "near")
@@ -181,7 +194,8 @@ def select_arbitrage_signal(
             far_time_to_expiry_years = _years_between(current_date, far_row["expiry"])
             fair_value = jelly_roll_fair_value(strike, risk_free_rate, near_time_to_expiry_years, far_time_to_expiry_years)
             actual_net_cost = _actual_net_cost(spec, legs_by_role)
-            return detect_mispricing(actual_net_cost, fair_value, min_mispricing_bps, strike)
+            edge = fair_value - actual_net_cost if strategy_name == "jelly_roll" else -actual_net_cost - fair_value
+            return detect_executable_edge(edge, min_mispricing_bps, strike)
     except (KeyError, TypeError, ValueError):
         return False
 

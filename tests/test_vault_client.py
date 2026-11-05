@@ -9,8 +9,12 @@ from unittest.mock import MagicMock, patch
 
 from retraining.vault_client import (
     commit_candidate_to_vault,
+    parse_av_envelope,
+    parse_push_state,
     parse_vault_commit_hash,
+    restore_candidate_from_vault,
     run_av_command,
+    vault_preflight,
 )
 
 _CONFIG = {
@@ -28,6 +32,125 @@ def _completed(returncode=0, stdout="", stderr=""):
     result.stdout = stdout
     result.stderr = stderr
     return result
+
+
+FULL_HASH = "f7bc8d766817ba50a8fcc689629558bd6985f370d2f3f6cffb629b6cb04af23a"
+COMMIT_OUT = (
+    '{"ok": true, "data": {"committed": true, "hash": "' + FULL_HASH + '", "short": "f7bc8d7", "queued": true}, '
+    '"error": null, "meta": {"command": "commit"}}'
+)
+PUSH_QUEUED = '{"ok": true, "data": {"drained": 0, "still_queued": 1, "reachable": false}, "error": null}'
+PUSH_DRAINED = '{"ok": true, "data": {"drained": 1, "still_queued": 0, "reachable": true}, "error": null}'
+
+
+def test_run_av_command_decodes_utf8_whatever_the_system_codepage():
+    with patch("retraining.vault_client.subprocess.run", return_value=_completed()) as run_mock:
+        run_av_command(["av", "status"])
+
+    assert run_mock.call_args.kwargs["encoding"] == "utf-8"
+    assert run_mock.call_args.kwargs["errors"] == "replace"
+
+
+def test_parse_vault_commit_hash_reads_the_full_hash_from_the_envelope():
+    assert parse_vault_commit_hash("Uploading...\n" + COMMIT_OUT) == FULL_HASH
+
+
+def test_parse_vault_commit_hash_reads_real_human_output():
+    assert parse_vault_commit_hash("[f7bc8d7] candidate v1") == "f7bc8d7"
+
+
+def test_parse_vault_commit_hash_accepts_none_stdout():
+    assert parse_vault_commit_hash(None) is None
+
+
+def test_parse_av_envelope_ignores_non_envelope_lines():
+    assert parse_av_envelope('{"not": "an envelope"}') is None
+    assert parse_av_envelope("plain text") is None
+
+
+def test_parse_push_state():
+    assert parse_push_state(PUSH_QUEUED) == "queued"
+    assert parse_push_state(PUSH_DRAINED) == "drained"
+    assert parse_push_state("no envelope") == "unknown"
+
+
+def test_commit_records_a_queued_push_as_a_safe_outcome_by_default():
+    responses = [_completed(), _completed(stdout=COMMIT_OUT), _completed(stdout=PUSH_QUEUED)]
+    with patch("retraining.vault_client.subprocess.run", side_effect=responses):
+        result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
+
+    assert result["ok"] is True
+    assert result["push_state"] == "queued"
+    assert result["vault_commit"] == FULL_HASH
+
+
+def test_commit_fails_on_a_queued_push_when_push_is_required():
+    responses = [_completed(), _completed(stdout=COMMIT_OUT), _completed(stdout=PUSH_QUEUED)]
+    with patch("retraining.vault_client.subprocess.run", side_effect=responses):
+        result = commit_candidate_to_vault("v1", ["train.py"], {}, {**_CONFIG, "require_push": True})
+
+    assert result["ok"] is False
+    assert result["stage"] == "push"
+    assert result["vault_commit"] == FULL_HASH
+
+
+def test_commit_fails_when_push_itself_crashes():
+    responses = [_completed(), _completed(stdout=COMMIT_OUT), _completed(returncode=1, stderr="boom")]
+    with patch("retraining.vault_client.subprocess.run", side_effect=responses):
+        result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
+
+    assert result["ok"] is False
+    assert result["push_state"] == "failed"
+
+
+def test_preflight_reports_a_missing_binary():
+    with patch("retraining.vault_client.subprocess.run", side_effect=FileNotFoundError()):
+        result = vault_preflight(_CONFIG)
+
+    assert result == {"ok": False, "reason": "av_binary_not_found", "av_version": None}
+
+
+def test_preflight_requires_an_initialised_repo(tmp_path):
+    with patch("retraining.vault_client.subprocess.run", return_value=_completed(stdout="av 1.4.1")):
+        result = vault_preflight(_CONFIG, cwd=tmp_path)
+
+    assert result["ok"] is False
+    assert result["reason"].startswith("not_an_av_repo")
+
+
+def test_preflight_passes_on_an_initialised_repo(tmp_path):
+    (tmp_path / ".av").mkdir()
+    with patch("retraining.vault_client.subprocess.run", return_value=_completed(stdout="av 1.4.1.dev8+g1")):
+        result = vault_preflight(_CONFIG, cwd=tmp_path)
+
+    assert result == {"ok": True, "reason": "ready", "av_version": "av 1.4.1.dev8+g1"}
+
+
+def test_preflight_enforces_min_version(tmp_path):
+    (tmp_path / ".av").mkdir()
+    with patch("retraining.vault_client.subprocess.run", return_value=_completed(stdout="av 1.4.1")):
+        low = vault_preflight({**_CONFIG, "min_version": "1.5.0"}, cwd=tmp_path)
+        high = vault_preflight({**_CONFIG, "min_version": "1.4.0"}, cwd=tmp_path)
+
+    assert low["ok"] is False and "below_minimum" in low["reason"]
+    assert high["ok"] is True
+
+
+def test_preflight_does_nothing_when_the_vault_is_disabled():
+    with patch("retraining.vault_client.subprocess.run") as run_mock:
+        result = vault_preflight({**_CONFIG, "enabled": False})
+
+    run_mock.assert_not_called()
+    assert result["ok"] is True
+
+
+def test_restore_candidate_never_uses_a_repo_wide_checkout():
+    with patch("retraining.vault_client.subprocess.run", return_value=_completed()) as run_mock:
+        restore_candidate_from_vault("abc", "ml/versions/v1", _CONFIG)
+
+    argv = run_mock.call_args.args[0]
+    assert "checkout" not in argv
+    assert argv[-4:] == ["restore", "--source", "abc", "ml/versions/v1"]
 
 
 def test_run_av_command_returns_ok_false_when_binary_not_found():
@@ -87,19 +210,20 @@ def test_commit_candidate_to_vault_stops_at_commit_failure():
 def test_commit_candidate_to_vault_succeeds_through_push():
     responses = [
         _completed(returncode=0),  # add
-        _completed(returncode=0, stdout="committed a1b2c3d4"),  # commit
-        _completed(returncode=0),  # push
+        _completed(returncode=0, stdout=COMMIT_OUT),  # commit
+        _completed(returncode=0, stdout=PUSH_DRAINED),  # push
     ]
     with patch("retraining.vault_client.subprocess.run", side_effect=responses):
         result = commit_candidate_to_vault("v1", ["train.py"], {"sharpe": 1.0}, _CONFIG)
 
     assert result["ok"] is True
     assert result["stage"] == "done"
-    assert result["vault_commit"] == "a1b2c3d4"
+    assert result["vault_commit"] == FULL_HASH
+    assert result["push_state"] == "drained"
 
 
 def test_commit_candidate_to_vault_skips_push_when_configured_off():
-    responses = [_completed(returncode=0), _completed(returncode=0, stdout="committed a1b2c3d4")]
+    responses = [_completed(returncode=0), _completed(returncode=0, stdout=COMMIT_OUT)]
     config = {**_CONFIG, "push": False}
     with patch("retraining.vault_client.subprocess.run", side_effect=responses):
         result = commit_candidate_to_vault("v1", ["train.py"], {}, config)

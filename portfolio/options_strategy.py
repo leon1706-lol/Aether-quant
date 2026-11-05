@@ -691,10 +691,10 @@ MULTI_LEG_STRATEGY_REGISTRY: dict[str, StrategySpec] = {
     "short_iron_condor": StrategySpec(
         "short_iron_condor", ("short_put", "long_put", "long_call", "short_call"), False,
         (
-            _leg("short_put", "put", "short", 1, "short_put", is_anchor=True),
-            _leg("long_put", "put", "long", 1, "long_put"),
-            _leg("long_call", "call", "long", 1, "long_call"),
-            _leg("short_call", "call", "short", 1, "short_call", is_anchor=True),
+            _leg("short_put", "put", "short", 1, "short_put"),
+            _leg("long_put", "put", "long", 1, "long_put", is_anchor=True),
+            _leg("long_call", "call", "long", 1, "long_call", is_anchor=True),
+            _leg("short_call", "call", "short", 1, "short_call"),
         ),
         "iron_condor", "vega_budget",
     ),
@@ -1083,42 +1083,44 @@ def select_iron_condor_legs(
     credit-vertical-style selections (put side, call side), both anchored
     to the SAME expiry (the put side's anchor expiry is picked first and
     passed down to the call side, closing the same expiry-drift risk
-    select_vertical_legs() closes for a plain 2-leg vertical)."""
-    short_put_leg = next(leg for leg in spec.legs if leg.role == "short_put")
-    long_put_leg = next(leg for leg in spec.legs if leg.role == "long_put")
-    short_call_leg = next(leg for leg in spec.legs if leg.role == "short_call")
-    long_call_leg = next(leg for leg in spec.legs if leg.role == "long_call")
+    select_vertical_legs() closes for a plain 2-leg vertical). The inner legs are the registry's anchors: the shorts of an
+    iron condor, the longs of a short iron condor, whose short legs are the outer wings. Lean's factory rejects anything
+    but ascending strikes."""
+    inner_put_leg = next(leg for leg in spec.legs if leg.right == "put" and leg.is_anchor)
+    outer_put_leg = next(leg for leg in spec.legs if leg.right == "put" and not leg.is_anchor)
+    inner_call_leg = next(leg for leg in spec.legs if leg.right == "call" and leg.is_anchor)
+    outer_call_leg = next(leg for leg in spec.legs if leg.right == "call" and not leg.is_anchor)
 
-    short_put_row = _nearest_by_delta(available_chain, "put", target_delta)
-    if short_put_row is None:
+    inner_put_row = _nearest_by_delta(available_chain, "put", target_delta)
+    if inner_put_row is None:
         return None
-    anchor_expiry = short_put_row.get("expiry")
+    anchor_expiry = inner_put_row.get("expiry")
     same_expiry_rows = [r for r in available_chain if r.get("expiry") == anchor_expiry]
-    short_put_strike = float(short_put_row["strike"])
+    inner_put_strike = float(inner_put_row["strike"])
 
-    long_put_candidates = [
+    outer_put_candidates = [
         r for r in same_expiry_rows
-        if str(r.get("right", "")).lower() == "put" and r.get("delta") is not None and float(r["strike"]) < short_put_strike
+        if str(r.get("right", "")).lower() == "put" and r.get("delta") is not None and float(r["strike"]) < inner_put_strike
     ]
-    if not long_put_candidates:
+    if not outer_put_candidates:
         return None
-    long_put_row = min(long_put_candidates, key=lambda r: abs(abs(r["delta"]) - abs(target_delta - wing_delta_offset)))
+    outer_put_row = min(outer_put_candidates, key=lambda r: abs(abs(r["delta"]) - abs(target_delta - wing_delta_offset)))
 
-    short_call_row = _nearest_by_delta(same_expiry_rows, "call", target_delta - short_leg_delta_offset)
-    if short_call_row is None:
+    inner_call_row = _nearest_by_delta(same_expiry_rows, "call", target_delta - short_leg_delta_offset)
+    if inner_call_row is None:
         return None
-    short_call_strike = float(short_call_row["strike"])
-    long_call_candidates = [
+    inner_call_strike = float(inner_call_row["strike"])
+    outer_call_candidates = [
         r for r in same_expiry_rows
-        if str(r.get("right", "")).lower() == "call" and r.get("delta") is not None and float(r["strike"]) > short_call_strike
+        if str(r.get("right", "")).lower() == "call" and r.get("delta") is not None and float(r["strike"]) > inner_call_strike
     ]
-    if not long_call_candidates:
+    if not outer_call_candidates:
         return None
-    long_call_row = min(long_call_candidates, key=lambda r: abs(abs(r["delta"]) - abs(target_delta - short_leg_delta_offset - wing_delta_offset)))
+    outer_call_row = min(outer_call_candidates, key=lambda r: abs(abs(r["delta"]) - abs(target_delta - short_leg_delta_offset - wing_delta_offset)))
 
     return {
-        short_put_leg.role: short_put_row, long_put_leg.role: long_put_row,
-        short_call_leg.role: short_call_row, long_call_leg.role: long_call_row,
+        inner_put_leg.role: inner_put_row, outer_put_leg.role: outer_put_row,
+        inner_call_leg.role: inner_call_row, outer_call_leg.role: outer_call_row,
     }
 
 

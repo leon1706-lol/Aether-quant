@@ -983,6 +983,16 @@ aq evaluate --lean-report --backtest-dir backtests/<run>                   # eve
   - Check the engine image (`docker compose build engine`) in the same lifetime, if the PC cannot.
   - `-Delete` right after `-Pull`. The image and disk are billed storage while the Codespace exists, even when stopped.
 
+### V6.5.0: many Lean runs on one Codespace, a pre-2013 root, and the vault
+
+- **Parallel runs:** `-Run <configs> -Parallel N` starts `scripts/codespace_lean_parallel.sh`: one project copy per run under `/tmp/aq_lean/run/<name>`, the data hard-linked from one master copy on the same disk, each result moved back under a unique folder. Proved safe: BT16 in a batch equals BT13 alone, order for order. Status lines and `-Pull` are the sequential runner's.
+- **Speed:** on 4 cores a target-weights run takes about 1 minute per 2 years; a gated run about 7 minutes per 3.3 years, two at a time. Only `basicLinux32gb` and `standardLinux32gb` are available to this account (`gh api repos/leon1706-lol/Aether-quant/codespaces/machines`).
+- **After a stop:** `/tmp` is empty when a stopped Codespace comes back, so the Docker data root and the image are rebuilt (about 20 minutes). The runner handles it. Hold a session open with `scripts/codespace_keepalive.sh` (it also covers `lean backtest` now), or a batch idles out after 30 minutes.
+- **A run's containers leave root-owned files in its project copy:** the runner deletes copies with `sudo`.
+- **Pre-2013 root:** `scripts/build_pre2013_root.py` writes `data_pre2013/` (gitignored, never prepended to `data/`). A run reads it when `ml/evaluation/run_configs/<name>.dataroot` names it. Its point is that nothing has been fitted on it: read it only under a frozen rule.
+- **Sample-data smoke tests:** `scripts/lean_smoke/run.sh <option_structures|futures_margin>` runs the options and futures code against Lean's API. They prove the calls work, not what IB would do.
+- **The vault in this repo:** `.av/` is gitignored and local. `av` is installed editable from `../aether-vault`, per user on Windows (`%APPDATA%\Python\Python314\Scripts\av.exe`, set `AQ_AV_BINARY` when it is not on PATH). `scripts/vault_record.py --label <gate> <paths>` commits a gate with no push; its timestamp shows a rule came before its scores. A retraining worker without `av` now fails at `vault_preflight`, before training. **The Docker image has no pinned `av`:** that needs a vault release, the owner's call.
+
 
 ### V6.4.3: Lean 4 (the theorem prover) and Mathlib on the PC
 

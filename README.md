@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-3995%2F3995%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3995 of 3995 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4212%2F4212%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4212 of 4212 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -58,9 +58,14 @@ deeper still.
 
 Bonds are fully real; futures and options are wired end to end but **data-empty until an Interactive Brokers key is connected** (`phase_v2.ib.enabled`, `aq ib status`).
 
-- **No demonstrated out-of-sample edge.** The shipped book (V6.4.4: the sector cap re-applied after the dollar-neutral step, adopted by rule R-LEAN16) ends the 2023-07..2026-11-02 Lean span at +13.75% (Lean Sharpe -0.20, drawdown 5.00%), most of it T-bill carry; the strategy alone has Sharpe +0.27 without a risk-free rate, a deflated Sharpe of 4% over the 78 configurations tested through V6.4.4, and no alpha against SPY / AGG / BTC (Newey-West t -0.07, `aq evaluate --alpha-proof`). No retrain or rule variant has beaten the installed stack by more than noise (V6.1-V6.4.4): V6.4.4's retrain on honest labels and ranked inputs (R-MODEL12 / R-MODEL13) and a directional trend sleeve (R-TREND1) found nothing; the 'asset-class prior' the installed model seemed to lose to was mostly a percentile-rank artifact. The offline simulator tracks Lean at a daily correlation of ~0.6-0.73, so offline wins are hypotheses that only a Lean run confirms. See [Backtest Statistics](#backtest-statistics). **Paper trading only; no live capital.**
+- **Improved, not verified: no demonstrated edge.** V6.5.0's strict bar (Lean Sharpe >= 1, alpha t >= 3, deflated Sharpe >= 0.95, Lean placebos, unread pre-2013 data) was not met, and could not be: overfitting probability over all 38 selection trials is 0.53, above the 0.5 limit, which ended verification before it began. By the pre-registered fallback R-LEAN19, V6.5.0 ships **a long-only crypto trend sleeve** (`t3_crypto_trend_blend`) in place of the model book: Lean Sharpe 0.63 on 2023-07..2026-11-02 (median of 5 rebalance phases, 0.51-0.77), against -0.20 for V6.4.4's book.
+  - **It is mostly crypto exposure, not alpha.** Against SPY / AGG / BTC the alpha is +0.4%/yr (Newey-West t 0.13), and over 2014-12..2026-11 +1.3%/yr (t 0.83). Without its T-bill carry and a risk-free rate its Sharpe is 1.15 in 2023-07..2025-06 and 0.06 in 2025-07..2026-11: nearly all of the result is the earlier period. The deflated Sharpe is 12% over the 124 configurations tested.
+  - **Not deployable at Interactive Brokers** until a crypto venue is decided (#192). The 12 coins are today's survivors, chosen with hindsight.
+  - **The earlier book's models are not in use.** Every ML ranking, including a new set transformer and gradient-boosted rankers on honest walk-forward scores, failed: strong in 2019-2021, negative in 2021-2023.
+  - The first run of this comparison halted on a velocity lock within months and was rerun under a recorded amendment (`ml/evaluation/v650/rules_amendment_1.json`), so those windows are not unread. See [Backtest Statistics](#backtest-statistics) and `development/Changelog.md`. **Paper trading only; no live capital.**
+- **Offline numbers:** the target-weights path has an offline twin that tracks Lean at a daily correlation of 0.992-0.9999999. The older rank-book simulator, whose results fill the offline sections below, tracked the gated path at only ~0.6-0.73 and describes the V6.4.4 book, not the shipped one.
 - **Lean runs before V5.8.0 are not comparable**: they covered 2019-01..2021-03 on data that then ended there (`development/Problems.md` #145-#154, #185, #186).
-- **IB is unverified end to end**: the connection, the opt-in live futures margin source (#67) and all 43 option structures (#38, #59) have never met a real Gateway; no option or future asset is in the universe yet.
+- **IB is unverified end to end**: the connection, the opt-in live futures margin source (#67) and all 43 option structures (#38, #59) have never met a real Gateway; no option or future asset is in the universe yet. They have met Lean: all 43 structures fill through `OptionStrategies` on its sample chain, and the live margin source returns a usable value on its sample futures data (V6.5.0).
 - **Production safety is unit- and backtest-verified, not field-tested**: the kill switch, reconciliation and auto-rollback have run inside Lean backtests, never against a live broker / Postgres deployment over paper hours.
 
 ## Table of Contents
@@ -408,7 +413,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->3995<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->4212<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -453,13 +458,13 @@ _Every table is generated, never hand-edited. `aq backtest` refreshes the Lean b
 | Metric | Value |
 |---|---|
 | Backtest window | 2023-07-01 to 2026-11-02 |
-| Sharpe Ratio | -0.204 |
-| Net Profit | 13.755% |
-| Compounding Annual Return | 3.925% |
-| Drawdown | 5.000% |
-| Total Orders | 814 |
-| Win Rate | 56% |
-| Last updated | 2026-11-03 17:53 UTC (auto-generated by `aq backtest`) |
+| Sharpe Ratio | 0.633 |
+| Net Profit | 33.850% |
+| Compounding Annual Return | 9.100% |
+| Drawdown | 7.800% |
+| Total Orders | 1012 |
+| Win Rate | 61% |
+| Last updated | 2026-11-04 18:48 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 **All finished Lean runs** (newest first)
@@ -467,18 +472,19 @@ _Every table is generated, never hand-edited. `aq backtest` refreshes the Lean b
 <!-- AQ:BACKTEST_HISTORY_START -->
 | Run | Window | Sharpe | Net profit | Drawdown | Orders | Status |
 |---|---|---|---|---|---|---|
-| `2026-11-03_16-26-39` | 2023-07-01 to 2026-11-02 | -0.204 | 13.755% | 5.000% | 814 | shipped (README pin), kept (R-LEAN16) |
-| `2026-11-03_16-16-07` | 2023-07-01 to 2026-11-02 | -0.209 | 13.695% | 5.000% | 809 | - |
-| `2026-10-24_18-50-22` | 2023-07-01 to 2026-10-16 | -0.087 | 14.793% | 6.000% | 884 | rejected (R-LEAN14) |
-| `2026-10-24_05-28-07` | 2023-07-01 to 2026-10-16 | -0.999 | 5.237% | 3.500% | 1246 | rejected (R-LEAN14) |
-| `2026-10-22_12-41-40` | 2023-07-01 to 2026-10-16 | -1.797 | -2.329% | 5.200% | 909 | rejected (R-LEAN13) |
-| `2026-10-22_10-56-13` | 2023-07-01 to 2026-10-16 | -0.11 | 14.770% | 4.300% | 804 | - |
-| `2026-10-18_12-55-00` | 2023-07-01 to 2026-09-30 | 0.082 | 16.848% | 4.300% | 779 | - |
-| `2026-10-17_21-39-55` | 2023-07-01 to 2026-09-30 | 0.082 | 16.848% | 4.300% | 779 | - |
-| `2026-10-17_19-45-55` | 2023-07-01 to 2026-09-30 | 0.082 | 16.848% | 4.300% | 779 | - |
-| `2026-10-17_19-10-42` | 2023-07-01 to 2026-09-30 | 0.082 | 16.846% | 4.300% | 779 | - |
+| `2026-11-04_18-27-36` | 2014-12-01 to 2026-11-02 | 0.531 | 68.341% | 14.700% | 1414 | - |
+| `2026-11-04_18-26-28` | 2023-07-01 to 2026-11-02 | 0.25 | 23.070% | 9.800% | 1946 | - |
+| `2026-11-04_18-25-22` | 2023-07-01 to 2026-11-02 | 0.321 | 25.504% | 10.700% | 2005 | - |
+| `2026-11-04_18-20-37` | 2014-12-01 to 2026-11-02 | 0.18 | 48.909% | 12.000% | 1158 | - |
+| `2026-11-04_18-23-56` | 2023-07-01 to 2026-11-02 | 0.121 | 18.923% | 9.600% | 2082 | - |
+| `2026-11-04_18-22-51` | 2023-07-01 to 2026-11-02 | 0.14 | 19.517% | 11.100% | 2089 | - |
+| `2026-11-04_18-21-23` | 2023-07-01 to 2026-11-02 | 0.082 | 17.694% | 12.500% | 1929 | - |
+| `2026-11-04_18-20-18` | 2023-07-01 to 2026-11-02 | -0.088 | 13.456% | 8.900% | 349 | - |
+| `2026-11-04_18-18-48` | 2023-07-01 to 2026-11-02 | -0.081 | 13.513% | 9.200% | 343 | - |
+| `2026-11-04_18-18-07` | 2023-07-01 to 2026-11-02 | -0.329 | 7.598% | 8.600% | 363 | - |
+| `2026-11-04_18-10-49` | 2023-07-01 to 2026-11-02 | 0.633 | 33.850% | 7.800% | 1012 | shipped (README pin), kept (R-LEAN19) |
 
-_The 10 newest finished Lean runs, computed 2026-11-03; Status from the README pin and the `evaluation.lean_verdict` files (`ml/evaluation/*/r_lean*.json`)._
+_The newest finished Lean runs and the README pin (11 rows), computed 2026-11-04; Status from the README pin and the `evaluation.lean_verdict` files (`ml/evaluation/*/r_lean*.json`)._
 <!-- AQ:BACKTEST_HISTORY_END -->
 
 ### General Characteristics
@@ -488,23 +494,23 @@ _The 10 newest finished Lean runs, computed 2026-11-03; Status from the README p
 |---|---|---|---|
 | Time range | 2023-07-01 to 2026-11-02 |  |  |
 | Years | 3.35 |  |  |
-| Average AUM | $107,430 |  |  |
-| Capacity (Lean estimate) | $80,000,000 |  | lowest-capacity asset BNO UN3IMQ2JU1YD |
-| Leverage, mean (gross exposure / NAV) | 0.90x | 0.17x |  |
-| Leverage, max | 1.19x | 0.45x |  |
-| Maximum dollar position | — | $9,122 | ORCL on 2026-04-22 |
-| Ratio of longs (share of bets) | — | 65.22% |  |
-| Longs : shorts (bets) | — | 195 : 104 |  |
-| Frequency of bets (per year) | — | 89.3 |  |
-| Average holding period (days, notional-weighted) | — | 33.4 |  |
-| Annualized turnover (traded notional / AUM) | 8.19x | 3.72x |  |
-| Correlation to underlying (SPY, daily) | 0.051 | 0.053 |  |
+| Average AUM | $121,732 |  |  |
+| Capacity (Lean estimate) | $37,000,000 |  | lowest-capacity asset XLMUSD 2XR |
+| Leverage, mean (gross exposure / NAV) | 0.96x | 0.11x |  |
+| Leverage, max | 1.04x | 0.20x |  |
+| Maximum dollar position | — | $7,463 | BCHUSD on 2026-01-03 |
+| Ratio of longs (share of bets) | — | 100.00% |  |
+| Longs : shorts (bets) | — | 126 : 0 |  |
+| Frequency of bets (per year) | — | 37.6 |  |
+| Average holding period (days, notional-weighted) | — | 32.0 |  |
+| Annualized turnover (traded notional / AUM) | 2.79x | 2.36x |  |
+| Correlation to underlying (SPY, daily) | 0.293 | 0.294 |  |
 | Start equity | $100,000 |  |  |
-| End equity | $113,755 |  |  |
-| Total orders | 814 |  |  |
-| Lean portfolio turnover (daily mean) | 2.250% |  |  |
+| End equity | $133,850 |  |  |
+| Total orders | 1,012 |  |  |
+| Lean portfolio turnover (daily mean) | 0.790% |  |  |
 
-_Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 <!-- AQ:BTSTATS_GENERAL_END -->
 
 ### Performance
@@ -512,23 +518,23 @@ _Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
 <!-- AQ:BTSTATS_PERFORMANCE_START -->
 | Metric | Portfolio | Strategy |
 |---|---|---|
-| PnL | +$13,755 | +$2,999 |
-| PnL from the T-bill sweep (carry) | +$10,756 |  |
-| PnL from long positions (closed bets, net of fees) | — | +$7,252 |
-| PnL from short positions (closed bets, net of fees) | — | -$3,141 |
-| Annualized rate of return | +3.92% | +0.89% |
-| Hit ratio (closed bets net of fees) | — | 50.85% |
-| Average return from hits | — | +10.13% |
-| Average return from misses | — | -8.20% |
-| Time-weighted return (no external flows: the chained return) | +13.75% | +3.00% |
-| Net profit (Lean) | 13.755% |  |
-| Win rate / loss rate (Lean, all trades) | 56% / 44% |  |
-| Average win / average loss (Lean) | 0.15% / -0.12% |  |
-| Profit-loss ratio (Lean) | 1.25 |  |
-| Expectancy (Lean) | 0.248 |  |
-| Unrealized at the end (Lean) | -$225 |  |
+| PnL | +$33,850 | +$19,351 |
+| PnL from the T-bill sweep (carry) | +$14,499 |  |
+| PnL from long positions (closed bets, net of fees) | — | +$19,388 |
+| PnL from short positions (closed bets, net of fees) | — | +$0 |
+| Annualized rate of return | +9.10% | +5.43% |
+| Hit ratio (closed bets net of fees) | — | 48.82% |
+| Average return from hits | — | +39.96% |
+| Average return from misses | — | -16.09% |
+| Time-weighted return (no external flows: the chained return) | +33.85% | +19.35% |
+| Net profit (Lean) | 33.850% |  |
+| Win rate / loss rate (Lean, all trades) | 61% / 39% |  |
+| Average win / average loss (Lean) | 0.13% / -0.11% |  |
+| Profit-loss ratio (Lean) | 1.16 |  |
+| Expectancy (Lean) | 0.329 |  |
+| Unrealized at the end (Lean) | +$12,331 |  |
 
-_Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 <!-- AQ:BTSTATS_PERFORMANCE_END -->
 
 ### Runs and Drawdowns
@@ -536,19 +542,19 @@ _Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
 <!-- AQ:BTSTATS_RUNS_START -->
 | Metric | Portfolio | Strategy |
 |---|---|---|
-| HHI of positive returns | 0.003 | 0.004 |
-| HHI of negative returns | 0.004 | 0.004 |
-| HHI of time between bets (bets per month) | — | 0.018 |
-| 95-percentile drawdown | 1.83% | 6.99% |
-| 95-percentile time under water (days) | 169.7 | 286.2 |
-| Maximum drawdown | 4.98% | 7.51% |
-| Longest time under water (days) | 495 | 673 |
-| Drawdown episodes | 42 | 18 |
-| Drawdown (Lean) | 5.000% |  |
-| Drawdown recovery (Lean, days) | 494 |  |
-| Maximum drawdown duration (Lean) | 496.04:00:00 |  |
+| HHI of positive returns | 0.002 | 0.002 |
+| HHI of negative returns | 0.002 | 0.002 |
+| HHI of time between bets (bets per month) | — | 0.032 |
+| 95-percentile drawdown | 4.67% | 7.13% |
+| 95-percentile time under water (days) | 229.1 | 240.5 |
+| Maximum drawdown | 7.83% | 10.82% |
+| Longest time under water (days) | 393 | 393 |
+| Drawdown episodes | 32 | 26 |
+| Drawdown (Lean) | 7.800% |  |
+| Drawdown recovery (Lean, days) | 243 |  |
+| Maximum drawdown duration (Lean) | 159.00:00:00 |  |
 
-_Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 <!-- AQ:BTSTATS_RUNS_END -->
 
 ### Implementation Shortfall
@@ -556,15 +562,15 @@ _Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
 <!-- AQ:BTSTATS_SHORTFALL_START -->
 | Metric | Portfolio | Strategy |
 |---|---|---|
-| Traded notional | $2,944,506 | $1,337,618 |
-| Broker fees | $1,253 | $1,038 |
-| Broker fees per turnover (bps of traded notional) | 4.3 bps | 7.8 bps |
-| Average slippage per turnover (bps vs the bar's open) | -3.4 bps | -8.6 bps |
-| Dollar performance per turnover (bps) | 46.7 bps | 22.4 bps |
-| Return on execution costs (net PnL / (fees + slippage)) | 52.25x |  |
-| Total fees (Lean) | $1,253 |  |
+| Traded notional | $1,138,044 | $961,478 |
+| Broker fees | $7,753 | $7,692 |
+| Broker fees per turnover (bps of traded notional) | 68.1 bps | 80.0 bps |
+| Average slippage per turnover (bps vs the bar's open) | 8.6 bps | 10.0 bps |
+| Dollar performance per turnover (bps) | 297.4 bps | 201.3 bps |
+| Return on execution costs (net PnL / (fees + slippage)) | 3.88x | 2.24x |
+| Total fees (Lean) | $7,753 |  |
 
-_Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 <!-- AQ:BTSTATS_SHORTFALL_END -->
 
 ### Return/Risk Efficiency
@@ -572,23 +578,23 @@ _Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
 <!-- AQ:BTSTATS_EFFICIENCY_START -->
 | Metric | Portfolio | Strategy | Note |
 |---|---|---|---|
-| Annualized Sharpe ratio (Lean: risk-free rate subtracted) | -0.204 |  |  |
-| Annualized Sharpe ratio (no risk-free rate) | 1.179 | 0.268 |  |
-| Information ratio vs SPY | -0.941 | -1.142 |  |
-| Information ratio (Lean) | -1.107 |  |  |
-| Probabilistic Sharpe ratio (P[true Sharpe > 0]) | 98.38% | 68.76% |  |
-| Probabilistic Sharpe ratio (Lean, vs its benchmark) | 1.233% |  |  |
-| Deflated Sharpe ratio | 45.81% | 3.83% | 78 registered trials, expected best Sharpe 1.24 |
-| Sortino ratio (Lean) | -0.210 |  |  |
-| Alpha / beta (Lean) | -0.016 / 0.063 |  |  |
-| Annual standard deviation (Lean) | 0.034 |  |  |
-| Annual variance (Lean) | 0.0010 |  |  |
-| Tracking error (Lean) | 0.143 |  |  |
-| Treynor ratio (Lean) | -0.110 |  |  |
-| Sharpe, Lean formula (shipped rate file/365) | -0.204 |  |  |
-| Sharpe, Lean formula (pre-V6.2 rate file/252) | -0.989 |  |  |
+| Annualized Sharpe ratio (Lean: risk-free rate subtracted) | 0.633 |  |  |
+| Annualized Sharpe ratio (no risk-free rate) | 1.204 | 0.720 |  |
+| Information ratio vs SPY | -0.625 | -0.874 |  |
+| Information ratio (Lean) | -0.715 |  |  |
+| Probabilistic Sharpe ratio (P[true Sharpe > 0]) | 98.76% | 90.85% |  |
+| Probabilistic Sharpe ratio (Lean, vs its benchmark) | 21.770% |  |  |
+| Deflated Sharpe ratio | 39.52% | 12.29% | 124 registered trials, expected best Sharpe 1.35 |
+| Sortino ratio (Lean) | 0.973 |  |  |
+| Alpha / beta (Lean) | 0.025 / 0.147 |  |  |
+| Annual standard deviation (Lean) | 0.075 |  |  |
+| Annual variance (Lean) | 0.0060 |  |  |
+| Tracking error (Lean) | 0.146 |  |  |
+| Treynor ratio (Lean) | 0.322 |  |  |
+| Sharpe, Lean formula (shipped rate file/365) | 0.633 |  |  |
+| Sharpe, Lean formula (pre-V6.2 rate file/252) | 0.147 |  |  |
 
-_Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 <!-- AQ:BTSTATS_EFFICIENCY_END -->
 
 ### Classification Scores
@@ -596,11 +602,11 @@ _Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
 <!-- AQ:BTSTATS_CLASSIFICATION_START -->
 | Source | Calls | Accuracy | Precision | Recall | F1 | Neg. log-loss |
 |---|---|---|---|---|---|---|
-| Lean book calls (side vs 20-bar forward move; log-loss of the logged direction_prob_multitask) | 442 | 51.36% | 55.91% | 51.04% | 0.534 | -0.717 |
+| Lean book calls (side vs 20-bar forward move) | 0 | n/a | n/a | n/a | n/a | n/a (no book history for this run) |
 | Offline multitask direction_20d (backtest split, threshold 0.5) | 55,038 | 58.22% | 59.07% | 89.52% | 0.712 | -0.698 |
 | Offline sequence direction_20d (backtest split, threshold 0.5) | 55,038 | 56.91% | 59.83% | 76.69% | 0.672 | -0.716 |
 
-_Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 <!-- AQ:BTSTATS_CLASSIFICATION_END -->
 
 ### Attribution
@@ -608,22 +614,11 @@ _Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
 <!-- AQ:BTSTATS_ATTRIBUTION_START -->
 | Class | Net PnL | Return on AUM (annual) | Volatility (annual) | Sharpe | Max drawdown (on AUM) | Risk share | Fees |
 |---|---|---|---|---|---|---|---|
-| bond | -$241 | -0.07% | 0.11% | -0.63 | 0.28% | 0.24% | $51 |
-| cash_sweep | +$10,756 | +2.99% | 0.23% | 13.28 | 0.19% | 0.03% | $215 |
-| crypto | +$3,806 | +1.06% | 1.01% | 1.07 | 1.36% | 11.16% | $597 |
-| equity | -$566 | -0.16% | 3.12% | -0.04 | 7.20% | 88.57% | $391 |
+| cash_sweep | +$14,499 | +3.56% | 0.28% | 12.86 | 0.30% | 0.27% | $61 |
+| crypto | +$19,353 | +4.75% | 7.48% | 0.72 | 11.36% | 99.73% | $7,692 |
+| unattributed (Lean minus rebuilt) | -$1 | | | | | | |
 
-| Component | Net PnL | Fees | Fills |
-|---|---|---|---|
-| bond_sleeve | -$241 | $51 | 51 |
-| cash_sweep | +$10,756 | $215 | 184 |
-| crypto_core | +$3,891 | $222 | 13 |
-| crypto_graduate | +$85 | $141 | 76 |
-| legacy | +$1,460 | $198 | 197 |
-| legacy_crypto | -$170 | $234 | 62 |
-| main_book | -$2,027 | $193 | 191 |
-
-_Run `2026-11-03_16-26-39` · computed 2026-11-03 17:54 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 <!-- AQ:BTSTATS_ATTRIBUTION_END -->
 
 ### Robustness
@@ -646,16 +641,16 @@ average of all generated runs; faint lines are individual resampled histories.
 | Max drawdown | 5.035976% | 11.016698% | 19.812691% |
 | P(negative total return): **0.877** |||
 
-_Source: the offline idealized rank book, model `sequence`, head `rank_20d`, split `backtest`, computed 2026-11-03 17:27 UTC (rendered 2026-11-03 17:55 UTC) (a simulation at the configured book cadence, not the engine)._
+_Source: the offline idealized rank book, model `sequence`, head `rank_20d`, split `backtest`, computed 2026-11-03 17:27 UTC (rendered 2026-11-05 07:55 UTC) (a simulation at the configured book cadence, not the engine)._
 
-**The Lean run's own equity curve** (`2026-11-03_16-26-39`, 2023-07-01 .. 2026-11-02, 1222 daily returns, same bootstrap; the run itself returned 13.75%):
+**The Lean run's own equity curve** (`2026-11-04_18-10-49`, 2023-07-01 .. 2026-11-02, 1222 daily returns, same bootstrap; the run itself returned 33.85%):
 
 | Metric | p5 | p50 | p95 |
 |---|---|---|---|
-| Final return | 0.090692% | 13.695971% | 28.41204% |
-| Annualized Sharpe | 0.020261 | 0.988209 | 1.894301 |
-| Max drawdown | 2.736393% | 4.658634% | 8.975688% |
-| P(negative total return): **0.049** |||
+| Final return | 4.410409% | 32.631471% | 78.613024% |
+| Annualized Sharpe | 0.180282 | 0.977389 | 1.831282 |
+| Max drawdown | 5.024% | 7.980479% | 13.315981% |
+| P(negative total return): **0.028** |||
 <!-- AQ:MONTECARLO_END -->
 
 <details>
@@ -705,7 +700,7 @@ _The full pipeline retrained on expanding/rolling windows, each scored on data i
 | residual_rank_20d_ic | 0.0240 | [0.0071, 0.0410] | yes |
 | net_sharpe (per-window) | -0.158 | — | 4/12 windows positive |
 
-12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC (rendered 2026-11-03 17:55 UTC) (auto-generated by `aq train --walk-forward`; a retrain refreshes it, a re-render does not).
+12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq train --walk-forward`; a retrain refreshes it, a re-render does not).
 <!-- AQ:WALKFORWARD_END -->
 
 <details>
@@ -739,25 +734,7 @@ _Run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09
 _Same dates, same Sharpe formula (no risk-free rate); refreshed by `aq evaluate --audit-backtest --period ...` (part of `--lean-report`)._
 
 <!-- AQ:LEANCMP_START -->
-**Backtest split (2023-07-01 to 2025-06-30)**
-
-| Book | Net Sharpe (no risk-free) | Net return | Max drawdown |
-|---|---|---|---|
-| **Lean run `1485291673`** (engine: fills, fees, slippage) | +0.670 | +5.05% | -4.36% |
-| Offline as-live book | +0.937 | +10.50% | -5.40% |
-| Offline idealized book | -0.866 | -7.87% | n/a |
-| S&P 500 buy and hold | +0.882 | +23.52% | n/a |
-| 60/40 buy and hold | +0.895 | +18.06% | n/a |
-
-**Holdout (2025-07-01 to 2026-11-02)**
-
-| Book | Net Sharpe (no risk-free) | Net return | Max drawdown |
-|---|---|---|---|
-| **Lean run `1485291673`** (engine: fills, fees, slippage) | +1.390 | +8.28% | -4.98% |
-| Offline as-live book | +0.453 | +3.33% | -9.39% |
-| Offline idealized book | -0.303 | -2.46% | -8.46% |
-
-_Same dates and the same Sharpe formula in every row; the Lean row is the engine's equity curve, the offline rows are simulations. A Lean row far below the as-live row means the offline number did not transfer._
+_Not run yet: `aq evaluate --audit-backtest --backtest-dir <run> --period <backtest split> --period <holdout>`._
 <!-- AQ:LEANCMP_END -->
 
 #### Offline Evaluation
@@ -775,7 +752,7 @@ _The cost-aware rank-book simulator on the backtest split with the installed mod
 | Cost drag (bps/yr) | 37.6 | 110.9 |
 | Capacity (USD) | 8,767,271 | 95,382 |
 
-_Backtest split, full history. Data computed 2026-11-03 17:37 UTC (rendered 2026-11-03 17:55 UTC) (auto-generated by `aq evaluate --all`)._
+_Backtest split, full history. Data computed 2026-11-03 17:37 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq evaluate --all`)._
 <!-- AQ:EVAL_END -->
 
 <details>
@@ -879,7 +856,7 @@ _Naive baselines and public benchmarks on the same window and Sharpe formula as 
 | sp500 | 0.882 | 23.52% | public benchmark |
 | 60_40 | 0.895 | 18.06% | public benchmark |
 
-_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Data computed 2026-11-03 17:28 UTC (rendered 2026-11-03 17:55 UTC) (auto-generated by `aq evaluate --benchmarks`)._
+_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Data computed 2026-11-03 17:28 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq evaluate --benchmarks`)._
 <!-- AQ:BENCHMARK_END -->
 
 #### Cross-Checks
@@ -891,12 +868,12 @@ _Lean against the offline estimates, the live book against an offline re-derivat
 
 | Source | Sharpe |
 |---|---|
-| Real Lean backtest (2023-07-01 to 2026-11-02) | -0.204 |
+| Real Lean backtest (2023-07-01 to 2026-11-02) | 0.633 |
 | Offline evaluation — sequence model (full backtest split) | -0.866 |
 | Offline evaluation — multitask model (full backtest split) | -0.252 |
 | Walk-forward mean (out-of-sample, per-window) | -0.158 |
-| Gap: sequence offline − real Lean | -0.662 |
-| Gap: walk-forward − real Lean | +0.046 |
+| Gap: sequence offline − real Lean | -1.499 |
+| Gap: walk-forward − real Lean | -0.791 |
 
 **Book-history reconciliation** (real Lean selections vs. a fresh offline re-derivation of the same dates)
 
@@ -924,7 +901,7 @@ Book-member decision outcomes (1140 total, real Lean run):
 | Real Lean backtest (2023-07-01 to 2026-11-02) | _not measurable from a standalone backtest (see Disclaimer)_ | — |
 | Offline replay (approximation, see Disclaimer) | 224 | 87.7% |
 
-_Data computed 2026-11-03 17:44 UTC (rendered 2026-11-03 17:55 UTC) (auto-generated by `aq evaluate`)._
+_Data computed 2026-11-03 17:44 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq evaluate`)._
 <!-- AQ:OTHER_METRICS_END -->
 
 ### Research and Audit
@@ -1042,7 +1019,7 @@ Bar (+0.02 IC and +0.15 Sharpe on both splits): **the gate hides weakness, not p
 - **R-TREND1 (a directional time-series-momentum sleeve on SPY, QQQ, IWM, EEM, TLT, IEF, USO at 3% target volatility): fails.** The 126-session sign wins on 2014-2023 (net Sharpe +0.40) but every variant loses on the 2023-07..2025-06 backtest (-0.33 to -0.61); the sleeve stays off.
 - **R-CAL5:** the research-default simulator tracks BT5 at a daily correlation of 0.73; re-deriving the live-gate replicas from the engine's fills found no option that helps (branch B).
 - **Lean (BT10 / BT11, 2023-07-01..2026-11-02):** BT10, the shipped book on the new data, repeats BT5 order for order through 2026-10-16; **BT11 re-applies the sector cap after the dollar-neutral step and passes R-LEAN16** (strategy Sharpe +0.268 against +0.263, drawdown 4.98% against 4.98%), so it ships and the README is pinned to it.
-- **Proof of alpha (`aq evaluate --alpha-proof`, R-ALPHA1): not demonstrated.** On the pinned run the strategy's alpha against SPY / AGG / BTC is -0.15%/yr (Newey-West t -0.07), its Sharpe +0.27 with a 95% interval of -1.03..+1.52, the deflated Sharpe 3.8% over 78 trials; the holdout's alpha is positive (+2.6%/yr, t 0.71) and so is that of the 19 fresh days after 2026-10-16 (t 0.38), neither significant.
+- **Proof of alpha (`aq evaluate --alpha-proof`, R-ALPHA1): not demonstrated.** On the pinned run the strategy's alpha against SPY / AGG / BTC is +0.37%/yr (Newey-West t 0.13), its Sharpe +0.72 with a 95% interval of -0.46..+1.90, the deflated Sharpe 12.8% over 128 trials. By split: Sharpe 1.15 and alpha -0.7%/yr (t -0.18) in 2023-07..2025-06, Sharpe 0.06 and alpha +2.4%/yr (t 0.64) in 2025-07..2026-11, neither significant. Pre-2013 data cannot test this sleeve, because crypto had no bars; it tested multi-asset trend alone, which made Sharpe 0.33 on 2004-06..2012-12 (alpha t 0.83), with 6 of 20 placebos doing as well. V6.5.0's data ends on 2026-11-02, so later sessions are the forward test (RUNBOOK "Forward check").
 
 ### Disclaimer
 
@@ -1054,7 +1031,7 @@ Bar (+0.02 IC and +0.15 Sharpe on both splits): **the gate hides weakness, not p
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->3995<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->4212<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test

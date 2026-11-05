@@ -8,6 +8,7 @@ webui/dist/
 backtests/
 .lean/
 .git/
+.av/
 .claude/
 Aether-quant-Obsidian-Vault/
 # Large data directories not needed by the FastAPI server

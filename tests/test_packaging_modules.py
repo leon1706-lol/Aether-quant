@@ -36,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 INTENTIONALLY_NOT_SHIPPED = {
     "main": "Lean algorithm entry point; runs inside the Lean container, never imported by aq",
     "train": "`aq train` runs `python train.py` as a subprocess against the project checkout",
+    "train_cross_sectional": "research trainer run as a script on the training Codespace (V6.5.0)",
     "train_gating": "run as a script by retraining/orchestrator via subprocess",
     "train_multitask": "run as a script by retraining/orchestrator via subprocess",
     "train_sequence": "run as a script by retraining/orchestrator via subprocess",

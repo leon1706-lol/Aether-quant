@@ -239,6 +239,69 @@ def test_rollback_fails_when_artifacts_hash_mismatch():
     promote_mock.assert_not_called()
 
 
+def test_rollback_restores_only_the_candidate_from_the_vault_and_never_runs_a_checkout():
+    conn_mock, _ = _make_conn_mock()
+    target = {"model_version_id": "v_old", "status": "archived", "artifact_hashes": {}, "aether_vault_commit": "abc123"}
+    restores = [{"ok": False, "hashes": {}, "mismatched": ["model_weights.json"]}, {"ok": True, "hashes": {}, "mismatched": []}]
+
+    with patch("retraining.orchestrator.fetch_model_version", return_value=target), patch(
+        "retraining.orchestrator.restore_active_from_version", side_effect=restores
+    ), patch("retraining.orchestrator.fetch_active_model_version", return_value=None), patch(
+        "retraining.orchestrator.promote_model_version"
+    ), patch("retraining.orchestrator.update_model_version_status"), patch(
+        "retraining.orchestrator.write_status_file", create=True
+    ), patch("retraining.orchestrator.build_status_view", create=True), patch(
+        "retraining.vault_client.subprocess.run", return_value=MagicMock(returncode=0, stdout="", stderr="")
+    ) as run_mock:
+        orchestrator.rollback(conn_mock, "v_old", {"vault": {"av_binary": "av"}})
+
+    argv = run_mock.call_args.args[0]
+    assert "checkout" not in argv
+    assert argv[-4:] == ["restore", "--source", "abc123", "ml/versions/v_old"]
+
+
+def test_preflight_vault_fails_the_event_before_training():
+    conn_mock, _ = _make_conn_mock()
+    with patch("retraining.orchestrator.vault_preflight", return_value={"ok": False, "reason": "av_binary_not_found", "av_version": None}), patch(
+        "retraining.orchestrator.update_retraining_event_status"
+    ) as status_mock:
+        result = orchestrator.preflight_vault(conn_mock, "r1", {"vault": {}})
+
+    assert result["ok"] is False
+    assert status_mock.call_args.kwargs["status"] == "failed"
+    assert status_mock.call_args.kwargs["notes"] == [{"stage": "vault_preflight", "reason": "av_binary_not_found"}]
+
+
+def test_commit_skips_the_vault_when_disabled_and_records_no_commit(tmp_path):
+    conn_mock, _ = _make_conn_mock()
+    version_dir = orchestrator.ROOT_DIR / "ml" / "versions" / "v_disabled"
+    with patch("retraining.orchestrator.candidate_dir", return_value=version_dir), patch(
+        "retraining.orchestrator.commit_candidate_to_vault"
+    ) as vault_mock, patch("retraining.orchestrator.compute_artifact_hashes", return_value={}), patch(
+        "retraining.orchestrator.update_model_version_status"
+    ) as version_mock, patch("retraining.orchestrator.update_retraining_event_status"):
+        result = orchestrator.commit(conn_mock, "r1", "v_disabled", {"vault": {"enabled": False}})
+
+    vault_mock.assert_not_called()
+    assert result["ok"] is True
+    assert version_mock.call_args.kwargs["aether_vault_commit"] is None
+
+
+def test_commit_drops_extra_paths_that_do_not_exist():
+    conn_mock, _ = _make_conn_mock()
+    version_dir = orchestrator.ROOT_DIR / "ml" / "versions" / "v_extra"
+    vault_result = {"ok": True, "vault_commit": "abc", "stage": "done", "steps": {}, "push_state": "skipped"}
+    config = {"vault": {"extra_add_paths": ["train.py", "absent/file.json"]}}
+    with patch("retraining.orchestrator.candidate_dir", return_value=version_dir), patch(
+        "retraining.orchestrator.commit_candidate_to_vault", return_value=vault_result
+    ) as vault_mock, patch("retraining.orchestrator.compute_artifact_hashes", return_value={}), patch(
+        "retraining.orchestrator.update_model_version_status"
+    ), patch("retraining.orchestrator.update_retraining_event_status"):
+        orchestrator.commit(conn_mock, "r1", "v_extra", config)
+
+    assert vault_mock.call_args.args[3]["extra_add_paths"] == ["train.py"]
+
+
 def test_rollback_rejects_ineligible_target_status():
     conn_mock, _ = _make_conn_mock()
     target = {"model_version_id": "v_old", "status": "candidate"}

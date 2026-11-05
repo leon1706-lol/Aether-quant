@@ -77,6 +77,20 @@ def test_iron_condor_vs_short_iron_condor_arg_order_is_asymmetric():
     assert MULTI_LEG_STRATEGY_REGISTRY["short_iron_condor"].arg_order == ("short_put", "long_put", "long_call", "short_call")
 
 
+def test_both_iron_condors_pass_lean_ascending_strikes():
+    # Lean's factories raise "strike prices must be in ascending order": a real run on the sample chain showed the shared
+    # selector putting a short iron condor's short legs on the inside
+    chain = []
+    for strike in range(70, 131, 5):
+        call_delta = max(0.02, min(0.98, 0.5 + (100 - strike) * 0.02))
+        chain.append({"right": "call", "strike": float(strike), "expiry": "2026-08-21", "delta": call_delta})
+        chain.append({"right": "put", "strike": float(strike), "expiry": "2026-08-21", "delta": call_delta - 1.0})
+    for name in ("iron_condor", "short_iron_condor"):
+        legs = select_strategy_legs(name, chain, 0.4)
+        strikes = [legs[role]["strike"] for role in MULTI_LEG_STRATEGY_REGISTRY[name].arg_order]
+        assert strikes == sorted(strikes) and len(set(strikes)) == 4, name
+
+
 def test_call_backspread_vs_put_backspread_arg_order_is_asymmetric():
     assert MULTI_LEG_STRATEGY_REGISTRY["call_backspread"].arg_order == ("lower", "higher")
     assert MULTI_LEG_STRATEGY_REGISTRY["put_backspread"].arg_order == ("higher", "lower")

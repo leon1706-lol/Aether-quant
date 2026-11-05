@@ -34,6 +34,7 @@ def main_module():
     stub.QCAlgorithm = type("QCAlgorithm", (), {})
     stub.Slice = object  # evaluated at def time by main.py's annotations on Python < 3.14 (CI runs 3.11)
     stub.time = datetime.time  # Lean's star import exports this and SHADOWS the stdlib `time` module (V5.5.0 bar-1 crash)
+    stub.Exception = type("ClrException", (Exception,), {})  # Lean's star import exports System.Exception the same way
     patcher = pytest.MonkeyPatch()
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
     patcher.delitem(sys.modules, "main", raising=False)
@@ -42,6 +43,105 @@ def main_module():
     yield main
     sys.modules.pop("main", None)
     patcher.undo()
+
+
+def test_except_exception_in_main_catches_python_errors(main_module):
+    import builtins
+
+    # behind Lean's star import `Exception` is System.Exception, which no Python error matches: every fail-safe block let them through
+    assert main_module.Exception is builtins.Exception
+
+
+def _target_algorithm(main_module, *, weights, holdings=None, trade_lock=False, equity_bar=True, fresh_crypto=False):
+    """`_target_weights_tick` around one equity ticker (A), one crypto (B) and the sweep off."""
+    from portfolio.target_weights import TargetWeightsConfig
+
+    symbols = {"A": "A", "B": "B"}
+    algorithm = object.__new__(main_module.AetherQuantAlgorithm)
+    algorithm.target_weights_config = TargetWeightsConfig(enabled=True, min_weight_change=0.0, min_trade_usd=0.0, financing_enabled=False)
+    algorithm.is_warming_up = False
+    algorithm.is_equity_session_bar = equity_bar
+    algorithm.trade_lock_active = trade_lock
+    algorithm._order_permission = lambda: (True, "ok")
+    algorithm._target_weights = weights
+    algorithm._target_pending = {}
+    algorithm._target_symbol_by_ticker = symbols
+    algorithm._target_class_by_ticker = {"A": "equity", "B": "crypto"}
+    algorithm._target_lot_by_ticker = {"A": 1.0, "B": 0.001}
+    algorithm._target_financing_date = None
+    algorithm._equity_symbols = ["A"]
+    algorithm.Time = datetime.datetime(2024, 1, 2, 16)
+    algorithm.Portfolio = _Portfolio({key: _holding(key, value) for key, value in (holdings or {}).items()})
+    algorithm._open_order_quantity = lambda symbol: 0.0
+    algorithm._target_usd_per_unit = lambda symbol: 100.0
+    algorithm._update_cash_sweep = lambda: algorithm.calls.append("sweep")
+    algorithm._liquidate_strategy_positions = lambda: algorithm.calls.append("liquidate")
+    algorithm.MarketOrder = lambda symbol, quantity, tag="": algorithm.orders.append((symbol, quantity, tag))
+    algorithm.orders, algorithm.calls = [], []
+    bars = {"A": SimpleNamespace(Time=datetime.datetime(2024, 1, 2))} if equity_bar else {}
+    if fresh_crypto:
+        bars["B"] = SimpleNamespace(Time=datetime.datetime(2024, 1, 2))
+    return algorithm, SimpleNamespace(Bars=bars, QuoteBars={})
+
+
+def test_target_tick_sends_equity_orders_at_once_and_holds_crypto_for_its_own_bar(main_module):
+    algorithm, slice_ = _target_algorithm(main_module, weights={"2024-01-02": {"A": 0.5, "B": 0.1}})
+
+    algorithm._target_weights_tick(slice_)
+
+    assert algorithm.orders == [("A", 500.0, "target_weights")]
+    assert algorithm._target_pending == {"B": 0.1}
+    assert algorithm.calls == ["sweep"]
+
+    _, crypto_slice = _target_algorithm(main_module, weights={}, equity_bar=False, fresh_crypto=True)
+    algorithm.is_equity_session_bar = False
+    algorithm._target_weights_tick(crypto_slice)
+
+    assert algorithm.orders[-1] == ("B", 100.0, "target_weights")
+    assert algorithm._target_pending == {}
+
+
+def test_target_tick_without_a_row_holds_what_is_held(main_module):
+    algorithm, slice_ = _target_algorithm(main_module, weights={"2024-01-03": {"A": 0.5}}, holdings={"A": 10.0})
+
+    algorithm._target_weights_tick(slice_)
+
+    assert algorithm.orders == []
+    assert algorithm.calls == ["sweep"]
+
+
+def test_target_tick_closes_what_a_row_omits(main_module):
+    algorithm, slice_ = _target_algorithm(main_module, weights={"2024-01-02": {}}, holdings={"A": 10.0})
+
+    algorithm._target_weights_tick(slice_)
+
+    assert algorithm.orders == [("A", -10.0, "target_weights")]
+
+
+def test_target_tick_keeps_crypto_long_only(main_module):
+    algorithm, slice_ = _target_algorithm(main_module, weights={"2024-01-02": {"B": -0.5}})
+
+    algorithm._target_weights_tick(slice_)
+
+    assert algorithm._target_pending == {"B": 0.0}
+
+
+def test_target_tick_under_a_trade_lock_liquidates_and_ignores_the_file(main_module):
+    algorithm, slice_ = _target_algorithm(main_module, weights={"2024-01-02": {"A": 0.5}}, trade_lock=True)
+
+    algorithm._target_weights_tick(slice_)
+
+    assert algorithm.orders == []
+    assert algorithm.calls == ["liquidate", "sweep"]
+
+
+def test_target_tick_does_nothing_while_warming_up(main_module):
+    algorithm, slice_ = _target_algorithm(main_module, weights={"2024-01-02": {"A": 0.5}})
+    algorithm.is_warming_up = True
+
+    algorithm._target_weights_tick(slice_)
+
+    assert algorithm.orders == [] and algorithm.calls == []
 
 
 class _Portfolio:

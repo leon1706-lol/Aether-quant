@@ -21,6 +21,26 @@ def test_alpha_regression_recovers_a_known_alpha_and_beta():
     assert out["alpha_annual"] == pytest.approx(out["alpha_daily"] * 252)
 
 
+def test_crypto_benchmark_is_on_the_timeline_of_a_runs_daily_sample(monkeypatch, tmp_path):
+    # a bar dated D ends at the midnight after the equity close of D, so session D sees the bar dated before it; on its own
+    # date BTC led the strategy by a day, hiding a crypto book's beta and booking it as alpha
+    import data_pipeline.data_audit as audit
+    from evaluation.alpha_proof import benchmark_daily_returns
+
+    dates = pd.date_range("2024-01-01", periods=6)
+    prices = {"SPY": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0], "BTCUSD": [10.0, 20.0, 40.0, 80.0, 160.0, 320.0]}
+    monkeypatch.setattr(audit, "asset_zip_paths", lambda asset, root: {"trade": asset["ticker"]})
+    monkeypatch.setattr(audit, "read_lean_daily_zip", lambda path, kind: pd.DataFrame({"date": dates, "close": prices[path]}))
+    config = {"phase1": {"universe": {"assets": [{"ticker": "SPY", "security_type": "equity"}, {"ticker": "BTCUSD", "security_type": "crypto"}]}}}
+
+    out = benchmark_daily_returns(tmp_path, config, start="2024-01-03", end="2024-01-05")
+
+    assert out.loc["2024-01-03", "SPY"] == pytest.approx(102.0 / 101.0 - 1.0)
+    # on session 01-03 the latest BTC bar is the one dated 01-02: 10 -> 20
+    assert out.loc["2024-01-03", "BTCUSD"] == pytest.approx(1.0)
+    assert out.index.max() == "2024-01-05"
+
+
 def test_noise_has_no_alpha():
     rng = np.random.default_rng(2)
     dates = pd.bdate_range("2020-01-01", periods=800).strftime("%Y-%m-%d")

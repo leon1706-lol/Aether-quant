@@ -14,6 +14,7 @@ LEAN_REPORT_FLAGS = (
     ("backtest statistics", "backtest_stats"),
     ("classification parity", "classification_parity"),
 )
+NEEDS_BOOK_HISTORY = frozenset({"attribute_lean", "classification_parity"})
 
 
 def split_periods(config: dict, names: tuple[str, ...] = ("backtest", "holdout")) -> list[str]:
@@ -29,10 +30,13 @@ def split_periods(config: dict, names: tuple[str, ...] = ("backtest", "holdout")
 
 def lean_report_steps(config: dict) -> list[tuple[str, dict]]:
     """[(label, {arg: value})]: every step switches its own flag on and the others off; the audit and the attribution
-    get the split periods."""
+    get the split periods. A target-weights run has no book, so the tools that read its book history are left out."""
     flags = [flag for _label, flag in LEAN_REPORT_FLAGS]
+    no_book = bool(((config.get("phase_v2") or {}).get("target_weights") or {}).get("enabled"))
     steps = []
     for label, flag in LEAN_REPORT_FLAGS:
+        if no_book and flag in NEEDS_BOOK_HISTORY:
+            continue
         overrides = {other: other == flag for other in flags}
         overrides["lean_report"] = False
         if flag in ("audit_backtest", "attribute_lean"):

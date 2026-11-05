@@ -59,7 +59,7 @@ from retraining.postgres_registry import (
 )
 from retraining.status_export import build_status_view, write_status_file
 from retraining.validation_gate import evaluate_validation_gate
-from retraining.vault_client import commit_candidate_to_vault, run_av_command
+from retraining.vault_client import commit_candidate_to_vault, restore_candidate_from_vault, vault_preflight
 from risk.manual_override import write_manual_trade_lock_override
 
 logger = logging.getLogger(__name__)
@@ -572,11 +572,28 @@ def backtest(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     return {"ok": passed, "report": report}
 
 
+def _vault_repo_root(vault_config: dict) -> Path:
+    return (ROOT_DIR / str(vault_config.get("repo_path", "."))).resolve()
+
+
+def preflight_vault(conn, retraining_id: str, config: dict) -> dict:
+    """Fails the event before any training when a candidate could not be committed anyway."""
+    vault_config = config.get("vault", {})
+    result = vault_preflight(vault_config, cwd=_vault_repo_root(vault_config))
+    if not result["ok"]:
+        update_retraining_event_status(
+            conn, retraining_id, status="failed", notes=[{"stage": "vault_preflight", "reason": result["reason"]}]
+        )
+        logger.warning("preflight_vault: %s - retraining %s not started.", result["reason"], retraining_id)
+    return result
+
+
 def commit(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     version_dir = candidate_dir(version_id)
     vault_config = config.get("vault", {})
     add_paths = list(vault_config.get("add_paths", ["train.py", "main.py", "config.json"]))
     add_paths.append(str(version_dir.relative_to(ROOT_DIR)))
+    vault_root = _vault_repo_root(vault_config)
 
     candidate_report = _load_json_if_exists(version_dir / "strategy_report.json")
     strategy = candidate_report.get("backtest", {}).get("strategy", {})
@@ -585,7 +602,15 @@ def commit(conn, retraining_id: str, version_id: str, config: dict) -> dict:
         "drawdown": float(strategy.get("max_drawdown", 0.0) or 0.0),
     }
 
-    result = commit_candidate_to_vault(version_id, add_paths, metrics, vault_config, cwd=ROOT_DIR)
+    if vault_config.get("enabled", True):
+        # `av add` rejects the whole call on one missing path; provenance extras must not cost a candidate its commit.
+        extras = [path for path in vault_config.get("extra_add_paths", []) if (vault_root / path).exists()]
+        result = commit_candidate_to_vault(
+            version_id, add_paths, metrics, {**vault_config, "extra_add_paths": extras}, cwd=vault_root
+        )
+    else:
+        # promotion.require_vault_commit alone decides whether such a candidate can go live.
+        result = {"ok": True, "stage": "disabled", "vault_commit": None, "push_state": None, "steps": {}}
 
     if not result["ok"]:
         update_retraining_event_status(
@@ -684,11 +709,12 @@ def rollback(conn, to_version_id: str, config: dict | None = None) -> dict:
 
     if not restore_result["ok"] and target.get("aether_vault_commit"):
         vault_config = config.get("vault", {})
-        av_binary = vault_config.get("av_binary", "av")
-        checkout_result = run_av_command(
-            [av_binary, "checkout", target["aether_vault_commit"]], cwd=ROOT_DIR
+        vault_root = _vault_repo_root(vault_config)
+        vault_restore = restore_candidate_from_vault(
+            target["aether_vault_commit"], version_dir.resolve().relative_to(vault_root).as_posix(), vault_config,
+            cwd=vault_root,
         )
-        if checkout_result["ok"]:
+        if vault_restore["ok"]:
             restore_result = restore_active_from_version(
                 version_dir, ml_dir=ML_DIR, filenames=active_files, expected_hashes=expected_hashes
             )

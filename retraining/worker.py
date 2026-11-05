@@ -40,6 +40,7 @@ from retraining.orchestrator import (
     backtest,
     commit,
     plan,
+    preflight_vault,
     promote,
     reconcile_stale_running_events,
     rollback,
@@ -124,6 +125,11 @@ class RetrainingWorker:
             return {"ran": False, "reason": plan_result["reason"]}
 
         retraining_id = plan_result["retraining_id"]
+        preflight = preflight_vault(self._conn, retraining_id, self.config)
+        if not preflight["ok"]:
+            return {"ran": True, "reason": "vault_preflight_failed", "retraining_id": retraining_id,
+                    "detail": preflight["reason"]}
+
         train_result = train(self._conn, retraining_id)
         if not train_result["ok"]:
             return {"ran": True, "reason": "train_failed", "retraining_id": retraining_id}

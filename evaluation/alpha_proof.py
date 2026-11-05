@@ -23,10 +23,12 @@ import pandas as pd
 
 PERIODS = {
     "backtest": ("2023-07-01", "2025-06-30"),
-    "holdout": ("2025-07-01", "2026-10-16"),
+    "holdout": ("2025-07-01", "2026-11-02"),
 }
-FRESH_START = "2026-10-17"
+# V6.5.0 froze its data at 2026-11-02: everything after it was unseen by every rule of that phase, which makes it the forward test.
+FRESH_START = "2026-11-03"
 MIN_FRESH_POINTS = 5
+FORWARD_MIN_POINTS = 60
 BENCHMARKS = ("SPY", "AGG", "BTCUSD")
 
 
@@ -57,7 +59,7 @@ def strategy_daily_returns(run: dict, config: dict, root: Path) -> pd.Series:
     return pd.Series(returns, dtype=float).sort_index()
 
 
-def benchmark_daily_returns(root: Path, config: dict, tickers=BENCHMARKS, *, start: str, end: str) -> pd.DataFrame:
+def benchmark_daily_returns(root: Path, config: dict, tickers=BENCHMARKS, *, start: str, end: str, data_dir: str = "data") -> pd.DataFrame:
     """Session-calendar daily returns of the benchmark tickers from their config zips: the calendar is the first
     ticker's (SPY, US equity sessions); a ticker that also trades on other days (BTC) is priced at its last close on or
     before each session, so every column spans the same session-to-session interval. Tickers not in the universe are
@@ -70,8 +72,12 @@ def benchmark_daily_returns(root: Path, config: dict, tickers=BENCHMARKS, *, sta
         asset = assets.get(ticker)
         if asset is None:
             continue
-        frame = read_lean_daily_zip(asset_zip_paths(asset, Path(root) / "data")["trade"], str(asset.get("security_type")))
-        closes[ticker] = frame.set_index(frame["date"].dt.strftime("%Y-%m-%d"))["close"].astype(float).sort_index()
+        frame = read_lean_daily_zip(asset_zip_paths(asset, Path(root) / data_dir)["trade"], str(asset.get("security_type")))
+        series = frame.set_index(frame["date"].dt.strftime("%Y-%m-%d"))["close"].astype(float).sort_index()
+        # A crypto or forex bar dated D ends at the midnight after the equity close of D, so a run's daily sample of D holds the bar
+        # dated before it. On the bar's own date this column led the strategy by a day, which hid a crypto book's beta and
+        # booked it as alpha (a long-only crypto sleeve's t read 2.76, and 1.30 aligned).
+        closes[ticker] = series.shift(1).dropna() if str(asset.get("security_type")) in ("crypto", "forex") else series
     if not closes:
         return pd.DataFrame()
     sessions = closes[next(iter(closes))].index
@@ -162,6 +168,39 @@ def period_report(y: pd.Series, benchmarks: pd.DataFrame, *, annualization: floa
     }
 
 
+def deflated_sharpe_from_inputs(returns, *, num_trials: int, trial_variance: float | None, annualization: float) -> dict:
+    """The deflated Sharpe with N and the trial variance given (`evaluation.trial_ledger.deflation_inputs`), not derived from
+    a list of trial Sharpes: the variance must come from trials on the window being judged."""
+    from evaluation.backtest_statistics import expected_max_sharpe, probabilistic_sharpe_ratio
+
+    if trial_variance is None:
+        return {"value": None, "expected_max_sharpe_annual": None, "num_trials": num_trials}
+    sr0 = expected_max_sharpe(num_trials, trial_variance)
+    if sr0 is None:
+        return {"value": None, "expected_max_sharpe_annual": None, "num_trials": num_trials}
+    value = probabilistic_sharpe_ratio(np.asarray(returns, dtype=float), sr0 / math.sqrt(annualization))
+    return {"value": value, "expected_max_sharpe_annual": sr0, "num_trials": num_trials}
+
+
+def window_report(y: pd.Series, benchmarks: pd.DataFrame, *, start: str, end: str, annualization: float, deflation: dict | None = None) -> dict:
+    """Sharpe, alpha, max drawdown and (with `deflation`) the deflated Sharpe of a strategy series on one window."""
+    part = y[(y.index >= start) & (y.index <= end)]
+    if part.empty:
+        return {"start": start, "end": end, "n": 0}
+    values = part.to_numpy(dtype=float)
+    curve = np.cumprod(1.0 + values)
+    report = {
+        "start": str(part.index.min()), "end": str(part.index.max()), "n": int(len(part)),
+        "total_return": float(curve[-1] - 1.0), "sharpe": sharpe(values, annualization),
+        "max_drawdown": float(1.0 - (curve / np.maximum.accumulate(curve)).min()),
+        "alpha": alpha_regression(to_sessions(part, benchmarks.index), benchmarks) if len(part) > 10 and not benchmarks.empty else None,
+    }
+    if deflation:
+        report["dsr"] = deflated_sharpe_from_inputs(values, num_trials=deflation["N"], trial_variance=deflation["var"], annualization=annualization)
+        report["dsr_legacy_variance"] = deflated_sharpe_from_inputs(values, num_trials=deflation["N"], trial_variance=deflation.get("legacy_var"), annualization=annualization)
+    return report
+
+
 def r_alpha1(report: dict) -> dict:
     """The descriptive verdict over the per-period figures."""
     periods = report["periods"]
@@ -206,6 +245,7 @@ def alpha_proof_report(run_dir: Path, config: dict, root: Path, *, trial_sharpes
             continue
         periods[name] = period_report(part, benchmarks, annualization=annualization, trial_sharpes=trial_sharpes)
     periods["fresh"]["judgeable"] = periods["fresh"].get("n", 0) >= MIN_FRESH_POINTS
+    periods["fresh"]["forward_judgeable"] = periods["fresh"].get("n", 0) >= FORWARD_MIN_POINTS
     report = {"run": run_dir.name, "config": str(snapshot) if snapshot else "config.json", "annualization": annualization,
               "benchmarks": [c for c in benchmarks.columns], "periods": periods}
     report["r_alpha1"] = r_alpha1(report)

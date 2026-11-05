@@ -375,9 +375,14 @@ def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HIS
     pinned_name = pinned.name if pinned is not None else None
     verdicts = load_lean_verdicts() if verdicts is None else verdicts
     rows: list[str] = []
+    pinned_listed = False
     for candidate in _iter_backtest_result_jsons(backtests_dir):
-        if len(rows) >= limit:
+        # a batch of later research runs must not push the shipped configuration's run off the table
+        if len(rows) >= limit and (pinned_listed or pinned_name is None):
             break
+        if len(rows) >= limit and candidate.parent.name != pinned_name:
+            continue
+        pinned_listed = pinned_listed or candidate.parent.name == pinned_name
         try:
             summary = load_backtest_summary(candidate)
         except (OSError, ValueError, IndexError):
@@ -397,7 +402,7 @@ def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HIS
     computed = datetime.now(tz=timezone.utc).date().isoformat()
     return "\n".join([
         "| Run | Window | Sharpe | Net profit | Drawdown | Orders | Status |", "|---|---|---|---|---|---|---|", *rows,
-        "", f"_The {len(rows)} newest finished Lean runs, computed {computed}; Status from the README pin and the "
+        "", f"_The newest finished Lean runs and the README pin ({len(rows)} rows), computed {computed}; Status from the README pin and the "
         "`evaluation.lean_verdict` files (`ml/evaluation/*/r_lean*.json`)._",
     ])
 
