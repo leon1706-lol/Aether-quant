@@ -242,3 +242,17 @@ def test_the_newest_session_counts_before_yahoo_has_adjusted_it():
     payload = {"chart": {"result": [{"timestamp": stamps, "indicators": {"quote": [{"close": [100.0, 101.0]}], "adjclose": [{"adjclose": [99.0, None]}]}}]}}
     closes = module.yahoo_closes("SPY", lambda url: payload)
     assert closes == {"2026-11-02": 99.0, "2026-11-03": 101.0}
+
+
+def test_the_newest_session_counts_when_yahoo_has_left_its_closes_empty():
+    import forward_ledger as module
+
+    stamps = [1793629800, 1793716200]  # 2026-11-02 and 2026-11-03, 14:30 UTC
+    indicators = {"quote": [{"close": [100.0, None]}], "adjclose": [{"adjclose": [99.0, None]}]}
+    closes_at = 1793736000  # 2026-11-03 20:00 UTC
+    payload = {"chart": {"result": [{"timestamp": stamps, "indicators": indicators, "meta": {"regularMarketPrice": 101.5, "regularMarketTime": closes_at}}]}}
+    assert module.yahoo_closes("SPY", lambda url: payload) == {"2026-11-02": 99.0, "2026-11-03": 101.5}
+
+    # yesterday's last price is not today's close
+    stale = {"chart": {"result": [{"timestamp": stamps, "indicators": indicators, "meta": {"regularMarketPrice": 100.0, "regularMarketTime": 1793649600}}]}}
+    assert module.yahoo_closes("SPY", lambda url: stale) == {"2026-11-02": 99.0}

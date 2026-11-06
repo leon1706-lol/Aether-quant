@@ -3033,7 +3033,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** `.github/workflows/forward-ledger.yml` appends one hash-chained row a session to the orphan branch `forward-ledger` by the frozen rule in `ml/forward/candidates.json`; missing data is a `no_data` row, never a gap. `aq evaluate --forward-ledger` verifies the chain and judges at 60 and 252 sessions, which is why this stays partial.
 
-**Verification:** `tests/test_forward_ledger.py`, including tampered rows. The first real dispatch wrote nothing and found why: Yahoo leaves the newest bar without an adjusted close for hours, which would have silently skipped every evening run, so the plain close now stands in.
+**Verification:** `tests/test_forward_ledger.py`, including tampered rows. The first real dispatch wrote nothing and found why: Yahoo leaves the newest bar's closes empty for hours, which would have silently skipped every evening run, so its quote's last price of that same day now stands in.
 
 ### 300. V6.6.0's verdict: not verified, stopped at the first gate on evidence nothing had read
 

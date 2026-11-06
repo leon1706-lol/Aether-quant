@@ -48,16 +48,24 @@ def coinbase_closes(product: str, get_json: Callable[[str], object]) -> dict[str
 
 
 def yahoo_closes(symbol: str, get_json: Callable[[str], object]) -> dict[str, float]:
-    """The adjusted close, or the plain one on a bar Yahoo hasn't adjusted yet: the newest session has no adjusted close for hours after the close, so
-    reading only that column missed the very session the evening run exists to write."""
+    """The adjusted close, else the plain one, else on the newest bar the quote's own last price: for hours after the close Yahoo leaves that bar's closes
+    empty, so reading the columns alone missed the very session the evening run exists to write."""
     result = get_json(YAHOO_URL.format(symbol=symbol))["chart"]["result"][0]
-    plain = result["indicators"]["quote"][0]["close"]
-    adjusted = result["indicators"]["adjclose"][0]["adjclose"] if "adjclose" in result["indicators"] else plain
-    closes = [plain_close if adjusted_close is None else adjusted_close for adjusted_close, plain_close in zip(adjusted, plain)]
-    return {
-        datetime.datetime.fromtimestamp(int(stamp), datetime.timezone.utc).strftime("%Y-%m-%d"): float(close)
-        for stamp, close in zip(result["timestamp"], closes) if close is not None
-    }
+    indicators = result["indicators"]
+    stamps = result["timestamp"]
+    plain = ((indicators.get("quote") or [{}])[0].get("close")) or [None] * len(stamps)
+    adjusted = ((indicators.get("adjclose") or [{}])[0].get("adjclose")) or [None] * len(stamps)
+    day_of = lambda stamp: datetime.datetime.fromtimestamp(int(stamp), datetime.timezone.utc).strftime("%Y-%m-%d")  # noqa: E731
+    closes = {}
+    for stamp, adjusted_close, plain_close in zip(stamps, adjusted, plain):
+        close = plain_close if adjusted_close is None else adjusted_close
+        if close is not None:
+            closes[day_of(stamp)] = float(close)
+    meta = result.get("meta") or {}
+    newest = day_of(stamps[-1]) if stamps else None
+    if newest and newest not in closes and meta.get("regularMarketPrice") and meta.get("regularMarketTime") and day_of(meta["regularMarketTime"]) == newest:
+        closes[newest] = float(meta["regularMarketPrice"])
+    return closes
 
 
 def crypto_product(ticker: str) -> str:
