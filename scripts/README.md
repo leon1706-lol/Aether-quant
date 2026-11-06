@@ -168,6 +168,7 @@ codebase.
 - `v660_trials.py`, `v660_write_rules.py` — the trial list and the hashed rules.
 - `v660_build_panel.py`, `v660_research.py` — the model track's rows, and selection on the free cells.
 - `v660_codespace_crypto.sh`, `v660_codespace_selection.sh` — that work on the training Codespace; `v660_wait_codespace.sh` polls it.
+- `v660_round2.py` — the V6.6.0 addendum: eight more pre-registered trials on cell S (`rules_r2.json`), and the report-only analyses (rank IC by year, sector and liquidity; costs at 2x and NAV $25k; the installed sleeve on IB's coins). `v660_venue_coverage.py` — which public sources serve the sleeve's coins without an account.
 - `v660_verdict.py` — R-CRYPTO1, the per-trial table of what the search excludes, and how far the spliced coins moved the crypto numbers. `v660_sanity.py` — can the wide path see an edge at all (oracle, reversal, random; enters no ledger). `v660_crypto_splices.py` — price breaks in `data_crypto_wide`.
 - `v660_lean.py` — the instrument batch and R-INSTR2, and verification. `v660_rescore_v650.py`, `v660_venue_study.py` — report only.
 - `extend_frozen_weights.py`, `forward_ledger.py` — the forward check and the forward record.

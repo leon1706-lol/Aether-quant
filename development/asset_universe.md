@@ -30,6 +30,8 @@ SPY/QQQ/IWM/EEM, not a new Lean security type).
 
 `data_wide/` (S&P 500 point-in-time members, 653 tickers, 359 left out; `wide_manifest.json`) and `data_crypto_wide/` (701 Binance coins under Lean's Coinbase market; `crypto_wide_manifest.json`) are never traded and never in `config.json`'s universe. `evaluation/research_cells.py` splits them by name and time; held-out cells refuse to open without a freeze digest. Missing share of member-days: 45% in 2004, 31% in 2011, 14% in 2019, 4% in 2026.
 
+**EOSUSD (V6.6.0, #311):** Coinbase lists EOS-USD as delisted (trading disabled), so the crypto sleeve can't hold it there. It stays in the universe until the owner decides.
+
 ## Full ticker list
 
 | Ticker | Type | Role |

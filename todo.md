@@ -6,15 +6,16 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 -----
 # Current objective: next phase — owner to write
 
-V6.6.0 (Problems #283-#309) did not verify an edge: zero of 28 pre-registered trials on never-read data survived selection. Nothing was installed, so the book is still the V6.5.0 long-only crypto sleeve, `config.json` sha `933a3724…` (the sleeve of `38a24ffd…` plus `vault.min_version` and `target_weights.velocity_decision`), README pinned to `backtests/2026-11-04_18-10-49`, which BT24 equals order for order.
+V6.6.0 (Problems #283-#312) did not verify an edge: zero of 28 pre-registered trials on never-read data survived selection, and a second round of eight (#310) found nothing either. Nothing was installed, so the book is still the V6.5.0 long-only crypto sleeve, `config.json` sha `933a3724…` (the sleeve of `38a24ffd…` plus `vault.min_version` and `target_weights.velocity_decision`), README pinned to `backtests/2026-11-04_18-10-49`, which BT24 equals order for order.
 
 ## Owner calls
-1. **Keep trading the crypto sleeve?** By the rule you set it stays, but its rule scored Sharpe -0.06 on never-read coins (2024 on: -0.45, alpha t -1.94; #301). Paper only until you say otherwise.
-2. **Crypto venue (#192):** Coinbase direct, ETFs for BTC and ETH only, or crypto off (`ml/evaluation/v660/venue_study.json`). With the shipped sleeve, off means no book.
-3. **QuantConnect terms:** its API still asks for the latest terms to be accepted, which only you can do. Nothing is blocked now; it's needed only if a later candidate reaches the survivorship check.
+1. **Decided 2026-11-06: keep trading the crypto sleeve, on paper only.** It failed on never-read coins (Sharpe -0.06, #301); nothing live until a venue is chosen and the forward ledger has judged it.
+2. **Crypto venue, revised 2026-11-06 (owner): assume Coinbase works.** The book already trades Coinbase's market in every run config, so the plan is to change nothing until the keys exist. **Trigger:** the owner gets a Coinbase Advanced Trade API key *together with* the Interactive Brokers API key (both, then the work starts). **What then:** (a) check the key can be created and that the account really offers the sleeve's USD pairs (unconfirmed for German accounts: only the licence is, #312); (b) the project **possibly needs a rebuild** - the Docker image (`aq docker build`, required before any paper or live deploy anyway) and perhaps code, if the account only offers EUR or USDC pairs (fees, prices and `data/crypto/coinbase` assume USD); (c) put both keys in `lean.json` on the PC only, never in a repo file; (d) a paper run before anything live. Kraken (the earlier pick) stays the fallback if Coinbase's API or pairs are not open to the account. IB cannot route crypto through Lean, so crypto goes to Coinbase and equities, bonds and futures to IB.
+3. **EOS (#311):** Coinbase has delisted it and the universe still holds it. With Coinbase as the venue it should leave the universe at the rebuild above (rule 9: a behaviour change, so it waits for that step). Without it the rule scores about the same.
+4. **QuantConnect terms (to accept yourself):** log in at quantconnect.com with the account the Lean CLI uses and accept the terms prompt (the current text is at quantconnect.com/terms). It is needed only if a future candidate reaches the survivorship check; nothing is blocked now.
 
 ## Unspent evidence
-- **Equity holdouts V1, V2, V3 and P (`evaluation/research_cells.py`) stay unread:** no candidate was frozen. Side-B names and 2019-2026 are real holdout evidence for one future frozen candidate. Don't score anything on them without a freeze.
+- **Equity holdouts V1, V2, V3 and P (`evaluation/research_cells.py`) stay unread:** no candidate was frozen. The nearest thing is accruals (w04, Sharpe 0.45, positive IC in all 8 years); it needs fundamentals, which the scheduled ledger can't fetch. Side-B names and 2019-2026 are real holdout evidence for one future frozen candidate. Don't score anything on them without a freeze.
 - **Crypto side B** has been read once, by the installed rule only.
 
 ## Open (needs time or an external account)

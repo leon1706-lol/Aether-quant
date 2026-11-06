@@ -2142,7 +2142,7 @@
                 "tag": "candidate",
                 "push": true,
                 "require_push": false,
-                "min_version": "1.7.0",
+                "min_version": "1.7.1",
                 "timeout_seconds": 120
             },
             "promotion": {

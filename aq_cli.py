@@ -790,7 +790,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_main_wiring.py", "test_main_ensure_ready_smoke.py",
     ],
     "evaluation": [
-        "test_v660_fixes.py", "test_power_analysis.py", "test_research_cells.py", "test_wide_signals.py", "test_v660_research.py",
+        "test_v660_fixes.py", "test_power_analysis.py", "test_research_cells.py", "test_wide_signals.py", "test_v660_research.py", "test_v660_round2.py",
         "test_target_weights_engine.py", "test_trial_ledger.py", "test_premia_research.py", "test_v650_lean.py", "test_v650_scripts.py",
         # V6.4.3 - the research and audit tools.
         "test_research_harness.py", "test_pbo.py", "test_factor_spanning.py", "test_overfit_diagnostics.py",

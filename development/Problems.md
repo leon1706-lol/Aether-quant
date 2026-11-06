@@ -1934,7 +1934,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** `execution.lean_config_render.validate_live_crypto_route` (advisory, never changes trading) is printed by `aq render-lean-config`; RUNBOOK's deploy checklist names it. Choosing the live crypto brokerage (Coinbase) or switching the crypto classes off before a live deploy stays with the deferred IB items.
 
-**Verification:** `tests/test_lean_config_render.py`; sources: quantconnect.com/forum/discussion/18507, quantconnect.com/docs/v2/writing-algorithms/reality-modeling/brokerages/supported-models/coinbase. **V6.6.0 (`ml/evaluation/v660/venue_study.json`):** Coinbase direct is the only route for all 12 coins. IBIT and ETHA track at a weekly correlation of 0.86 and cover BTC and ETH only (Lean Sharpe 0.25 on that part, `backtests/2026-11-05_23-28-07`), and EU retail clients generally can't buy them. CME micro contracts are too large for these sizes.
+**Verification (V6.6.0 addendum: IB and TradeStation checked in #312, EOS delisted in #311):** `tests/test_lean_config_render.py`; sources: quantconnect.com/forum/discussion/18507, quantconnect.com/docs/v2/writing-algorithms/reality-modeling/brokerages/supported-models/coinbase. **V6.6.0 (`ml/evaluation/v660/venue_study.json`):** Coinbase direct is the only route for all 12 coins. IBIT and ETHA track at a weekly correlation of 0.86 and cover BTC and ETH only (Lean Sharpe 0.25 on that part, `backtests/2026-11-05_23-28-07`), and EU retail clients generally can't buy them. CME micro contracts are too large for these sizes.
 
 ### 193. The README performance section mixed V5.8.0 text with V6 results (V6.1.0)
 
@@ -2747,7 +2747,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 271. A worker without `av` found out only after a whole training run (V6.5.0)
 
-**Severity:** 5/10 · **Status:** 🟢 `fixed` (aether-vault 1.7.0 pinned in `requirements/requirements.txt`, verified in the image, #308)
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (aether-vault pinned in `requirements/requirements.txt`, 1.7.1 since 2026-11-06; verified in the image on 1.7.0, #308)
 
 **Problem:** the retraining worker image has no `av`, so every cycle would train fully and then fail at the commit. `vault.repo_path` was read by nothing and rollback ignored the timeout.
 
@@ -3043,7 +3043,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** Zero survived R-SLEEVE3, so E1-E6b were not read, nothing was frozen and nothing was installed. Closest: w04 (accruals) 0.45 net against 0.50, IC t 1.97 against 2.0, second half 0.33 against 0.40, one near miss of 28 and not rerun; e3 (volatility-managed SPY) failed its placebos (p 0.17 and 0.18); PBO 0.38 did not end it. By track, the 95% bound on alpha Sharpe in the selection cells: models below about 0 (all five have negative net alpha, t -1.7 to -3.5, and no-cost Sharpes of -0.60 to 0.15), rule sleeves 0.58 median and 1.01 at the best, crypto 1.07, existing universe 0.92, so a real edge smaller than that is not excluded and 8 years can't exclude one.
 
-**Verification:** `ml/evaluation/v660/r_edge2.json`, `verdict_table.json`, `selection_gate.json`, `trial_ledger.jsonl` (N now 156). The wide path can see an edge: an oracle scores Sharpe 19.2, its reversal -8.3, random ranks -0.88 from costs alone (`sanity_wide_path.json`). `rules` precedes `selection` in the vault's commit order.
+**Verification:** `ml/evaluation/v660/r_edge2.json`, `verdict_table.json`, `selection_gate.json`, `trial_ledger.jsonl` (N 156 after round 1, 164 after round 2, #310). The wide path can see an edge: an oracle scores Sharpe 19.2, its reversal -8.3, random ranks -0.88 from costs alone (`sanity_wide_path.json`). `rules` precedes `selection` in the vault's commit order.
 
 ### 301. The installed crypto rule failed on coins it had never read (V6.6.0)
 
@@ -3134,3 +3134,33 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** Traded dollars over mean NAV. Selection's recorded turnovers predate this; those paths' NAV stays near flat.
 
 **Verification:** `test_turnover_is_a_share_of_the_nav_the_book_actually_had`.
+
+### 310. Round 2 of the search: eight more trials on cell S, none survived (V6.6.0 addendum)
+
+**Severity:** n/a (research) · **Status:** 🔴 `closed` (R-SLEEVE3 unchanged; nothing installed or frozen)
+
+**Problem:** The owner asked for research to improve the model before committing. Round 1 left eight sleeves with a positive no-cost Sharpe that costs removed, so `rules_r2.json` (hash `197048b7…`, in the vault before any score) fixed eight trials: a wider book (r01), two fixed composites of the low-turnover signals (r02, r03) and a no-trade band on five (r04-r08). All read only cell S on side-A names; the holdouts V1-V3, P and CV stayed closed.
+
+**Fix:** Nothing qualified. r03 came closest (Sharpe 0.57; 0.76 and 0.21 by half; IC t 1.97), then r02 (0.45; 0.57, 0.33; IC t 1.69) and r01 (0.38). The bands didn't rescue reversal: w14 stays at -1.89 (r04) and -0.89 (r05), and the band sleeves on w11, w09 and w10 net 0.30, 0.17 and 0.25. PBO over round 1's 22 columns plus these 8 is 0.31. The deflated Sharpe's N is now 164 (`trial_ledger.jsonl`).
+
+**Verification:** `ml/evaluation/v660/selection_scores_r2.json`, `selection_gate_r2.json`, `selection_pbo_r2.json`; `tests/test_v660_round2.py`. Report only, never gating (`report_only_r2.json`): accruals (w04) has a positive rank IC in all 8 years (mean +0.015, strongest in the most liquid third, +0.028) and is the only signal that keeps a positive Sharpe at twice the costs (0.46 to 0.29) or on a $25k account (0.39); the models' IC is negative in 7 of 8 years for m2 and 5 of 8 for m4. So the one thing round 1 and 2 found is a small, steady accrual premium that falls short of the bar, and no model skill.
+
+### 311. The installed sleeve's universe holds a coin Coinbase has delisted (V6.6.0)
+
+**Severity:** 6/10 · **Status:** 🟡 `partial` (reported; dropping EOS from the live universe changes the book, so it is the owner's call, rule 9)
+
+**Problem:** Checking venues for #192, Coinbase's product API returns EOS-USD with status `delisted` and trading disabled, and its public candles for it end 2025-12-10; Kraken has no EOS pair. `config.json` and `ml/forward/candidates.json` still list EOSUSD, with prices to 2026-11-02 from a feed that is not Coinbase's. A Coinbase deployment could never fill an EOS order, and the forward ledger marks it on Coinbase candles that stopped.
+
+**Fix:** None applied. Without EOS the installed rule scores 0.99 against 0.95 over 2014-12..2026-11, and 0.66 against 0.65 on the Lean window (`ib_subset.json`, report only), so the sleeve doesn't lean on it. The frozen weight file last holds EOS on 2025-09-03.
+
+**Verification:** `ml/evaluation/v660/ib_subset.json`, `venue_data_coverage.json`.
+
+### 312. What Interactive Brokers, TradeStation and public sources can give the crypto sleeve (V6.6.0, adds to #192)
+
+**Severity:** 5/10 · **Status:** 🟡 `partial` (researched from documentation only; no account exists to test, and none was created)
+
+**Problem:** The owner asked whether IB or TradeStation can supply the sleeve's crypto data and trading.
+
+**Fix:** IB can, with limits: its API serves crypto (`CRYPTO` / `PAXOS`) with historical bars and no data subscription, but Lean's IB brokerage can't route it, 8 of the 12 coins are on its reported lists, and the 2026 additions are reported as not available to IB Ireland clients. TradeStation's API documents no crypto at all, and its crypto is a separate US product. Without an account the sleeve's history comes from public sources: Binance's archive (everything since listing), Coinbase (300 daily bars a call) and Kraken (the newest 720). Full detail and sources are in `venue_study.json`.
+
+**Verification:** `ml/evaluation/v660/venue_study.json` (`research_2026_11_06`), `venue_data_coverage.json`, `scripts/v660_venue_coverage.py`. Installed sleeve, report only: on the 8 IB coins and IB's fee schedule Sharpe is 1.08 over 2014-12..2026-11 and 0.72 over 2023-07..2026-11, against 0.95 and 0.65 on all 12 at Coinbase's; from 2025-07 on every variant is at or below zero, so the decline in #301 does not depend on the venue. **Revised later the same day: the owner assumes Coinbase works and will bring a Coinbase Advanced Trade API key together with the IB key; the project may then need a rebuild (see `todo.md`). Kraken remains the fallback. Earlier decision (superseded):** Kraken through Lean's own brokerage as a separate crypto-only deployment, IB keeping everything else. On Kraken's 11 coins at a 0.40% taker the rule scores 1.06 over 2014-12..2026-11, 0.79 over 2023-07..2026-11 and 0.12 from 2025-07; at 0.80% it is 0.96, 0.66 and -0.02 (`kraken_subset.json`; hindsight coins, so a cost check, not evidence). Not switched yet: every run config still trades Coinbase's market, and moving means Kraken data folders, a Kraken fee model, EOS out of the universe and the owner's own Kraken account.
