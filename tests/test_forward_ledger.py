@@ -233,3 +233,12 @@ def test_the_installed_candidate_file_is_the_frozen_rule():
     installed = next(item for item in candidates if item["id"] == "t3_crypto_trend_blend")
     assert installed["anchor_date"] == "2026-10-28" and installed["rebalance_every"] == 5
     assert len(installed["tickers"]) == 12 and installed["params"] == {"lookback_a": 20, "lookback_b": 60, "lookback_c": 120}
+
+
+def test_the_newest_session_counts_before_yahoo_has_adjusted_it():
+    import forward_ledger as module
+
+    stamps = [1793629800, 1793716200]  # 2026-11-02 and 2026-11-03, 14:30 UTC
+    payload = {"chart": {"result": [{"timestamp": stamps, "indicators": {"quote": [{"close": [100.0, 101.0]}], "adjclose": [{"adjclose": [99.0, None]}]}}]}}
+    closes = module.yahoo_closes("SPY", lambda url: payload)
+    assert closes == {"2026-11-02": 99.0, "2026-11-03": 101.0}

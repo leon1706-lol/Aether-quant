@@ -48,8 +48,12 @@ def coinbase_closes(product: str, get_json: Callable[[str], object]) -> dict[str
 
 
 def yahoo_closes(symbol: str, get_json: Callable[[str], object]) -> dict[str, float]:
+    """The adjusted close, or the plain one on a bar Yahoo hasn't adjusted yet: the newest session has no adjusted close for hours after the close, so
+    reading only that column missed the very session the evening run exists to write."""
     result = get_json(YAHOO_URL.format(symbol=symbol))["chart"]["result"][0]
-    closes = result["indicators"]["adjclose"][0]["adjclose"] if "adjclose" in result["indicators"] else result["indicators"]["quote"][0]["close"]
+    plain = result["indicators"]["quote"][0]["close"]
+    adjusted = result["indicators"]["adjclose"][0]["adjclose"] if "adjclose" in result["indicators"] else plain
+    closes = [plain_close if adjusted_close is None else adjusted_close for adjusted_close, plain_close in zip(adjusted, plain)]
     return {
         datetime.datetime.fromtimestamp(int(stamp), datetime.timezone.utc).strftime("%Y-%m-%d"): float(close)
         for stamp, close in zip(result["timestamp"], closes) if close is not None
