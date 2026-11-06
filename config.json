@@ -1680,7 +1680,8 @@
             "financing_enabled": true,
             "margin_spread_bps": 150.0,
             "borrow_bps": 25.0,
-            "fx_spread_bps": 50.0
+            "fx_spread_bps": 50.0,
+            "velocity_decision": "off, by R-VEL1 (V6.6.0): k=5 and k=8 each left under 95% of sessions trading or missed the 20% cut in the worst 5-day loss"
         },
         "forex_sleeve": {
             "enabled": false,
@@ -2141,7 +2142,7 @@
                 "tag": "candidate",
                 "push": true,
                 "require_push": false,
-                "min_version": null,
+                "min_version": "1.7.0",
                 "timeout_seconds": 120
             },
             "promotion": {

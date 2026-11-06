@@ -89,6 +89,19 @@ def select_single_leg_contract(available_chain: list[dict], target_delta: float,
     return min(candidates, key=lambda row: abs(abs(row["delta"]) - abs(target_delta)))
 
 
+MAX_DEBIT_SHARE_OF_EQUITY = 0.9
+OPTION_CONTRACT_MULTIPLIER = 100.0
+
+
+def _affordable_contracts(contracts: int, debit_per_share, portfolio_value: float) -> int:
+    """A vega budget says nothing about premium: 2% of $100k bought 708 contracts of a $1.70 spread, $120k, which Lean refused whole. A credit, or a price
+    that is missing, leaves the count alone (margin is the broker's check)."""
+    debit = float(debit_per_share or 0.0)
+    if debit <= 0.0:
+        return contracts
+    return min(contracts, int(portfolio_value * MAX_DEBIT_SHARE_OF_EQUITY // (debit * OPTION_CONTRACT_MULTIPLIER)))
+
+
 def _size_single_leg_contract(
     contract: dict,
     right: str,
@@ -109,7 +122,7 @@ def _size_single_leg_contract(
         return None
 
     vega_budget = max_vega_budget_pct_of_equity * portfolio_value
-    contracts = int(vega_budget // contract_vega)
+    contracts = _affordable_contracts(int(vega_budget // contract_vega), contract.get("ask"), portfolio_value)
     if contracts <= 0:
         return None
 
@@ -356,16 +369,16 @@ def _size_vertical_spread(
     if net_vega_per_spread <= 0.0:
         return None
 
-    vega_budget = max_vega_budget_pct_of_equity * portfolio_value
-    contracts = int(vega_budget // net_vega_per_spread)
-    if contracts <= 0:
-        return None
-
     long_ask = long_row.get("ask")
     short_bid = short_row.get("bid")
     net_debit_or_credit = (
         float(long_ask) - float(short_bid) if long_ask is not None and short_bid is not None else 0.0
     )
+    vega_budget = max_vega_budget_pct_of_equity * portfolio_value
+    contracts = _affordable_contracts(int(vega_budget // net_vega_per_spread), net_debit_or_credit, portfolio_value)
+    if contracts <= 0:
+        return None
+
     net_delta = float(long_row.get("delta", 0.0) or 0.0) - float(short_row.get("delta", 0.0) or 0.0)
 
     return OptionsSpreadPositionDecision(
@@ -1656,16 +1669,15 @@ def _size_multi_leg(
     if abs_net_vega == 0.0:
         return None
 
+    computed_net_debit_or_credit = net_debit_or_credit_for_legs(spec, legs_by_role)
+    net_debit_or_credit = computed_net_debit_or_credit if computed_net_debit_or_credit is not None else 0.0
     vega_budget = max_vega_budget_pct_of_equity * portfolio_value
-    contracts = int(vega_budget // abs_net_vega)
+    contracts = _affordable_contracts(int(vega_budget // abs_net_vega), net_debit_or_credit, portfolio_value)
     if contracts <= 0:
         return None
 
     legs = _legs_tuple_from_roles(spec, legs_by_role)
     expiries = _expiries_tuple_from_roles(spec, legs_by_role)
-
-    computed_net_debit_or_credit = net_debit_or_credit_for_legs(spec, legs_by_role)
-    net_debit_or_credit = computed_net_debit_or_credit if computed_net_debit_or_credit is not None else 0.0
 
     return OptionsMultiLegPositionDecision(
         strategy_name=strategy_name,

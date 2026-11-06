@@ -35,15 +35,24 @@ from portfolio.target_weights import TargetWeightsConfig, resolve_target_weights
 
 PHASES = 5
 ANNUALIZATION = 365.0
+SESSION_ANNUALIZATION = 252.0
 FRED_KEYS = ("treasury_10yr", "treasury_3mo", "credit_spread_baa10y", "implied_volatility_vix", "implied_volatility_3m")
 
 
-def annual_sharpe(daily: pd.Series) -> float | None:
+def annual_sharpe(daily: pd.Series, *, sessions=None) -> float | None:
+    """Given `sessions`, the series is compounded onto them and annualised at 252: a panel has no weekend rows before its first
+    crypto bar, and sqrt(365) on session rows inflates a Sharpe about 1.2 times. Without them, calendar rows at sqrt(365)."""
+    annualization = ANNUALIZATION
+    if sessions is not None:
+        from evaluation.alpha_proof import to_sessions
+
+        daily = to_sessions(daily, sessions)
+        annualization = SESSION_ANNUALIZATION
     values = daily.to_numpy(dtype=float)
     values = values[np.isfinite(values)]
     if len(values) < 20 or values.std(ddof=1) <= 0.0:
         return None
-    return float(values.mean() / values.std(ddof=1) * math.sqrt(ANNUALIZATION))
+    return float(values.mean() / values.std(ddof=1) * math.sqrt(annualization))
 
 
 def max_drawdown(daily: pd.Series) -> float:
@@ -74,11 +83,16 @@ class ResearchContext:
     listed: Callable[[str, str], bool]
     settings: WeightSettings = field(default_factory=WeightSettings)
 
-    def simulate(self, weights: Mapping[str, Mapping[str, float]], start: str, end: str) -> dict:
+    def simulate(self, weights: Mapping[str, Mapping[str, float]], start: str, end: str, *, max_drawdown_velocity: float | None = None, max_total_drawdown: float | None = None) -> dict:
         return simulate_target_weights(
             weights, self.market, self.config, start=start, end=end, sweep_config=self.sweep, rf_dates=self.rf_dates,
-            rf_rates=self.rf_rates, carry_fn=self.carry,
+            rf_rates=self.rf_rates, carry_fn=self.carry, max_drawdown_velocity=max_drawdown_velocity,
+            max_total_drawdown=max_total_drawdown,
         )
+
+    def sessions_for(self, spec: SleeveSpec) -> set[str] | None:
+        """Sessions to score a sleeve on; None for a crypto-only sleeve, whose calendar is every day."""
+        return None if tuple(spec.universe) == ("crypto",) else self.market.sessions
 
 
 def build_context(root: Path, config: dict, *, data_dir: str = "data") -> ResearchContext:
@@ -97,7 +111,12 @@ def build_context(root: Path, config: dict, *, data_dir: str = "data") -> Resear
         return fx_carry_3m(ticker, "forex", datetime.date.fromisoformat(str(date)[:10]), fred_rows)
 
     sessions = list(known.index)
-    carry_table = pd.DataFrame({ticker: [carry(ticker, day) for day in sessions] for ticker in forex}, index=sessions, dtype=float)
+    # A signal row reads the rate of the session before: FRED's daily marks post after the equity tick. The USD side of
+    # `fx_carry_3m` reads the same day; financing above may, since it accrues after the fact.
+    carry_table = pd.DataFrame(
+        {ticker: [carry(ticker, sessions[max(0, position - 1)]) for position in range(len(sessions))] for ticker in forex},
+        index=sessions, dtype=float,
+    )
     extras: dict[str, pd.DataFrame] = {"fx_carry": carry_table}
     cot_path = root / "data" / "reference" / "cot_positioning.csv"
     if cot_path.exists():
@@ -124,14 +143,15 @@ def weights_for(spec: SleeveSpec, context: ResearchContext, signal: pd.DataFrame
 def score_sleeve(spec: SleeveSpec, context: ResearchContext, *, start: str, split: str, end: str, signal: pd.DataFrame | None = None) -> dict:
     """Median over the phases of the ex-T-bill Sharpe: pooled and on both sides of `split`."""
     signal = sleeve_signal(spec, context.panel) if signal is None else signal
+    sessions = context.sessions_for(spec)
     pooled, first, second, drawdowns, turnover, gross = [], [], [], [], [], []
     daily_by_phase: dict[int, pd.Series] = {}
     for offset in phase_offsets(spec.rebalance_every):
         result = context.simulate(weights_for(spec, context, signal, start=start, end=end, phase_offset=offset), start, end)
-        strategy = result["strategy"]
-        pooled.append(annual_sharpe(strategy))
-        first.append(annual_sharpe(strategy[strategy.index < split]))
-        second.append(annual_sharpe(strategy[strategy.index >= split]))
+        strategy = result["strategy_excess"]
+        pooled.append(annual_sharpe(strategy, sessions=sessions))
+        first.append(annual_sharpe(strategy[strategy.index < split], sessions=sessions))
+        second.append(annual_sharpe(strategy[strategy.index >= split], sessions=sessions))
         drawdowns.append(max_drawdown(strategy))
         turnover.append(result["turnover"])
         gross.append(float(result["gross"].mean()) if not result["gross"].empty else 0.0)
@@ -157,7 +177,8 @@ def placebo_sharpes(spec: SleeveSpec, context: ResearchContext, mode: str, *, st
     for draw in range(draws):
         placebo = null_signal(signal, mode, seed=seed * 100_003 + draw, asset_class=context.panel.asset_class)
         offset = int(offsets[int(rng.integers(len(offsets)))])
-        value = annual_sharpe(context.simulate(weights_for(spec, context, placebo, start=start, end=end, phase_offset=offset), start, end)["strategy"])
+        simulated = context.simulate(weights_for(spec, context, placebo, start=start, end=end, phase_offset=offset), start, end)
+        value = annual_sharpe(simulated["strategy_excess"], sessions=context.sessions_for(spec))
         if value is not None:
             out.append(value)
     return out

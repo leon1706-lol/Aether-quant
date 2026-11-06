@@ -128,6 +128,16 @@ def evaluate_broker_config(
     return evaluate_paper_broker_config(paper_trading_config)
 
 
+def evaluate_velocity_decision(config: dict) -> tuple[bool, str]:
+    """A target-weights run must not reach a broker on a velocity setting nobody decided (Problems.md #278). `R-VEL1` records it in
+    `phase_v2.target_weights.velocity_decision`, whichever way it went. Any other path has its own gates."""
+    target = ((config or {}).get("phase_v2") or {}).get("target_weights") or {}
+    if not target.get("enabled"):
+        return True, "not_on_the_target_path"
+    decision = str(target.get("velocity_decision") or "").strip()
+    return (True, f"velocity_decision: {decision}") if decision else (False, "target_weights_velocity_decision_missing")
+
+
 def evaluate_observation_readiness(summary: dict, thresholds: dict) -> dict:
     """Turns 4 of the 5 bullets in development/infrastructure.md's "Bereit
     fuer Paper Trading?" checklist into code, given an already-computed

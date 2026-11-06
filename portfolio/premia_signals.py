@@ -227,6 +227,15 @@ def external_score(panel: ResearchPanel, spec: SleeveSpec) -> pd.DataFrame:
     return panel.extras[spec.params["table"]].reindex(index=known.index, columns=known.columns)
 
 
+def align_score_table(table: pd.DataFrame, asset_class: Mapping[str, str]) -> pd.DataFrame:
+    """A score table keyed by dataset date: a crypto or forex score dated D reads bar D, which closes after D's equity
+    decision, so it may only be used a row later. `test_no_lookahead` can't see into a precomputed table."""
+    aligned = table.copy()
+    late = [ticker for ticker in aligned.columns if asset_class.get(ticker) in NEXT_BAR_CLASSES]
+    aligned[late] = aligned[late].shift(1)
+    return aligned
+
+
 FAMILIES: dict[str, Callable[[ResearchPanel, SleeveSpec], pd.DataFrame]] = {
     "crypto_trend": crypto_trend,
     "cross_sectional_return": cross_sectional_return,

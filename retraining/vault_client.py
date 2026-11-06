@@ -16,7 +16,12 @@ import re
 import subprocess
 from pathlib import Path
 
-from retraining.vault_commands import build_av_restore_command, build_commit_plan
+from retraining.vault_commands import (
+    build_av_head_command,
+    build_av_restore_command,
+    build_av_status_command,
+    build_commit_plan,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +132,21 @@ def vault_preflight(config: dict, cwd: Path | None = None) -> dict:
     return {"ok": True, "reason": "ready", "av_version": version}
 
 
+def staged_leftovers(av_binary: str = "av", cwd: Path | None = None, timeout: int = 120) -> list[str] | None:
+    """What is already staged, which `av commit` would sweep into the next commit; None when `av status` can't answer."""
+    envelope = parse_av_envelope(run_av_command(build_av_status_command(av_binary), cwd=cwd, timeout=timeout)["stdout"])
+    if not envelope or not envelope.get("ok"):
+        return None
+    data = envelope.get("data") or {}
+    return sorted(set(data.get("staged") or []) | set(data.get("removed") or []))
+
+
+def current_head_hash(av_binary: str = "av", cwd: Path | None = None, timeout: int = 120) -> str | None:
+    envelope = parse_av_envelope(run_av_command(build_av_head_command(av_binary), cwd=cwd, timeout=timeout)["stdout"])
+    commits = ((envelope or {}).get("data") or {}).get("commits") or []
+    return commits[0].get("hash") if commits else None
+
+
 def commit_candidate_to_vault(
     version_id: str,
     add_paths: list[str],
@@ -146,6 +166,13 @@ def commit_candidate_to_vault(
     plan = build_commit_plan(version_id, add_paths, metrics, config)
     timeout = int(config.get("timeout_seconds", 120))
     steps: dict[str, dict] = {}
+    av_binary = plan["add"][0]
+
+    # A failed gate's leftovers must not land under this candidate's label.
+    leftovers = staged_leftovers(av_binary, cwd=cwd, timeout=timeout)
+    if leftovers:
+        steps["staged_leftovers"] = {"ok": False, "paths": leftovers[:20], "error": "run `av unstage` first"}
+        return {"ok": False, "stage": "staged_leftovers", "vault_commit": None, "push_state": None, "steps": steps}
 
     add_result = run_av_command(plan["add"], cwd=cwd, timeout=timeout)
     steps["add"] = add_result
@@ -155,9 +182,15 @@ def commit_candidate_to_vault(
     commit_result = run_av_command(plan["commit"], cwd=cwd, timeout=timeout)
     steps["commit"] = commit_result
     if not commit_result["ok"]:
-        return {"ok": False, "stage": "commit", "vault_commit": None, "push_state": None, "steps": steps}
-
-    vault_commit = parse_vault_commit_hash(commit_result["stdout"])
+        error = (parse_av_envelope(commit_result["stdout"]) or {}).get("error") or {}
+        if error.get("code") != "nothing_to_commit":
+            return {"ok": False, "stage": "commit", "vault_commit": None, "push_state": None, "steps": steps}
+        # An unchanged candidate is already in the vault: a retry after a killed run must succeed.
+        vault_commit = current_head_hash(av_binary, cwd=cwd, timeout=timeout)
+        if vault_commit is None:
+            return {"ok": False, "stage": "commit", "vault_commit": None, "push_state": None, "steps": steps}
+    else:
+        vault_commit = parse_vault_commit_hash(commit_result["stdout"])
 
     if plan["push"] is None:
         return {"ok": True, "stage": "done", "vault_commit": vault_commit, "push_state": "skipped", "steps": steps}

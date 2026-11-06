@@ -29,6 +29,7 @@
   "reconcile_positions",
   "resolve_fill_slippage",
   "resolve_order_permission",
+  "resolve_risk_exit_permission",
   "resolve_runtime_mode",
   "resolve_slippage_bps",
   "slippage_amount"

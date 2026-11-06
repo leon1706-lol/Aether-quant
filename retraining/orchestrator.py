@@ -576,6 +576,14 @@ def _vault_repo_root(vault_config: dict) -> Path:
     return (ROOT_DIR / str(vault_config.get("repo_path", "."))).resolve()
 
 
+def _path_in_vault(path: Path, vault_root: Path) -> str | None:
+    """`path` relative to the vault's repo, or None when `vault.repo_path` doesn't contain it."""
+    try:
+        return path.resolve().relative_to(vault_root).as_posix()
+    except ValueError:
+        return None
+
+
 def preflight_vault(conn, retraining_id: str, config: dict) -> dict:
     """Fails the event before any training when a candidate could not be committed anyway."""
     vault_config = config.get("vault", {})
@@ -592,8 +600,18 @@ def commit(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     version_dir = candidate_dir(version_id)
     vault_config = config.get("vault", {})
     add_paths = list(vault_config.get("add_paths", ["train.py", "main.py", "config.json"]))
-    add_paths.append(str(version_dir.relative_to(ROOT_DIR)))
     vault_root = _vault_repo_root(vault_config)
+    candidate_path = _path_in_vault(version_dir, vault_root)
+    if candidate_path is None and vault_config.get("enabled", True):
+        result = {"ok": False, "stage": "path_outside_vault", "vault_commit": None, "push_state": None, "steps": {
+            "path_outside_vault": {"ok": False, "error": f"{version_dir} is outside vault.repo_path {vault_root}"},
+        }}
+        update_retraining_event_status(
+            conn, retraining_id, status="failed", notes=[{"stage": "commit", "steps": result["steps"]}]
+        )
+        return result
+    if candidate_path is not None:
+        add_paths.append(candidate_path)
 
     candidate_report = _load_json_if_exists(version_dir / "strategy_report.json")
     strategy = candidate_report.get("backtest", {}).get("strategy", {})
@@ -710,10 +728,10 @@ def rollback(conn, to_version_id: str, config: dict | None = None) -> dict:
     if not restore_result["ok"] and target.get("aether_vault_commit"):
         vault_config = config.get("vault", {})
         vault_root = _vault_repo_root(vault_config)
+        candidate_path = _path_in_vault(version_dir, vault_root)
         vault_restore = restore_candidate_from_vault(
-            target["aether_vault_commit"], version_dir.resolve().relative_to(vault_root).as_posix(), vault_config,
-            cwd=vault_root,
-        )
+            target["aether_vault_commit"], candidate_path, vault_config, cwd=vault_root,
+        ) if candidate_path is not None else {"ok": False}
         if vault_restore["ok"]:
             restore_result = restore_active_from_version(
                 version_dir, ml_dir=ML_DIR, filenames=active_files, expected_hashes=expected_hashes

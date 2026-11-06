@@ -82,6 +82,18 @@ def resolve_order_permission(
     return False, "unknown_mode_defaults_to_no_orders"
 
 
+def resolve_risk_exit_permission(
+    mode: str,
+    allow_live_orders: bool,
+    broker_config_present: bool,
+) -> tuple[bool, str]:
+    """May a real order close risk while a lock is active? `resolve_order_permission` with the lock taken as healthy: a lock
+    stops new risk, and must not also stop the orders that take risk off, or a tripped book freezes open in paper and live
+    while a backtest liquidates it. Observation still places nothing."""
+    allowed, reason = resolve_order_permission(mode, allow_live_orders, broker_config_present, True)
+    return allowed, f"risk_exit:{reason}"
+
+
 def resolve_cash_sweep_order_permission(mode: str, allow_live_orders: bool, broker_config_present: bool) -> tuple[bool, str]:
     """V6.2.0: whether the T-bill cash sweep may trade. The strategy's risk locks (kill switch, drawdown lock, manual
     lock) stop the strategy, not cash management, so they are not consulted; every other gate of
@@ -230,6 +242,13 @@ def resolve_exit_order_route(asset_class: str | None, exit_reason: str | None, e
     if asset_class and asset_class in set(exit_asset_classes or ()) and exit_reason in LIMIT_EXIT_REASONS:
         return "limit"
     return "market"
+
+
+def resolve_combo_limit_price(net_mid: float, spread_fraction: float, is_buy: bool, offset_multiplier: float = 1.0) -> float:
+    """Limit for a whole option combo at its net price per unit, which can be a credit (below zero). The same half-spread offset as
+    `resolve_limit_price`, on the net's size: a buyer pays up, a seller gives up, whichever side of zero the net is. Rounded to cents, as a combo is quoted."""
+    offset = abs(float(net_mid)) * max(float(spread_fraction), 0.0) * 0.5 * max(float(offset_multiplier), 0.0)
+    return round(float(net_mid) + offset if is_buy else float(net_mid) - offset, 2)
 
 
 def resolve_limit_price(

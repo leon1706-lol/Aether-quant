@@ -726,6 +726,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_cross_sectional_norm.py", "test_asof_beta_labels.py",
     ],
     "data-pipeline": [
+        "test_sp500_membership.py", "test_binance_archive.py", "test_wide_info.py", "test_net_retry.py",
         "test_alt_data_v650.py", "test_build_pre2013_root.py", "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
         "test_dividend_backfill.py", "test_factor_file_backfill.py",
         "test_refresh_lean_interest_rate.py",
@@ -789,12 +790,13 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_main_wiring.py", "test_main_ensure_ready_smoke.py",
     ],
     "evaluation": [
+        "test_v660_fixes.py", "test_power_analysis.py", "test_research_cells.py", "test_wide_signals.py", "test_v660_research.py",
         "test_target_weights_engine.py", "test_trial_ledger.py", "test_premia_research.py", "test_v650_lean.py", "test_v650_scripts.py",
         # V6.4.3 - the research and audit tools.
         "test_research_harness.py", "test_pbo.py", "test_factor_spanning.py", "test_overfit_diagnostics.py",
         "test_leakage_audit.py", "test_research_probes.py", "test_sim_lean_calibration.py", "test_trial_registry.py",
         # V6.4.4 - the trend sleeve simulator and the alpha proof.
-        "test_trend_sleeve_backtest.py", "test_alpha_proof.py", "test_gate_replica_audit.py",
+        "test_trend_sleeve_backtest.py", "test_alpha_proof.py", "test_gate_replica_audit.py", "test_forward_ledger.py",
         "test_research_runners.py",
         "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
         "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
@@ -1894,6 +1896,34 @@ def _run_lean_report(args: argparse.Namespace, config: dict, run_dir: Path, *, p
     return 1 if failed else 0
 
 
+def _phase_deflation_inputs() -> dict | None:
+    """N and the trial variance from the ledgers, once V6.6.0's selection has candidates. Before then the registry's cross-window
+    spread stands, as `alpha_proof.period_report` documents."""
+    from evaluation.trial_ledger import deflation_inputs, read_ledger
+
+    evaluation = ML_DIR / "evaluation"
+    registry_path = evaluation / "trial_registry.json"
+    current = read_ledger(evaluation / "v660" / "trial_ledger.jsonl")
+    if not registry_path.exists() or not any(entry["role"] == "candidate" for entry in current):
+        return None
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    return deflation_inputs([*read_ledger(evaluation / "v650" / "trial_ledger.jsonl"), *current], registry, "v660_selection")
+
+
+def _forward_ledger_rows(args: argparse.Namespace) -> list[dict]:
+    """The ledger from `--ledger-file`, or from the branch the scheduled Action writes."""
+    if getattr(args, "ledger_file", None):
+        from evaluation.forward_ledger import read_ledger
+
+        return read_ledger(Path(args.ledger_file))
+    branch = getattr(args, "ledger_branch", None) or "forward-ledger"
+    subprocess.run(["git", "fetch", "--quiet", "origin", f"{branch}:{branch}"], cwd=ROOT_DIR, check=False)
+    shown = subprocess.run(["git", "show", f"{branch}:forward/ledger.jsonl"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8")
+    if shown.returncode != 0:
+        return []
+    return [json.loads(line) for line in shown.stdout.splitlines() if line.strip()]
+
+
 def _resolve_lean_run_dir(args: argparse.Namespace) -> Path | None:
     """`--backtest-dir`, else the README pin, else the newest finished Lean run: the same run for every Lean-reading flag."""
     from generate_backtest_report import resolve_lean_run_dir
@@ -2157,6 +2187,13 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         return _run_lean_report(args, config, run_dir, pin=bool(getattr(args, "backtest_dir", None)))
 
     # V6.3.0 - `aq evaluate --backtest-stats`: the README's Backtest Statistics for one Lean run; no dataset, no model.
+    if getattr(args, "forward_ledger", False):
+        from evaluation.forward_ledger import judge_ledger
+
+        report = judge_ledger(_forward_ledger_rows(args))
+        print(json.dumps(report, indent=2, default=str))
+        return 0 if report["chain_valid"] else 1
+
     if getattr(args, "alpha_proof", False):
         from evaluation.alpha_proof import alpha_proof_report
         from evaluation.backtest_statistics import load_trial_sharpes
@@ -2166,7 +2203,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             print("error: no backtest folder found - pass --backtest-dir PATH or run `aq backtest` first.", file=sys.stderr)
             return 1
         report = alpha_proof_report(run_dir, config, ROOT_DIR,
-                                    trial_sharpes=load_trial_sharpes(ML_DIR / "evaluation" / "trial_registry.json"))
+                                    trial_sharpes=load_trial_sharpes(ML_DIR / "evaluation" / "trial_registry.json"),
+                                    deflation=_phase_deflation_inputs(), data_dir=getattr(args, "data_dir", None) or "data")
         out_path = ML_DIR / "evaluation" / "alpha_proof.json"
         _write_evaluation_json(out_path, report)
         if args.json:
@@ -4751,6 +4789,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="V6.2.0: a finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas on the "
         "shipped and the pre-V6.2 risk-free file, at 252 and 365 days a year (--backtest-dir, --interest-rate-file, "
         "--trading-days) -> ml/evaluation/lean_stats_<run>.json. Needs no dataset or model.",
+    )
+    evaluate_parser.add_argument(
+        "--forward-ledger", action="store_true",
+        help="V6.6.0: verify the forward ledger's hash chain and judge each frozen candidate (sessions, Sharpe, alpha t, what this many "
+        "sessions can show), read from the branch the scheduled Action writes (--ledger-branch) or a file (--ledger-file). Exit 1 on a broken chain.",
+    )
+    evaluate_parser.add_argument("--ledger-branch", default=None, help="the forward ledger's branch (default forward-ledger)")
+    evaluate_parser.add_argument("--ledger-file", default=None, help="read the forward ledger from this file instead of its branch")
+    evaluate_parser.add_argument(
+        "--data-dir", default=None,
+        help="V6.6.0: the Lean run's data root for --alpha-proof (data_wide, data_crypto_wide; default data): closes read from any other root come back empty.",
     )
     evaluate_parser.add_argument(
         "--alpha-proof", action="store_true",

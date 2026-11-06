@@ -994,6 +994,17 @@ aq evaluate --lean-report --backtest-dir backtests/<run>                   # eve
 - **The vault in this repo:** `.av/` is gitignored and local. `av` is installed editable from `../aether-vault`, per user on Windows (`%APPDATA%\Python\Python314\Scripts\av.exe`, set `AQ_AV_BINARY` when it is not on PATH). `scripts/vault_record.py --label <gate> <paths>` commits a gate with no push; its timestamp shows a rule came before its scores. A retraining worker without `av` now fails at `vault_preflight`, before training. **The Docker image has no pinned `av`:** that needs a vault release, the owner's call.
 
 
+### V6.6.0: wide data roots, a forward ledger, a released vault
+
+- **`data_wide/` and `data_crypto_wide/`** are gitignored Lean roots beside `data/`, which stays one fixed vintage. A run picks one with `ml/evaluation/run_configs/<name>.dataroot`; research opens one only through `evaluation/research_cells.py`, which refuses a held-out cell without the freeze's digest. `codespace_sync.ps1` pushes them (not `data_wide/_cache`) and skips them under `-CodeOnly`.
+- **Rebuild:** `python scripts/build_wide_root.py` (Yahoo, resumes) and, with `AQ_SEC_CONTACT` set for that process alone, `python scripts/build_wide_info.py` (EDGAR, Form 4, FINRA, factors) on the PC. The contact must never reach a file or a Codespace; the script ends by searching its outputs for it. `python scripts/build_crypto_wide_root.py` belongs on a Codespace: on the 4 GB PC the memory reaper stopped it.
+- **An outage isn't an absence:** `data_pipeline/net_retry.py` waits out a dropped connection and stops rather than record a hole, after a WLAN drop once left ten years of insider data cached as empty (#297).
+- **One heavy job at a time on the PC, downloads included.** The harness stops background shells when memory runs critically low, even a thin watcher, and asks that they be restarted only on the owner's word.
+- **The vault is released:** `aether-vault==1.7.0` is pinned in `requirements/requirements.txt`, so CI runs `tests/test_vault_contract.py` against the real CLI and the worker image has `av`. `vault.min_version` holds the floor. A push from this PC goes through `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`: the default helper waits on a prompt nobody can answer in a session.
+- **Forward ledger:** RUNBOOK "Forward ledger".
+
+**V6.6.0 Codespace findings:** `codespace_lean_parallel.sh` pins `file-database-last-update` for a root other than `data/`, because the CLI's daily refresh writes through the run's hard link into the shared master (#304). `codespace_lean_dind.sh` strips `/tmp`'s default ACL from Docker's data root, or no non-root process can start in any container (#308). A vault server on the Codespace is reached from the PC with `gh codespace ports forward 8000:8000`, since this repo's `.av` remote is `localhost:8000`. The Docker worker's vault repo is the `retraining-vault` volume, and with no server configured its commits queue.
+
 ### V6.4.3: Lean 4 (the theorem prover) and Mathlib on the PC
 
 `formal/` is a Lake project (Lean `v4.35.0`, Mathlib `v4.35.0`, both pinned). elan installs the toolchain on first use;

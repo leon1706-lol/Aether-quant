@@ -1,5 +1,6 @@
 """The contract between Aether-quant and the real `av`: the other vault tests mock subprocess, so a change in av's output,
-exit codes or ignore rules would pass them. Skipped where `av` is not installed (CI has no pinned release to install)."""
+exit codes or ignore rules would pass them. `aether-vault` is pinned in requirements/requirements.txt, so CI runs these too; skipped
+only where `av` is not installed."""
 
 import os
 import shutil
@@ -130,3 +131,44 @@ def test_restore_of_an_unknown_commit_fails(repo):
     if not _supports_restore():
         pytest.skip("this av has no restore command")
     assert restore_candidate_from_vault("0" * 64, "ml/versions/v1", _config(), cwd=repo)["ok"] is False
+
+
+def test_no_upload_commits_stay_queued_and_touch_no_network(repo):
+    (repo / "x.txt").write_text("x")
+    assert run_av_command([AV, "config", "--remote-url", "http://127.0.0.1:1"], cwd=repo)["ok"]
+    assert run_av_command([AV, "add", "x.txt"], cwd=repo)["ok"]
+    committed = run_av_command([AV, "--output", "json", "commit", "-m", "x", "--no-upload"], cwd=repo, timeout=60)
+    assert committed["ok"], committed
+    assert '"queued_reason": "upload_deferred"' in committed["stdout"]
+
+
+def test_a_queue_entry_exists_for_every_commit_before_any_push(repo):
+    import json
+
+    assert run_av_command([AV, "config", "--remote-url", "http://127.0.0.1:1"], cwd=repo)["ok"]
+    (repo / "a.txt").write_text("a")
+    assert run_av_command([AV, "add", "a.txt"], cwd=repo)["ok"]
+    assert run_av_command([AV, "commit", "-m", "a", "--no-upload"], cwd=repo, timeout=60)["ok"]
+    head = (repo / ".av" / "refs" / "heads" / "main").read_text().strip()
+    queued = [entry["commit_hash"] for entry in json.loads((repo / ".av" / "pending_push").read_text())]
+    assert head in queued
+
+
+def test_rm_drops_a_path_from_the_next_commit(repo):
+    result = commit_candidate_to_vault("v1", ["train.py", "ml/versions/v1"], {}, _config(), cwd=repo)
+    assert result["ok"], result
+    assert run_av_command([AV, "rm", "train.py"], cwd=repo)["ok"]
+    assert not (repo / "train.py").exists()
+    committed = run_av_command([AV, "--output", "json", "commit", "-m", "drop", "--no-upload"], cwd=repo, timeout=60)
+    assert committed["ok"], committed
+    head = (repo / ".av" / "refs" / "heads" / "main").read_text().strip()
+    assert "train.py" not in _tree(repo, head)
+    assert any(path.startswith("ml/versions/v1/") for path in _tree(repo, head))
+
+
+def test_a_corrupt_index_stops_the_commit_and_is_kept(repo):
+    (repo / ".av" / "index").write_text('{"entries": {')
+    (repo / "y.txt").write_text("y")
+    added = run_av_command([AV, "--output", "json", "add", "y.txt"], cwd=repo)
+    assert not added["ok"] and added["returncode"] == 15
+    assert (repo / ".av" / "index").read_text() == '{"entries": {'

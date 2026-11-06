@@ -2,10 +2,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
-  <img src="https://img.shields.io/badge/tests-3818%2F3818%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="3818 of 3818 tests passing">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <img src="https://img.shields.io/badge/problems-238%20entries-0097E8?style=flat-square&labelColor=1A1A1A" alt="238 problem entries">
 </p>
 
 Bugs and infrastructure issues found in this codebase, how they were fixed
@@ -413,7 +411,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** New `select_vertical_spread_legs()`/`build_vertical_spread_position_sizing()` (net-vega sized), wired through `risk/asset_class_router.py` + new `_apply_option_spread_order()` using Lean's own `OptionStrategies` atomic combo-order primitive (previously completely unused here); two real bugs (field-existence check ordering; early draft breaking option orders entirely for spread case) caught/fixed during implementation.
 
-**Verification:** 20 new tests (leg selection/sizing/degrade paths) + critical zero-behavior-change parity for single-leg path. **V6.5.0:** verticals fill through `OptionStrategies` on Lean's sample chain (`scripts/lean_smoke/option_structures.py`), and `main.py` with an option asset now initializes and runs a month of the sample (it crashed at initialization, #276). Still open: that month produced no signal, so `main.py`'s own `_apply_option_spread_order` has not placed an order; a longer chain than Lean's sample needs IB data.
+**Verification:** 20 new tests (leg selection/sizing/degrade paths) + critical zero-behavior-change parity for single-leg path. **V6.5.0:** verticals fill through `OptionStrategies` on Lean's sample chain (`scripts/lean_smoke/option_structures.py`), and `main.py` with an option asset now initializes and runs a month of the sample (it crashed at initialization, #276). **V6.6.0:** closed for Lean by #307: a forced signal runs `main.py`'s own order path to a real fill. Before that: that month produced no signal, so `main.py`'s own `_apply_option_spread_order` had not placed an order; a longer chain than Lean's sample needs IB data.
 
 ### 39. Final pre-backtest bug sweep — 4 fixes found and fixed before this project's first real `lean backtest .` run
 
@@ -633,7 +631,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** distinct-position counting, a rotation cooldown and same-bar netting, per-asset strategy overrides, `options_arbitrage_detector.py` (off), `risk/forex_risk.py` with pair specs, and analytic bond duration / convexity / DV01 (informational).
 
-**Verification:** tests 1656 -> 1722; forex traded live in two Lean runs (220 fills, notional within 0.15%). **V6.5.0:** on a real chain the detector flagged everything (#274, fixed). It ignores dividends, so it still flags a reverse conversion on a dividend payer: a known limit, and it stays off.
+**Verification:** tests 1656 -> 1722; forex traded live in two Lean runs (220 fills, notional within 0.15%). **V6.5.0:** on a real chain the detector flagged everything (#274, fixed). **V6.6.0:** it now nets dividends to expiry: on the AAPL sample all six structures are silent (the reverse conversion fires only when dividends are ignored), and a mispricing beyond them still fires in `tests/test_options_arbitrage_detector.py`. What is left needs IB data.
 
 ### 61. V4.7 — early-assignment/corporate-action modeling, a learned strategy-selector model, and bond analytics wired into the trained model
 
@@ -1930,13 +1928,13 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 192. Live crypto cannot fill through Interactive Brokers (V6.1.0)
 
-**Severity:** 5/10 · **Status:** 🟡 `partial` (checked and flagged; the routing decision is an IB deployment item)
+**Severity:** 5/10 · **Status:** 🟡 `partial` (checked and flagged, routes studied in V6.6.0; the choice is the owner's)
 
 **Problem:** the book prices Coinbase fees (`CoinbaseFeeModel`, a cash account) and the backtests fill on Lean's Coinbase market, while the live credentials this project renders are Interactive Brokers'. QuantConnect's staff answer in the IB-crypto thread is "Interactive Brokers does not support crypto" (the LEAN pull request #8446 for it is still open), and Lean's Coinbase brokerage supports crypto on cash accounts only, with market, limit and stop orders.
 
 **Fix:** `execution.lean_config_render.validate_live_crypto_route` (advisory, never changes trading) is printed by `aq render-lean-config`; RUNBOOK's deploy checklist names it. Choosing the live crypto brokerage (Coinbase) or switching the crypto classes off before a live deploy stays with the deferred IB items.
 
-**Verification:** `tests/test_lean_config_render.py`; sources: quantconnect.com/forum/discussion/18507, quantconnect.com/docs/v2/writing-algorithms/reality-modeling/brokerages/supported-models/coinbase.
+**Verification:** `tests/test_lean_config_render.py`; sources: quantconnect.com/forum/discussion/18507, quantconnect.com/docs/v2/writing-algorithms/reality-modeling/brokerages/supported-models/coinbase. **V6.6.0 (`ml/evaluation/v660/venue_study.json`):** Coinbase direct is the only route for all 12 coins. IBIT and ETHA track at a weekly correlation of 0.86 and cover BTC and ETH only (Lean Sharpe 0.25 on that part, `backtests/2026-11-05_23-28-07`), and EU retail clients generally can't buy them. CME micro contracts are too large for these sizes.
 
 ### 193. The README performance section mixed V5.8.0 text with V6 results (V6.1.0)
 
@@ -2352,7 +2350,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Problem:** the README Overview, every run-history row, Backtest Statistics' "Time range" and the Lean Monte Carlo line took the window's end from the last Strategy Equity point, which Lean writes about two days past the end (BT5: "to 2026-10-18" for a run ending 2026-10-16).
 
-**Fix:** `evaluation/backtest_audit.configured_run_window` reads `algorithmConfiguration.startDate/endDate`; `generate_backtest_report.load_backtest_summary`, `backtest_statistics` and `aq evaluate --lean-monte-carlo` label with it and fall back to the chart only when it is missing. The statistics still use the chart series.
+**Fix:** `evaluation/backtest_audit.configured_run_window` reads `algorithmConfiguration.startDate/endDate`; `generate_backtest_report.load_backtest_summary`, `backtest_statistics` and `aq evaluate --lean-monte-carlo` label with it and fall back to the chart only when it is missing. The statistics keep using the chart series on purpose (V6.6.0): it is Lean's own daily marking, and only the label needed the configured window.
 
 **Verification:** `tests/test_generate_backtest_report.py`, `test_backtest_statistics.py`, `test_backtest_audit.py`; the re-rendered README reads "2023-07-01 to 2026-10-16".
 
@@ -2643,7 +2641,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Problem:** #247 asked for per-date cross-sectional inputs; nothing in the trainer or the scorer supported them.
 
-**Fix:** `features/cross_sectional_inputs.py` ranks each `*_scaled` input within (bar, asset class) ("replace", or "append" as `<name>_csr`), one definition in list and pandas form; `train_multitask.py` (and so the walk-forward) and `aq_cli._blend_raw_scores_for_dataset` apply it behind `phase1.features.cross_sectional_inputs` (default off), and the trainer stamps the setting into its schema. The live path (`main.py`, on the tick's pending symbols) waits for a qualifying candidate.
+**Fix:** `features/cross_sectional_inputs.py` ranks each `*_scaled` input within (bar, asset class) ("replace", or "append" as `<name>_csr`), one definition in list and pandas form; `train_multitask.py` (and so the walk-forward) and `aq_cli._blend_raw_scores_for_dataset` apply it behind `phase1.features.cross_sectional_inputs` (default off), and the trainer stamps the setting into its schema. The live path is not wired: the gated simulator these were judged on was retired from selection by V6.5.0 (#272), and no later candidate uses them.
 
 **Verification:** `tests/test_cross_sectional_inputs.py` (list = frame on 400 random frames, NaN to the centre, class mapping = the dataset's one-hots), `tests/test_train_multitask.py` (an end-to-end trainer run in append mode).
 
@@ -2679,7 +2677,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 264. R-CAL5: the live-gate replicas re-derived from the engine's trades; no option adopted (V6.4.4)
 
-**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule; branch B stands)
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (decided by the pre-registered rule; moot since #272 retired the gated simulator from selection, and `target_weights_engine` is the instrument)
 
 **Problem:** the #249 lead: re-derive the simulator's resize / cooldown / trailing-stop replicas from Lean's own trades (the order events carry no reason tags).
 
@@ -2719,7 +2717,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 268. A candidate's vault commit silently dropped its model and scaler, so no commit could ever restore one (V6.5.0)
 
-**Severity:** 8/10 · **Status:** 🟢 `fixed` (the vault half is in the Aether-Vault working tree, uncommitted by owner decision)
+**Severity:** 8/10 · **Status:** 🟢 `fixed` (released in aether-vault 1.7.0, V6.6.0)
 
 **Problem:** `av` matched this repo's `ml/*.pkl` and `ml/*.pt` with a `*` that crosses `/`, so `av add ml/versions/<id>` dropped `scaler.pkl` and `model.pt` with no message. `.av` had never held a commit, so nobody had seen it.
 
@@ -2749,17 +2747,17 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 ### 271. A worker without `av` found out only after a whole training run (V6.5.0)
 
-**Severity:** 5/10 · **Status:** 🟡 `partial` (fails fast now; the Docker image still has no `av` until the owner releases a fixed vault)
+**Severity:** 5/10 · **Status:** 🟢 `fixed` (aether-vault 1.7.0 pinned in `requirements/requirements.txt`, verified in the image, #308)
 
 **Problem:** the retraining worker image has no `av`, so every cycle would train fully and then fail at the commit. `vault.repo_path` was read by nothing and rollback ignored the timeout.
 
 **Fix:** `vault_preflight` runs before training and fails the event with the reason. New `vault.enabled` (default on), `vault.min_version`, `vault.extra_add_paths` (the other trainers, `features/`, schema and dataset manifest, so a commit can reproduce a candidate); `repo_path` is now the working directory; `.av/` is in `.dockerignore`.
 
-**Verification:** `test_run_once_stops_before_training_when_the_vault_preflight_fails` and the preflight tests. Pinning `av` in the image waits for a vault release, the owner's call.
+**Verification:** `test_run_once_stops_before_training_when_the_vault_preflight_fails` and the preflight tests. **V6.6.0:** released and pinned; CI now runs `tests/test_vault_contract.py` against it, and 16 queued commits drained to a real 1.7.0 server, with a candidate's `model.pt` and `scaler.pkl` restored byte for byte from a fresh clone.
 
 ### 272. The offline simulator could not be trusted to select anything (V6.5.0)
 
-**Severity:** 9/10 · **Status:** 🟢 `fixed` for a new path; the gated path keeps its old simulator
+**Severity:** 9/10 · **Status:** 🟢 `fixed` for a new path; the gated path's simulator is retired from selection, and no candidate has been chosen on it since
 
 **Problem:** the rank-book simulator tracks the gated live path at a daily correlation of about 0.73 and has got the sign wrong (BT6: +1.06 offline, -1.12 in Lean), because the path has too many gates to replicate. Offline selection on it was not selection.
 
@@ -2785,7 +2783,7 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** `detect_executable_edge`: a one-sided edge at bid and ask, per structure, with the conversion's sign corrected.
 
-**Verification:** parity-priced chains fire nothing, rich calls fire only the conversion, cheap calls only the reverse, a wider spread than the mispricing fires neither (`tests/test_options_arbitrage_detector.py`). On the AAPL sample five of six are now silent; the reverse conversion remains, since the detector ignores dividends and AAPL pays one (a documented limit, noted in #60).
+**Verification:** parity-priced chains fire nothing, rich calls fire only the conversion, cheap calls only the reverse, a wider spread than the mispricing fires neither (`tests/test_options_arbitrage_detector.py`). On the AAPL sample all six are now silent, the last once dividends were netted in V6.6.0 (#60).
 
 ### 275. A short iron condor was built as an ordinary iron condor (V6.5.0)
 
@@ -2825,11 +2823,11 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 
 **Fix:** `ml/evaluation/v650/rules_amendment_1.json`, recorded in the vault before any rerun: the velocity trigger is off on this path, as it was in selection; the owner's 15% drawdown stays the sticky stop. No acceptance bar changed.
 
-**Verification:** 18 of 18 weight files hash the same in the rerun, so nothing was reselected, and the winner now trades to the end of its file. The first pool is kept as `r_lean19_locked.json`, so its windows are disclosed as seen. **A live deployment needs its own velocity decision.**
+**Verification:** 18 of 18 weight files hash the same in the rerun, so nothing was reselected, and the winner now trades to the end of its file. The first pool is kept as `r_lean19_locked.json`, so its windows are disclosed as seen. A live deployment's velocity decision was made in V6.6.0: off (#303).
 
 ### 279. V6.5.0's verdict: no verified edge; a crypto trend sleeve ships as improved, not verified
 
-**Severity:** n/a (phase result) · **Status:** 🔴 `closed` for R-EDGE1; the shipped sleeve is 🟡 until the forward check and a venue (#192)
+**Severity:** n/a (phase result) · **Status:** 🔴 `closed` for R-EDGE1; the shipped sleeve is 🟡 until the forward check and a venue (#192), and it failed on never-read coins (#301)
 
 **Problem:** the owner's target: Lean Sharpe >= 1 and a verified edge. 46 pre-registered candidates: 20 rule sleeves, 2 positioning sleeves, 12 walk-forward model books, 4 new-architecture rankers (set transformer, gradient boosting), 2 combinations, 6 gate ablations.
 
@@ -2866,3 +2864,273 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** `scripts/codespace_lean_dind.sh` waits up to 30 s for the old daemon to exit and removes the stale pid file before starting the new one.
 
 **Verification:** the same Codespace then ran all 21 pre-2013 runs; `tests/test_codespace_lean_scripts.py`.
+
+### 283. The alpha tools read only `data/`, and on any other root booked T-bill carry as alpha (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `closes_for_universe` and `--alpha-proof` read `data/` alone, so a run on another root got empty closes, and `v650_lean.strategy_series` fell back to NAV with the sweep in it. BTC's NaNs before its first bar dropped every earlier row from the regression, so a 15.8-year window couldn't be reached, and a benchmark missing from a config vanished silently.
+
+**Fix:** `data_dir` on those functions and `aq evaluate --data-dir`; BTC's return is 0 before its first bar; `benchmark_daily_returns(required=True)` raises on a missing benchmark.
+
+**Verification:** `tests/test_v660_fixes.py`, on a fixture root.
+
+### 284. A long book's Sharpe was raw, not excess, and session rows were annualised at sqrt(365) (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** Ex-sweep returns pay nothing for the cash a long book ties up, so selection and placebos scored raw returns. Before crypto's first bar a panel has no weekend rows, and a fixed sqrt(365) inflated those Sharpes about 1.2 times.
+
+**Fix:** The engine adds `strategy_excess` (strategy less net capital x rf), which `score_sleeve` and `placebo_sharpes` use; `strategy` stays for comparison with Lean. `annual_sharpe(sessions=)` compounds to sessions at 252; crypto-only stays calendar. V6.5.0's sleeves rescored in `ml/evaluation/v660/v650_rescore.json`.
+
+**Verification:** `test_strategy_excess_*`, `test_session_sharpe_is_the_same_with_or_without_weekend_rows`.
+
+### 285. The fresh period counted calendar rows, and a week of it could fail a clause (V6.6.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `forward_judgeable` counted calendar points, so "60 sessions" came at about 41, and any n of 5-10 could read as "fresh-period alpha <= 0".
+
+**Fix:** One bar for both checks, `FORWARD_MIN_SESSIONS = 60`, counted in equity sessions. An all-session series annualises at 252 (`measured_annualization`).
+
+**Verification:** `test_fresh_sessions_ignore_weekend_rows`, `test_a_short_fresh_period_fails_no_clause`.
+
+### 286. The deflated Sharpe could count 50 trials twice, and read a variance from no window (V6.6.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+**Problem:** Passing today's registry to `deflation_inputs` gave N = 178, since the registry already holds V6.5.0's ledger; `--alpha-proof` also read a variance mixing windows and annualisations, against its docstring.
+
+**Fix:** `legacy_trials` drops ledger phases; each phase labels its own window (`v660_selection`); `period_report` takes the inputs.
+
+**Verification:** `test_deflation_inputs_on_todays_files_count_128_trials`: N is 128.
+
+### 287. Precomputed score tables and the research carry read a bar too new (V6.6.0)
+
+**Severity:** 4/10 (no trial it touched survived) · **Status:** 🟢 `fixed`
+
+**Problem:** A crypto or forex score dated D reads a bar closing after D's decision, which `test_no_lookahead` can't see inside a table; USD carry in a signal read the same-day rate.
+
+**Fix:** `align_score_table` shifts late classes a row; `build_context`'s signal table reads the previous session's rate. The model's feature is unchanged: it would break the schema.
+
+**Verification:** `test_align_score_table_*`.
+
+### 288. Training eligibility read the future, and a pooled rank outran its purge (V6.6.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `training_eligible` required backtest rows, dropping a name that later died from earlier training. 20 crypto bars are 20 days against about 28 for equities, so a kept crypto row could rank on equity returns past the boundary.
+
+**Fix:** New default-off keys: `asset_quality.eligibility_ignores_backtest_rows`, `windows.purge_label_calendar_days`. The wide trainer uses neither clause. No retrain on this path.
+
+**Verification:** `test_calendar_purge_catches_a_crypto_row_the_row_count_keeps`.
+
+### 289. A held name whose bars stopped never exited (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** The engine discarded an open with no price, crypto stayed pending forever, and the position held at zero return: a delisted name read as a flat one, in a universe full of them.
+
+**Fix:** `target_weights.no_bar_exit` (default off, on in V6.6.0's runs): after 2 missed bars the name closes at its last close less a haircut (5% equity, 20% crypto), in the engine and `main.py`, reading only bars already missing. Research panels also blank a name after 5 rows with no bar.
+
+**Verification:** `test_engine_closes_a_dead_name_*`, `test_main_closes_a_name_whose_bars_stopped_*`; proved in Lean by BT25 and BT27.
+
+### 290. On the target path a kill-switch trip froze the book open in paper and live (V6.6.0)
+
+**Severity:** 9/10 · **Status:** 🟢 `fixed`
+
+**Problem:** A lock turns order permission off, and `_target_weights_tick` returned on that before its liquidation: a backtest closed the book, and paper or live would have held it through the very event the lock was for.
+
+**Fix:** `resolve_risk_exit_permission` (the lock isn't consulted, observation still places nothing), modelled in `formal/` with `permit_implies_risk_exit`; the tick liquidates first.
+
+**Verification:** `test_a_tripped_target_book_closes_in_every_mode_that_can_place_orders`; `tests/test_formal_differential_order_gate.py`.
+
+### 291. A live run could never read a new row (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** The file loaded once at startup, and row D is written after D's close while the tick for D had already looked it up, so every row was missed and the book silently held.
+
+**Fix:** `target_weights.live_reload` (default off): a pre-open event re-reads the file against its `.sha256` sidecar, which `append_row` writes, and applies the newest unapplied row. Backtests keep the exact-date lookup. Live-only by necessity: `architecture.md` parity table.
+
+**Verification:** `test_premarket_tick_*`, `test_next_unapplied_row_*`. Real scheduling needs IB, so this stays unproved in a live feed.
+
+### 292. A rule sleeve would have tripped the kill switch on a model's age (V6.6.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `max_model_age_days` applied on the target path, so a sleeve using no model would hit a sticky lock around 2027-04-10.
+
+**Fix:** Model age is None unless `target_weights.uses_model`.
+
+**Verification:** `test_model_age_is_skipped_on_a_target_run_with_no_model`.
+
+### 293. A non-sticky lock re-locked itself every session in paper and live (V6.6.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** While locked, risk value read the simulated portfolio, which this path never updates: it stayed at the starting cash, and the rollover set the session start there, so any value below it re-tripped daily.
+
+**Fix:** The target path reads the real portfolio wherever orders could exist.
+
+**Verification:** `test_risk_value_reads_the_real_book_while_locked_on_the_target_path`.
+
+### 294. A lock let pending crypto buys go out, and exited crypto at a 16-hour-old price (V6.6.0)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** After a lock at midnight the pending buys were still sent, and lock exits on the equity tick filled crypto at its stale price, unlike the engine.
+
+**Fix:** `_liquidate_target_positions` replaces the pending set with exits only, which wait for each coin's own next bar.
+
+**Verification:** `test_a_lock_drops_a_pending_crypto_buy`, `test_a_lock_sends_crypto_exits_on_its_next_bar_not_the_equity_tick`; BT26.
+
+### 295. The daily weights script hid a broken feed behind "not a rebalance day" (V6.6.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** A date with no data printed that and exited 0, and stale crypto was forward-filled silently, so a broken feed produced a quiet wrong decision.
+
+**Fix:** `data_problems` exits non-zero on a missing date or a class too old (equity 5 days, crypto 2).
+
+**Verification:** `test_a_missing_date_is_a_problem_not_a_quiet_no_op`, `test_stale_crypto_is_a_problem_fresh_data_is_not`.
+
+### 296. The forward check measured frozen weights, not the signal on new prices (V6.6.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** RUNBOOK's rerun used the pinned file, which ends 2026-10-28, so its fresh period held old decisions.
+
+**Fix:** `scripts/extend_frozen_weights.py` writes a copy with new rows by the frozen rule, never rewriting a frozen row, and RUNBOOK uses it. The forward ledger (#299) is the better record.
+
+**Verification:** `test_extended_rows_never_rewrite_a_frozen_row`.
+
+### 297. A dropped connection read as "no data", and was cached (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** A WLAN drop during the first insider download made every later quarter return nothing and be cached as empty, so a rerun would have kept 2016-2026 blank; FINRA's whole series came back with 0 days and would have left its trial with an empty book.
+
+**Fix:** `data_pipeline/net_retry.py`: only a status the server chose means absent; anything else waits out the outage (up to an hour), then stops the run to resume later. Empty quarters and months are never cached; the crypto builder uses it too and asks the archive which months exist.
+
+**Verification:** `tests/test_net_retry.py`; the rerun read 41 more insider quarters (694,447 trades) and 2,075 short-volume days.
+
+### 298. The vault client failed a retry of an unchanged candidate, and could sweep a failed gate's files into a commit (V6.6.0)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** Exit 11 (`nothing_to_commit`) read as failure, so a retry after a killed run could never succeed; `av commit` takes all that is staged, so a failed gate's leftovers could land under the next label; a `repo_path` outside the candidate raised `ValueError`.
+
+**Fix:** Exit 11 is success with the existing hash; `staged_leftovers` refuses first; `_path_in_vault` fails the event cleanly.
+
+**Verification:** `tests/test_vault_client.py`, `tests/test_vault_record.py`, `test_a_candidate_outside_the_vault_repo_fails_the_event_cleanly`.
+
+### 299. A forward record nothing could backfill didn't exist (V6.6.0)
+
+**Severity:** n/a (new) · **Status:** 🟡 `partial`
+
+**Problem:** Every result so far could be rerun until it looked good, so none could show a decision came before its return, and the 60-session forward check depends on someone rerunning it.
+
+**Fix:** `.github/workflows/forward-ledger.yml` appends one hash-chained row a session to the orphan branch `forward-ledger` by the frozen rule in `ml/forward/candidates.json`; missing data is a `no_data` row, never a gap. `aq evaluate --forward-ledger` verifies the chain and judges at 60 and 252 sessions, which is why this stays partial.
+
+**Verification:** `tests/test_forward_ledger.py`, including tampered rows; a real row after the push.
+
+### 300. V6.6.0's verdict: not verified, stopped at the first gate on evidence nothing had read
+
+**Severity:** n/a (phase result) · **Status:** 🔴 `closed` for R-EDGE2; the equity holdouts stay unread for a later phase
+
+**Problem:** The owner's objective: prove or refute alpha on names no rule had read. 28 pre-registered trials on S&P 500 point-in-time members and 701 Binance coins, with information new to this project (fundamentals, insider trades, short volume, funding rates), rules hashed before any score (`rules.json` `8e6aecba…`, vault `2852edb9`).
+
+**Fix:** Zero survived R-SLEEVE3, so E1-E6b were not read, nothing was frozen and nothing was installed. Closest: w04 (accruals) 0.45 net against 0.50, IC t 1.97 against 2.0, second half 0.33 against 0.40, one near miss of 28 and not rerun; e3 (volatility-managed SPY) failed its placebos (p 0.17 and 0.18); PBO 0.38 did not end it. By track, the 95% bound on alpha Sharpe in the selection cells: models below about 0 (all five have negative net alpha, t -1.7 to -3.5, and no-cost Sharpes of -0.60 to 0.15), rule sleeves 0.58 median and 1.01 at the best, crypto 1.07, existing universe 0.92, so a real edge smaller than that is not excluded and 8 years can't exclude one.
+
+**Verification:** `ml/evaluation/v660/r_edge2.json`, `verdict_table.json`, `selection_gate.json`, `trial_ledger.jsonl` (N now 156). The wide path can see an edge: an oracle scores Sharpe 19.2, its reversal -8.3, random ranks -0.88 from costs alone (`sanity_wide_path.json`). `rules` precedes `selection` in the vault's commit order.
+
+### 301. The installed crypto rule failed on coins it had never read (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟡 `partial` (reported by rule R-CRYPTO1; the sleeve stays installed by the binding fail rule, and whether to keep trading it is the owner's call)
+
+**Problem:** `t3_crypto_trend_blend` was picked on 12 surviving coins and had never met a delisted one. On 2018-01..2026-11 side-B liquid coins, delisted included, it scores Sharpe -0.06 (2018-2020 0.25, 2021-2023 -0.03, 2024 on -0.45), alpha -3.4%/yr at t -1.94, drawdown 21.6%.
+
+**Fix:** None by design: a frozen rule isn't refit on its test. On 2018-2022 the same rule scores 0.33 on the 12 chosen coins (raw basis), 0.13 on side-A liquid coins and -0.05 on side B, so V6.5.0's 0.96 was earned mostly before 2018 and coin choice added a smaller part. Delisted coins aren't the reason: survivors alone score -0.01.
+
+**Verification:** `ml/evaluation/v660/r_crypto1.json`; the README's limitations state it beside the sleeve's label.
+
+### 302. Two of V6.5.0's selection passes didn't survive corrected Sharpes (V6.6.0)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed` (report only: R-EDGE1 stays closed, the install doesn't change)
+
+**Problem:** Rescored on excess returns and session annualisation (#284), `t3_trend_blend`'s first half falls from 0.428 to 0.357 and `t3_vix_scaled`'s pooled from 0.587 to 0.484, both under their bars.
+
+**Fix:** Recorded beside the frozen numbers; the installed sleeve moves only from 0.96 to 0.94.
+
+**Verification:** `ml/evaluation/v660/v650_rescore.json`: 38 rescored, 2 changed a clause.
+
+### 303. R-VEL1: velocity stays off, as a decision (V6.6.0, closes #278)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** #278 left "a live deployment needs its own velocity decision" open, and nothing stopped paper trading without one.
+
+**Fix:** By rule on the installed sleeve: k=5 locks on 2020-03-13 and leaves 44% of sessions trading; k=8 never fires, so it cuts nothing. Neither qualifies, so `target_weights.velocity_decision` records "off"; `aq paper-readiness` prints it and fails if a target-weights config has none.
+
+**Verification:** `ml/evaluation/v660/r_vel1.json`; `evaluate_velocity_decision` tests in `tests/test_v660_fixes.py`.
+
+### 304. Lean's CLI silently replaced a data root's symbol table, through a hard link (V6.6.0)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+**Problem:** The CLI refreshes `symbol-properties-database.csv` from GitHub about daily, writing in place. On a parallel run that wrote through the hard link into the shared master, so the rows a wide root adds were gone and BT27 skipped 6 coins with only a debug line: correlation 0.80 to the engine, half its fees.
+
+**Fix:** `scripts/codespace_lean_parallel.sh` stamps `file-database-last-update` in a run's own `lean.json` whenever its root isn't `data/`.
+
+**Verification:** `tests/test_codespace_lean_scripts.py`; the rerun skipped none.
+
+### 305. A token swap read as a 1,295x return inside one pair (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed` (found after selection and R-CRYPTO1 were read, so it rescues nothing)
+
+**Problem:** 8 of 701 Binance pairs carry a break of at least 10x across a gap: COCOS 1,295x and DREP 108x upward, LUNA's relaunch upward, and BNX, QUICK, SUN, VEN and VIDT downward. Lean rode COCOS to +$13.5M in BT27; the engine exits at the gap, but momentum and volatility signals still read across it.
+
+**Fix:** `truncate_at_swap` ends a pair at such a gap, in the builder and by `--cut-swaps` on the existing root. A collapse without a gap (LUNA on 2022-05-11) is a real loss and stays.
+
+**Verification:** `tests/test_binance_archive.py`. With those coins out, every c trial's first half is unchanged (each still under 0.40) and pooled moves at most 0.07; R-CRYPTO1 goes from -0.06 to -0.07, so no clause changes (`crypto_breaks_effect.json`). BT27 then passes R-INSTR2.
+
+### 306. On Lean the no-bar exit never saw a crypto feed stop, and would have charged again every day (V6.6.0)
+
+**Severity:** 8/10 · **Status:** 🟢 `fixed`
+
+**Problem:** Lean fills a stopped crypto feed forward, so the copy in the slice read as a bar and the exit never fired, unlike the engine (BT25's equity case had passed). Once it fired, Lean holds a market order open until a later bar, which a dead name never has, so the position stayed and each tick charged the haircut again.
+
+**Fix:** `_has_real_bar` ignores `IsFillForward`; `_target_exited_without_bars` makes the exit once-only until a real bar returns.
+
+**Verification:** `test_a_fill_forward_copy_is_not_a_bar_for_the_no_bar_exit`; BT27 with a dead coin held across its last bar: correlation 0.99946, gap 0.54 bps, fees within 0.02%, one exit in each. BT24 equals the pin, 1,012 of 1,012 fills.
+
+### 307. `main.py`'s multi-leg limit order had never run, and crashed on its first use (V6.6.0, closes #38 for Lean)
+
+**Severity:** 8/10 (options are off, no option asset is configured) · **Status:** 🟢 `fixed`
+
+**Problem:** Forcing the signal showed `ComboLimitOrder(strategy, ...)` has no such overload, an unhandled error in `on_data`. Its limit was also the underlying's price rather than the combo's net, and a vega budget could buy $120k of premium on a $100k account, which Lean rejected whole.
+
+**Fix:** `_combo_legs_at_net_mid` sends legs at their net mid (no two-sided quote falls back to the market order); `resolve_combo_limit_price` offsets on either side of zero; `_affordable_contracts` caps premium at 90% of equity in all three vega sizers.
+
+**Verification:** `backtests/smoke_main_option_order`: the limit order is accepted and later times out, the market branch fills +1 at $5.05 and -1 at $3.10; `tests/test_main_wiring.py`, `test_order_gate.py`, `test_options_strategy.py`.
+
+### 308. The Docker worker could never pass its own vault preflight (V6.6.0, closes #271)
+
+**Severity:** 7/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `.av` is dockerignored, so in the container `vault_preflight` returned `not_an_av_repo` and every retraining cycle would stop. Separately, on a DinD Codespace `/tmp`'s default ACL gave containers a `/` no non-root user could enter, so Postgres couldn't start.
+
+**Fix:** The worker keeps its repo on volume `retraining-vault` and inits it once; `codespace_lean_dind.sh` strips the default ACL from Docker's data root.
+
+**Verification:** Image `0268ededb204` built from the final tree, never pushed: `/api/assets-status` 200, `av 1.7.0`, preflight `ready`, repo survives a restart (`ml/evaluation/v660/engine_image.txt`); `test_the_docker_worker_has_a_vault_repo_that_outlives_its_container`.
+
+### 309. The engine's turnover divided by the starting NAV (V6.6.0)
+
+**Severity:** 2/10 · **Status:** 🟢 `fixed`
+
+**Problem:** A compounding path read as high turnover (an oracle showed 12,124x a year), and a shrinking one as low. It's a reported number that no gate reads.
+
+**Fix:** Traded dollars over mean NAV. Selection's recorded turnovers predate this; those paths' NAV stays near flat.
+
+**Verification:** `test_turnover_is_a_share_of_the_nav_the_book_actually_had`.

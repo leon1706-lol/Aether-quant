@@ -82,10 +82,20 @@ V6.5.0 froze `data/` at 2026-11-02, so every session after it was unseen by ever
 fitted on. Any time:
 
 1. Append the data: `python scripts/data_append_refresh.py --apply`, then `python scripts/data_append_guard.py verify ...` (no stored row may change).
-2. Rerun the pinned config unchanged on a DinD Codespace, with its window ending at the new last session (`runtime.lean_window_override`).
-3. `aq evaluate --alpha-proof --backtest-dir backtests/<rerun>` reports these sessions as `fresh`. `forward_judgeable` turns true at 60 sessions; before that, read nothing into it.
+2. Extend the weights by the frozen rule, in a copy, since the pinned file ends at its last decision: `python scripts/extend_frozen_weights.py --definition <frozen> --source ml/target_weights.csv --out <copy> --end <new last session>`. Rerun the pinned config on a DinD Codespace with that copy's path and printed sha, its window ending at the new last session (`runtime.lean_window_override`).
+3. `aq evaluate --alpha-proof --backtest-dir backtests/<rerun>` reports these sessions as `fresh`. `forward_judgeable` turns true at 60 equity sessions; before that, read nothing into it.
 
 A new config restarts this clock. A rerun is not a paper run: it proves the signal on new prices, not IB's fills, margin or live data.
+
+## Forward ledger (V6.6.0)
+
+`.github/workflows/forward-ledger.yml` appends one hash-chained row a session to the orphan branch `forward-ledger`, at 22:30 UTC on weekdays, for each frozen rule in `ml/forward/candidates.json`. GitHub's commit dates and the chain together show a decision came before its return, which no later rerun can.
+
+- **Read it:** `aq evaluate --forward-ledger` verifies the chain (exit 1 if broken) and reports each candidate's sessions, Sharpe and alpha t. Judge at 60 and 252 sessions; `minimum_detectable_alpha_sharpe_at_t2` says what the sample can show.
+- **Check it's alive:** GitHub disables a schedule after 60 days without repo activity. The report warns once the last row is over 3 sessions old. Re-enable with `gh workflow enable forward-ledger.yml`, then `gh workflow run forward-ledger.yml`; a missed session can't be backfilled, and that is the point.
+- **`no_data` rows:** a blocked price source or a candidate needing a model is recorded with its reason. A candidate with `needs` set writes `no_data` on the runner by design: run its row from the PC with `python scripts/forward_ledger.py --ledger <worktree of the branch>/forward/ledger.jsonl`.
+- **Changing a rule starts a new record:** every row carries the rule's `definition_sha256`. Never edit a candidate in place.
+- **What it publishes:** the frozen sleeves' daily weights, on a public branch.
 
 ## Paper period protocol (V6.4.0, lead L12, Problems #228)
 

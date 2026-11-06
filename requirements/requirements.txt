@@ -42,3 +42,7 @@ redis>=5.0.0
 
 # PostgreSQL driver — experience worker and future analytics (V2-14)
 psycopg[binary]>=3.1
+
+# The `av` CLI retraining commits candidates with, and tests/test_vault_contract.py runs for real (V6.6.0, Problems.md #271).
+# 1.7.0 is the first release that keeps model.pt and scaler.pkl in a commit under this repo's .gitignore, and has `av restore`.
+aether-vault==1.7.0

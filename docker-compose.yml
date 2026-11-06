@@ -253,7 +253,8 @@ services:
     # `docker stop`/recreate fail (see development/Problems.md #48's
     # follow-up finding).
     init: true
-    command: python -m retraining.worker
+    # `.av` isn't in the image (.dockerignore), so the vault repo lives on a volume and survives a recreate: without one `vault_preflight` stops every cycle
+    command: sh -c "[ -f .av/HEAD ] || av init; exec python -m retraining.worker"
     environment:
       AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
     volumes:
@@ -261,6 +262,7 @@ services:
       - ./ml:/app/ml
       - ./data:/app/data
       - ./backtests:/app/backtests
+      - retraining-vault:/app/.av
       # Phase 4.8 - Docker-outside-of-Docker: retraining/lean_backtest.py's
       # run_lean_backtest() shells out to the `lean` CLI (now installed via
       # requirements/requirements.txt - see that file's own comment), but
@@ -288,5 +290,6 @@ networks:
     driver: bridge
 
 volumes:
+  retraining-vault:
   redis-data:
   postgres-data:

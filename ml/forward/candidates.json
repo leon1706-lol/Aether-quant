@@ -1,0 +1,67 @@
+{
+ "note": "Frozen rules the forward ledger records. Changing an entry starts a new record: its definition_sha256 changes in every later row.",
+ "candidates": [
+  {
+   "id": "t3_crypto_trend_blend",
+   "kind": "time_series",
+   "family": "crypto_trend",
+   "universe": [
+    "crypto"
+   ],
+   "rebalance_every": 5,
+   "params": {
+    "lookback_a": 20,
+    "lookback_b": 60,
+    "lookback_c": 120
+   },
+   "tickers": [
+    "ADAUSD",
+    "BCHUSD",
+    "BTCUSD",
+    "DOGEUSD",
+    "EOSUSD",
+    "ETCUSD",
+    "ETHUSD",
+    "LINKUSD",
+    "LTCUSD",
+    "XLMUSD",
+    "XRPUSD",
+    "ZECUSD"
+   ],
+   "asset_class": {
+    "ADAUSD": "crypto",
+    "BCHUSD": "crypto",
+    "BTCUSD": "crypto",
+    "DOGEUSD": "crypto",
+    "EOSUSD": "crypto",
+    "ETCUSD": "crypto",
+    "ETHUSD": "crypto",
+    "LINKUSD": "crypto",
+    "LTCUSD": "crypto",
+    "XLMUSD": "crypto",
+    "XRPUSD": "crypto",
+    "ZECUSD": "crypto"
+   },
+   "anchor_date": "2026-10-28",
+   "cost_class": "crypto",
+   "initial_weights": {
+    "ADAUSD": 0.00787402,
+    "BCHUSD": 0.00620842,
+    "BTCUSD": 0.01573807,
+    "DOGEUSD": 0.00875561,
+    "ETCUSD": 0.0084649,
+    "ETHUSD": 0.01149489,
+    "LINKUSD": 0.01783285,
+    "LTCUSD": 0.01991861,
+    "XLMUSD": 0.00864937,
+    "XRPUSD": 0.00794528,
+    "ZECUSD": 0.00815455
+   },
+   "data_sources": [
+    "Coinbase public candles",
+    "Yahoo chart API"
+   ],
+   "installed": true
+  }
+ ]
+}

@@ -522,3 +522,13 @@ def test_build_vertical_spread_position_sizing_for_legs_none_when_portfolio_valu
     held_long, held_short = _held_call_vertical_legs()
 
     assert build_vertical_spread_position_sizing_for_legs(held_long, held_short, portfolio_value=0.0) is None
+
+
+def test_a_vega_budget_never_buys_more_premium_than_the_account_holds():
+    from portfolio.options_strategy import _affordable_contracts
+
+    assert _affordable_contracts(708, 1.70, 100_000.0) == 529
+    assert _affordable_contracts(10, 1.70, 100_000.0) == 10
+    assert _affordable_contracts(708, -1.70, 100_000.0) == 708
+    assert _affordable_contracts(708, None, 100_000.0) == 708
+    assert _affordable_contracts(5, 2_000.0, 100_000.0) == 0

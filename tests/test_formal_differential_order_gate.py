@@ -8,6 +8,7 @@ from aether_quant.formal import load_cases, to_float
 from execution.order_gate import (
     resolve_cash_sweep_order_permission,
     resolve_order_permission,
+    resolve_risk_exit_permission,
     resolve_runtime_mode,
     resolve_slippage_bps,
     slippage_amount,
@@ -24,6 +25,8 @@ def test_python_matches_the_lean_model():
                 expected["permitted"], expected["reason"]), index
             assert resolve_cash_sweep_order_permission(mode, *flags) == (
                 expected["cash_sweep_permitted"], expected["cash_sweep_reason"]), index
+            assert resolve_risk_exit_permission(mode, *flags) == (
+                expected["risk_exit_permitted"], expected["risk_exit_reason"]), index
         elif case["kind"] == "runtime_mode":
             assert resolve_runtime_mode(given["raw"]) == expected["mode"], index
         else:

@@ -63,6 +63,9 @@ def _target_algorithm(main_module, *, weights, holdings=None, trade_lock=False, 
     algorithm.is_equity_session_bar = equity_bar
     algorithm.trade_lock_active = trade_lock
     algorithm._order_permission = lambda: (True, "ok")
+    algorithm.runtime_mode = "backtest"
+    algorithm.allow_live_orders = False
+    algorithm._broker_config_present = False
     algorithm._target_weights = weights
     algorithm._target_pending = {}
     algorithm._target_symbol_by_ticker = symbols
@@ -780,3 +783,74 @@ def test_forex_sleeve_holds_its_book_between_rebalances_and_is_inert_when_disabl
     off, off_pairs = _sleeve_algorithm(main_module, forex_sleeve_enabled=False)
     off._update_forex_sleeve(_pass1(off_pairs))
     assert off._forex_sleeve_allocations == {} and off._forex_sleeve_weights == {}
+
+
+def test_a_fill_forward_copy_is_not_a_bar_for_the_no_bar_exit(main_module):
+    from portfolio.target_weights import TargetWeightsConfig
+
+    algorithm, _ = _target_algorithm(main_module, weights={}, holdings={"B": 100.0}, equity_bar=False)
+    algorithm.target_weights_config = TargetWeightsConfig(enabled=True, no_bar_exit=True, no_bar_exit_after=1)
+    algorithm._target_missing_bars = {}
+    algorithm._target_exited_without_bars = set()
+    algorithm.Liquidate = lambda symbol, tag="": algorithm.orders.append((symbol, tag))
+    algorithm.Portfolio.CashBook = {"USD": SimpleNamespace(AddAmount=lambda amount: algorithm.calls.append(amount))}
+    algorithm.Debug = lambda message: None
+
+    algorithm._exit_target_names_without_bars(SimpleNamespace(Bars={"B": SimpleNamespace(IsFillForward=False)}, QuoteBars={}))
+    assert algorithm.orders == []
+
+    copy_of_the_last_bar = SimpleNamespace(IsFillForward=True)
+    algorithm._exit_target_names_without_bars(SimpleNamespace(Bars={"B": copy_of_the_last_bar}, QuoteBars={"B": copy_of_the_last_bar}))
+    assert algorithm.orders == [("B", "no_bar_exit")]
+    charged = list(algorithm.calls)
+
+    # Lean hasn't filled it: there is no bar to fill it on, so the position is still there on the next tick. It must not be sold or charged again.
+    algorithm._exit_target_names_without_bars(SimpleNamespace(Bars={"B": copy_of_the_last_bar}, QuoteBars={}))
+    assert algorithm.orders == [("B", "no_bar_exit")] and algorithm.calls == charged
+
+
+def _combo_algorithm(main_module, monkeypatch, *, ask=2.2):
+    created = []
+    monkeypatch.setattr(main_module, "Leg", SimpleNamespace(Create=lambda symbol, quantity: (symbol, quantity)), raising=False)
+    monkeypatch.setattr(
+        main_module, "Symbol", SimpleNamespace(CreateOption=lambda underlying, market, style, right, strike, expiry: f"{right}{strike}"), raising=False,
+    )
+    algorithm = object.__new__(main_module.AetherQuantAlgorithm)
+    algorithm.limit_orders_enabled = True
+    algorithm.limit_orders_asset_classes = ["option"]
+    algorithm.limit_order_offset_multiplier = 1.0
+    algorithm.latest_liquidity_by_symbol = {"AAPL_OPTION": {"spread_proxy": 0.10}}
+    algorithm.pending_limit_orders = {}
+    algorithm.bar_index = 7
+    strategy = SimpleNamespace(
+        CanonicalOption=SimpleNamespace(Underlying="AAPL", ID=SimpleNamespace(Market="usa", OptionStyle="american")),
+        OptionLegs=[SimpleNamespace(Right="C", Strike=100, Expiration="e", Quantity=1), SimpleNamespace(Right="C", Strike=110, Expiration="e", Quantity=-1)],
+        UnderlyingLegs=[],
+    )
+    algorithm._build_option_strategy_object = lambda *args: strategy
+    rows = {"C100": {"bid": 5.8, "ask": 6.2, "underlying_price": 101.0}, "C110": {"bid": 1.8, "ask": ask, "underlying_price": 101.0}}
+    algorithm._option_chain_row_for_contract = lambda symbol_key, contract: rows.get(contract)
+
+    def combo(legs, quantity, limit_price):
+        created.append((legs, quantity, limit_price))
+        return ["ticket"]
+
+    algorithm.ComboLimitOrder = combo
+    return algorithm, created
+
+
+def test_a_multi_leg_limit_order_sends_lean_its_legs_at_their_net_price(main_module, monkeypatch):
+    algorithm, created = _combo_algorithm(main_module, monkeypatch)
+
+    sent = algorithm._try_submit_multi_leg_limit_order("chain", "AAPL_OPTION", "bull_call_spread", ["C100", "C110"], [100, 110], ("e",), 3, 0.01, 101.0)
+
+    assert sent is True
+    assert created == [([("C100", 1), ("C110", -1)], 3, 4.2)]
+    assert algorithm.pending_limit_orders["C100"]["tickets"] == ["ticket"]
+
+
+def test_a_multi_leg_limit_order_without_a_two_sided_quote_falls_back_to_the_market_order(main_module, monkeypatch):
+    algorithm, created = _combo_algorithm(main_module, monkeypatch, ask=0.0)
+
+    assert algorithm._try_submit_multi_leg_limit_order("chain", "AAPL_OPTION", "bull_call_spread", ["C100", "C110"], [100, 110], ("e",), 3, 0.01, 101.0) is False
+    assert created == []

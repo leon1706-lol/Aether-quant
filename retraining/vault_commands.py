@@ -36,6 +36,14 @@ def build_av_push_command(av_binary: str = "av") -> list[str]:
     return [av_binary, "--output", "json", "push"]
 
 
+def build_av_status_command(av_binary: str = "av") -> list[str]:
+    return [av_binary, "--output", "json", "status"]
+
+
+def build_av_head_command(av_binary: str = "av") -> list[str]:
+    return [av_binary, "--output", "json", "log", "--limit", "1"]
+
+
 def build_av_restore_command(commit_hash: str, paths: list[str], av_binary: str = "av") -> list[str]:
     """Restores only `paths`: HEAD and every other file stay as they are."""
     return [av_binary, "--output", "json", "restore", "--source", commit_hash, *paths]

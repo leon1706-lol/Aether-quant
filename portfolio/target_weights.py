@@ -24,6 +24,7 @@ from portfolio.cash_sweep import strategy_reserve
 
 DEFAULT_SLIPPAGE_BPS = {"equity": 3.0, "bond": 3.0, "forex": 1.0, "crypto": 10.0}
 NEXT_BAR_CLASSES = frozenset({"crypto", "forex"})
+DEFAULT_NO_BAR_HAIRCUT = {"equity": 0.05, "bond": 0.05, "forex": 0.0, "crypto": 0.20}
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,11 @@ class TargetWeightsConfig:
     margin_spread_bps: float = 150.0
     borrow_bps: float = 25.0
     fx_spread_bps: float = 50.0
+    live_reload: bool = False
+    uses_model: bool = False
+    no_bar_exit: bool = False
+    no_bar_exit_after: int = 2
+    no_bar_haircut_by_class: Mapping[str, float] = field(default_factory=lambda: dict(DEFAULT_NO_BAR_HAIRCUT))
 
 
 def _finite(value, default: float) -> float:
@@ -65,7 +71,15 @@ def resolve_target_weights_config(raw: Mapping | None) -> TargetWeightsConfig:
     slippage = {**DEFAULT_SLIPPAGE_BPS}
     for name, value in (raw.get("slippage_bps_by_class") or {}).items():
         slippage[str(name)] = max(0.0, _finite(value, slippage.get(str(name), 0.0)))
+    haircut = {**DEFAULT_NO_BAR_HAIRCUT}
+    for name, value in (raw.get("no_bar_haircut_by_class") or {}).items():
+        haircut[str(name)] = max(0.0, min(1.0, _finite(value, haircut.get(str(name), 0.0))))
     return TargetWeightsConfig(
+        live_reload=bool(raw.get("live_reload", False)),
+        uses_model=bool(raw.get("uses_model", False)),
+        no_bar_exit=bool(raw.get("no_bar_exit", False)),
+        no_bar_exit_after=max(1, int(_finite(raw.get("no_bar_exit_after", defaults.no_bar_exit_after), defaults.no_bar_exit_after))),
+        no_bar_haircut_by_class=haircut,
         enabled=bool(raw.get("enabled", False)),
         weights_path=str(raw.get("weights_path") or ""),
         weights_sha256=str(raw.get("weights_sha256") or ""),
@@ -121,6 +135,64 @@ def weights_at_tick(weights: Mapping[str, Mapping[str, float]], tick_date: str) 
     if row is None:
         return None
     return {ticker: float(weight) for ticker, weight in row.items() if ticker != FLAT_TICKER}
+
+
+def next_unapplied_row(
+    weights: Mapping[str, Mapping[str, float]], tick_date: str, applied_through: str | None,
+) -> tuple[str, dict[str, float]] | None:
+    """Paper and live (`live_reload`): the latest row dated at or before this tick and after the last one applied. Row D is
+    written after D's close, so the exact-date lookup a backtest uses would miss every row."""
+    tick = str(tick_date)[:10]
+    dates = [date for date in weights if date <= tick and (applied_through is None or date > applied_through)]
+    if not dates:
+        return None
+    date = max(dates)
+    return date, {ticker: float(weight) for ticker, weight in weights[date].items() if ticker != FLAT_TICKER}
+
+
+def weights_sidecar(path: Path | str) -> Path:
+    """`<weights>.sha256`: what a live run checks each reload against. The file grows daily, so no config can pin its hash."""
+    path = Path(path)
+    return path.with_name(path.name + ".sha256")
+
+
+def write_weights_sidecar(path: Path | str) -> str:
+    """Records the file's current hash, atomically, so a reload never reads a half-written one."""
+    path = Path(path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    sidecar = weights_sidecar(path)
+    temporary = sidecar.with_name(sidecar.name + ".tmp")
+    temporary.write_text(digest + "\n", encoding="utf-8", newline="\n")
+    temporary.replace(sidecar)
+    return digest
+
+
+def load_live_weight_file(path: Path | str) -> dict[str, dict[str, float]]:
+    """A growing weight file, checked against its sidecar. Raises as `load_weight_file` does; the caller keeps what it has."""
+    return load_weight_file(path, weights_sidecar(path).read_text(encoding="utf-8").strip())
+
+
+def update_missing_bars(
+    missing: Mapping[str, int], held_units: Mapping[str, float], has_bar: Mapping[str, bool],
+) -> dict[str, int]:
+    """Consecutive bars each held name has gone without one. A name not held, or with a bar, starts again from zero."""
+    return {
+        ticker: int(missing.get(ticker, 0)) + 1
+        for ticker, units in held_units.items()
+        if _finite(units, 0.0) != 0.0 and not has_bar.get(ticker, False)
+    }
+
+
+def names_to_exit_without_bars(missing: Mapping[str, int], config: TargetWeightsConfig) -> list[str]:
+    """Held names whose bars stopped, in a fixed order. This reacts only to bars already missing, so it reads no future: a
+    delisted name can't be sold at any later price, and holding it at its last close forever would hide the loss."""
+    return sorted(ticker for ticker, count in missing.items() if count >= config.no_bar_exit_after) if config.no_bar_exit else []
+
+
+def no_bar_exit_cost_usd(units: float, last_close_usd: float, asset_class: str, config: TargetWeightsConfig) -> float:
+    """What such an exit loses against the last close: Lean fills the order at that stale price, so this is charged on top."""
+    haircut = float(config.no_bar_haircut_by_class.get(str(asset_class), 0.0))
+    return abs(_finite(units, 0.0)) * max(0.0, _finite(last_close_usd, 0.0)) * haircut
 
 
 def rebalance_deltas(

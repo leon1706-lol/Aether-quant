@@ -198,6 +198,8 @@ model_input_timing.log
 data_holdout/
 data_v6_staging/
 data_pre2013/
+data_wide/
+data_crypto_wide/
 visualization/book_history/
 visualization/forex_order_sizing.jsonl
 backtests_invalid/

@@ -514,3 +514,10 @@ keeps a resize worth less than IB's minimum commission from trading. Shared by `
 - `premia_signals.py` — the rule-based sleeves as pure functions of what is known at each equity close (`sleeve_signal`), and the pipeline to weights (`signal_to_weights`, `scale_and_cap`), placebos (`null_signal`) and fixed-rule mixes (`combine_sleeves`). `test_no_lookahead` holds every sleeve to its timing.
 - `options_arbitrage_detector.py` — `detect_executable_edge`: a one-sided edge at bid and ask per structure (it used to flag fair prices). It still ignores dividends.
 - `options_strategy.py` — `select_iron_condor_legs` takes the inner legs from the registry's anchors, so a short iron condor is one.
+
+## V6.6.0 additions
+
+- `wide_signals.py` — the w and c trials' tables, masked to members or liquid coins; composites are rank means, never fitted.
+- `target_weights.py` — `live_reload` and its sidecar, `next_unapplied_row`, and `no_bar_exit` for a held name whose bars stop. All default off.
+- `premia_signals.py` — `align_score_table`.
+- `options_arbitrage_detector.py` — parity with dividends: `pv_dividends_to_expiry`, `dividend_payments`.

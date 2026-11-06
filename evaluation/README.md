@@ -298,3 +298,13 @@ compressed dispersion in a way IC is not.
 - `premia_research.py` (V6.5.0) — scores a sleeve as the median over 5 rebalance phases, runs placebos, and holds the gate R-SLEEVE2 as code (`selection_gate`).
 - `trial_ledger.py` (V6.5.0) — append-only log of every run with its window and role, and `deflation_inputs` (N and the same-window Sharpe variance for the deflated Sharpe).
 - `alpha_proof.py` (V6.5.0) — `window_report`, `deflated_sharpe_from_inputs`; `fresh` now starts at 2026-11-03, `forward_judgeable` at 60 sessions.
+
+## V6.6.0 additions
+
+- `research_cells.py` — the split by name and time; `open`ing a held-out cell needs the freeze's digest.
+- `wide_context.py` — `equity_cell`, `crypto_cell`: a cell's context, features and signal tables, holding only its own names.
+- `power_analysis.py` — what a t-test can show given the history: the minimum detectable alpha, power, and the alpha sizes a result excludes.
+- `forward_ledger.py` — the hash-chained forward record, and `judge_ledger`.
+- `alpha_proof.py` — `data_dir`, a required benchmark, BTC at 0 before its first bar, sessions rather than calendar rows for the fresh period.
+- `premia_research.py` — scores on `strategy_excess`, with `annual_sharpe(sessions=)`.
+- `trial_ledger.py` — `legacy_trials` keeps a ledger's trials from counting twice.

@@ -15,6 +15,7 @@ Conventions match the rest of this repo: no test classes, module-level helpers."
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import re
 import sys
@@ -258,6 +259,8 @@ def test_a_sweep_already_near_target_is_left_alone_and_the_drawdown_liquidation_
     assert orders == []
     liquidated = []
     monkeypatch.setattr(algorithm, "Liquidate", lambda symbol=None: liquidated.append(symbol))
+    # the gated path's liquidation; the target path's own is in tests/test_v660_fixes.py
+    monkeypatch.setattr(algorithm, "target_weights_config", dataclasses.replace(algorithm.target_weights_config, enabled=False))
     algorithm._liquidate_strategy_positions()
     assert liquidated == ["AAA"]
 

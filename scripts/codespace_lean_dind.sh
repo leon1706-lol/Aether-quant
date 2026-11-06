@@ -64,6 +64,9 @@ fail_all() {
 if [ "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)" != "${DATA_ROOT}" ]; then
   sudo mkdir -p /etc/docker  # the docker-in-docker feature with Docker 29 no longer creates it (V6.4.4)
   echo "{\"data-root\": \"${DATA_ROOT}\", \"dns\": [\"168.63.129.16\"]}" | sudo tee /etc/docker/daemon.json > /dev/null
+  # /tmp's default ACL gives "other" no execute: every container's / inherits it, and only root can start (Postgres can't)
+  command -v setfacl > /dev/null || sudo apt-get install -y -qq acl > /dev/null 2>&1
+  sudo mkdir -p "${DATA_ROOT}" && sudo setfacl -R -k "${DATA_ROOT}"
   sudo pkill dockerd
   # a new daemon refuses to start while the pid file names a live process, and on a fresh container that pid can be reused
   for _ in $(seq 1 30); do

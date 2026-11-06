@@ -61,3 +61,19 @@ def test_composite_is_a_mean_of_ranks():
     scores = build_factor_scores(_frame(n_dates=300))
     composite = scores["f_composite"].dropna()
     assert composite.between(0.0, 1.0).all()
+
+
+def test_factor_alpha_ignores_the_risk_free_column_and_finds_what_is_left():
+    import numpy as np
+    import pandas as pd
+
+    from evaluation.factor_spanning import factor_alpha
+
+    rng = np.random.default_rng(1)
+    dates = pd.bdate_range("2015-01-01", periods=1500).strftime("%Y-%m-%d")
+    factors = pd.DataFrame(rng.normal(0.0, 0.01, (1500, 2)), index=dates, columns=["Mkt-RF", "HML"])
+    factors["RF"] = 0.0001
+    series = 0.0005 + 0.8 * factors["HML"] + pd.Series(rng.normal(0.0, 0.002, 1500), index=dates)
+    report = factor_alpha(series, factors)
+    assert set(report["betas"]) == {"Mkt-RF", "HML"}
+    assert abs(report["betas"]["HML"] - 0.8) < 0.05 and report["alpha_t"] > 3.0

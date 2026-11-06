@@ -1,0 +1,53 @@
+name: Forward ledger
+
+# One hash-chained row a session on the orphan branch `forward-ledger`, by the frozen rule in ml/forward/candidates.json: a forward
+# record GitHub dates, which no later rerun can backfill (evaluation/forward_ledger.py).
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      session:
+        description: "The session to write (default: today, UTC)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: forward-ledger
+  cancel-in-progress: false
+
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: code
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Install the few packages the rule needs
+        run: pip install numpy pandas requests
+      - name: Check out the ledger branch, creating it the first time
+        working-directory: code
+        run: |
+          git config user.name "forward-ledger"
+          git config user.email "forward-ledger@users.noreply.github.com"
+          git fetch origin forward-ledger:forward-ledger || git branch forward-ledger "$(git commit-tree "$(git hash-object -t tree /dev/null)" -m 'Forward ledger')"
+          git worktree add ../ledger forward-ledger
+      - name: Append today's rows
+        working-directory: code
+        env:
+          SESSION: ${{ inputs.session }}
+        run: python scripts/forward_ledger.py --ledger ../ledger/forward/ledger.jsonl ${SESSION:+--session "$SESSION"}
+      - name: Commit and push the ledger
+        working-directory: ledger
+        run: |
+          git add forward/ledger.jsonl || exit 0
+          git diff --cached --quiet && exit 0
+          git -c user.name="forward-ledger" -c user.email="forward-ledger@users.noreply.github.com" commit -m "forward ledger $(date -u +%F)"
+          git push origin forward-ledger

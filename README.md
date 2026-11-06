@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4212%2F4212%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4212 of 4212 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4467%2F4467%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4467 of 4467 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -58,6 +58,7 @@ deeper still.
 
 Bonds are fully real; futures and options are wired end to end but **data-empty until an Interactive Brokers key is connected** (`phase_v2.ib.enabled`, `aq ib status`).
 
+- **V6.6.0 tested for alpha on data no rule had read, and found none.** All 28 pre-registered trials (fundamentals, insiders, short volume, funding, the model retrained on S&P 500 point-in-time members, a wide crypto universe) failed selection, so verification was not reached and nothing was installed. The installed crypto rule itself scored Sharpe -0.06 on never-read coins (2024 on: -0.45, alpha t -1.94); on the same dates the 12 chosen coins score 0.33, so most of its record came before 2018. What 8 years of selection can't exclude: an alpha Sharpe below about 0.6 to 1.0 in a rule sleeve. The models' bound is about 0. Details: `development/Problems.md` #300, #301. Survivorship was bounded by rule only, not tested.
 - **Improved, not verified: no demonstrated edge.** V6.5.0's strict bar (Lean Sharpe >= 1, alpha t >= 3, deflated Sharpe >= 0.95, Lean placebos, unread pre-2013 data) was not met, and could not be: overfitting probability over all 38 selection trials is 0.53, above the 0.5 limit, which ended verification before it began. By the pre-registered fallback R-LEAN19, V6.5.0 ships **a long-only crypto trend sleeve** (`t3_crypto_trend_blend`) in place of the model book: Lean Sharpe 0.63 on 2023-07..2026-11-02 (median of 5 rebalance phases, 0.51-0.77), against -0.20 for V6.4.4's book.
   - **It is mostly crypto exposure, not alpha.** Against SPY / AGG / BTC the alpha is +0.4%/yr (Newey-West t 0.13), and over 2014-12..2026-11 +1.3%/yr (t 0.83). Without its T-bill carry and a risk-free rate its Sharpe is 1.15 in 2023-07..2025-06 and 0.06 in 2025-07..2026-11: nearly all of the result is the earlier period. The deflated Sharpe is 12% over the 124 configurations tested.
   - **Not deployable at Interactive Brokers** until a crypto venue is decided (#192). The 12 coins are today's survivors, chosen with hindsight.
@@ -65,7 +66,7 @@ Bonds are fully real; futures and options are wired end to end but **data-empty 
   - The first run of this comparison halted on a velocity lock within months and was rerun under a recorded amendment (`ml/evaluation/v650/rules_amendment_1.json`), so those windows are not unread. See [Backtest Statistics](#backtest-statistics) and `development/Changelog.md`. **Paper trading only; no live capital.**
 - **Offline numbers:** the target-weights path has an offline twin that tracks Lean at a daily correlation of 0.992-0.9999999. The older rank-book simulator, whose results fill the offline sections below, tracked the gated path at only ~0.6-0.73 and describes the V6.4.4 book, not the shipped one.
 - **Lean runs before V5.8.0 are not comparable**: they covered 2019-01..2021-03 on data that then ended there (`development/Problems.md` #145-#154, #185, #186).
-- **IB is unverified end to end**: the connection, the opt-in live futures margin source (#67) and all 43 option structures (#38, #59) have never met a real Gateway; no option or future asset is in the universe yet. They have met Lean: all 43 structures fill through `OptionStrategies` on its sample chain, and the live margin source returns a usable value on its sample futures data (V6.5.0).
+- **IB is unverified end to end**: the connection, the opt-in live futures margin source (#67) and all 43 option structures (#59) have never met a real Gateway; no option or future asset is in the universe yet. They have met Lean: all 43 structures fill through `OptionStrategies` on its sample chain, the live margin source returns a usable value on its sample futures data (V6.5.0), and `main.py`'s own option order fills there (V6.6.0).
 - **Production safety is unit- and backtest-verified, not field-tested**: the kill switch, reconciliation and auto-rollback have run inside Lean backtests, never against a live broker / Postgres deployment over paper hours.
 
 ## Table of Contents
@@ -413,7 +414,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->4212<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->4467<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -641,7 +642,7 @@ average of all generated runs; faint lines are individual resampled histories.
 | Max drawdown | 5.035976% | 11.016698% | 19.812691% |
 | P(negative total return): **0.877** |||
 
-_Source: the offline idealized rank book, model `sequence`, head `rank_20d`, split `backtest`, computed 2026-11-03 17:27 UTC (rendered 2026-11-05 07:55 UTC) (a simulation at the configured book cadence, not the engine)._
+_Source: the offline idealized rank book, model `sequence`, head `rank_20d`, split `backtest`, computed 2026-11-03 17:27 UTC (rendered 2026-11-06 00:43 UTC) (a simulation at the configured book cadence, not the engine)._
 
 **The Lean run's own equity curve** (`2026-11-04_18-10-49`, 2023-07-01 .. 2026-11-02, 1222 daily returns, same bootstrap; the run itself returned 33.85%):
 
@@ -700,7 +701,7 @@ _The full pipeline retrained on expanding/rolling windows, each scored on data i
 | residual_rank_20d_ic | 0.0240 | [0.0071, 0.0410] | yes |
 | net_sharpe (per-window) | -0.158 | — | 4/12 windows positive |
 
-12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq train --walk-forward`; a retrain refreshes it, a re-render does not).
+12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq train --walk-forward`; a retrain refreshes it, a re-render does not).
 <!-- AQ:WALKFORWARD_END -->
 
 <details>
@@ -752,7 +753,7 @@ _The cost-aware rank-book simulator on the backtest split with the installed mod
 | Cost drag (bps/yr) | 37.6 | 110.9 |
 | Capacity (USD) | 8,767,271 | 95,382 |
 
-_Backtest split, full history. Data computed 2026-11-03 17:37 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq evaluate --all`)._
+_Backtest split, full history. Data computed 2026-11-03 17:37 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq evaluate --all`)._
 <!-- AQ:EVAL_END -->
 
 <details>
@@ -856,7 +857,7 @@ _Naive baselines and public benchmarks on the same window and Sharpe formula as 
 | sp500 | 0.882 | 23.52% | public benchmark |
 | 60_40 | 0.895 | 18.06% | public benchmark |
 
-_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Data computed 2026-11-03 17:28 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq evaluate --benchmarks`)._
+_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Data computed 2026-11-03 17:28 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq evaluate --benchmarks`)._
 <!-- AQ:BENCHMARK_END -->
 
 #### Cross-Checks
@@ -901,7 +902,7 @@ Book-member decision outcomes (1140 total, real Lean run):
 | Real Lean backtest (2023-07-01 to 2026-11-02) | _not measurable from a standalone backtest (see Disclaimer)_ | — |
 | Offline replay (approximation, see Disclaimer) | 224 | 87.7% |
 
-_Data computed 2026-11-03 17:44 UTC (rendered 2026-11-05 07:55 UTC) (auto-generated by `aq evaluate`)._
+_Data computed 2026-11-03 17:44 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq evaluate`)._
 <!-- AQ:OTHER_METRICS_END -->
 
 ### Research and Audit
@@ -1031,7 +1032,7 @@ Bar (+0.02 IC and +0.15 Sharpe on both splits): **the gate hides weakness, not p
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->4212<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->4467<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -1294,6 +1295,8 @@ backtest.
 - `--lean-monte-carlo [--backtest-dir backtests/<timestamp>]`: (V6.1.0) the same stationary-block bootstrap applied to a **finished Lean run's own daily equity returns** (default: the newest folder) -> `ml/evaluation/monte_carlo_lean.json`; the README's Monte Carlo block then shows it next to the offline book, with its source named. Reads only the run folder: no dataset, no model.
 - `--lean-stats [--backtest-dir backtests/<timestamp>] [--interest-rate-file F] [--trading-days N]`: (V6.2.0) a finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas (`evaluation/lean_statistics.py`: compounded mean daily return, sample variance x days a year, the risk-free file averaged over every equity sample), priced on the shipped and the pre-V6.2 risk-free file at 252 and 365 days a year -> `ml/evaluation/lean_stats_<run>.json`. Reads only the run folder.
 - `--backtest-stats [--backtest-dir backtests/<timestamp>]`: (V6.3.0) the [Backtest Statistics](#backtest-statistics) of one finished Lean run (default: the README pin, else the newest run): general characteristics, performance, runs and drawdowns (HHI, 95th-percentile drawdown and time under water), implementation shortfall, efficiency (PSR, deflated Sharpe over `ml/evaluation/trial_registry.json`), classification scores and risk/return per asset class, each for the portfolio and for the strategy without its T-bill sweep -> `ml/evaluation/backtest_statistics.json`. Reads only the run folder, its book history and the data zips.
+- `--forward-ledger [--ledger-branch forward-ledger] [--ledger-file PATH]`: (V6.6.0) verify the forward ledger's hash chain, exit 1 if broken, and judge each frozen rule (sessions, Sharpe, alpha t, what this many sessions can show). RUNBOOK "Forward ledger".
+- `--data-dir DIR`: (V6.6.0) the Lean run's data root for `--alpha-proof`: `data_wide` or `data_crypto_wide`. Default `data`.
 - `--alpha-proof [--backtest-dir backtests/<timestamp>]`: (V6.4.4) proof of alpha for one finished Lean run: the strategy without its T-bill sweep per period (the whole run, backtest, holdout and the fresh weeks after 2026-10-16) - Sharpe with a stationary-bootstrap 95% interval, the alpha against SPY / AGG / BTC with a Newey-West t, PSR and the deflated Sharpe over the trial registry - and the descriptive R-ALPHA1 verdict -> `ml/evaluation/alpha_proof.json`.
 - `--lean-report [--backtest-dir backtests/<timestamp>]`: (V6.3.0) every run-folder tool in order (`--lean-stats`, `--lean-monte-carlo`, `--audit-backtest` with the config's backtest and holdout periods, `--attribute-lean`, `--audit-fills`, `--backtest-stats`, `--classification-parity`), each best-effort, then the README; an explicit `--backtest-dir` also pins the README to that run. `aq backtest` runs it automatically; use it after a run made on the DinD Codespace.
 - `--classification-parity [--backtest-dir backtests/<timestamp>] [--dataset PATH]`: (V6.4.0, rule R-L11) a Lean run's logged book-call probabilities (`phase_v2.diagnostics.book_history.include_probabilities`) against the same `direction_20d` head scored offline on the same rows, to a fixed tolerance (|accuracy delta| and |neg log-loss delta| <= 0.01, median |probability gap| <= 0.005) -> `ml/evaluation/classification_parity.json`. Exit code 1 when outside the tolerance; a run without logged probabilities reports that and passes.

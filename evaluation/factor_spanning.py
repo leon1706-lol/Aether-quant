@@ -62,6 +62,14 @@ def _newey_west_cov(x: np.ndarray, residuals: np.ndarray, lags: int) -> np.ndarr
     return bread @ meat @ bread / n
 
 
+def factor_alpha(series: pd.Series, factors: pd.DataFrame, *, hac_lags: int = 5, periods_per_year: int = 252) -> dict:
+    """What a sleeve earns beyond published factors (French's five and momentum, AQR's QMJ and BAB). A return all explained here may be real and
+    still only a premium anyone can buy, so this labels a result; it never blocks one. `RF` isn't a factor. Rows a factor hasn't reached are dropped, and
+    `num_dates` shows how many remain."""
+    columns = [name for name in factors.columns if name != "RF"]
+    return factor_spanning(series, factors[columns], hac_lags=hac_lags, periods_per_year=periods_per_year)
+
+
 def factor_spanning(signal_returns: pd.Series, factor_returns: pd.DataFrame, *, hac_lags: int = 19, periods_per_year: int = 252) -> dict:
     """OLS of the signal's daily return on the factors' (dates present in both, rows with a NaN dropped)."""
     joined = pd.concat([signal_returns.rename("_signal"), factor_returns], axis=1, join="inner")

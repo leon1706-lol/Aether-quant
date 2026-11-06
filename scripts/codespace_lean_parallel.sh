@@ -39,7 +39,7 @@ run_one() {
   fi
   sudo rm -rf "${dir}" && mkdir -p "${dir}"
   # real copies: main.py writes under visualization/ and a shared inode would mix the runs' files
-  rsync -a --exclude data --exclude data_pre2013 --exclude backtests --exclude .git --exclude .av --exclude .venv \
+  rsync -a --exclude data --exclude data_pre2013 --exclude data_wide --exclude data_crypto_wide --exclude backtests --exclude .git --exclude .av --exclude .venv \
     --exclude ml/datasets --exclude ml/versions --exclude ml/expert_datasets --exclude ml/evaluation/run_artifacts \
     ./ "${dir}/" || { report "LEAN_FAILED ${name} copy"; return; }
   data_root="data"
@@ -55,6 +55,11 @@ run_one() {
   ) 7> "${STATE_DIR}/data_master.lock"
   cp -al "${master}" "${dir}/data" || { report "LEAN_FAILED ${name} data ${data_root}"; return; }
   cp "${run_config}" "${dir}/config.json"
+  # The CLI refreshes symbol-properties and market-hours from GitHub once a day, writing through the hard link: a root's own rows
+  # (coins Lean's table lacks) would vanish for this and every later run on that master.
+  if [ "${data_root}" != "data" ]; then
+    sed -i -E "s#(\"file-database-last-update\": *\")[^\"]*#\1$(date '+%m/%d/%Y %H:%M:%S')#" "${dir}/lean.json"
+  fi
   if [ -d "ml/evaluation/run_artifacts/${name}" ]; then
     cp -r "ml/evaluation/run_artifacts/${name}/." "${dir}/ml/"
   fi

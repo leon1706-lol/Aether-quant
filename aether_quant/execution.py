@@ -11,6 +11,7 @@ from execution.cost_model import (
 from execution.order_gate import (
     resolve_fill_slippage,
     resolve_order_permission,
+    resolve_risk_exit_permission,
     resolve_runtime_mode,
     resolve_slippage_bps,
     slippage_amount,
@@ -27,6 +28,7 @@ __all__ = [
     "reconcile_positions",
     "resolve_fill_slippage",
     "resolve_order_permission",
+    "resolve_risk_exit_permission",
     "resolve_runtime_mode",
     "resolve_slippage_bps",
     "slippage_amount",

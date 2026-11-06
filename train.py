@@ -654,6 +654,27 @@ def purge_label_overlap(splits: list, horizon_rows: int) -> list:
     return result
 
 
+def purge_label_overlap_calendar(splits: list, dates: list, calendar_days: int) -> list:
+    """`purge_label_overlap` in calendar days. A pooled rank mixes classes: 20 crypto bars are 20 days but 20 equity sessions are
+    about 28, so a crypto row kept by a 20-row purge can have a rank built from equity returns past the boundary.
+    `calendar_days <= 0` returns the labels unchanged."""
+    result = list(splits)
+    if calendar_days <= 0:
+        return result
+    stamps = [pd.Timestamp(date) for date in dates]
+    first_date: dict[str, pd.Timestamp] = {}
+    for index in range(len(splits) - 1, -1, -1):
+        label = splits[index]
+        if not isinstance(label, str) or label not in _SPLIT_ORDER:
+            continue
+        rank = _SPLIT_ORDER[label]
+        later_starts = [start for name, start in first_date.items() if _SPLIT_ORDER[name] > rank]
+        if later_starts and (min(later_starts) - stamps[index]).days <= calendar_days:
+            result[index] = "purged"
+        first_date[label] = stamps[index]
+    return result
+
+
 def assign_split(date_value: pd.Timestamp, windows: dict) -> str | None:
     date_stamp = pd.Timestamp(date_value)
     training = windows["training"]
@@ -943,6 +964,9 @@ def engineer_features(
     purge_horizon_rows = int(windows.get("purge_label_horizon_days", 0) or 0)
     if purge_horizon_rows > 0:
         result["split"] = purge_label_overlap(result["split"].tolist(), purge_horizon_rows)
+    purge_calendar_days = int(windows.get("purge_label_calendar_days", 0) or 0)
+    if purge_calendar_days > 0:
+        result["split"] = purge_label_overlap_calendar(result["split"].tolist(), result["date"].tolist(), purge_calendar_days)
 
     required_columns = feature_names + [
         "target_return_1d",
@@ -2528,10 +2552,13 @@ def build_asset_quality(config: dict, dataset: pd.DataFrame, metadata: dict) -> 
         validation_rows = int(counts.get("validation", 0))
         backtest_rows = int(counts.get("backtest", 0))
 
+        # `backtest_rows` reads the future: it dropped a name that died before the backtest from all earlier training, which
+        # is survivorship. V6.6.0's `eligibility_ignores_backtest_rows` removes the clause (default off: installed models keep their recipe).
+        ignores_backtest_rows = bool(quality_config.get("eligibility_ignores_backtest_rows", False))
         training_eligible = (
             total_rows >= min_total_rows
             and training_rows >= min_training_rows
-            and backtest_rows >= min_backtest_rows
+            and (ignores_backtest_rows or backtest_rows >= min_backtest_rows)
         )
         # V5.7.0: `trading_eligibility_basis: "history"` lets a name with too few TRAIN rows (ETH starts in 2017-09: 54 train
         # rows) trade on its validation + backtest history; the pooled model still scores it (its features exist) but its

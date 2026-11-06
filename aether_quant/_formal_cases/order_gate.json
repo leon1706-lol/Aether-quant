@@ -13,6 +13,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -28,6 +30,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -43,6 +47,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -58,6 +64,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -73,6 +81,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -88,6 +98,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -103,6 +115,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -118,6 +132,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:backtest_unrestricted",
+    "risk_exit_permitted": true,
     "reason": "backtest_unrestricted",
     "permitted": true,
     "cash_sweep_reason": "backtest_unrestricted",
@@ -133,6 +149,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -148,6 +166,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -163,6 +183,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -178,6 +200,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -193,6 +217,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -208,6 +234,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -223,6 +251,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -238,6 +268,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:observation_mode_no_real_orders",
+    "risk_exit_permitted": false,
     "reason": "observation_mode_no_real_orders",
     "permitted": false,
     "cash_sweep_reason": "observation_mode_no_real_orders",
@@ -253,6 +285,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_blocked_missing_flag_or_broker_config",
+    "risk_exit_permitted": false,
     "reason": "paper_orders_blocked_missing_flag_or_broker_config",
     "permitted": false,
     "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
@@ -268,6 +302,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_blocked_missing_flag_or_broker_config",
+    "risk_exit_permitted": false,
     "reason": "paper_orders_blocked_missing_flag_or_broker_config",
     "permitted": false,
     "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
@@ -283,6 +319,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_blocked_missing_flag_or_broker_config",
+    "risk_exit_permitted": false,
     "reason": "paper_orders_blocked_missing_flag_or_broker_config",
     "permitted": false,
     "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
@@ -298,6 +336,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_blocked_missing_flag_or_broker_config",
+    "risk_exit_permitted": false,
     "reason": "paper_orders_blocked_missing_flag_or_broker_config",
     "permitted": false,
     "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
@@ -313,6 +353,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_blocked_missing_flag_or_broker_config",
+    "risk_exit_permitted": false,
     "reason": "paper_orders_blocked_missing_flag_or_broker_config",
     "permitted": false,
     "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
@@ -328,6 +370,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_blocked_missing_flag_or_broker_config",
+    "risk_exit_permitted": false,
     "reason": "paper_orders_blocked_missing_flag_or_broker_config",
     "permitted": false,
     "cash_sweep_reason": "paper_orders_blocked_missing_flag_or_broker_config",
@@ -343,6 +387,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_enabled",
+    "risk_exit_permitted": true,
     "reason": "paper_orders_blocked_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "paper_orders_enabled",
@@ -358,6 +404,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:paper_orders_enabled",
+    "risk_exit_permitted": true,
     "reason": "paper_orders_enabled",
     "permitted": true,
     "cash_sweep_reason": "paper_orders_enabled",
@@ -373,6 +421,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "risk_exit_permitted": false,
     "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
@@ -388,6 +438,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "risk_exit_permitted": false,
     "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
@@ -403,6 +455,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "risk_exit_permitted": false,
     "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
@@ -418,6 +472,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "risk_exit_permitted": false,
     "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
@@ -433,6 +489,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "risk_exit_permitted": false,
     "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
@@ -448,6 +506,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
+    "risk_exit_permitted": false,
     "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
@@ -463,6 +523,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_enabled",
+    "risk_exit_permitted": true,
     "reason": "live_orders_blocked_missing_flag_or_broker_config_or_risk_lock",
     "permitted": false,
     "cash_sweep_reason": "live_orders_enabled",
@@ -478,6 +540,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:live_orders_enabled",
+    "risk_exit_permitted": true,
     "reason": "live_orders_enabled",
     "permitted": true,
     "cash_sweep_reason": "live_orders_enabled",
@@ -493,6 +557,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -508,6 +574,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -523,6 +591,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -538,6 +608,8 @@
     "allow_live_orders": false
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -553,6 +625,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -568,6 +642,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -583,6 +659,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -598,6 +676,8 @@
     "allow_live_orders": true
    },
    "expected": {
+    "risk_exit_reason": "risk_exit:unknown_mode_defaults_to_no_orders",
+    "risk_exit_permitted": false,
     "reason": "unknown_mode_defaults_to_no_orders",
     "permitted": false,
     "cash_sweep_reason": "unknown_mode_defaults_to_no_orders",
@@ -5795,5 +5875,5 @@
    }
   }
  ],
- "spec_sha256": "94401ca02cf56ebbcc6e96e1364d1af4a992acbd89815aa7d6764e6929961edc"
+ "spec_sha256": "37dacb2bfb2346ed5815d7edeacd1fc3ff18a69a52710972ee4d3192c2860e90"
 }

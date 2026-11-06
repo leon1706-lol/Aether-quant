@@ -161,3 +161,14 @@ codebase.
 - `codespace_*.sh` — the Codespace helpers (`codespace_retrain_v580.sh` stage A/B retrain, `codespace_start_bg.sh` / `codespace_stop_jobs.sh` relaunch and stop resumable jobs, `codespace_final_session.sh` the last code push + test run, `codespace_status.sh` / `codespace_wf_progress.sh` progress). Always push with `-CodeOnly` after a retrain: a full push overwrites the remote `ml/`.
 - `v650_*.py`, `daily_target_weights.py`, `build_pre2013_root.py`, `vault_record.py` (V6.5.0) — the phase's chain: `v650_write_rules.py` (rules before scores), `v650_research.py` (scores, placebos, gate, combination), `v650_lean.py` (freeze, pool, judge), `v650_instrument.py` (engine vs Lean), `v650_ml_scores.py` and `v650_make_recipe.py` (walk-forward score tables), `daily_target_weights.py` (a live row from the research functions), `build_pre2013_root.py` (the unread data root), `vault_record.py` (a gate as a local vault commit).
 - `codespace_lean_parallel.sh` (V6.5.0) — several Lean runs at once on one Codespace, each in its own project copy. `lean_smoke/` — the options and futures code against Lean's API on its sample data.
+
+## V6.6.0
+
+- `build_wide_root.py`, `build_wide_info.py`, `build_crypto_wide_root.py` — the wide data roots. `build_wide_info.py` is PC-only: it needs the SEC contact.
+- `v660_trials.py`, `v660_write_rules.py` — the trial list and the hashed rules.
+- `v660_build_panel.py`, `v660_research.py` — the model track's rows, and selection on the free cells.
+- `v660_codespace_crypto.sh`, `v660_codespace_selection.sh` — that work on the training Codespace; `v660_wait_codespace.sh` polls it.
+- `v660_verdict.py` — R-CRYPTO1, the per-trial table of what the search excludes, and how far the spliced coins moved the crypto numbers. `v660_sanity.py` — can the wide path see an edge at all (oracle, reversal, random; enters no ledger). `v660_crypto_splices.py` — price breaks in `data_crypto_wide`.
+- `v660_lean.py` — the instrument batch and R-INSTR2, and verification. `v660_rescore_v650.py`, `v660_venue_study.py` — report only.
+- `extend_frozen_weights.py`, `forward_ledger.py` — the forward check and the forward record.
+- `lean_smoke/main_option_order.py`, `lean_smoke/run_main_option_order.sh` — `main.py`'s own option order, forced once on the sample chain.

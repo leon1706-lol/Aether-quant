@@ -131,3 +131,15 @@ def test_coinbase_schedule_and_default_fees():
     assert default_fee_usd("crypto", 1000.0, "2024-01-01", FREE) == pytest.approx(8.0)
     assert default_fee_usd("forex", 1000.0, "2024-01-01", FREE) == pytest.approx(2.0)
     assert default_fee_usd("forex", 0.0, "2024-01-01", FREE) == 0.0
+
+
+def test_turnover_is_a_share_of_the_nav_the_book_actually_had():
+    # Buys $100k at 10; the price doubles, so NAV is $200k when it sells half ($100k). $200k traded on a mean NAV above the starting $100k.
+    opens = [[10.0], [10.0], [20.0], [20.0]]
+    closes = [[10.0], [20.0], [20.0], [20.0]]
+    result = _run({"2024-01-01": {"A": 1.0}, "2024-01-03": {"A": 0.5}}, _panel(["A"], opens, closes, {"A": "equity"}))
+
+    nav = result["nav"]
+    years = len(nav) / 365.25
+    assert nav.mean() > 100_000.0
+    assert result["turnover"] == pytest.approx(200_000.0 / nav.mean() / years)

@@ -17,6 +17,9 @@ from portfolio.options_strategy import MULTI_LEG_STRATEGY_REGISTRY, select_singl
 from features.options_greeks import compute_greeks, implied_volatility
 
 RISK_FREE = 0.01
+# AAPL's dividend in the sample window, $3.29 a share before its 7-for-1 split of 2014-06-09 (ex 2014-08-07). The chain is priced
+# for the split on the day, so the smoke compares both ways.
+AAPL_DIVIDENDS = (("2014-08-07", 3.29),)
 RETRY_DELTAS = (0.5, 0.3, 0.6, 0.25)
 ARBITRAGE_NAMES = ("box_spread", "short_box_spread", "conversion", "reverse_conversion", "jelly_roll", "short_jelly_roll")
 
@@ -79,7 +82,8 @@ class OptionStructuresSmoke(QCAlgorithm):  # noqa: F405
         arbitrage = {}
         for name in ARBITRAGE_NAMES:
             try:
-                arbitrage[name] = bool(select_arbitrage_signal(name, rows, self.time.date(), RISK_FREE, 5.0))
+                arbitrage[name] = bool(select_arbitrage_signal(name, rows, self.time.date(), RISK_FREE, 5.0, dividend_payments=AAPL_DIVIDENDS))
+                arbitrage[f"{name}_ignoring_dividends"] = bool(select_arbitrage_signal(name, rows, self.time.date(), RISK_FREE, 5.0))
             except Exception as error:
                 arbitrage[name] = f"raised {type(error).__name__}: {error}"
         assignment = {}

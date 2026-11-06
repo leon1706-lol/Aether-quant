@@ -62,6 +62,11 @@ def permit : Mode → Bool → Bool → Bool → Bool × String
 /-- `resolve_cash_sweep_order_permission`: the strategy's risk locks are not consulted. -/
 def permitCashSweep (m : Mode) (a b : Bool) : Bool × String := permit m a b true
 
+/-- `resolve_risk_exit_permission`: an order that takes risk off while a lock is active. The lock isn't consulted. -/
+def permitRiskExit (m : Mode) (a b : Bool) : Bool × String :=
+  let (allowed, reason) := permit m a b true
+  (allowed, "risk_exit:" ++ reason)
+
 /-- The single safety invariant: observation never places a real order. -/
 theorem observation_never (a b c : Bool) : (permit .observation a b c).1 = false := rfl
 
@@ -77,6 +82,17 @@ theorem risk_lock_blocks (m : Mode) (a b : Bool) (hm : m ≠ .backtest) : (permi
   cases m <;> cases a <;> cases b <;> simp_all [permit]
 
 theorem cash_sweep_never_in_observation (a b : Bool) : (permitCashSweep .observation a b).1 = false := rfl
+
+theorem risk_exit_never_in_observation (a b : Bool) : (permitRiskExit .observation a b).1 = false := rfl
+
+/-- A lock never freezes a book open: wherever an order would be allowed with no lock, a risk exit still is. -/
+theorem risk_exit_ignores_the_lock (m : Mode) (a b : Bool) :
+    (permitRiskExit m a b).1 = (permit m a b true).1 := rfl
+
+/-- Anything an order could do, a risk exit can too. -/
+theorem permit_implies_risk_exit (m : Mode) (a b c : Bool) (h : (permit m a b c).1 = true) :
+    (permitRiskExit m a b).1 = true := by
+  cases m <;> cases a <;> cases b <;> cases c <;> simp_all [permit, permitRiskExit]
 
 theorem resolveRuntimeMode_ne_other (s : Option String) : resolveRuntimeMode s ≠ .other := by
   unfold resolveRuntimeMode

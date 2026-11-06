@@ -20,7 +20,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from execution.paper_readiness import evaluate_observation_readiness, evaluate_paper_broker_config
+from execution.paper_readiness import evaluate_observation_readiness, evaluate_paper_broker_config, evaluate_velocity_decision
 from execution.paper_readiness_io import fetch_observation_mode_events
 from experience.observation_metrics import compute_observation_summary
 
@@ -48,10 +48,14 @@ def build_paper_readiness_view(conn, config: dict) -> dict:
     blocking_reasons = list(observation_readiness["blocking_reasons"])
     if not broker_config_present:
         blocking_reasons.append(broker_config_reason)
+    velocity_decided, velocity_reason = evaluate_velocity_decision(config)
+    if not velocity_decided:
+        blocking_reasons.append(velocity_reason)
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "ready": observation_readiness["ready"] and broker_config_present,
+        "ready": observation_readiness["ready"] and broker_config_present and velocity_decided,
+        "velocity_decision": velocity_reason,
         "checks": observation_readiness["checks"],
         "blocking_reasons": blocking_reasons,
         "broker_config_present": broker_config_present,

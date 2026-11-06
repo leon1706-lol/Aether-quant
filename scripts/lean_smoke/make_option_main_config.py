@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import argparse
 import copy
 import json
 from pathlib import Path
@@ -24,6 +25,8 @@ def option_main_config(base: dict) -> dict:
     risk = config["phase_v2"]["options_risk"]
     risk.update({"enabled": True, "spread_strategy": "vertical", "multi_leg_strategies_enabled": True, "max_vega_budget_pct_of_equity": 0.1})
     risk["arbitrage_detector"]["enabled"] = True
+    # the target-weights path returns from on_data before any option chain is read
+    config["phase_v2"]["target_weights"]["enabled"] = False
     config["phase_v2"]["cash_sweep"]["enabled"] = False
     config["phase_v2"]["bond_sleeve"]["enabled"] = False
     config["phase_v2"]["legacy_sleeve"]["enabled"] = True
@@ -31,8 +34,10 @@ def option_main_config(base: dict) -> dict:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out", default=str(ROOT / "ml" / "evaluation" / "run_configs" / "v650_smoke_option_main.json"))
     base = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
-    path = ROOT / "ml" / "evaluation" / "run_configs" / "v650_smoke_option_main.json"
+    path = Path(parser.parse_args().out)
     path.write_text(json.dumps(option_main_config(base), indent=4), encoding="utf-8", newline="\n")
     print(path)
     return 0

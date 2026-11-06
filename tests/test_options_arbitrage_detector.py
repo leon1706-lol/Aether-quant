@@ -4,6 +4,8 @@
 import math
 from datetime import date
 
+import pytest
+
 from portfolio.options_arbitrage_detector import (
     box_spread_fair_value,
     build_arbitrage_position_sizing,
@@ -218,3 +220,22 @@ def test_build_arbitrage_position_sizing_non_positive_max_contracts_returns_none
     chain = _sample_chain()
     today = date(2026, 7, 21)
     assert build_arbitrage_position_sizing("box_spread", chain, today, 0.045, min_mispricing_bps=1.0, max_contracts_per_signal=0) is None
+
+
+def test_dividends_make_a_reverse_conversion_fair_on_a_dividend_payer():
+    from portfolio.options_arbitrage_detector import pv_dividends_to_expiry
+
+    expiry = "2024-07-19"
+    today = date(2024, 1, 2)
+    payments = [("2024-02-09", 2.0), ("2024-05-10", 2.0), ("2024-08-09", 2.0), ("2023-11-10", 2.0)]
+    pv = pv_dividends_to_expiry(payments, today, expiry, 0.0)
+    assert pv == pytest.approx(4.0), "only the dividends going ex before expiry"
+    assert pv_dividends_to_expiry(None, today, expiry, 0.05) == 0.0
+    assert pv_dividends_to_expiry([("bad", "x")], today, expiry, 0.05) == 0.0
+    assert pv_dividends_to_expiry(payments, today, expiry, 0.05) < 4.0
+
+
+def test_parity_accounts_for_dividends():
+    assert conversion_parity_value(6.0, 10.0, 100.0, 100.0, 0.0, 0.5, pv_dividends=4.0) == pytest.approx(0.0)
+    assert conversion_parity_value(6.0, 10.0, 100.0, 100.0, 0.0, 0.5) == pytest.approx(-4.0)
+    assert conversion_parity_value(10.0, 6.0, 100.0, 100.0, 0.0, 0.5, pv_dividends=4.0) == pytest.approx(8.0)

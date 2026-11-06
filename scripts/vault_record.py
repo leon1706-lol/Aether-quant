@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from retraining.vault_client import parse_av_envelope, run_av_command, vault_preflight  # noqa: E402
+from retraining.vault_client import parse_av_envelope, run_av_command, staged_leftovers, vault_preflight  # noqa: E402
 from retraining.vault_commands import build_av_add_command, build_av_commit_command  # noqa: E402
 
 
@@ -53,6 +53,10 @@ def record(label: str, paths: list[str], metrics: dict[str, float], *, cwd: Path
     preflight = vault_preflight(config, cwd=cwd)
     if not preflight["ok"]:
         return {"ok": False, "stage": "preflight", "commit": None, "detail": preflight["reason"]}
+    # A failed gate's leftovers must not land under this gate's label.
+    leftovers = staged_leftovers(binary, cwd=cwd, timeout=600)
+    if leftovers:
+        return {"ok": False, "stage": "staged_leftovers", "commit": None, "detail": f"run `av unstage` first: {leftovers[:5]}"}
     added = run_av_command(build_av_add_command(paths, av_binary=binary), cwd=cwd, timeout=600)
     if not added["ok"]:
         return {"ok": False, "stage": "add", "commit": None, "detail": added["error"]}

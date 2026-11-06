@@ -293,3 +293,13 @@ touched, so the trained models, the dataset and Lean backtests are unaffected.
 - `yfinance_backfill.py` — can rewrite a whole universe zip from one pull (`merge_with_existing=False`), which is how every class got one Yahoo vintage through 2026-09-30 (V6.4.0 extended it to 2026-10-16 by appending only, `scripts/data_append_refresh.py` / `data_append_guard.py`); never leave a sentinel-only factor file (the 2050 trap, Problems #130).
 - `cftc_cot.py` (V6.5.0) — speculators' net positioning from the free CFTC files, keyed by publication date (`data/reference/cot_positioning.csv`, from 2005).
 - `edgar_facts.py` (V6.5.0) — point-in-time quarterly EPS from SEC EDGAR, first filing only, into `data/reference/edgar_eps.csv`; `--apply --splits` writes `equity_splits.csv` from Yahoo. SEC refuses a client with no contact, so set `AQ_SEC_CONTACT` for the run (never in the repository). `surprise_table` expects split-adjusted EPS (`split_adjusted_eps`) and compares a quarter with the one ending 350-380 days earlier.
+
+## V6.6.0 additions
+
+- `sp500_membership.py` — point-in-time S&P 500 members (Wikipedia-derived, so with errors), renames, share-class twins, the coverage gap.
+- `binance_archive.py` — data.binance.vision's spot klines and funding, delisted pairs included; `liquid_universe` reads trailing volume only.
+- `edgar_facts.py` — annual first filings, `fundamentals_table` a session after filing, `market_cap_table` on closes without dividends, sectors from SIC.
+- `sec_form345.py` — Form 4 open-market trades by filing date, and Cohen-Malloy-Pomorski's opportunistic split.
+- `finra_short_volume.py` — daily short ratios from 2018-08.
+- `factor_library.py` — French's and AQR's daily factors, reported beside a result and never blocking.
+- `net_retry.py` — only the server's own answer means a file is absent.

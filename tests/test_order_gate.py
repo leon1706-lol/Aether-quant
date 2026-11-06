@@ -595,3 +595,14 @@ def test_the_cash_sweep_ignores_strategy_locks_but_not_the_mode_gates():
     assert resolve_cash_sweep_order_permission("paper", True, True) == (True, "paper_orders_enabled")
     assert resolve_cash_sweep_order_permission("live", True, False)[0] is False
     assert resolve_order_permission("paper", True, True, risk_locks_healthy=False)[0] is False  # the strategy stays locked
+
+
+def test_a_combo_limit_is_offset_from_its_net_price_on_either_side_of_zero():
+    from execution.order_gate import resolve_combo_limit_price
+
+    assert resolve_combo_limit_price(4.00, 0.10, True) == 4.20
+    assert resolve_combo_limit_price(4.00, 0.10, False) == 3.80
+    # a credit: a buyer may receive less, a seller must receive more
+    assert resolve_combo_limit_price(-4.00, 0.10, True) == -3.80
+    assert resolve_combo_limit_price(-4.00, 0.10, False) == -4.20
+    assert resolve_combo_limit_price(4.00, -1.0, True) == 4.00

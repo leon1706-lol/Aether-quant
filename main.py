@@ -93,11 +93,16 @@ from portfolio.financing import daily_financing_usd, load_rate_series, rate_asof
 from portfolio.target_weights import (
     NEXT_BAR_CLASSES,
     equity_fee_usd,
+    load_live_weight_file,
     load_weight_file,
+    names_to_exit_without_bars,
+    next_unapplied_row,
+    no_bar_exit_cost_usd,
     rebalance_deltas,
     resolve_target_weights_config,
     slippage_bps_for,
     sweep_reserve,
+    update_missing_bars,
     weights_at_tick,
 )
 from portfolio.class_sleeve import build_class_sleeve_weights, resolve_class_sleeve_config
@@ -239,10 +244,12 @@ from execution import (
     resolve_fill_slippage_source,
     resolve_limit_order_timeout_action,
     resolve_exit_order_route,
+    resolve_combo_limit_price,
     resolve_limit_price,
     resolve_limit_setting_by_class,
     resolve_cash_sweep_order_permission,
     resolve_order_permission,
+    resolve_risk_exit_permission,
     resolve_pending_order_action,
     resolve_runtime_mode,
     resolve_slippage_bps,
@@ -4134,6 +4141,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._target_symbol_by_ticker: dict = {}
         self._target_class_by_ticker: dict[str, str] = {}
         self._target_lot_by_ticker: dict[str, float] = {}
+        self._target_applied_through = None
+        self._target_missing_bars: dict[str, int] = {}
+        self._target_exited_without_bars: set[str] = set()
         config = self.target_weights_config
         if not config.enabled:
             return
@@ -4158,6 +4168,27 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.Securities[symbol].SetFeeModel(_BpsEquityFeeModel(config.equity_fee_bps, config.equity_min_fee_usd))
         if self._cash_sweep_symbol is not None:
             self.Securities[self._cash_sweep_symbol].SetFeeModel(_BpsEquityFeeModel(config.equity_fee_bps, config.equity_min_fee_usd))
+        if config.live_reload and self.runtime_mode != "backtest" and self._equity_symbols:
+            # Row D is written after D's close, so it can only meet its fill (D+1's open) from a tick before that open.
+            anchor = self._equity_symbols[0]
+            self.Schedule.On(self.DateRules.EveryDay(anchor), self.TimeRules.BeforeMarketOpen(anchor, 5), self._target_premarket_tick)
+
+    def _target_premarket_tick(self) -> None:
+        """Paper and live with `live_reload`: re-read the growing file and apply the newest row not applied yet."""
+        if self.is_warming_up or self.trade_lock_active:
+            return
+        try:
+            self._target_weights = load_live_weight_file(self.root_path / self.target_weights_config.weights_path)
+        except (OSError, ValueError) as error:
+            self.Debug(f"target_weights: reload failed, holding - {error}")
+            return
+        found = next_unapplied_row(self._target_weights, self.Time.date().isoformat(), self._target_applied_through)
+        if found is None:
+            return
+        self._target_applied_through, target = found
+        orders_allowed, _ = self._order_permission()
+        if orders_allowed:
+            self._apply_target_row(target)
 
     def _target_usd_per_unit(self, symbol) -> float:
         security = self.Securities[symbol]
@@ -4167,19 +4198,67 @@ class AetherQuantAlgorithm(QCAlgorithm):
         """The whole tick on this path (portfolio/target_weights.py): this bar's decision, its orders, the T-bill sweep."""
         if self.is_warming_up:
             return
+        # A lock stops new risk, not the orders that take risk off.
+        if self.trade_lock_active:
+            exit_allowed, _ = resolve_risk_exit_permission(self.runtime_mode, self.allow_live_orders, self._broker_config_present)
+            if not exit_allowed:
+                return
+            if self.is_equity_session_bar:
+                self._accrue_target_financing()
+            self._liquidate_strategy_positions()
+            if self.is_equity_session_bar:
+                self._update_cash_sweep()
+            self._exit_target_names_without_bars(slice)
+            if self._target_pending:
+                self._submit_next_bar_target_orders(slice)
+            return
         orders_allowed, _ = self._order_permission()
         if not orders_allowed:
             return
         if self.is_equity_session_bar:
             self._accrue_target_financing()
-            if self.trade_lock_active:
-                self._target_pending = {}
-                self._liquidate_strategy_positions()
-            else:
-                self._apply_target_decision(slice)
+            self._apply_target_decision(slice)
             self._update_cash_sweep()
+        self._exit_target_names_without_bars(slice)
         if self._target_pending:
             self._submit_next_bar_target_orders(slice)
+
+    @staticmethod
+    def _has_real_bar(bar) -> bool:
+        """Lean fills a stopped feed forward with copies of its last bar, so being in the slice doesn't show a price arrived."""
+        return bar is not None and not bool(getattr(bar, "IsFillForward", False))
+
+    def _exit_target_names_without_bars(self, slice: Slice) -> None:
+        """A held name whose bars have stopped can't be sold at any later price (portfolio/target_weights.py). An equity is
+        only counted on an equity session; crypto and forex on every tick."""
+        config = self.target_weights_config
+        if not config.no_bar_exit:
+            return
+        held, has_bar = {}, {}
+        for ticker, symbol in self._target_symbol_by_ticker.items():
+            quantity = float(self.Portfolio[symbol].Quantity)
+            if quantity == 0.0:
+                continue
+            held[ticker] = quantity
+            if self._target_class_by_ticker[ticker] in NEXT_BAR_CLASSES or self.is_equity_session_bar:
+                has_bar[ticker] = self._has_real_bar(slice.Bars.get(symbol)) or self._has_real_bar(slice.QuoteBars.get(symbol))
+            else:
+                has_bar[ticker] = True
+            if has_bar[ticker]:
+                self._target_exited_without_bars.discard(ticker)
+        self._target_missing_bars = update_missing_bars(self._target_missing_bars, held, has_bar)
+        for ticker in names_to_exit_without_bars(self._target_missing_bars, config):
+            # Lean fills a market order only on a later bar, which a dead name never has, so the position stays open at its last close: it is charged once
+            if ticker in self._target_exited_without_bars:
+                continue
+            self._target_exited_without_bars.add(ticker)
+            symbol = self._target_symbol_by_ticker[ticker]
+            cost = no_bar_exit_cost_usd(held[ticker], self._target_usd_per_unit(symbol), self._target_class_by_ticker[ticker], config)
+            self.Liquidate(symbol, tag="no_bar_exit")
+            self.Portfolio.CashBook["USD"].AddAmount(-cost)
+            self._target_pending.pop(ticker, None)
+            self._target_missing_bars.pop(ticker, None)
+            self.Debug(f"target_weights: {ticker} has no bars, closed at its last close less ${cost:.2f}")
 
     def _apply_target_decision(self, slice: Slice) -> None:
         decision_date = None
@@ -4188,9 +4267,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if bar is not None:
                 decision_date = bar.Time.date().isoformat()
                 break
+        if self.target_weights_config.live_reload and self.runtime_mode != "backtest":
+            return  # `_target_premarket_tick` applies rows on this path
         target = weights_at_tick(self._target_weights, decision_date) if decision_date else None
         if target is None:
             return
+        self._apply_target_row(target)
+
+    def _apply_target_row(self, target: dict) -> None:
         classes = self._target_class_by_ticker
         target = {
             ticker: (max(0.0, weight) if classes.get(ticker) == "crypto" else weight)
@@ -4270,8 +4354,26 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if amount != 0.0 and math.isfinite(amount):
             self.Portfolio.CashBook["USD"].AddAmount(amount)
 
+    def _liquidate_target_positions(self) -> None:
+        """Equities go at once, to the next open. Crypto and forex wait for their own next bar, like every other order on this
+        path: sent on the equity tick they would fill at a price 16 hours old. Any pending order is replaced: no buy leaves
+        under a lock."""
+        pending = {}
+        for ticker, symbol in self._target_symbol_by_ticker.items():
+            quantity = float(self.Portfolio[symbol].Quantity) + self._open_order_quantity(symbol)
+            if quantity == 0.0:
+                continue
+            if self._target_class_by_ticker[ticker] in NEXT_BAR_CLASSES:
+                pending[ticker] = 0.0
+            elif float(self.Portfolio[symbol].Quantity) != 0.0:
+                self.Liquidate(symbol)
+        self._target_pending = pending
+
     def _liquidate_strategy_positions(self) -> None:
         """The drawdown lock's liquidation: every position except the T-bill sweep (cash, not risk)."""
+        if getattr(self, "target_weights_config", None) is not None and self.target_weights_config.enabled:
+            self._liquidate_target_positions()
+            return
         if self._cash_sweep_symbol is None:
             self.Liquidate()
             return
@@ -6305,6 +6407,25 @@ class AetherQuantAlgorithm(QCAlgorithm):
         expiration = datetime.fromisoformat(expiries[0])
         return factory(canonical_symbol, *strike_args, expiration)
 
+    def _combo_legs_at_net_mid(self, strategy, symbol_key: str) -> tuple[list, float] | None:
+        """Lean's combo orders take a list of legs, and their limit is the legs' net price, not the underlying's. None when a leg has no two-sided quote
+        this bar: the caller then sends its market order."""
+        canonical = strategy.CanonicalOption
+        legs, net_mid, underlying_price = [], 0.0, 0.0
+        for leg in strategy.OptionLegs:
+            contract = Symbol.CreateOption(canonical.Underlying, canonical.ID.Market, canonical.ID.OptionStyle, leg.Right, leg.Strike, leg.Expiration)
+            row = self._option_chain_row_for_contract(symbol_key, contract)
+            bid, ask = (float(row.get("bid") or 0.0), float(row.get("ask") or 0.0)) if row else (0.0, 0.0)
+            if bid <= 0.0 or ask <= 0.0:
+                return None
+            legs.append(Leg.Create(contract, int(leg.Quantity)))
+            net_mid += int(leg.Quantity) * (bid + ask) / 2.0
+            underlying_price = float(row.get("underlying_price") or 0.0)
+        for leg in strategy.UnderlyingLegs:
+            legs.append(Leg.Create(canonical.Underlying, int(leg.Quantity)))
+            net_mid += int(leg.Quantity) * underlying_price
+        return legs, net_mid
+
     def _try_submit_multi_leg_limit_order(
         self,
         symbol,
@@ -6345,12 +6466,16 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         is_buy = quantity > 0
         strategy = self._build_option_strategy_object(strategy_name, symbol, strikes, expiries)
+        priced = self._combo_legs_at_net_mid(strategy, symbol_key)
+        if priced is None:
+            return False
+        legs, net_mid = priced
 
         liquidity_payload = self.latest_liquidity_by_symbol.get(symbol_key, {})
         spread_fraction = float(liquidity_payload.get("spread_proxy", 0.0) or 0.0)
-        limit_price = resolve_limit_price(close_price, spread_fraction, is_buy, self.limit_order_offset_multiplier)
+        limit_price = resolve_combo_limit_price(net_mid, spread_fraction, is_buy, self.limit_order_offset_multiplier)
 
-        tickets = list(self.ComboLimitOrder(strategy, quantity, limit_price))
+        tickets = list(self.ComboLimitOrder(legs, quantity, limit_price))
         record = {
             "tickets": tickets,
             "target_symbols": list(leg_symbols),
@@ -7849,12 +7974,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
     def _refresh_risk_state(self) -> None:
         orders_allowed, _ = self._order_permission()
+        # A lock turns orders_allowed off, but the target path has no simulated book to read: its holdings are real, and a
+        # value stuck at the starting cash would re-lock a daily breach every session.
+        real_book = orders_allowed or (
+            getattr(self, "target_weights_config", None) is not None
+            and self.target_weights_config.enabled
+            and resolve_risk_exit_permission(self.runtime_mode, self.allow_live_orders, self._broker_config_present)[0]
+        )
         portfolio_value = (
             float(self.Portfolio.TotalPortfolioValue)
-            if orders_allowed
+            if real_book
             else float(self._simulated_portfolio.snapshot(consume_realized_pnl=False)["total_value"])
         )
-        if orders_allowed and self._cash_sweep_symbol is not None and self.cash_sweep_config["exclude_from_risk_controls"]:
+        if real_book and self._cash_sweep_symbol is not None and self.cash_sweep_config["exclude_from_risk_controls"]:
             # V6.2.0: the session equity, drawdowns and kill-switch returns read the strategy without the T-bill carry
             self._risk_value_state, portfolio_value = advance_strategy_value(
                 self._risk_value_state, portfolio_value, sum(self._cash_sweep_holding_profit())
@@ -8094,6 +8226,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
         else for wall-clock-dependent behavior."""
         if self.runtime_mode == "backtest":
             return None
+        config = getattr(self, "target_weights_config", None)
+        if config is not None and config.enabled and not config.uses_model:
+            return None  # this run's weights don't come from a model, so its age says nothing about them
         for model_name in self._rank_signal_policy.get("model_priority") or ["sequence", "multitask"]:
             model_path = self.sequence_model_path if model_name == "sequence" else self.multitask_model_path
             if model_path.exists():

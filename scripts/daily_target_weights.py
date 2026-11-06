@@ -1,8 +1,9 @@
 """The next row of a target-weights run (V6.5.0), for paper or live: what the research file holds, computed from today's data.
 
 A Lean backtest reads a whole weight file. Paper or live needs the same row written before each open, from the same functions,
-so this appends one row to the file `phase_v2.target_weights.weights_path` names. Its sha256 changes with each row, so a live run
-leaves `weights_sha256` empty and relies on this script's own checks: a date is written once, and the row must be finite.
+so this appends one row to the file `phase_v2.target_weights.weights_path` names, and rewrites its `.sha256` sidecar, which a run
+with `live_reload` checks at each reload. A date is written once, and the row must be finite. A date with no data, or a class
+whose last bar is too old, exits non-zero: "not a rebalance day" must never hide a broken data feed.
 
     python scripts/daily_target_weights.py --candidate ml/evaluation/v650/installed_candidate.json --out ml/evaluation/v650/weights/live.csv [--date 2026-11-04]
 """
@@ -54,7 +55,37 @@ def append_row(path: Path, date: str, row: dict[str, float]) -> bool:
             handle.write(f"{date},{FLAT_TICKER},0\n")
         for ticker in sorted(row):
             handle.write(f"{date},{ticker},{float(row[ticker]):.8f}\n")
+    from portfolio.target_weights import write_weights_sidecar
+
+    write_weights_sidecar(path)
     return True
+
+
+# The oldest a class's last bar may be, in calendar days before the decision: a weekend plus a holiday for equities' sessions, and
+# crypto trades daily and its bar is read a day late.
+MAX_STALE_DAYS = {"equity": 5, "bond": 5, "forex": 5, "crypto": 2}
+
+
+def data_problems(context, date: str) -> list[str]:
+    """Why `date` can't be decided: no such session, or a class holding this candidate's names has stopped updating."""
+    import pandas as pd
+
+    known = context.panel.known
+    if date not in known.index:
+        return [f"{date} is not a session in the data (last is {known.index[-1]})"]
+    problems = []
+    closes = pd.DataFrame(context.market.closes, index=context.market.dates, columns=context.market.tickers)
+    closes = closes[closes.index <= date]
+    today = pd.Timestamp(date)
+    for asset_class, limit in MAX_STALE_DAYS.items():
+        members = [ticker for ticker, name in context.market.asset_class.items() if name == asset_class and ticker in closes.columns]
+        rows = closes[members].dropna(how="all") if members else None
+        if rows is None or rows.empty:
+            continue
+        age = (today - pd.Timestamp(rows.index[-1])).days
+        if age > limit:
+            problems.append(f"{asset_class} data is {age} days old on {date} (limit {limit})")
+    return problems
 
 
 def main() -> int:
@@ -69,6 +100,11 @@ def main() -> int:
     definition = json.loads(Path(args.candidate).read_text(encoding="utf-8"))
     context = load_context()
     date = args.date or str(context.panel.known.index[-1])
+    problems = data_problems(context, date)
+    if problems:
+        for problem in problems:
+            print(f"refusing to decide: {problem}", file=sys.stderr)
+        return 1
     row = row_for_date(definition, context, date, candidate_rows=candidate_rows, history_start=str(definition.get("history_start", "2014-12-01")))
     if row is None:
         print(f"{date}: not a rebalance day, nothing to write")

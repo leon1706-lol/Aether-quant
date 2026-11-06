@@ -5,6 +5,7 @@ via unittest.mock.patch (mirrors retraining.lean_backtest's test style).
 """
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from retraining.vault_client import (
@@ -43,6 +44,9 @@ PUSH_QUEUED = '{"ok": true, "data": {"drained": 0, "still_queued": 1, "reachable
 PUSH_DRAINED = '{"ok": true, "data": {"drained": 1, "still_queued": 0, "reachable": true}, "error": null}'
 
 
+_NOTHING_STAGED = _completed(stdout='{"ok": true, "data": {"staged": [], "removed": []}, "error": null, "meta": {}}')
+
+
 def test_run_av_command_decodes_utf8_whatever_the_system_codepage():
     with patch("retraining.vault_client.subprocess.run", return_value=_completed()) as run_mock:
         run_av_command(["av", "status"])
@@ -75,7 +79,7 @@ def test_parse_push_state():
 
 
 def test_commit_records_a_queued_push_as_a_safe_outcome_by_default():
-    responses = [_completed(), _completed(stdout=COMMIT_OUT), _completed(stdout=PUSH_QUEUED)]
+    responses = [_NOTHING_STAGED, _completed(), _completed(stdout=COMMIT_OUT), _completed(stdout=PUSH_QUEUED)]
     with patch("retraining.vault_client.subprocess.run", side_effect=responses):
         result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
 
@@ -85,7 +89,7 @@ def test_commit_records_a_queued_push_as_a_safe_outcome_by_default():
 
 
 def test_commit_fails_on_a_queued_push_when_push_is_required():
-    responses = [_completed(), _completed(stdout=COMMIT_OUT), _completed(stdout=PUSH_QUEUED)]
+    responses = [_NOTHING_STAGED, _completed(), _completed(stdout=COMMIT_OUT), _completed(stdout=PUSH_QUEUED)]
     with patch("retraining.vault_client.subprocess.run", side_effect=responses):
         result = commit_candidate_to_vault("v1", ["train.py"], {}, {**_CONFIG, "require_push": True})
 
@@ -95,7 +99,7 @@ def test_commit_fails_on_a_queued_push_when_push_is_required():
 
 
 def test_commit_fails_when_push_itself_crashes():
-    responses = [_completed(), _completed(stdout=COMMIT_OUT), _completed(returncode=1, stderr="boom")]
+    responses = [_NOTHING_STAGED, _completed(), _completed(stdout=COMMIT_OUT), _completed(returncode=1, stderr="boom")]
     with patch("retraining.vault_client.subprocess.run", side_effect=responses):
         result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
 
@@ -198,7 +202,7 @@ def test_commit_candidate_to_vault_stops_at_add_failure():
 
 
 def test_commit_candidate_to_vault_stops_at_commit_failure():
-    responses = [_completed(returncode=0), _completed(returncode=1, stderr="boom")]
+    responses = [_NOTHING_STAGED, _completed(returncode=0), _completed(returncode=1, stderr="boom")]
     with patch("retraining.vault_client.subprocess.run", side_effect=responses):
         result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
 
@@ -209,6 +213,7 @@ def test_commit_candidate_to_vault_stops_at_commit_failure():
 
 def test_commit_candidate_to_vault_succeeds_through_push():
     responses = [
+        _NOTHING_STAGED,
         _completed(returncode=0),  # add
         _completed(returncode=0, stdout=COMMIT_OUT),  # commit
         _completed(returncode=0, stdout=PUSH_DRAINED),  # push
@@ -223,7 +228,7 @@ def test_commit_candidate_to_vault_succeeds_through_push():
 
 
 def test_commit_candidate_to_vault_skips_push_when_configured_off():
-    responses = [_completed(returncode=0), _completed(returncode=0, stdout=COMMIT_OUT)]
+    responses = [_NOTHING_STAGED, _completed(returncode=0), _completed(returncode=0, stdout=COMMIT_OUT)]
     config = {**_CONFIG, "push": False}
     with patch("retraining.vault_client.subprocess.run", side_effect=responses):
         result = commit_candidate_to_vault("v1", ["train.py"], {}, config)
@@ -231,3 +236,36 @@ def test_commit_candidate_to_vault_skips_push_when_configured_off():
     assert result["ok"] is True
     assert result["stage"] == "done"
     assert "push" not in result["steps"]
+
+
+def test_commit_refuses_a_failed_gates_leftovers():
+    dirty = _completed(stdout='{"ok": true, "data": {"staged": ["old.csv"], "removed": []}, "error": null, "meta": {}}')
+    with patch("retraining.vault_client.subprocess.run", side_effect=[dirty]) as run_mock:
+        result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
+    assert result["ok"] is False and result["stage"] == "staged_leftovers"
+    assert run_mock.call_count == 1
+
+
+def test_an_unchanged_candidate_is_success_with_the_existing_hash():
+    refused = _completed(returncode=11, stdout='{"ok": false, "data": {}, "error": {"code": "nothing_to_commit", "message": "Nothing"}, "meta": {}}')
+    head = _completed(stdout='{"ok": true, "data": {"commits": [{"hash": "abc123"}]}, "error": null, "meta": {}}')
+    with patch("retraining.vault_client.subprocess.run", side_effect=[_NOTHING_STAGED, _completed(), refused, head, _completed(stdout=PUSH_DRAINED)]):
+        result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
+    assert result["ok"] is True and result["vault_commit"] == "abc123"
+
+
+def test_a_real_commit_failure_is_still_a_failure():
+    refused = _completed(returncode=15, stdout='{"ok": false, "data": {}, "error": {"code": "validation", "message": "no"}, "meta": {}}')
+    with patch("retraining.vault_client.subprocess.run", side_effect=[_NOTHING_STAGED, _completed(), refused]):
+        result = commit_candidate_to_vault("v1", ["train.py"], {}, _CONFIG)
+    assert result["ok"] is False and result["stage"] == "commit"
+
+
+def test_the_docker_worker_has_a_vault_repo_that_outlives_its_container():
+    """`.av` is dockerignored, so without a volume and an init `vault_preflight` fails every cycle in the container."""
+    import yaml
+
+    compose = yaml.safe_load((Path(__file__).resolve().parent.parent / "docker-compose.yml").read_text(encoding="utf-8"))
+    worker = compose["services"]["retraining-worker"]
+    assert "retraining-vault:/app/.av" in worker["volumes"] and "retraining-vault" in compose["volumes"]
+    assert "av init" in worker["command"] and "exec python -m retraining.worker" in worker["command"]

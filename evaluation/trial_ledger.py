@@ -10,6 +10,9 @@ window being judged, so each entry states its window and role:
 
 N keeps the legacy registry's trials. The variance has a floor, so a handful of similar candidates cannot shrink the
 bar to nothing; the legacy variance is reported next to it.
+
+Each ledger phase states its window under its own label (V6.6.0's are `v660_selection`), so one phase's variance never mixes
+with another's.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from pathlib import Path
 
 ROLES = ("candidate", "verification", "placebo", "plumbing")
 VARIANCE_FLOOR = 0.04
+LEDGER_PHASES = ("v650", "v660")
 
 
 def append_trial(
@@ -62,10 +66,16 @@ def candidate_ids(entries: list[dict]) -> set[str]:
     return {entry["trial_id"] for entry in entries if entry["role"] == "candidate"}
 
 
+def legacy_trials(registry: dict, exclude_phases: tuple[str, ...] = LEDGER_PHASES) -> list[dict]:
+    """The registry's trials not already in a ledger: the registry also holds V6.5.0's ledger, which `candidate_ids` counts
+    again, so N read 178 for what is 128."""
+    return [trial for trial in registry.get("trials", []) if trial.get("phase") not in exclude_phases]
+
+
 def deflation_inputs(entries: list[dict], legacy_registry: dict, window: str) -> dict:
     """{"N", "var", "legacy_var", "same_window_trials", "floored"} for a deflated Sharpe judged on `window`. A candidate
-    scored several times on a window counts once, by its last score."""
-    legacy = [float(trial["median_sharpe"]) for trial in legacy_registry.get("trials", [])]
+    scored several times on a window counts once, by its last score. `entries` must hold every ledger phase's rows."""
+    legacy = [float(trial["median_sharpe"]) for trial in legacy_trials(legacy_registry)]
     latest: dict[str, float] = {}
     for entry in entries:
         if entry["role"] == "candidate" and entry["window"] == window and entry["annualised_sharpe"] is not None:

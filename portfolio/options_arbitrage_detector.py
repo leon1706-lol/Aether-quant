@@ -49,16 +49,35 @@ def box_spread_fair_value(
     return (higher_strike - lower_strike) * math.exp(-risk_free_rate * max(time_to_expiry_years, 0.0))
 
 
+def pv_dividends_to_expiry(payments, current_date, expiry_date_str: str, risk_free_rate: float) -> float:
+    """Present value of the dividends going ex after `current_date` and on or before the expiry. `payments` holds
+    (ex_date, cash_per_share) pairs. A row it can't read counts as no dividend, as the detector did before it knew of any."""
+    total = 0.0
+    for ex_date, amount in payments or ():
+        try:
+            years = _years_between(current_date, str(ex_date))
+            to_expiry = _years_between(current_date, str(expiry_date_str))
+            cash = float(amount)
+        except (TypeError, ValueError):
+            continue
+        if 0.0 < years <= to_expiry and math.isfinite(cash) and cash > 0.0:
+            total += cash * math.exp(-risk_free_rate * years)
+    return total
+
+
 def conversion_parity_value(
     call_price: float, put_price: float, spot: float, strike: float, risk_free_rate: float, time_to_expiry_years: float,
+    pv_dividends: float = 0.0,
 ) -> float:
     """Put-call parity: call_price - put_price should equal
-    spot - strike * exp(-r*T) (ignoring dividends). Returns the SIGNED
+    spot - pv_dividends - strike * exp(-r*T). Returns the SIGNED
     discrepancy (actual minus theoretical). A conversion (long stock, long
-    put, short call) locks in call - put - spot + PV(strike), which is this
+    put, short call) locks in call - put - spot + PV(strike) + PV(dividends), which is this
     discrepancy, so it profits when it is positive (calls rich against
-    puts); a reverse conversion profits when it is negative."""
-    theoretical = spot - strike * math.exp(-risk_free_rate * max(time_to_expiry_years, 0.0))
+    puts); a reverse conversion profits when it is negative. Without
+    `pv_dividends`, a dividend payer's calls read cheap: a reverse conversion is short the
+    stock and owes each dividend, which is why it fired on AAPL at fair prices."""
+    theoretical = spot - pv_dividends - strike * math.exp(-risk_free_rate * max(time_to_expiry_years, 0.0))
     actual = call_price - put_price
     return actual - theoretical
 
@@ -133,6 +152,7 @@ def select_arbitrage_signal(
     risk_free_rate: float,
     min_mispricing_bps: float,
     target_delta: float = 0.5,
+    dividend_payments=None,
 ) -> bool:
     """Composes the existing V4.5 arbitrage leg selectors
     (select_strategy_legs(), already registry-driven) with the fair-value/
@@ -181,7 +201,8 @@ def select_arbitrage_signal(
                 call_price, put_price, sign = float(call_row["bid"]), float(put_row["ask"]), 1.0
             else:
                 call_price, put_price, sign = float(call_row["ask"]), float(put_row["bid"]), -1.0
-            discrepancy = conversion_parity_value(call_price, put_price, spot, strike, risk_free_rate, time_to_expiry_years)
+            pv_dividends = pv_dividends_to_expiry(dividend_payments, current_date, call_row["expiry"], risk_free_rate)
+            discrepancy = conversion_parity_value(call_price, put_price, spot, strike, risk_free_rate, time_to_expiry_years, pv_dividends)
             return detect_executable_edge(sign * discrepancy, min_mispricing_bps, strike)
 
         if strategy_name in ("jelly_roll", "short_jelly_roll"):

@@ -33,9 +33,12 @@ from portfolio.target_weights import (
     NEXT_BAR_CLASSES,
     TargetWeightsConfig,
     equity_fee_usd,
+    names_to_exit_without_bars,
+    no_bar_exit_cost_usd,
     rebalance_deltas,
     slippage_bps_for,
     sweep_reserve,
+    update_missing_bars,
     weights_at_tick,
 )
 
@@ -144,8 +147,13 @@ def simulate_target_weights(
     fee_fn: Callable[[str, float, str, TargetWeightsConfig], float] = default_fee_usd,
     lot_size: Mapping[str, float] | None = None,
 ) -> dict:
-    """One path over [start, end]. Returns {"nav", "strategy" (ex-sweep daily return), "total" (daily return), "gross",
-    "fees", "financing", "turnover", "fills", "locked_on"}, the series indexed by calendar date.
+    """One path over [start, end]. Returns {"nav", "strategy" (ex-sweep daily return), "strategy_excess" (that, less the
+    risk-free return on the net capital invested), "total" (daily return), "gross", "fees", "financing", "turnover", "fills",
+    "locked_on"}, the series indexed by calendar date.
+
+    "strategy" is what Lean reports. Ex-sweep, a long book pays nothing for the cash it ties up, which the sweep would have
+    earned, so a long sleeve's Sharpe is raw and not excess unless it is scored on "strategy_excess". A forex position is
+    self-financed and has no such cost.
 
     A drawdown lock (on the strategy, ex sweep, as main.py reads it) closes everything at the next fills and stops trading."""
     index = panel.index()
@@ -170,7 +178,11 @@ def simulate_target_weights(
     pending_target: dict[str, float] | None = None
     positions = [i for i, date in enumerate(panel.dates) if start <= date <= end]
 
-    nav_series, strategy_series, total_series, gross_series = {}, {}, {}, {}
+    nav_series, strategy_series, excess_series, total_series, gross_series = {}, {}, {}, {}, {}
+    net_invested_previous = 0.0
+    previous_date = None
+    missing_bars: dict[str, int] = {}
+    no_bar_exits: list[str] = []
     fees = financing_total = traded = 0.0
     fills = 0
     previous_nav = None
@@ -243,6 +255,27 @@ def simulate_target_weights(
                 for ticker, delta in deltas:
                     fill(ticker, delta, float(closes_ff[row, index[ticker]]), row, date)
                 pending_target = {t: w for t, w in pending_target.items() if t not in fresh} or None
+
+        if config.no_bar_exit:
+            held_now = {ticker: float(units[column]) for ticker, column in columns if units[column] != 0.0}
+            has_bar = {}
+            for ticker in held_now:
+                late = classes[ticker] in NEXT_BAR_CLASSES
+                if not late and not is_session:
+                    has_bar[ticker] = True  # an equity session did not happen: nothing went missing
+                else:
+                    has_bar[ticker] = row > 0 and np.isfinite(panel.closes[row - 1 if late else row, index[ticker]])
+            missing_bars = update_missing_bars(missing_bars, held_now, has_bar)
+            for ticker in names_to_exit_without_bars(missing_bars, config):
+                column = index[ticker]
+                price = unit_value(ticker, row)
+                cash["USD"] += float(units[column]) * price - no_bar_exit_cost_usd(units[column], price, classes[ticker], config)
+                units[column] = 0.0
+                missing_bars.pop(ticker, None)
+                pending_open.pop(ticker, None)
+                if pending_target:
+                    pending_target = {name: weight for name, weight in pending_target.items() if name != ticker} or None
+                no_bar_exits.append(f"{date}:{ticker}")
 
         if is_session and pending_open:
             for ticker, delta in pending_open.items():
@@ -363,6 +396,14 @@ def simulate_target_weights(
         if previous_nav is not None and previous_nav > 0.0:
             total_series[date] = nav_now / previous_nav - 1.0
             strategy_series[date] = ((nav_now - previous_nav) - (sweep_pnl - sweep_pnl_previous)) / previous_nav
+            days_held = (pd.Timestamp(date) - pd.Timestamp(previous_date)).days if previous_date else 1
+            rf_annual = rate_asof(rf_dates or [], rf_rates or [], date) / 100.0
+            excess_series[date] = strategy_series[date] - net_invested_previous * rf_annual * days_held / 365.0
+        if nav_now > 0.0:
+            net_invested_previous = sum(
+                units[column] * unit_value(ticker, row) for ticker, column in columns if units[column] != 0.0 and pairs[ticker] is None
+            ) / nav_now
+        previous_date = date
         previous_nav = nav_now
         sweep_pnl_previous = sweep_pnl
         nav_series[date] = nav_now
@@ -382,11 +423,13 @@ def simulate_target_weights(
     return {
         "nav": pd.Series(nav_series, dtype=float),
         "strategy": pd.Series(strategy_series, dtype=float),
+        "strategy_excess": pd.Series(excess_series, dtype=float),
+        "no_bar_exits": no_bar_exits,
         "total": pd.Series(total_series, dtype=float),
         "gross": pd.Series(gross_series, dtype=float),
         "fees": fees,
         "financing": financing_total,
-        "turnover": traded / float(nav) / years,
+        "turnover": traded / (sum(nav_series.values()) / len(nav_series) if nav_series else float(nav)) / years,
         "fills": fills,
         "locked_on": locked_on,
     }

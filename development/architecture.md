@@ -1519,6 +1519,11 @@ calls, or it carries a parity test and a one-line justification here.**
 | Target-weights path: decision, order deltas, equity fee, T-bill reserve (V6.5.0) | `weights_at_tick`, `rebalance_deltas`, `equity_fee_usd`, `sweep_reserve` (`portfolio/target_weights.py`) | `main.py::_target_weights_tick` | `evaluation/target_weights_engine.py` (R-INSTR1: daily correlation 0.992-0.9999999 with Lean, gap at most 65 bps a year) |
 | Financing Lean does not charge (V6.5.0) | `daily_financing_usd`, `rate_asof` (`portfolio/financing.py`) | `main.py::_accrue_target_financing`, booked on the USD cash | `simulate_target_weights`, added to its cash |
 
+| A held name whose bars stopped (V6.6.0) | `update_missing_bars`, `names_to_exit_without_bars`, `no_bar_exit_cost_usd` (`portfolio/target_weights.py`) | `main.py` `_exit_target_names_without_bars`; `evaluation/target_weights_engine.py` | Same counts and haircut; `tests/test_v660_fixes.py`, BT25, BT27 |
+| A lock's exits on the target path (V6.6.0) | equities at the next open, crypto and forex on their own next bar | `main.py` `_liquidate_target_positions`; the engine's lock branch | BT26 |
+
+**Live-only (V6.6.0):** `resolve_risk_exit_permission` and the pre-open `_target_premarket_tick` have no offline counterpart: a backtest always may trade, and its file doesn't grow. Both exist only for paper and live, and need IB to be proved in a real feed.
+
 **Live-only (V6.5.0):** the target-weights path is a file executor in Lean; the file's rows come from `portfolio/premia_signals.py` and `scripts/daily_target_weights.py` runs the same functions before each open in paper or live. Parity of the two is `test_daily_rows_equal_the_research_file`.
 | RL sizing and its shadow guard | `rl_sizing_multiplier`, `rl_excess_return`, `rl_shadow_guard_allows` (`risk/rl_sizing.py`) | `main.py::_build_dynamic_sizing_payload`, `_accumulate_rl_excess` / `_flush_rl_excess` | `live_parity.build_live_member_weight_fn(rl_model=, daily_returns_by_date=)` calls the same sizing function and the same guard |
 | Slippage reference price | `slippage_reference_price` (`execution/order_gate.py`) | `main.py::_track_slippage_divergence` (`risk.kill_switch.slippage_reference: auto`) | live-only (the simulator has no fills); the kill-switch trace is written to the book-history record |

@@ -708,7 +708,7 @@ def test_commit_hashes_and_vault_add_include_topology_files_when_present(tmp_pat
     assert result["ok"] is True
 
     add_paths = vault_mock.call_args.args[1]
-    assert str(version_dir.relative_to(root_dir)) in add_paths
+    assert version_dir.relative_to(root_dir).as_posix() in add_paths
 
     hashes = update_version_mock.call_args.kwargs["artifact_hashes"]
     for filename in OPTIONAL_TOPOLOGY_FILES:
@@ -764,3 +764,10 @@ def test_commit_hashes_include_multitask_and_sequence_files_when_present(tmp_pat
     hashes = update_version_mock.call_args.kwargs["artifact_hashes"]
     for filename in OPTIONAL_MULTITASK_FILES + OPTIONAL_SEQUENCE_FILES:
         assert filename in hashes
+
+
+def test_a_candidate_outside_the_vault_repo_fails_the_event_cleanly(tmp_path, monkeypatch):
+    from retraining import orchestrator
+
+    assert orchestrator._path_in_vault(tmp_path / "ml" / "v1", tmp_path) == "ml/v1"
+    assert orchestrator._path_in_vault(tmp_path.parent / "elsewhere", tmp_path) is None

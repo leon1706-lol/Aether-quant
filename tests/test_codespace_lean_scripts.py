@@ -132,3 +132,11 @@ def test_dind_script_creates_the_docker_config_folder_before_writing_daemon_json
     """V6.4.4: the docker-in-docker feature (Docker 29) no longer creates /etc/docker; `tee` failed and dockerd never moved."""
     text = DIND.read_text(encoding="utf-8")
     assert text.index("sudo mkdir -p /etc/docker") < text.index("sudo tee /etc/docker/daemon.json")
+
+
+def test_a_root_with_its_own_symbol_rows_keeps_them_through_the_clis_daily_refresh():
+    # The CLI rewrites symbol-properties in place, through the hard link, unless lean.json says it has refreshed today (BT27 lost 6 coins this way).
+    text = (ROOT / "scripts" / "codespace_lean_parallel.sh").read_text(encoding="utf-8")
+    pin = text.index("file-database-last-update")
+    assert pin < text.index("lean backtest . --image")
+    assert r"\1$(date '+%m/%d/%Y %H:%M:%S')" in text

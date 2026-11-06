@@ -71,11 +71,12 @@ def orderGate : Gen Json := do
         for c in bools do
           let (ok, reason) := permit m a b c
           let (cok, creason) := permitCashSweep m a b
+          let (xok, xreason) := permitRiskExit m a b
           cases := cases ++ [Json.mkObj [("kind", "permission"),
             ("input", Json.mkObj [("mode", name), ("allow_live_orders", a), ("broker_config_present", b),
               ("risk_locks_healthy", c)]),
             ("expected", Json.mkObj [("permitted", ok), ("reason", reason), ("cash_sweep_permitted", cok),
-              ("cash_sweep_reason", creason)])]]
+              ("cash_sweep_reason", creason), ("risk_exit_permitted", xok), ("risk_exit_reason", xreason)])]]
   for raw in [some "backtest", some "observation", some "paper", some "live", some "LIVE", some "", none] do
     cases := cases ++ [Json.mkObj [("kind", "runtime_mode"), ("input", Json.mkObj [("raw", toJson raw)]),
       ("expected", Json.mkObj [("mode", (resolveRuntimeMode raw).name)])]]

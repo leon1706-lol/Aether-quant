@@ -50,3 +50,6 @@ cpp_inference_ext/*.egg-info/
 cpp_inference_ext/*.pyd
 cpp_inference_ext/*.so
 cpp_inference_ext/install_log*.txt
+data_pre2013/
+data_wide/
+data_crypto_wide/

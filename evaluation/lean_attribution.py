@@ -85,8 +85,9 @@ def read_daily_closes(zip_path: Path, price_scale: float = 1.0) -> dict[str, flo
     return closes
 
 
-def closes_for_universe(config: dict, root: Path, tickers: set[str]) -> dict[str, dict[str, float]]:
-    """Daily closes of `tickers` (plus the forex rates needed to convert quote currencies) from their config zips."""
+def closes_for_universe(config: dict, root: Path, tickers: set[str], *, data_dir: str = "data") -> dict[str, dict[str, float]]:
+    """Daily closes of `tickers` (plus the forex rates needed to convert quote currencies) from their config zips, under
+    the run's own data root. An asset's `data_path` always begins with `data/`."""
     assets = {str(asset["ticker"]).upper(): asset for asset in config["phase1"]["universe"]["assets"]}
     sweep = (config.get("phase_v2", {}) or {}).get("cash_sweep") or {}
     if sweep.get("ticker") and sweep.get("data_path"):  # V6.2.0: the T-bill sweep is outside the universe
@@ -101,7 +102,7 @@ def closes_for_universe(config: dict, root: Path, tickers: set[str]) -> dict[str
         if asset is None:
             continue
         scale = LEAN_EQUITY_PRICE_SCALE if asset.get("security_type") == "equity" else 1.0
-        closes[ticker] = read_daily_closes(Path(root) / asset["data_path"], scale)
+        closes[ticker] = read_daily_closes(Path(root) / data_dir / Path(*Path(asset["data_path"]).parts[1:]), scale)
     return closes
 
 
